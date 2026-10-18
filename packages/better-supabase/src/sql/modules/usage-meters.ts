@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { quotedTable } from "../shared.ts";
 
 export const METER = `'^[a-z][a-z0-9_.:-]{0,63}$'`;
@@ -14,9 +15,6 @@ export interface UsageMeter {
   readonly category?: string;
   readonly label?: string;
 }
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** `options.meters` as a table: the app's own meter catalog. */
 interface MeterTable {
@@ -104,13 +102,13 @@ export function metersOf(
     return undefined;
   }
 
-  if (isObject(option) && typeof option["table"] === "string") {
+  if (isRecord(option) && typeof option["table"] === "string") {
     return meterTableOf(where, option);
   }
 
   const out: Record<string, UsageMeter> = {};
 
-  if (!isObject(option)) {
+  if (!isRecord(option)) {
     throw new TypeError(
       `${where} must be an object of meter to { unit?, category?, label? }`,
     );
@@ -121,7 +119,7 @@ export function metersOf(
       throw new TypeError(`${where}: "${meter}" is not a meter name`);
     }
 
-    if (!isObject(value)) {
+    if (!isRecord(value)) {
       throw new TypeError(`${where}.${meter} must be an object`);
     }
 

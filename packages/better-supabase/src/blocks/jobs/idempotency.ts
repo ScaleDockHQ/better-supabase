@@ -4,12 +4,14 @@ import type { Logger } from "../../core/logger.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { JobHandler } from "./types.ts";
 
+import { leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError, type ErrorMapper } from "../../core/errors.ts";
 import {
   problemResponse,
   type BlockProblemOptions,
 } from "../../core/problem.ts";
+import { periodSeconds } from "../../core/ratelimit-headers.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -59,7 +61,7 @@ export interface IdempotencySettings
   readonly schema?: string;
   /** Error mappers that run before the built-in ones, over a transport. */
   readonly mappers?: readonly ErrorMapper[];
-  /** `withBlockHooks` hooks around `begin`, `complete`, `release` and `purge`. */
+  /** `withBlockHooks` hooks around `begin`, `extend`, `complete`, `release` and `purge`. */
   readonly hooks?: BlockHooks<Idempotency>;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
@@ -88,6 +90,12 @@ export interface Idempotency {
     /** The token `complete` and `release` need, when `state` is `started`. */
     holder: string | undefined;
   }>;
+  /**
+   * Moves the lock of a running key `lock` further for `holder`. `false` once
+   * the lock ran out or another caller took the key over. `handle` calls it
+   * at half the lock while the handler runs.
+   */
+  extend(key: string, holder: string, scope?: string): AsyncResult<boolean>;
   /**
    * Stores the response for `holder`. `false` when the lock ran out and
    * another caller took the key over, so the response was not stored.
@@ -163,6 +171,12 @@ interface IdempotencyCalls {
     status: number,
     body: unknown,
   ): AsyncResult<boolean>;
+  extend(
+    scope: string,
+    key: string,
+    holder: string,
+    lock: string,
+  ): AsyncResult<boolean>;
   release(scope: string, key: string, holder: string): AsyncResult<boolean>;
   purge(): AsyncResult<number>;
 }
@@ -183,6 +197,15 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
         const [row] = await sql.queryRaw<{ done: boolean }>(
           "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
           [scope, key, holder, status, JSON.stringify(body)],
+        );
+
+        return row?.done === true;
+      }),
+    extend: (scope, key, holder, lock) =>
+      run(async () => {
+        const [row] = await sql.queryRaw<{ done: boolean }>(
+          "select better_supabase.extend_idempotent($1, $2, $3, $4::interval) as done",
+          [scope, key, holder, lock],
         );
 
         return row?.done === true;
@@ -227,6 +250,12 @@ function transportCalls(
         { scope, key, holder, status_code: status, response: body },
         (value) => value === true,
       ),
+    extend: (scope, key, holder, lock) =>
+      call(
+        "extend_idempotent",
+        { scope, key, holder, lock },
+        (value) => value === true,
+      ),
     release: (scope, key, holder) =>
       call(
         "release_idempotent",
@@ -249,6 +278,8 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
   const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
+  // An interval periodSeconds can't read renews every second.
+  const lockSeconds = periodSeconds(options.lock ?? 60) ?? 2;
 
   const calls =
     options.transport === undefined
@@ -271,6 +302,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
               dbError("unexpected", "begin_idempotent returned no row"),
             ),
       ),
+    extend: (key, holder, scope = "") => calls.extend(scope, key, holder, lock),
     complete: (key, holder, status, body, scope = "") =>
       calls.complete(scope, key, holder, status, body),
     release: (key, holder, scope = "") => calls.release(scope, key, holder),
@@ -381,51 +413,70 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
         }
       }
 
-      let response: Response;
+      let renewing = true;
+
+      const stopHeartbeat = leaseHeartbeat(lockSeconds, () => {
+        if (!renewing) {
+          return;
+        }
+
+        void hooked.extend(key, holder, scope).then((extended) => {
+          if (extended.ok && !extended.data) {
+            // Another request holds the key now; complete returns false.
+            renewing = false;
+          }
+        });
+      });
 
       try {
-        response = await handler(request);
-      } catch (cause) {
-        await hooked.release(key, holder, scope);
-        throw cause;
-      }
+        let response: Response;
 
-      if (response.status >= 500) {
-        await hooked.release(key, holder, scope);
+        try {
+          response = await handler(request);
+        } catch (cause) {
+          await hooked.release(key, holder, scope);
+          throw cause;
+        }
+
+        if (response.status >= 500) {
+          await hooked.release(key, holder, scope);
+
+          return response;
+        }
+
+        const stored: StoredResponse = {
+          body: await response.clone().text(),
+          contentType: response.headers.get("content-type"),
+        };
+
+        const completed = await hooked.complete(
+          key,
+          holder,
+          response.status,
+          stored,
+          scope,
+        );
+
+        if (!completed.ok || !completed.data) {
+          // The lock expired and another request took the key, or the store
+          // failed: this response was never saved, so a retry must not be
+          // told it was.
+          return problemResponse(
+            completed.ok
+              ? dbError(
+                  "conflict",
+                  "The idempotency key's lock expired before the response was saved",
+                  { code: "IDEMPOTENCY_KEY_LOST" },
+                )
+              : completed.error,
+            { instance, format, headers: { "retry-after": "1" } },
+          );
+        }
 
         return response;
+      } finally {
+        stopHeartbeat();
       }
-
-      const stored: StoredResponse = {
-        body: await response.clone().text(),
-        contentType: response.headers.get("content-type"),
-      };
-
-      const completed = await hooked.complete(
-        key,
-        holder,
-        response.status,
-        stored,
-        scope,
-      );
-
-      if (!completed.ok || !completed.data) {
-        // The lock expired and another request took the key, or the store
-        // failed: this response was never saved, so a retry must not be
-        // told it was.
-        return problemResponse(
-          completed.ok
-            ? dbError(
-                "conflict",
-                "The idempotency key's lock expired before the response was saved",
-                { code: "IDEMPOTENCY_KEY_LOST" },
-              )
-            : completed.error,
-          { instance, format, headers: { "retry-after": "1" } },
-        );
-      }
-
-      return response;
     },
   };
 

@@ -27,6 +27,8 @@ const config: OxfmtConfig = defineConfig({
     "apps/examples/**/lib/supabase/generated.*",
     "apps/examples/monorepo/runtime/src/generated.*",
     "tests/validation-*/src/**/generated.*",
+    // `introspect --check` compares the file byte for byte with its own output.
+    "supabase/snapshot.json",
     "packages/better-supabase/api/**",
     "packages/better-supabase/tests/standards/schemas/**",
     "packages/better-supabase/src/cli/spec/schemas/**",

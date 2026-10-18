@@ -5,6 +5,7 @@ import {
   createEmployees,
   employeesSubjects,
 } from "../../../src/blocks/employees/index.ts";
+import { money } from "../../../src/commerce/money.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -329,7 +330,7 @@ describe("employees block", () => {
     const contracts = await employees.contracts("e1").orThrow();
     expect(contracts[0]).toMatchObject({
       hoursPerWeek: 40,
-      salary: 9_007_199_254_740_993n,
+      salary: money(9_007_199_254_740_993n, "EUR"),
       salaryPeriod: "year",
     });
     expect(contracts[1]).toMatchObject({ note: "Part time" });
@@ -338,8 +339,7 @@ describe("employees block", () => {
     await employees
       .addContract("e1", {
         startsOn: date("2026-01-01"),
-        salary: 100n,
-        currency: "EUR",
+        salary: money(100n, "EUR"),
       })
       .orThrow();
     expect(t.calls.slice(2).map(([, args]) => args)).toEqual([

@@ -103,6 +103,30 @@ as $$
   select exists (select 1 from done)
 $$;
 
+-- Moves the lock of a running key the holder still has, for a request that
+-- runs longer than lock; false once the lock ran out or another request took
+-- the key over.
+create or replace function better_supabase.extend_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  lock interval default '1 minute'
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.idempotency_keys k
+    set locked_until = now() + extend_idempotent.lock
+    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
+      and k.status = 'running' and k.holder = extend_idempotent.holder
+      and k.locked_until > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
 drop function if exists better_supabase.release_idempotent(text, text);
@@ -198,6 +222,8 @@ revoke execute on function better_supabase.begin_idempotent(text, text, text, in
 grant execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) to service_role;
 revoke execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) to service_role;
+revoke execute on function better_supabase.extend_idempotent(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_idempotent(text, text, uuid, interval) to service_role;
 revoke execute on function better_supabase.release_idempotent(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_idempotent(text, text, uuid) to service_role;
 revoke execute on function better_supabase.purge_idempotency_keys() from public, anon, authenticated;
@@ -339,6 +365,30 @@ as $$
   select exists (select 1 from done)
 $$;
 
+-- Moves the lock of a running key the holder still has, for a request that
+-- runs longer than lock; false once the lock ran out or another request took
+-- the key over.
+create or replace function better_supabase.extend_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  lock interval default '1 minute'
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.idempotency_keys k
+    set locked_until = now() + extend_idempotent.lock
+    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
+      and k.status = 'running' and k.holder = extend_idempotent.holder
+      and k.locked_until > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
 drop function if exists better_supabase.release_idempotent(text, text);
@@ -434,6 +484,8 @@ revoke execute on function better_supabase.begin_idempotent(text, text, text, in
 grant execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) to service_role;
 revoke execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) to service_role;
+revoke execute on function better_supabase.extend_idempotent(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_idempotent(text, text, uuid, interval) to service_role;
 revoke execute on function better_supabase.release_idempotent(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_idempotent(text, text, uuid) to service_role;
 revoke execute on function better_supabase.purge_idempotency_keys() from public, anon, authenticated;
@@ -575,6 +627,30 @@ as $$
   select exists (select 1 from done)
 $$;
 
+-- Moves the lock of a running key the holder still has, for a request that
+-- runs longer than lock; false once the lock ran out or another request took
+-- the key over.
+create or replace function better_supabase.extend_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  lock interval default '1 minute'
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.idempotency_keys k
+    set locked_until = now() + extend_idempotent.lock
+    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
+      and k.status = 'running' and k.holder = extend_idempotent.holder
+      and k.locked_until > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
 drop function if exists better_supabase.release_idempotent(text, text);
@@ -670,6 +746,8 @@ revoke execute on function better_supabase.begin_idempotent(text, text, text, in
 grant execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) to service_role;
 revoke execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) to service_role;
+revoke execute on function better_supabase.extend_idempotent(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_idempotent(text, text, uuid, interval) to service_role;
 revoke execute on function better_supabase.release_idempotent(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_idempotent(text, text, uuid) to service_role;
 revoke execute on function better_supabase.purge_idempotency_keys() from public, anon, authenticated;
@@ -811,6 +889,30 @@ as $$
   select exists (select 1 from done)
 $$;
 
+-- Moves the lock of a running key the holder still has, for a request that
+-- runs longer than lock; false once the lock ran out or another request took
+-- the key over.
+create or replace function better_supabase.extend_idempotent(
+  scope text,
+  key text,
+  holder uuid,
+  lock interval default '1 minute'
+)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.idempotency_keys k
+    set locked_until = now() + extend_idempotent.lock
+    where k.scope = extend_idempotent.scope and k.key = extend_idempotent.key
+      and k.status = 'running' and k.holder = extend_idempotent.holder
+      and k.locked_until > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
 -- On failure: forget the key so the client can retry. False when another
 -- request holds it now.
 drop function if exists better_supabase.release_idempotent(text, text);
@@ -906,6 +1008,8 @@ revoke execute on function better_supabase.begin_idempotent(text, text, text, in
 grant execute on function better_supabase.begin_idempotent(text, text, text, interval, interval) to service_role;
 revoke execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function better_supabase.complete_idempotent(text, text, uuid, integer, jsonb) to service_role;
+revoke execute on function better_supabase.extend_idempotent(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function better_supabase.extend_idempotent(text, text, uuid, interval) to service_role;
 revoke execute on function better_supabase.release_idempotent(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_idempotent(text, text, uuid) to service_role;
 revoke execute on function better_supabase.purge_idempotency_keys() from public, anon, authenticated;
@@ -942,6 +1046,15 @@ set search_path = ''
 as $$ select "better_supabase"."complete_idempotent"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."complete_idempotent"(text, text, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function "api"."complete_idempotent"(text, text, uuid, integer, jsonb) to service_role;
+
+create or replace function "api"."extend_idempotent"(scope text, key text, holder uuid, lock interval default '1 minute')
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."extend_idempotent"($1, $2, $3, $4) $$;
+revoke execute on function "api"."extend_idempotent"(text, text, uuid, interval) from public, anon, authenticated;
+grant execute on function "api"."extend_idempotent"(text, text, uuid, interval) to service_role;
 
 create or replace function "api"."release_idempotent"(scope text, key text, holder uuid)
 returns boolean

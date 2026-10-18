@@ -26,15 +26,12 @@ import {
   recordsOf,
   stringsOf,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 import { AI_MESSAGE_PART_TYPES } from "./message.ts";
 
 export const record = (value: unknown): Readonly<Record<string, unknown>> =>
   isRecord(value) ? value : {};
-
-export const instant = (value: unknown): Temporal.Instant =>
-  toInstant(textOf(value));
 
 const optionalNumber = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
@@ -62,9 +59,9 @@ export function chatOf(value: unknown): AiChatRecord {
     leafId: optionalText(row["current_leaf_id"]),
     activeStreamId: optionalText(row["active_stream_id"]),
     activeRunId: optionalText(row["active_run_id"]),
-    lastMessageAt: instant(row["last_message_at"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    lastMessageAt: instantOf(row["last_message_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 
@@ -80,8 +77,8 @@ export function projectOf(value: unknown): AiProject {
     defaultModel: optionalText(row["default_model"]),
     pinned: row["pinned"] === true,
     archivedAt: optionalInstant(row["archived_at"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 
@@ -119,7 +116,7 @@ export function storedOf(value: unknown): AiStoredMessage {
     native: row["native"] ?? undefined,
     model: optionalText(row["model"]),
     status: oneOf(row["status"], ["complete", "aborted", "error"], "complete"),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
     siblingCount: optionalNumber(row["sibling_count"]) ?? 1,
     siblingIndex: optionalNumber(row["sibling_index"]) ?? 0,
   };
@@ -156,7 +153,7 @@ export function approvalOf(value: unknown): AiToolApproval {
     signature: optionalText(row["signature"]),
     decidedBy: optionalText(row["decided_by"]),
     decidedAt: optionalInstant(row["decided_at"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }
 
@@ -179,7 +176,7 @@ export function inputOf(value: unknown): AiPendingInput {
     schema: row["schema"] ?? undefined,
     answer: isRecord(answer) && "value" in answer ? answer["value"] : answer,
     answeredAt: optionalInstant(row["answered_at"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }
 
@@ -203,7 +200,7 @@ export function shareOf(value: unknown): AiChatShare {
     id: textOf(row["id"]),
     leafId: textOf(row["leaf_id"]),
     createdBy: optionalText(row["created_by"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
     revokedAt: optionalInstant(row["revoked_at"]),
   };
 }
@@ -217,7 +214,7 @@ export function sharedOf(value: unknown): SharedAiChat {
       id: textOf(chat["id"]),
       title: textOf(chat["title"] ?? ""),
       model: optionalText(chat["model"]),
-      createdAt: instant(chat["created_at"]),
+      createdAt: instantOf(chat["created_at"]),
     },
     leafId: textOf(row["leaf_id"]),
     messages: recordsOf(row["messages"], "get_shared_ai_chat").map(storedOf),
@@ -252,7 +249,7 @@ export function moderationOf(value: unknown): AiModerationEvent {
     category: textOf(row["category"] ?? ""),
     score: optionalNumber(row["score"]),
     action: oneOf(row["action"], ["allow", "flag", "redact", "block"], "flag"),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }
 

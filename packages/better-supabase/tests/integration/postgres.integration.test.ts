@@ -9,6 +9,7 @@ import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
@@ -575,6 +576,56 @@ describe.skipIf(!live)("Postgres executor", async () => {
     ]);
     expect(results[2]!.data).toMatchObject({ customers: { rows: [] } });
     expect(results[3]!.error?.kind).toBe("invalid_input");
+  });
+
+  it("casts codec columns of $rpc results to text over both executors", async () => {
+    const counts = schema.meta.functions["customer_note_counts"]!;
+
+    const coded = defineSupabase(
+      defineSchema({
+        ...schema.meta,
+        functions: {
+          ...schema.meta.functions,
+          customer_note_counts: {
+            ...counts,
+            result: {
+              columns: [
+                { db: "customer_id", name: "customerId" },
+                { db: "note_count", name: "noteCount", codec: "bigint" },
+                { db: "last_note_at", name: "lastNoteAt", codec: "instant" },
+              ],
+            },
+          },
+        },
+      }),
+    );
+
+    const args = { p_customer_ids: [ROAD_RUNNER] };
+
+    const [overRest, overSql] = await Promise.all([
+      coded
+        .connect(
+          createClient(url, publishableKey, {
+            accessToken: () => signLocalJwt(claims),
+          }),
+          { claims },
+        )
+        .$rpc("customer_note_counts", args)
+        .orThrow(),
+      coded
+        .connect(postgresExecutor(postgres.asUser(claims)), { claims })
+        .$rpc("customer_note_counts", args)
+        .orThrow(),
+    ]);
+
+    expect(overRest).toEqual([
+      {
+        customerId: ROAD_RUNNER,
+        noteCount: 3n,
+        lastNoteAt: expect.any(Temporal.Instant),
+      },
+    ]);
+    expect(overSql).toEqual(overRest);
   });
 
   it("calls functions without generated metadata over Postgres", async () => {

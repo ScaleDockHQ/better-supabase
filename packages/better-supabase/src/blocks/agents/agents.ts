@@ -26,7 +26,7 @@ import {
   recordsOf,
   stringsOf,
   textOf,
-  toInstant,
+  instantOf,
   type BlockTemporalOptions,
 } from "../shared.ts";
 
@@ -172,9 +172,6 @@ const visibilityOf = (value: unknown): AgentVisibility => {
   return VISIBILITIES.has(text) ? (text as AgentVisibility) : "private";
 };
 
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
-
 function scopesOf(value: unknown): readonly AgentKnowledgeScope[] {
   if (!Array.isArray(value)) {
     return [];
@@ -231,8 +228,8 @@ function agentOf(value: unknown): Agent {
     myRating:
       rating === null || rating === undefined ? undefined : Number(rating),
     skills: skillsOf(row["skills"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 

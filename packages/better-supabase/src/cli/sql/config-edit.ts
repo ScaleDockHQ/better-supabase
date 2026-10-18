@@ -9,6 +9,7 @@
  */
 
 import { codeRanges } from "../codemod.ts";
+import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =
   | { readonly ok: true; readonly text: string }
@@ -427,7 +428,7 @@ export function addBlocksToJson(
     return { ok: false, reason: "it isn't valid JSON" };
   }
 
-  if (!isObject(config)) {
+  if (!isRecord(config)) {
     return { ok: false, reason: "it isn't a JSON object" };
   }
 
@@ -437,7 +438,7 @@ export function addBlocksToJson(
   if (Array.isArray(blocks)) {
     const listed: readonly unknown[] = blocks;
     next = [...listed, ...names.filter((name) => !listed.includes(name))];
-  } else if (isObject(blocks)) {
+  } else if (isRecord(blocks)) {
     next = {
       ...blocks,
       ...Object.fromEntries(
@@ -469,9 +470,6 @@ const jsonEdit = (
       ? source
       : `${JSON.stringify(next, null, indent)}\n`,
 });
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** `source` with `preset` set to `value`, replacing the one it has. */
 export function setPresetInConfig(source: string, value: string): ConfigEdit {
@@ -533,7 +531,7 @@ export function setPresetInJson(source: string, value: string): ConfigEdit {
     return { ok: false, reason: "it isn't valid JSON" };
   }
 
-  if (!isObject(config)) {
+  if (!isRecord(config)) {
     return { ok: false, reason: "it isn't a JSON object" };
   }
 
@@ -755,7 +753,7 @@ export function setBlockInJson(
     return { ok: false, reason: "it isn't valid JSON" };
   }
 
-  if (!isObject(config)) {
+  if (!isRecord(config)) {
     return { ok: false, reason: "it isn't a JSON object" };
   }
 
@@ -766,7 +764,7 @@ export function setBlockInJson(
     current = Object.fromEntries(
       blocks.map((block: unknown) => [String(block), {}]),
     );
-  } else if (isObject(blocks)) {
+  } else if (isRecord(blocks)) {
     current = blocks;
   } else {
     return { ok: false, reason: "its blocks key isn't an object or a list" };

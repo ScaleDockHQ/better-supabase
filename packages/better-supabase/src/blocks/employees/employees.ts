@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -14,13 +15,8 @@ import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import {
-  big,
-  compact,
-  plainDate,
-  type RecordRef,
-  refOf,
-} from "../sales-shared.ts";
+import { amountText, optionalMoneyOf } from "../money-codec.ts";
+import { compact, plainDate, type RecordRef, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -188,15 +184,14 @@ export interface PrivateDetailsInput {
   readonly emergencyContacts?: readonly EmergencyContact[] | null;
 }
 
-/** A contract. Salary is minor units of `currency`. */
+/** A contract. */
 export interface Contract {
   readonly id: string;
   readonly employeeId: string;
   readonly startsOn: Temporal.PlainDate;
   readonly endsOn?: Temporal.PlainDate;
   readonly hoursPerWeek?: number;
-  readonly salary?: bigint;
-  readonly currency?: string;
+  readonly salary?: Money;
   readonly salaryPeriod?: SalaryPeriod;
   readonly note?: string;
 }
@@ -205,8 +200,7 @@ export interface ContractInput {
   readonly startsOn: Temporal.PlainDate;
   readonly endsOn?: Temporal.PlainDate;
   readonly hoursPerWeek?: number;
-  readonly salary?: bigint;
-  readonly currency?: string;
+  readonly salary?: Money;
   readonly salaryPeriod?: SalaryPeriod;
   readonly note?: string;
 }
@@ -290,6 +284,18 @@ const argsOf = (input: object): Record<string, unknown> =>
     Object.entries(input).map(([key, value]) => [key, argOf(value)]),
   );
 
+/** A contract as `add_employee_contract` reads it: the salary as text and its currency. */
+function contractArgs(input: ContractInput): Record<string, unknown> {
+  const { salary, ...rest } = input;
+
+  return {
+    ...argsOf(rest),
+    ...(salary === undefined
+      ? {}
+      : { salary: amountText(salary), currency: salary.currency }),
+  };
+}
+
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
   const date = plainDate(value);
 
@@ -368,11 +374,7 @@ function contractOf(value: unknown): Contract {
     startsOn: requiredDate(row["starts_on"], "startsOn"),
     endsOn: plainDate(row["ends_on"]),
     hoursPerWeek: num(row["hours_per_week"]),
-    salary:
-      row["salary"] === null || row["salary"] === undefined
-        ? undefined
-        : big(row["salary"]),
-    currency: optionalText(row["currency"]),
+    salary: optionalMoneyOf(row["salary"], row["currency"], "contract salary"),
     salaryPeriod:
       period === null || period === undefined
         ? undefined
@@ -566,7 +568,7 @@ export function createEmployees<
     addContract: (employeeId, input) =>
       call(
         "add_employee_contract",
-        { employee: employeeId, attrs: argsOf(input) },
+        { employee: employeeId, attrs: contractArgs(input) },
         contractOf,
       ),
   };

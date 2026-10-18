@@ -7,6 +7,7 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 import { createDeals, dealsSubjects } from "../../src/blocks/deals/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
 import { createTargets } from "../../src/blocks/targets/index.ts";
+import { money } from "../../src/commerce/money.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -285,8 +286,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         .create(org, {
           name: "Win",
           closeOn: today,
-          amount: 600_000n,
-          currency: "EUR",
+          amount: money(600_000n, "EUR"),
         })
         .orThrow();
 
@@ -295,8 +295,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         .create(org, {
           name: "Open",
           closeOn: today,
-          amount: 900_000n,
-          currency: "EUR",
+          amount: money(900_000n, "EUR"),
         })
         .orThrow();
 

@@ -9,35 +9,35 @@ when it ships. Items move between horizons as upstream releases land; the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md)
 records what shipped.
 
+## Shipped in 0.8
+
+The [0.8.0 changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md#080)
+has the details.
+
+- `audience` and `issuer` pinning in `better-supabase/server`
+  ([token audience](/docs/auth/server#token-audience)).
+- The `standardSchema()` generator in `better-supabase/config`.
+- TanStack DB collections with Realtime sync in
+  `better-supabase/tanstack-db/supabase`.
+- Typed Edge Function calls with `defineFunction()` and `functions()`.
+- Supabase MCP server interop with `supabaseMcp()` and `supabaseMcpHandler()`.
+- Supabase Lite in `better-supabase/server`, `better-supabase/testing` and the
+  CLI.
+
 ## Now
 
-- **`audience` and `issuer` pinning** (`better-supabase/server`), passed to
-  `verifyCredentials`. Upstream: `@supabase/server` 1.7.
-- **A Standard Schema generator** (`better-supabase/config`): `standardSchema()`
-  writes Row, Insert and Update validators per table with no validation
-  library. Upstream: Standard Schema and Standard JSON Schema.
-- **TanStack DB collections with Realtime sync**
-  (`better-supabase/tanstack-db/supabase`), built on
-  `@supabase-labs/tanstack-db` with the generated schemas and primary keys,
-  for either casing and any exposed schema. Upstream: `supabase/tanstack-db`.
-- **Typed Edge Function calls** (`better-supabase/edge` and
-  `better-supabase/client`): `defineFunction()` checks the input and output
-  with Standard Schemas, and `functions()` calls it through `functions-js`
-  with a `Result`. Upstream: `@supabase/functions-js`.
-- **Supabase MCP server interop** (`better-supabase/ai-sdk/mcp` and
-  `better-supabase/mcp/sdk`): `supabaseMcp()` types the server's tools with
-  `createToolSchemas()`, and `supabaseMcpHandler()` serves
-  `createSupabaseMcpHandler` behind better-supabase auth. Upstream:
-  `@supabase/mcp-server-supabase`.
+Shipping in 0.9.
+
+- **Exact money on the wire** (the deals, quotes, invoices, pipelines and
+  employees blocks, and `db.$rpc`): amounts are `Money` values, every `int8`
+  crosses PostgREST as text and decodes strictly, and doctor BS223 flags
+  functions that return a bare `bigint` or `numeric`. See
+  [ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md).
 
 ## Next
 
 Parity gaps with what Supabase ships today.
 
-- **Supabase Lite** (`better-supabase/server`, `better-supabase/testing` and
-  the CLI): the server, repositories, `gen`, `doctor` and `init` against a
-  `@supabase/lite` project, and in-process lite stacks for tests. Upstream:
-  `@supabase/lite`.
 - **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
   constraints use `pg_jsonschema`'s compiled `jsonschema` type once the
   platform ships a version that has it; Supabase runs 0.3.3, which has

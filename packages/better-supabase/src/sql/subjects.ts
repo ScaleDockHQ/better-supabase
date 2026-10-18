@@ -3,6 +3,7 @@ import type { ModuleContext } from "./context.ts";
 import type { ModuleAccessProvider } from "./module-types.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
+import { isRecord } from "../core/guards.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/access-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
@@ -35,9 +36,6 @@ export interface Subject {
   /** The module's own keys, such as a bucket per subject. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_]{0,62}$/;
 
@@ -132,7 +130,7 @@ function rawSubjects(
     );
   }
 
-  if (!isObject(raw)) {
+  if (!isRecord(raw)) {
     throw new TypeError(
       `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
     );
@@ -146,7 +144,7 @@ function rawSubjects(
 
       return [
         type,
-        registered && isObject(entry)
+        registered && isRecord(entry)
           ? { ...fromRegistry(registered, extraKeys), ...entry }
           : entry,
       ];
@@ -178,7 +176,7 @@ export function subjectsOption(
       );
     }
 
-    if (!isObject(entry) || typeof entry["table"] !== "string") {
+    if (!isRecord(entry) || typeof entry["table"] !== "string") {
       throw new TypeError(`${where}.${type} needs a table`);
     }
 
@@ -289,7 +287,7 @@ function subjectTableBinding(
 
   const where = `blocks.${ctx.module}.options.subjects.${type}.${key}`;
 
-  if (!isObject(raw) || typeof raw["table"] !== "string") {
+  if (!isRecord(raw) || typeof raw["table"] !== "string") {
     throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
   }
 
@@ -494,7 +492,7 @@ export function subjectAccess<A extends string>(
     const raw = subject.extra["permissions"];
 
     if (raw !== undefined) {
-      if (!isObject(raw)) {
+      if (!isRecord(raw)) {
         throw new TypeError(
           `${where}.${type}.permissions must be { ${actions.map((action) => `${action}?`).join(", ")} }`,
         );

@@ -2339,6 +2339,9 @@ describe("createIdempotency", () => {
         .orThrow(),
     ).toBe(false);
     expect(await idempotency.release("k1", "h1").orThrow()).toBe(false);
+    expect(await idempotency.extend("k1", "h1", "tenant").orThrow()).toBe(
+      false,
+    );
     expect(fake.calls).toEqual([
       {
         text: "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
@@ -2351,6 +2354,10 @@ describe("createIdempotency", () => {
       {
         text: "select better_supabase.release_idempotent($1, $2, $3) as done",
         values: ["", "k1", "h1"],
+      },
+      {
+        text: "select better_supabase.extend_idempotent($1, $2, $3, $4::interval) as done",
+        values: ["tenant", "k1", "h1", "1 minute"],
       },
     ]);
   });
@@ -2463,6 +2470,138 @@ describe("createIdempotency", () => {
     expect(await response.json()).toMatchObject({
       code: "IDEMPOTENCY_KEY_LOST",
     });
+  });
+
+  it("renews the lock while a handler outlives it", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fake = fakeSql([
+        [
+          "begin_idempotent",
+          [
+            {
+              state: "started",
+              status_code: null,
+              response: null,
+              holder: "h1",
+            },
+          ],
+        ],
+        ["extend_idempotent", [{ done: true }]],
+        ["complete_idempotent", [{ done: true }]],
+      ]);
+
+      let finish = (): void => undefined;
+      let markStarted = (): void => undefined;
+
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+
+      const pending = createIdempotency({
+        sql: fake.sql,
+        lock: 2,
+        scope: "acme",
+      }).handle(
+        new Request("https://api.test/payments", {
+          method: "POST",
+          headers: { "idempotency-key": "k1" },
+          body: "{}",
+        }),
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = () => {
+              resolve(new Response("created", { status: 201 }));
+            };
+
+            markStarted();
+          }),
+      );
+
+      await started;
+
+      await vi.advanceTimersByTimeAsync(3500);
+      finish();
+
+      expect((await pending).status).toBe(201);
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const renewals = fake.calls.filter((call) =>
+        call.text.includes("extend_idempotent"),
+      );
+
+      expect(renewals).toHaveLength(3);
+      expect(renewals[0]).toEqual({
+        text: "select better_supabase.extend_idempotent($1, $2, $3, $4::interval) as done",
+        values: ["acme", "k1", "h1", "2 seconds"],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops renewing once another request took the key", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fake = fakeSql([
+        [
+          "begin_idempotent",
+          [
+            {
+              state: "started",
+              status_code: null,
+              response: null,
+              holder: "h1",
+            },
+          ],
+        ],
+        ["extend_idempotent", [{ done: false }]],
+        ["complete_idempotent", [{ done: false }]],
+      ]);
+
+      let finish = (): void => undefined;
+      let markStarted = (): void => undefined;
+
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+
+      const pending = createIdempotency({ sql: fake.sql, lock: 2 }).handle(
+        new Request("https://api.test/payments", {
+          method: "POST",
+          headers: { "idempotency-key": "k1" },
+          body: "{}",
+        }),
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = () => {
+              resolve(new Response("created", { status: 201 }));
+            };
+
+            markStarted();
+          }),
+      );
+
+      await started;
+
+      await vi.advanceTimersByTimeAsync(4500);
+      finish();
+
+      const response = await pending;
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: "IDEMPOTENCY_KEY_LOST",
+      });
+      expect(
+        fake.calls.filter((call) => call.text.includes("extend_idempotent")),
+      ).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("answers with a problem when the response cannot be saved", async () => {

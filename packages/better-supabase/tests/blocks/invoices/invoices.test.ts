@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { createInvoices } from "../../../src/blocks/invoices/index.ts";
+import { money } from "../../../src/commerce/money.ts";
+
+const eur = (amount: bigint) => money(amount, "EUR");
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -26,7 +29,7 @@ const ROW = {
   id: "i1",
   tenant_id: "o",
   kind: "invoice",
-  number: 1,
+  number: "1",
   identifier: "INV-1",
   original_id: null,
   title: "October",
@@ -39,8 +42,8 @@ const ROW = {
   terms_days: 30,
   issued_on: "2026-10-15",
   due_on: "2026-11-14",
-  paid_total: 500,
-  credited_total: 100,
+  paid_total: "500",
+  credited_total: "100",
   paid_at: null,
   voided_at: null,
   void_reason: null,
@@ -51,11 +54,11 @@ const ROW = {
   created_by: "u1",
   created_at: "2026-10-15T09:00:00Z",
   updated_at: "2026-10-15T09:00:00Z",
-  list_total: 1000,
-  discount_total: 0,
-  subtotal: 1000,
-  tax_total: 0,
-  total: 1000,
+  list_total: "1000",
+  discount_total: "0",
+  subtotal: "1000",
+  tax_total: "0",
+  total: "1000",
   balance: "400",
   overdue: true,
   lines: [
@@ -91,11 +94,17 @@ describe("invoices block", () => {
     expect(t.calls[0]?.[1]).toEqual({ invoice: "i1", issued_on: "2026-10-15" });
     expect(invoice).toMatchObject({
       number: 1n,
-      balance: 400n,
+      paidTotal: eur(500n),
+      creditedTotal: eur(100n),
+      balance: eur(400n),
       overdue: true,
       depositBps: 3000,
       origin: { type: "quote", id: "q1" },
-      payments: [{ id: "pay1", amount: 500n, method: "bank", reference: "b1" }],
+      payments: [
+        { id: "pay1", amount: eur(500n), method: "bank", reference: "b1" },
+      ],
+      lines: [{ unitAmount: eur(1000n) }],
+      totals: { total: eur(1000n) },
     });
     expect(invoice.dueOn?.toString()).toBe("2026-11-14");
   });
@@ -154,13 +163,14 @@ describe("invoices block", () => {
         subtotal: "1",
         taxTotal: "0",
         total: "1",
+        currency: "EUR",
       }),
     });
 
     const invoices = createInvoices({ transport: t });
     await invoices
       .recordPayment("i1", {
-        amount: -50n,
+        amount: eur(-50n),
         paidAt: Temporal.Instant.from("2026-10-16T09:00:00Z"),
         reference: "r",
       })
@@ -168,6 +178,7 @@ describe("invoices block", () => {
     expect(t.calls[0]?.[1]).toEqual({
       invoice: "i1",
       amount: "-50",
+      currency: "EUR",
       paid_at: "2026-10-16T09:00:00Z",
       method: null,
       reference: "r",
@@ -180,12 +191,14 @@ describe("invoices block", () => {
       "uncollectible",
     );
     expect(await invoices.aging("o", "EUR").orThrow()).toMatchObject({
-      over90: 5n,
-      outstanding: 15n,
+      over90: eur(5n),
+      outstanding: eur(15n),
       overdueCount: 4,
     });
     await invoices.fromQuote("q1", { depositBps: 2000 }).orThrow();
-    expect((await invoices.setLines("i1", []).orThrow()).total).toBe(1n);
+    expect((await invoices.setLines("i1", []).orThrow()).total).toEqual(
+      eur(1n),
+    );
     expect(t.calls[1]?.[1]).toEqual({
       invoice: "i1",
       lines: null,
@@ -223,7 +236,16 @@ describe("invoices block, defaults", () => {
       issue_invoice: () => paid,
       credit_invoice: () => paid,
       record_invoice_payment: () => paid,
-      invoice_aging: () => ({ currency: "EUR", overdueCount: null }),
+      invoice_aging: () => ({
+        currency: "EUR",
+        current: "0",
+        days1To30: "0",
+        days31To60: "0",
+        days61To90: "0",
+        over90: "0",
+        outstanding: "0",
+        overdueCount: null,
+      }),
     });
 
     const invoices = createInvoices({ transport: t });
@@ -236,10 +258,10 @@ describe("invoices block, defaults", () => {
     expect(invoice.depositBps).toBeUndefined();
     expect(invoice.paidAt).toBeDefined();
     await invoices
-      .credit("i1", { lines: [{ description: "x", unitAmount: 5n }] })
+      .credit("i1", { lines: [{ description: "x", unitAmount: eur(5n) }] })
       .orThrow();
     await invoices
-      .recordPayment("i1", { amount: 1n, method: "card" })
+      .recordPayment("i1", { amount: eur(1n), method: "card" })
       .orThrow();
     expect(
       (
@@ -252,17 +274,68 @@ describe("invoices block, defaults", () => {
       { invoice: "i1", issued_on: null },
       {
         invoice: "i1",
-        lines: [{ description: "x", unitAmount: "5" }],
+        lines: [{ description: "x", unitAmount: "5", currency: "EUR" }],
         note: null,
       },
       {
         invoice: "i1",
         amount: "1",
+        currency: "EUR",
         paid_at: null,
         method: "card",
         reference: null,
       },
       { tenant: "o", currency: "EUR", as_of: "2026-12-01" },
     ]);
+  });
+});
+
+describe("invoices block, currencies", () => {
+  it("refuses lines in another currency and unknown codes before calling", async () => {
+    const t = transport({});
+    const invoices = createInvoices({ transport: t });
+    const usd = money(1n, "USD");
+
+    const results = [
+      await invoices.create("o", { title: "x", currency: "EUR" }, [
+        { description: "x", unitAmount: usd },
+      ]),
+      await invoices.setLines("i1", [
+        { description: "a", unitAmount: eur(1n) },
+        { description: "b", unitAmount: usd },
+      ]),
+      await invoices.credit("i1", {
+        lines: [
+          { description: "a", unitAmount: eur(1n) },
+          { description: "b", unitAmount: usd },
+        ],
+      }),
+      await invoices.aging("o", "XXQ"),
+    ];
+
+    expect(
+      results.map((result) => (result.ok ? undefined : result.error.hint)),
+    ).toEqual([
+      "CURRENCY_MISMATCH",
+      "CURRENCY_MISMATCH",
+      "CURRENCY_MISMATCH",
+      "CURRENCY_INVALID",
+    ]);
+    expect(t.calls).toEqual([]);
+  });
+
+  it("takes the currency from the lines when the input has none", async () => {
+    const t = transport({ create_invoice: () => ROW });
+
+    await createInvoices({ transport: t })
+      .create("o", { title: "x" }, [
+        { description: "x", unitAmount: money(5n, "USD") },
+      ])
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      attrs: { title: "x", currency: "USD" },
+      lines: [{ description: "x", unitAmount: "5", currency: "USD" }],
+    });
   });
 });

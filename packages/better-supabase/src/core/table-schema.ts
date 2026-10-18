@@ -3,7 +3,7 @@ import type {
   StandardSchemaV1,
 } from "@standard-schema/spec";
 
-import { isList } from "./guards.ts";
+import { isList, isRecord } from "./guards.ts";
 import {
   type FieldSpec,
   type JsonSchema,
@@ -27,23 +27,19 @@ const SCHEMA_URIS: Readonly<Record<string, string>> = {
   "draft-07": "http://json-schema.org/draft-07/schema#",
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !isList(value);
-}
-
 /** Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`, `example`). */
 function toOpenApi30(schema: JsonSchema): JsonSchema {
   const out: JsonSchema = {};
 
   for (const [key, value] of Object.entries(schema)) {
-    if (key === "properties" && isObject(value)) {
+    if (key === "properties" && isRecord(value)) {
       out[key] = Object.fromEntries(
         Object.entries(value).map(([name, child]) => [
           name,
-          isObject(child) ? toOpenApi30(child) : child,
+          isRecord(child) ? toOpenApi30(child) : child,
         ]),
       );
-    } else if (key === "items" && isObject(value)) {
+    } else if (key === "items" && isRecord(value)) {
       out[key] = toOpenApi30(value);
     } else if (key === "examples" && isList(value)) {
       if (value.length > 0) {
@@ -69,7 +65,7 @@ function toOpenApi30(schema: JsonSchema): JsonSchema {
   if (isList(anyOf) && anyOf.length === 2) {
     const [inner, empty] = anyOf;
 
-    if (isObject(inner) && isObject(empty) && empty["type"] === "null") {
+    if (isRecord(inner) && isRecord(empty) && empty["type"] === "null") {
       delete out["anyOf"];
 
       return { ...toOpenApi30(inner), ...out, nullable: true };
@@ -120,7 +116,7 @@ function isJson(value: unknown): boolean {
     return value.every(isJson);
   }
 
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     return false;
   }
 
@@ -331,7 +327,7 @@ export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
   const validate = (
     input: unknown,
   ): StandardSchemaV1.Result<T> | Promise<StandardSchemaV1.Result<T>> => {
-    if (!isObject(input)) {
+    if (!isRecord(input)) {
       return { issues: [{ message: "Expected an object" }] };
     }
 

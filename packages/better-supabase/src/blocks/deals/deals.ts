@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -5,6 +6,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import { isCurrency, isMoney } from "../../commerce/money.ts";
 import {
   type BlockFields,
   blockFields,
@@ -12,8 +14,19 @@ import {
 } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import {
+  amountsError,
+  amountText,
+  currencyMismatch,
+  moneyOf,
+  optionalAmountText,
+  optionalMoneyOf,
+  unknownCurrency,
+} from "../money-codec.ts";
+import { lineArg, totalsOf } from "../sales-lines.ts";
+import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
@@ -25,6 +38,7 @@ import {
   recordsOf,
   requiredInstant,
   textOf,
+  bigintOf,
 } from "../shared.ts";
 
 /** How a rep calls a deal for the period. `undefined` is "not called". */
@@ -68,10 +82,10 @@ export interface Deal<F extends object = Record<never, never>> {
   readonly priority?: string;
   readonly product?: string;
   readonly seats?: number;
-  /** Minor units. */
-  readonly amount: bigint;
-  /** The revenue the account already brings, for an expansion. Minor units. */
-  readonly existingAmount: bigint;
+  readonly amount: Money;
+  /** The revenue the account already brings, for an expansion. */
+  readonly existingAmount: Money;
+  /** The deal's currency, which every amount on it shares. */
   readonly currency: string;
   readonly valuePeriod: "one_time" | "monthly" | "annual";
   /** `line_items` keeps the amount equal to the lines' subtotal. */
@@ -113,19 +127,20 @@ export interface Deal<F extends object = Record<never, never>> {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** Line totals in minor units: list, discount, subtotal, tax and total. */
+/** Line totals in the deal's currency: list, discount, subtotal, tax and total. */
 export interface DealTotals {
-  readonly listTotal: bigint;
-  readonly discountTotal: bigint;
-  readonly subtotal: bigint;
-  readonly taxTotal: bigint;
-  readonly total: bigint;
+  readonly listTotal: Money;
+  readonly discountTotal: Money;
+  readonly subtotal: Money;
+  readonly taxTotal: Money;
+  readonly total: Money;
 }
 
 export interface DealInput<F extends object = Record<never, never>> {
   readonly name: string;
   readonly closeOn: Temporal.PlainDate;
-  readonly amount?: bigint;
+  readonly amount?: Money;
+  /** Defaults to the amounts' currency, then `EUR`. */
   readonly currency?: string;
   readonly company?: DealParty;
   readonly ownerId?: string;
@@ -133,7 +148,7 @@ export interface DealInput<F extends object = Record<never, never>> {
   readonly priority?: string;
   readonly product?: string;
   readonly seats?: number;
-  readonly existingAmount?: bigint;
+  readonly existingAmount?: Money;
   readonly valuePeriod?: Deal["valuePeriod"];
   readonly pipelineId?: string;
   readonly stageId?: string;
@@ -196,32 +211,32 @@ export interface DealChangeResult {
   }[];
 }
 
-/** A line of a deal. Amounts are minor units. */
+/** A line of a deal, in the deal's currency. */
 export interface DealLineInput {
   readonly description: string;
   readonly quantity?: number;
-  readonly unitAmount: bigint;
+  readonly unitAmount: Money;
   readonly discountBps?: number;
   readonly taxRateBps?: number;
   readonly taxCode?: string;
   readonly product?: DealParty;
 }
 
-/** The forecast call for one currency. Amounts are minor units. */
+/** The forecast call for one currency. */
 export interface DealForecast {
   readonly currency: string;
-  readonly won: bigint;
-  readonly commit: bigint;
-  readonly bestCase: bigint;
-  readonly pipeline: bigint;
-  readonly notCalled: bigint;
-  readonly omit: bigint;
+  readonly won: Money;
+  readonly commit: Money;
+  readonly bestCase: Money;
+  readonly pipeline: Money;
+  readonly notCalled: Money;
+  readonly omit: Money;
   /** Open deals that close after the period. */
-  readonly later: bigint;
-  readonly target?: bigint;
+  readonly later: Money;
+  readonly target?: Money;
   /** Won plus commit over the target. */
   readonly attainment?: number;
-  readonly gap?: bigint;
+  readonly gap?: Money;
   readonly owners: readonly (Omit<
     DealForecast,
     "owners" | "currency" | "target" | "attainment" | "gap"
@@ -279,7 +294,8 @@ export interface Deals<F extends object = Record<never, never>> {
       readonly since: Temporal.PlainDate;
       readonly until: Temporal.PlainDate;
       readonly currency: string;
-      readonly target?: bigint;
+      /** In `currency`. */
+      readonly target?: Money;
       readonly pipelineId?: string;
       readonly ownerId?: string;
     },
@@ -381,29 +397,8 @@ const KNOWN = new Set([
   "members",
 ]);
 
-const big = (value: unknown): bigint =>
-  typeof value === "string" || typeof value === "number" ? BigInt(value) : 0n;
-
 const num = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
-
-const date = (value: unknown): Temporal.PlainDate | undefined =>
-  typeof value === "string"
-    ? temporal().PlainDate.from(value.slice(0, 10))
-    : undefined;
-
-function totalsOf(row: Record<string, unknown>, camel = false): DealTotals {
-  const key = (snake: string, camelKey: string): unknown =>
-    camel ? row[camelKey] : row[snake];
-
-  return {
-    listTotal: big(key("list_total", "listTotal")),
-    discountTotal: big(key("discount_total", "discountTotal")),
-    subtotal: big(key("subtotal", "subtotal")),
-    taxTotal: big(key("tax_total", "taxTotal")),
-    total: big(key("total", "total")),
-  };
-}
 
 /** `T` with every optional property allowed to be `undefined`. */
 type Loose<T> = { [K in keyof T]: T[K] | undefined };
@@ -425,7 +420,7 @@ function dealOf(value: unknown): Deal {
   return compact<Deal>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
-    number: big(row["number"]),
+    number: bigintOf(row["number"], "deal number"),
     identifier: textOf(row["identifier"]),
     name: textOf(row["name"]),
     company:
@@ -437,8 +432,12 @@ function dealOf(value: unknown): Deal {
     priority: optionalText(row["priority"]),
     product: optionalText(row["product"]),
     seats: num(row["seats"]),
-    amount: big(row["amount"]),
-    existingAmount: big(row["existing_amount"]),
+    amount: moneyOf(row["amount"], row["currency"], "deal amount"),
+    existingAmount: moneyOf(
+      row["existing_amount"],
+      row["currency"],
+      "deal existingAmount",
+    ),
     currency: textOf(row["currency"]),
     valuePeriod: enumOrThrow(
       row["value_period"],
@@ -459,10 +458,12 @@ function dealOf(value: unknown): Deal {
       forecast === undefined
         ? undefined
         : enumOrThrow(forecast, FORECASTS, "deal forecast"),
-    openedOn: date(row["opened_on"]) ?? temporal().PlainDate.from("1970-01-01"),
+    openedOn:
+      plainDate(row["opened_on"]) ?? temporal().PlainDate.from("1970-01-01"),
     closeOn:
-      date(row["expected_close_on"]) ?? temporal().PlainDate.from("1970-01-01"),
-    slippedFrom: date(row["slipped_from"]),
+      plainDate(row["expected_close_on"]) ??
+      temporal().PlainDate.from("1970-01-01"),
+    slippedFrom: plainDate(row["slipped_from"]),
     pushCount: num(row["push_count"]) ?? 0,
     closedAt: optionalInstant(row["closed_at"]),
     nextStep: optionalText(row["next_step"]),
@@ -474,7 +475,7 @@ function dealOf(value: unknown): Deal {
     lostReason: optionalText(row["lost_reason"]),
     locked: row["locked"] === true,
     rank: textOf(row["rank"]),
-    totals: totalsOf(row),
+    totals: totalsOf(row, false),
     contacts: recordsOf(row["contacts"], "deal contacts").map((contact) =>
       compact<DealContact>({
         type: textOf(contact["type"]),
@@ -498,10 +499,17 @@ function dealOf(value: unknown): Deal {
   });
 }
 
-/** A change value as the database reads it: dates as ISO, bigints as text. */
+/**
+ * A value as the database reads it: dates as ISO, bigints and the minor units
+ * of a `Money` as text.
+ */
 function valueArg(value: unknown): unknown {
   if (typeof value === "bigint") {
     return value.toString();
+  }
+
+  if (isMoney(value)) {
+    return amountText(value);
   }
 
   if (
@@ -514,37 +522,35 @@ function valueArg(value: unknown): unknown {
   return value;
 }
 
-function sums(row: Record<string, unknown>) {
+function sums(row: Readonly<Record<string, unknown>>, currency: string) {
+  const at = (key: string): Money =>
+    moneyOf(row[key], currency, `deal_forecast ${key}`);
+
   return {
-    won: big(row["won"]),
-    commit: big(row["commit"]),
-    bestCase: big(row["bestCase"]),
-    pipeline: big(row["pipeline"]),
-    notCalled: big(row["notCalled"]),
-    omit: big(row["omit"]),
-    later: big(row["later"]),
+    won: at("won"),
+    commit: at("commit"),
+    bestCase: at("bestCase"),
+    pipeline: at("pipeline"),
+    notCalled: at("notCalled"),
+    omit: at("omit"),
+    later: at("later"),
   };
 }
 
 function forecastOf(value: unknown): DealForecast {
   const row = recordOf(value, "deal_forecast");
+  const currency = textOf(row["currency"]);
 
   return compact<DealForecast>({
-    currency: textOf(row["currency"]),
-    ...sums(row),
-    target:
-      row["target"] === null || row["target"] === undefined
-        ? undefined
-        : big(row["target"]),
+    currency,
+    ...sums(row, currency),
+    target: optionalMoneyOf(row["target"], currency, "deal_forecast target"),
     attainment: num(row["attainment"]),
-    gap:
-      row["gap"] === null || row["gap"] === undefined
-        ? undefined
-        : big(row["gap"]),
+    gap: optionalMoneyOf(row["gap"], currency, "deal_forecast gap"),
     owners: recordsOf(row["owners"], "deal_forecast owners").map((owner) =>
       compact<DealForecast["owners"][number]>({
         ownerId: optionalText(owner["ownerId"]),
-        ...sums(owner),
+        ...sums(owner, currency),
       }),
     ),
   });
@@ -574,6 +580,20 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     create: (organizationId, input, contacts) => {
       const { fields: extra, ...rest } = input;
 
+      const invalid = amountsError(input.currency, [
+        input.amount,
+        input.existingAmount,
+      ]);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      const currency =
+        input.currency ??
+        input.amount?.currency ??
+        input.existingAmount?.currency;
+
       return AsyncResult.from(() => fields.write({ ...extra }))
         .andThen((valid) =>
           call(
@@ -581,10 +601,11 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
             {
               tenant: organizationId,
               attrs: Object.fromEntries(
-                Object.entries({ ...rest, ...valid }).map(([key, value]) => [
-                  key,
-                  valueArg(value),
-                ]),
+                Object.entries({
+                  ...rest,
+                  ...(currency === undefined ? {} : { currency }),
+                  ...valid,
+                }).map(([key, value]) => [key, valueArg(value)]),
               ),
               contacts:
                 contacts === undefined
@@ -599,6 +620,14 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
+          if (
+            change.field === "currency" &&
+            typeof change.value === "string" &&
+            !isCurrency(change.value)
+          ) {
+            return err(unknownCurrency(change.value));
+          }
+
           if (BUILT_IN.has(change.field)) {
             continue;
           }
@@ -618,7 +647,12 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
             changes: checked.map((change) => ({
               dealId: change.dealId,
               field: change.field,
-              value: valueArg(change.value),
+              value: isMoney(change.value)
+                ? {
+                    amount: amountText(change.value),
+                    currency: change.value.currency,
+                  }
+                : valueArg(change.value),
             })),
           },
           (value) => {
@@ -671,18 +705,20 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
         { deal: dealId, members: members.map((member) => ({ ...member })) },
         (value) => num(value) ?? 0,
       ),
-    setLines: (dealId, lines) =>
-      call(
-        "set_deal_lines",
-        {
-          parent: dealId,
-          lines: lines.map((line) => ({
-            ...line,
-            unitAmount: line.unitAmount.toString(),
-          })),
-        },
-        (value) => totalsOf(recordOf(value, "set_deal_lines"), true),
-      ),
+    setLines: (dealId, lines) => {
+      const invalid = currencyMismatch(
+        undefined,
+        lines.map((line) => line.unitAmount),
+      );
+
+      return invalid === undefined
+        ? call(
+            "set_deal_lines",
+            { parent: dealId, lines: lines.map(lineArg) },
+            (value) => totalsOf(recordOf(value, "set_deal_lines"), true),
+          )
+        : AsyncResult.err(invalid);
+    },
     archive: (dealId, archived = true) =>
       call(
         "archive_deal",
@@ -691,20 +727,25 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     remove: (dealId) =>
       call("delete_deal", { deal: dealId }, (value) => value === true),
-    forecast: (organizationId, period) =>
-      call(
-        "deal_forecast",
-        {
-          tenant: organizationId,
-          pipeline: period.pipelineId ?? null,
-          since: period.since.toString(),
-          until: period.until.toString(),
-          currency: period.currency,
-          target: period.target === undefined ? null : period.target.toString(),
-          owner: period.ownerId ?? null,
-        },
-        forecastOf,
-      ),
+    forecast: (organizationId, period) => {
+      const invalid = amountsError(period.currency, [period.target]);
+
+      return invalid === undefined
+        ? call(
+            "deal_forecast",
+            {
+              tenant: organizationId,
+              pipeline: period.pipelineId ?? null,
+              since: period.since.toString(),
+              until: period.until.toString(),
+              currency: period.currency,
+              target: optionalAmountText(period.target),
+              owner: period.ownerId ?? null,
+            },
+            forecastOf,
+          )
+        : AsyncResult.err(invalid);
+    },
     health: (pipelineId) =>
       call("deal_health", { pipeline: pipelineId }, (value) =>
         recordsOf(value, "deal_health").map((row) => ({

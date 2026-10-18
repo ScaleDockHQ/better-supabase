@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   schemaPreamble,
@@ -43,9 +44,6 @@ interface StepOption {
   readonly scope: "user" | "organization";
   readonly events: readonly string[];
 }
-
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const where = "blocks.onboarding.options.checklists";
 
@@ -87,7 +85,7 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
     return [];
   }
 
-  if (!Array.isArray(option) && !isObject(option)) {
+  if (!Array.isArray(option) && !isRecord(option)) {
     throw new TypeError(`${where}: pass an array of defineChecklist() results`);
   }
 
@@ -101,7 +99,7 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   for (const [index, entry] of list.entries()) {
     const path = `${where}[${index}]`;
 
-    if (!isObject(entry)) {
+    if (!isRecord(entry)) {
       throw new TypeError(`${path}: not a checklist`);
     }
 
@@ -128,7 +126,7 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
     const ids = new Set<string>();
 
     for (const [n, item] of entries.entries()) {
-      if (!isObject(item)) {
+      if (!isRecord(item)) {
         throw new TypeError(`${path}.steps[${n}]: not a step`);
       }
 

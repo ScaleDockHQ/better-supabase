@@ -136,7 +136,7 @@ const stuck = (await pipelines.health(pipelineId).orThrow()).filter(
 );
 ```
 
-`board` returns every active stage in order with the number of records the caller can see and, per currency, the total amount and the amount weighted by probability (the record's own, else the stage's). Amounts are `bigint` minor units, and currencies are never added together. `overLimit` is true when a stage holds more records than its WIP limit. All three reads run as the caller, so the record table's policies decide what they count.
+`board` returns every active stage in order with the number of records the caller can see and, per currency, the total amount and the amount weighted by probability (the record's own, else the stage's). `amount` and `weighted` are `Money` values from [commerce](/docs/concepts/commerce), sent as text so they stay exact past 2^53, and currencies are never added together. A currency that isn't an ISO 4217 code makes `board` fail, so keep the `currency` column to ISO codes. `overLimit` is true when a stage holds more records than its WIP limit. All three reads run as the caller, so the record table's policies decide what they count.
 
 `stats` reads the stage history in a time window: how many records entered each stage, how long the ones that left stayed on average, and the win rate (records that entered a success stage over those that entered a success or failure stage). `health` lists the open records with the time they entered their stage, their days in stage and whether they sit longer than the stage's `rottingAfterDays`.
 

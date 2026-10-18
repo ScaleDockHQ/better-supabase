@@ -262,6 +262,7 @@ describe("idempotency and leases over a transport", () => {
       ],
       complete_idempotent: true,
       release_idempotent: true,
+      extend_idempotent: true,
     });
 
     const idempotency = createIdempotency({
@@ -281,11 +282,19 @@ describe("idempotency and leases over a transport", () => {
 
     expect(response.status).toBe(201);
     expect(await idempotency.release("k-1", "h-1").orThrow()).toBe(true);
+    expect(await idempotency.extend("k-1", "h-1").orThrow()).toBe(true);
     expect(calls.map((call) => call.fn)).toEqual([
       "begin_idempotent",
       "complete_idempotent",
       "release_idempotent",
+      "extend_idempotent",
     ]);
+    expect(calls[3]!.args).toEqual({
+      scope: "",
+      key: "k-1",
+      holder: "h-1",
+      lock: "1 minute",
+    });
     expect(calls[0]!.args).toMatchObject({ key: "k-1", ttl: "60 seconds" });
     expect(calls[1]!.args).toMatchObject({ holder: "h-1", status_code: 201 });
 

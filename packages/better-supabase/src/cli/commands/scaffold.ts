@@ -12,6 +12,7 @@ import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
+import { isRecord } from "../guards.ts";
 import { display, sameText } from "../io.ts";
 import { detectProject } from "../project.ts";
 import {
@@ -57,9 +58,6 @@ export type ScaffoldFlags = CliOptions<typeof ARGS>;
 
 const isFramework = (value: unknown): value is ScaffoldFramework =>
   SCAFFOLD_FRAMEWORKS.some((framework) => framework === value);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The public tables and views in the metadata module `gen` writes, or undefined without one. */
 async function generatedTables(

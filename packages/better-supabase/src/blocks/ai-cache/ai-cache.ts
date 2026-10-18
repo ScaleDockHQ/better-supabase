@@ -16,7 +16,7 @@ import {
   recordOf,
   sha256Hex,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 
 /** What an entry caches: a whole generation, a replayable stream, embeddings, or anything else. */
@@ -83,9 +83,6 @@ const KINDS: ReadonlySet<string> = new Set([
   "other",
 ]);
 
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
-
 function entryOf<T>(value: unknown): AiCacheEntry<T> {
   const row = recordOf(value, "ai_cache_entries");
   const kind = textOf(row["kind"]);
@@ -99,9 +96,9 @@ function entryOf<T>(value: unknown): AiCacheEntry<T> {
     // SAFETY: the caller stored this value under the key it reads with.
     value: row["value"] as T,
     hits: typeof row["hits"] === "number" ? row["hits"] : 0,
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
     lastHitAt: optionalInstant(row["last_hit_at"]),
-    expiresAt: instant(row["expires_at"]),
+    expiresAt: instantOf(row["expires_at"]),
   };
 }
 

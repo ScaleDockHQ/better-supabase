@@ -18,7 +18,7 @@ import {
   stubProvider,
   withProvider,
 } from "../fixtures/authorization-provider.ts";
-import { libraryFixture } from "./fixtures/library.ts";
+import { libraryFixture, snapshotPath } from "./fixtures/library.ts";
 import { loadFixtureSnapshot, renderFixtures } from "./fixtures/render.ts";
 
 const fixtures = fileURLToPath(libraryFixture(""));
@@ -712,7 +712,7 @@ describe("gen", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-"));
-    await cp(join(fixtures, "snapshot.json"), join(dir, "snapshot.json"));
+    await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({

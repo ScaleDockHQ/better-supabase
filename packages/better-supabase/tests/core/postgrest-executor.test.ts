@@ -19,6 +19,7 @@ interface Call {
   readonly args: unknown;
   readonly options: unknown;
   signal?: AbortSignal;
+  select?: string;
 }
 
 function fakeClient(response: { data?: unknown; error?: unknown }) {
@@ -34,6 +35,11 @@ function fakeClient(response: { data?: unknown; error?: unknown }) {
       const builder = Object.assign(Promise.resolve(response), {
         abortSignal: (signal: AbortSignal): unknown => {
           call.signal = signal;
+
+          return builder;
+        },
+        select: (columns: string): unknown => {
+          call.select = columns;
 
           return builder;
         },
@@ -89,6 +95,27 @@ describe("postgrestExecutor rpc", () => {
       empty: null,
     });
     expect(calls[0]?.options).toEqual({ get: true });
+  });
+
+  it("selects the listed columns, cast where asked", async () => {
+    const { client, calls } = fakeClient({ data: [] });
+    const executor = postgrestExecutor(client);
+
+    await executor.rpc?.(
+      "totals",
+      {},
+      {
+        schema: "public",
+        errorMappers: [],
+        select: [{ column: "label" }, { column: "amount", cast: "text" }],
+      },
+    );
+    await executor.rpc?.("plain", {}, { schema: "public", errorMappers: [] });
+
+    expect(calls.map((call) => call.select)).toEqual([
+      "label,amount::text",
+      undefined,
+    ]);
   });
 
   it("passes the signal and stops when it is already aborted", async () => {

@@ -468,8 +468,18 @@ async function callFunction(
       return ok(null);
     }
 
+    const source = context.select
+      ? `(select ${context.select
+          .map(({ column, cast }) =>
+            cast
+              ? `bs_call.${quoteIdent(column)}::${cast} as ${quoteIdent(column)}`
+              : `bs_call.${quoteIdent(column)}`,
+          )
+          .join(", ")} from ${call} as bs_call)`
+      : call;
+
     const rows = await client.queryRaw<{ value: unknown }>(
-      `select to_json(bs_call) as value from ${call} as bs_call`,
+      `select to_json(bs_call) as value from ${source} as bs_call`,
       params,
     );
 

@@ -1,9 +1,7 @@
 import type { ModuleContext } from "./context.ts";
 
+import { isRecord } from "../core/guards.ts";
 import { sqlString } from "../core/template.ts";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The `number-sequences` format of `entity`, when the app configured one. */
 function sequenceFormatOf(

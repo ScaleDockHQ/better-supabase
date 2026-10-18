@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -12,20 +13,28 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
-  attrsArg,
-  big,
-  compact,
+  amountsError,
+  amountText,
+  moneyOf,
+  unknownCurrency,
+} from "../money-codec.ts";
+import {
   type Line,
   type LineInput,
   lineArg,
   lineOf,
+  type Totals,
+  totalsOf,
+} from "../sales-lines.ts";
+import {
+  attrsArg,
+  compact,
   plainDate,
   type RecordRef,
   refOf,
-  type Totals,
-  totalsOf,
 } from "../sales-shared.ts";
 import {
+  bigintOf,
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
@@ -39,7 +48,9 @@ import {
   textOf,
 } from "../shared.ts";
 
-export type { Line, LineInput, RecordRef, Totals } from "../sales-shared.ts";
+export type { Line, LineInput, Totals } from "../sales-lines.ts";
+
+export type { RecordRef } from "../sales-shared.ts";
 
 export type InvoiceStatus =
   | "draft"
@@ -60,8 +71,8 @@ const STATUSES: readonly InvoiceStatus[] = [
 
 export interface InvoicePayment {
   readonly id: string;
-  /** Minor units; negative for a refund. */
-  readonly amount: bigint;
+  /** In the invoice's currency; negative for a refund. */
+  readonly amount: Money;
   readonly paidAt: Temporal.Instant;
   readonly method?: string;
   readonly reference?: string;
@@ -87,10 +98,10 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly dueOn?: Temporal.PlainDate;
   /** Open and past its due date. */
   readonly overdue: boolean;
-  readonly paidTotal: bigint;
-  readonly creditedTotal: bigint;
+  readonly paidTotal: Money;
+  readonly creditedTotal: Money;
   /** Total minus credits minus payments. */
-  readonly balance: bigint;
+  readonly balance: Money;
   readonly paidAt?: Temporal.Instant;
   readonly voidReason?: string;
   readonly note?: string;
@@ -107,6 +118,7 @@ export interface Invoice<F extends object = Record<never, never>> {
 
 export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly title: string;
+  /** Defaults to the lines' currency, then `EUR`. */
   readonly currency?: string;
   readonly company?: RecordRef;
   readonly contact?: RecordRef;
@@ -117,15 +129,15 @@ export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-/** What is owed in one currency, by days past due. Minor units. */
+/** What is owed in one currency, by days past due. */
 export interface InvoiceAging {
   readonly currency: string;
-  readonly current: bigint;
-  readonly days1To30: bigint;
-  readonly days31To60: bigint;
-  readonly days61To90: bigint;
-  readonly over90: bigint;
-  readonly outstanding: bigint;
+  readonly current: Money;
+  readonly days1To30: Money;
+  readonly days31To60: Money;
+  readonly days61To90: Money;
+  readonly over90: Money;
+  readonly outstanding: Money;
   readonly overdueCount: number;
 }
 
@@ -146,7 +158,8 @@ export interface Invoices<F extends object = Record<never, never>> {
   recordPayment(
     invoiceId: string,
     payment: {
-      readonly amount: bigint;
+      /** In the invoice's currency. */
+      readonly amount: Money;
       readonly paidAt?: Temporal.Instant;
       readonly method?: string;
       /** Unique per organization, so a replayed payment is added once. */
@@ -233,6 +246,10 @@ const KNOWN = new Set([
 
 function invoiceOf(value: unknown): Invoice {
   const row = recordOf(value, "invoice");
+  const currency = textOf(row["currency"]);
+
+  const at = (key: string, field: string): Money =>
+    moneyOf(row[key], currency, `invoice ${field}`);
 
   return compact<Invoice>({
     id: textOf(row["id"]),
@@ -245,32 +262,34 @@ function invoiceOf(value: unknown): Invoice {
     number:
       row["number"] === null || row["number"] === undefined
         ? undefined
-        : big(row["number"]),
+        : bigintOf(row["number"], "invoice number"),
     identifier: optionalText(row["identifier"]),
     originalId: optionalText(row["original_id"]),
     title: textOf(row["title"]),
     company: refOf(row["company_type"], row["company_id"]),
     contact: refOf(row["contact_type"], row["contact_id"]),
-    currency: textOf(row["currency"]),
+    currency,
     status: enumOrThrow(row["status"], STATUSES, "invoice status"),
     termsDays: Number(row["terms_days"] ?? 0),
     issuedOn: plainDate(row["issued_on"]),
     dueOn: plainDate(row["due_on"]),
     overdue: row["overdue"] === true,
-    paidTotal: big(row["paid_total"]),
-    creditedTotal: big(row["credited_total"]),
-    balance: big(row["balance"]),
+    paidTotal: at("paid_total", "paidTotal"),
+    creditedTotal: at("credited_total", "creditedTotal"),
+    balance: at("balance", "balance"),
     paidAt: optionalInstant(row["paid_at"]),
     voidReason: optionalText(row["void_reason"]),
     note: optionalText(row["note"]),
     origin: refOf(row["origin_type"], row["origin_id"]),
     depositBps:
       typeof row["deposit_bps"] === "number" ? row["deposit_bps"] : undefined,
-    lines: recordsOf(row["lines"], "invoice lines").map(lineOf),
+    lines: recordsOf(row["lines"], "invoice lines").map((line) =>
+      lineOf(line, currency),
+    ),
     payments: recordsOf(row["payments"], "invoice payments").map((payment) =>
       compact<InvoicePayment>({
         id: textOf(payment["id"]),
-        amount: big(payment["amount"]),
+        amount: moneyOf(payment["amount"], currency, "invoice payment amount"),
         paidAt: requiredInstant(payment["paidAt"], "paidAt"),
         method: optionalText(payment["method"]),
         reference: optionalText(payment["reference"]),
@@ -312,22 +331,42 @@ export function createInvoices<
   const client: Invoices<F> = {
     create: (organizationId, input, lines) => {
       const { fields: extra, ...rest } = input;
+      const amounts = (lines ?? []).map((line) => line.unitAmount);
+      const invalid = amountsError(input.currency, amounts);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      const currency = input.currency ?? amounts[0]?.currency;
 
       return AsyncResult.from(() => fields.write({ ...extra })).andThen(
         (valid) =>
           invoice("create_invoice", {
             tenant: organizationId,
-            attrs: attrsArg({ ...rest, ...valid }),
+            attrs: attrsArg({
+              ...rest,
+              ...(currency === undefined ? {} : { currency }),
+              ...valid,
+            }),
             lines: lines === undefined ? null : lines.map(lineArg),
           }),
       );
     },
-    setLines: (invoiceId, lines) =>
-      call(
-        "set_invoice_lines",
-        { parent: invoiceId, lines: lines.map(lineArg) },
-        (value) => totalsOf(recordOf(value, "set_invoice_lines"), true),
-      ),
+    setLines: (invoiceId, lines) => {
+      const invalid = amountsError(
+        undefined,
+        lines.map((line) => line.unitAmount),
+      );
+
+      return invalid === undefined
+        ? call(
+            "set_invoice_lines",
+            { parent: invoiceId, lines: lines.map(lineArg) },
+            (value) => totalsOf(recordOf(value, "set_invoice_lines"), true),
+          )
+        : AsyncResult.err(invalid);
+    },
     issue: (invoiceId, issuedOn) =>
       invoice("issue_invoice", {
         invoice: invoiceId,
@@ -336,44 +375,60 @@ export function createInvoices<
     recordPayment: (invoiceId, payment) =>
       invoice("record_invoice_payment", {
         invoice: invoiceId,
-        amount: payment.amount.toString(),
+        amount: amountText(payment.amount),
+        currency: payment.amount.currency,
         paid_at: instantArg(payment.paidAt) ?? null,
         method: payment.method ?? null,
         reference: payment.reference ?? null,
       }),
-    credit: (invoiceId, credit = {}) =>
-      invoice("credit_invoice", {
-        invoice: invoiceId,
-        lines: credit.lines === undefined ? null : credit.lines.map(lineArg),
-        note: credit.note ?? null,
-      }),
+    credit: (invoiceId, credit = {}) => {
+      const invalid = amountsError(
+        undefined,
+        (credit.lines ?? []).map((line) => line.unitAmount),
+      );
+
+      return invalid === undefined
+        ? invoice("credit_invoice", {
+            invoice: invoiceId,
+            lines:
+              credit.lines === undefined ? null : credit.lines.map(lineArg),
+            note: credit.note ?? null,
+          })
+        : AsyncResult.err(invalid);
+    },
     void: (invoiceId, reason) =>
       invoice("void_invoice", { invoice: invoiceId, reason: reason ?? null }),
     writeOff: (invoiceId) =>
       invoice("write_off_invoice", { invoice: invoiceId }),
     aging: (organizationId, currency, asOf) =>
-      call(
-        "invoice_aging",
-        {
-          tenant: organizationId,
-          currency,
-          as_of: asOf === undefined ? null : asOf.toString(),
-        },
-        (value) => {
-          const row = recordOf(value, "invoice_aging");
+      amountsError(currency, []) === undefined
+        ? call(
+            "invoice_aging",
+            {
+              tenant: organizationId,
+              currency,
+              as_of: asOf === undefined ? null : asOf.toString(),
+            },
+            (value) => {
+              const row = recordOf(value, "invoice_aging");
+              const owed = textOf(row["currency"]);
 
-          return {
-            currency: textOf(row["currency"]),
-            current: big(row["current"]),
-            days1To30: big(row["days1To30"]),
-            days31To60: big(row["days31To60"]),
-            days61To90: big(row["days61To90"]),
-            over90: big(row["over90"]),
-            outstanding: big(row["outstanding"]),
-            overdueCount: Number(row["overdueCount"] ?? 0),
-          };
-        },
-      ),
+              const at = (key: string): Money =>
+                moneyOf(row[key], owed, `invoice_aging ${key}`);
+
+              return {
+                currency: owed,
+                current: at("current"),
+                days1To30: at("days1To30"),
+                days31To60: at("days31To60"),
+                days61To90: at("days61To90"),
+                over90: at("over90"),
+                outstanding: at("outstanding"),
+                overdueCount: Number(row["overdueCount"] ?? 0),
+              };
+            },
+          )
+        : AsyncResult.err(unknownCurrency(currency)),
     fromQuote: (quoteId, fromQuote = {}) =>
       invoice("invoice_from_quote", {
         quote: quoteId,

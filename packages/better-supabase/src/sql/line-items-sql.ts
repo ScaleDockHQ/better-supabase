@@ -150,8 +150,9 @@ create trigger ${trigger} after insert or update or delete on ${t}
 for each row execute function better_supabase.${trigger}();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function ${fn}(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -161,14 +162,18 @@ as $$
 declare
   v_parent uuid := ${options.setter}.parent;
   v_tenant ${ctx.idType};
+  v_currency text;
 begin
-  select x.${pc("tenant")} into v_tenant from ${p} x where x.${pc("id")} = v_parent${items.frozen === undefined ? "" : ` and not (${items.frozen.replaceAll("p.", "x.")})`};
+  select x.${pc("tenant")}, x.${pc("currency")} into v_tenant, v_currency from ${p} x where x.${pc("id")} = v_parent${items.frozen === undefined ? "" : ` and not (${items.frozen.replaceAll("p.", "x.")})`};
   if v_tenant is null then
     ${fail("LINES_RECORD_INVALID", "no such record, or its lines are locked", "P0002")}
   end if;
   ${options.guard}
   if jsonb_typeof(coalesce(${options.setter}.lines, '[]')) <> 'array' then
     ${fail("LINES_INVALID", "lines must be a list", "22023")}
+  end if;
+  if exists (select 1 from jsonb_array_elements(${options.setter}.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    ${fail("LINES_CURRENCY", "every line must be in the record's currency", "22023")}
   end if;
   delete from ${t} l where l.${c("parent")} = v_parent;
   begin
@@ -184,7 +189,8 @@ begin
   perform ${recount}(v_parent);
   return (select jsonb_build_object(
     'listTotal', x.${pc("listTotal")}::text, 'discountTotal', x.${pc("discountTotal")}::text,
-    'subtotal', x.${pc("subtotal")}::text, 'taxTotal', x.${pc("taxTotal")}::text, 'total', x.${pc("total")}::text)
+    'subtotal', x.${pc("subtotal")}::text, 'taxTotal', x.${pc("taxTotal")}::text, 'total', x.${pc("total")}::text,
+    'currency', x.${pc("currency")})
     from ${p} x where x.${pc("id")} = v_parent);
 end;
 $$;

@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "./standard.ts";
 
 import { dbError, type ValidationIssue } from "./errors.ts";
+import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok, type Result } from "./result.ts";
 import { toIssues } from "./standard.ts";
 
@@ -60,9 +61,6 @@ export interface BlockFields<T extends object> {
     fields: object | undefined,
   ) => AsyncResult<Readonly<Record<string, unknown>> | undefined>;
 }
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The extra columns a block row carries, by column name, typed by its `fields` schema. */
 export type RowFields<F extends object> = Readonly<Record<string, unknown>> & F;
@@ -126,7 +124,7 @@ export function writeFields<F extends object, T>(
 
 /** The `fields` object of a row a block function returned, or none. */
 export function rowFields(value: unknown): Readonly<Record<string, unknown>> {
-  return isObject(value) ? value : {};
+  return isRecord(value) ? value : {};
 }
 
 async function run(
@@ -162,7 +160,7 @@ export function blockFields<T extends object = Record<never, never>>(
         return invalid(label, toIssues(outcome.issues));
       }
 
-      if (!isObject(outcome.value)) {
+      if (!isRecord(outcome.value)) {
         return invalid(label, [{ message: "fields must parse to an object" }]);
       }
 
@@ -177,7 +175,7 @@ export function blockFields<T extends object = Record<never, never>>(
       const outcome = await run(schema, attrs);
 
       if (!outcome.issues) {
-        if (!isObject(outcome.value)) {
+        if (!isRecord(outcome.value)) {
           return ok(attrs);
         }
 
@@ -254,7 +252,7 @@ export const extraOf = (
 
 /** The extra columns a block read returns under its `fields` key. */
 const extraFieldsOf = (value: unknown): Record<string, unknown> =>
-  isObject(value) && isObject(value["fields"]) ? value["fields"] : {};
+  isRecord(value) && isRecord(value["fields"]) ? value["fields"] : {};
 
 /**
  * Parses the extra columns of `raw` (a row a block function returned) and

@@ -1,8 +1,8 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
 import {
@@ -14,19 +14,22 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
+import { amountsError, moneyOf, unknownCurrency } from "../money-codec.ts";
 import {
-  attrsArg,
-  big,
-  compact,
   type Line,
   type LineInput,
   lineArg,
   lineOf,
+  type Totals,
+  totalsOf,
+} from "../sales-lines.ts";
+import {
+  attrsArg,
+  compact,
   plainDate,
   type RecordRef,
   refOf,
-  type Totals,
-  totalsOf,
 } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -40,9 +43,12 @@ import {
   recordsOf,
   requiredInstant,
   textOf,
+  bigintOf,
 } from "../shared.ts";
 
-export type { Line, LineInput, RecordRef, Totals } from "../sales-shared.ts";
+export type { Line, LineInput, Totals } from "../sales-lines.ts";
+
+export type { RecordRef } from "../sales-shared.ts";
 
 export type QuoteStatus =
   | "draft"
@@ -103,6 +109,7 @@ export interface Quote<F extends object = Record<never, never>> {
 
 export interface QuoteInput<F extends object = Record<never, never>> {
   readonly title?: string;
+  /** Defaults to the lines' currency, then `EUR`. */
   readonly currency?: string;
   readonly company?: RecordRef | null;
   readonly contact?: RecordRef | null;
@@ -124,10 +131,10 @@ export interface PublicQuote {
   readonly currency: string;
   readonly validUntil?: Temporal.PlainDate;
   readonly terms?: string;
-  readonly subtotal: bigint;
-  readonly discountTotal: bigint;
-  readonly taxTotal: bigint;
-  readonly total: bigint;
+  readonly subtotal: Money;
+  readonly discountTotal: Money;
+  readonly taxTotal: Money;
+  readonly total: Money;
   readonly lines: readonly Line[];
 }
 
@@ -222,11 +229,12 @@ const KNOWN = new Set([
 
 function quoteOf(value: unknown): Quote {
   const row = recordOf(value, "quote");
+  const currency = textOf(row["currency"]);
 
   return compact<Quote>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
-    number: big(row["number"]),
+    number: bigintOf(row["number"], "quote number"),
     identifier: textOf(row["identifier"]),
     revision: Number(row["revision"] ?? 1),
     supersedesId: optionalText(row["supersedes_id"]),
@@ -234,7 +242,7 @@ function quoteOf(value: unknown): Quote {
     company: refOf(row["company_type"], row["company_id"]),
     contact: refOf(row["contact_type"], row["contact_id"]),
     ownerId: optionalText(row["owner_user_id"]),
-    currency: textOf(row["currency"]),
+    currency,
     status: enumOrThrow(row["status"], STATUSES, "quote status"),
     validUntil: plainDate(row["valid_until"]),
     terms: optionalText(row["terms"]),
@@ -245,7 +253,9 @@ function quoteOf(value: unknown): Quote {
     decidedAt: optionalInstant(row["decided_at"]),
     decidedBy: optionalText(row["decided_by"]),
     decisionNote: optionalText(row["decision_note"]),
-    lines: recordsOf(row["lines"], "quote lines").map(lineOf),
+    lines: recordsOf(row["lines"], "quote lines").map((line) =>
+      lineOf(line, currency),
+    ),
     totals: totalsOf(row, false),
     // Rows from the module carry `fields`; an adopted table's rows carry
     // the app's columns next to the module's.
@@ -260,20 +270,26 @@ function quoteOf(value: unknown): Quote {
 
 function publicOf(value: unknown): PublicQuote {
   const row = recordOf(value, "public_quote");
+  const currency = textOf(row["currency"]);
+
+  const at = (key: string): Money =>
+    moneyOf(row[key], currency, `public_quote ${key}`);
 
   return compact<PublicQuote>({
     identifier: textOf(row["identifier"]),
     revision: Number(row["revision"] ?? 1),
     title: textOf(row["title"]),
     status: enumOrThrow(row["status"], STATUSES, "quote status"),
-    currency: textOf(row["currency"]),
+    currency,
     validUntil: plainDate(row["validUntil"]),
     terms: optionalText(row["terms"]),
-    subtotal: big(row["subtotal"]),
-    discountTotal: big(row["discountTotal"]),
-    taxTotal: big(row["taxTotal"]),
-    total: big(row["total"]),
-    lines: recordsOf(row["lines"], "quote lines").map(lineOf),
+    subtotal: at("subtotal"),
+    discountTotal: at("discountTotal"),
+    taxTotal: at("taxTotal"),
+    total: at("total"),
+    lines: recordsOf(row["lines"], "quote lines").map((line) =>
+      lineOf(line, currency),
+    ),
   });
 }
 
@@ -309,32 +325,56 @@ export function createQuotes<
   };
 
   const client: Quotes<F> = {
-    create: (organizationId, input, lines) =>
-      writeFields(fields, input.fields, (checked) =>
+    create: (organizationId, input, lines) => {
+      const amounts = (lines ?? []).map((line) => line.unitAmount);
+      const invalid = amountsError(input.currency, amounts);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      const currency = input.currency ?? amounts[0]?.currency;
+
+      const withCurrency =
+        currency === undefined ? input : { ...input, currency };
+
+      return writeFields(fields, input.fields, (checked) =>
         quote(
           "create_quote",
           {
             tenant: organizationId,
-            attrs: attrsOf(input, checked),
+            attrs: attrsOf(withCurrency, checked),
             lines: lines === undefined ? null : lines.map(lineArg),
           },
           quoteOf,
         ),
-      ),
+      );
+    },
     update: (quoteId, input) =>
-      writeFields(fields, input.fields, (checked) =>
-        quote(
-          "update_quote",
-          { quote: quoteId, attrs: attrsOf(input, checked) },
-          quoteOf,
-        ),
-      ),
-    setLines: (quoteId, lines) =>
-      call(
-        "set_quote_lines",
-        { parent: quoteId, lines: lines.map(lineArg) },
-        (value) => totalsOf(recordOf(value, "set_quote_lines"), true),
-      ),
+      input.currency !== undefined &&
+      amountsError(input.currency, []) !== undefined
+        ? AsyncResult.err(unknownCurrency(input.currency))
+        : writeFields(fields, input.fields, (checked) =>
+            quote(
+              "update_quote",
+              { quote: quoteId, attrs: attrsOf(input, checked) },
+              quoteOf,
+            ),
+          ),
+    setLines: (quoteId, lines) => {
+      const invalid = amountsError(
+        undefined,
+        lines.map((line) => line.unitAmount),
+      );
+
+      return invalid === undefined
+        ? call(
+            "set_quote_lines",
+            { parent: quoteId, lines: lines.map(lineArg) },
+            (value) => totalsOf(recordOf(value, "set_quote_lines"), true),
+          )
+        : AsyncResult.err(invalid);
+    },
     send: (quoteId) =>
       call("send_quote", { quote: quoteId }, (value) => ({
         quote: quoteOf(value),

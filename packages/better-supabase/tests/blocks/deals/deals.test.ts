@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { createDeals, dealsSubjects } from "../../../src/blocks/deals/index.ts";
+import { money } from "../../../src/commerce/money.ts";
+
+const eur = (amount: bigint) => money(amount, "EUR");
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -25,7 +28,7 @@ function transport(
 const ROW = {
   id: "d1",
   tenant_id: "o",
-  number: 1,
+  number: "1",
   identifier: "DEAL-1",
   name: "Growth",
   company_type: "company",
@@ -35,8 +38,8 @@ const ROW = {
   owner_user_id: "u1",
   product: "pro",
   seats: 60,
-  amount: 4_800_000,
-  existing_amount: 0,
+  amount: "4800000",
+  existing_amount: "0",
   currency: "EUR",
   value_period: "annual",
   amount_source: "manual",
@@ -64,11 +67,11 @@ const ROW = {
   created_by: "u1",
   created_at: "2026-10-01T09:00:00Z",
   updated_at: "2026-10-14T09:00:00Z",
-  list_total: 10,
-  discount_total: 1,
-  subtotal: 9,
-  tax_total: 2,
-  total: 11,
+  list_total: "10",
+  discount_total: "1",
+  subtotal: "9",
+  tax_total: "2",
+  total: "11",
   contacts: [{ type: "person", id: "p1", role: null, primary: true }],
   members: [{ userId: "u2", role: "SE" }],
   region: "emea",
@@ -84,7 +87,7 @@ describe("deals block", () => {
         {
           name: "Growth",
           closeOn: Temporal.PlainDate.from("2026-11-30"),
-          amount: 4_800_000n,
+          amount: eur(4_800_000n),
           nextAt: Temporal.Instant.from("2026-10-15T09:00:00Z"),
         },
         [{ type: "person", id: "p1", primary: true }],
@@ -97,24 +100,26 @@ describe("deals block", () => {
         name: "Growth",
         closeOn: "2026-11-30",
         amount: "4800000",
+        currency: "EUR",
         nextAt: "2026-10-15T09:00:00Z",
       },
       contacts: [{ type: "person", id: "p1", primary: true }],
     });
     expect(deal).toMatchObject({
       number: 1n,
-      amount: 4_800_000n,
+      amount: eur(4_800_000n),
+      existingAmount: eur(0n),
       company: { type: "company", id: "c1" },
       outcome: "won",
       forecast: "commit",
       pushCount: 1,
       flags: ["legal_review"],
       totals: {
-        listTotal: 10n,
-        discountTotal: 1n,
-        subtotal: 9n,
-        taxTotal: 2n,
-        total: 11n,
+        listTotal: eur(10n),
+        discountTotal: eur(1n),
+        subtotal: eur(9n),
+        taxTotal: eur(2n),
+        total: eur(11n),
       },
       contacts: [{ type: "person", id: "p1", primary: true }],
       members: [{ userId: "u2", role: "SE" }],
@@ -173,14 +178,18 @@ describe("deals block", () => {
           field: "closeOn",
           value: Temporal.PlainDate.from("2026-12-01"),
         },
-        { dealId: "d1", field: "amount", value: 5n },
+        { dealId: "d1", field: "amount", value: eur(5n) },
       ])
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
         { dealId: "d1", field: "closeOn", value: "2026-12-01" },
-        { dealId: "d1", field: "amount", value: "5" },
+        {
+          dealId: "d1",
+          field: "amount",
+          value: { amount: "5", currency: "EUR" },
+        },
       ],
     });
     expect(result.rejected).toEqual([
@@ -200,6 +209,7 @@ describe("deals block", () => {
         subtotal: "100",
         taxTotal: "21",
         total: "121",
+        currency: "EUR",
       }),
       archive_deal: () => true,
       delete_deal: () => true,
@@ -213,10 +223,10 @@ describe("deals block", () => {
     expect(
       (
         await deals
-          .setLines("d1", [{ description: "x", unitAmount: 100n }])
+          .setLines("d1", [{ description: "x", unitAmount: eur(100n) }])
           .orThrow()
       ).total,
-    ).toBe(121n);
+    ).toEqual(eur(121n));
     expect(await deals.archive("d1").orThrow()).toBe(true);
     expect(await deals.remove("d1").orThrow()).toBe(true);
     expect(t.calls.slice(0, 2).map(([, args]) => args)).toEqual([
@@ -225,7 +235,7 @@ describe("deals block", () => {
     ]);
     expect(t.calls[4]?.[1]).toEqual({
       parent: "d1",
-      lines: [{ description: "x", unitAmount: "100" }],
+      lines: [{ description: "x", unitAmount: "100", currency: "EUR" }],
     });
   });
 
@@ -273,16 +283,16 @@ describe("deals block", () => {
         since: Temporal.PlainDate.from("2026-10-01"),
         until: Temporal.PlainDate.from("2026-12-31"),
         currency: "EUR",
-        target: 10n,
+        target: eur(10n),
       })
       .orThrow();
 
     expect(forecast).toMatchObject({
-      won: 1n,
-      later: 7n,
-      target: 10n,
+      won: eur(1n),
+      later: eur(7n),
+      target: eur(10n),
       attainment: 0.3,
-      gap: 7n,
+      gap: eur(7n),
     });
     expect(forecast.owners[1]?.ownerId).toBeUndefined();
     expect(t.calls[0]?.[1]).toEqual({
@@ -325,6 +335,91 @@ describe("deals block", () => {
     });
   });
 
+  it("keeps amounts past 2^53 exact", async () => {
+    const big = 9_007_199_254_740_993n;
+
+    const deal = await createDeals({
+      transport: transport({
+        reopen_deal: () => ({ ...ROW, amount: big.toString() }),
+      }),
+    })
+      .reopen("d1")
+      .orThrow();
+
+    expect(deal.amount).toEqual(eur(big));
+  });
+
+  it("refuses a row that sends an amount as a number or leaves it out", async () => {
+    for (const amount of [4_800_000, null]) {
+      const deals = createDeals({
+        transport: transport({ reopen_deal: () => ({ ...ROW, amount }) }),
+      });
+
+      await expect(deals.reopen("d1").orThrow()).rejects.toThrow(
+        /deal amount/u,
+      );
+    }
+  });
+
+  it("refuses amounts in another currency before calling the database", async () => {
+    const t = transport({});
+    const deals = createDeals({ transport: t });
+    const closeOn = Temporal.PlainDate.from("2026-11-30");
+
+    const mixed = await deals.create("o", {
+      name: "x",
+      closeOn,
+      amount: eur(1n),
+      existingAmount: money(1n, "USD"),
+    });
+
+    const other = await deals.create("o", {
+      name: "x",
+      closeOn,
+      currency: "USD",
+      amount: eur(1n),
+    });
+
+    const unknown = await deals.create("o", {
+      name: "x",
+      closeOn,
+      currency: "XXQ",
+    });
+
+    const lines = await deals.setLines("d1", [
+      { description: "a", unitAmount: eur(1n) },
+      { description: "b", unitAmount: money(1n, "USD") },
+    ]);
+
+    const forecast = await deals.forecast("o", {
+      since: closeOn,
+      until: closeOn,
+      currency: "USD",
+      target: eur(1n),
+    });
+
+    const change = await deals.update([
+      { dealId: "d1", field: "currency", value: "XXQ" },
+    ]);
+
+    expect(
+      [mixed, other, lines, forecast].map((result) =>
+        result.ok ? undefined : result.error.hint,
+      ),
+    ).toEqual([
+      "CURRENCY_MISMATCH",
+      "CURRENCY_MISMATCH",
+      "CURRENCY_MISMATCH",
+      "CURRENCY_MISMATCH",
+    ]);
+    expect(
+      [unknown, change].map((result) =>
+        result.ok ? undefined : result.error.hint,
+      ),
+    ).toEqual(["CURRENCY_INVALID", "CURRENCY_INVALID"]);
+    expect(t.calls).toEqual([]);
+  });
+
   it("registers deals as a ranked subject grouped by stage", () => {
     expect(dealsSubjects({ url: "/deals/{id}" }).deal).toMatchObject({
       table: "better_supabase.deals",
@@ -336,16 +431,13 @@ describe("deals block", () => {
 });
 
 describe("deals block, options and sparse reads", () => {
-  it("runs hooks and reads defaults for missing numbers", async () => {
+  it("runs hooks and reads defaults for missing optional numbers", async () => {
     const sparse = {
       ...ROW,
       seats: null,
       probability: null,
       push_count: null,
       number: "7",
-      amount: null,
-      existing_amount: null,
-      list_total: null,
       opened_on: null,
       expected_close_on: null,
       archived_at: "2026-10-14T00:00:00Z",
@@ -389,7 +481,7 @@ describe("deals block, options and sparse reads", () => {
 
     expect(deal).toMatchObject({
       number: 7n,
-      amount: 0n,
+      amount: eur(4_800_000n),
       pushCount: 0,
       archived: true,
     });

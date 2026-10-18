@@ -4,6 +4,7 @@ import {
   createWorkItems,
   workItemsSubjects,
 } from "better-supabase/blocks/work-items";
+import { money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -94,8 +95,7 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
             {
               name: "Maintenance contract",
               closeOn: Temporal.PlainDate.from("2026-12-31"),
-              amount: 1_250_000n,
-              currency: "EUR",
+              amount: money(1_250_000n, "EUR"),
               company: { type: "customer", id: customer },
             },
             [{ type: "customer_contact", id: contact, primary: true }],

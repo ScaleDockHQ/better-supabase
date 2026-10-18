@@ -14,11 +14,11 @@ import {
 import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
+import { snapshotFixture } from "../cli/fixtures/library.ts";
 import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
-import fixture from "../fixtures/snapshot.json" with { type: "json" };
 
 function importPath(fromFile: string, toFile: string): string {
   const path = relative(dirname(fromFile), toFile).split(sep).join("/");
@@ -293,7 +293,7 @@ const input: GeneratorInput = {
       }),
     },
   },
-  introspection: fixture.generator as GeneratorInput["introspection"],
+  introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
   output: resolve(root, config.output),

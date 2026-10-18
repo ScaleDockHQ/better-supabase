@@ -244,7 +244,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "issue_invoice", args: ["uuid", "date"], returns: "jsonb" },
     {
       name: "record_invoice_payment",
-      args: ["uuid", "bigint", "timestamptz", "text", "text"],
+      args: ["uuid", "bigint", "text", "timestamptz", "text", "text"],
       returns: "jsonb",
     },
     {

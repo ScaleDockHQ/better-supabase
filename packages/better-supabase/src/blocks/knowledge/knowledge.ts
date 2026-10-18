@@ -22,7 +22,7 @@ import {
   recordsOf,
   run,
   textOf,
-  toInstant,
+  instantOf,
   injectableOf,
 } from "../shared.ts";
 
@@ -354,9 +354,6 @@ const statusOf = (value: unknown): KnowledgeStatus => {
   return STATUSES.has(text) ? (text as KnowledgeStatus) : "failed";
 };
 
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
-
 function documentOf(value: unknown): KnowledgeDocument {
   const row = recordOf(value, "knowledge_documents");
 
@@ -374,8 +371,8 @@ function documentOf(value: unknown): KnowledgeDocument {
     error: optionalText(row["error"]),
     chunkCount: Number(row["chunk_count"] ?? 0),
     embeddingModel: optionalText(row["embedding_model"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 

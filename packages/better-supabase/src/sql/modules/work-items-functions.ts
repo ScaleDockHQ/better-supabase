@@ -1,6 +1,7 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, pageSize, userGrant, writeExtraColumns } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
@@ -62,7 +63,7 @@ export function workItemFunctions(
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb))`;
+    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb))`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({

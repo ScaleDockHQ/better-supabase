@@ -12,10 +12,12 @@ import {
 } from "../../src/blocks/parties/index.ts";
 import { createQuotes } from "../../src/blocks/quotes/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
+import { money } from "../../src/commerce/money.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
+const eur = (amount: bigint) => money(amount, "EUR");
 
 const MODULES = [
   "organizations",
@@ -75,8 +77,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .create(org, {
           name: "Rollout",
           closeOn: Temporal.PlainDate.from("2026-12-01"),
-          amount: 1_000_000n,
-          currency: "EUR",
+          amount: eur(1_000_000n),
           company: { type: "company", id: acme.id },
         })
         .orThrow();
@@ -91,7 +92,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(quote.lines).toEqual([
         expect.objectContaining({
           description: "Rollout",
-          unitAmount: 1_000_000n,
+          unitAmount: eur(1_000_000n),
         }),
       ]);
       expect((await quotes.fromDeal(deal.id).orThrow()).id).toBe(quote.id);
@@ -101,12 +102,12 @@ describe.skipIf(!live)("quotes and invoices", () => {
           {
             description: "Licences",
             quantity: 10,
-            unitAmount: 100_000n,
+            unitAmount: eur(100_000n),
             taxRateBps: 2100,
           },
           {
             description: "Setup",
-            unitAmount: 50_000n,
+            unitAmount: eur(50_000n),
             discountBps: 2000,
             taxRateBps: 2100,
           },
@@ -117,7 +118,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(
         hint(
           await quotes.setLines(quote.id, [
-            { description: "x", unitAmount: 1n },
+            { description: "x", unitAmount: eur(1n) },
           ]),
         ),
       ).toBe("LINES_RECORD_INVALID");
@@ -127,9 +128,9 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(seen).toMatchObject({
         identifier: "Q-1",
         status: "viewed",
-        subtotal: 1_040_000n,
-        taxTotal: 218_400n,
-        total: 1_258_400n,
+        subtotal: eur(1_040_000n),
+        taxTotal: eur(218_400n),
+        total: eur(1_258_400n),
       });
       expect(hint(await quotes.view("nope"))).toBe("QUOTE_LINK_INVALID");
       expect(
@@ -178,7 +179,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(deposit).toMatchObject({
         status: "draft",
         depositBps: 3000,
-        totals: { subtotal: 312_000n, taxTotal: 65_520n, total: 377_520n },
+        totals: {
+          subtotal: eur(312_000n),
+          taxTotal: eur(65_520n),
+          total: eur(377_520n),
+        },
       });
 
       const issuedDeposit = await invoices
@@ -193,9 +198,9 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       const final = await invoices.fromQuote(revised.id).orThrow();
       expect(final.totals).toMatchObject({
-        subtotal: 728_000n,
-        taxTotal: 152_880n,
-        total: 880_880n,
+        subtotal: eur(728_000n),
+        taxTotal: eur(152_880n),
+        total: eur(880_880n),
       });
       expect((await invoices.fromQuote(revised.id).orThrow()).id).toBe(
         final.id,
@@ -205,56 +210,56 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       const partly = await invoices
         .recordPayment(issuedFinal.id, {
-          amount: 500_000n,
+          amount: eur(500_000n),
           reference: "bank-1",
         })
         .orThrow();
 
       expect(partly).toMatchObject({
         status: "partially_paid",
-        balance: 380_880n,
+        balance: eur(380_880n),
       });
       expect(
         (
           await invoices
             .recordPayment(issuedFinal.id, {
-              amount: 500_000n,
+              amount: eur(500_000n),
               reference: "bank-1",
             })
             .orThrow()
         ).paidTotal,
-      ).toBe(500_000n);
+      ).toEqual(eur(500_000n));
       expect(
         hint(
           await invoices.recordPayment(issuedFinal.id, {
-            amount: -500_001n,
+            amount: eur(-500_001n),
           }),
         ),
       ).toBe("INVOICE_REFUND_TOO_LARGE");
 
-      const refund = { amount: -500_000n, reference: "refund-1" };
+      const refund = { amount: eur(-500_000n), reference: "refund-1" };
       expect(
         (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
           .paidTotal,
-      ).toBe(0n);
+      ).toEqual(eur(0n));
       expect(
         (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
           .paidTotal,
-      ).toBe(0n);
+      ).toEqual(eur(0n));
       expect(
         (
           await invoices
             .recordPayment(issuedFinal.id, {
-              amount: 500_000n,
+              amount: eur(500_000n),
               reference: "bank-2",
             })
             .orThrow()
         ).paidTotal,
-      ).toBe(500_000n);
+      ).toEqual(eur(500_000n));
 
       const credit = await invoices
         .credit(issuedFinal.id, {
-          lines: [{ description: "Goodwill", unitAmount: 80_880n }],
+          lines: [{ description: "Goodwill", unitAmount: eur(80_880n) }],
         })
         .orThrow();
 
@@ -268,19 +273,19 @@ describe.skipIf(!live)("quotes and invoices", () => {
       );
 
       const paid = await invoices
-        .recordPayment(issuedFinal.id, { amount: 300_000n })
+        .recordPayment(issuedFinal.id, { amount: eur(300_000n) })
         .orThrow();
 
       expect(paid).toMatchObject({
         status: "paid",
-        balance: 0n,
-        creditedTotal: 80_880n,
+        balance: eur(0n),
+        creditedTotal: eur(80_880n),
       });
       expect(
         hint(
           await invoices
             .credit(issuedFinal.id, {
-              lines: [{ description: "x", unitAmount: 1n }],
+              lines: [{ description: "x", unitAmount: eur(1n) }],
             })
             .then(async (r) => (r.ok ? invoices.issue(r.data.id) : r)),
         ),
@@ -291,8 +296,8 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .orThrow();
 
       expect(aging).toMatchObject({
-        days31To60: 377_520n,
-        outstanding: 377_520n,
+        days31To60: eur(377_520n),
+        outstanding: eur(377_520n),
         overdueCount: 1,
       });
 
@@ -334,23 +339,16 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       const invoice = await invoices
         .create(org, { title: "Precision" }, [
-          { description: "Half", unitAmount: 1n, taxRateBps: 5000 },
-          { description: "Hours", quantity: 1.2345, unitAmount: 1999n },
-          { description: "Large", unitAmount: large },
+          { description: "Half", unitAmount: eur(1n), taxRateBps: 5000 },
+          { description: "Hours", quantity: 1.2345, unitAmount: eur(1999n) },
+          { description: "Large", unitAmount: eur(large) },
         ])
         .orThrow();
 
-      // A row result sends int8 as a JSON number, so read the stored totals
-      // as text to check them past 2^53.
-      const [stored] = await s.sql.queryRaw<Record<string, string>>(
-        "select subtotal::text, tax_total::text, total::text from better_supabase.invoices where id = $1",
-        [invoice.id],
-      );
-
-      expect(stored).toEqual({
-        subtotal: String(1n + 2468n + large),
-        tax_total: "1",
-        total: String(2n + 2468n + large),
+      expect(invoice.totals).toMatchObject({
+        subtotal: eur(1n + 2468n + large),
+        taxTotal: eur(1n),
+        total: eur(2n + 2468n + large),
       });
 
       const quote = await quotes
@@ -360,7 +358,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
             title: "Large",
             validUntil: Temporal.Now.plainDateISO().add({ days: 30 }),
           },
-          [{ description: "Large", unitAmount: large }],
+          [{ description: "Large", unitAmount: eur(large) }],
         )
         .orThrow();
 
@@ -373,7 +371,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .fromQuote(quote.id, { depositBps: 3000 })
         .orThrow();
 
-      expect(deposit.totals.subtotal).toBe(2_702_159_776_422_298n);
+      expect(deposit.totals.subtotal).toEqual(eur(2_702_159_776_422_298n));
     } finally {
       await s.close();
     }
@@ -398,7 +396,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
             title: "Old offer",
             validUntil: Temporal.PlainDate.from("2020-01-01"),
           },
-          [{ description: "x", unitAmount: 100n }],
+          [{ description: "x", unitAmount: eur(100n) }],
         )
         .orThrow();
 
@@ -424,7 +422,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .create(
           org,
           { title: "Other", validUntil: Temporal.PlainDate.from("2020-01-01") },
-          [{ description: "x", unitAmount: 1n }],
+          [{ description: "x", unitAmount: eur(1n) }],
         )
         .orThrow();
 
@@ -435,7 +433,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       const draft = await invoices
         .create(org, { title: "Mistake" }, [
-          { description: "x", unitAmount: 5n },
+          { description: "x", unitAmount: eur(5n) },
         ])
         .orThrow();
 
@@ -448,7 +446,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           (
             await invoices
               .create(org, { title: "Real" }, [
-                { description: "x", unitAmount: 5n },
+                { description: "x", unitAmount: eur(5n) },
               ])
               .orThrow()
           ).id,
@@ -456,9 +454,49 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .orThrow();
 
       expect(next.identifier).toBe("INV-1");
-      expect(hint(await invoices.recordPayment(draft.id, { amount: 1n }))).toBe(
-        "INVOICE_NOT_PAYABLE",
-      );
+
+      const sqlHint = async (sql: string, params: unknown[]) => {
+        await s.client.query("savepoint probe");
+
+        try {
+          await s.client.query(sql, params);
+
+          return "none";
+        } catch (error) {
+          return error instanceof Error && "hint" in error
+            ? error.hint
+            : "none";
+        } finally {
+          await s.client.query("rollback to savepoint probe");
+        }
+      };
+
+      const open = await invoices
+        .create(org, { title: "Open" }, [
+          { description: "x", unitAmount: eur(5n) },
+        ])
+        .orThrow();
+
+      expect(
+        await sqlHint(
+          "select better_supabase.set_invoice_lines($1, $2::jsonb)",
+          [
+            open.id,
+            JSON.stringify([
+              { description: "x", unitAmount: "5", currency: "USD" },
+            ]),
+          ],
+        ),
+      ).toBe("LINES_CURRENCY");
+      expect(
+        await sqlHint(
+          "select better_supabase.record_invoice_payment($1, 1, 'USD', null, null, null)",
+          [next.id],
+        ),
+      ).toBe("INVOICE_CURRENCY_MISMATCH");
+      expect(
+        hint(await invoices.recordPayment(draft.id, { amount: eur(1n) })),
+      ).toBe("INVOICE_NOT_PAYABLE");
     } finally {
       await s.close();
     }

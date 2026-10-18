@@ -56,4 +56,16 @@ export interface RpcContext extends ExecuteContext {
   /** The function is `stable`: send it as a GET, so read replicas can serve it. */
   readonly get?: boolean;
   readonly function?: FunctionMeta;
+  /**
+   * The result columns to select, by database name. Set when a column has a
+   * codec, which reads it as text: a JSON number has already lost an `int8`
+   * past 2^53 or a `numeric`'s digits.
+   */
+  readonly select?: readonly RpcColumn[];
+}
+
+/** One column of an `RpcContext.select` list. */
+export interface RpcColumn {
+  readonly column: string;
+  readonly cast?: "text";
 }

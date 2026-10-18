@@ -1,6 +1,7 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
@@ -10,9 +11,6 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const SLUG = "'^[a-z0-9]+(?:-[a-z0-9]+)*$'";
 

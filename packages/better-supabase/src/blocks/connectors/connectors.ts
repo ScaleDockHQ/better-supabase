@@ -31,7 +31,7 @@ import {
   recordsOf,
   stringsOf,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 
 export type ConnectorTransport = "http" | "sse";
@@ -207,9 +207,6 @@ const STATUSES: ReadonlySet<string> = new Set([
   "rejected",
 ]);
 
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
-
 function grantOf(value: unknown): ConnectorGrant {
   const row = recordOf(value, "connector_grants");
   const credentialRef = credentialRefOf(row["credential_ref"]);
@@ -226,7 +223,7 @@ function grantOf(value: unknown): ConnectorGrant {
     credentialRef,
     scopes: stringsOf(row["scopes"]),
     expiresAt: optionalInstant(row["expires_at"]),
-    grantedAt: instant(row["granted_at"]),
+    grantedAt: instantOf(row["granted_at"]),
     revokedAt: optionalInstant(row["revoked_at"]),
   };
 }
@@ -254,8 +251,8 @@ function serverOf(value: unknown): ConnectorServer {
       : {},
     enabled: row["enabled"] !== false,
     grant: isRecord(row["grant"]) ? grantOf(row["grant"]) : undefined,
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
@@ -464,7 +461,7 @@ export function createConnectors<
                   initializeResult: isRecord(value["initialize_result"])
                     ? value["initialize_result"]
                     : undefined,
-                  expiresAt: instant(value["expires_at"]),
+                  expiresAt: instantOf(value["expires_at"]),
                 }
               : undefined,
         ),

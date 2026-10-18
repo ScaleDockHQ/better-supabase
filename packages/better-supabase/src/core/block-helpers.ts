@@ -243,6 +243,49 @@ export function requiredInstant(
   return instant;
 }
 
+/** A `timestamptz` from jsonb or `pg`; throws for null or text that isn't one. */
+export const instantOf = (value: unknown): Temporal.Instant =>
+  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
+
+const INTEGER = /^-?\d+$/;
+
+/**
+ * An optional `int8` from jsonb or `pg`, or `undefined` for null. Block
+ * functions send `int8` as text because a JSON number loses precision past
+ * 2^53, so a number here is refused instead of read rounded.
+ */
+export function optionalBigintOf(
+  value: unknown,
+  field: string,
+): bigint | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "bigint") {
+    return value;
+  }
+
+  if (typeof value === "string" && INTEGER.test(value)) {
+    return BigInt(value);
+  }
+
+  throw new TypeError(
+    `${field} must be an integer sent as text, got ${typeof value === "string" ? JSON.stringify(value) : typeof value}`,
+  );
+}
+
+/** An `int8` that must be there; see `optionalBigintOf`. */
+export function bigintOf(value: unknown, field: string): bigint {
+  const found = optionalBigintOf(value, field);
+
+  if (found === undefined) {
+    throw new TypeError(`${field} is missing`);
+  }
+
+  return found;
+}
+
 /** An optional `timestamptz` as text for a function argument. */
 export const instantArg = (
   value: Temporal.Instant | undefined | null,

@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
 import {
@@ -125,9 +126,6 @@ const RESERVED = ["fields"] as const;
 /** One commentable subject type: its table, and who may read it. */
 export type CommentSubject = Omit<Subject, "extra">;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /** `options.documentSchema`: a JSON Schema object for the `document` column. */
 function documentSchemaOf(
   ctx: ModuleContext,
@@ -138,7 +136,7 @@ function documentSchemaOf(
     return undefined;
   }
 
-  if (!isObject(option)) {
+  if (!isRecord(option)) {
     throw new TypeError(
       "blocks.comments.options.documentSchema must be a JSON Schema object",
     );
@@ -171,7 +169,7 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
 
   const where = "blocks.comments.options.mentionGroups";
 
-  if (!isObject(option)) {
+  if (!isRecord(option)) {
     throw new TypeError(`${where} must be { table, group, member, tenant? }`);
   }
 
@@ -347,7 +345,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     const where = `blocks.comments.options.subjects.${type}.${key}`;
     const raw = subject.extra[key];
 
-    if (raw !== undefined && key === "readableBy" && isObject(raw)) {
+    if (raw !== undefined && key === "readableBy" && isRecord(raw)) {
       for (const name of Object.keys(raw)) {
         if (name !== "sql" && name !== "enforce") {
           throw new TypeError(
@@ -361,7 +359,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       }
     }
 
-    const object = key === "readableBy" && isObject(raw);
+    const object = key === "readableBy" && isRecord(raw);
     const value = object ? raw["sql"] : raw;
 
     if (value === undefined && !object) {
@@ -379,7 +377,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     const raw = subject.extra["readableBy"];
     const sql = expression(type, subject, "readableBy");
 
-    return sql === undefined || !isObject(raw) || raw["enforce"] !== true
+    return sql === undefined || !isRecord(raw) || raw["enforce"] !== true
       ? []
       : [
           `when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `${comments}.${c("subjectId")}::text`)} and (${sql.replaceAll("{user}", "(select auth.uid())")}))`,

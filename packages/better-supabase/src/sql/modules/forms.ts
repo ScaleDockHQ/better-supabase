@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
@@ -133,9 +134,6 @@ const functionName = (name: string): string =>
         .join(".")
     : `public.${sqlIdent(name)}`;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /** `options.handlers`: form key to `schema.function(submission_id uuid) returns jsonb`. */
 function handlersOf(
   ctx: ModuleContext,
@@ -146,7 +144,7 @@ function handlersOf(
     return [];
   }
 
-  if (!isObject(raw)) {
+  if (!isRecord(raw)) {
     throw new TypeError(
       `${WHERE}.handlers must map form keys to functions, such as { contact: "public.lead_from_submission" }`,
     );
@@ -184,8 +182,8 @@ function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
     return { max: 20, period: "PT1H" };
   }
 
-  const max = isObject(raw) ? raw["max"] : undefined;
-  const period = isObject(raw) ? raw["period"] : undefined;
+  const max = isRecord(raw) ? raw["max"] : undefined;
+  const period = isRecord(raw) ? raw["period"] : undefined;
 
   if (
     typeof max !== "number" ||

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { FunctionMeta, SchemaMeta } from "../../src/schema/types.ts";
 
-import { decodeRpcResult, rpcFunction } from "../../src/core/rpc-result.ts";
+import {
+  decodeRpcResult,
+  rpcFunction,
+  rpcSelect,
+} from "../../src/core/rpc-result.ts";
 
 const base = { returnsSet: false, volatility: "stable" } as const;
 
@@ -89,5 +93,77 @@ describe("rpcFunction", () => {
     expect(decodeRpcResult(meta, undefined, [{ item_label: "x" }])).toEqual([
       { item_label: "x" },
     ]);
+  });
+});
+
+describe("rpcSelect", () => {
+  const totals: FunctionMeta = {
+    name: "totals",
+    schema: "public",
+    ...base,
+    args: [],
+    returns: "record",
+    returnsSet: true,
+    result: {
+      columns: [
+        { db: "label", name: "label" },
+        { db: "amount", name: "amount", codec: "bigint" },
+      ],
+    },
+  };
+
+  const deals: FunctionMeta = {
+    name: "deals",
+    schema: "public",
+    ...base,
+    args: [],
+    returns: "setof deals",
+    returnsSet: true,
+    result: { table: "deals" },
+  };
+
+  const withTable: SchemaMeta = {
+    ...meta,
+    tables: {
+      deals: {
+        key: "deals",
+        name: "deals",
+        schema: "public",
+        kind: "table",
+        primaryKey: ["id"],
+        uniqueKeys: {},
+        relations: {},
+        flags: {},
+        columns: {
+          id: { db: "id", type: "uuid", nullable: false, hasDefault: true },
+          valueAmount: {
+            db: "value_amount",
+            type: "int8",
+            nullable: false,
+            hasDefault: false,
+            codec: "bigint",
+          },
+        },
+      },
+    },
+  };
+
+  it("lists every result column and casts the ones with a codec", () => {
+    expect(rpcSelect(meta, totals)).toEqual([
+      { column: "label" },
+      { column: "amount", cast: "text" },
+    ]);
+    expect(rpcSelect(withTable, deals)).toEqual([
+      { column: "id" },
+      { column: "value_amount", cast: "text" },
+    ]);
+  });
+
+  it("returns nothing without a codec column, a result shape or a function", () => {
+    const labelled = rpcFunction(meta, "area", "public", { label: "x" });
+
+    expect(rpcSelect(meta, labelled)).toBeUndefined();
+    expect(rpcSelect(meta, meta.functions["ping"])).toBeUndefined();
+    expect(rpcSelect(meta, undefined)).toBeUndefined();
   });
 });

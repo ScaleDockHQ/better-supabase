@@ -31,6 +31,8 @@ export {
   textOf,
   toInstant,
   workerId,
+  instantOf,
+  bigintOf,
 } from "../core/block-helpers.ts";
 
 export type {

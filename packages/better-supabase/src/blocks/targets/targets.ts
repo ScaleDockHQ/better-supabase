@@ -10,8 +10,9 @@ import {
   type FieldsOf,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { attrsArg, big, compact, plainDate } from "../sales-shared.ts";
+import { attrsArg, compact, plainDate } from "../sales-shared.ts";
 import {
+  bigintOf,
   applyTemporal,
   blockCall,
   type BlockOptions,
@@ -110,7 +111,7 @@ function targetOf(value: unknown): Target {
     periodStart: plainDate(row["period_start"]) ?? plainDate("1970-01-01")!,
     periodEnd: plainDate(row["period_end"]) ?? plainDate("1970-01-01")!,
     currency: optionalText(row["currency"]),
-    goal: big(row["goal"]),
+    goal: bigintOf(row["goal"], "target goal"),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   });
 }
@@ -160,7 +161,7 @@ export function createTargets<
         (value) =>
           recordsOf(value, "target_progress").map((row) => ({
             ...targetOf(row),
-            progress: big(row["progress"]),
+            progress: bigintOf(row["progress"], "target progress"),
             attainment: Number(row["attainment"] ?? 0),
           })),
       ).andThen(fields.rows),

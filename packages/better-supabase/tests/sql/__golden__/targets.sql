@@ -110,7 +110,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'TARGET_INVALID';
   end;
-  return (select to_jsonb(x) from "better_supabase"."targets" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."targets" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) from public, anon;
@@ -125,7 +125,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
     from "better_supabase"."targets" x
@@ -275,7 +275,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'TARGET_INVALID';
   end;
-  return (select to_jsonb(x) from "better_supabase"."targets" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."targets" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) from public, anon;
@@ -290,7 +290,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
     from "better_supabase"."targets" x
@@ -455,7 +455,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'TARGET_INVALID';
   end;
-  return (select to_jsonb(x) from "app_private"."targets" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "app_private"."targets" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "app_private"."save_target"(uuid, uuid, jsonb) from public, anon;
@@ -470,7 +470,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
     from "app_private"."targets" x
@@ -620,7 +620,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'TARGET_INVALID';
   end;
-  return (select to_jsonb(x) from "better_supabase"."targets" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."targets" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) from public, anon;
@@ -635,7 +635,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(p) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
     from "better_supabase"."targets" x

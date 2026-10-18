@@ -3,6 +3,7 @@ import type { ErrorMapper, RawDbError } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 
 import { DbException } from "./db-exception.ts";
+import { isRecord } from "./guards.ts";
 import { sqlIdent } from "./template.ts";
 
 /**
@@ -190,9 +191,6 @@ export function dbTransport(
     },
   };
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The Postgres or PostgREST error a transport rejected with, if it is one. */
 export function rawError(cause: unknown): RawDbError | undefined {

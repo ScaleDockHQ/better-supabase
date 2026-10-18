@@ -45,7 +45,7 @@ const running = await targets
 | `invoices.paid_amount` | payments recorded in the period, in the target's currency                     | `invoices`   |
 | anything else          | the `actual` value the app saves                                              |              |
 
-`progress(organizationId, { on, ownerId })` returns the targets whose period contains `on` (today by default), with `progress` and `attainment` (progress over goal). Amounts are minor units, and progress reads run as the caller, so they count what the caller can see. The [deals](/docs/blocks/deals) forecast takes a target as its period goal.
+`progress(organizationId, { on, ownerId })` returns the targets whose period contains `on` (today by default), with `progress` and `attainment` (progress over goal). Goals and progress are `bigint` values (minor units for money metrics) with no currency of their own, sent as text so they stay exact past 2^53. Progress reads run as the caller, so they count what the caller can see. The [deals](/docs/blocks/deals) forecast takes a target as its period goal.
 
 ## Errors
 

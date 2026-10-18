@@ -1,7 +1,8 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineItemsSql } from "../line-items-sql.ts";
+import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   columnsObject,
@@ -73,8 +74,10 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   const lines = (alias: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
+  const int8 = ["number", ...Object.keys(TOTAL_COLUMNS)].map(q);
+
   const row = (alias: string): string =>
-    `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || jsonb_build_object('lines', ${lines(alias)}${
+    `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || ${int8Text(alias, int8)} || jsonb_build_object('lines', ${lines(alias)}${
       n.extras.length === 0
         ? ""
         : `, 'fields', ${columnsObject(

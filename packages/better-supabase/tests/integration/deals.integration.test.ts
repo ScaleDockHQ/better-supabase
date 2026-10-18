@@ -12,10 +12,12 @@ import {
 } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
+import { money } from "../../src/commerce/money.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
+const eur = (amount: bigint) => money(amount, "EUR");
 
 const MODULES = [
   "organizations",
@@ -68,8 +70,7 @@ describe.skipIf(!live)("deals", () => {
           {
             name: "Growth plan, 60 seats",
             closeOn: day("2026-11-30"),
-            amount: 4_800_000n,
-            currency: "eur",
+            amount: eur(4_800_000n),
             company: { type: "company", id: acme.id },
             motion: "new_logo",
             forecast: "pipeline",
@@ -120,24 +121,36 @@ describe.skipIf(!live)("deals", () => {
         "DEAL_FIELD_UNKNOWN",
       ]);
 
+      const wrongCurrency = await deals
+        .update([{ dealId: deal.id, field: "amount", value: money(5n, "USD") }])
+        .orThrow();
+
+      expect(wrongCurrency.rejected.map((item) => item.hint)).toEqual([
+        "DEAL_CURRENCY_MISMATCH",
+      ]);
+
       const totals = await deals
         .setLines(deal.id, [
           {
             description: "Pro, annual seat",
             quantity: 60,
-            unitAmount: 80_000n,
+            unitAmount: eur(80_000n),
             discountBps: 1000,
           },
-          { description: "Onboarding", unitAmount: 250_000n, taxRateBps: 2100 },
+          {
+            description: "Onboarding",
+            unitAmount: eur(250_000n),
+            taxRateBps: 2100,
+          },
         ])
         .orThrow();
 
       expect(totals).toEqual({
-        listTotal: 5_050_000n,
-        discountTotal: 480_000n,
-        subtotal: 4_570_000n,
-        taxTotal: 52_500n,
-        total: 4_622_500n,
+        listTotal: eur(5_050_000n),
+        discountTotal: eur(480_000n),
+        subtotal: eur(4_570_000n),
+        taxTotal: eur(52_500n),
+        total: eur(4_622_500n),
       });
       await deals
         .update([
@@ -146,7 +159,7 @@ describe.skipIf(!live)("deals", () => {
         .orThrow();
       await deals
         .setLines(deal.id, [
-          { description: "Pro", quantity: 10, unitAmount: 100_000n },
+          { description: "Pro", quantity: 10, unitAmount: eur(100_000n) },
         ])
         .orThrow();
 
@@ -178,18 +191,18 @@ describe.skipIf(!live)("deals", () => {
           since: day("2026-10-01"),
           until: day("2026-12-31"),
           currency: "EUR",
-          target: 2_000_000n,
+          target: eur(2_000_000n),
         })
         .orThrow();
 
       expect(forecast).toMatchObject({
-        commit: 1_000_000n,
-        won: 0n,
+        commit: eur(1_000_000n),
+        won: eur(0n),
         attainment: 0.5,
-        gap: 1_000_000n,
+        gap: eur(1_000_000n),
       });
       expect(forecast.owners).toEqual([
-        expect.objectContaining({ ownerId: rep.id, commit: 1_000_000n }),
+        expect.objectContaining({ ownerId: rep.id, commit: eur(1_000_000n) }),
       ]);
 
       const won = await deals.win(deal.id, "Order form signed").orThrow();
@@ -210,7 +223,7 @@ describe.skipIf(!live)("deals", () => {
         })
         .orThrow();
 
-      expect(wonForecast.won).toBe(1_000_000n);
+      expect(wonForecast.won).toEqual(eur(1_000_000n));
       const reopened = await deals.reopen(deal.id).orThrow();
       expect(reopened).toMatchObject({
         outcome: "open",
@@ -292,7 +305,7 @@ describe.skipIf(!live)("deals", () => {
 
       const locked = await deals
         .update([
-          { dealId: deal.id, field: "amount", value: 5n },
+          { dealId: deal.id, field: "amount", value: money(5n, "USD") },
           { dealId: deal.id, field: "note", value: "Waiting for PO" },
         ])
         .orThrow();
@@ -301,7 +314,9 @@ describe.skipIf(!live)("deals", () => {
       expect(locked.accepted.map((item) => item.field)).toEqual(["note"]);
       expect(
         hint(
-          await deals.setLines(deal.id, [{ description: "x", unitAmount: 1n }]),
+          await deals.setLines(deal.id, [
+            { description: "x", unitAmount: eur(1n) },
+          ]),
         ),
       ).toBe("LINES_RECORD_INVALID");
 
@@ -316,9 +331,17 @@ describe.skipIf(!live)("deals", () => {
         .create(org, {
           name: "Upsell",
           closeOn: day("2026-12-02"),
-          currency: "USD",
+          amount: money(9_007_199_254_740_993n, "USD"),
         })
         .orThrow();
+
+      expect(second.amount).toEqual(money(9_007_199_254_740_993n, "USD"));
+      expect(
+        await s.value<string>(
+          "(select amount::text from better_supabase.deals where id = $1)",
+          [second.id],
+        ),
+      ).toBe("9007199254740993");
 
       const discovery = await s.value<string>(
         "(select id::text from better_supabase.pipeline_stages where pipeline_id = $1 and key = 'discovery')",

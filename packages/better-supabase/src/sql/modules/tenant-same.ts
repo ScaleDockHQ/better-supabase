@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { quotedTable } from "../shared.ts";
 
@@ -24,9 +25,6 @@ interface Hop {
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   const where = "blocks.tenant.options.sameTenant";

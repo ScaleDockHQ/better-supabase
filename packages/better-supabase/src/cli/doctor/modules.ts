@@ -15,9 +15,10 @@ import {
   subjectColumns,
 } from "../../sql/index.ts";
 import { errorText } from "../errors.ts";
+import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
-import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
+import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
 import { reservedRoles } from "./reserved-roles.ts";
 import {
