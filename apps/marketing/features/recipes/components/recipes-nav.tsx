@@ -28,15 +28,15 @@ export function RecipesNav() {
           >
             <h2
               id={headingId}
-              className="flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground"
+              className="flex items-center gap-2 px-2 text-xs font-medium text-foreground"
             >
               <CategoryIcon category={group.category} size="sm" />
               {group.category}
-              <span className="ml-auto tabular-nums">
+              <span className="ml-auto text-muted-foreground tabular-nums">
                 {group.available.length + group.planned.length}
               </span>
             </h2>
-            <ul className="flex flex-col gap-0.5">
+            <ul className="ml-4.5 flex flex-col gap-0.5 border-l border-border pl-2">
               {group.available.map((recipe) => (
                 <li key={recipe.slug}>
                   <CatalogLink
