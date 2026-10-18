@@ -623,6 +623,44 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     ).toThrow(/is not a privilege/);
   });
 
+  it("resolves expose exclusions against the declared columns", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_keys.sql"),
+      'create table public.api_keys (\n  id uuid primary key,\n  name text not null,\n  "token_hash" text,\n  secret text,\n  unique (name)\n);\n',
+    );
+    await sql(["sync"], {
+      expose: {
+        api_keys: {
+          authenticated: ["select(*, -token_hash, -secret)", "update(name)"],
+        },
+      },
+      blocks: ["grants"],
+    });
+
+    const file = await readFile(
+      join(schemas, "900_better_supabase_13_grants.sql"),
+      "utf-8",
+    );
+
+    expect(file).toContain(
+      'grant select ("id", "name"), update ("name") on table "public"."api_keys" to authenticated;',
+    );
+
+    await expect(
+      sql(["sync"], {
+        expose: { notes: ["select(*, -body)"] },
+        blocks: ["grants"],
+      }),
+    ).rejects.toThrow(
+      "no `create table` in the schema files declares public.notes",
+    );
+    expect(() =>
+      resolveConfig({ expose: { notes: ["select(*, body)"] } }, root),
+    ).toThrow(/is not a privilege/);
+  });
+
   it("writes the session policy on the tables the schema files create", async () => {
     const schemas = join(root, "supabase/schemas");
     await mkdir(schemas, { recursive: true });

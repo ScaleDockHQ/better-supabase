@@ -13,14 +13,14 @@ const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
 
 const EXPOSE_PRIVILEGE =
-  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*\s*\))$/;
+  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*(?:[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*|\*(?:\s*,\s*-\s*[a-z_][a-z0-9_$]*)*)\s*\))$/;
 
 const privileges = v.array(
   v.pipe(
     v.string(),
     v.regex(
       EXPOSE_PRIVILEGE,
-      'Use select, insert, update or delete, or name columns such as "update(title, body)"',
+      'Use select, insert, update or delete, name columns such as "update(title, body)", or exclude them from every column with "select(*, -secret)"',
     ),
   ),
 );

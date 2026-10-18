@@ -56,6 +56,8 @@ export {
 
 export { auditRegistrations } from "./audit-registrations.ts";
 
+export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
+
 export { expiredFlagsQuery } from "./flag-lifecycle.ts";
 
 export { subjectColumns } from "./subject-registry.ts";

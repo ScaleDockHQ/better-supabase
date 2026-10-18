@@ -1909,6 +1909,40 @@ describe("functions.notNull entries a tag could replace (BS338)", () => {
   });
 });
 
+describe("expose exclusions of missing columns (BS339)", () => {
+  it("reports an excluded column the table doesn't have", async () => {
+    const findings = await run(
+      "BS339",
+      context(
+        base,
+        {},
+        {
+          expose: {
+            notes: {
+              authenticated: ["select(*, -body, -token_hash)"],
+              anon: ["select(*, -token_hash)"],
+            },
+          },
+        },
+      ),
+    );
+
+    expect(findings).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.notes.token_hash",
+        message: expect.stringContaining('Remove "-token_hash"'),
+      },
+    ]);
+    expect(
+      await run(
+        "BS339",
+        context(base, {}, { expose: { gone: ["select(*, -x)"] } }),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
     name: "bs_broadcast_org_notes",

@@ -15,6 +15,7 @@ import {
   extensionSchema,
   moduleLayout,
   policyGrants,
+  resolveExposeColumns,
   resolveModules,
   rlsTables,
 } from "../sql/index.ts";
@@ -130,15 +131,27 @@ export async function moduleLayoutFor(
     resolved.has("sessions") &&
     config.blocks["sessions"]?.options?.["policies"] === true;
 
+  const base = moduleLayout(
+    config,
+    input.testsDir,
+    input.readSets ?? [],
+    input.entitlementsProvider,
+    input.accessProvider,
+    input.permissionCatalog,
+  );
+
+  const grants =
+    base.grants === undefined
+      ? undefined
+      : resolveExposeColumns(
+          base.grants,
+          await declarativeTexts(config),
+          config.schemas,
+        );
+
   return {
-    ...moduleLayout(
-      config,
-      input.testsDir,
-      input.readSets ?? [],
-      input.entitlementsProvider,
-      input.accessProvider,
-      input.permissionCatalog,
-    ),
+    ...base,
+    ...(grants === undefined ? {} : { grants }),
     schemasDir: await schemasDirOf(config),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }

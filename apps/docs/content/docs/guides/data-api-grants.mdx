@@ -57,6 +57,27 @@ expose: {
 },
 ```
 
+To grant every column but a few, start the list with `*` and exclude columns
+with `-`. `sql sync` reads the table's `create table` in your schema files and
+writes the remaining columns in declaration order, so a new column is granted
+on the next sync without a config change:
+
+```ts title="better-supabase.config.ts"
+expose: {
+  "public.api_keys": {
+    authenticated: ["select(*, -token_hash)", "update(name)"],
+  },
+},
+```
+
+`sql sync` fails when no schema file declares the table, or when the
+exclusions leave no column. Doctor's [BS339](/docs/cli/doctor#bs339) warns
+about an excluded column the table no longer has, since a renamed secret
+column is then granted under its new name. An app that renders the `grants` module itself
+with `renderModules` from `better-supabase/sql` passes the layout's grants
+through `resolveExposeColumns(grants, schemaFiles, schemas)` first; the
+module refuses an unresolved `*`.
+
 The CLI validates the config with the same rule, so `sql sync` accepts a
 column privilege in `better-supabase.config.ts` or `.json` and rejects a
 string that is neither a privilege nor a column list. Doctor (BS106) checks

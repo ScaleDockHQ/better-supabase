@@ -1,8 +1,9 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
+import { excludedColumns } from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
-import { catalogOf } from "./shared.ts";
+import { catalogOf, qualified } from "./shared.ts";
 
 const tagText = (notNull: true | readonly string[]): string =>
   notNull === true ? "@notNull" : `@notNull(${notNull.join(", ")})`;
@@ -55,6 +56,43 @@ export const ADOPTION_RULES: readonly Rule[] = [
 
         return [{ message, target: `${name}(${fn.signature})` }];
       });
+    },
+  },
+  {
+    code: "BS339",
+    severity: "warning",
+    title: "expose excludes a column the table doesn't have",
+    description:
+      "`sql sync` turns `select(*, -col)` in `expose` into the table's declared columns minus the excluded ones. An excluded column the table no longer has excludes nothing, and a renamed secret column is then granted under its new name. Remove the exclusion, or exclude the new name.",
+    check: (context) => {
+      const tables = new Map(
+        catalogOf(context).tables.map((table) => [qualified(table), table]),
+      );
+
+      return Object.entries(context.config.expose).flatMap(
+        ([key, roles]): FindingInput[] => {
+          const table = tables.get(key.includes(".") ? key : `public.${key}`);
+
+          if (table === undefined) {
+            return [];
+          }
+
+          const columns = new Set(table.columns.map((column) => column.name));
+
+          const missing = [
+            ...new Set(
+              [...roles.anon, ...roles.authenticated, ...roles.serviceRole]
+                .flatMap((privilege) => excludedColumns(privilege))
+                .filter((column) => !columns.has(column)),
+            ),
+          ];
+
+          return missing.map((column) => ({
+            message: `expose.${key} excludes "${column}", which ${qualified(table)} doesn't have, so it excludes nothing. Remove "-${column}", or exclude the column's new name.`,
+            target: `${qualified(table)}.${column}`,
+          }));
+        },
+      );
     },
   },
 ];

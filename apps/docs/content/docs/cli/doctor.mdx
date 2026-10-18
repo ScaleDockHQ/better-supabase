@@ -989,6 +989,15 @@ the tag the finding prints, then remove the entry), and one that differs from
 the tag, where the config entry wins. See
 [nullable function results](/docs/cli/gen).
 
+### BS339
+
+**Warning: `expose` excludes a column the table doesn't have.** An `expose`
+privilege such as `select(*, -token_hash)` grants every declared column but
+the excluded ones. When the table has no `token_hash` column, the exclusion
+excludes nothing, and a renamed secret column is granted under its new name.
+Remove the exclusion, or exclude the column's new name. See
+[column privileges](/docs/guides/data-api-grants).
+
 ## Auth config
 
 ### BS401
