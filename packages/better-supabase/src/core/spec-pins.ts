@@ -64,6 +64,16 @@ export const SPEC_PINS: {
   readonly caep: "1.0";
   /** OpenID RISC event types in `RISC_EVENTS`. */
   readonly risc: "1.0";
+  /** RFC 9068 JWT access tokens that `accessTokenResolver` verifies. */
+  readonly rfc9068: "2021-10";
+  /** RFC 7591 client registration metadata the oauth-server block stores. */
+  readonly rfc7591: "2015-07";
+  /** RFC 7636 PKCE; the oauth-server block accepts only the S256 method. */
+  readonly rfc7636: "2015-09";
+  /** RFC 8628 device authorization that the oauth-server block's device codes follow. */
+  readonly rfc8628: "2019-08";
+  /** RFC 9700 OAuth security best current practice behind code reuse and redirect URI rules. */
+  readonly rfc9700: "2025-01";
   /** draft-ietf-httpapi-ratelimit-headers revision behind `rateLimitHeader` and the Hono and oRPC `rateLimit()`. */
   readonly ratelimitHeaders: "draft-11";
   /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
@@ -113,6 +123,11 @@ export const SPEC_PINS: {
   ssf: "1.0",
   caep: "1.0",
   risc: "1.0",
+  rfc9068: "2021-10",
+  rfc7591: "2015-07",
+  rfc7636: "2015-09",
+  rfc8628: "2019-08",
+  rfc9700: "2025-01",
   ratelimitHeaders: "draft-11",
   shadcnRegistry: "4.21.4",
 };
