@@ -1310,6 +1310,40 @@ begin
 end;
 $$;
 
+-- options.subjects with cascade: deleting a subject row deletes its notifications rows.
+create or replace function "better_supabase"."notifications_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted"() from public, anon, authenticated;
+
+drop trigger if exists "bs_notifications_product_cascade" on "better_supabase"."products";
+create trigger "bs_notifications_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('product', 'id', 'tenant_id');
+
+drop trigger if exists "bs_notifications_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bs_notifications_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('product_variant', 'id', 'tenant_id');
+
 -- blocks.notifications.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
