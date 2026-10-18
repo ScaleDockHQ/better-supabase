@@ -47,7 +47,11 @@ export type AuthState<C = unknown, P = unknown> =
       readonly token: string;
       readonly claims: JWTClaims & C;
       readonly user: UserClaims;
-      readonly source: "bearer" | "cookie" | (string & {});
+      /**
+       * Where the token came from: `oauth` for an RFC 9068 access token
+       * from `accessTokenResolver`, which never has a cookie session.
+       */
+      readonly source: "bearer" | "cookie" | "oauth" | (string & {});
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**

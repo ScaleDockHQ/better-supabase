@@ -98,6 +98,75 @@ describe("jws", () => {
     expect(() => publicJwk({ kty: "RSA" })).toThrow(TypeError);
   });
 
+  it.each([
+    ["RS256", { name: "RSASSA-PKCS1-v1_5" }],
+    ["PS256", { name: "RSA-PSS", saltLength: 32 }],
+  ] as const)("verifies %s only when listed", async (alg, params) => {
+    const pair = await crypto.subtle.generateKey(
+      {
+        name: params.name,
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["sign", "verify"],
+    );
+
+    const jwk = (await crypto.subtle.exportKey("jwk", pair.publicKey)) as Jwk;
+
+    const json = (value: unknown) =>
+      btoa(JSON.stringify(value))
+        .replaceAll("=", "")
+        .replaceAll("+", "-")
+        .replaceAll("/", "_");
+
+    const input = `${json({ alg, kid: "r1" })}.${json({ sub: "u1" })}`;
+
+    const signature = new Uint8Array(
+      await crypto.subtle.sign(
+        params,
+        pair.privateKey,
+        new TextEncoder().encode(input),
+      ),
+    );
+
+    const token = `${input}.${btoa(String.fromCodePoint(...signature))
+      .replaceAll("=", "")
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")}`;
+
+    const jwks = jwksOf({ keys: [{ ...jwk, kid: "r1" }] }, { rsa: true });
+
+    expect(jwks.keys).toHaveLength(1);
+    await expect(verifyCompact(token, jwks)).rejects.toMatchObject({
+      code: "JWS_ALG",
+    });
+    await expect(
+      verifyCompact(token, jwks, { algorithms: [alg] }),
+    ).resolves.toMatchObject({ payload: { sub: "u1" } });
+    await expect(
+      verifyCompact(
+        token,
+        {
+          keys: [
+            { ...jwk, kid: "r1", alg: alg === "RS256" ? "PS256" : "RS256" },
+          ],
+        },
+        { algorithms: [alg] },
+      ),
+    ).rejects.toMatchObject({ code: "JWS_KEY" });
+  });
+
+  it("drops RSA keys under 2048 bits", () => {
+    expect(
+      jwksOf(
+        { keys: [{ kty: "RSA", n: "AQAB".repeat(40), e: "AQAB" }] },
+        { rsa: true },
+      ).keys,
+    ).toEqual([]);
+  });
+
   it("refuses malformed tokens, alg none and public keys for signing", async () => {
     const key = await generateSigningKey("Ed25519");
     const jwks = keySet(key.kid, key.publicKey);

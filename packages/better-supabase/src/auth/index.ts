@@ -6,6 +6,14 @@ export { authContext } from "./context.ts";
 
 export { clientIp, resolveAuth } from "./resolve.ts";
 
+export { accessTokenResolver, isAccessTokenJwt } from "./access-token.ts";
+
+export type {
+  AccessTokenReservedClaim,
+  AccessTokenResolverOptions,
+  AccessTokenRevocation,
+} from "./access-token.ts";
+
 export type {
   AuthResolution,
   AuthResolver,

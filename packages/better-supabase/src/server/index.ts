@@ -177,6 +177,7 @@ export {
   checkAal,
   checkSession,
   clearSessionCookies,
+  accessTokenResolver,
   clientIp,
   delegationOf,
   IDENTITY_SCOPES,
@@ -191,6 +192,8 @@ export {
 } from "../auth/index.ts";
 
 export type {
+  AccessTokenResolverOptions,
+  AccessTokenRevocation,
   Aal,
   ActClaim,
   ActorOutcome,
