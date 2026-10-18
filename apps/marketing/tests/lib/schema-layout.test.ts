@@ -6,6 +6,8 @@ import {
   layoutSchema,
   type LayoutOptions,
   NODE_WIDTH,
+  openingViewport,
+  READABLE_ZOOM,
   roundedPath,
   softColumns,
   tableHeight,
@@ -181,5 +183,59 @@ describe("layoutSchema", () => {
     });
 
     expect(Object.keys(layout.tables)).toEqual([first?.id]);
+  });
+});
+
+describe("openingViewport", () => {
+  test("centres nodes that fit at a readable zoom", () => {
+    const view = openingViewport(
+      [
+        { x: 0, y: 0, width: 200, height: 400 },
+        { x: 300, y: 100, width: 200, height: 100 },
+      ],
+      1100,
+      880,
+    );
+
+    expect(view).toEqual({ x: 300, y: 240, zoom: 1 });
+  });
+
+  test("opens a large drawing on its topmost node at the readable zoom", () => {
+    const view = openingViewport(
+      [
+        { x: -400, y: 3000, width: 248, height: 120 },
+        { x: 100, y: 40, width: 248, height: 600 },
+        { x: 2300, y: 900, width: 248, height: 3000 },
+      ],
+      1200,
+      830,
+    );
+
+    expect(view).toEqual({
+      x: 24 - 100 * READABLE_ZOOM,
+      y: 830 / 2 - (40 + 300) * READABLE_ZOOM,
+      zoom: READABLE_ZOOM,
+    });
+  });
+
+  test("opens on the anchor, centred vertically, when one is given", () => {
+    const anchor = { x: 500, y: 1000, width: 248, height: 200 };
+
+    const view = openingViewport(
+      [{ x: 0, y: 0, width: 3000, height: 3000 }, anchor],
+      1200,
+      800,
+      anchor,
+    );
+
+    expect(view).toEqual({
+      x: 24 - 500 * READABLE_ZOOM,
+      y: 400 - 1100 * READABLE_ZOOM,
+      zoom: READABLE_ZOOM,
+    });
+  });
+
+  test("keeps the default view when there are no nodes", () => {
+    expect(openingViewport([], 800, 600)).toEqual({ x: 0, y: 0, zoom: 1 });
   });
 });

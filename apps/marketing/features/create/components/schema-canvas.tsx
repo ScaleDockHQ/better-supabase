@@ -57,8 +57,10 @@ import {
 import { toDbml, toJson, toMermaid } from "@/lib/schema-export";
 import {
   GROUP_PADDING,
+  groupId,
   layoutSchema,
   NODE_WIDTH,
+  openingViewport,
   type SchemaLayout,
   softColumns,
 } from "@/lib/schema-layout";
@@ -952,8 +954,41 @@ function CanvasInner({
           snapToGrid={snap}
           snapGrid={SNAP_GRID}
           zoomOnDoubleClick={false}
-          fitView
-          fitViewOptions={FIT_VIEW_OPTIONS}
+          onInit={(instance) => {
+            const element = container.current;
+
+            if (element === null) {
+              return;
+            }
+
+            const rects = new Map(
+              instance.getNodes().map((node) => [
+                node.id,
+                {
+                  ...node.position,
+                  width: node.width ?? 0,
+                  height: node.height ?? 0,
+                },
+              ]),
+            );
+
+            const tenant = data.tenantTable;
+
+            const anchor =
+              tenant === null
+                ? undefined
+                : (rects.get(groupId(data.manifests[tenant] ?? tenant)) ??
+                  rects.get(tenant));
+
+            void instance.setViewport(
+              openingViewport(
+                [...rects.values()],
+                element.clientWidth,
+                element.clientHeight,
+                anchor,
+              ),
+            );
+          }}
           minZoom={0.1}
           maxZoom={2}
         >

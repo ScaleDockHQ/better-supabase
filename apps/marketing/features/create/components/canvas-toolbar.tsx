@@ -48,8 +48,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { FIT_PADDING } from "@/lib/schema-layout";
 
-export const FIT_VIEW_OPTIONS = { padding: 0.1, maxZoom: 1 } as const;
+export const FIT_VIEW_OPTIONS = { padding: FIT_PADDING, maxZoom: 1 } as const;
 
 // A shortcut never fires while a field, dialog or menu owns the keyboard.
 const KEYBOARD_OWNERS =

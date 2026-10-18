@@ -96,6 +96,83 @@ export interface LayoutRect extends Point {
   readonly height: number;
 }
 
+export interface Viewport extends Point {
+  readonly zoom: number;
+}
+
+/** The fit-to-view padding, as a share of the drawing (React Flow's `padding`). */
+export const FIT_PADDING = 0.1;
+
+/** The zoom below which column names stop being readable. */
+export const READABLE_ZOOM = 0.75;
+
+/** The closest the anchor's corner comes to the canvas's top-left when it opens zoomed in: clear of the toolbar. */
+const OPENING_INSET = { x: 24, y: 72 } as const;
+
+/**
+ * The view the canvas opens on: every node when they fit at a readable
+ * zoom, otherwise `anchor` (the topmost node without one) at
+ * `READABLE_ZOOM`, on the left and centred vertically, so its tables can be
+ * read and the minimap shows the rest.
+ */
+export function openingViewport(
+  nodes: readonly LayoutRect[],
+  width: number,
+  height: number,
+  anchor?: LayoutRect,
+): Viewport {
+  const [first, ...rest] = nodes;
+
+  if (first === undefined) {
+    return { x: 0, y: 0, zoom: 1 };
+  }
+
+  let top = first;
+  let minX = first.x;
+  let minY = first.y;
+  let maxX = first.x + first.width;
+  let maxY = first.y + first.height;
+
+  for (const node of rest) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+
+    if (node.y < top.y || (node.y === top.y && node.x < top.x)) {
+      top = node;
+    }
+  }
+
+  const scale = 1 + FIT_PADDING;
+
+  const fit = Math.min(
+    1,
+    width / ((maxX - minX) * scale),
+    height / ((maxY - minY) * scale),
+  );
+
+  if (fit >= READABLE_ZOOM) {
+    return {
+      x: width / 2 - ((minX + maxX) / 2) * fit,
+      y: height / 2 - ((minY + maxY) / 2) * fit,
+      zoom: fit,
+    };
+  }
+
+  const focus = anchor ?? top;
+  const zoom = READABLE_ZOOM;
+
+  return {
+    x: OPENING_INSET.x - focus.x * zoom,
+    y: Math.max(
+      height / 2 - (focus.y + focus.height / 2) * zoom,
+      OPENING_INSET.y - focus.y * zoom,
+    ),
+    zoom,
+  };
+}
+
 export interface LayoutTable extends LayoutRect {
   readonly rows: TableRows;
 }
