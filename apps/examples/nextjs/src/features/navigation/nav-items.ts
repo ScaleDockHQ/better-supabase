@@ -3,6 +3,7 @@ import type { Permission } from "@/features/user/user-permissions";
 export type NavId =
   | "dashboard"
   | "customers"
+  | "metrics"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -38,6 +39,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "customers.read",
   },
+  { id: "metrics", href: "/metrics", group: "workspace" },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",

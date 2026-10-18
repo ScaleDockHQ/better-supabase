@@ -629,5 +629,44 @@ export const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "push-opt-in",
+    title: "Push opt-in",
+    blocks: ["push"],
+    kind: "component",
+    description:
+      "A card that registers this browser for web push and removes it again.",
+    web: {
+      file: `${WEB_APP}/src/features/push/components/push-opt-in.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "metrics-dashboard",
+    title: "Metrics dashboard",
+    blocks: ["metrics"],
+    kind: "screen",
+    description:
+      "A card per metric: the 30-day total against the 30 days before, with daily bars.",
+    web: {
+      file: `${WEB_APP}/src/features/metrics/components/metrics-dashboard.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "feature-flag-toggles",
+    title: "Feature flags",
+    blocks: ["flags"],
+    kind: "component",
+    description:
+      "Which feature flags are on for the active organization, read-only.",
+    web: {
+      file: `${WEB_APP}/src/features/flags/components/feature-flag-list.tsx`,
+      components: ["alert", "badge", "button", "card", "skeleton"],
+      glue: [],
+    },
+  },
   ...PLANNED,
 ];

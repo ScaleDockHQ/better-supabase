@@ -9,6 +9,7 @@ import {
   CpuIcon,
   InboxIcon,
   BotIcon,
+  ChartColumnIcon,
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
@@ -38,6 +39,7 @@ import { type NavId, activeNavId, navItems } from "../nav-items";
 const ICONS = {
   dashboard: LayoutDashboardIcon,
   customers: UsersIcon,
+  metrics: ChartColumnIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -66,6 +68,10 @@ function useNavLabel() {
 
       case "customers": {
         return t("Customers");
+      }
+
+      case "metrics": {
+        return t("Metrics");
       }
 
       case "notifications": {

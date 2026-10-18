@@ -451,4 +451,14 @@ export const PLANNED: readonly RecipeSource[] = [
     missing:
       "a jobs read that the app can call: the block's run queries are granted to service_role only",
   },
+  {
+    slug: "team-picker",
+    title: "Team picker",
+    blocks: ["teams"],
+    kind: "component",
+    description:
+      "A select of the caller's teams in the active organization, to scope a page or assign work.",
+    missing:
+      "the teams block's API in the example app, and seeded teams to pick from",
+  },
 ];

@@ -26,4 +26,5 @@ export const metricsBlock: BlockOf<
   },
   create: createMetrics,
   category: "admin",
+  recipes: ["metrics-dashboard"],
 });

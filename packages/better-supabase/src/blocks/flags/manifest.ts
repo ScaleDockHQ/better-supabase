@@ -17,4 +17,5 @@ export const flagsBlock: BlockOf<"flags", typeof createFlags, FlagsEvents> =
     events: flagsEvents,
     create: createFlags,
     category: "growth",
+    recipes: ["feature-flag-toggles"],
   });

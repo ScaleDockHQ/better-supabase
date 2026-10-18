@@ -144,6 +144,16 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Toggle sidebar"
 
+#: src/app/[locale]/(app)/metrics/page.tsx
+msgctxt "metrics.HNBpJ4"
+msgid "Metrics"
+msgstr "Metrics"
+
+#: src/app/[locale]/(app)/metrics/page.tsx
+msgctxt "metrics.VSqjtd"
+msgid "Your organization's numbers over the last 30 days."
+msgstr "Your organization's numbers over the last 30 days."
+
 #: src/app/[locale]/(app)/notifications/page.tsx
 msgctxt "notifications.NAidKb"
 msgid "Notifications"
@@ -1517,6 +1527,51 @@ msgctxt "beta.2jXw4s"
 msgid "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 msgstr "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.TdqNj1"
+msgid "The beta page and its menu entry"
+msgstr "The beta page and its menu entry"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.StcF_U"
+msgid "The upgrade banner on the pricing page"
+msgstr "The upgrade banner on the pricing page"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.-mLiOr"
+msgid "Feature flags"
+msgstr "Feature flags"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.5M87k_"
+msgid "What's turned on for this organization. Support changes these for you."
+msgstr "What's turned on for this organization. Support changes these for you."
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.9FifZm"
+msgid "The flags didn't load"
+msgstr "The flags didn't load"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.Zh-5A6"
+msgid "On"
+msgstr "On"
+
+#: src/features/flags/components/feature-flag-list.tsx
+msgctxt "flags.OvzONl"
+msgid "Off"
+msgstr "Off"
+
 #: src/features/inbox/components/composer.tsx
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.qMePPG"
@@ -1814,6 +1869,46 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.0HWXBy"
+msgid "The metrics didn't load"
+msgstr "The metrics didn't load"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.p2O_QZ"
+msgid "No data in the last 30 days"
+msgstr "No data in the last 30 days"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.LyLFM2"
+msgid "Add a customer and its metric shows up here."
+msgstr "Add a customer and its metric shows up here."
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.yTRjtL"
+msgid "Add a customer"
+msgstr "Add a customer"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.Tk_BFR"
+msgid "New customers"
+msgstr "New customers"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.8O8AYG"
+msgid "{previous} in the 30 days before"
+msgstr "{previous} in the 30 days before"
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
@@ -1823,6 +1918,11 @@ msgstr "Dashboard"
 msgctxt "navigation.TkYZBT"
 msgid "Customers"
 msgstr "Customers"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.HNBpJ4"
+msgid "Metrics"
+msgstr "Metrics"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
@@ -2310,6 +2410,86 @@ msgstr "Owner"
 msgctxt "organization.iHN12u"
 msgid "Admin"
 msgstr "Admin"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.Awq32I"
+msgid "Push notifications"
+msgstr "Push notifications"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.U59VPA"
+msgid "Get a notification on this device when something needs you."
+msgstr "Get a notification on this device when something needs you."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.Zh-5A6"
+msgid "On"
+msgstr "On"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.isoosG"
+msgid "This browser has no push support"
+msgstr "This browser has no push support"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.FtbF_t"
+msgid "Open the app in a browser that supports web push, or install it to your home screen on iOS."
+msgstr "Open the app in a browser that supports web push, or install it to your home screen on iOS."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.yCoHHI"
+msgid "Read the push guide"
+msgstr "Read the push guide"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.2CArRl"
+msgid "Push isn't set up yet"
+msgstr "Push isn't set up yet"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.iAnQgB"
+msgid "Set NEXT_PUBLIC_VAPID_PUBLIC_KEY to your VAPID public key to turn on web push."
+msgstr "Set NEXT_PUBLIC_VAPID_PUBLIC_KEY to your VAPID public key to turn on web push."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.EM4YU4"
+msgid "Notifications are blocked for this site. Allow them in your browser's site settings, then reload the page."
+msgstr "Notifications are blocked for this site. Allow them in your browser's site settings, then reload the page."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.pcwrPv"
+msgid "Your browser asks for permission first."
+msgstr "Your browser asks for permission first."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.npvxpr"
+msgid "Turn on"
+msgstr "Turn on"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.sN40yN"
+msgid "This browser gets your push notifications."
+msgstr "This browser gets your push notifications."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.XZ-Fx6"
+msgid "Turn off"
+msgstr "Turn off"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push._jiVW7"
+msgid "Push couldn't be updated"
+msgstr "Push couldn't be updated"
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.xUnZ3u"
+msgid "Check your connection and try again."
+msgstr "Check your connection and try again."
+
+#: src/features/push/components/push-opt-in.tsx
+msgctxt "push.62nsdy"
+msgid "Retry"
+msgstr "Retry"
 
 #: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"

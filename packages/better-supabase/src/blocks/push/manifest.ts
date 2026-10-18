@@ -15,4 +15,5 @@ export const pushBlock: BlockOf<"push", typeof createPush, PushEvents> =
     events: pushEvents,
     create: createPush,
     category: "messaging",
+    recipes: ["push-opt-in"],
   });

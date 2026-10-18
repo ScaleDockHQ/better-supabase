@@ -29,6 +29,12 @@ const routes: readonly Route[] = [
     visibleTo: everyone,
   },
   {
+    path: "/metrics",
+    label: { en: "Metrics", nl: "Statistieken" },
+    heading: { en: "Metrics", nl: "Statistieken" },
+    visibleTo: everyone,
+  },
+  {
     path: "/notifications",
     label: { en: "Notifications", nl: "Meldingen" },
     heading: { en: "Notifications", nl: "Meldingen" },

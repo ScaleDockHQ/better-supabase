@@ -17,6 +17,9 @@ const ROUTES: readonly { readonly slug: string; readonly path: string }[] = [
   { slug: "agent-run-trace", path: "/en/assistant/activity" },
   { slug: "knowledge-upload", path: "/en/knowledge" },
   { slug: "workflow-runs", path: "/en/workflows" },
+  { slug: "push-opt-in", path: "/en/settings/preferences" },
+  { slug: "metrics-dashboard", path: "/en/metrics" },
+  { slug: "feature-flag-toggles", path: "/en/settings/organization" },
 ];
 
 test.use({ storageState: users.admin.storageState });

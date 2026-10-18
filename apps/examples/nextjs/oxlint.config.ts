@@ -14,9 +14,13 @@ export default defineConfig({
   settings,
   ignorePatterns: [
     ...ignorePatterns,
-    // Copied from the shadcn registry by `shadcn add`.
+    // Copied from the shadcn and ReUI registries by `shadcn add`.
     "src/components/ui/**",
+    "src/components/reui/**",
     "src/hooks/use-mobile.ts",
+    // Served as is. push-sw.js runs in a service worker, which the app's
+    // DOM-typed tsconfig can't type.
+    "public/**",
   ],
   overrides: [
     {
