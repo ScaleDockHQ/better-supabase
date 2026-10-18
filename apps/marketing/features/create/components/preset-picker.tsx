@@ -1,16 +1,56 @@
 import type { ReactElement } from "react";
 
-import { PRESET_NAMES, type PresetName, PRESETS } from "better-supabase/preset";
+import {
+  isPresetName,
+  PRESET_NAMES,
+  type PresetName,
+  PRESETS,
+} from "better-supabase/preset";
+import { SlidersHorizontalIcon } from "lucide-react";
+import { useId } from "react";
 
-import { Badge } from "@/components/reui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
-import { cn } from "@/lib/utils";
+import { CUSTOM_PRESET, PRESET_ITEMS } from "@/lib/create-options";
 
 import { PRESET_CATEGORY } from "../preset-categories";
 
+function PresetLabel({ value }: { value: string }): ReactElement {
+  if (!isPresetName(value)) {
+    return (
+      <>
+        <SlidersHorizontalIcon
+          aria-hidden="true"
+          className="size-4 text-muted-foreground"
+        />
+        {CUSTOM_PRESET.label}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <CategoryIcon category={PRESET_CATEGORY[value]} size="sm" />
+      {PRESETS[value].title}
+    </>
+  );
+}
+
+function blockCount(name: PresetName): string {
+  const count = PRESETS[name].blocks.length;
+
+  return `${count} ${count === 1 ? "block" : "blocks"}`;
+}
+
 /**
- * The named presets as compact radio cards. `selected` is undefined once the
- * blocks no longer match any preset, so no card is checked.
+ * The named presets as a select. `selected` is undefined once the blocks no
+ * longer match any preset, and the select then shows Custom.
  */
 export function PresetPicker({
   selected,
@@ -19,52 +59,66 @@ export function PresetPicker({
   selected: PresetName | undefined;
   onSelect: (name: PresetName) => void;
 }): ReactElement {
-  return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="flex w-full items-center justify-between gap-2 pb-2">
-        <span className="text-sm font-medium">Preset</span>
-        {selected === undefined ? (
-          <Badge variant="warning-light">Custom</Badge>
-        ) : null}
-      </legend>
-      <div className="grid grid-cols-2 gap-2">
-        {PRESET_NAMES.map((name) => {
-          const preset = PRESETS[name];
-          const checked = selected === name;
+  const id = useId();
 
-          return (
-            <label
-              key={name}
-              title={preset.description}
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 transition-colors hover:bg-muted/50 has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-                checked && "border-primary ring-1 ring-primary hover:bg-card",
-              )}
-            >
-              <input
-                type="radio"
-                name="preset"
-                value={name}
-                checked={checked}
-                onChange={() => {
-                  onSelect(name);
-                }}
-                className="sr-only"
-              />
-              <CategoryIcon category={PRESET_CATEGORY[name]} size="sm" />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm leading-5 font-medium">
-                  {preset.title}
-                </span>
-                <span className="text-xs leading-4 text-muted-foreground tabular-nums">
-                  {preset.blocks.length}{" "}
-                  {preset.blocks.length === 1 ? "block" : "blocks"}
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium">
+        Preset
+      </label>
+      <Select
+        value={selected ?? CUSTOM_PRESET.value}
+        items={PRESET_ITEMS}
+        onValueChange={(next) => {
+          if (next !== null && isPresetName(next)) {
+            onSelect(next);
+          }
+        }}
+      >
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue>
+            {(value: string) => <PresetLabel value={value} />}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {PRESET_NAMES.map((name) => (
+            <SelectItem key={name} value={name} label={PRESETS[name].title}>
+              <span className="flex min-w-0 items-start gap-2">
+                <CategoryIcon category={PRESET_CATEGORY[name]} size="sm" />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-medium">{PRESETS[name].title}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {blockCount(name)}
+                    </span>
+                  </span>
+                  <span className="max-w-64 text-xs whitespace-normal text-muted-foreground">
+                    {PRESETS[name].description}
+                  </span>
                 </span>
               </span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
+            </SelectItem>
+          ))}
+          <SelectItem
+            value={CUSTOM_PRESET.value}
+            label={CUSTOM_PRESET.label}
+            disabled
+          >
+            <span className="flex min-w-0 items-start gap-2">
+              <SlidersHorizontalIcon
+                aria-hidden="true"
+                className="mt-0.5 size-4 text-muted-foreground"
+              />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-medium">{CUSTOM_PRESET.label}</span>
+                <span className="max-w-64 text-xs whitespace-normal text-muted-foreground">
+                  {CUSTOM_PRESET.description}
+                </span>
+              </span>
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

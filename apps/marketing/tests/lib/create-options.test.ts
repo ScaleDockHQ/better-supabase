@@ -3,6 +3,8 @@ import {
   type Preset,
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
+  PRESET_NAMES,
+  PRESETS,
   presetConfigSource,
   resolvePreset,
 } from "better-supabase/preset";
@@ -15,6 +17,7 @@ import {
   authChoiceOf,
   CONVENTION_KEYS,
   CONVENTION_VALUES,
+  CUSTOM_PRESET,
   FIELD_LABELS,
   fieldLabel,
   FRAMEWORKS,
@@ -27,6 +30,7 @@ import {
   permDockInstall,
   PLATFORM_LABELS,
   PLATFORMS,
+  PRESET_ITEMS,
   platformsFor,
   platformUnavailable,
   withAuthChoice,
@@ -217,5 +221,21 @@ describe("PermDock setup", () => {
     expect(withPermDock(presetConfigSource(resolvePreset(saas)))).toBe(
       presetConfigSource(resolvePreset(saas)),
     );
+  });
+});
+
+describe("preset items", () => {
+  test("list every named preset with a title and a description, then Custom", () => {
+    expect(PRESET_ITEMS.map((item) => item.value)).toEqual([
+      ...PRESET_NAMES,
+      CUSTOM_PRESET.value,
+    ]);
+
+    for (const name of PRESET_NAMES) {
+      expect(PRESETS[name].title).not.toBe("");
+      expect(PRESETS[name].description).not.toBe("");
+    }
+
+    expect(PRESET_NAMES).not.toContain(CUSTOM_PRESET.value);
   });
 });

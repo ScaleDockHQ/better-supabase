@@ -1,11 +1,12 @@
-import type {
-  Preset,
-  PresetAccess,
-  PresetConventions,
-  PresetFramework,
-  PresetPlatforms,
+import {
+  type Preset,
+  type PresetAccess,
+  type PresetConventions,
+  type PresetFramework,
+  type PresetPlatforms,
+  PRESET_NAMES,
+  PRESETS,
 } from "better-supabase/preset";
-
 import {
   siAstro,
   siExpo,
@@ -31,6 +32,19 @@ export interface OptionInfo {
   readonly label: string;
   readonly hint?: string;
 }
+
+/** The preset select's value when the blocks match no named preset. */
+export const CUSTOM_PRESET = {
+  value: "custom",
+  label: "Custom",
+  description: "Your own selection, changed from a preset.",
+} as const;
+
+/** The preset select's items: every named preset, then Custom. */
+export const PRESET_ITEMS: readonly { value: string; label: string }[] = [
+  ...PRESET_NAMES.map((name) => ({ value: name, label: PRESETS[name].title })),
+  { value: CUSTOM_PRESET.value, label: CUSTOM_PRESET.label },
+];
 
 export interface FrameworkInfo {
   readonly label: string;
