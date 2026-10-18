@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { groupFollowers } from "../../../../features/create/components/canvas-drag";
+import {
+  collapsedMoves,
+  collapsedStarts,
+  groupFollowers,
+} from "../../../../features/create/components/canvas-drag";
+import { GROUP_PADDING, NODE_WIDTH } from "../../../../lib/schema-layout";
 
 const positions = new Map([
   ["group:teams", { x: 0, y: 0 }],
@@ -42,5 +47,48 @@ describe("groupFollowers", () => {
         groups,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("collapsedStarts", () => {
+  const group = { x: 100, y: 200 };
+
+  const anchor = {
+    x: group.x + GROUP_PADDING.side,
+    y: group.y + GROUP_PADDING.top,
+  };
+
+  test("known tables keep their offset from the first table", () => {
+    const starts = collapsedStarts(
+      ["public.teams", "public.members"],
+      group,
+      positions,
+    );
+
+    expect(starts.get("public.teams")).toEqual(anchor);
+    expect(starts.get("public.members")).toEqual({
+      x: anchor.x + 284,
+      y: anchor.y,
+    });
+  });
+
+  test("tables never shown go in a row to the right", () => {
+    const starts = collapsedStarts(["public.a", "public.b"], group, new Map());
+
+    expect(starts.get("public.b")).toEqual({
+      x: anchor.x + NODE_WIDTH + 24,
+      y: anchor.y,
+    });
+  });
+});
+
+describe("collapsedMoves", () => {
+  test("every table moves by the drag offset", () => {
+    expect(
+      collapsedMoves(new Map([["public.teams", { x: 10.4, y: 20 }]]), {
+        x: 5,
+        y: -5,
+      }),
+    ).toEqual({ "public.teams": [15, 15] });
   });
 });
