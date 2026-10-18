@@ -46,3 +46,19 @@ export function BlockIcon({
     </span>
   );
 }
+
+/** The block's icon alone, in the surrounding text color. Decorative. */
+export function BlockGlyph({
+  name,
+  category,
+  className,
+}: {
+  name: string;
+  category: string;
+  className?: string;
+}) {
+  return createElement(blockIcon(name, category), {
+    "aria-hidden": true,
+    className: cn("size-4 shrink-0", className),
+  });
+}
