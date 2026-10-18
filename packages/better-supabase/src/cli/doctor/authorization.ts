@@ -10,6 +10,7 @@ import {
   resolveModules,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import { SUPPORT_SESSION_APPROVAL } from "../../sql/modules/approver.ts";
 import {
   accessProviderMode,
   type AccessProviderMode,
@@ -705,7 +706,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "Support sessions default to read-only. Write functions refuse them through the built-in act check, or through authorization.functions.actorMayWrite when the provider sets it. With the provider access model, doctor warns when support is installed and actorMayWrite is missing, so the provider's helper is not the one the writes call.",
     check: (context) => {
-      if (!context.config.blockNames.includes("support")) {
+      if (!context.config.blockNames.includes("support-sessions")) {
         return [];
       }
 
@@ -882,7 +883,62 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       ];
     },
   },
+  {
+    code: "BS416",
+    severity: "warning",
+    title: "isApprover has no branch for support sessions",
+    description:
+      "With the provider access model, the `support-sessions` module asks `authorization.functions.isApprover` who may approve a support request, with `{kind}` set to `'support-session'`, instead of its built-in platform check. A template that only handles `'ai-tool'` answers false, so no admin can approve a support request and every start that needs a second admin stays pending. Doctor warns when the template, and every function it calls, never names `support-session`.",
+    check: (context) => {
+      const provider = context.config.authorization;
+      const support = context.config.blocks["support-sessions"];
+      const isApprover = provider?.functions.isApprover;
+
+      if (
+        provider === undefined ||
+        isApprover === undefined ||
+        !context.config.blockNames.includes("support-sessions") ||
+        (context.config.blocks.access?.model ?? "roles") !== "provider" ||
+        support?.options?.["approval"] === "none"
+      ) {
+        return [];
+      }
+
+      if (isApprover.includes(SUPPORT_SESSION_APPROVAL)) {
+        return [];
+      }
+
+      const called = new Set(templateCalls(isApprover));
+
+      const handled = context.snapshot.generator.functions.some(
+        (fn) =>
+          called.has(`${fn.schema}.${fn.name}`.toLowerCase()) &&
+          fn.definition.includes(SUPPORT_SESSION_APPROVAL),
+      );
+
+      if (handled) {
+        return [];
+      }
+
+      return [
+        {
+          message: `Support sessions are installed, but ${providerLabel(provider)}'s isApprover template never handles {kind} = '${SUPPORT_SESSION_APPROVAL}', so it answers false and no admin can approve a support request. Add a '${SUPPORT_SESSION_APPROVAL}' branch (for example platform staff with the support permission), or set blocks["support-sessions"].options.approval to "none".`,
+          target: "authorization.functions.isApprover",
+        },
+      ];
+    },
+  },
 ];
+
+const TEMPLATE_CALL =
+  /\b("?[a-z_][a-z0-9_$]*"?)\s*\.\s*("?[a-z_][a-z0-9_$]*"?)\s*\(/gi;
+
+/** The `schema.function` names a template calls, lowercased and unquoted. */
+function templateCalls(template: string): string[] {
+  return [...withoutStrings(template).matchAll(TEMPLATE_CALL)].map((match) =>
+    `${match[1]!}.${match[2]!}`.replaceAll('"', "").toLowerCase(),
+  );
+}
 
 const CONTRACT_CALL =
   /\bbetter_supabase"?\s*\.\s*"?(can|tenant_ids_with)"?\s*\(/gi;

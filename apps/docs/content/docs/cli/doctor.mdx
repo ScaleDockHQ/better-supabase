@@ -1284,6 +1284,18 @@ provider's own function in that policy.
 for tool calls) and `{subject}` (the tool name) instead of `{tool}`. 0.9 still
 reads `canApprove` when `isApprover` is unset.
 
+### BS416
+
+**Warning: `isApprover` has no branch for support sessions.** Under the
+provider access model, the `support-sessions` module asks
+`authorization.functions.isApprover` who may approve a support request, with
+`{kind}` set to `'support-session'` and `{subject}` the request id. A
+template written only for `'ai-tool'` answers false, so no admin can approve
+and every start that needs a second admin stays pending. Doctor reads the
+template and the live definition of each function it calls. Add a
+`'support-session'` branch, or set `blocks["support-sessions"].options.approval`
+to `"none"`.
+
 ## Env files
 
 ### BS501
