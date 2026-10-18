@@ -76,7 +76,10 @@ describe("createNotifications().sink", () => {
 
   it("sends a notification per mapped event, keyed by the event id", async () => {
     const { transport, calls } = fakeTransport({
-      send_notification: () => ({ id: "e1", recipients: ["u1"] }),
+      send_notifications: (args) =>
+        (args["events"] as unknown[]).map(() => ({
+          notification: { id: "e1", recipients: ["u1"] },
+        })),
     });
 
     const seen: string[] = [];
@@ -101,19 +104,59 @@ describe("createNotifications().sink", () => {
     ]);
     expect(seen).toEqual(["organization.member_added", "organization.updated"]);
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.fn).toBe("send_notifications");
     expect(calls[0]?.args).toMatchObject({
-      notification: {
-        type: "task.assigned",
-        recipients: ["u1"],
-        tenant: "organization_1",
-        key: "id-organization.member_added",
-        data: { title: "Welcome" },
-      },
+      events: [
+        {
+          type: "task.assigned",
+          recipients: ["u1"],
+          tenant: "organization_1",
+          key: "id-organization.member_added",
+          data: { title: "Welcome" },
+        },
+      ],
     });
   });
 
+  it("sends one call per batch and throws the first failure after all of them", async () => {
+    const { transport, calls } = fakeTransport({
+      send_notifications: (args) =>
+        (args["events"] as { key: string }[]).map((item) =>
+          item.key === "id-bad"
+            ? { error: { code: "42501", message: "denied", hint: null } }
+            : { notification: { id: item.key, recipients: ["u1"] } },
+        ),
+    });
+
+    const sink = createNotifications({ transport, types }).sink({
+      map: (cloudEvent) =>
+        cloudEvent.type === "skip"
+          ? { type: "unknown.type" as never, data: { title: "x" } }
+          : { type: "task.assigned", recipients: ["u1"], data: { title: "x" } },
+    });
+
+    await expect(
+      sink.send([
+        event("bad"),
+        event("skip"),
+        ...Array.from({ length: 1000 }, (_, index) =>
+          event(`ok${String(index)}`),
+        ),
+      ]),
+    ).rejects.toThrow("denied");
+    expect(calls.map((call) => call.fn)).toEqual([
+      "send_notifications",
+      "send_notifications",
+    ]);
+    expect(calls[0]?.args["events"]).toHaveLength(999);
+    expect(calls[1]?.args["events"]).toHaveLength(2);
+  });
+
   it("keeps the mapped key and tenant, and rejects when the send fails", async () => {
-    const { transport, calls } = fakeTransport();
+    const { transport, calls } = fakeTransport({
+      send_notifications: (args) =>
+        (args["events"] as unknown[]).map(() => ({ notification: null })),
+    });
 
     const sink = createNotifications({ transport, types }).sink({
       typePrefix: "",
@@ -127,10 +170,12 @@ describe("createNotifications().sink", () => {
 
     await sink.send([event("x", { partitionkey: "organization_1" })]);
     expect(calls[0]?.args).toMatchObject({
-      notification: {
-        tenant: "organization_2",
-        key: "own-dev.better-supabase.x",
-      },
+      events: [
+        {
+          tenant: "organization_2",
+          key: "own-dev.better-supabase.x",
+        },
+      ],
     });
 
     const failing = createNotifications({
@@ -211,6 +256,21 @@ describe("createNotifications().send", () => {
       tenant: "organization_1",
       recipients: ["u1", "u3"],
     });
+  });
+
+  it("rejects a permission audience without a tenant before calling", async () => {
+    const { transport, calls } = fakeTransport();
+
+    const sent = await createNotifications({ transport, types }).send(
+      "task.assigned",
+      { permission: "tasks.read", data: { title: "Ship it" } },
+    );
+
+    expect(sent).toMatchObject({
+      ok: false,
+      error: { hint: "NOTIFICATION_PERMISSION_NEEDS_TENANT" },
+    });
+    expect(calls).toEqual([]);
   });
 
   it("subscribes another member only when absent", async () => {

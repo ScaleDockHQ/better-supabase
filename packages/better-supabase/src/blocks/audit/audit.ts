@@ -564,7 +564,7 @@ export type AuditListDefinition<
   M extends AnyModels,
   T extends TableKey<M>,
   E,
-> = ListDefinition<M, T, E, AuditSort, AuditFacet, false, "cursor"> & {
+> = ListDefinition<M, T, E, AuditSort, AuditFacet> & {
   /** A `where` for `run(db, query, { where })`: entries in `[from, to)`. */
   between(from?: Temporal.Instant, to?: Temporal.Instant): WhereInput<M, T>;
 };

@@ -8,7 +8,15 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { schemaPreamble, updatedAt, lockTable } from "../shared.ts";
+import {
+  defaultPartition,
+  defaultPartitionName,
+  lockTable,
+  MONTHLY_PARTITIONS,
+  registerPartitions,
+  schemaPreamble,
+  updatedAt,
+} from "../shared.ts";
 import {
   ADDED_COLUMNS,
   functions,
@@ -36,6 +44,7 @@ const NAMES: ModuleNames = {
     "defaultFormat",
     "disableAfter",
     "eventIdType",
+    "partitioned",
     "runIdType",
     "secretStorage",
     "statuses",
@@ -280,10 +289,14 @@ create table if not exists ${n.table("secrets")} (
 create index if not exists webhook_endpoint_secrets_endpoint_idx on ${n.table("secrets")} (${s("endpoint")});
 ${lockTable(n.table("secrets"))}`;
 
+  const fallback = defaultPartitionName(ctx.tableName("deliveries"));
+
   const deliveries = `
 create table if not exists ${n.table("deliveries")} (
   ${[
-    `${v("id")} uuid primary key default gen_random_uuid()`,
+    n.partitioned
+      ? `${v("id")} uuid not null default gen_random_uuid()`
+      : `${v("id")} uuid primary key default gen_random_uuid()`,
     ...opt("deliveries", "tenant", id),
     `${v("endpoint")} uuid not null references ${n.table("endpoints")} (${d("id")}) on delete cascade`,
     ...opt("deliveries", "event", n.eventIdType),
@@ -302,8 +315,9 @@ create table if not exists ${n.table("deliveries")} (
     ...opt("deliveries", "processedAt", "timestamptz"),
     `${v("createdAt")} timestamptz not null default now()`,
     ...opt("deliveries", "updatedAt", "timestamptz not null default now()"),
+    ...(n.partitioned ? [`primary key (${v("id")}, ${v("createdAt")})`] : []),
   ].join(",\n  ")}
-);
+)${n.partitioned ? ` partition by range (${v("createdAt")});\n${defaultPartition(n.table("deliveries"), fallback)}` : ";"}
 ${added(n, "deliveries", [["subject", "text"]])}create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);
 create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');
@@ -315,7 +329,7 @@ create index if not exists webhook_deliveries_tenant_created_idx on ${n.table("d
   }${
     n.has("deliveries", "event")
       ? `
-create unique index if not exists webhook_deliveries_endpoint_event_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null;`
+create ${n.partitioned ? "" : "unique "}index if not exists webhook_deliveries_endpoint_event_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null;`
       : ""
   }
 ${lockTable(n.table("deliveries"))}${
@@ -327,7 +341,7 @@ grant select on ${n.table("deliveries")} to authenticated;${policy(
           `for select to authenticated using (${n.member(v("tenant"), "view")})`,
         )}`
       : ""
-  }`;
+  }${n.partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(n.table("deliveries"))}` : ""}`;
 
   return [endpoints, secrets, deliveries].join("\n");
 }
@@ -420,6 +434,7 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["text", "jsonb", "{id}", "text", "text", "text"],
       returns: "integer",
     },
+    { name: "publish_webhook_events", args: ["jsonb"], returns: "jsonb" },
     {
       name: "dispatch_webhook",
       args: ["uuid", "text", "jsonb", "text", "text"],
@@ -460,7 +475,7 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 4,
+  version: 5,
   names: NAMES,
   adoptOptional: (ctx) => ({
     ...ADDED_COLUMNS,
@@ -493,6 +508,12 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
           ? `alter table ${n.table("endpoints")} add column if not exists ${n.col("endpoints", "format")} ${formatColumn(n.col("endpoints", "format"), "standard")};`
           : "";
       },
+    },
+    {
+      from: 4,
+      description:
+        "publish_webhook_events(events) queues a batch of events in one call, with publish_webhook_event's checks per event and a {count} or {error} result each. options.partitioned partitions a new deliveries table by month on created_at and applies to new tables only.",
+      sql: () => "",
     },
   ],
   build,

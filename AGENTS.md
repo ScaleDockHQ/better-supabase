@@ -154,6 +154,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0035: the Flags SDK adapter is structural; brands are custom flag contexts.
 - 0036: every SDK integration is an optional peer with a tested range.
 - 0037: every amount is `Money`; block SQL returns int8 as text, decoded strictly.
+- 0038: outbox, usage history, webhook deliveries and notification delivery events partition by month on opt-in.
 
 ## Pre-release pins
 

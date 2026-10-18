@@ -1,6 +1,6 @@
 import type { ModuleContext, ModuleContractFunction } from "../context.ts";
 
-import { lockTable, SERVICE_CALLER } from "../shared.ts";
+import { lockTable, SERVICE_CALLER, triggerGrant } from "../shared.ts";
 
 /** Whether `blocks.audit.options.chain` is on for a log the module manages. */
 export function chainOn(ctx: ModuleContext): boolean {
@@ -111,7 +111,7 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.audit_row_hash(jsonb, bytea) from public, anon, authenticated;
-revoke execute on function better_supabase.audit_chain_link() from public, anon, authenticated;
+${triggerGrant("better_supabase.audit_chain_link()")}
 drop trigger if exists ${trigger} on ${log};
 create trigger ${trigger} before insert on ${log}
   for each row execute function better_supabase.audit_chain_link();

@@ -4,10 +4,12 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 export type UsageSqlOptions = {
   readonly meters?: unknown;
   readonly history?: boolean;
+  readonly partitioned?: boolean;
 };
 
 export const usageSqlOptions: BlockOptionsSchema<UsageSqlOptions> =
   blockOptions<UsageSqlOptions>({
     meters: option.unknown(),
     history: option.boolean({ default: false }),
+    partitioned: option.boolean({ default: false }),
   });

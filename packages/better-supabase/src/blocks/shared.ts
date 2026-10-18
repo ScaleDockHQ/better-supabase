@@ -1,7 +1,9 @@
 export {
   applyTemporal,
   asDbError,
+  batchResultsOf,
   blockCall,
+  chunksOf,
   credentialRefOf,
   DEFAULT_BLOCK_SCHEMA,
   eachLimit,

@@ -2,10 +2,30 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, pageSize, lockTable, fail, raise } from "../shared.ts";
+import {
+  defaultPartition,
+  defaultPartitionName,
+  dropExpiredPartitions,
+  fail,
+  lockTable,
+  MONTHLY_PARTITIONS,
+  PARTITION_VARIABLES,
+  pageSize,
+  raise,
+  registerPartitions,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
 
 const NAMES: ModuleNames = {
-  options: ["defaultSource", "emitRoles", "blockSource", "retention", "settle"],
+  options: [
+    "defaultSource",
+    "emitRoles",
+    "blockSource",
+    "partitioned",
+    "retention",
+    "settle",
+  ],
   tables: {
     events: {
       name: "outbox_events",
@@ -66,6 +86,8 @@ interface Names {
   readonly k: (logical: string) => string;
   readonly x: (logical: string) => string;
   readonly has: (logical: string) => boolean;
+  /** The managed events table is partitioned by month on `created_at`. */
+  readonly partitioned: boolean;
 }
 
 function names(ctx: ModuleContext): Names {
@@ -77,6 +99,7 @@ function names(ctx: ModuleContext): Names {
     k: (logical) => ctx.col("consumers", logical),
     x: (logical) => ctx.col("deadLetters", logical),
     has: (logical) => ctx.has("events", logical),
+    partitioned: ctx.manages && ctx.flag("partitioned", false),
   };
 }
 
@@ -140,14 +163,25 @@ function tables(ctx: ModuleContext, n: Names): string {
   }
 
   const samePosition = n.e("position") === n.e("id");
+  const sequence = `${ctx.schema}.${ctx.naming.rename("outbox_events_position_seq")}`;
+  const next = `bigint not null default nextval('${sequence}')`;
+
+  const keyColumns = n.partitioned
+    ? samePosition
+      ? [`${n.e("id")} ${next}`]
+      : [
+          `${n.e("id")} uuid not null default gen_random_uuid()`,
+          `${n.e("position")} ${next}`,
+        ]
+    : samePosition
+      ? [`${n.e("id")} bigint generated always as identity primary key`]
+      : [
+          `${n.e("id")} uuid primary key default gen_random_uuid()`,
+          `${n.e("position")} bigint generated always as identity unique`,
+        ];
 
   const columns = [
-    samePosition
-      ? `${n.e("id")} bigint generated always as identity primary key`
-      : `${n.e("id")} uuid primary key default gen_random_uuid()`,
-    ...(samePosition
-      ? []
-      : [`${n.e("position")} bigint generated always as identity unique`]),
+    ...keyColumns,
     `${n.e("type")} text not null`,
     n.has("source") ? `${n.e("source")} text` : undefined,
     n.has("subject") ? `${n.e("subject")} text` : undefined,
@@ -159,29 +193,57 @@ function tables(ctx: ModuleContext, n: Names): string {
     n.has("xid")
       ? `${n.e("xid")} xid8 not null default pg_current_xact_id()`
       : undefined,
+    n.partitioned
+      ? `primary key (${n.e("id")}, ${n.e("createdAt")})`
+      : undefined,
   ].filter((line) => line !== undefined);
+
+  const unique = n.partitioned ? "" : "unique ";
 
   const keyIndex = n.has("key")
     ? n.has("tenant")
-      ? `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}, ${n.e("tenant")}) nulls not distinct where ${n.e("key")} is not null;`
-      : `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}) where ${n.e("key")} is not null;`
+      ? `\ncreate ${unique}index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}, ${n.e("tenant")}) nulls not distinct where ${n.e("key")} is not null;`
+      : `\ncreate ${unique}index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}) where ${n.e("key")} is not null;`
     : "";
 
   const subjectIndex = n.has("subject")
     ? `\ncreate index if not exists outbox_events_subject_idx on ${n.t} (${n.e("subject")}, ${n.e("position")});`
     : "";
 
-  return `
+  const fallback = defaultPartitionName(ctx.tableName("events"));
+
+  const head = n.partitioned
+    ? `
+create sequence if not exists ${sequence};
 create table if not exists ${n.t} (
   ${columns.join(",\n  ")}
-);${keyIndex}${subjectIndex}
+) partition by range (${n.e("createdAt")});
+${defaultPartition(n.t, fallback)}${
+        samePosition
+          ? ""
+          : `\ncreate index if not exists outbox_events_position_idx on ${n.t} (${n.e("position")});`
+      }`
+    : `
+create table if not exists ${n.t} (
+  ${columns.join(",\n  ")}
+);`;
+
+  return `${head}${keyIndex}${subjectIndex}
 create index if not exists outbox_events_type_idx on ${n.t} (${n.e("type")}, ${n.e("position")});
 create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt")});${
     n.has("xid")
       ? `\ncreate index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`
       : ""
   }
-${lockTable(n.t)}
+${lockTable(n.t)}${
+    n.partitioned
+      ? `
+revoke all on sequence ${sequence} from anon, authenticated;
+
+${MONTHLY_PARTITIONS}
+${registerPartitions(n.t)}`
+      : ""
+  }
 ${consumersTable(n)}`;
 }
 
@@ -232,9 +294,15 @@ function emit(ctx: ModuleContext, n: Names): string {
     ? ` and e.${n.e("tenant")} is not distinct from tenant::${ctx.idType}`
     : "";
 
+  // A partitioned table has no unique key index, so the same key waits here.
+  const lock = n.partitioned
+    ? `
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(${sqlString(n.t)}), pg_catalog.hashtext(coalesce(tenant, '') || ':' || key));`
+    : "";
+
   const existing = n.has("key")
     ? `
-  if key is not null then
+  if key is not null then${lock}
     select e.${n.e("id")}::text into found_id from ${n.t} e
     where e.${n.e("key")} = key${sameTenant};
     if found_id is not null then
@@ -594,8 +662,42 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_purged integer;
-begin
+  v_purged integer;${
+    n.partitioned
+      ? `
+  v_dropped integer := 0;
+  v_waiting boolean;${byXid ? "\n  v_min_xid xid8;" : ""}
+  v_min_cursor bigint;${PARTITION_VARIABLES}`
+      : ""
+  }
+begin${
+    n.partitioned
+      ? `
+  -- Whole months past retention go at once, unless an active consumer has
+  -- yet to pass one of their events.
+  select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")}
+  into ${byXid ? "v_min_xid, " : ""}v_min_cursor
+  from ${n.c} k
+  where ignore_idle is null or k.${n.k("updatedAt")} >= now() - ignore_idle
+  order by ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")}
+  limit 1;
+  v_waiting := found;
+  ${dropExpiredPartitions({
+    table: n.t,
+    cutoff: ctx.cutoff(
+      "outbox",
+      `coalesce(older_than, ${retention}::interval)`,
+    ),
+    purged: "v_dropped",
+    busy: byXid
+      ? `$1 and (p.${n.e("xid")}, p.${n.e("position")}) > ($2, $3)`
+      : `$1 and p.${n.e("position")} > $2`,
+    using: byXid
+      ? ["v_waiting", "v_min_xid", "v_min_cursor"]
+      : ["v_waiting", "v_min_cursor"],
+  })}`
+      : ""
+  }
   with active as (
     select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")} from ${n.c} k
     where ignore_idle is null or k.${n.k("updatedAt")} >= now() - ignore_idle
@@ -623,7 +725,7 @@ begin
     returning 1
   )
   select count(*)::integer into v_purged from gone;
-  return v_purged;
+  return v_purged${n.partitioned ? " + v_dropped" : ""};
 end;
 $$;
 ${service("outbox_register", "text, text[], boolean")}
@@ -666,6 +768,7 @@ begin
   return null;
 end;
 $$;
+${triggerGrant(`${ctx.fn("outbox_row_event")}()`)}
 
 create or replace function ${ctx.fn("track_events")}(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -712,7 +815,7 @@ export const OUTBOX: ModuleDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 4,
+  version: 5,
   integrates: ["data-lifecycle"],
   names: NAMES,
   adoptOptional: () => ({ events: ["xid"] }),
@@ -734,6 +837,12 @@ export const OUTBOX: ModuleDefinition = {
       from: 3,
       description:
         "purge_outbox keeps events for the data-lifecycle retention policy and skips those under a legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "outbox_row_event() is no longer executable by API roles. options.partitioned partitions a new events table by month on created_at, with a sequence for the position, and applies to new tables only.",
       sql: () => "",
     },
   ],

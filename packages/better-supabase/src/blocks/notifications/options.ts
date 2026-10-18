@@ -6,6 +6,7 @@ export type NotificationsSqlOptions = {
   readonly channels?: readonly string[];
   readonly createdEvent?: string;
   readonly maxRecipients?: number;
+  readonly partitioned?: boolean;
   readonly priorities?: readonly string[];
   readonly realtime?: string;
   readonly topic?: string;
@@ -19,6 +20,7 @@ export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions
     channels: option.strings({ default: ["in_app"] }),
     createdEvent: option.string({ default: "notification_created" }),
     maxRecipients: option.number({ default: 1000 }),
+    partitioned: option.boolean({ default: false }),
     priorities: option.strings({
       default: ["low", "normal", "high", "urgent"],
     }),

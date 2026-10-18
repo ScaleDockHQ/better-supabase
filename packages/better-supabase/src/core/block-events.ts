@@ -618,8 +618,10 @@ export interface TimeEntryEventData {
   /** For `time_entry.recorded` and `time_entry.updated`; null while running. */
   readonly seconds?: number | null;
   readonly billable?: boolean;
-  /** The hourly rate, when the entry has one. */
-  readonly rate?: number | null;
+  /** The hourly rate in minor units, as text (ADR 0037), when the entry has one. */
+  readonly rate?: string | null;
+  /** The rate's ISO 4217 currency code, set exactly when `rate` is. */
+  readonly rateCurrency?: string | null;
 }
 
 /** Timesheet events from the time-tracking module. */

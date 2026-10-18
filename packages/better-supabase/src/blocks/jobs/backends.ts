@@ -768,19 +768,21 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
         }[]
       >("read", { queue_name: queue, sleep_seconds: lease, n: batch });
 
-      const live = [];
+      // A message read past max_attempts lost its worker on the last attempt.
+      const dead = (row: (typeof rows)[number]) =>
+        row.read_ct > (row.message?.max_attempts ?? 5);
 
-      for (const row of rows) {
-        // A message read past max_attempts lost its worker on the last attempt.
-        if (row.read_ct > (row.message?.max_attempts ?? 5)) {
-          await call<boolean>("archive", {
+      const live = rows.filter((row) => !dead(row));
+
+      // pgmq_public.archive takes one id, so the dead messages go in parallel.
+      await Promise.all(
+        rows.filter(dead).map((row) =>
+          call<boolean>("archive", {
             queue_name: queue,
             message_id: row.msg_id,
-          });
-        } else {
-          live.push(row);
-        }
-      }
+          }),
+        ),
+      );
 
       return live.map((row) => ({
         id: row.msg_id,

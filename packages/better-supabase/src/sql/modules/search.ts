@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
@@ -442,7 +443,39 @@ begin
   return found;
 end;
 $$;
-${serviceGrant(`${fn("search_set_embedding")}(text, text, text, ${vector}.vector)`)}`;
+${serviceGrant(`${fn("search_set_embedding")}(text, text, text, ${vector}.vector)`)}
+
+-- search_set_embedding for many documents in one update: element i of each
+-- array is one document. Returns how many it stored.
+create or replace function ${fn("search_set_embeddings")}(subject_types text[], subject_ids text[], content_hashes text[], embeddings text[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  stored integer;
+begin
+  if cardinality(subject_types) is distinct from cardinality(subject_ids)
+    or cardinality(subject_types) is distinct from cardinality(content_hashes)
+    or cardinality(subject_types) is distinct from cardinality(embeddings) then
+    ${fail("SEARCH_EMBEDDINGS_MISMATCH", "Every array needs one element per document", "22023")}
+  end if;
+  if cardinality(subject_types) > ${String(MAX_BATCH)} then
+    ${fail("SEARCH_EMBEDDINGS_TOO_LARGE", `At most ${String(MAX_BATCH)} embeddings per call`, "22023")}
+  end if;
+  update ${docs} d set ${c("embedding")} = u.embedding::${vector}.vector
+  from unnest(subject_types, subject_ids, content_hashes, embeddings)
+    as u(subject_type, subject_id, content_hash, embedding)
+  where d.${c("subjectType")} = u.subject_type
+    and d.${c("subjectId")} = u.subject_id
+    and d.${c("contentHash")} = u.content_hash;
+  get diagnostics stored = row_count;
+  return stored;
+end;
+$$;
+${serviceGrant(`${fn("search_set_embeddings")}(text[], text[], text[], text[])`)}`;
 }
 
 function vectorOf(
@@ -713,7 +746,15 @@ export const SEARCH: ModuleDefinition = {
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "search_set_embeddings stores many embeddings in one update, and embedPending calls it once per run.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

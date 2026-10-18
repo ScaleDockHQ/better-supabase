@@ -174,3 +174,24 @@ describe("notification delivery tracking", () => {
     ).toHaveLength(7);
   });
 });
+
+describe("partitioned delivery events", () => {
+  it("partitions only the delivery events and dedupes provider events with a lock", () => {
+    const sql = body({ notifications: { options: { partitioned: true } } });
+    expect(sql).toContain(`create table if not exists ${EVENTS} (`);
+    expect(sql).toContain('primary key ("id", "created_at")');
+    expect(sql).toContain(') partition by range ("created_at");');
+    expect(sql).toContain(
+      `create table if not exists "better_supabase"."notification_delivery_events_default" partition of ${EVENTS} default;`,
+    );
+    expect(sql).toContain(
+      "pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.notification_delivery_events')",
+    );
+    expect(sql).toContain(
+      `better_supabase.expired_partitions('${EVENTS}'::regclass`,
+    );
+    expect(sql).not.toContain("notification_deliveries_default");
+    expect(sql).not.toContain(`${DELIVERIES} partition`);
+    expect(body()).not.toContain("partition by range");
+  });
+});

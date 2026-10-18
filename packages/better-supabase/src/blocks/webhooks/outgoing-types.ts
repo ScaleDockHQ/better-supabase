@@ -8,7 +8,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -233,6 +233,14 @@ export interface WebhooksRouteOptions
 export interface Webhooks {
   /** Queues the event for each subscribed endpoint; returns how many. */
   publish(event: PublishInput): AsyncResult<number>;
+  /**
+   * Queues up to 1000 events in one `publish_webhook_events` call, with
+   * `publish`'s checks per event: one `Result` (how many endpoints) per
+   * event, in order. The outer result fails only when the call does.
+   */
+  publishMany(
+    events: readonly PublishInput[],
+  ): AsyncResult<readonly Result<number>[]>;
   /** Sends to one endpoint outside its subscriptions; returns the delivery id. */
   dispatch(input: DispatchInput): AsyncResult<string>;
   /** Queues a finished delivery again. */

@@ -275,15 +275,16 @@ export function createSearch(options: SearchOptions): Search {
             );
           }
 
-          let stored = 0;
-
-          for (const [index, item] of pending.entries()) {
-            if (await setEmbedding(item, vectors[index]!).orThrow()) {
-              stored += 1;
-            }
-          }
-
-          return stored;
+          return service(
+            "search_set_embeddings",
+            {
+              subject_types: pending.map((item) => item.subjectType),
+              subject_ids: pending.map((item) => item.subjectId),
+              content_hashes: pending.map((item) => item.contentHash),
+              embeddings: vectors.map(vectorText),
+            },
+            Number,
+          ).orThrow();
         }),
       ),
   };

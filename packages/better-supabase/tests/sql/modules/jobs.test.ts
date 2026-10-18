@@ -135,4 +135,12 @@ describe("jobs module", () => {
       "perform pgmq.set_vt(queue, job_id, lease);",
     );
   });
+
+  it("archives every lost last attempt of a claim in one call", () => {
+    const sql = jobs();
+    expect(sql).toContain("dead := dead || r.msg_id;");
+    expect(sql).toContain("where msg_id = any ($1)");
+    expect(sql).toContain("perform pgmq.archive(queue, dead);");
+    expect(sql).not.toContain("perform pgmq.archive(queue, r.msg_id);");
+  });
 });
