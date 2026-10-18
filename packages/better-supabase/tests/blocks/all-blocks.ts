@@ -56,6 +56,7 @@ import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
 import type { mfaBlock } from "../../src/blocks/mfa/manifest.ts";
 import type { notificationsBlock } from "../../src/blocks/notifications/manifest.ts";
 import type { numberSequencesBlock } from "../../src/blocks/number-sequences/manifest.ts";
+import type { oauthServerBlock } from "../../src/blocks/oauth-server/manifest.ts";
 import type { onboardingBlock } from "../../src/blocks/onboarding/manifest.ts";
 import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
@@ -166,6 +167,7 @@ export type AllBlocks = {
   readonly notifications: typeof notificationsBlock;
   readonly numberSequences: typeof numberSequencesBlock;
   readonly onboarding: typeof onboardingBlock;
+  readonly oauthServer: typeof oauthServerBlock;
   readonly orders: typeof ordersBlock;
   readonly organizations: typeof organizationsBlock;
   readonly outbox: typeof outboxBlock;

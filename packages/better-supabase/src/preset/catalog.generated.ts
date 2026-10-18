@@ -1728,6 +1728,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "shared-signals"
     },
     {
+      "name": "oauth-server",
+      "title": "OAuth server",
+      "category": "developer",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "oauth-server"
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2417,6 +2428,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "numberSequencesBlock",
         "subpath": "better-supabase/blocks/number-sequences"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "oauth-server",
+      "sql": [
+        "oauth-server"
+      ],
+      "category": "developer",
+      "client": {
+        "export": "oauthServerBlock",
+        "subpath": "better-supabase/blocks/oauth-server"
       },
       "consumes": {},
       "provides": []

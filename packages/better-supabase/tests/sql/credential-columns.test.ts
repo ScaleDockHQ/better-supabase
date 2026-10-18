@@ -31,6 +31,10 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   // A lock token proves who holds a Chat SDK thread lock when it is released.
   "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
   // A push token addresses a device; sending to it needs the provider's own credential.
+  // The RFC 7591 metadata name of how a client authenticates; the secret is in secret_hash.
+  "oauth-server": [
+    '"better_supabase"."oauth_clients".token_endpoint_auth_method',
+  ],
   push: ['"better_supabase"."push_devices".token'],
   // A SET is a signed, public security event the transmitter mints, not a credential.
   "shared-signals": ['"better_supabase"."ssf_events".token'],

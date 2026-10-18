@@ -1291,6 +1291,7 @@
               "mfa",
               "notifications",
               "number-sequences",
+              "oauth-server",
               "onboarding",
               "orders",
               "organizations",
@@ -1509,6 +1510,9 @@
             },
             "number-sequences": {
               "$ref": "#/$defs/blocks/number-sequences"
+            },
+            "oauth-server": {
+              "$ref": "#/$defs/blocks/oauth-server"
             },
             "onboarding": {
               "$ref": "#/$defs/blocks/onboarding"
@@ -3639,6 +3643,17 @@
             "properties": {
               "entities": {}
             }
+          }
+        }
+      },
+      "oauth-server": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

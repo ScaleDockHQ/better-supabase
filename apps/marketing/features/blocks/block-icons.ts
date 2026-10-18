@@ -41,6 +41,7 @@ import {
   GaugeIcon,
   GlobeIcon,
   HandCoinsIcon,
+  HandshakeIcon,
   HardDriveIcon,
   HashIcon,
   HistoryIcon,
@@ -222,6 +223,7 @@ export const BLOCK_ICONS = {
   "service-principals": ServerIcon,
   "signing-keys": FileKeyIcon,
   "shared-signals": SatelliteDishIcon,
+  "oauth-server": HandshakeIcon,
   // Admin & compliance
   audit: ScrollTextIcon,
   "support-sessions": LifeBuoyIcon,

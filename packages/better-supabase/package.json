@@ -827,6 +827,11 @@
       "types": "./dist/blocks/signing-keys/index.d.ts",
       "default": "./dist/blocks/signing-keys/index.js"
     },
+    "./blocks/oauth-server": {
+      "@better-supabase/source": "./src/blocks/oauth-server/index.ts",
+      "types": "./dist/blocks/oauth-server/index.d.ts",
+      "default": "./dist/blocks/oauth-server/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2052,6 +2057,10 @@
       "./blocks/signing-keys": {
         "types": "./dist/blocks/signing-keys/index.d.ts",
         "default": "./dist/blocks/signing-keys/index.js"
+      },
+      "./blocks/oauth-server": {
+        "types": "./dist/blocks/oauth-server/index.d.ts",
+        "default": "./dist/blocks/oauth-server/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

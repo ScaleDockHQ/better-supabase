@@ -89,6 +89,7 @@
     "identities",
     "service-principals",
     "signing-keys",
-    "shared-signals"
+    "shared-signals",
+    "oauth-server"
   ]
 }
