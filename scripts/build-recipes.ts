@@ -41,14 +41,19 @@ interface Side {
   readonly glue: readonly string[];
 }
 
+/** A piece of UI inside a page, or a whole page. */
+type RecipeKind = "component" | "screen";
+
 interface RecipeSource {
   readonly slug: string;
   readonly title: string;
-  /** The SQL module the recipe's hook calls. */
-  readonly block: string;
+  /** The SQL modules the recipe uses. The first one sets its category. */
+  readonly blocks: readonly [string, ...string[]];
+  readonly kind: RecipeKind;
   readonly description: string;
-  /** The hook both sides call, and the entry it comes from. */
-  readonly hook: { readonly name: string; readonly entry: string };
+  /** The hook the code calls, and the entry it comes from. Server-rendered recipes have none. */
+  readonly hook?: { readonly name: string; readonly entry: string };
+  /** A recipe is available once its web side exists; native is optional. */
   readonly web?: Side;
   readonly native?: Side;
   /** For a planned recipe: what has to ship first. */
@@ -59,7 +64,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "notification-bell",
     title: "Notification bell",
-    block: "notifications",
+    blocks: ["notifications"],
+    kind: "component",
     description:
       "A header button with the unread count, which updates when a notification arrives or is read.",
     hook: {
@@ -80,7 +86,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "notification-list",
     title: "Notification list",
-    block: "notifications",
+    blocks: ["notifications"],
+    kind: "component",
     description:
       "The caller's latest notifications with an unread marker, loaded again on every change.",
     hook: {
@@ -101,7 +108,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "command-search",
     title: "Command search",
-    block: "search",
+    blocks: ["search"],
+    kind: "component",
     description:
       "A search dialog over the search index, with favorites and recents before the user types.",
     hook: {
@@ -129,7 +137,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "onboarding-checklist",
     title: "Onboarding checklist",
-    block: "onboarding",
+    blocks: ["onboarding"],
+    kind: "component",
     description:
       "The organization's getting-started steps with progress, hidden once every step is done.",
     hook: {
@@ -150,7 +159,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "comment-thread",
     title: "Comment thread",
-    block: "comments",
+    blocks: ["comments"],
+    kind: "component",
     description:
       "A record's comments with their authors and a form to add one, kept current after each write.",
     hook: {
@@ -178,7 +188,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "org-switcher",
     title: "Organization switcher",
-    block: "organizations",
+    blocks: ["organizations"],
+    kind: "component",
     description:
       "A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim.",
     hook: {
@@ -199,7 +210,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "plan-picker",
     title: "Plan picker",
-    block: "billing",
+    blocks: ["billing"],
+    kind: "component",
     description:
       "The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns.",
     hook: {
@@ -220,7 +232,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "usage-meter",
     title: "Usage meter",
-    block: "usage",
+    blocks: ["usage"],
+    kind: "component",
     description:
       "This period's usage per meter against the plan's quota, with the reset date.",
     hook: {
@@ -241,7 +254,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "feature-gate",
     title: "Feature gate",
-    block: "entitlements",
+    blocks: ["entitlements"],
+    kind: "component",
     description:
       "Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes.",
     hook: {
@@ -262,7 +276,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "settings-layout",
     title: "Settings layout",
-    block: "settings",
+    blocks: ["settings"],
+    kind: "screen",
     description:
       "Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares.",
     hook: {
@@ -291,7 +306,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "members-table",
     title: "Members table",
-    block: "organizations",
+    blocks: ["organizations"],
+    kind: "component",
     description:
       "An organization's members with their roles, where a role change shows at once and a member can be removed.",
     hook: {
@@ -312,7 +328,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "invite-dialog",
     title: "Invite dialog",
-    block: "invitations",
+    blocks: ["invitations"],
+    kind: "component",
     description:
       "A form that invites a teammate by email with a role, then shows the token for the accept link.",
     hook: {
@@ -333,7 +350,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "api-keys-table",
     title: "API keys table",
-    block: "api-keys",
+    blocks: ["api-keys"],
+    kind: "component",
     description:
       "The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key.",
     hook: {
@@ -371,7 +389,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "audit-log-table",
     title: "Audit log table",
-    block: "audit",
+    blocks: ["audit"],
+    kind: "component",
     description:
       "The audit trail, newest first, with filters by actor and action and older pages on demand.",
     hook: {
@@ -392,7 +411,8 @@ const RECIPES: readonly RecipeSource[] = [
   {
     slug: "tag-input",
     title: "Tag input",
-    block: "tags",
+    blocks: ["tags"],
+    kind: "component",
     description:
       "A record's tags with suggestions, where typing a name adds a tag or creates it.",
     hook: {
@@ -427,7 +447,10 @@ interface Snippet {
 interface Recipe {
   readonly slug: string;
   readonly title: string;
+  /** The primary block, `blocks[0]`. */
   readonly block: string;
+  readonly blocks: readonly string[];
+  readonly kind: RecipeKind;
   readonly description: string;
   readonly status: "available" | "planned";
   readonly hook: { readonly name: string; readonly entry: string } | null;
@@ -555,16 +578,25 @@ function buildRecipes(): readonly Recipe[] {
   );
 
   return RECIPES.map((recipe): Recipe => {
-    const available = recipe.web !== undefined && recipe.native !== undefined;
+    const available = recipe.web !== undefined;
+
+    if (!available && recipe.missing === undefined) {
+      throw new Error(
+        `build-recipes: the recipe "${recipe.slug}" has no web code, so it needs a missing note.`,
+      );
+    }
+
     const screenshot = `${recipe.slug}.png`;
 
     return {
       slug: recipe.slug,
       title: recipe.title,
-      block: recipe.block,
+      block: recipe.blocks[0],
+      blocks: recipe.blocks,
+      kind: recipe.kind,
       description: recipe.description,
       status: available ? "available" : "planned",
-      hook: available ? recipe.hook : null,
+      hook: available ? (recipe.hook ?? null) : null,
       web: withSnippet(recipe.web, recipe.slug),
       native: withSnippet(recipe.native, recipe.slug),
       screenshot:
@@ -579,16 +611,33 @@ function buildRecipes(): readonly Recipe[] {
 const fence = (language: string, code: string, title?: string): string =>
   `\`\`\`${language}${title ? ` title="${title}"` : ""}\n${code}\`\`\``;
 
+const blockLinks = (blocks: readonly string[]): string =>
+  blocks.map((name) => `[${name}](${SITE}/blocks/${name})`).join(", ");
+
+/** What the recipe calls, and the blocks it needs installed. */
+function recipeUses(recipe: Recipe): string {
+  const call = recipe.hook
+    ? `${recipe.native ? "Both sides call" : "It calls"} \`${recipe.hook.name}\` from \`${recipe.hook.entry}\``
+    : "It loads its data on the server through the block's client";
+
+  const install =
+    recipe.blocks.length === 1
+      ? `the [${recipe.block} block](${SITE}/blocks/${recipe.block}) must be installed`
+      : `the ${blockLinks(recipe.blocks)} blocks must be installed`;
+
+  return `${call}; ${install} (\`npx better-supabase sql add ${recipe.blocks.join(" ")}\`).`;
+}
+
 /** One recipe as Markdown, shared by the docs page and the skill. */
 function recipeMarkdown(recipe: Recipe, heading: string): string {
-  if (!recipe.web || !recipe.native || !recipe.hook) {
+  if (!recipe.web) {
     return "";
   }
 
   const lines = [
     `${heading} ${recipe.title}`,
     "",
-    `${recipe.description} Both sides call \`${recipe.hook.name}\` from \`${recipe.hook.entry}\`; the [${recipe.block} block](${SITE}/blocks/${recipe.block}) must be installed (\`npx better-supabase sql add ${recipe.block}\`). Page: ${SITE}/recipes/${recipe.slug}.`,
+    `${recipe.description} ${recipeUses(recipe)} Page: ${SITE}/recipes/${recipe.slug}.`,
     "",
     "Web, with shadcn components:",
     "",
@@ -608,6 +657,13 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
   lines.push(
     "",
     fence("tsx", recipe.web.snippet.code, recipe.web.snippet.file),
+  );
+
+  if (!recipe.native) {
+    return lines.join("\n");
+  }
+
+  lines.push(
     "",
     `React Native, with ${recipe.native.components.map((name) => `\`${name}\``).join(", ")} from \`react-native\`:`,
     "",
@@ -664,10 +720,10 @@ function plannedSection(
     "",
     ...lead,
     table([
-      ["Recipe", "Block", "Waits for"],
+      ["Recipe", "Blocks", "Waits for"],
       ...planned.map((recipe) => [
         recipe.title,
-        `\`${recipe.block}\``,
+        recipe.blocks.map((name) => `\`${name}\``).join(", "),
         recipe.missing ?? "",
       ]),
     ]),
@@ -675,7 +731,7 @@ function plannedSection(
   ];
 }
 
-const INTRO = `better-supabase ships no visible UI components. A recipe builds one interface from your own shadcn components (web) or React Native primitives (native) and a block's hook. The web and native code call the same hook, and both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
+const INTRO = `better-supabase ships no visible UI components. A recipe builds one component or one screen from your own shadcn components (web) or React Native primitives (native) and one or more blocks. Every recipe has web code; the ones that fit a phone also have native code, which calls the same hook. Both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
 
 function renderDocsPage(recipes: readonly Recipe[]): string {
   const available = recipes.filter((recipe) => recipe.status === "available");
@@ -683,7 +739,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
   return [
     "---",
     "title: UI recipes",
-    "description: Build notifications, search, onboarding, comments, an organization switcher, members, invitations, API keys, the audit log, tags, a plan picker, a usage meter, a feature gate and settings pages from shadcn or React Native components and the blocks' hooks.",
+    "description: Build components and screens for the blocks, such as notifications, search, onboarding, comments, members, API keys, the audit log, billing and settings, from shadcn or React Native components and the blocks' hooks.",
     "---",
     "",
     "{/* Generated by scripts/build-recipes.ts from the example apps. Edit the examples or the script, then run `pnpm recipes`. */}",
@@ -711,7 +767,7 @@ function renderSkill(recipes: readonly Recipe[]): string {
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
     ...plannedSection(recipes, [
-      "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
+      "These have no example code yet. Build them from the block's TypeScript client in a server action or loader, or from its hook where it has one.",
       "",
     ]),
   ].join("\n");

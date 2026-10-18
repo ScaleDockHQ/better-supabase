@@ -54,7 +54,7 @@ describe("markdown mirrors", () => {
   });
 
   test("a recipe page has both platforms and links its block", () => {
-    const recipe = availableRecipes[0];
+    const recipe = availableRecipes.find((each) => each.native !== null);
 
     expect(recipe).toBeDefined();
 
@@ -73,7 +73,7 @@ describe("markdown mirrors", () => {
     expect(markdown).toContain("## Prompt");
     expect(markdown).toContain(recipePrompt(recipe, "web", site.url));
     expect(markdown).toContain(recipePrompt(recipe, "native", site.url));
-    expect(markdown).not.toContain(shadcnAdd(recipe.native.components));
+    expect(markdown).not.toContain(shadcnAdd(recipe.native?.components ?? []));
   });
 
   test("the recipes index links the available recipes", () => {

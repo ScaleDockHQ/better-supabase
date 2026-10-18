@@ -1,39 +1,62 @@
 import { describe, expect, test } from "vitest";
 
 import { getBlock } from "../../lib/blocks";
-import { parsePlatform, recipePlatforms } from "../../lib/recipe-platform";
-import { availableRecipes, recipePrompt, shadcnAdd } from "../../lib/recipes";
+import { parsePlatform } from "../../lib/recipe-platform";
+import {
+  availableRecipes,
+  recipePlatformsOf,
+  recipePrompt,
+  recipeSide,
+  shadcnAdd,
+} from "../../lib/recipes";
 
 const SITE = "https://example.com";
 
 const cases = availableRecipes.flatMap((recipe) =>
-  recipePlatforms.map((platform) => [recipe.slug, platform, recipe] as const),
+  recipePlatformsOf(recipe).map(
+    (platform) => [recipe.slug, platform, recipe] as const,
+  ),
 );
 
 describe("recipePrompt", () => {
   test.each(cases)(
-    "%s on %s names the goal, the block and the hook",
+    "%s on %s names the goal, the blocks and the hook",
     (_slug, platform, recipe) => {
       const prompt = recipePrompt(recipe, platform, SITE);
 
       expect(prompt).toContain(`"${recipe.title}"`);
       expect(prompt).toContain(recipe.description);
-      expect(prompt).toContain(`npx better-supabase sql add ${recipe.block}`);
-      expect(prompt).toContain(recipe.hook.name);
-      expect(prompt).toContain(recipe.hook.entry);
-      expect(prompt).toContain(recipe[platform].snippet.file);
+      expect(prompt).toContain(
+        `npx better-supabase sql add ${recipe.blocks.join(" ")}`,
+      );
+
+      for (const text of recipe.hook
+        ? [recipe.hook.name, recipe.hook.entry]
+        : []) {
+        expect(prompt).toContain(text);
+      }
+
+      expect(prompt).toContain(recipeSide(recipe, platform).snippet.file);
     },
   );
 
   test.each(
-    cases.filter(([, platform, recipe]) => recipe[platform].glue.length > 0),
+    cases.filter(
+      ([, platform, recipe]) => recipeSide(recipe, platform).glue.length > 0,
+    ),
   )("%s on %s installs that platform's glue", (_slug, platform, recipe) => {
     expect(recipePrompt(recipe, platform, SITE)).toContain(
-      shadcnAdd(recipe[platform].glue, true),
+      shadcnAdd(recipeSide(recipe, platform).glue, true),
     );
   });
 
-  test.each(availableRecipes.map((recipe) => [recipe.slug, recipe] as const))(
+  test.each(
+    availableRecipes.flatMap((recipe) =>
+      recipe.native
+        ? [[recipe.slug, { ...recipe, native: recipe.native }] as const]
+        : [],
+    ),
+  )(
     "%s gives shadcn commands on the web and React Native primitives on native",
     (_slug, recipe) => {
       const web = recipePrompt(recipe, "web", SITE);

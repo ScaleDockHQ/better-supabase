@@ -16,7 +16,7 @@ import {
 } from "@/components/reui/frame";
 import { CopyButton } from "@/components/site/copy-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { parsePlatform, recipePlatforms } from "@/lib/recipe-platform";
+import { parsePlatform } from "@/lib/recipe-platform";
 
 const LABELS = {
   web: "Web",
@@ -24,10 +24,12 @@ const LABELS = {
 } as const satisfies Record<RecipePlatform, string>;
 
 interface RecipePlatformsProps {
+  /** The platforms the recipe has code for, web first. */
+  readonly platforms: readonly RecipePlatform[];
   /** The prompt per platform, built on the server. */
-  readonly prompts: Readonly<Record<RecipePlatform, string>>;
+  readonly prompts: Readonly<Partial<Record<RecipePlatform, string>>>;
   /** The steps per platform, rendered on the server. */
-  readonly steps: Readonly<Record<RecipePlatform, ReactNode>>;
+  readonly steps: Readonly<Partial<Record<RecipePlatform, ReactNode>>>;
   /** Shown between the prompt and the steps, for both platforms. */
   readonly children?: ReactNode;
 }
@@ -45,8 +47,8 @@ function PromptFrame({
         <div className="flex min-w-0 flex-col gap-1">
           <FrameTitle>Build it with AI</FrameTitle>
           <FrameDescription>
-            Paste this into your coding agent. It follows the {LABELS[platform]}{" "}
-            tab.
+            Paste this into your coding agent. It builds the{" "}
+            {LABELS[platform].toLowerCase()} version.
           </FrameDescription>
         </div>
         <CopyButton text={prompt} label="Copy the prompt" />
@@ -68,8 +70,9 @@ function PromptFrame({
 }
 
 function PlatformView({
-  platform,
+  platform: wanted,
   onPlatformChange,
+  platforms,
   prompts,
   steps,
   children,
@@ -77,6 +80,8 @@ function PlatformView({
   platform: RecipePlatform;
   onPlatformChange?: (platform: RecipePlatform) => void;
 }) {
+  const platform = platforms.includes(wanted) ? wanted : "web";
+
   return (
     <Tabs
       value={platform}
@@ -85,16 +90,18 @@ function PlatformView({
       }}
       className="gap-8"
     >
-      <TabsList aria-label="Platform">
-        {recipePlatforms.map((value) => (
-          <TabsTrigger key={value} value={value} className="px-4">
-            {LABELS[value]}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      <PromptFrame prompt={prompts[platform]} platform={platform} />
+      {platforms.length > 1 ? (
+        <TabsList aria-label="Platform">
+          {platforms.map((value) => (
+            <TabsTrigger key={value} value={value} className="px-4">
+              {LABELS[value]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      ) : null}
+      <PromptFrame prompt={prompts[platform] ?? ""} platform={platform} />
       {children}
-      {recipePlatforms.map((value) => (
+      {platforms.map((value) => (
         <TabsContent key={value} value={value}>
           {steps[value]}
         </TabsContent>
@@ -131,7 +138,8 @@ function SearchParamsPlatformView(props: RecipePlatformsProps) {
 }
 
 /**
- * The Web and Native tabs of a recipe, kept in `?platform=`. The page stays
+ * The Web and Native tabs of a recipe, kept in `?platform=`. A recipe with
+ * web code only shows no tabs. The page stays
  * static: the prerendered fallback is the web view, and the search params
  * are read in the browser.
  */

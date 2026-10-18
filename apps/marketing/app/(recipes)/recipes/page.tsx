@@ -9,16 +9,22 @@ import { categoryStyle } from "@/features/blocks/categories";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { PageHeader } from "@/features/catalog/components/page-header";
+import { RecipeFilters } from "@/features/recipes/components/recipe-filters";
 import { RecipeTile } from "@/features/recipes/components/recipe-tile";
 import { blockPath } from "@/lib/blocks";
-import { availableRecipes, recipeGroups, recipePath } from "@/lib/recipes";
+import {
+  availableRecipes,
+  recipeGroups,
+  recipePath,
+  recipeSummary,
+} from "@/lib/recipes";
 import { site } from "@/lib/site";
 import { absoluteUrl, itemList } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Recipes",
   description:
-    "Build a notification bell, a command search or an onboarding checklist from your own shadcn components and a block's hook, on the web and in React Native.",
+    "Build a notification bell, a command search or a settings screen from your own shadcn components and a block, on the web and in React Native.",
   alternates: { canonical: "/recipes" },
 };
 
@@ -46,7 +52,7 @@ function RecipeGroupSection({ group }: { group: RecipeGroup }) {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {group.available.map((recipe) => (
             <li key={recipe.slug}>
-              <RecipeTile recipe={recipe} />
+              <RecipeTile recipe={recipeSummary(recipe)} />
             </li>
           ))}
         </ul>
@@ -69,8 +75,15 @@ function RecipeGroupSection({ group }: { group: RecipeGroup }) {
                 />
                 {recipe.title}
               </span>
-              <span className="flex-1 text-sm text-muted-foreground">
-                {recipe.description}
+              <span className="flex flex-1 flex-col gap-1">
+                <span className="text-sm text-muted-foreground">
+                  {recipe.description}
+                </span>
+                {recipe.missing ? (
+                  <span className="text-xs text-muted-foreground">
+                    Waits for: {recipe.missing}
+                  </span>
+                ) : null}
               </span>
               <span className="flex items-center gap-2">
                 <Badge variant="outline">planned</Badge>
@@ -90,6 +103,8 @@ function RecipeGroupSection({ group }: { group: RecipeGroup }) {
 }
 
 export default function RecipesPage() {
+  const groups = recipeGroups();
+
   return (
     <div className="flex flex-col gap-12">
       <PageHeader
@@ -102,16 +117,25 @@ export default function RecipesPage() {
           <SiteLink href="/docs/registry" className="text-foreground underline">
             @better-supabase registry
           </SiteLink>
-          , and the web and React Native code for the same hook. The code is
-          copied from the example apps, so it typechecks and runs. Planned
-          recipes wait for their block&apos;s hook; until it ships, build them
-          from the block&apos;s TypeScript client in a server action or loader.
+          , and the web code, plus React Native where the recipe fits a phone.
+          The code is copied from the example apps, so it typechecks and runs. A
+          planned recipe says what it waits for; until then, build it from the
+          block&apos;s TypeScript client in a server action or loader.
         </p>
       </PageHeader>
 
-      {recipeGroups().map((group) => (
-        <RecipeGroupSection key={group.category} group={group} />
-      ))}
+      <RecipeFilters
+        recipes={availableRecipes.map(recipeSummary)}
+        categories={groups
+          .filter((group) => group.available.length > 0)
+          .map((group) => group.category)}
+      >
+        <div className="flex flex-col gap-12">
+          {groups.map((group) => (
+            <RecipeGroupSection key={group.category} group={group} />
+          ))}
+        </div>
+      </RecipeFilters>
 
       <JsonLd
         data={itemList(

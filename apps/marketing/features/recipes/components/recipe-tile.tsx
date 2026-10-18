@@ -1,14 +1,12 @@
-import type { Recipe } from "@/lib/recipes";
-
 import { Badge } from "@/components/reui/badge";
 import { SiteLink } from "@/components/site/site-link";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
-import { recipeCategory, recipePath } from "@/lib/recipes";
+import { type RecipeSummary, recipePath } from "@/lib/recipe-filter";
 
 import { RecipeCover } from "./recipe-cover";
 
-/** A recipe in the `/recipes` grid: its cover, then what it builds and with which hook. */
-export function RecipeTile({ recipe }: { recipe: Recipe }) {
+/** A recipe in the `/recipes` grid: its cover, then what it builds, with which hook and where. */
+export function RecipeTile({ recipe }: { recipe: RecipeSummary }) {
   return (
     <SiteLink
       href={recipePath(recipe.slug)}
@@ -17,11 +15,7 @@ export function RecipeTile({ recipe }: { recipe: Recipe }) {
       <RecipeCover recipe={recipe} className="border-b border-border" />
       <span className="flex flex-1 flex-col gap-2 p-4">
         <span className="flex items-center gap-2 text-sm font-medium">
-          <BlockIcon
-            name={recipe.block}
-            category={recipeCategory(recipe)}
-            size="sm"
-          />
+          <BlockIcon name={recipe.block} category={recipe.category} size="sm" />
           {recipe.title}
         </span>
         <span className="line-clamp-2 text-sm leading-6 text-muted-foreground">
@@ -30,10 +24,15 @@ export function RecipeTile({ recipe }: { recipe: Recipe }) {
         <span className="mt-auto flex flex-wrap gap-1.5 pt-1">
           {recipe.hook ? (
             <Badge variant="outline" className="font-mono">
-              {recipe.hook.name}
+              {recipe.hook}
             </Badge>
           ) : null}
-          <Badge variant="secondary">Web and native</Badge>
+          <Badge variant="secondary">
+            {recipe.platforms.length > 1 ? "Web and native" : "Web"}
+          </Badge>
+          <Badge variant="secondary" className="capitalize">
+            {recipe.kind}
+          </Badge>
         </span>
       </span>
     </SiteLink>
