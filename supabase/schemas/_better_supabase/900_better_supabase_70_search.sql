@@ -4,6 +4,40 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pg_trgm with schema extensions;
@@ -277,7 +311,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select null::text, null::text, null::timestamptz, null::timestamptz where false
+  select s."subject_type", s."subject_id", s."starred_at", s."last_opened_at"
+  from "better_supabase"."subject_user_state" s
+  where s."user_id" = auth.uid()
 $$;
 revoke execute on function "better_supabase"."search_user_state"() from public, anon;
 grant execute on function "better_supabase"."search_user_state"() to authenticated, service_role;
@@ -346,10 +382,15 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if auth.uid() is null then
     raise exception 'sign in to keep recents' using errcode = '42501', hint = 'SEARCH_SIGNED_OUT';
   end if;
-  return false;
+  insert into "better_supabase"."subject_user_state" as st ("subject_type", "subject_id", "user_id", "last_opened_at") values (search_touch.subject_type, search_touch.subject_id, auth.uid(), now())
+  on conflict ("subject_type", "subject_id", "user_id") do update set "last_opened_at" = now();
+  return true;
 end;
 $$;
 revoke execute on function "better_supabase"."search_touch"(text, text) from public, anon;
@@ -363,10 +404,15 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if auth.uid() is null then
     raise exception 'sign in to keep favorites' using errcode = '42501', hint = 'SEARCH_SIGNED_OUT';
   end if;
-  return false;
+  insert into "better_supabase"."subject_user_state" as st ("subject_type", "subject_id", "user_id", "starred_at") values (search_star.subject_type, search_star.subject_id, auth.uid(), case when search_star.starred then now() end)
+  on conflict ("subject_type", "subject_id", "user_id") do update set "starred_at" = case when search_star.starred then coalesce(st."starred_at", now()) end;
+  return true;
 end;
 $$;
 revoke execute on function "better_supabase"."search_star"(text, text, boolean) from public, anon;
@@ -379,6 +425,24 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."search_normalize"(text);
 drop function if exists "api"."search_user_state"();
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."search_refresh"(subject_type text, subject_id text)
 returns boolean

@@ -390,6 +390,103 @@ $$;
 revoke execute on function "better_supabase"."list_teams"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_teams"(uuid) to authenticated, service_role;
 
+-- blocks.teams.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."create_team"(uuid, text, text, jsonb);
+drop function if exists "api"."update_team"(uuid, text, text, jsonb);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."team_ids_of"(member uuid)
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."team_ids_of"($1) $$;
+revoke execute on function "api"."team_ids_of"(uuid) from public, anon;
+grant execute on function "api"."team_ids_of"(uuid) to authenticated, service_role;
+
+create or replace function "api"."create_team"(tenant uuid, name text, description text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_team"($1, $2, $3) $$;
+revoke execute on function "api"."create_team"(uuid, text, text) from public, anon;
+grant execute on function "api"."create_team"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."update_team"(team uuid, name text, description text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_team"($1, $2, $3) $$;
+revoke execute on function "api"."update_team"(uuid, text, text) from public, anon;
+grant execute on function "api"."update_team"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."archive_team"(team uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_team"($1) $$;
+revoke execute on function "api"."archive_team"(uuid) from public, anon;
+grant execute on function "api"."archive_team"(uuid) to authenticated, service_role;
+
+create or replace function "api"."delete_team"(team uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_team"($1) $$;
+revoke execute on function "api"."delete_team"(uuid) from public, anon;
+grant execute on function "api"."delete_team"(uuid) to authenticated, service_role;
+
+create or replace function "api"."add_team_member"(team uuid, member uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."add_team_member"($1, $2) $$;
+revoke execute on function "api"."add_team_member"(uuid, uuid) from public, anon;
+grant execute on function "api"."add_team_member"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."remove_team_member"(team uuid, member uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_team_member"($1, $2) $$;
+revoke execute on function "api"."remove_team_member"(uuid, uuid) from public, anon;
+grant execute on function "api"."remove_team_member"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_teams"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_teams"($1) $$;
+revoke execute on function "api"."list_teams"(uuid) from public, anon;
+grant execute on function "api"."list_teams"(uuid) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

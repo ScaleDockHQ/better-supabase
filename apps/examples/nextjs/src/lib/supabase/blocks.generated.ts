@@ -12,6 +12,11 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  "access-requests": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   agents: {
     schema: "better_supabase",
     api: "api",
@@ -57,7 +62,41 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  approvals: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  attachments: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      requireScan: true,
+    },
+  },
   audit: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  bookings: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  bulk: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      limit: 500,
+    },
+  },
+  calendar: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  catalog: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -77,12 +116,67 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  "custom-fields": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "data-lifecycle": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  deals: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  documents: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  drive: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  employees: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  engagements: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   entitlements: {
     schema: "better_supabase",
     api: "api",
     options: {},
   },
   flags: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  forms: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  grants: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  hiring: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  imports: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -94,12 +188,27 @@ export const blockConfig = {
       topic: "inbox",
     },
   },
+  inventory: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  invoices: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   jobs: {
     schema: "better_supabase",
     options: {},
   },
   "rate-limit": {
     schema: "better_supabase",
+    options: {},
+  },
+  "jsonb-schemas": {
+    schema: "better_supabase",
+    api: "api",
     options: {},
   },
   knowledge: {
@@ -129,7 +238,22 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  orders: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   organizations: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  parties: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  pipelines: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -139,10 +263,32 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  promotions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   push: {
     schema: "better_supabase",
     api: "api",
     options: {},
+  },
+  quotes: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  rank: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  reactions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      topic: "reactions",
+    },
   },
   "read-sets": {
     schema: "better_supabase",
@@ -152,12 +298,62 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  relations: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  reminders: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "saved-views": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   search: {
     schema: "better_supabase",
     api: "api",
     options: {},
   },
+  "service-principals": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  sessions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   settings: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "share-links": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "signing-keys": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  sla: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  sso: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "state-machine": {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -169,6 +365,7 @@ export const blockConfig = {
   },
   subjects: {
     schema: "better_supabase",
+    api: "api",
     options: {},
   },
   tags: {
@@ -176,12 +373,35 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  targets: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   teams: {
     schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  templates: {
+    schema: "better_supabase",
+    api: "api",
     options: {},
   },
   tenant: {
     schema: "better_supabase",
+    options: {},
+  },
+  "time-tracking": {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      timeZone: "UTC",
+    },
+  },
+  trash: {
+    schema: "better_supabase",
+    api: "api",
     options: {},
   },
   "updated-at": {
@@ -195,6 +415,31 @@ export const blockConfig = {
   },
   "vector-search": {
     schema: "better_supabase",
+    options: {},
+  },
+  versions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  waitlist: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      codeField: "invite_code",
+    },
+  },
+  webhooks: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      allowHttp: false,
+      defaultFormat: "cloudevents",
+    },
+  },
+  "work-items": {
+    schema: "better_supabase",
+    api: "api",
     options: {},
   },
   "workflow-builder": {

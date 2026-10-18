@@ -669,8 +669,9 @@ grant execute on function "better_supabase"."workflow_graph_permissions"(jsonb) 
 -- call it for every step). A user-owned version needs its publisher to
 -- still hold workflow.publish and every stored permission in the tenant;
 -- otherwise it raises WORKFLOW_PUBLISHER_REVOKED and the step fails. An
--- organization-owned version returns publisher null, for the app's service
--- principal. A system definition has no tenant, so pass the
+-- organization-owned version runs as the tenant's default service
+-- principal, which needs every stored permission through its role; without
+-- one it raises WORKFLOW_PUBLISHER_REVOKED. A system definition has no tenant, so pass the
 -- tenant its run belongs to; a tenant definition ignores tenant. The
 -- trigger that started the run never changes the answer.
 drop function if exists "better_supabase"."workflow_run_principal"(uuid);
@@ -710,6 +711,20 @@ begin
     where not coalesce(better_supabase.can_user(v_row."published_by", 'tenant', v_tenant, p), false);
     if v_missing is not null then
       raise exception 'The user who published this workflow no longer holds %', v_missing
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+  end if;
+  if v_row."owner_kind" <> 'user' then
+    v_publisher := "better_supabase"."default_service_principal"(v_tenant);
+    if v_publisher is null then
+      raise exception 'This organization has no default service principal'
+        using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
+    end if;
+    select string_agg(p, ', ' order by p) into v_missing
+    from unnest(v_row."permissions") p
+    where not coalesce(better_supabase.can_user(v_publisher, 'tenant', v_tenant, p), false);
+    if v_missing is not null then
+      raise exception 'The service principal no longer holds %', v_missing
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
     end if;
   end if;

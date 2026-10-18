@@ -448,7 +448,9 @@ begin
   with doomed as (
     select "id" from "better_supabase"."workflow_runs"
     where "status" in ('completed', 'failed', 'cancelled')
-      and coalesce("completed_at", "updated_at") < now() - coalesce(older_than, interval '30 days')
+      and (coalesce("completed_at", "updated_at") < now() - least(coalesce(older_than, interval '30 days'), "better_supabase"."retention_floor"('workflow_runs'))
+      and coalesce("completed_at", "updated_at") < now() - coalesce("better_supabase"."retention_for"('workflow_runs', ("tenant_id")::text), coalesce(older_than, interval '30 days'))
+      and not "better_supabase"."is_held"('workflow_runs', ("tenant_id")::text))
     limit greatest(coalesce(batch, 1000), 1)
   )
   delete from "better_supabase"."workflow_runs" x using doomed where x."id" = doomed."id";

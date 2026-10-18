@@ -124,6 +124,55 @@ $$;
 revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
 
+-- blocks.subjects.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."subject_types"()
+returns text[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_types"() $$;
+revoke execute on function "api"."subject_types"() from public, anon;
+grant execute on function "api"."subject_types"() to authenticated, service_role;
+
+create or replace function "api"."subject_title"(subject_type text, subject_id text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_title"($1, $2) $$;
+revoke execute on function "api"."subject_title"(text, text) from public, anon;
+grant execute on function "api"."subject_title"(text, text) to authenticated, service_role;
+
+create or replace function "api"."subject_url"(subject_type text, subject_id text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_url"($1, $2) $$;
+revoke execute on function "api"."subject_url"(text, text) from public, anon;
+grant execute on function "api"."subject_url"(text, text) to authenticated, service_role;
+
+create or replace function "api"."can_subject"(subject_type text, subject_id text, action text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."can_subject"($1, $2, $3) $$;
+revoke execute on function "api"."can_subject"(text, text, text) from public, anon;
+grant execute on function "api"."can_subject"(text, text, text) to authenticated, service_role;
+
+create or replace function "api"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."can_subject_for"($1, $2, $3, $4) $$;
+revoke execute on function "api"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."can_subject_for"(uuid, text, text, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
