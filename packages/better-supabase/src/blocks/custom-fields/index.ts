@@ -3,6 +3,7 @@ export {
   type CustomFields,
   type CustomFieldsOptions,
   type FieldDefinition,
+  type FieldDefinitionDetail,
 } from "./custom-fields.ts";
 
 export { customFieldsBlock } from "./manifest.ts";

@@ -30,6 +30,7 @@ import {
   isRecord,
   optionalText,
   recordOf,
+  recordsOf,
   textOf,
 } from "../shared.ts";
 
@@ -109,6 +110,14 @@ export interface SavedReminder<F extends object = Record<never, never>> {
   readonly fields: RowFields<F>;
 }
 
+/** One of the caller's reminders, from `list`. */
+export interface ReminderEntry {
+  readonly id: string;
+  readonly method: string;
+  /** Minutes before the occurrence; negative fires after it. */
+  readonly offsetMinutes: number;
+}
+
 export interface Reminders<F extends object = Record<never, never>> {
   /** Sets a reminder on a subject; `fields` fills the app's extra columns. */
   save(
@@ -118,6 +127,14 @@ export interface Reminders<F extends object = Record<never, never>> {
     offsetMinutes?: number,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
   ): AsyncResult<SavedReminder<F>>;
+  /** The caller's reminders on a subject, the earliest before the occurrence first. */
+  list(
+    organizationId: string,
+    subjectType: string,
+    subjectId: string,
+  ): AsyncResult<readonly ReminderEntry[]>;
+  /** Removes one of the caller's reminders; `false` when there was none. */
+  remove(reminderId: string): AsyncResult<boolean>;
   /**
    * Service role. Records one delivery and the reminder.sent event.
    * Resolves to `false` when the occurrence was already delivered.
@@ -256,6 +273,27 @@ export function createReminders<
           },
         ),
       ).andThen((saved) => readFields(fields, saved)),
+    list: (organizationId, subjectType, subjectId) =>
+      call(
+        "list_my_reminders",
+        {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_id: subjectId,
+        },
+        (value) =>
+          recordsOf(value, "list_my_reminders").map((row) => ({
+            id: textOf(row["id"]),
+            method: textOf(row["method"]),
+            offsetMinutes: Number(row["offsetMinutes"]),
+          })),
+      ),
+    remove: (reminderId) =>
+      call(
+        "delete_reminder",
+        { reminder: reminderId },
+        (value) => value === true,
+      ),
     markSent,
     deliver,
     job: async (payload) => {

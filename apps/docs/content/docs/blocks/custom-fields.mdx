@@ -23,4 +23,4 @@ Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to 
 
 ## Order
 
-Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.
+Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. `listDefinitions(organizationId, entity)` returns an entity's definitions in that order, each with its `rank` key, for callers with `custom_fields.read`. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.

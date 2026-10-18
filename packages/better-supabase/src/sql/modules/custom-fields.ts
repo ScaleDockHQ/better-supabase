@@ -275,7 +275,46 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
-${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}`;
+${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}`;
+}
+
+function listDefinitions(
+  ctx: ModuleContext,
+  definitions: string,
+  rank: string,
+  read: string,
+): string {
+  const order =
+    rank === ""
+      ? `d.${ctx.col("definitions", "key")}`
+      : `d.${rank} collate "C", d.${ctx.col("definitions", "key")}`;
+
+  return `
+-- The definitions of one entity in display order.
+create or replace function ${ctx.fn("list_field_definitions")}(tenant ${ctx.idType}, entity text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', d.${ctx.col("definitions", "id")},
+    'entity', d.${ctx.col("definitions", "entity")},
+    'key', d.${ctx.col("definitions", "key")},
+    'label', d.${ctx.col("definitions", "label")},
+    'type', d.${ctx.col("definitions", "type")},
+    'required', d.${ctx.col("definitions", "required")},
+    'sensitive', d.${ctx.col("definitions", "sensitive")},
+    'rank', ${rank === "" ? "null" : `d.${rank}`}
+  ) order by ${order}), '[]'::jsonb)
+  from ${definitions} d
+  where d.${ctx.col("definitions", "tenant")} = list_field_definitions.tenant
+    and d.${ctx.col("definitions", "entity")} = list_field_definitions.entity
+    and (auth.role() = 'service_role' or ${ctx.scope.can("list_field_definitions.tenant", read)})
+$$;
+${userGrant(`${ctx.fn("list_field_definitions")}(${ctx.idType}, text)`)}
+`;
 }
 
 function rankDefinition(
@@ -331,6 +370,15 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "delete_field_definition", args: ["uuid"], returns: "boolean" },
+    ...(ctx.text("layout", "normalized") === "inline"
+      ? []
+      : [
+          {
+            name: "list_field_definitions",
+            args: ["{id}", "text"],
+            returns: "jsonb",
+          },
+        ]),
     ...(ctx.text("layout", "normalized") !== "inline" &&
     ctx.has("definitions", "rank")
       ? [

@@ -18,6 +18,8 @@ import {
 
 `options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
 
+`reminders.save(organizationId, subjectType, subjectId, offsetMinutes)` sets a reminder for the caller, `reminders.list(organizationId, subjectType, subjectId)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+
 `expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
 
 ## Delivery

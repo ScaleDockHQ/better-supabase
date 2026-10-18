@@ -126,6 +126,65 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
 
+-- The caller's reminders on one subject, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_my_reminders.tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'method', r."method",
+      'offsetMinutes', r."offset_minutes"
+    ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
+    from "better_supabase"."reminders" r
+    where r."tenant_id" = list_my_reminders.tenant
+      and r."subject_type" = list_my_reminders.subject_type
+      and r."subject_id" = list_my_reminders.subject_id
+      and r."user_id" = auth.uid()
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function "better_supabase"."delete_reminder"(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select r."tenant_id" into v_tenant
+    from "better_supabase"."reminders" r
+    where r."id" = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r."user_id" = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."reminders" r where r."id" = delete_reminder.reminder;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_reminder"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_reminder"(uuid) to authenticated, service_role;
+
 create or replace function "better_supabase"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean
 language plpgsql
@@ -344,6 +403,65 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+
+-- The caller's reminders on one subject, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_my_reminders.tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'method', r."method",
+      'offsetMinutes', r."offset_minutes"
+    ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
+    from "better_supabase"."reminders" r
+    where r."tenant_id" = list_my_reminders.tenant
+      and r."subject_type" = list_my_reminders.subject_type
+      and r."subject_id" = list_my_reminders.subject_id
+      and r."user_id" = auth.uid()
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function "better_supabase"."delete_reminder"(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select r."tenant_id" into v_tenant
+    from "better_supabase"."reminders" r
+    where r."id" = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r."user_id" = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."reminders" r where r."id" = delete_reminder.reminder;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_reminder"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_reminder"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean
@@ -566,6 +684,65 @@ $$;
 revoke execute on function "app_private"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "app_private"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
 
+-- The caller's reminders on one subject, the earliest first.
+create or replace function "app_private"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_my_reminders.tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'method', r."method",
+      'offsetMinutes', r."offset_minutes"
+    ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
+    from "app_private"."reminders" r
+    where r."tenant_id" = list_my_reminders.tenant
+      and r."subject_type" = list_my_reminders.subject_type
+      and r."subject_id" = list_my_reminders.subject_id
+      and r."user_id" = auth.uid()
+  );
+end;
+$$;
+revoke execute on function "app_private"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function "app_private"."delete_reminder"(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select r."tenant_id" into v_tenant
+    from "app_private"."reminders" r
+    where r."id" = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r."user_id" = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  delete from "app_private"."reminders" r where r."id" = delete_reminder.reminder;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_reminder"(uuid) from public, anon;
+grant execute on function "app_private"."delete_reminder"(uuid) to authenticated, service_role;
+
 create or replace function "app_private"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean
 language plpgsql
@@ -785,6 +962,65 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
 
+-- The caller's reminders on one subject, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_my_reminders.tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'method', r."method",
+      'offsetMinutes', r."offset_minutes"
+    ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
+    from "better_supabase"."reminders" r
+    where r."tenant_id" = list_my_reminders.tenant
+      and r."subject_type" = list_my_reminders.subject_type
+      and r."subject_id" = list_my_reminders.subject_id
+      and r."user_id" = auth.uid()
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function "better_supabase"."delete_reminder"(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select r."tenant_id" into v_tenant
+    from "better_supabase"."reminders" r
+    where r."id" = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r."user_id" = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."reminders" r where r."id" = delete_reminder.reminder;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_reminder"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_reminder"(uuid) to authenticated, service_role;
+
 create or replace function "better_supabase"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean
 language plpgsql
@@ -883,6 +1119,24 @@ set search_path = ''
 as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4) $$;
 revoke execute on function "api"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "api"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+
+create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_my_reminders"($1, $2, $3) $$;
+revoke execute on function "api"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "api"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."delete_reminder"(reminder uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_reminder"($1) $$;
+revoke execute on function "api"."delete_reminder"(uuid) from public, anon;
+grant execute on function "api"."delete_reminder"(uuid) to authenticated, service_role;
 
 create or replace function "api"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean
@@ -1004,6 +1258,65 @@ end;
 $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer) to authenticated, service_role;
+
+-- The caller's reminders on one subject, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_my_reminders.tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id",
+      'method', r."method",
+      'offsetMinutes', r."offset_minutes"
+    ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
+    from "better_supabase"."reminders" r
+    where r."tenant_id" = list_my_reminders.tenant
+      and r."subject_type" = list_my_reminders.subject_type
+      and r."subject_id" = list_my_reminders.subject_id
+      and r."user_id" = auth.uid()
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_my_reminders"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."list_my_reminders"(uuid, text, text) to authenticated, service_role;
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function "better_supabase"."delete_reminder"(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select r."tenant_id" into v_tenant
+    from "better_supabase"."reminders" r
+    where r."id" = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r."user_id" = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'reminders.manage'), false)) then
+    raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."reminders" r where r."id" = delete_reminder.reminder;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_reminder"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_reminder"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."mark_reminder_sent"(reminder uuid, occurrence_at timestamptz)
 returns boolean

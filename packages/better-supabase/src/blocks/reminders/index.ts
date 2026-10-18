@@ -11,6 +11,7 @@ export {
 export {
   REMINDER_DELIVERY_QUEUE,
   createReminders,
+  type ReminderEntry,
   type Reminders,
   type SavedReminder,
   type RemindersOptions,

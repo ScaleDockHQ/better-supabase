@@ -191,6 +191,60 @@ end;
 $$;
 ${userGrant(`${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer${extraFieldsArg(extras).type})`)}
 
+-- The caller's reminders on one subject, the earliest first.
+create or replace function ${ctx.fn("list_my_reminders")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("list_my_reminders.tenant", manage)}) then
+    ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r.${ctx.col("reminders", "id")},
+      'method', r.${ctx.col("reminders", "method")},
+      'offsetMinutes', r.${ctx.col("reminders", "offsetMinutes")}
+    ) order by r.${ctx.col("reminders", "offsetMinutes")} desc, r.${ctx.col("reminders", "id")}), '[]'::jsonb)
+    from ${reminders} r
+    where r.${ctx.col("reminders", "tenant")} = list_my_reminders.tenant
+      and r.${ctx.col("reminders", "subjectType")} = list_my_reminders.subject_type
+      and r.${ctx.col("reminders", "subjectId")} = list_my_reminders.subject_id
+      and r.${ctx.col("reminders", "user")} = auth.uid()
+  );
+end;
+$$;
+${userGrant(`${ctx.fn("list_my_reminders")}(${ctx.idType}, text, text)`)}
+
+-- Removes one of the caller's reminders, with its delivery history.
+create or replace function ${ctx.fn("delete_reminder")}(reminder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  select r.${ctx.col("reminders", "tenant")} into v_tenant
+    from ${reminders} r
+    where r.${ctx.col("reminders", "id")} = delete_reminder.reminder
+      and (auth.role() = 'service_role' or r.${ctx.col("reminders", "user")} = auth.uid());
+  if not found then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
+  end if;
+  delete from ${reminders} r where r.${ctx.col("reminders", "id")} = delete_reminder.reminder;
+  return true;
+end;
+$$;
+${userGrant(`${ctx.fn("delete_reminder")}(uuid)`)}
+
 create or replace function ${ctx.fn("mark_reminder_sent")}(reminder uuid, occurrence_at timestamptz)
 returns boolean
 language plpgsql
@@ -277,6 +331,16 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         ...extraFieldsArg(extrasOf(ctx)).contract,
       ],
       returns: "jsonb",
+    },
+    {
+      name: "list_my_reminders",
+      args: ["{id}", "text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "delete_reminder",
+      args: ["uuid"],
+      returns: "boolean",
     },
     {
       name: "mark_reminder_sent",

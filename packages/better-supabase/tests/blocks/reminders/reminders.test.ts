@@ -100,3 +100,40 @@ describe("createReminders: audience", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("createReminders: list and remove", () => {
+  it("lists the caller's reminders on a subject", async () => {
+    const { transport, calls } = fake({
+      list_my_reminders: () => [
+        { id: "r-1", method: "notification", offsetMinutes: 60 },
+      ],
+    });
+
+    const reminders = createReminders({ transport });
+
+    expect(
+      await reminders.list("org-1", "calendar_event", "e-1").orThrow(),
+    ).toEqual([{ id: "r-1", method: "notification", offsetMinutes: 60 }]);
+    expect(calls).toEqual([
+      {
+        fn: "list_my_reminders",
+        args: {
+          tenant: "org-1",
+          subject_type: "calendar_event",
+          subject_id: "e-1",
+        },
+      },
+    ]);
+  });
+
+  it("removes a reminder and reports whether it existed", async () => {
+    const { transport, calls } = fake({ delete_reminder: () => false });
+
+    const reminders = createReminders({ transport });
+
+    expect(await reminders.remove("r-9").orThrow()).toBe(false);
+    expect(calls).toEqual([
+      { fn: "delete_reminder", args: { reminder: "r-9" } },
+    ]);
+  });
+});
