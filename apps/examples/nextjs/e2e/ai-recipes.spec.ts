@@ -8,10 +8,15 @@ async function loadedRecipe(
   recipe: string,
   testIds: readonly [rows: string, empty: string],
 ): Promise<Locator> {
-  const card = page.locator(`[data-recipe="${recipe}"]`);
+  // Streamed Suspense content sits in a hidden copy until React swaps it in.
+  const card = page
+    .locator(`[data-recipe="${recipe}"]`)
+    .filter({ visible: true });
+
   await card
     .getByTestId(testIds[0])
     .or(card.getByTestId(testIds[1]))
+    .first()
     .waitFor({ state: "visible" });
 
   return card;

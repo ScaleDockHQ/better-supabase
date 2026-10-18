@@ -2,6 +2,26 @@
 
 import {
   ActivityIcon,
+  IdCardIcon,
+  BriefcaseIcon,
+  ClockIcon,
+  CalendarIcon,
+  CalendarCheckIcon,
+  SquareKanbanIcon,
+  TableIcon,
+  ShieldCheckIcon,
+  ContactRoundIcon,
+  KanbanIcon,
+  FileTextIcon,
+  StoreIcon,
+  BoxesIcon,
+  ReceiptIcon,
+  FolderIcon,
+  NotebookTextIcon,
+  ClipboardListIcon,
+  LayoutTemplateIcon,
+  FileUpIcon,
+  Trash2Icon,
   CreditCardIcon,
   FlaskConicalIcon,
   BellIcon,
@@ -39,6 +59,26 @@ import { type NavId, activeNavId, navItems } from "../nav-items";
 const ICONS = {
   dashboard: LayoutDashboardIcon,
   customers: UsersIcon,
+  people: IdCardIcon,
+  hiring: BriefcaseIcon,
+  time: ClockIcon,
+  calendar: CalendarIcon,
+  availability: CalendarCheckIcon,
+  work: SquareKanbanIcon,
+  workGrid: TableIcon,
+  approvals: ShieldCheckIcon,
+  contacts: ContactRoundIcon,
+  deals: KanbanIcon,
+  quotes: FileTextIcon,
+  shop: StoreIcon,
+  inventory: BoxesIcon,
+  orders: ReceiptIcon,
+  drive: FolderIcon,
+  documents: NotebookTextIcon,
+  forms: ClipboardListIcon,
+  templates: LayoutTemplateIcon,
+  imports: FileUpIcon,
+  trash: Trash2Icon,
   metrics: ChartColumnIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
@@ -68,6 +108,86 @@ function useNavLabel() {
 
       case "customers": {
         return t("Customers");
+      }
+
+      case "work": {
+        return t("Work");
+      }
+
+      case "workGrid": {
+        return t("Work grid");
+      }
+
+      case "approvals": {
+        return t("Approvals");
+      }
+
+      case "people": {
+        return t("People");
+      }
+
+      case "hiring": {
+        return t("Hiring");
+      }
+
+      case "time": {
+        return t("Time");
+      }
+
+      case "calendar": {
+        return t("Calendar");
+      }
+
+      case "availability": {
+        return t("Availability");
+      }
+
+      case "contacts": {
+        return t("Contacts");
+      }
+
+      case "deals": {
+        return t("Deals");
+      }
+
+      case "quotes": {
+        return t("Quotes");
+      }
+
+      case "shop": {
+        return t("Shop");
+      }
+
+      case "inventory": {
+        return t("Inventory");
+      }
+
+      case "orders": {
+        return t("Orders");
+      }
+
+      case "drive": {
+        return t("Drive");
+      }
+
+      case "documents": {
+        return t("Documents");
+      }
+
+      case "forms": {
+        return t("Forms");
+      }
+
+      case "templates": {
+        return t("Templates");
+      }
+
+      case "imports": {
+        return t("Imports");
+      }
+
+      case "trash": {
+        return t("Trash");
       }
 
       case "metrics": {

@@ -9,28 +9,15 @@
  * example renders the recipe's component. Dialogs and menus render in a
  * portal, so those recipes open them and capture the popup instead.
  */
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 
+import { openCustomer, RECIPE_ROUTES, type RecipeRoute } from "./recipe-routes";
 import { users } from "./users";
 
 const OUT = join(import.meta.dirname, "../../../marketing/public/recipes");
 
-interface Shot {
-  readonly slug: string;
-  readonly path: string;
-  /** Opens a dialog or menu, or follows a link, before the capture. */
-  readonly prepare?: (page: Page) => Promise<void>;
-  /** The region when it isn't `[data-recipe="<slug>"]`. */
-  readonly region?: (page: Page) => Locator;
-}
-
-const openCustomer = async (page: Page): Promise<void> => {
-  await page.getByRole("link", { name: "Road Runner Inc" }).click();
-  await page.waitForURL((url) => url.pathname.startsWith("/en/customers/"));
-};
-
-const SHOTS: readonly Shot[] = [
+const SHOTS: readonly RecipeRoute[] = [
   { slug: "notification-bell", path: "/en" },
   { slug: "notification-list", path: "/en/notifications" },
   {
@@ -90,19 +77,7 @@ const SHOTS: readonly Shot[] = [
     path: "/en",
     region: (page) => page.getByTestId("announcement"),
   },
-  { slug: "profile-form", path: "/en/settings/profile" },
-  { slug: "mfa-setup", path: "/en/settings/security" },
-  { slug: "workspace-url-field", path: "/en/settings/organization" },
-  { slug: "inbox-threads", path: "/en/inbox" },
-  { slug: "ai-task-queue", path: "/en/assistant/tasks" },
-  { slug: "ai-provider-settings", path: "/en/settings/ai-providers" },
-  { slug: "chat-with-history", path: "/en/assistant" },
-  { slug: "agent-run-trace", path: "/en/assistant/activity" },
-  { slug: "knowledge-upload", path: "/en/knowledge" },
-  { slug: "workflow-runs", path: "/en/workflows" },
-  { slug: "push-opt-in", path: "/en/settings/preferences" },
-  { slug: "metrics-dashboard", path: "/en/metrics" },
-  { slug: "feature-flag-toggles", path: "/en/settings/organization" },
+  ...RECIPE_ROUTES,
 ];
 
 test.describe("recipe screenshots", () => {

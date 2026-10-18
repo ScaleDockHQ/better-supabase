@@ -7,7 +7,8 @@ const stack = stackStatus();
 
 /**
  * The running stack for the build and the servers. The secret key is for
- * account deletion and is never written to a file.
+ * account deletion and is never written to a file. The developer settings
+ * (webhooks, jobs) read module tables over the database URL.
  */
 const stackEnv = {
   NEXT_PUBLIC_SUPABASE_URL:
@@ -18,6 +19,8 @@ const stackEnv = {
     "",
   SUPABASE_SECRET_KEY:
     process.env["SUPABASE_SECRET_KEY"] ?? stack["SECRET_KEY"] ?? "",
+  WORKFLOW_POSTGRES_URL:
+    process.env["WORKFLOW_POSTGRES_URL"] ?? stack["DB_URL"] ?? "",
 };
 
 /**

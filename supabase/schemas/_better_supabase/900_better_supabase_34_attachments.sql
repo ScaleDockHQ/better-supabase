@@ -130,6 +130,15 @@ set search_path = ''
 as $$
   select subject_type is null or case subject_type
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'customers.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'work_items.read'), false)
+    when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'employees.read'), false)
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'drive.read'), false)
+    when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'hiring.read'), false)
     else false
   end
 $$;
@@ -152,7 +161,7 @@ create policy "attachments_delete" on "better_supabase"."attachments" for delete
 
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a
--- read a clean file or the uploader or attachments.manage, a delete
+-- read a not infected file or the uploader or attachments.manage, a delete
 -- the uploader or attachments.manage. It reads the table as its owner, so
 -- the storage policies don't depend on the table's own policies.
 drop policy if exists "bs_attachments_insert" on storage.objects;
@@ -171,7 +180,7 @@ as $$
     where a."bucket" = attachment_object_allowed.bucket and a."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."uploaded_at" is null and a."uploaded_by" = auth.uid()
-        when 'select' then (a."status" = 'clean' and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))
+        when 'select' then (a."status" in ('pending', 'clean', 'failed') and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))
           or a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         else false
@@ -231,6 +240,7 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
+-- Without requireScan the file is clean right away.
 create or replace function "better_supabase"."confirm_attachment"(id uuid)
 returns jsonb
 language plpgsql
@@ -259,7 +269,8 @@ begin
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
     "size" = coalesce((v_meta ->> 'size')::bigint, a."size"),
-    "mime_type" = coalesce(lower(v_meta ->> 'mimetype'), a."mime_type")
+    "mime_type" = coalesce(lower(v_meta ->> 'mimetype'), a."mime_type"),
+    "status" = 'clean'
   where a."id" = v_row."id"
   returning * into v_row;
   perform better_supabase.audit_event(
@@ -424,6 +435,33 @@ begin
 end;
 $$;
 drop trigger if exists bs_object_scan_pending on storage.objects;
+
+-- options.subjects with cascade: deleting a subject row deletes its attachments rows.
+create or replace function "better_supabase"."attachments_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+begin
+  delete from "better_supabase"."attachments" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."attachments_subject_deleted"() from public, anon, authenticated;
+
+drop trigger if exists "bs_attachments_product_cascade" on "better_supabase"."products";
+create trigger "bs_attachments_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."attachments_subject_deleted"('product', 'id');
+
+drop trigger if exists "bs_attachments_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bs_attachments_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."attachments_subject_deleted"('product_variant', 'id');
 
 revoke execute on function "better_supabase"."object_clean"(text, text) from public, anon;
 revoke execute on function "better_supabase"."object_scan"(text, text) from public, anon, authenticated;

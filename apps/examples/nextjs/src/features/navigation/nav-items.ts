@@ -3,6 +3,26 @@ import type { Permission } from "@/features/user/user-permissions";
 export type NavId =
   | "dashboard"
   | "customers"
+  | "people"
+  | "hiring"
+  | "time"
+  | "calendar"
+  | "availability"
+  | "work"
+  | "workGrid"
+  | "approvals"
+  | "contacts"
+  | "deals"
+  | "quotes"
+  | "shop"
+  | "inventory"
+  | "orders"
+  | "drive"
+  | "documents"
+  | "forms"
+  | "templates"
+  | "imports"
+  | "trash"
   | "metrics"
   | "notifications"
   | "workflows"
@@ -38,6 +58,126 @@ export const navItems: readonly NavItem[] = [
     href: "/customers",
     group: "workspace",
     requires: "customers.read",
+  },
+  {
+    id: "work",
+    href: "/work",
+    group: "workspace",
+    requires: "work_items.read",
+  },
+  {
+    id: "workGrid",
+    href: "/work/grid",
+    group: "workspace",
+    requires: "work_items.read",
+  },
+  {
+    id: "approvals",
+    href: "/approvals",
+    group: "workspace",
+    requires: "approvals.read",
+  },
+  {
+    id: "people",
+    href: "/people",
+    group: "workspace",
+    requires: "employees.read",
+  },
+  {
+    id: "hiring",
+    href: "/people/hiring",
+    group: "workspace",
+    requires: "hiring.read",
+  },
+  {
+    id: "time",
+    href: "/people/time",
+    group: "workspace",
+    requires: "time_tracking.track",
+  },
+  {
+    id: "calendar",
+    href: "/calendar",
+    group: "workspace",
+    requires: "calendar.read",
+  },
+  {
+    id: "availability",
+    href: "/calendar/availability",
+    group: "workspace",
+    requires: "bookings.manage",
+  },
+  {
+    id: "contacts",
+    href: "/crm/contacts",
+    group: "workspace",
+    requires: "parties.read",
+  },
+  {
+    id: "deals",
+    href: "/crm/deals",
+    group: "workspace",
+    requires: "deals.read",
+  },
+  {
+    id: "quotes",
+    href: "/crm/quotes",
+    group: "workspace",
+    requires: "quotes.read",
+  },
+  {
+    id: "shop",
+    href: "/shop",
+    group: "workspace",
+    requires: "catalog.read",
+  },
+  {
+    id: "inventory",
+    href: "/shop/inventory",
+    group: "workspace",
+    requires: "inventory.read",
+  },
+  {
+    id: "orders",
+    href: "/shop/orders",
+    group: "workspace",
+    requires: "orders.read",
+  },
+  {
+    id: "drive",
+    href: "/drive",
+    group: "workspace",
+    requires: "drive.read",
+  },
+  {
+    id: "documents",
+    href: "/documents",
+    group: "workspace",
+    requires: "documents.read",
+  },
+  {
+    id: "forms",
+    href: "/forms",
+    group: "workspace",
+    requires: "forms.read",
+  },
+  {
+    id: "templates",
+    href: "/templates",
+    group: "workspace",
+    requires: "templates.read",
+  },
+  {
+    id: "imports",
+    href: "/imports",
+    group: "workspace",
+    requires: "imports.manage",
+  },
+  {
+    id: "trash",
+    href: "/trash",
+    group: "workspace",
+    requires: "trash.read",
   },
   { id: "metrics", href: "/metrics", group: "workspace" },
   { id: "notifications", href: "/notifications", group: "workspace" },
@@ -119,11 +259,9 @@ export const navItems: readonly NavItem[] = [
 
 /** The permission a path (without the locale) needs, from its menu entry. */
 export function requiredPermission(pathname: string): Permission | undefined {
-  return navItems.find(
-    (item) =>
-      item.href !== "/" &&
-      (pathname === item.href || pathname.startsWith(`${item.href}/`)),
-  )?.requires;
+  const id = activeNavId(pathname);
+
+  return navItems.find((item) => item.id === id)?.requires;
 }
 
 /** The menu entry a path belongs to, for `aria-current`. */

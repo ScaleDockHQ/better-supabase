@@ -18,6 +18,7 @@ const PUBLIC = new Set([
   "/signup",
   "/forgot-password",
   "/reset-password",
+  "/waitlist",
 ]);
 
 /** Pages a signed-in user skips straight to the dashboard from. */
@@ -70,7 +71,9 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   const isPublic =
     PUBLIC.has(path) ||
     path.startsWith("/invite/") ||
-    path.startsWith("/pricing/");
+    path.startsWith("/pricing/") ||
+    path.startsWith("/share/") ||
+    path.startsWith("/book/");
 
   if (session.kind !== "user") {
     if (isPublic) {

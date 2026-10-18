@@ -109,7 +109,127 @@ begin
   if not "better_supabase"."can_subject"(move.subject_type, move.subject_id, 'write') then
     raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
   end if;
-  raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+  case move.subject_type
+    when 'deal' then
+      select s."tenant_id"::text, s."stage_id"::text
+        into v_tenant, v_group
+        from "better_supabase"."deals" s where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
+      end if;
+      v_group := coalesce(move.to_group, v_group);
+      if move.previous_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_previous, v_other_tenant, v_other_group
+          from "better_supabase"."deals" s where s."id" = (move.previous_id)::uuid;
+        if not found then
+          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if move.next_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_next, v_other_tenant, v_other_group
+          from "better_supabase"."deals" s where s."id" = (move.next_id)::uuid;
+        if not found then
+          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
+        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
+      end if;
+      v_key := "better_supabase"."rank_between"(v_previous, v_next);
+      update "better_supabase"."deals" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."deals", jsonb_build_object('stage_id', v_group)))."stage_id"
+        where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
+      end if;
+    when 'work_item' then
+      select s."tenant_id"::text, s."stage_id"::text
+        into v_tenant, v_group
+        from "better_supabase"."work_items" s where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
+      end if;
+      v_group := coalesce(move.to_group, v_group);
+      if move.previous_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_previous, v_other_tenant, v_other_group
+          from "better_supabase"."work_items" s where s."id" = (move.previous_id)::uuid;
+        if not found then
+          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if move.next_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_next, v_other_tenant, v_other_group
+          from "better_supabase"."work_items" s where s."id" = (move.next_id)::uuid;
+        if not found then
+          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
+        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
+      end if;
+      v_key := "better_supabase"."rank_between"(v_previous, v_next);
+      update "better_supabase"."work_items" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('stage_id', v_group)))."stage_id"
+        where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
+      end if;
+    when 'application' then
+      select s."tenant_id"::text, s."stage_id"::text
+        into v_tenant, v_group
+        from "better_supabase"."applications" s where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'row not found' using errcode = 'P0002', hint = 'RANK_NOT_FOUND';
+      end if;
+      v_group := coalesce(move.to_group, v_group);
+      if move.previous_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_previous, v_other_tenant, v_other_group
+          from "better_supabase"."applications" s where s."id" = (move.previous_id)::uuid;
+        if not found then
+          raise exception 'the previous row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the previous row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if move.next_id is not null then
+        select s."rank", s."tenant_id"::text, s."stage_id"::text
+          into v_next, v_other_tenant, v_other_group
+          from "better_supabase"."applications" s where s."id" = (move.next_id)::uuid;
+        if not found then
+          raise exception 'the next row was not found' using errcode = 'P0002', hint = 'RANK_NEIGHBOR_NOT_FOUND';
+        end if;
+        if v_other_tenant is distinct from v_tenant or v_other_group is distinct from v_group then
+          raise exception 'the next row is in another tenant or group' using errcode = '22023', hint = 'RANK_NEIGHBOR_MISMATCH';
+        end if;
+      end if;
+      if v_previous is not null and v_next is not null and v_previous collate "C" >= v_next collate "C" then
+        raise exception 'the neighbours share a rank key; rebalance the group first' using errcode = '22023', hint = 'RANK_CONFLICT';
+      end if;
+      v_key := "better_supabase"."rank_between"(v_previous, v_next);
+      update "better_supabase"."applications" s set "rank" = v_key, "stage_id" = (jsonb_populate_record(null::"better_supabase"."applications", jsonb_build_object('stage_id', v_group)))."stage_id"
+        where s."id" = (move.subject_id)::uuid;
+      if not found then
+        raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
+      end if;
+    else
+      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+  end case;
   if length(v_key) > 24 then
     perform "better_supabase"."enqueue_job"(queue => 'rank.rebalance', payload => jsonb_build_object('subjectType', move.subject_type, 'tenant', v_tenant, 'group', v_group), dedupe_key => 'rank:' || move.subject_type || ':' || coalesce(v_tenant, '') || ':' || coalesce(v_group, ''), dedupe_running => false);
   end if;
@@ -130,7 +250,49 @@ as $$
 declare
   v_count integer := 0;
 begin
-  raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+  case rebalance_ranks.subject_type
+    when 'deal' then
+      with ordered as (
+        select s."id" as row_id,
+          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
+          count(*) over (partition by s."stage_id") as total
+        from "better_supabase"."deals" s
+        where s."tenant_id"::text = rebalance_ranks.tenant
+          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
+      )
+      update "better_supabase"."deals" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
+      from ordered o
+      where t."id" = o.row_id;
+      get diagnostics v_count = row_count;
+    when 'work_item' then
+      with ordered as (
+        select s."id" as row_id,
+          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
+          count(*) over (partition by s."stage_id") as total
+        from "better_supabase"."work_items" s
+        where s."tenant_id"::text = rebalance_ranks.tenant
+          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
+      )
+      update "better_supabase"."work_items" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
+      from ordered o
+      where t."id" = o.row_id;
+      get diagnostics v_count = row_count;
+    when 'application' then
+      with ordered as (
+        select s."id" as row_id,
+          row_number() over (partition by s."stage_id" order by s."rank" collate "C", s."id") as nth,
+          count(*) over (partition by s."stage_id") as total
+        from "better_supabase"."applications" s
+        where s."tenant_id"::text = rebalance_ranks.tenant
+          and (rebalance_ranks.rank_group is null or s."stage_id"::text = rebalance_ranks.rank_group)
+      )
+      update "better_supabase"."applications" t set "rank" = "better_supabase"."rank_key"(o.nth, o.total)
+      from ordered o
+      where t."id" = o.row_id;
+      get diagnostics v_count = row_count;
+    else
+      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+  end case;
   return v_count;
 end;
 $$;

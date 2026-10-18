@@ -84,6 +84,24 @@ begin
           and s."organization_id" = trash_cascade.tenant
           and s."archived_at" is null
         returning s."name"::text into v_title;
+    when 'deal' then
+      update "better_supabase"."deals" s set "archived_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."archived_at" is null
+        returning s."name"::text into v_title;
+    when 'work_item' then
+      update "better_supabase"."work_items" s set "archived_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."archived_at" is null
+        returning s."title"::text into v_title;
+    when 'drive_node' then
+      update "better_supabase"."drive_nodes" s set "deleted_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."deleted_at" is null
+        returning s."name"::text into v_title;
     else
       raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   end case;
@@ -126,8 +144,17 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', trash.tenant, 'trash.create'), false) and case trash.subject_type
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'customers.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'drive.read'), false)
     else false
-  end and true)) then
+  end and case trash.subject_type
+    when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
+    when 'deal' then coalesce(better_supabase.can('tenant', trash.tenant, 'deals.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.write'), false)
+    when 'drive_node' then coalesce(better_supabase.can('tenant', trash.tenant, 'drive.manage'), false)
+    else true
+  end)) then
     raise exception 'not allowed to trash this record' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
   declare
@@ -175,6 +202,15 @@ begin
     when 'customer' then
       update "public"."customers" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
+    when 'deal' then
+      update "better_supabase"."deals" s set "archived_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'work_item' then
+      update "better_supabase"."work_items" s set "archived_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'drive_node' then
+      update "better_supabase"."drive_nodes" s set "deleted_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;
     perform better_supabase.audit_event(
@@ -212,7 +248,13 @@ begin
   if not found then
     raise exception 'trash item not found' using errcode = 'P0002', hint = 'TRASH_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_root."tenant_id", 'trash.restore'), false) and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_root."tenant_id", 'trash.restore'), false) and case v_root."subject_type"
+    when 'customer' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'customers.write'), false)
+    when 'deal' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'deals.write'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'work_items.write'), false)
+    when 'drive_node' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'drive.manage'), false)
+    else true
+  end)) then
     raise exception 'not allowed to restore this record' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
   declare
@@ -263,6 +305,9 @@ begin
       and (list_trash.before is null or x."trashed_at" < list_trash.before)
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case x."subject_type"
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false)
     else false
   end)
     order by x."trashed_at" desc, x."id"
@@ -289,6 +334,15 @@ begin
     case v_item.subject_type
     when 'customer' then
       delete from "public"."customers" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'deal' then
+      delete from "better_supabase"."deals" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'work_item' then
+      delete from "better_supabase"."work_items" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'drive_node' then
+      delete from "better_supabase"."drive_nodes" s
         where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;

@@ -24,6 +24,10 @@ function useTabLabel() {
         return t("Security");
       }
 
+      case "privacy": {
+        return t("Privacy");
+      }
+
       case "organization": {
         return t("Organization");
       }
@@ -32,12 +36,36 @@ function useTabLabel() {
         return t("Members");
       }
 
+      case "accessRequests": {
+        return t("Access requests");
+      }
+
       case "billing": {
         return t("Billing");
       }
 
       case "apiKeys": {
         return t("API keys");
+      }
+
+      case "webhooks": {
+        return t("Webhooks");
+      }
+
+      case "signingKeys": {
+        return t("Signing keys");
+      }
+
+      case "sso": {
+        return t("Single sign-on");
+      }
+
+      case "customFields": {
+        return t("Custom fields");
+      }
+
+      case "jobs": {
+        return t("Jobs");
       }
 
       case "audit": {

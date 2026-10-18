@@ -114,6 +114,57 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid
         and s."archived_at" is null;
       v_found := found;
+    when 'company' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."domain"::text), ''), '/crm/contacts/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."companies" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'person' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."title"::text), ''), '/crm/contacts/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."people" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'deal' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."note"::text), ''), '/crm/deals'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."deals" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."archived_at" is null;
+      v_found := found;
+    when 'work_item' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."work_items" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."archived_at" is null;
+      v_found := found;
+    when 'employee' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."job_title"::text), ''), '/people'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."employees" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'product' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."description"::text, s."slug"::text), ''), '/shop'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."products" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'product_variant' then
+      select s."tenant_id", s."sku"::text, nullif(concat_ws(E'\n', s."title"::text, s."barcode"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."product_variants" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'drive_node' then
+      select s."tenant_id", s."name"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."drive_nodes" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."deleted_at" is null;
+      v_found := found;
     else
       raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
@@ -189,6 +240,62 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'company' then
+    for v_id in select s."id"::text from "better_supabase"."companies" s loop
+      if "better_supabase"."search_refresh"('company', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'person' then
+    for v_id in select s."id"::text from "better_supabase"."people" s loop
+      if "better_supabase"."search_refresh"('person', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'deal' then
+    for v_id in select s."id"::text from "better_supabase"."deals" s loop
+      if "better_supabase"."search_refresh"('deal', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
+    for v_id in select s."id"::text from "better_supabase"."work_items" s loop
+      if "better_supabase"."search_refresh"('work_item', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'employee' then
+    for v_id in select s."id"::text from "better_supabase"."employees" s loop
+      if "better_supabase"."search_refresh"('employee', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'product' then
+    for v_id in select s."id"::text from "better_supabase"."products" s loop
+      if "better_supabase"."search_refresh"('product', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'product_variant' then
+    for v_id in select s."id"::text from "better_supabase"."product_variants" s loop
+      if "better_supabase"."search_refresh"('product_variant', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'drive_node' then
+    for v_id in select s."id"::text from "better_supabase"."drive_nodes" s loop
+      if "better_supabase"."search_refresh"('drive_node', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   return v_count;
 end;
 $$;
@@ -220,6 +327,46 @@ drop trigger if exists "bs_search_customer_index" on "public"."customers";
 create trigger "bs_search_customer_index"
   after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
   for each row execute function "better_supabase"."search_index_row"('customer', 'id');
+
+drop trigger if exists "bs_search_company_index" on "better_supabase"."companies";
+create trigger "bs_search_company_index"
+  after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
+  for each row execute function "better_supabase"."search_index_row"('company', 'id');
+
+drop trigger if exists "bs_search_person_index" on "better_supabase"."people";
+create trigger "bs_search_person_index"
+  after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
+  for each row execute function "better_supabase"."search_index_row"('person', 'id');
+
+drop trigger if exists "bs_search_deal_index" on "better_supabase"."deals";
+create trigger "bs_search_deal_index"
+  after insert or delete or update of "id", "tenant_id", "name", "identifier", "note", "archived_at" on "better_supabase"."deals"
+  for each row execute function "better_supabase"."search_index_row"('deal', 'id');
+
+drop trigger if exists "bs_search_work_item_index" on "better_supabase"."work_items";
+create trigger "bs_search_work_item_index"
+  after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
+  for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
+
+drop trigger if exists "bs_search_employee_index" on "better_supabase"."employees";
+create trigger "bs_search_employee_index"
+  after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
+  for each row execute function "better_supabase"."search_index_row"('employee', 'id');
+
+drop trigger if exists "bs_search_product_index" on "better_supabase"."products";
+create trigger "bs_search_product_index"
+  after insert or delete or update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
+  for each row execute function "better_supabase"."search_index_row"('product', 'id');
+
+drop trigger if exists "bs_search_product_variant_index" on "better_supabase"."product_variants";
+create trigger "bs_search_product_variant_index"
+  after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
+
+drop trigger if exists "bs_search_drive_node_index" on "better_supabase"."drive_nodes";
+create trigger "bs_search_drive_node_index"
+  after insert or delete or update of "id", "tenant_id", "name", "deleted_at" on "better_supabase"."drive_nodes"
+  for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
 
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps

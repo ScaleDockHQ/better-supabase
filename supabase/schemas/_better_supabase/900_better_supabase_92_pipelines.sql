@@ -1057,7 +1057,7 @@ begin
             r."amount" * coalesce(r."probability", st."probability", 0) / 100.0 as weighted
           from "better_supabase"."deals" r
           join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
+          where r."pipeline_id" = pipeline_board.pipeline and r."archived_at" is null and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
         ),
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
@@ -1083,7 +1083,7 @@ begin
           select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
           from "better_supabase"."work_items" r
           join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline
+          where r."pipeline_id" = pipeline_board.pipeline and r."archived_at" is null
         ),
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (

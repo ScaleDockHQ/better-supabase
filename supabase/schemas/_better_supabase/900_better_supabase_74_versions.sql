@@ -145,7 +145,14 @@ begin
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
-    
+    case snapshot_version.subject_type
+    when 'customer' then
+      select jsonb_object_agg(e.key, e.value) into v_content
+      from "public"."customers" s, jsonb_each(to_jsonb(s)) e
+      where s."id" = (snapshot_version.subject_id)::uuid
+        and e.key = any ('{name,kvk}'::text[]);
+    else null;
+  end case;
     if v_content is null then
       raise exception 'pass content or a storage path, or list the subject''s columns' using errcode = '22023', hint = 'VERSION_CONTENT_REQUIRED';
     end if;
@@ -281,6 +288,9 @@ declare
   v_content jsonb;
   v_result jsonb;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select "tenant_id", "subject_type", "subject_id", "number", "content"
     into v_tenant, v_subject_type, v_subject_id, v_number, v_content
     from "better_supabase"."versions" where "id" = restore_version.version_id;
@@ -290,7 +300,10 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and case v_subject_type
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
-  end and true)) then
+  end and case v_subject_type
+    when 'customer' then coalesce(better_supabase.can('tenant', v_tenant, 'customers.write'), false)
+    else true
+  end)) then
     raise exception 'not allowed to restore this version' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null then
@@ -304,7 +317,16 @@ begin
         using restore_version.version_id;
     end if;
   end;
-  raise exception 'this subject type has no columns or apply function to restore into' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  perform set_config('better_supabase.versions_restoring', 'on', true);
+  case v_subject_type
+    when 'customer' then
+      update "public"."customers" s set "name" = r."name", "kvk" = r."kvk"
+      from jsonb_populate_record(null::"public"."customers", v_content) r
+      where s."id" = (v_subject_id)::uuid;
+    else
+      raise exception 'this subject type has no columns or apply function to restore into' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  end case;
+  perform set_config('better_supabase.versions_restoring', '', true);
   v_result := "better_supabase"."version_insert"(v_tenant, v_subject_type, v_subject_id, v_content, null, null, 'restore', false, auth.uid());
   perform better_supabase.audit_event(
     event_type => 'version.restored',
