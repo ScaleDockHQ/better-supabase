@@ -20,6 +20,15 @@ const POOL_SIZE = 4;
 const STATEMENT_TIMEOUT_MS = 120_000;
 
 /**
+ * Leads every introspection query. `pg_stat_statements` keeps a leading
+ * comment in its text, so doctor (BS208) can tell the CLI's catalog reads
+ * from the app's statements.
+ */
+export const CLI_QUERY_TAG = "/* better-supabase */";
+
+const tagged = (sql: string): string => `${CLI_QUERY_TAG}\n${sql}`;
+
+/**
  * A small `pg` pool, since introspection issues its queries concurrently. A
  * `connect` that returns a single client gets its queries queued, because one
  * `pg.Client` runs them one at a time.
@@ -36,14 +45,18 @@ export async function pgSource(
   });
 
   if (pooled) {
-    return { queryable: client, close, describe };
+    return {
+      queryable: { query: (sql: string) => client.query(tagged(sql)) },
+      close,
+      describe,
+    };
   }
 
   let queue: Promise<unknown> = Promise.resolve();
 
   const queryable: Queryable = {
     query(sql: string) {
-      const next = queue.then(() => client.query(sql));
+      const next = queue.then(() => client.query(tagged(sql)));
       queue = next.catch(() => undefined);
 
       return next;

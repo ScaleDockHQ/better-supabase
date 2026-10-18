@@ -345,8 +345,9 @@ advisor can't run, this check reports every table.
 with the current `work_mem`. When `pg_stat_statements` is installed, the
 message lists the five statements that wrote the most temporary blocks.
 Statements run by Supabase's service roles (PostgREST's schema cache query as
-`authenticator`, Auth and Storage) are left out, and when only those spilled
-there is no finding. Add indexes so large sorts go away, or raise `work_mem`
+`authenticator`, Auth and Storage) are left out, and so are better-supabase's
+own catalog reads from `introspect`, `gen` and `doctor`, which start with the
+comment `/* better-supabase */`. When only those spilled, there is no finding. Add indexes so large sorts go away, or raise `work_mem`
 for the role that runs them. Needs a database; saved snapshots skip it.
 
 ### BS209
