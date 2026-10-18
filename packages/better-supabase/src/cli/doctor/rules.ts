@@ -21,6 +21,7 @@ import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { sameText } from "../io.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
+import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
@@ -34,6 +35,7 @@ import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
+import { REALTIME_RULES } from "./realtime.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import {
@@ -1130,6 +1132,8 @@ export const RULES: readonly Rule[] = [
   ...DEPENDENCY_RULES,
   ...WORKFLOW_BUILDER_RULES,
   ...FLAG_RULES,
+  ...REALTIME_RULES,
+  ...ADOPTION_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

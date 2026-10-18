@@ -1,4 +1,3 @@
-import { renderModules } from "better-supabase/sql";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -6,76 +5,9 @@ import { dbUrl, reachable, USERS, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 
-// CentraKit's own config uses the catalog access model, so the provider
-// subject scope runs in this layout: the provider reads CentraKit's roles for
-// organizations and a project membership table for projects.
-const LAYOUT = {
-  modules: {
-    access: { model: "provider" as const },
-    comments: {
-      options: {
-        subjects: {
-          project: {
-            table: "centrakit.projects",
-            idType: "uuid",
-            scope: "project",
-          },
-        },
-      },
-    },
-    attachments: {
-      options: {
-        subjects: {
-          project: {
-            table: "centrakit.projects",
-            idType: "uuid",
-            scope: "project",
-          },
-        },
-      },
-    },
-  },
-  accessProvider: {
-    name: "centrakit",
-    scope: "organization",
-    scopes: ["organization", "project"],
-    idType: "uuid" as const,
-    functions: {
-      idsWith: "centrakit.{scope}_ids_with({permission})",
-      isPlatform: "centrakit.is_platform({permission})",
-    },
-  },
-};
-
-const PROVIDER = `
-create table centrakit.projects (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references centrakit.organizations (id),
-  name text not null
-);
-create table centrakit.project_members (
-  project_id uuid not null references centrakit.projects (id),
-  user_id uuid not null,
-  primary key (project_id, user_id)
-);
-grant select on centrakit.projects, centrakit.project_members to authenticated;
-create function centrakit.organization_ids_with(permission text) returns setof uuid
-language sql stable security definer set search_path = '' as $$
-  select ou.organization_id from centrakit.organization_users ou
-  join centrakit.role_permissions rp on rp.role_id = ou.role_id
-  join centrakit.permissions p on p.id = rp.permission_id
-  where ou.user_id = auth.uid() and p.key = permission
-$$;
-create function centrakit.project_ids_with(permission text) returns setof uuid
-language sql stable security definer set search_path = '' as $$
-  select pm.project_id from centrakit.project_members pm
-  where pm.user_id = auth.uid() and permission in ('comments.read', 'attachments.read')
-$$;
-create function centrakit.is_platform(permission text) returns boolean
-language sql stable as $$ select false $$;
-grant execute on function centrakit.organization_ids_with(text), centrakit.project_ids_with(text),
-  centrakit.is_platform(text) to authenticated;`;
-
+// Comments and attachments on projects name the provider's project scope
+// (better-supabase.config.ts): centrakit.authz_project_ids_with answers for
+// the members of centrakit.project_members, without an organization role.
 describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
@@ -88,15 +20,6 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
       );
-
-      await s.client.query(PROVIDER);
-
-      for (const file of renderModules(
-        ["access", "comments", "attachments"],
-        LAYOUT,
-      )) {
-        await s.client.query(file.contents);
-      }
 
       const [granted, hidden] = await s.rows<{ id: string }>(
         `insert into centrakit.projects (organization_id, name)

@@ -1,6 +1,7 @@
 import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { hasColumnExclusions } from "../expose-columns.ts";
 import { quotedTable } from "../shared.ts";
 
 export const GRANTS: ModuleDefinition = {
@@ -31,6 +32,12 @@ const privilegeSql = (privilege: string): string => {
 
   if (open === -1) {
     return privilege;
+  }
+
+  if (hasColumnExclusions(privilege)) {
+    throw new TypeError(
+      `expose: "${privilege}" resolves against the declared columns, which \`sql sync\` reads from the schema files. Run \`better-supabase sql sync\`, or list the columns.`,
+    );
   }
 
   const columns = privilege

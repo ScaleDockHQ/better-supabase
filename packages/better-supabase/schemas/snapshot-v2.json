@@ -958,6 +958,12 @@
             }
           }
         },
+        "functionComments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "hooks": {
           "type": "array",
           "items": {
@@ -1242,6 +1248,21 @@
                 "enum": ["row", "statement"]
               },
               "function": {
+                "type": "string"
+              },
+              "args": {
+                "description": "The create trigger arguments, when there are any.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "source": {
+                "description": "The function body, only for functions other than broadcast_topic() that call realtime.send() or realtime.broadcast_changes().",
+                "type": "string"
+              },
+              "comment": {
+                "description": "The function comment, for the same functions as source.",
                 "type": "string"
               }
             }

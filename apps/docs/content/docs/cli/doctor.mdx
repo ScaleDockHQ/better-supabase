@@ -966,6 +966,61 @@ the flag (`flags.save(key, { archived: true })`), or move `expires_at` when
 the flag stays. The finding names the `owner` column when the table has one.
 See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
 
+### BS337
+
+**Warning: broadcast trigger sends whole rows.** A trigger function calls
+`realtime.broadcast_changes(..., new, old)` or sends `old_record` and `record`
+through `realtime.send()`, and has no `better-supabase: payload row` comment.
+Every subscriber of the topic then sees every column, including ones their
+column grants hide. 0.8 `triggerSql()` functions and hand-written ones are
+reported. Regenerate the trigger with `topic.trigger()`, whose default payload
+sends the primary key and the topic values, or pass `payload: "row"` to keep
+whole rows on purpose. See
+[row changes](/docs/platform/realtime#row-changes).
+
+### BS338
+
+**Info: `functions.notNull` entry a comment tag could replace.** `gen` reads
+`@notNull` and `@notNull(a, b)` from a function's comment, so the promise can
+live next to the SQL instead of in `better-supabase.config.ts`. Doctor lists
+each `functions.<name>.notNull` entry for a function in the read schemas: one
+the function's tag already matches (remove the entry), one with no tag (add
+the tag the finding prints, then remove the entry), and one that differs from
+the tag, where the config entry wins. See
+[nullable function results](/docs/cli/gen).
+
+### BS339
+
+**Warning: `expose` excludes a column the table doesn't have.** An `expose`
+privilege such as `select(*, -token_hash)` grants every declared column but
+the excluded ones. When the table has no `token_hash` column, the exclusion
+excludes nothing, and a renamed secret column is granted under its new name.
+Remove the exclusion, or exclude the column's new name. See
+[column privileges](/docs/guides/data-api-grants).
+
+### BS340
+
+**Info: a tenant foreign key has no same-tenant trigger.** With the `tenant`
+block, doctor lists each single-column foreign key between two tables that
+both have the tenant column, when the key doesn't include that column and
+the table has no `bs_same_tenant_<column>` trigger. The foreign key checks
+that the referenced row exists, not that it belongs to the same tenant. Add
+the reference to `blocks.tenant.options.sameTenant`, or set
+`sameTenant: { auto: true }`. See
+[references within one tenant](/docs/blocks/access#references-within-one-tenant).
+
+### BS341
+
+**Warning: a data export includes a column that looks like a secret.** A
+data export writes every column of the tables it reads, except the ones in
+`omit`. Doctor reports each column of an exported table, including the ones
+`autoTables` finds, whose name contains `token`, `secret`, `_hash`,
+`password`, `api_key` or `license_key`, when no `omit` and no `omitPattern`
+leaves it out. Add the column to the table's `omit`, keep the table out of
+exports with `export: false` or `autoTables.exclude`, or set
+`blocks.data-lifecycle.options.omitPattern`. See
+[data lifecycle](/docs/blocks/data-lifecycle).
+
 ## Auth config
 
 ### BS401

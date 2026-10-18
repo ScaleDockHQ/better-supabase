@@ -3,6 +3,7 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 /** `blocks.webhooks-out.options`. */
 export type WebhooksOutSqlOptions = {
   readonly allowHttp?: boolean;
+  readonly defaultFormat?: string;
   readonly disableAfter?: string;
   readonly eventIdType?: unknown;
   readonly runIdType?: unknown;
@@ -13,6 +14,7 @@ export type WebhooksOutSqlOptions = {
 export const webhooksOutSqlOptions: BlockOptionsSchema<WebhooksOutSqlOptions> =
   blockOptions<WebhooksOutSqlOptions>({
     allowHttp: option.boolean({ default: false, client: true }),
+    defaultFormat: option.string({ default: "cloudevents", client: true }),
     disableAfter: option.string({ default: "5 days" }),
     eventIdType: option.unknown(),
     runIdType: option.unknown(),

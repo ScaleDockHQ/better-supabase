@@ -7,6 +7,7 @@ import {
   type FlagDefinition,
   type FlagsProvider,
   type FlagsProviderOptions,
+  type FlagType,
   type FlagValue,
 } from "../blocks/flags/flags.ts";
 import { errorText } from "../core/block-helpers.ts";
@@ -122,33 +123,67 @@ export function flagContextOf(entities?: FlagsSdkEntities): FlagContext {
   };
 }
 
+/** Whether `value` fits a flag of `type`; an `object` flag holds any JSON object or list. */
+function fitsType(value: FlagValue, type: FlagType): boolean {
+  return type === "object"
+    ? typeof value === "object" && value !== null
+    : typeof value === type;
+}
+
+/**
+ * The flag's value for a declaration with `defaultValue`, or `undefined`
+ * for the fallback: a missing variant or an unknown type always falls back.
+ * A `null` value is served to a declaration whose default is `null` or
+ * unset. Otherwise a declaration without a default takes any value, one
+ * with a `null` default a value of the flag's type, and any other default a
+ * value of its own `typeof`.
+ */
 async function valueOf(
   flag: FlagDefinition | undefined,
   defaultValue: unknown,
   context: FlagContext,
-): Promise<FlagValue | undefined> {
-  if (!flag) {
+): Promise<{ readonly value: FlagValue } | undefined> {
+  if (!flag || flag.invalidType !== undefined) {
     return undefined;
   }
 
-  const { value } = await evaluateFlag(flag, context);
+  const { value, found } = await evaluateFlag(flag, context);
 
-  // A variant missing from `variants` evaluates to null.
+  if (!found) {
+    return undefined;
+  }
+
   if (value === null) {
-    return undefined;
+    return defaultValue === null || defaultValue === undefined
+      ? { value }
+      : undefined;
   }
 
-  return defaultValue === undefined ||
-    (defaultValue !== null && typeof value === typeof defaultValue)
-    ? value
-    : undefined;
+  if (defaultValue === undefined) {
+    return { value };
+  }
+
+  if (defaultValue === null) {
+    return fitsType(value, flag.type) ? { value } : undefined;
+  }
+
+  return typeof value === typeof defaultValue ? { value } : undefined;
 }
+
+const why = (flag: FlagDefinition | undefined): string =>
+  flag === undefined
+    ? "it is missing"
+    : flag.invalidType === undefined
+      ? "it has no such variant or has another type"
+      : `it has the unknown type "${flag.invalidType}"`;
 
 /**
  * A Flags SDK adapter over the `flags` block. It evaluates rules, overrides,
  * custom contexts and rollouts like `flag_evaluation()`, from definitions it
- * caches for `ttl`. A flag that is missing, has another type or fails to load
- * gets the declaration's `defaultValue`; without one, `decide` throws.
+ * caches for `ttl`. A flag that is missing, has an unknown type, has
+ * another type than the declaration or fails to load gets the declaration's
+ * `defaultValue`; without one, `decide` throws. A variant whose value is
+ * `null` is served to a declaration whose `defaultValue` is `null` or unset.
  */
 export function betterSupabaseAdapter(
   options: BetterSupabaseAdapterOptions,
@@ -182,16 +217,13 @@ export function betterSupabaseAdapter(
         return fallback<V>(key, defaultValue, errorText(error));
       }
 
-      const value = await valueOf(
-        flags.find((flag) => flag.key === key),
-        defaultValue,
-        flagContextOf(entities),
-      );
+      const flag = flags.find((entry) => entry.key === key);
+      const served = await valueOf(flag, defaultValue, flagContextOf(entities));
 
-      // SAFETY: the flag's type matches the declaration's defaultValue.
-      return value === undefined
-        ? fallback<V>(key, defaultValue, "it is missing or has another type")
-        : (value as V);
+      // SAFETY: valueOf served a value that fits the declaration's defaultValue.
+      return served === undefined
+        ? fallback<V>(key, defaultValue, why(flag))
+        : (served.value as V);
     },
     async bulkDecide({ flags, entities }) {
       const decided: Record<string, V> = {};
@@ -208,15 +240,18 @@ export function betterSupabaseAdapter(
       const context = flagContextOf(entities);
 
       for (const { key, defaultValue } of flags) {
-        const value = await valueOf(
+        const served = await valueOf(
           definitions.get(key),
           defaultValue,
           context,
         );
 
-        if (value !== undefined || defaultValue !== undefined) {
-          // SAFETY: as in decide, both are the declaration's V.
-          decided[key] = (value ?? defaultValue) as V;
+        if (served !== undefined) {
+          // SAFETY: as in decide, valueOf served a value that fits the declaration.
+          decided[key] = served.value as V;
+        } else if (defaultValue !== undefined) {
+          // SAFETY: the Flags SDK passes the declaration's defaultValue, a V.
+          decided[key] = defaultValue as V;
         }
       }
 
@@ -357,10 +392,18 @@ export async function getProviderData(options: {
   }
 
   const definitions: Record<string, FlagsSdkDefinition> = {};
+  const hints: FlagsSdkProviderData["hints"] = [];
 
   for (const flag of flags) {
     if (flag.archived === true) {
       continue;
+    }
+
+    if (flag.invalidType !== undefined) {
+      hints.push({
+        key: "better-supabase/invalid-type",
+        text: `Flag "${flag.key}" has the unknown type "${flag.invalidType}", so it always serves its fallback`,
+      });
     }
 
     const origin = originOf(options.origin, flag.key);
@@ -376,5 +419,5 @@ export async function getProviderData(options: {
     };
   }
 
-  return { definitions, hints: [] };
+  return { definitions, hints };
 }

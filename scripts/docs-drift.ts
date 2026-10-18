@@ -118,7 +118,7 @@ function subpaths(): string[] {
   );
 
   const entries = Object.keys(exportsMap)
-    .filter((key) => !key.includes("*") && key !== "./package.json")
+    .filter((key) => !key.includes("*") && !key.endsWith(".json"))
     .map((key) =>
       key === "." ? "better-supabase" : `better-supabase/${key.slice(2)}`,
     );

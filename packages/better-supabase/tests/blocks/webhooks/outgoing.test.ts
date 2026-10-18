@@ -1260,6 +1260,52 @@ describe("createWebhooks: encoders and credentials", () => {
     });
   });
 
+  it("picks the encoder per endpoint, with transform's data in both formats", async () => {
+    const run = setup(
+      [
+        row({ format: "standard" }),
+        row({ id: "del-2", endpoint_id: "dest-2", format: "cloudevents" }),
+      ],
+      ok,
+      { transform: (delivery) => ({ wrapped: delivery.payload }) },
+    );
+
+    expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 2 });
+
+    const standard = run.sent.find(
+      (request) => request.headers["content-type"] === "application/json",
+    );
+
+    const cloud = run.sent.find((request) => request !== standard);
+    expect(standard!.headers["content-type"]).toBe("application/json");
+    expect(standard!.headers["webhook-signature"]).toMatch(/^v1,/);
+    expect(JSON.parse(standard!.body)).toEqual({
+      type: "invoice.paid",
+      timestamp: "2026-10-03T10:00:00Z",
+      data: { wrapped: { id: 7 } },
+    });
+    expect(cloud!.headers["content-type"]).toBe("application/cloudevents+json");
+    expect(JSON.parse(cloud!.body)).toMatchObject({
+      specversion: "1.0",
+      data: { wrapped: { id: 7 } },
+    });
+  });
+
+  it("falls back to defaultFormat for a row without a format", async () => {
+    const run = setup([row({ format: null }), row({ id: "del-2" })], ok, {
+      defaultFormat: "standard",
+    });
+
+    expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 2 });
+    expect(run.sent.map((request) => request.headers["content-type"])).toEqual([
+      "application/json",
+      "application/json",
+    ]);
+    expect(() => setup([], ok, { defaultFormat: "Not A Format" })).toThrow(
+      /defaultFormat "Not A Format"/,
+    );
+  });
+
   it("dead-letters an unknown format, a foreign ref and a ref without a provider", async () => {
     const unknown = setup([row({ format: "parquet" })]);
     expect(await unknown.webhooks.deliver()).toMatchObject({ dead: 1 });

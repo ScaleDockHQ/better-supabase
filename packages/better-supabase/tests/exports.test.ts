@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
 
 const subpaths = Object.keys(packageJson.exports).filter(
-  (key) => key !== "./package.json" && key !== "./schemas/*.json",
+  (key) => !key.endsWith(".json"),
 );
 
 const entryOf = (subpath: string): string =>

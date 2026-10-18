@@ -8,6 +8,7 @@ import {
   defineTopic,
   type RealtimeClient,
   rowChange,
+  rowKeys,
 } from "../../src/realtime/index.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 
@@ -246,23 +247,17 @@ describe("defineTopic", () => {
   });
 
   it("generates a row-change trigger with database column names", () => {
-    const sql = defineTopic(topics.customers).triggerSql(
+    const sql = defineTopic(topics.customers).trigger("customers", {
       betterSupabase,
-      "customers",
-      {
-        values: { organizationId: "organizationId" },
-      },
-    );
+      values: { organizationId: "organizationId" },
+    });
 
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
       'create or replace function "better_supabase"."bs_broadcast_organization_customers_customers"()',
     );
     expect(sql).toContain(
-      "  topic := 'organization:' || rec.\"organization_id\"::text || ':customers';\n  if topic is null then\n    return null;\n  end if;",
-    );
-    expect(sql).toContain(
-      "realtime.broadcast_changes(\n    topic, tg_op, tg_op, tg_table_name, tg_table_schema, new, old\n  );",
+      `vals := jsonb_build_object('organizationId', (rec."organization_id")::text);`,
     );
     expect(sql).toContain(
       'create trigger "bs_broadcast_organization_customers" after insert or update or delete on "public"."customers"',
@@ -874,34 +869,131 @@ describe("defineTopic policies", () => {
   });
 });
 
-describe("triggerSql", () => {
+describe("trigger with betterSupabase", () => {
   const customers = defineTopic(topics.customers);
 
   it("rejects unknown tables and unmapped parameters", () => {
     expect(() =>
-      // @ts-expect-error unknown table
-      customers.triggerSql(betterSupabase, "nope", {
+      customers.trigger("nope", {
+        // @ts-expect-error unknown table
+        betterSupabase,
         values: { organizationId: "id" },
       }),
     ).toThrow('defineTopic: unknown table "nope"');
     expect(() =>
-      customers.triggerSql(betterSupabase, "customers", {
+      customers.trigger("customers", {
         // @ts-expect-error missing value
+        betterSupabase,
         values: {},
       }),
-    ).toThrow('defineTopic: no column for {organizationId} on "customers"');
+    ).toThrow("defineTopic: no column for {organizationId}");
     expect(() =>
-      customers.triggerSql(betterSupabase, "customers", {
+      customers.trigger("customers", {
         // @ts-expect-error unknown column
+        betterSupabase,
         values: { organizationId: "missing" },
       }),
-    ).toThrow('defineTopic: no column for {organizationId} on "customers"');
+    ).toThrow("defineTopic: no column for {organizationId}");
+  });
+
+  it("sends the primary key and the placeholder values by default", () => {
+    const sql = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+    });
+
+    expect(sql).toContain(
+      `vals := jsonb_build_object('organizationId', (rec."organization_id")::text);`,
+    );
+    expect(sql).toContain(
+      `perform realtime.send(jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', to_jsonb(rec."id"), 'values', vals), tg_op, 'organization:' || (vals ->> 'organizationId') || ':customers', true);`,
+    );
+    expect(sql).not.toContain("old_record");
+    expect(sql).not.toContain("broadcast_changes");
+    expect(sql).toContain("if tg_when <> 'AFTER' then");
+  });
+
+  it("names composite keys by column and reads no key for a keyless table", () => {
+    const tagged = defineTopic("customer:{customerId}");
+
+    const sql = tagged.trigger("customerTags", {
+      betterSupabase,
+      values: { customerId: "customerId" },
+    });
+
+    expect(sql).toContain(
+      `'id', jsonb_build_object('customer_id', rec."customer_id", 'tag_id', rec."tag_id")`,
+    );
+  });
+
+  it("sends whole rows only with payload: row, and marks the function", () => {
+    const sql = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      payload: "row",
+    });
+
+    expect(sql).toContain(
+      "jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema)",
+    );
+    expect(sql).toContain(
+      `comment on function "better_supabase"."bs_broadcast_organization_customers_customers"() is 'better-supabase: payload row';`,
+    );
+  });
+
+  it("skips a topic with a null or disallowed value instead of failing the write", () => {
+    const sql = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+    });
+
+    expect(sql).toContain(
+      "where e.value is null or e.value !~ '^[\\w.@+=-]+$'",
+    );
+    expect(sql).toContain("raise warning 'skipped the broadcast on %");
+    expect(sql).not.toContain("raise exception 'topic value");
+  });
+
+  it("fans one row out to several topics, each skipped on its own", () => {
+    const owner = defineTopic("user:{userId}:customers", { private: false });
+
+    const sql = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      topics: [{ topic: owner, values: { userId: "id" } }],
+    });
+
+    expect(sql).toContain(
+      "-- better-supabase: broadcast customers changes to organization:{organizationId}:customers, user:{userId}:customers",
+    );
+    expect(sql.match(/perform realtime\.send/g)).toHaveLength(2);
+    expect(sql).toContain(
+      `vals := jsonb_build_object('userId', (rec."id")::text);`,
+    );
+    expect(sql).toContain(
+      "'user:' || (vals ->> 'userId') || ':customers', false);",
+    );
+    expect(() =>
+      customers.trigger("customers", {
+        betterSupabase,
+        values: { organizationId: "organizationId" },
+        topics: [{ topic: owner, values: {} }],
+      }),
+    ).toThrow("no column for {userId} of user:{userId}:customers");
+    expect(() =>
+      customers.trigger("customers", {
+        betterSupabase,
+        values: { organizationId: "organizationId" },
+        topics: [{ topic: owner, values: { userId: "id", other: "id" } }],
+      }),
+    ).toThrow('"other" is not a placeholder of user:{userId}:customers');
   });
 
   it("fills placeholders from parent rows and sends a custom event and payload", () => {
     const tagged = defineTopic("org:{organizationSlug}:customer:{customerId}");
 
-    const sql = tagged.triggerSql(betterSupabase, "customerTags", {
+    const sql = tagged.trigger("customerTags", {
+      betterSupabase,
       values: {
         customerId: "customerId",
         organizationSlug: {
@@ -923,46 +1015,34 @@ describe("triggerSql", () => {
     });
 
     expect(sql).toContain(
-      `topic := 'org:' || (select j0."slug" from "public"."organizations" j0 where j0."id" = (select j1."organization_id" from "public"."customers" j1 where j1."id" = rec."customer_id" limit 1) limit 1)::text || ':customer:' || rec."customer_id"::text;`,
+      `'organizationSlug', ((select j0."slug" from "public"."organizations" j0 where j0."id" = (select j1."organization_id" from "public"."customers" j1 where j1."id" = rec."customer_id" limit 1) limit 1))::text`,
     );
-    expect(sql).toContain(`perform realtime.send(
-    jsonb_build_object('tagId', rec."tag_id", 'customerName', (select j0."name" from "public"."customers" j0 where j0."id" = rec."customer_id" limit 1), 'operation', (lower(tg_op) || ':' || rec.tag_id)),
-    case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, topic, true
-  );`);
-    expect(sql).not.toContain("broadcast_changes");
-
-    const named = customers.triggerSql(betterSupabase, "customers", {
-      values: { organizationId: "organizationId" },
-      event: "customer_changed",
-    });
-
-    expect(named).toContain(
-      "topic, 'customer_changed', tg_op, tg_table_name, tg_table_schema, new, old",
+    expect(sql).toContain(
+      `perform realtime.send(jsonb_build_object('tagId', rec."tag_id", 'customerName', (select j0."name" from "public"."customers" j0 where j0."id" = rec."customer_id" limit 1), 'operation', (lower(tg_op) || ':' || rec.tag_id)), case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, 'org:' || (vals ->> 'organizationSlug') || ':customer:' || (vals ->> 'customerId'), true);`,
     );
     expect(
-      customers.triggerSql(betterSupabase, "customers", {
+      customers.trigger("customers", {
+        betterSupabase,
         values: { organizationId: "organizationId" },
         event: {},
       }),
-    ).toContain("topic, tg_op, tg_op,");
+    ).toContain("'values', vals), tg_op, 'organization:'");
     expect(
-      defineTopic("public:{customerId}", { private: false }).triggerSql(
+      defineTopic("public:{customerId}", { private: false }).trigger("notes", {
         betterSupabase,
-        "notes",
-        {
-          values: { customerId: "customerId" },
-          event: "note",
-          payload: { id: "id" },
-        },
-      ),
-    ).toContain("'note', topic, false");
+        values: { customerId: "customerId" },
+        event: "note",
+        payload: { id: "id" },
+      }),
+    ).toContain("'note', 'public:' || (vals ->> 'customerId'), false);");
   });
 
   it("rejects lookups through unknown tables, keys and columns", () => {
     const tagged = defineTopic("org:{organizationId}");
 
     const lookup = (value: object) => () =>
-      tagged.triggerSql(betterSupabase, "customerTags", {
+      tagged.trigger("customerTags", {
+        betterSupabase,
         // @ts-expect-error a lookup the types reject or the schema lacks
         values: { organizationId: value },
       });
@@ -982,7 +1062,8 @@ describe("triggerSql", () => {
       lookup({ from: "customers", via: "missing", select: "organizationId" }),
     ).toThrow(/on "customerTags" \("missing"\)/);
     expect(
-      tagged.triggerSql(betterSupabase, "customerTags", {
+      tagged.trigger("customerTags", {
+        betterSupabase,
         values: {
           organizationId: {
             from: "customerTags",
@@ -996,7 +1077,8 @@ describe("triggerSql", () => {
   });
 
   it("uses the given events and function schema", () => {
-    const sql = customers.triggerSql(betterSupabase, "customers", {
+    const sql = customers.trigger("customers", {
+      betterSupabase,
       values: { organizationId: "organizationId" },
       events: ["insert"],
       functionSchema: "private",
@@ -1007,6 +1089,15 @@ describe("triggerSql", () => {
     );
     expect(sql).toContain(
       'create trigger "bs_broadcast_organization_customers" after insert on "public"."customers"',
+    );
+  });
+
+  it("keeps triggerSql as a deprecated alias", () => {
+    const options = { values: { organizationId: "organizationId" } } as const;
+
+    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated alias (1 finding)
+    expect(customers.triggerSql(betterSupabase, "customers", options)).toBe(
+      customers.trigger("customers", { ...options, betterSupabase }),
     );
   });
 });
@@ -1075,15 +1166,58 @@ describe("rowChange", () => {
   });
 });
 
+describe("rowKeys", () => {
+  it("reads the key payload and keeps only string values", () => {
+    expect(
+      rowKeys(betterSupabase, "customers", {
+        event: "UPDATE",
+        topic: "organization:o1:customers",
+        payload: {
+          operation: "UPDATE",
+          schema: "public",
+          table: "customers",
+          id: "c1",
+          values: { organizationId: "o1", other: 1 },
+        },
+      }),
+    ).toEqual({
+      operation: "UPDATE",
+      schema: "public",
+      table: "customers",
+      id: "c1",
+      values: { organizationId: "o1" },
+    });
+  });
+
+  it("returns null for whole rows, other tables and other schemas", () => {
+    const at = (payload: unknown) =>
+      rowKeys(betterSupabase, "customers", { event: "x", topic: "t", payload });
+
+    expect(
+      at({ operation: "INSERT", table: "customers", record: {} }),
+    ).toBeNull();
+    expect(at({ operation: "INSERT", table: "notes", id: 1 })).toBeNull();
+    expect(
+      at({ operation: "INSERT", table: "customers", schema: "audit", id: 1 }),
+    ).toBeNull();
+    expect(at({ operation: "TRUNCATE", table: "customers", id: 1 })).toBeNull();
+    expect(at(null)).toBeNull();
+    expect(
+      // @ts-expect-error unknown table
+      rowKeys(betterSupabase, "nope", { event: "x", topic: "t", payload: {} }),
+    ).toBeNull();
+  });
+});
+
 describe("trigger", () => {
-  it("calls broadcast_topic with the placeholders in snake_case", () => {
+  it("calls broadcast_topic with the placeholders and their columns", () => {
     const quotes = defineTopic("organization:{organizationId}:quotes");
     expect(quotes.trigger("quotes", { event: "quote.changed" })).toBe(
       [
         "-- better-supabase: broadcast public.quotes changes to organization:{organizationId}:quotes",
         'drop trigger if exists "bs_broadcast_organization_quotes" on "public"."quotes";',
         'create trigger "bs_broadcast_organization_quotes" after insert or update or delete on "public"."quotes"',
-        "  for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');",
+        "  for each row execute function better_supabase.broadcast_topic('organization:{organizationId=organization_id}:quotes', 'quote.changed');",
         "",
       ].join("\n"),
     );
@@ -1098,8 +1232,46 @@ describe("trigger", () => {
     });
 
     expect(sql).toContain(
-      "after insert or delete on \"app\".\"cards\"\n  for each row execute function better_supabase.broadcast_topic('board:{board}', '', 'false');",
+      "after insert or delete on \"app\".\"cards\"\n  for each row execute function better_supabase.broadcast_topic('board:{boardId=board}', '', 'false');",
     );
+  });
+
+  it("passes the row payload only when asked", () => {
+    const board = defineTopic("board:{board}");
+
+    expect(board.trigger("cards", { payload: "row" })).toContain(
+      "broadcast_topic('board:{board}', '', '', 'row');",
+    );
+    expect(board.trigger("cards", { payload: "keys" })).toContain(
+      "broadcast_topic('board:{board}', '');",
+    );
+  });
+
+  it("generates a function for fan-out, reading the key from the catalog", () => {
+    const board = defineTopic("board:{boardId}");
+    const owner = defineTopic("user:{userId}");
+
+    const sql = board.trigger("cards", {
+      topics: [{ topic: owner, values: { userId: "owner_id" } }],
+    });
+
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."bs_broadcast_board_cards"()',
+    );
+    expect(sql).toContain(
+      `vals := jsonb_build_object('boardId', (rec."board_id")::text);`,
+    );
+    expect(sql).toContain(
+      `vals := jsonb_build_object('userId', (rec."owner_id")::text);`,
+    );
+    expect(sql).toContain("where i.indrelid = tg_relid and i.indisprimary");
+    expect(() =>
+      board.trigger("cards", {
+        // @ts-expect-error a lookup without betterSupabase
+        values: { boardId: { from: "boards", via: "id", select: "id" } },
+        topics: [{ topic: owner }],
+      }),
+    ).toThrow("a lookup for {boardId} needs betterSupabase");
   });
 
   it("rejects a value for no placeholder and a column with braces", () => {
@@ -1107,9 +1279,9 @@ describe("trigger", () => {
     expect(() =>
       // @ts-expect-error not a placeholder
       board.trigger("cards", { values: { cardId: "id" } }),
-    ).toThrow('"cardId" is not a placeholder of the topic');
+    ).toThrow('"cardId" is not a placeholder of board:{boardId}');
     expect(() =>
       board.trigger("cards", { values: { boardId: "a}b" } }),
-    ).toThrow("the column for {boardId} can't contain braces");
+    ).toThrow("the column for {boardId} can't contain braces or =");
   });
 });

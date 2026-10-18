@@ -1216,6 +1216,10 @@
               "event": {
                 "description": "The broadcast event name. Defaults to the operation.",
                 "type": "string"
+              },
+              "payload": {
+                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants.",
+                "enum": ["keys", "row"]
               }
             }
           }
@@ -2404,9 +2408,9 @@
             "enum": ["select", "insert", "update", "delete"]
           },
           {
-            "description": "A column privilege, such as `update(title, body)`.",
+            "description": "A column privilege, such as `update(title, body)`, or every declared column but some, such as `select(*, -token_hash)`.",
             "type": "string",
-            "pattern": "^(select|insert|update)\\s*\\(\\s*[a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*\\s*\\)$"
+            "pattern": "^(select|insert|update)\\s*\\(\\s*([a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*|\\*(\\s*,\\s*-\\s*[a-z_][a-z0-9_$]*)*)\\s*\\)$"
           }
         ]
       }
@@ -3001,7 +3005,8 @@
               "tables": {},
               "autoTables": {},
               "tenantRow": {},
-              "anonymize": {}
+              "anonymize": {},
+              "omitPattern": {}
             }
           }
         }
@@ -4453,6 +4458,10 @@
               "allowHttp": {
                 "type": "boolean",
                 "default": false
+              },
+              "defaultFormat": {
+                "type": "string",
+                "default": "cloudevents"
               },
               "disableAfter": {
                 "type": "string",

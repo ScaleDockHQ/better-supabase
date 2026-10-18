@@ -43,7 +43,7 @@ const ALL_PRIVILEGES: readonly Privilege[] = [
 export const isFunctionKey = (key: string): boolean => key.endsWith(")");
 
 const EXPOSE_PRIVILEGE =
-  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*\s*\))$/;
+  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*(?:[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*|\*(?:\s*,\s*-\s*[a-z_][a-z0-9_$]*)*)\s*\))$/;
 
 function checkedPrivileges(
   key: string,
@@ -54,7 +54,7 @@ function checkedPrivileges(
 
     if (typeof value !== "string" || !EXPOSE_PRIVILEGE.test(value)) {
       throw new TypeError(
-        `expose.${key}: "${String(value)}" is not a privilege. Use select, insert, update or delete, or name columns such as "update(title, body)"`,
+        `expose.${key}: "${String(value)}" is not a privilege. Use select, insert, update or delete, name columns such as "update(title, body)", or exclude them from every column with "select(*, -secret)"`,
       );
     }
   }

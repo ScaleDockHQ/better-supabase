@@ -46,6 +46,13 @@ import {
   triggerValueSql,
   type AnyTriggerValue,
 } from "./topic-sql.ts";
+import {
+  CATALOG_ID_SQL,
+  idSql,
+  triggerFunctionSql,
+  type TriggerPayloadSql,
+  type TriggerTopicSql,
+} from "./topic-trigger.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -255,19 +262,27 @@ export type TriggerValue<M extends AnyModels, T extends keyof M> =
 
 type TriggerOperation = "insert" | "update" | "delete";
 
-export interface TriggerOptions<
-  M extends AnyModels,
-  T extends keyof M,
-  P extends string,
-> {
-  /**
-   * What fills each placeholder: a column of the changed row, or a lookup
-   * (`{ from, via, select }`) for a value on a parent row. A row whose
-   * topic comes out null is not sent.
-   */
-  readonly values: {
-    readonly [K in TemplateParams<P>]: TriggerValue<M, T>;
+/**
+ * What a broadcast trigger sends. `"keys"` (the default) sends
+ * `{ operation, schema, table, id, values }`: the primary key and the
+ * topic's placeholder values, so clients refetch the row through RLS.
+ * `"row"` sends the whole row as `record` and `old_record`, which bypasses
+ * column grants: every receiver of the topic sees every column.
+ */
+export type TriggerPayloadMode = "keys" | "row";
+
+/** A topic the same row change also goes to (`topics` on `trigger()`). */
+export interface TriggerTopic<V> {
+  readonly topic: {
+    readonly template: string;
+    readonly params: readonly string[];
+    readonly private: boolean;
   };
+  /** What fills each of its placeholders, as in `values`. */
+  readonly values?: Readonly<Record<string, V>>;
+}
+
+interface TriggerCommonOptions {
   /** Defaults to all three. */
   readonly events?: readonly TriggerOperation[];
   /**
@@ -276,38 +291,70 @@ export interface TriggerOptions<
    */
   readonly event?: string | { readonly [O in TriggerOperation]?: string };
   /**
-   * Send this payload with `realtime.send` instead of the row change from
-   * `realtime.broadcast_changes`: each key is a column, a lookup, or
-   * `{ sql }`, an expression on the row `{row}` (`tg_op` is the operation).
-   */
-  readonly payload?: Readonly<
-    Record<string, TriggerValue<M, T> | { readonly sql: string }>
-  >;
-  /**
-   * Schema for the generated function. Defaults to `better_supabase`, which
+   * Schema for a generated function. Defaults to `better_supabase`, which
    * the Data API does not expose.
    */
   readonly functionSchema?: string;
 }
 
-/** Options for `topic.trigger()`. */
-export interface TopicTriggerOptions<P extends string> {
+/** `topic.trigger()` with the app's `betterSupabase`: typed columns and lookups. */
+export interface TriggerOptions<
+  M extends AnyModels,
+  T extends keyof M,
+  P extends string,
+> extends TriggerCommonOptions {
+  /**
+   * What fills each placeholder: a column of the changed row, or a lookup
+   * (`{ from, via, select }`) for a value on a parent row. A row whose
+   * topic comes out null is not sent to that topic.
+   */
+  readonly values: {
+    readonly [K in TemplateParams<P>]: TriggerValue<M, T>;
+  };
+  /**
+   * `"keys"` (default), `"row"` (bypasses column grants), or the payload
+   * itself: each key is a column, a lookup, or `{ sql }`, an expression on
+   * the row `{row}` (`tg_op` is the operation).
+   */
+  readonly payload?:
+    | TriggerPayloadMode
+    | Readonly<Record<string, TriggerValue<M, T> | { readonly sql: string }>>;
+  /** More topics the row change goes to, each with its own values. */
+  readonly topics?: readonly TriggerTopic<TriggerValue<M, T>>[];
+}
+
+/** `topic.trigger()` with columns only. */
+export interface TopicTriggerOptions<
+  P extends string,
+> extends TriggerCommonOptions {
   /**
    * The column that fills each placeholder. Defaults to the placeholder in
    * snake_case (`{organizationId}` reads `organization_id`).
    */
   readonly values?: { readonly [K in TemplateParams<P>]?: string };
-  /** Defaults to all three. */
-  readonly events?: readonly TriggerOperation[];
-  /** The broadcast event name. Defaults to the operation (`INSERT`, `UPDATE`, `DELETE`). */
-  readonly event?: string;
+  /** `"keys"` (default) or `"row"`, which bypasses column grants. */
+  readonly payload?: TriggerPayloadMode;
+  /** More topics the row change goes to, each with its own columns. */
+  readonly topics?: readonly TriggerTopic<string>[];
 }
 
+/** A row change sent with `payload: "row"`. */
 export interface RowChange<R> {
   readonly operation: "INSERT" | "UPDATE" | "DELETE";
   readonly table: string;
   readonly record: R | null;
   readonly oldRecord: Partial<R> | null;
+}
+
+/** A row change sent with the default `payload: "keys"`: refetch the row through RLS. */
+export interface RowKeys {
+  readonly operation: "INSERT" | "UPDATE" | "DELETE";
+  readonly schema: string;
+  readonly table: string;
+  /** The primary key value, or an object keyed by column for a composite key. */
+  readonly id: unknown;
+  /** The topic's placeholder values. */
+  readonly values: Readonly<Record<string, string>>;
 }
 
 /** Options for `topic.sql()`. */
@@ -351,7 +398,37 @@ export interface Topic<
    * `options.functions`; `better-supabase sql sync` passes them.
    */
   sql(options?: TopicSqlOptions): string;
-  /** A trigger that broadcasts row changes (`realtime.broadcast_changes`) to this topic. */
+  /**
+   * A trigger that broadcasts row changes on `table` to this topic, and to
+   * each of `topics`. A topic whose values come out null is skipped, and
+   * a value topics don't allow skips that topic with a warning instead of
+   * failing the write.
+   *
+   * With `betterSupabase`, `table` is a table key and values can be
+   * lookups; the statement creates a function for the topic. Without it,
+   * `table` is `table` or `schema.table`, and a single topic calls
+   * `better_supabase.broadcast_topic()` from the `realtime-tables` module.
+   *
+   * The payload carries keys only unless `payload` says otherwise:
+   * `payload: "row"` sends whole rows and bypasses column grants.
+   */
+  trigger<
+    M extends AnyModels,
+    D,
+    F extends AnyFunctions,
+    X,
+    T extends TableKey<M>,
+  >(
+    table: T,
+    options: TriggerOptions<M, T, P> & {
+      readonly betterSupabase: BetterSupabase<M, D, F, X>;
+    },
+  ): string;
+  trigger(table: string, options?: TopicTriggerOptions<P>): string;
+  /**
+   * @deprecated Use `trigger(table, { ...options, betterSupabase })`. The
+   * payload default is keys only; pass `payload: "row"` for whole rows.
+   */
   triggerSql<
     M extends AnyModels,
     D,
@@ -363,12 +440,6 @@ export interface Topic<
     table: T,
     options: TriggerOptions<M, T, P>,
   ): string;
-  /**
-   * A `create trigger` statement on `table` (`table` or `schema.table`)
-   * that calls `better_supabase.broadcast_topic()` from the
-   * `realtime-tables` module, so no function is generated per topic.
-   */
-  trigger(table: string, options?: TopicTriggerOptions<P>): string;
   subscribe(
     client: RealtimeClient,
     values: TemplateValues<P>,
@@ -392,6 +463,27 @@ export interface Topic<
     options: TopicFanOutOptions<P, E, K, S>,
   ): AsyncResult<FanOutResult<S>>;
 }
+
+interface AnyTriggerOptions {
+  readonly betterSupabase?: {
+    readonly meta: {
+      readonly tables: Readonly<Record<string, TableMeta | undefined>>;
+    };
+  };
+  readonly values?: Readonly<Record<string, AnyTriggerValue | undefined>>;
+  readonly events?: readonly TriggerOperation[];
+  readonly event?: string | Readonly<Record<string, string | undefined>>;
+  readonly payload?:
+    | TriggerPayloadMode
+    | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>;
+  readonly topics?: readonly TriggerTopic<AnyTriggerValue>[];
+  readonly functionSchema?: string;
+}
+
+const splitTable = (table: string): readonly [string, string] =>
+  table.includes(".")
+    ? [table.slice(0, table.indexOf(".")), table.slice(table.indexOf(".") + 1)]
+    : ["public", table];
 
 const VALUE = /^[\w.@+=-]+$/;
 
@@ -589,6 +681,188 @@ export function defineTopic<
 
   const topicOf = (values: TemplateValues<P>): string => parsed.build(values);
 
+  const triggerStatement = (
+    table: string,
+    trigger: AnyTriggerOptions,
+  ): string => {
+    const where = `defineTopic(${template}).trigger`;
+    const tables = trigger.betterSupabase?.meta.tables;
+    const meta = tables?.[table];
+
+    if (tables && !meta) {
+      throw new TypeError(`defineTopic: unknown table "${table}"`);
+    }
+
+    const [schema, relation] = meta
+      ? [meta.schema, meta.name]
+      : splitTable(table);
+
+    const target = `${sqlIdent(schema)}.${sqlIdent(relation)}`;
+    const triggerName = `bs_broadcast_${name}`;
+    const extra = trigger.topics ?? [];
+    const { payload } = trigger;
+
+    const events = (trigger.events ?? ["insert", "update", "delete"]).join(
+      " or ",
+    );
+
+    const checkKeys = (
+      params: readonly string[],
+      given: Readonly<Record<string, unknown>> | undefined,
+      topic: string,
+    ): void => {
+      for (const key of Object.keys(given ?? {})) {
+        if (!params.includes(key)) {
+          throw new TypeError(
+            `${where}: "${key}" is not a placeholder of ${topic}`,
+          );
+        }
+      }
+    };
+
+    checkKeys(parsed.params, trigger.values, template);
+
+    if (
+      !meta &&
+      extra.length === 0 &&
+      typeof trigger.event !== "object" &&
+      (payload === undefined || typeof payload === "string")
+    ) {
+      const columns = trigger.values ?? {};
+
+      const sqlTemplate = template.replaceAll(
+        /\{([^}]+)\}/g,
+        (_, param: string) => {
+          const column = columns[param] ?? snakeCase(param);
+
+          if (typeof column !== "string") {
+            throw new TypeError(
+              `${where}: a lookup for {${param}} needs betterSupabase`,
+            );
+          }
+
+          if (/[{}=]/.test(column)) {
+            throw new TypeError(
+              `${where}: the column for {${param}} can't contain braces or =`,
+            );
+          }
+
+          return column === param ? `{${param}}` : `{${param}=${column}}`;
+        },
+      );
+
+      const args = [sqlString(sqlTemplate), sqlString(trigger.event ?? "")];
+
+      if (!isPrivate || payload === "row") {
+        args.push(sqlString(isPrivate ? "" : "false"));
+      }
+
+      if (payload === "row") {
+        args.push(sqlString("row"));
+      }
+
+      return [
+        `-- better-supabase: broadcast ${schema}.${relation} changes to ${template}`,
+        `drop trigger if exists ${sqlIdent(triggerName)} on ${target};`,
+        `create trigger ${sqlIdent(triggerName)} after ${events} on ${target}`,
+        `  for each row execute function better_supabase.broadcast_topic(${args.join(", ")});`,
+        "",
+      ].join("\n");
+    }
+
+    const valueSql = (value: AnyTriggerValue, label: string): string => {
+      if (tables && meta) {
+        return triggerValueSql(tables, meta, value, label);
+      }
+
+      if (typeof value !== "string") {
+        throw new TypeError(
+          `${where}: a lookup for ${label} needs betterSupabase`,
+        );
+      }
+
+      return `rec.${sqlIdent(value)}`;
+    };
+
+    const topicValues = (
+      params: readonly string[],
+      given: Readonly<Record<string, AnyTriggerValue | undefined>> | undefined,
+      topic: string,
+    ): Record<string, string> =>
+      Object.fromEntries(
+        params.map((param) => {
+          const value = given?.[param] ?? (meta ? undefined : snakeCase(param));
+
+          if (value === undefined) {
+            throw new TypeError(
+              `defineTopic: no column for {${param}} of ${topic} on "${table}"`,
+            );
+          }
+
+          return [param, valueSql(value, `{${param}}`)];
+        }),
+      );
+
+    const topics: TriggerTopicSql[] = [
+      {
+        template,
+        private: isPrivate,
+        values: topicValues(parsed.params, trigger.values, template),
+      },
+      ...extra.map((each) => {
+        checkKeys(each.topic.params, each.values, each.topic.template);
+
+        return {
+          template: each.topic.template,
+          private: each.topic.private,
+          values: topicValues(
+            each.topic.params,
+            each.values,
+            each.topic.template,
+          ),
+        };
+      }),
+    ];
+
+    const payloadSql: TriggerPayloadSql =
+      payload === undefined || payload === "keys"
+        ? {
+            kind: "keys",
+            id: meta
+              ? idSql(
+                  meta.primaryKey.map((key) => meta.columns[key]?.db ?? key),
+                )
+              : CATALOG_ID_SQL,
+          }
+        : payload === "row"
+          ? { kind: "row" }
+          : {
+              kind: "custom",
+              sql: `jsonb_build_object(${Object.entries(payload)
+                .map(
+                  ([key, value]) =>
+                    `${sqlString(key)}, ${
+                      typeof value === "object" && "sql" in value
+                        ? `(${value.sql.replaceAll("{row}", "rec")})`
+                        : valueSql(value, `payload.${key}`)
+                    }`,
+                )
+                .join(", ")})`,
+            };
+
+    return triggerFunctionSql({
+      subject: meta ? meta.name : `${schema}.${relation}`,
+      functionSchema: trigger.functionSchema ?? "better_supabase",
+      functionName: `bs_broadcast_${name}_${slug(relation)}`,
+      triggerName,
+      target,
+      events,
+      event: eventSql(trigger.event),
+      topics,
+      payload: payloadSql,
+    });
+  };
+
   // SAFETY: the template parser returns the parameter names written in P.
   const api: Topic<P, E, R> = {
     template,
@@ -657,166 +931,12 @@ export function defineTopic<
 
       return `${lines.join("\n")}\n`;
     },
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias itself (1 finding)
     triggerSql(betterSupabase, table, trigger) {
-      const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-
-      if (!meta) {
-        throw new TypeError(`defineTopic: unknown table "${table}"`);
-      }
-
-      // SAFETY: trigger values name table columns or lookups by topic
-      // parameter, and templates hold strings.
-      const values = trigger.values as Readonly<
-        Record<string, AnyTriggerValue | undefined>
-      >;
-
-      const tables = betterSupabase.meta.tables;
-
-      const parts = template
-        .split(/(\{[^}]+\})/)
-        .filter(Boolean)
-        .map((part) => {
-          const param = /^\{(.+)\}$/.exec(part)?.[1];
-
-          if (param === undefined) {
-            return sqlString(part);
-          }
-
-          const value = values[param];
-
-          if (value === undefined) {
-            throw new TypeError(
-              `defineTopic: no column for {${param}} on "${table}"`,
-            );
-          }
-
-          return `${triggerValueSql(tables, meta, value, `{${param}}`)}::text`;
-        });
-
-      const schema = trigger.functionSchema ?? "better_supabase";
-      const fn = `${sqlIdent(schema)}.${sqlIdent(`bs_broadcast_${name}_${slug(meta.name)}`)}`;
-      const triggerName = sqlIdent(`bs_broadcast_${name}`);
-      const target = `${sqlIdent(meta.schema)}.${sqlIdent(meta.name)}`;
-
-      const events = (trigger.events ?? ["insert", "update", "delete"]).join(
-        " or ",
-      );
-
-      const event = eventSql(trigger.event);
-
-      // SAFETY: payload values are columns, lookups or `{ sql }`.
-      const payload = trigger.payload as
-        | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>
-        | undefined;
-
-      const send = payload
-        ? [
-            "  perform realtime.send(",
-            `    jsonb_build_object(${Object.entries(payload)
-              .map(
-                ([key, value]) =>
-                  `${sqlString(key)}, ${
-                    typeof value === "object" && "sql" in value
-                      ? `(${value.sql.replaceAll("{row}", "rec")})`
-                      : triggerValueSql(tables, meta, value, `payload.${key}`)
-                  }`,
-              )
-              .join(", ")}),`,
-            `    ${event}, topic, ${String(isPrivate)}`,
-            "  );",
-          ]
-        : [
-            "  perform realtime.broadcast_changes(",
-            `    topic, ${event}, tg_op, tg_table_name, tg_table_schema, new, old`,
-            "  );",
-          ];
-
-      return [
-        `-- better-supabase: broadcast ${meta.name} changes to ${template}`,
-        `create schema if not exists ${sqlIdent(schema)};`,
-        `create or replace function ${fn}()`,
-        "returns trigger",
-        "language plpgsql",
-        "security definer",
-        "set search_path = ''",
-        "as $$",
-        "declare",
-        "  rec record;",
-        "  topic text;",
-        "begin",
-        "  if tg_op = 'DELETE' then rec := old; else rec := new; end if;",
-        `  topic := ${parts.join(" || ")};`,
-        "  if topic is null then",
-        "    return null;",
-        "  end if;",
-        ...send,
-        "  return null;",
-        "end;",
-        "$$;",
-        `revoke execute on function ${fn}() from public, anon, authenticated;`,
-        "",
-        `drop trigger if exists ${triggerName} on ${target};`,
-        `create trigger ${triggerName} after ${events} on ${target}`,
-        `  for each row execute function ${fn}();`,
-        "",
-      ].join("\n");
+      return triggerStatement(table, { ...trigger, betterSupabase });
     },
-    trigger(table, trigger = {}) {
-      const [schema, relation] = table.includes(".")
-        ? [
-            table.slice(0, table.indexOf(".")),
-            table.slice(table.indexOf(".") + 1),
-          ]
-        : ["public", table];
-
-      // SAFETY: `values` is keyed by the template's parameters.
-      const columns = (trigger.values ?? {}) as Readonly<
-        Record<string, string | undefined>
-      >;
-
-      for (const key of Object.keys(columns)) {
-        if (!parsed.params.includes(key)) {
-          throw new TypeError(
-            `defineTopic(${template}).trigger: "${key}" is not a placeholder of the topic`,
-          );
-        }
-      }
-
-      const sqlTemplate = template.replaceAll(
-        /\{([^}]+)\}/g,
-        (_, param: string) => {
-          const column = columns[param] ?? snakeCase(param);
-
-          if (/[{}]/.test(column)) {
-            throw new TypeError(
-              `defineTopic(${template}).trigger: the column for {${param}} can't contain braces`,
-            );
-          }
-
-          return `{${column}}`;
-        },
-      );
-
-      const events = (trigger.events ?? ["insert", "update", "delete"]).join(
-        " or ",
-      );
-
-      const triggerName = sqlIdent(`bs_broadcast_${name}`);
-      const target = `${sqlIdent(schema)}.${sqlIdent(relation)}`;
-
-      const args = [
-        sqlString(sqlTemplate),
-        sqlString(trigger.event ?? ""),
-        ...(isPrivate ? [] : [sqlString("false")]),
-      ].join(", ");
-
-      return [
-        `-- better-supabase: broadcast ${schema}.${relation} changes to ${template}`,
-        `drop trigger if exists ${triggerName} on ${target};`,
-        `create trigger ${triggerName} after ${events} on ${target}`,
-        `  for each row execute function better_supabase.broadcast_topic(${args});`,
-        "",
-      ].join("\n");
+    trigger(table: string, trigger?: AnyTriggerOptions) {
+      return triggerStatement(table, trigger ?? {});
     },
     subscribe(client, values, handlers, given) {
       const topic = topicOf(values);
@@ -1061,8 +1181,63 @@ export function defineTopic<
 }
 
 /**
- * Reads a `realtime.broadcast_changes` message as an app-cased row change.
- * Returns `null` for messages about other tables.
+ * Reads a broadcast trigger's default message (`payload: "keys"`). Returns
+ * `null` for messages about other tables or with another shape.
+ */
+export function rowKeys<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  X,
+  T extends TableKey<M>,
+>(
+  betterSupabase: BetterSupabase<M, D, F, X>,
+  table: T,
+  message: TopicMessage,
+): RowKeys | null {
+  const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
+  const payload = message.payload;
+
+  if (!meta || typeof payload !== "object" || payload === null) {
+    return null;
+  }
+
+  const fields: Readonly<Record<string, unknown>> = { ...payload };
+  const { operation, schema, values } = fields;
+
+  if (
+    fields["table"] !== meta.name ||
+    (schema !== undefined && schema !== meta.schema) ||
+    (operation !== "INSERT" &&
+      operation !== "UPDATE" &&
+      operation !== "DELETE") ||
+    !("id" in fields)
+  ) {
+    return null;
+  }
+
+  const strings: Record<string, string> = {};
+
+  if (typeof values === "object" && values !== null) {
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value === "string") {
+        strings[key] = value;
+      }
+    }
+  }
+
+  return {
+    operation,
+    schema: meta.schema,
+    table: meta.name,
+    id: fields["id"],
+    values: strings,
+  };
+}
+
+/**
+ * Reads a `payload: "row"` message as an app-cased row change. Returns
+ * `null` for messages about other tables.
  */
 export function rowChange<
   M extends AnyModels,

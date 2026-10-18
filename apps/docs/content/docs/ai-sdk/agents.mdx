@@ -90,6 +90,27 @@ The runtime passes the same context to `authorizeModel`, `authorizeTool`,
 passed to `generate` or `stream` can't replace these keys.
 `agentRunContext(agent, caller)` builds it for your own code.
 
+### Delegated tools
+
+When the session itself belongs to an agent (another agent called this one
+with a token from `agentClaims`), pass its actor as `actor`. If its `act`
+level lists `tools`, the run gets only those tools, and a call to any other
+is denied before it runs. `assertToolDelegated(actor, toolName)` throws the
+same refusal, a `forbidden` `DbException` with the code
+`AGENT_TOOL_NOT_DELEGATED`, for your own checks. A level without `tools`
+delegates every tool, and `tools: []` delegates none. A read-only agent makes
+the run's `act` read-only too, so its tools can't write either.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  tools,
+  caller: { userId: session.userId, organizationId },
+  actor: session.actor,
+});
+```
+
 ## Model access
 
 `authorizeModel(modelId, context)` runs before every model call, with the

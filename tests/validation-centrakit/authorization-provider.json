@@ -1,0 +1,396 @@
+{
+  "apiVersion": 1,
+  "name": "centrakit-authz",
+  "scopes": [
+    {
+      "name": "organization",
+      "idType": "uuid"
+    },
+    {
+      "name": "project",
+      "idType": "uuid",
+      "parent": "organization"
+    }
+  ],
+  "tenantScope": "organization",
+  "functions": {
+    "idsWith": "centrakit.authz_{scope}_ids_with({permission})",
+    "idsWithFor": "centrakit.authz_{scope}_ids_with_for({user}, {permission})",
+    "isPlatform": "centrakit.authz_is_platform({permission})",
+    "isPlatformFor": "centrakit.authz_is_platform_for({user}, {permission})",
+    "memberIds": "centrakit.authz_{scope}_member_ids()",
+    "memberIdsFor": "centrakit.authz_{scope}_member_ids_for({user})",
+    "canAssign": "centrakit.authz_can_assign({tenant}, {role})",
+    "canAssignFor": "centrakit.authz_can_assign_for({user}, {tenant}, {role})",
+    "permissionsFor": "centrakit.authz_permissions_for({user}, {tenant})",
+    "holdersOf": "centrakit.authz_organization_users_with({permission}, {tenant})",
+    "actorMayWrite": "centrakit.authz_actor_may_write()"
+  },
+  "requires": [
+    {
+      "function": "centrakit.authz_organization_ids_with",
+      "args": "text",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_project_ids_with",
+      "args": "text",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_is_platform",
+      "args": "text",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_organization_member_ids",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_can_assign",
+      "args": "uuid, text",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_actor_may_write",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_organization_member_ids_for",
+      "args": "uuid",
+      "role": "supabase_auth_admin"
+    }
+  ],
+  "permissions": [
+    {
+      "key": "activity.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "api_keys.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "api_keys.own",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "attachments.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "attachments.read",
+      "sqlComplete": true,
+      "scopes": ["organization", "project"]
+    },
+    {
+      "key": "attachments.upload",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "audit.revert",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "audit.view",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "comments.create",
+      "sqlComplete": true,
+      "scopes": ["organization", "project"]
+    },
+    {
+      "key": "comments.moderate",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "comments.read",
+      "sqlComplete": true,
+      "scopes": ["organization", "project"]
+    },
+    {
+      "key": "crm.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "custom_fields.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "custom_fields.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "custom_fields.sensitive.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "deals.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "deals.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "deals.write",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "drive.create",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "drive.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "drive.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "imports.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "members.invite",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "members.remove",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "members.update_role",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "notifications.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "notifications.send",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "number_sequences.assign",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "organization.delete",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "organization.export",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "organization.transfer_ownership",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "organization.update",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "people.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "people.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "people.view-sensitive",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "pipelines.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "pipelines.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "platform.invite",
+      "sqlComplete": true
+    },
+    {
+      "key": "platform.users.manage",
+      "sqlComplete": true
+    },
+    {
+      "key": "reminders.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "reminders.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "settings.manage",
+      "sqlComplete": true
+    },
+    {
+      "key": "settings.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "settings.update",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "share_links.create",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "share_links.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "support.revoke",
+      "sqlComplete": true
+    },
+    {
+      "key": "tags.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "tags.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "teams.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "teams.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "webhook.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "webhook.view",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "work_items.manage",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "work_items.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
+      "key": "work_items.write",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    }
+  ],
+  "operations": {},
+  "memberships": [
+    {
+      "table": "centrakit.organization_users",
+      "userColumn": "user_id",
+      "scope": {
+        "value": "organization"
+      },
+      "idColumn": "organization_id"
+    },
+    {
+      "table": "centrakit.project_members",
+      "userColumn": "user_id",
+      "scope": {
+        "value": "project"
+      },
+      "idColumn": "project_id"
+    }
+  ],
+  "suspension": {
+    "user": {
+      "table": "centrakit.profiles",
+      "id": "user_id",
+      "disabledAt": "disabled_at"
+    },
+    "tenant": {
+      "table": "centrakit.organizations",
+      "id": "id",
+      "disabledAt": "disabled_at"
+    }
+  },
+  "roleSources": [
+    {
+      "table": "centrakit.organization_users",
+      "role": {
+        "column": "role_id",
+        "through": {
+          "table": "centrakit.roles",
+          "id": "id",
+          "column": "key"
+        }
+      }
+    }
+  ],
+  "decidingColumns": [
+    "centrakit.organization_users.role_id",
+    "centrakit.user_roles.role_id",
+    "centrakit.project_members.user_id",
+    "centrakit.organizations.disabled_at",
+    "centrakit.profiles.disabled_at"
+  ],
+  "delegation": {
+    "scopes": {}
+  }
+}

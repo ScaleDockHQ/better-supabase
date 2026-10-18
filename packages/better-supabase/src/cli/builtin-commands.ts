@@ -159,7 +159,7 @@ const BUILTIN: readonly (readonly [string, CliEntry])[] = [
     {
       load: () => import("./commands/codemod.ts").then((m) => m.codemodCommand),
       description:
-        "Rewrites imports and calls for renamed better-supabase APIs",
+        "Rewrites imports, calls and config keys for renamed better-supabase APIs",
     },
   ],
 ];

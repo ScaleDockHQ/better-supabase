@@ -8,14 +8,14 @@
  * snippet instead.
  */
 
-import { codeRanges } from "../codemod.ts";
+import { codeRanges } from "../code-ranges.ts";
 import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =
   | { readonly ok: true; readonly text: string }
   | { readonly ok: false; readonly reason: string };
 
-interface Property {
+export interface Property {
   /** The key, unquoted; undefined for a spread or a computed key. */
   readonly key: string | undefined;
   readonly start: number;
@@ -33,7 +33,7 @@ const IDENT = /^[A-Za-z_$][\w$]*$/;
  * contents become `x` between their quotes, comments become spaces. Indexes
  * stay the same, so a match in the mask is a position in `source`.
  */
-function mask(source: string): string {
+export function mask(source: string): string {
   const ranges = codeRanges(source);
   let out = "";
   let cursor = 0;
@@ -68,7 +68,7 @@ function mask(source: string): string {
 }
 
 /** The index of the bracket that closes the one at `open`. */
-function closingIndex(code: string, open: number): number {
+export function closingIndex(code: string, open: number): number {
   let depth = 0;
 
   for (let index = open; index < code.length; index += 1) {
@@ -94,7 +94,7 @@ function closingIndex(code: string, open: number): number {
   return -1;
 }
 
-const skipSpace = (code: string, from: number): number => {
+export const skipSpace = (code: string, from: number): number => {
   let index = from;
 
   while (index < code.length && /\s/.test(code[index]!)) {
@@ -139,7 +139,7 @@ function valueEnd(code: string, index: number): number {
 }
 
 /** The properties of the object literal whose `{` is at `open`. */
-function properties(
+export function properties(
   source: string,
   code: string,
   open: number,
@@ -203,7 +203,7 @@ function properties(
 }
 
 /** The `{` of the config object: `defineConfig({...})` or `export default {...}`. */
-function configObject(code: string): number | undefined {
+export function configObject(code: string): number | undefined {
   const call = /\bdefineConfig\s*(?:<[^>]*>)?\s*\(\s*\{/.exec(code);
 
   if (call) {
@@ -217,7 +217,7 @@ function configObject(code: string): number | undefined {
   return literal ? literal.index + literal[0].length - 1 : undefined;
 }
 
-const indentAt = (source: string, index: number): string =>
+export const indentAt = (source: string, index: number): string =>
   /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", index - 1) + 1))?.[0] ??
   "";
 

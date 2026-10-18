@@ -33,6 +33,7 @@ const NAMES: ModuleNames = {
   events: EVENTS,
   options: [
     "allowHttp",
+    "defaultFormat",
     "disableAfter",
     "eventIdType",
     "runIdType",
@@ -133,6 +134,34 @@ const NAMES: ModuleNames = {
   hooks: ["after_webhook_delivery"],
 };
 
+const FORMAT = /^[a-z][a-z0-9-]{0,39}$/;
+
+/** `blocks.webhooks-out.options.defaultFormat`, checked before it reaches SQL. */
+function defaultFormat(ctx: ModuleContext): string {
+  const format = ctx.text("defaultFormat", "cloudevents");
+
+  if (!FORMAT.test(format)) {
+    throw new TypeError(
+      `blocks.webhooks-out.options.defaultFormat "${format}" must match ${String(FORMAT)}`,
+    );
+  }
+
+  return format;
+}
+
+const formatColumn = (column: string, fallback: string): string =>
+  `text not null default '${fallback}' check (${column} ~ '^[a-z][a-z0-9-]{0,39}$')`;
+
+/**
+ * The column default follows `defaultFormat`; `add column` alone keeps the
+ * default of the table that first had the column.
+ */
+function formatDefault(ctx: ModuleContext, n: HookNames): string {
+  return n.has("endpoints", "format")
+    ? `alter table ${n.table("endpoints")} alter column ${n.col("endpoints", "format")} set default '${defaultFormat(ctx)}';\n`
+    : "";
+}
+
 /** `add column if not exists` for columns a table created by version 2 lacks. */
 function added(
   n: HookNames,
@@ -167,7 +196,7 @@ create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
 
   const scoped = n.clientAccess;
   const signingType = `text not null default 'v1' check (${d("signing")} in ('v1', 'v1a'))`;
-  const formatType = `text not null default 'cloudevents' check (${d("format")} ~ '^[a-z][a-z0-9-]{0,39}$')`;
+  const formatType = formatColumn(d("format"), defaultFormat(ctx));
   const credentialRefType = `jsonb check (${d("credentialRef")} is null or (jsonb_typeof(${d("credentialRef")}) = 'object' and ${d("credentialRef")} ? 'provider'))`;
 
   const urlCheck = n.allowHttp
@@ -210,7 +239,7 @@ ${added(n, "endpoints", [
   ["signing", signingType],
   ["format", formatType],
   ["credentialRef", credentialRefType],
-])}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
+])}${formatDefault(ctx, n)}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
 ${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
       ? `
@@ -377,7 +406,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const n = hookNames(ctx, layout);
 
   return [
-    `${schemaPreamble(ctx)}${tables(ctx, n)}`,
+    `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.manages ? "" : formatDefault(ctx, n)}`,
     reenable(ctx, n),
     vaultCleanup(ctx, n),
     functions(ctx, n),
@@ -456,8 +485,14 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
     {
       from: 3,
       description:
-        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (the credential whose token authenticates the request), and claim_webhook_deliveries returns them. purge_webhook_deliveries keeps deliveries for the data-lifecycle retention policy and skips those under a legal hold.",
-      sql: () => "",
+        "Endpoints get signing (v1 HMAC or v1a Ed25519), format (the encoder that writes the body) and credential_ref (the credential whose token authenticates the request), and claim_webhook_deliveries returns them. Existing endpoints get format 'standard', the 0.8 body, and new ones defaultFormat. purge_webhook_deliveries keeps deliveries for the data-lifecycle retention policy and skips those under a legal hold.",
+      sql: (ctx) => {
+        const n = hookNames(ctx);
+
+        return ctx.manages && n.has("endpoints", "format")
+          ? `alter table ${n.table("endpoints")} add column if not exists ${n.col("endpoints", "format")} ${formatColumn(n.col("endpoints", "format"), "standard")};`
+          : "";
+      },
     },
   ],
   build,

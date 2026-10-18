@@ -35,6 +35,7 @@
     "dist",
     "schemas",
     "skills",
+    "testing",
     "LICENSE",
     "README.md"
   ],
@@ -1396,6 +1397,7 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
+    "./testing/act-cases.json": "./testing/act-cases.json",
     "./expo-sqlite": {
       "@better-supabase/source": "./src/expo-sqlite/index.ts",
       "types": "./dist/expo-sqlite/index.d.ts",
@@ -2510,6 +2512,7 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
+      "./testing/act-cases.json": "./testing/act-cases.json",
       "./expo-sqlite": {
         "types": "./dist/expo-sqlite/index.d.ts",
         "default": "./dist/expo-sqlite/index.js"

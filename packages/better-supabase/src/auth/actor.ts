@@ -45,8 +45,13 @@ export type SessionActor =
   | {
       readonly kind: "agent";
       readonly id: string;
-      /** `act.tools`: the tools the run may call. */
-      readonly tools: readonly string[];
+      /**
+       * `act.tools`: the tools the run may call. Missing means every tool;
+       * `[]` means none.
+       */
+      readonly tools?: readonly string[];
+      /** `act.read_only`; an agent without it may write as the user. */
+      readonly readOnly: boolean;
       /** The full `act` level, with whoever acted before the agent. */
       readonly chain: ActClaim;
     };
@@ -127,6 +132,10 @@ function actorAt(
 
     const tools = outer["tools"];
 
+    if (readOnly !== undefined && typeof readOnly !== "boolean") {
+      return INVALID;
+    }
+
     if (
       tools !== undefined &&
       !(
@@ -142,7 +151,8 @@ function actorAt(
       actor: {
         kind: "agent",
         id,
-        tools: Array.isArray(tools) ? tools.filter(isString) : [],
+        ...(Array.isArray(tools) ? { tools: tools.filter(isString) } : {}),
+        readOnly: readOnly ?? false,
         chain: copyAct(outer),
       },
     };
@@ -163,7 +173,8 @@ function actorAt(
  * `act` that is not a chain of objects each with a non-empty `sub`, a
  * `kind` other than `support`, `impersonation` or `agent`, a support level
  * without a `session_id`, an agent level whose `tools` is not a list of
- * names, or a `session_id` without `kind` is `{ ok: false }`: the session must not pass as the user
+ * names, a non-boolean `read_only` on a support or agent level, or a
+ * `session_id` without `kind` is `{ ok: false }`: the session must not pass as the user
  * alone.
  */
 export function actorOf(
@@ -210,10 +221,13 @@ export function actorOf(
   return { ok: true };
 }
 
-/** `agentClaims(claims, { agent, tools })`: the agent that acts, and the tools it may call. */
+/** `agentClaims(claims, { agent, tools, readOnly })`: the agent that acts, and what it may do. */
 export interface AgentActOptions {
   readonly agent: string;
+  /** The tools the run may call. Leave it out for every tool; `[]` allows none. */
   readonly tools?: readonly string[];
+  /** Writes `read_only: true`, so `actor_may_write()` refuses the run's writes. */
+  readonly readOnly?: boolean;
 }
 
 /**
@@ -231,7 +245,8 @@ export function agentClaims<C extends Readonly<Record<string, unknown>>>(
   const act: ActClaim = {
     kind: "agent",
     sub: options.agent,
-    tools: [...(options.tools ?? [])],
+    ...(options.tools === undefined ? {} : { tools: [...options.tools] }),
+    ...(options.readOnly === undefined ? {} : { read_only: options.readOnly }),
     ...(isRecord(prior) ? { act: copyAct(prior) } : {}),
   };
 

@@ -4,7 +4,19 @@
  * is no parser dependency, so each transform is a narrow, mechanical rename.
  */
 
+import type { ConfigEdit } from "./sql/config-edit.ts";
+
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
+import { codeRanges } from "./code-ranges.ts";
+import { mask } from "./sql/config-edit.ts";
+import {
+  moveSqlModulesToBlocks,
+  moveSqlModulesToBlocksJson,
+} from "./sql/config-move.ts";
+
+/** `better-supabase.config.*`, the files a codemod's `configFile` edit applies to. */
+export const CONFIG_FILE: RegExp =
+  /(?:^|[\\/])better-supabase\.config\.(?:ts|mts|cts|js|mjs|cjs|json)$/;
 
 export interface Codemod {
   readonly name: string;
@@ -21,6 +33,8 @@ export interface Codemod {
   readonly strings?: Readonly<Record<string, string>>;
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
   readonly review?: readonly ReviewHint[];
+  /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
+  readonly configFile?: (source: string, json: boolean) => ConfigEdit;
 }
 
 export interface MemberRename {
@@ -189,7 +203,17 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.9": {
     name: "0.9",
     description:
-      "Changes from 0.8 to 0.9 change behaviour, not names: lists support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects, for review",
+      "Moves sql.modules to the top-level blocks key in better-supabase.config.*, renames the config types (ModulesConfig to BlocksConfig, ModuleConfig to BlockConfig, AccessModuleConfig to AccessBlockConfig, ModuleMode to BlockMode), and lists behaviour changes for review: support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects",
+    imports: {
+      ModulesConfig: "BlocksConfig",
+      ModuleConfig: "BlockConfig",
+      AccessModuleConfig: "AccessBlockConfig",
+      ModuleMode: "BlockMode",
+    },
+    configFile: (source, json) =>
+      json
+        ? moveSqlModulesToBlocksJson(source)
+        : moveSqlModulesToBlocks(source),
     review: [
       {
         pattern: /\bsupportSessions\s*\(/,
@@ -204,7 +228,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\bcreateWebhooks\s*\(/,
         message:
-          "Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) instead of `{ type, timestamp, data }`; a `transform` now returns only the event's `data`, and receivers read `data` from the CloudEvent",
+          "Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) instead of `{ type, timestamp, data }`; a `transform` now returns only the event's `data`, and receivers read `data` from the CloudEvent. `sql upgrade` keeps existing endpoints on `format = 'standard'` (the 0.8 body) until you set each one to `cloudevents`",
       },
       {
         pattern: /\bgatewayOptions\s*\(/,
@@ -271,59 +295,6 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     ],
   },
 };
-
-/** `[start, end)` ranges of code, outside strings, template literals and comments. */
-export function codeRanges(text: string): [number, number][] {
-  const ranges: [number, number][] = [];
-  let start = 0;
-  let index = 0;
-
-  const skip = (end: number): void => {
-    if (index > start) {
-      ranges.push([start, index]);
-    }
-
-    index = end;
-    start = end;
-  };
-
-  while (index < text.length) {
-    const char = text[index]!;
-    const next = text[index + 1];
-
-    if (char === "/" && next === "/") {
-      const end = text.indexOf("\n", index);
-      skip(end === -1 ? text.length : end);
-    } else if (char === "/" && next === "*") {
-      const end = text.indexOf("*/", index + 2);
-      skip(end === -1 ? text.length : end + 2);
-    } else if (char === '"' || char === "'" || char === "`") {
-      let end = index + 1;
-
-      while (end < text.length && text[end] !== char) {
-        if (text[end] === "\\") {
-          end += 1;
-        }
-
-        if (char !== "`" && text[end] === "\n") {
-          break;
-        }
-
-        end += 1;
-      }
-
-      skip(text[end] === char ? end + 1 : Math.min(end, text.length));
-    } else {
-      index += 1;
-    }
-  }
-
-  if (index > start) {
-    ranges.push([start, index]);
-  }
-
-  return ranges;
-}
 
 interface Edit {
   readonly start: number;
@@ -685,8 +656,46 @@ export interface CodemodResult {
 }
 
 /** Applies one codemod to a source file. */
-export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
+export function applyCodemod(
+  codemod: Codemod,
+  source: string,
+  file?: string,
+): CodemodResult {
   let text = source;
+  const refused: { line: number; message: string }[] = [];
+
+  if (codemod.configFile && file !== undefined && CONFIG_FILE.test(file)) {
+    const json = file.endsWith(".json");
+    const edit = codemod.configFile(source, json);
+
+    if (edit.ok) {
+      text = edit.text;
+      refused.push(
+        ...mask(text)
+          .split("\n")
+          .flatMap((line, index) =>
+            /\bmodules\s*:/.test(line)
+              ? [
+                  {
+                    line: index + 1,
+                    message:
+                      "`sql.modules` in an environment block moves to `blocks` too",
+                  },
+                ]
+              : [],
+          ),
+      );
+    } else {
+      refused.push({
+        line: 1,
+        message: `The config wasn't rewritten: ${edit.reason}`,
+      });
+    }
+
+    if (json) {
+      return { text, review: refused };
+    }
+  }
 
   if (codemod.imports) {
     const imported = renameImports(text, codemod.imports);
@@ -714,15 +723,18 @@ export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
     text = renameStrings(text, codemod.strings);
   }
 
-  const review = (codemod.review ?? []).flatMap((hint) =>
-    text
-      .split("\n")
-      .flatMap((line, index) =>
-        hint.pattern.test(line)
-          ? [{ line: index + 1, message: hint.message }]
-          : [],
-      ),
-  );
+  const review = [
+    ...refused,
+    ...(codemod.review ?? []).flatMap((hint) =>
+      text
+        .split("\n")
+        .flatMap((line, index) =>
+          hint.pattern.test(line)
+            ? [{ line: index + 1, message: hint.message }]
+            : [],
+        ),
+    ),
+  ];
 
   return { text, review };
 }

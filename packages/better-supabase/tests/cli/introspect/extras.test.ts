@@ -228,6 +228,10 @@ const catalog = (present: { buckets?: boolean } = {}) =>
       ],
     ],
     [
+      "~ '@notNull'",
+      [{ key: "public.pure(x int)", comment: "Always a value. @notNull" }],
+    ],
+    [
       "from pg_proc p",
       [
         {
@@ -418,6 +422,9 @@ describe("readExtras", () => {
       },
     ]);
     expect(extras).not.toHaveProperty("hooks");
+    expect(extras.functionComments).toEqual({
+      "public.pure(x int)": "Always a value. @notNull",
+    });
   });
 
   it("skips service tables that do not exist", async () => {

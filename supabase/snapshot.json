@@ -27860,8 +27860,8 @@
         "schema": "better_supabase",
         "name": "actor_may_write",
         "language": "sql",
-        "definition": "\n  select case\n    when auth.jwt() is null then true\n    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true\n    when auth.jwt() -> 'act' ->> 'kind' = 'agent'\n      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'\n    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false\n    when auth.jwt() -> 'act' ->> 'session_id' is not null\n      and auth.jwt() -> 'act' ->> 'kind' is null then false\n    else true\n  end\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.actor_may_write()\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select case\n    when auth.jwt() is null then true\n    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true\n    when auth.jwt() -> 'act' ->> 'kind' = 'agent'\n      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'\n    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false\n    when auth.jwt() -> 'act' ->> 'session_id' is not null\n      and auth.jwt() -> 'act' ->> 'kind' is null then false\n    else true\n  end\n$function$\n",
+        "definition": "\n  select case\n    when auth.jwt() is null then true\n    when auth.jwt() -> 'act' ->> 'kind' = 'support'\n      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)\n    when auth.jwt() -> 'act' ->> 'kind' = 'agent'\n      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb\n    when auth.jwt() -> 'act' ->> 'kind' is not null then false\n    when auth.jwt() -> 'act' ->> 'session_id' is not null\n      and auth.jwt() -> 'act' ->> 'kind' is null then false\n    else true\n  end\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.actor_may_write()\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select case\n    when auth.jwt() is null then true\n    when auth.jwt() -> 'act' ->> 'kind' = 'support'\n      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)\n    when auth.jwt() -> 'act' ->> 'kind' = 'agent'\n      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb\n    when auth.jwt() -> 'act' ->> 'kind' is not null then false\n    when auth.jwt() -> 'act' ->> 'session_id' is not null\n      and auth.jwt() -> 'act' ->> 'kind' is null then false\n    else true\n  end\n$function$\n",
         "args": [],
         "argument_types": "",
         "identity_argument_types": "",
@@ -54033,7 +54033,8 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.broadcast_announcement"
+            "function": "better_supabase.broadcast_announcement",
+            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('id', coalesce(new.\"id\", old.\"id\"), 'operation', lower(tg_op)),\n      'announcement_changed',\n      'announcements',\n      true\n    );\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -55617,7 +55618,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -55903,7 +55907,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.inbox_read_broadcast"
+            "function": "better_supabase.inbox_read_broadcast",
+            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (\n    select 1 from \"better_supabase\".\"conversations\" v join \"better_supabase\".\"contacts\" c on c.\"id\" = v.\"contact_id\"\n    where v.\"id\" = new.\"conversation_id\" and c.\"user_id\" = new.\"user_id\"\n  ) then\n    perform realtime.send(jsonb_build_object('conversation_id', new.\"conversation_id\"), 'read', 'inbox:' || new.\"conversation_id\"::text, true);\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -56083,7 +56088,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           },
           {
             "name": "conversations_broadcast",
@@ -56093,7 +56101,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.inbox_conversation_broadcast"
+            "function": "better_supabase.inbox_conversation_broadcast",
+            "source": "\ndeclare\n  v_payload jsonb := jsonb_build_object('conversation_id', new.\"id\");\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(v_payload, 'conversation', 'inbox:' || new.\"id\"::text, true);\n    perform realtime.send(v_payload, 'conversation', 'inbox:org:' || new.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -56697,7 +56706,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.inbox_message_broadcast"
+            "function": "better_supabase.inbox_message_broadcast",
+            "source": "\ndeclare\n  v_payload jsonb := jsonb_build_object('conversation_id', new.\"conversation_id\", 'message_id', new.\"id\", 'kind', new.\"kind\");\n  v_event text := case when tg_op = 'INSERT' then 'message' else 'message_updated' end;\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    if new.\"kind\" = 'message' then\n      perform realtime.send(v_payload, v_event, 'inbox:' || new.\"conversation_id\"::text, true);\n    end if;\n    perform realtime.send(v_payload, v_event, 'inbox:org:' || new.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -56808,7 +56818,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -56958,7 +56971,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -57594,7 +57610,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           },
           {
             "name": "message_deliveries_broadcast",
@@ -57604,7 +57623,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.inbox_delivery_broadcast"
+            "function": "better_supabase.inbox_delivery_broadcast",
+            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('conversation_id', m.\"conversation_id\", 'message_id', new.\"message_id\", 'status', new.\"status\"),\n      'delivery',\n      'inbox:org:' || new.\"tenant_id\"::text,\n      true\n    )\n    from \"better_supabase\".\"inbox_messages\" m where m.\"id\" = new.\"message_id\";\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -57725,7 +57745,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -58335,7 +58358,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -58488,7 +58514,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.broadcast_notification"
+            "function": "better_supabase.broadcast_notification",
+            "source": "\nbegin\n  perform realtime.send(\n    jsonb_build_object('id', new.\"id\", 'event_id', new.\"event_id\", 'operation', lower(tg_op), 'tenant', new.\"organization_id\"),\n    case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,\n    'notifications:' || new.\"user_id\"::text,\n    true\n  );\n  return null;\nend;\n"
           },
           {
             "name": "bs_notification_broadcast_update",
@@ -58497,7 +58524,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.broadcast_notification"
+            "function": "better_supabase.broadcast_notification",
+            "source": "\nbegin\n  perform realtime.send(\n    jsonb_build_object('id', new.\"id\", 'event_id', new.\"event_id\", 'operation', lower(tg_op), 'tenant', new.\"organization_id\"),\n    case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,\n    'notifications:' || new.\"user_id\"::text,\n    true\n  );\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -58686,7 +58714,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.set_updated_at"
+            "function": "better_supabase.set_updated_at",
+            "args": [
+              "updated_at"
+            ]
           }
         ],
         "grants": [
@@ -61502,7 +61533,8 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.workflow_runs_changed"
+            "function": "better_supabase.workflow_runs_changed",
+            "source": "\nbegin\n  if tg_op = 'UPDATE' and old.\"status\" = new.\"status\" then\n    return null;\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-run:' || new.\"id\"::text, true);\n    if new.\"tenant_id\" is not null then\n      perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-runs:' || new.\"tenant_id\"::text, true);\n    end if;\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -62596,7 +62628,11 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.search_index_row"
+            "function": "better_supabase.search_index_row",
+            "args": [
+              "customer",
+              "id"
+            ]
           },
           {
             "name": "customers_set_updated_at",

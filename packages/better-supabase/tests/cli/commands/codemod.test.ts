@@ -91,4 +91,18 @@ describe("runCodemod", () => {
       "Nothing to change in 0 files.",
     );
   });
+
+  it("moves sql.modules in a JSON config with 0.9", async () => {
+    const path = join(root, "better-supabase.config.json");
+    await writeFile(path, `{ "sql": { "modules": ["tenant"] } }\n`);
+    await writeFile(join(root, "other.json"), `{ "sql": { "modules": [] } }\n`);
+
+    const done = await codemod(["0.9"]);
+    expect(done.data).toMatchObject({
+      changed: ["better-supabase.config.json"],
+    });
+    expect(JSON.parse(await readFile(path, "utf-8"))).toEqual({
+      blocks: ["tenant"],
+    });
+  });
 });

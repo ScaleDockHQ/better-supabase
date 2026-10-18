@@ -6,7 +6,8 @@ description: What to change when upgrading to better-supabase 0.9, which routes 
 0.9 closes places where work ran with more rights than the caller had: jobs
 queued by an OAuth client, published workflows, support sessions and fan-out
 to subscribers. Most changes are behaviour, not names, so
-`better-supabase codemod 0.9` rewrites nothing and lists each call to review:
+`better-supabase codemod 0.9` moves the one renamed config key, renames the
+config types, and lists each call to review:
 
 ```bash
 pnpm better-supabase codemod 0.9 --dry-run
@@ -20,6 +21,29 @@ the agent actor. Beyond that, `access`, `tenant`, `subjects`, `support-sessions`
 `state-machine`, `comments`, `workflows`, `workflow-sdk-world` and
 `saved-views` changed, and `identities`, `service-principals` and `templates`
 are new.
+
+## Config key
+
+Blocks moved out of `sql` to a top-level `blocks` key. A config that still
+sets `sql.modules` fails to load with `config_invalid` and
+``sql.modules: moved to the top-level `blocks` key in 0.9``. The codemod
+moves the key in `better-supabase.config.ts` (or `.mts`, `.js`, `.mjs`,
+`.json`), with its comments, and drops `sql` when nothing else is left in it:
+
+```ts title="better-supabase.config.ts"
+// 0.8
+sql: { dir: "supabase/schemas", modules: { tenant: true, access: { model: "roles" } } },
+
+// 0.9
+sql: { dir: "supabase/schemas" },
+blocks: { tenant: true, access: { model: "roles" } },
+```
+
+It also renames the config types: `ModulesConfig` to `BlocksConfig`,
+`ModuleConfig` to `BlockConfig`, `AccessModuleConfig` to `AccessBlockConfig`
+and `ModuleMode` to `BlockMode`. A config that sets both `sql.modules` and
+`blocks`, keeps `sql.modules` in an environment block, or builds `sql` in
+another module is listed for review: move the entries into `blocks` by hand.
 
 ## Access model
 
@@ -180,6 +204,18 @@ and `id` from the CloudEvent. `publish_webhook_event` takes `subject` and
 `read_permission`, and delivers only to endpoints whose owner may read the
 event. See [Outgoing webhooks](/docs/blocks/webhooks-out).
 
+`sql upgrade` keeps endpoints created before 0.9 on the 0.8 body: they get
+`format = 'standard'`, and new endpoints get `cloudevents`
+(`blocks.webhooks-out.options.defaultFormat`). Move each endpoint to
+`cloudevents` once its receiver reads CloudEvents:
+
+```sql
+update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $1;
+```
+
+An adopted endpoints table keeps its own column. When it doesn't map
+`format`, or a row holds `null`, deliveries use `defaultFormat`.
+
 Generic problems use `type: "about:blank"` and the HTTP status phrase as
 `title`:
 
@@ -224,15 +260,48 @@ See [Realtime](/docs/platform/realtime) and
 
 ## Agent actors
 
-An RFC 8693 `act` level may now be `{ kind: "agent", sub, tools }`, which
-`agentClaims(claims, { agent, tools })` from `better-supabase/server` builds.
-In 0.8 an unknown `kind` made the chain invalid. An agent writes with the
-user's row level security unless its level sets `read_only: true`, and a
-token that carries a `scope` limits it like an OAuth client. Pass
-`agentClaims(claims, run.act)` to `asUser` or `forContext` in agent tools so
-the audit log names the agent. A level with `kind: "agent"` whose `tools` is
-not a list of names is refused. See
+An RFC 8693 `act` level may now be `{ kind: "agent", sub, tools, read_only }`,
+which `agentClaims(claims, { agent, tools, readOnly })` from
+`better-supabase/server` builds. In 0.8 an unknown `kind` made the chain
+invalid. An agent writes with the user's row level security unless its
+level sets `read_only: true`, and a token that carries a `scope` limits it
+like an OAuth client. Pass `agentClaims(claims, run.act)` to `asUser` or
+`forContext` in agent tools so the audit log names the agent. A level with
+`kind: "agent"` whose `tools` is not a list of names, or whose `read_only`
+isn't a boolean, is refused. A level without `tools` delegates every tool and
+`tools: []` none; `createAgentRuntime({ actor })` refuses a tool the actor
+wasn't delegated with `AGENT_TOOL_NOT_DELEGATED`. See
 [Impersonation](/docs/auth/impersonation).
+
+`actor_may_write()` now decides by `kind` first. An impersonation token is
+read-only even with `read_only: false`, which 0.8 let write; use the
+provider's `authorization.functions.actorMayWrite` template to allow those
+writes. An unknown `kind`, or a `read_only` that is a string, can't write.
+
+## Realtime triggers
+
+Topic triggers no longer send the whole row. The default message is
+`{ operation, schema, table, id, values }`: the primary key and the topic
+values. A 0.8 trigger sent every column to every subscriber of the topic,
+including columns their grants hide.
+
+- `triggerSql(betterSupabase, table, options)` is deprecated. Call
+  `trigger(table, { ...options, betterSupabase })`, which takes the same
+  options plus `topics` for fan-out. The alias stays for 0.9.
+- Subscribers that read the row with `rowChange` switch to `rowKeys` and
+  refetch the row through the Data API, so policies and column grants apply.
+- A table whose subscribers need the whole row passes `payload: "row"`, or
+  `payload: "row"` in its `realtime.triggers` entry. Read
+  [Row changes](/docs/platform/realtime#row-changes) first: it bypasses column
+  grants.
+- A topic value with characters topics don't allow now raises a warning and
+  skips that send instead of failing the write.
+- `broadcast_topic()` refuses to run as a `before` trigger.
+
+Regenerate the triggers (`sql sync` for `realtime.triggers`, or rerun the
+code that writes them) and create a migration. Doctor reports trigger
+functions that still send whole rows without the opt-in
+([BS337](/docs/cli/doctor#bs337)).
 
 ## Blocks
 

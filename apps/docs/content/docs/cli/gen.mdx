@@ -274,6 +274,19 @@ extra round trips:
   `returns table` columns (database names) that are never null. `gen` fails
   on a function or column it can't find.
 
+  You can also keep the promise next to the SQL. `gen` reads an `@notNull`
+  tag from the function's comment, and `@notNull(a, b)` names the columns:
+
+  ```sql
+  comment on function public.customer_note_counts(uuid[])
+    is 'Notes per customer. @notNull(customer_id, note_count)';
+  ```
+
+  A config entry for the same function wins over its tag, and a tag that names
+  a column the function doesn't return fails `gen` the same way. Doctor's
+  [BS338](/docs/cli/doctor#bs338) lists the config entries a tag could
+  replace.
+
 ## Documentation in the validators
 
 The `zod()`, `valibot()`, `jsonSchema()` and `standardSchema()` generators carry what the

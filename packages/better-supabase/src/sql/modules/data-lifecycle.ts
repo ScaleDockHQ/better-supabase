@@ -34,6 +34,7 @@ import {
   RETENTION_TABLES,
   retentionSql,
 } from "./data-lifecycle-retention.ts";
+import { omitPatternOf, withOmitPattern } from "./data-lifecycle-secrets.ts";
 
 const NAMES: ModuleNames = {
   events: DATA_LIFECYCLE_EVENTS,
@@ -45,6 +46,7 @@ const NAMES: ModuleNames = {
     "autoTables",
     "tenantRow",
     "anonymize",
+    "omitPattern",
   ],
   hooks: ["on_organization_purge"],
   tables: {
@@ -130,9 +132,16 @@ function build(ctx: ModuleContext): string {
 
   const autoBody = auto ? autoTablesSql(auto, list) : "";
 
-  const tablesBody = autoBody
+  const listedBody = autoBody
     ? `${explicitBody}\n  union all${autoBody}`
     : explicitBody;
+
+  const omitPattern = omitPatternOf(ctx);
+
+  const tablesBody =
+    omitPattern === undefined
+      ? listedBody
+      : withOmitPattern(listedBody, omitPattern);
 
   const exportEvent = (type: string, extra = "", retried = false): string =>
     ctx.record({
@@ -283,7 +292,7 @@ drop function if exists ${fn("data_lifecycle_tables")}();
 create or replace function ${fn("data_lifecycle_tables")}()
 returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
-${auto ? "stable" : "immutable"}
+${auto || omitPattern !== undefined ? "stable" : "immutable"}
 set search_path = ''
 as $$
   ${tablesBody}

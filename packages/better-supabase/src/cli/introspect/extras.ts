@@ -147,7 +147,14 @@ select t.tgrelid::int8 as table_id, t.tgname as name,
     case when t.tgtype & 8 = 8 then 'delete' end,
     case when t.tgtype & 32 = 32 then 'truncate' end
   ], null)::text[] as events,
-  case when t.tgtype & 1 = 1 then 'row' else 'statement' end as level
+  case when t.tgtype & 1 = 1 then 'row' else 'statement' end as level,
+  case when t.tgnargs > 0 then array(
+    select replace(a, '\\\\', '\\') from unnest(string_to_array(left(encode(t.tgargs, 'escape'), -4), '\\000')) with ordinality as x(a, i) order by i
+  ) end as args,
+  case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
+    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then p.prosrc end as source,
+  case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
+    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then obj_description(p.oid, 'pg_proc') end as comment
 from pg_trigger t
 join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
@@ -210,6 +217,15 @@ join pg_catalog.pg_roles r on r.oid = s.setrole
 where r.rolname in ('authenticator', 'anon', 'authenticated')
   and s.setdatabase in (0, (select oid from pg_catalog.pg_database where datname = current_database()))
 order by s.setdatabase`;
+
+// Only comments with a gen tag, so snapshots of untagged schemas don't change.
+const FUNCTION_COMMENTS = (schemas: string) => `
+select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as key,
+  obj_description(p.oid, 'pg_proc') as comment
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = any(${schemas}) and obj_description(p.oid, 'pg_proc') ~ '@notNull'
+order by 1`;
 
 const HAS_TABLE = (qualified: string) =>
   `select to_regclass('${qualified}') is not null as present`;
@@ -353,6 +369,9 @@ interface TriggerRow {
   timing: CatalogTrigger["timing"];
   events: CatalogTrigger["events"][number][];
   level: CatalogTrigger["level"];
+  args: string[] | null;
+  source: string | null;
+  comment: string | null;
 }
 
 interface GrantRow {
@@ -432,6 +451,7 @@ export async function readExtras(
     functions,
     roleRows,
     hookRows,
+    commentRows,
   ] = await Promise.all([
     rows<{
       id: number | string;
@@ -450,6 +470,7 @@ export async function readExtras(
     rows<ExtrasFunctionRow>(db, FUNCTIONS(list)),
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
     hooks.length > 0 ? readHooks(db, hooks) : undefined,
+    rows<{ key: string; comment: string }>(db, FUNCTION_COMMENTS(list)),
   ]);
 
   const constraints = groupById(constraintRows);
@@ -526,6 +547,9 @@ export async function readExtras(
         events: trigger.events,
         level: trigger.level,
         function: trigger.function,
+        ...(trigger.args === null ? {} : { args: trigger.args }),
+        ...(trigger.source === null ? {} : { source: trigger.source }),
+        ...(trigger.comment === null ? {} : { comment: trigger.comment }),
       })),
       grants: (grants.get(id) ?? []).map((grant) => ({
         role: grant.role,
@@ -558,5 +582,12 @@ export async function readExtras(
       execute: row.execute,
     })),
     ...(hookRows ? { hooks: hookRows } : {}),
+    ...(commentRows.length > 0
+      ? {
+          functionComments: Object.fromEntries(
+            commentRows.map((row) => [row.key, row.comment]),
+          ),
+        }
+      : {}),
   };
 }

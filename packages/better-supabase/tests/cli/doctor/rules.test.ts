@@ -1859,6 +1859,310 @@ describe("tables without the session policy (BS320)", () => {
   });
 });
 
+describe("functions.notNull entries a tag could replace (BS338)", () => {
+  const tagged = (comments: Record<string, string>) =>
+    snapshot((_tables, catalog) => {
+      catalog.functions = catalog.functions.map((fn) =>
+        comments[fn.name] === undefined
+          ? fn
+          : { ...fn, comment: comments[fn.name]! },
+      );
+    });
+
+  it("suggests the tag, and reports entries that match or differ from it", async () => {
+    const config = {
+      functions: {
+        customer_note_counts: { notNull: ["customer_id", "note_count"] },
+        rs_workspace_summary: { notNull: true as const },
+      },
+    };
+
+    const untagged = await run("BS338", context(tagged({}), {}, config));
+
+    expect(untagged.map((finding) => finding.severity)).toEqual([
+      "info",
+      "info",
+    ]);
+    expect(untagged[0]!.message).toContain(
+      "add `@notNull(customer_id, note_count)` to the comment on public.customer_note_counts(p_customer_ids uuid[])",
+    );
+
+    const findings = await run(
+      "BS338",
+      context(
+        tagged({
+          customer_note_counts: "Counts. @notNull(note_count, customer_id)",
+          rs_workspace_summary: "@notNull(id)",
+        }),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining(
+        "matches the @notNull(customer_id, note_count) tag",
+      ),
+      expect.stringContaining("differs from the @notNull(id) tag"),
+    ]);
+    expect(await run("BS338", context(tagged({}), {}, {}))).toEqual([]);
+  });
+});
+
+describe("expose exclusions of missing columns (BS339)", () => {
+  it("reports an excluded column the table doesn't have", async () => {
+    const findings = await run(
+      "BS339",
+      context(
+        base,
+        {},
+        {
+          expose: {
+            notes: {
+              authenticated: ["select(*, -body, -token_hash)"],
+              anon: ["select(*, -token_hash)"],
+            },
+          },
+        },
+      ),
+    );
+
+    expect(findings).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.notes.token_hash",
+        message: expect.stringContaining('Remove "-token_hash"'),
+      },
+    ]);
+    expect(
+      await run(
+        "BS339",
+        context(base, {}, { expose: { gone: ["select(*, -x)"] } }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
+  const tenantSnapshot = (trigger: boolean) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const tags = table(tables, "tags");
+      const tenant = { ...notes.columns[0]!, name: "organization_id" };
+
+      for (const entry of [notes, tags]) {
+        entry.columns = [
+          ...entry.columns.filter(
+            (column) => column.name !== "organization_id",
+          ),
+          tenant,
+        ];
+      }
+
+      notes.columns = [...notes.columns, { ...tenant, name: "tag_id" }];
+      notes.foreignKeys = [
+        {
+          name: "notes_tag_id_fkey",
+          columns: ["tag_id"],
+          refSchema: "public",
+          refTable: "tags",
+          refColumns: ["id"],
+          oneToOne: false,
+          onDelete: "no action",
+          onUpdate: "no action",
+        },
+      ];
+      notes.triggers = trigger
+        ? [
+            {
+              name: "bs_same_tenant_tag_id",
+              timing: "before",
+              events: ["insert", "update"],
+              level: "row",
+              function: "better_supabase.same_tenant",
+            },
+          ]
+        : [];
+    });
+
+  const notes = (findings: readonly { readonly target?: string }[]) =>
+    findings.filter((finding) => finding.target === "public.notes.tag_id");
+
+  it("lists a key between two tenant tables without the trigger", async () => {
+    const findings = await run(
+      "BS340",
+      context(tenantSnapshot(false), {}, { blocks: ["tenant"] }),
+    );
+
+    expect(notes(findings)).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining(
+          "public.notes.tag_id references public.tags, and both have organization_id",
+        ),
+      },
+    ]);
+  });
+
+  it("passes with the trigger, or without the tenant block", async () => {
+    expect(
+      notes(
+        await run(
+          "BS340",
+          context(tenantSnapshot(true), {}, { blocks: ["tenant"] }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS340", context(tenantSnapshot(false)))).toEqual([]);
+  });
+});
+
+describe("secret columns in data exports (BS341)", () => {
+  const secrets = snapshot((tables) => {
+    for (const name of ["notes", "tags"]) {
+      const entry = table(tables, name);
+      const text = { ...entry.columns[0]!, udt: "text", type: "text" };
+
+      entry.columns = [
+        ...entry.columns.filter((column) => column.name !== "organization_id"),
+        { ...text, name: "organization_id" },
+        { ...text, name: "api_key" },
+        { ...text, name: "Password" },
+      ];
+    }
+  });
+
+  const lifecycle = (options: Readonly<Record<string, unknown>>) =>
+    context(secrets, {}, { blocks: { "data-lifecycle": { options } } });
+
+  const targets = (findings: readonly { readonly target?: string }[]) =>
+    findings
+      .map((finding) => finding.target)
+      .filter((target) => /^public\.(notes|tags)\./.test(target ?? ""));
+
+  it("reports secret-looking columns of listed and auto tables", async () => {
+    const findings = await run(
+      "BS341",
+      lifecycle({
+        tables: { notes: { tenant: "organization_id", omit: ["api_key"] } },
+        autoTables: { schemas: ["public"] },
+      }),
+    );
+
+    expect(targets(findings)).toEqual([
+      "public.notes.Password",
+      "public.tags.api_key",
+      "public.tags.Password",
+    ]);
+    expect(findings[0]).toMatchObject({ severity: "warning" });
+  });
+
+  it("passes with omitPattern, an excluded table, or no export", async () => {
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({ autoTables: { schemas: ["public"] }, omitPattern: true }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({
+            tables: { notes: { tenant: "organization_id", export: false } },
+            autoTables: { schemas: ["public"], exclude: ["public.tags"] },
+          }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS341", context(secrets))).toEqual([]);
+  });
+
+  it("checks listed tables without autoTables and skips tables the snapshot lacks", async () => {
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({
+            tables: {
+              tags: { tenant: "organization_id" },
+              gone: { tenant: "organization_id" },
+            },
+            omitPattern: "(",
+          }),
+        ),
+      ),
+    ).toEqual(["public.tags.api_key", "public.tags.Password"]);
+  });
+});
+
+describe("whole-row broadcast triggers (BS337)", () => {
+  const trigger = (source: string, comment?: string) => ({
+    name: "bs_broadcast_org_notes",
+    timing: "after" as const,
+    events: ["insert" as const],
+    level: "row" as const,
+    function: "better_supabase.bs_broadcast_org_notes",
+    source,
+    ...(comment === undefined ? {} : { comment }),
+  });
+
+  it("reports broadcast_changes with new and old, and old_record sends", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        trigger(
+          "begin perform realtime.broadcast_changes(topic, tg_op, tg_op, tg_table_name, tg_table_schema, new, old); return null; end;",
+        ),
+      ];
+      table(tables, "tags").triggers = [
+        {
+          ...trigger(
+            "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
+          ),
+          name: "bs_broadcast_tags",
+        },
+      ];
+    });
+
+    expect(await run("BS337", context(snap))).toMatchObject([
+      {
+        target: "public.notes.bs_broadcast_org_notes",
+        message: expect.stringContaining('pass `payload: "row"`'),
+      },
+      { target: "public.tags.bs_broadcast_tags" },
+    ]);
+  });
+
+  it("passes key payloads, marked row payloads and commented-out calls", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        trigger(
+          "begin perform realtime.send(jsonb_build_object('id', 1, 'values', vals), tg_op, 't', true); end;",
+        ),
+        trigger(
+          "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
+          "better-supabase: payload row",
+        ),
+        trigger(
+          "begin\n-- realtime.broadcast_changes(topic, tg_op, tg_op, t, s, new, old)\nreturn null; end;",
+        ),
+        {
+          name: "bs_broadcast_topic",
+          timing: "after",
+          events: ["insert"],
+          level: "row",
+          function: "better_supabase.broadcast_topic",
+          args: ["t:{id}", "", "", "row"],
+        },
+      ];
+    });
+
+    expect(await run("BS337", context(snap))).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {
@@ -2249,7 +2553,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
-      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;",
+      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
       "supabase/schemas/900_better_supabase_07_jobs.sql",
     );
 

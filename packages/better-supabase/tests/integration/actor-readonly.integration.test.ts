@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { actCases } from "../../src/testing/act-cases.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -31,6 +32,34 @@ describe.skipIf(!live)("read-only actors", () => {
       expect(await may({ kind: "impersonation" })).toBe(false);
       expect(await may({ session_id: crypto.randomUUID() })).toBe(false);
       expect(await may({ kind: "support", read_only: false })).toBe(true);
+    } finally {
+      await session.close();
+    }
+  });
+
+  it("answers every act-cases.json case with its mayWrite", async () => {
+    const session = await BlockSession.open(pool);
+
+    try {
+      await session.install(["actor"]);
+
+      const answers: Record<string, boolean> = {};
+
+      for (const { name, claims } of actCases.cases) {
+        await session.as(
+          { id: crypto.randomUUID(), email: "case@example.test" },
+          claims,
+        );
+        answers[name] = await session.value<boolean>(
+          "better_supabase.actor_may_write()",
+        );
+      }
+
+      expect(answers).toEqual(
+        Object.fromEntries(
+          actCases.cases.map(({ name, mayWrite }) => [name, mayWrite]),
+        ),
+      );
     } finally {
       await session.close();
     }

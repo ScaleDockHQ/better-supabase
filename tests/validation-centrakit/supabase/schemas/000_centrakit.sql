@@ -2,7 +2,9 @@
 -- supabase/schemas (tenant, identity, platform and automation). They live in
 -- a `centrakit` schema here so the tests can create them next to the repo's
 -- fixture; CentraKit itself keeps them in `public`. Columns no block reads are
--- trimmed, and the type and subject check lists are shortened.
+-- trimmed, and the type and subject check lists are shortened. Permissions
+-- belong to the authorization provider (authorization-provider.json); the
+-- functions behind its templates are at the end of this file.
 
 create extension if not exists citext with schema extensions;
 create schema centrakit;
@@ -21,38 +23,16 @@ create table centrakit.organizations (
   default_currency text not null default 'EUR'
 );
 
+-- Organization and system roles. Which permissions a role grants is the
+-- authorization provider's, compiled into centrakit.authz_role_grants().
 create table centrakit.roles (
   id uuid primary key default gen_random_uuid(),
   scope centrakit.scope_type not null,
   key text not null,
   name text not null,
   system boolean not null default false,
-  organization_id uuid references centrakit.organizations(id) on delete cascade,
-  created_at timestamptz not null default (now() at time zone 'utc')
-);
-
-create table centrakit.permissions (
-  id uuid primary key default gen_random_uuid(),
-  scope centrakit.scope_type not null,
-  key text not null unique,
-  name text not null,
-  created_at timestamptz not null default (now() at time zone 'utc')
-);
-
-create table centrakit.role_permissions (
-  role_id uuid not null references centrakit.roles(id) on delete cascade,
-  permission_id uuid not null references centrakit.permissions(id) on delete cascade,
-  primary key (role_id, permission_id)
-);
-
-create table centrakit.organization_permission_overrides (
-  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
-  role_id uuid not null references centrakit.roles(id) on delete cascade,
-  permission_id uuid not null references centrakit.permissions(id) on delete cascade,
-  granted boolean not null,
   created_at timestamptz not null default (now() at time zone 'utc'),
-  updated_at timestamptz not null default (now() at time zone 'utc'),
-  primary key (organization_id, role_id, permission_id)
+  unique (scope, key)
 );
 
 create table centrakit.user_roles (
@@ -187,7 +167,7 @@ create table centrakit.notification_events (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default (now() at time zone 'utc'),
   check (type in ('task.assigned', 'task.comment', 'approval.requested', 'invoice.paid')),
-  check (subject_type in ('task', 'invoice', 'approval')),
+  check (subject_type in ('task', 'invoice', 'approval', 'project', 'customer')),
   check (priority in ('low', 'normal', 'high', 'urgent'))
 );
 
@@ -219,7 +199,7 @@ create table centrakit.notification_subscriptions (
   foreign key (user_id, organization_id)
     references centrakit.organization_users(user_id, organization_id)
     on delete cascade,
-  check (subject_type in ('task', 'invoice', 'approval')),
+  check (subject_type in ('task', 'invoice', 'approval', 'project', 'customer')),
   check (level in ('participating', 'all', 'ignore'))
 );
 
@@ -587,19 +567,131 @@ create table centrakit.file_node_grant (
   check ((user_id is null) <> (team_id is null))
 );
 
-do $$
-declare
-  t text;
-begin
-  for t in select tablename from pg_tables where schemaname = 'centrakit' loop
-    execute format('alter table centrakit.%I enable row level security', t);
-  end loop;
-end;
-$$;
-
 grant usage on schema centrakit to anon, authenticated, service_role;
-grant all on all tables in schema centrakit to service_role;
-grant select on all tables in schema centrakit to authenticated;
+
+-- Every table is RLS-protected; members read through the block policies and
+-- CentraKit's own (990_centrakit_policies.sql).
+alter table centrakit.organizations enable row level security;
+alter table centrakit.roles enable row level security;
+alter table centrakit.user_roles enable row level security;
+alter table centrakit.organization_users enable row level security;
+alter table centrakit.organization_invitations enable row level security;
+alter table centrakit.profiles enable row level security;
+alter table centrakit.contact_profiles enable row level security;
+alter table centrakit.audit_logs enable row level security;
+alter table centrakit.audit_log_restricted_details enable row level security;
+alter table centrakit.workflow_events enable row level security;
+alter table centrakit.workflow_runs enable row level security;
+alter table centrakit.notification_events enable row level security;
+alter table centrakit.notification_recipients enable row level security;
+alter table centrakit.notification_subscriptions enable row level security;
+alter table centrakit.notification_preferences enable row level security;
+alter table centrakit.notification_deliveries enable row level security;
+alter table centrakit.webhook_destinations enable row level security;
+alter table centrakit.webhook_destination_secrets enable row level security;
+alter table centrakit.webhook_deliveries enable row level security;
+alter table centrakit.integration_credentials enable row level security;
+alter table centrakit.inbound_webhooks enable row level security;
+alter table centrakit.inbound_webhook_events enable row level security;
+alter table centrakit.organization_number_sequences enable row level security;
+alter table centrakit.teams enable row level security;
+alter table centrakit.team_members enable row level security;
+alter table centrakit.organization_tags enable row level security;
+alter table centrakit.task_tags enable row level security;
+alter table centrakit.status_history enable row level security;
+alter table centrakit.field_definitions enable row level security;
+alter table centrakit.field_options enable row level security;
+alter table centrakit.field_values enable row level security;
+alter table centrakit.share_links enable row level security;
+alter table centrakit.subject_views enable row level security;
+alter table centrakit.subject_user_state enable row level security;
+alter table centrakit.recurrence_rules enable row level security;
+alter table centrakit.reminders enable row level security;
+alter table centrakit.reminder_deliveries enable row level security;
+alter table centrakit.import_runs enable row level security;
+alter table centrakit.file_node enable row level security;
+alter table centrakit.file_node_grant enable row level security;
+
+grant select on centrakit.organizations to authenticated;
+grant all on centrakit.organizations to service_role;
+grant select on centrakit.roles to authenticated;
+grant all on centrakit.roles to service_role;
+grant select on centrakit.user_roles to authenticated;
+grant all on centrakit.user_roles to service_role;
+grant select on centrakit.organization_users to authenticated;
+grant all on centrakit.organization_users to service_role;
+grant select on centrakit.organization_invitations to authenticated;
+grant all on centrakit.organization_invitations to service_role;
+grant select on centrakit.profiles to authenticated;
+grant all on centrakit.profiles to service_role;
+grant select on centrakit.contact_profiles to authenticated;
+grant all on centrakit.contact_profiles to service_role;
+grant select on centrakit.audit_logs to authenticated;
+grant all on centrakit.audit_logs to service_role;
+grant select on centrakit.audit_log_restricted_details to authenticated;
+grant all on centrakit.audit_log_restricted_details to service_role;
+grant select on centrakit.workflow_events to authenticated;
+grant all on centrakit.workflow_events to service_role;
+grant select on centrakit.workflow_runs to authenticated;
+grant all on centrakit.workflow_runs to service_role;
+grant select on centrakit.notification_events to authenticated;
+grant all on centrakit.notification_events to service_role;
+grant select on centrakit.notification_recipients to authenticated;
+grant all on centrakit.notification_recipients to service_role;
+grant select on centrakit.notification_subscriptions to authenticated;
+grant all on centrakit.notification_subscriptions to service_role;
+grant select on centrakit.notification_preferences to authenticated;
+grant all on centrakit.notification_preferences to service_role;
+grant select on centrakit.notification_deliveries to authenticated;
+grant all on centrakit.notification_deliveries to service_role;
+grant select on centrakit.webhook_destinations to authenticated;
+grant all on centrakit.webhook_destinations to service_role;
+grant select on centrakit.webhook_destination_secrets to authenticated;
+grant all on centrakit.webhook_destination_secrets to service_role;
+grant select on centrakit.webhook_deliveries to authenticated;
+grant all on centrakit.webhook_deliveries to service_role;
+grant select on centrakit.integration_credentials to authenticated;
+grant all on centrakit.integration_credentials to service_role;
+grant select on centrakit.inbound_webhooks to authenticated;
+grant all on centrakit.inbound_webhooks to service_role;
+grant select on centrakit.inbound_webhook_events to authenticated;
+grant all on centrakit.inbound_webhook_events to service_role;
+grant select on centrakit.organization_number_sequences to authenticated;
+grant all on centrakit.organization_number_sequences to service_role;
+grant select on centrakit.teams to authenticated;
+grant all on centrakit.teams to service_role;
+grant select on centrakit.team_members to authenticated;
+grant all on centrakit.team_members to service_role;
+grant select on centrakit.organization_tags to authenticated;
+grant all on centrakit.organization_tags to service_role;
+grant select on centrakit.task_tags to authenticated;
+grant all on centrakit.task_tags to service_role;
+grant select on centrakit.status_history to authenticated;
+grant all on centrakit.status_history to service_role;
+grant select on centrakit.field_definitions to authenticated;
+grant all on centrakit.field_definitions to service_role;
+grant select on centrakit.field_options to authenticated;
+grant all on centrakit.field_options to service_role;
+grant select on centrakit.field_values to authenticated;
+grant all on centrakit.field_values to service_role;
+grant select on centrakit.share_links to authenticated;
+grant all on centrakit.share_links to service_role;
+grant select on centrakit.subject_views to authenticated;
+grant all on centrakit.subject_views to service_role;
+grant select on centrakit.subject_user_state to authenticated;
+grant all on centrakit.subject_user_state to service_role;
+grant select on centrakit.recurrence_rules to authenticated;
+grant all on centrakit.recurrence_rules to service_role;
+grant select on centrakit.reminders to authenticated;
+grant all on centrakit.reminders to service_role;
+grant select on centrakit.reminder_deliveries to authenticated;
+grant all on centrakit.reminder_deliveries to service_role;
+grant select on centrakit.import_runs to authenticated;
+grant all on centrakit.import_runs to service_role;
+grant select on centrakit.file_node to authenticated;
+grant all on centrakit.file_node to service_role;
+grant select on centrakit.file_node_grant to authenticated;
+grant all on centrakit.file_node_grant to service_role;
 -- Members manage webhook destinations through RLS, as in CentraKit.
 grant insert, update, delete on centrakit.webhook_destinations to authenticated;
 
@@ -612,7 +704,11 @@ create table centrakit.customers (
   status text not null default 'prospect'
 );
 alter table centrakit.customers enable row level security;
-grant select, insert, update on centrakit.customers to authenticated;
+-- The tenant column decides who sees a customer's comments and files, so
+-- members can't move a customer to another organization.
+grant select on centrakit.customers to authenticated;
+grant insert (company_name, status), update (company_name, status)
+  on centrakit.customers to authenticated;
 grant all on centrakit.customers to service_role;
 
 create table centrakit.customer_contacts (
@@ -643,6 +739,7 @@ create table centrakit.employees (
   start_date date,
   end_date date,
   archived_at timestamptz,
+  anonymized_at timestamptz,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default (now() at time zone 'utc'),
   updated_at timestamptz not null default (now() at time zone 'utc'),
@@ -655,3 +752,350 @@ create unique index employees_organization_user_idx
 alter table centrakit.employees enable row level security;
 grant select on centrakit.employees to authenticated;
 grant all on centrakit.employees to service_role;
+
+-- Projects belong to a customer; tasks belong to a project. The tenant
+-- module's sameTenant entries keep every reference inside one organization.
+create table centrakit.projects (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  customer_id bigint references centrakit.customers(id) on delete set null,
+  name text not null
+);
+alter table centrakit.projects enable row level security;
+grant select on centrakit.projects to authenticated;
+grant all on centrakit.projects to service_role;
+
+-- The provider's project scope: who works on which project.
+create table centrakit.project_members (
+  project_id uuid not null references centrakit.projects(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  primary key (project_id, user_id)
+);
+alter table centrakit.project_members enable row level security;
+grant select on centrakit.project_members to authenticated;
+grant all on centrakit.project_members to service_role;
+
+create table centrakit.tasks (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references centrakit.organizations(id) on delete cascade,
+  project_id uuid references centrakit.projects(id) on delete cascade,
+  customer_id bigint references centrakit.customers(id) on delete set null,
+  contact_id bigint references centrakit.customer_contacts(id) on delete set null,
+  label_id uuid references centrakit.organization_tags(id) on delete set null,
+  title text not null
+);
+alter table centrakit.tasks enable row level security;
+grant select on centrakit.tasks to authenticated;
+grant insert (project_id, customer_id, contact_id, label_id, title),
+  update (project_id, customer_id, contact_id, label_id, title)
+  on centrakit.tasks to authenticated;
+grant all on centrakit.tasks to service_role;
+
+-- The functions behind the provider's templates (authorization-provider.json),
+-- as the provider generates them. Role grants are compiled into one function,
+-- so no table holds them.
+create function centrakit.authz_role_grants(role_scope centrakit.scope_type, role_key text)
+returns text[]
+language sql immutable set search_path = ''
+as $$
+  select case
+    when role_scope = 'system' and role_key = 'system-support' then array['platform.users.manage', 'support.revoke']
+    when role_scope <> 'organization' then '{}'::text[]
+    when role_key = 'owner' then array[
+      'crm.read',
+      'pipelines.read',
+      'deals.read',
+      'deals.write',
+      'work_items.read',
+      'work_items.write',
+      'people.read',
+      'pipelines.manage',
+      'deals.manage',
+      'work_items.manage',
+      'people.manage',
+      'people.view-sensitive',
+      'activity.read',
+      'api_keys.manage',
+      'api_keys.own',
+      'attachments.manage',
+      'attachments.read',
+      'attachments.upload',
+      'audit.revert',
+      'audit.view',
+      'comments.create',
+      'comments.moderate',
+      'comments.read',
+      'custom_fields.manage',
+      'custom_fields.read',
+      'custom_fields.sensitive.read',
+      'drive.create',
+      'drive.manage',
+      'drive.read',
+      'imports.manage',
+      'members.invite',
+      'members.remove',
+      'members.update_role',
+      'notifications.read',
+      'notifications.send',
+      'number_sequences.assign',
+      'organization.delete',
+      'organization.export',
+      'organization.transfer_ownership',
+      'organization.update',
+      'reminders.manage',
+      'reminders.read',
+      'settings.read',
+      'settings.update',
+      'share_links.create',
+      'share_links.read',
+      'tags.manage',
+      'tags.read',
+      'teams.manage',
+      'teams.read',
+      'webhook.manage',
+      'webhook.view'
+    ]
+    when role_key = 'admin' then array[
+      'crm.read',
+      'pipelines.read',
+      'deals.read',
+      'deals.write',
+      'work_items.read',
+      'work_items.write',
+      'people.read',
+      'pipelines.manage',
+      'deals.manage',
+      'work_items.manage',
+      'people.manage',
+      'people.view-sensitive',
+      'activity.read',
+      'api_keys.manage',
+      'api_keys.own',
+      'attachments.manage',
+      'attachments.read',
+      'attachments.upload',
+      'audit.revert',
+      'audit.view',
+      'comments.create',
+      'comments.moderate',
+      'comments.read',
+      'custom_fields.manage',
+      'custom_fields.read',
+      'custom_fields.sensitive.read',
+      'drive.create',
+      'drive.manage',
+      'drive.read',
+      'imports.manage',
+      'members.invite',
+      'members.remove',
+      'members.update_role',
+      'notifications.read',
+      'notifications.send',
+      'number_sequences.assign',
+      'organization.export',
+      'organization.update',
+      'reminders.manage',
+      'reminders.read',
+      'settings.read',
+      'settings.update',
+      'share_links.create',
+      'share_links.read',
+      'tags.manage',
+      'tags.read',
+      'teams.manage',
+      'teams.read',
+      'webhook.manage',
+      'webhook.view'
+    ]
+    when role_key = 'member' then array[
+      'crm.read',
+      'pipelines.read',
+      'deals.read',
+      'deals.write',
+      'work_items.read',
+      'work_items.write',
+      'people.read',
+      'activity.read',
+      'api_keys.own',
+      'attachments.read',
+      'attachments.upload',
+      'comments.create',
+      'comments.read',
+      'custom_fields.read',
+      'drive.create',
+      'drive.read',
+      'notifications.read',
+      'notifications.send',
+      'reminders.read',
+      'settings.read',
+      'share_links.read',
+      'tags.read',
+      'teams.read'
+    ]
+    else '{}'::text[]
+  end
+$$;
+
+-- The rank a role may assign up to: owners assign every role, admins admins
+-- and members, members nobody.
+create function centrakit.authz_role_rank(role_key text)
+returns integer
+language sql immutable set search_path = ''
+as $$
+  select case role_key when 'owner' then 3 when 'admin' then 2 when 'member' then 1 else 0 end
+$$;
+
+create function centrakit.authz_organization_ids_with_for(p_user uuid, p_permission text)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select ou.organization_id
+  from centrakit.organization_users ou
+  join centrakit.roles r on r.id = ou.role_id
+  where ou.user_id = p_user
+    and p_permission = any(centrakit.authz_role_grants(r.scope, r.key))
+$$;
+
+create function centrakit.authz_organization_ids_with(p_permission text)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_organization_ids_with_for((select auth.uid()), p_permission)
+$$;
+
+-- A project member may read and comment on its project's records; an
+-- organization member with the key holds it on every project there.
+create function centrakit.authz_project_ids_with_for(p_user uuid, p_permission text)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select pm.project_id
+  from centrakit.project_members pm
+  where pm.user_id = p_user
+    and p_permission in ('comments.read', 'comments.create', 'attachments.read')
+  union
+  select p.id
+  from centrakit.projects p
+  where p.organization_id in (select centrakit.authz_organization_ids_with_for(p_user, p_permission))
+$$;
+
+create function centrakit.authz_project_ids_with(p_permission text)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_project_ids_with_for((select auth.uid()), p_permission)
+$$;
+
+create function centrakit.authz_is_platform_for(p_user uuid, p_permission text)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1
+    from centrakit.user_roles ur
+    join centrakit.roles r on r.id = ur.role_id
+    where ur.user_id = p_user
+      and p_permission = any(centrakit.authz_role_grants(r.scope, r.key))
+  )
+$$;
+
+create function centrakit.authz_is_platform(p_permission text)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_is_platform_for((select auth.uid()), p_permission)
+$$;
+
+create function centrakit.authz_organization_member_ids_for(p_user uuid)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select ou.organization_id from centrakit.organization_users ou where ou.user_id = p_user
+$$;
+
+create function centrakit.authz_organization_member_ids()
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_organization_member_ids_for((select auth.uid()))
+$$;
+
+create function centrakit.authz_permissions_for(p_user uuid, p_organization uuid)
+returns text[]
+language sql stable security definer set search_path = ''
+as $$
+  select coalesce(array_agg(distinct g.key order by g.key), '{}'::text[])
+  from centrakit.organization_users ou
+  join centrakit.roles r on r.id = ou.role_id
+  cross join lateral unnest(centrakit.authz_role_grants(r.scope, r.key)) as g(key)
+  where ou.user_id = p_user and ou.organization_id = p_organization
+$$;
+
+create function centrakit.authz_can_assign_for(p_user uuid, p_organization uuid, p_role text)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1
+    from centrakit.organization_users ou
+    join centrakit.roles r on r.id = ou.role_id
+    where ou.user_id = p_user
+      and ou.organization_id = p_organization
+      and 'members.update_role' = any(centrakit.authz_role_grants(r.scope, r.key))
+      and centrakit.authz_role_rank(r.key) >= centrakit.authz_role_rank(p_role)
+      and centrakit.authz_role_rank(p_role) > 0
+  )
+$$;
+
+create function centrakit.authz_can_assign(p_organization uuid, p_role text)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_can_assign_for((select auth.uid()), p_organization, p_role)
+$$;
+
+create function centrakit.authz_organization_users_with(p_permission text, p_organization uuid)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select ou.user_id
+  from centrakit.organization_users ou
+  join centrakit.roles r on r.id = ou.role_id
+  where ou.organization_id = p_organization
+    and p_permission = any(centrakit.authz_role_grants(r.scope, r.key))
+$$;
+
+-- Support sessions honour read_only; an agent writes unless it is read-only;
+-- impersonation and unknown kinds never write.
+create function centrakit.authz_actor_may_write()
+returns boolean
+language sql stable set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null or auth.jwt() -> 'act' is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    else false
+  end
+$$;
+
+revoke execute on function
+  centrakit.authz_organization_ids_with_for(uuid, text),
+  centrakit.authz_project_ids_with_for(uuid, text),
+  centrakit.authz_is_platform_for(uuid, text),
+  centrakit.authz_organization_member_ids_for(uuid),
+  centrakit.authz_permissions_for(uuid, uuid),
+  centrakit.authz_can_assign_for(uuid, uuid, text),
+  centrakit.authz_organization_users_with(text, uuid)
+  from public, anon, authenticated;
+grant execute on function
+  centrakit.authz_organization_ids_with_for(uuid, text),
+  centrakit.authz_project_ids_with_for(uuid, text),
+  centrakit.authz_is_platform_for(uuid, text),
+  centrakit.authz_organization_member_ids_for(uuid),
+  centrakit.authz_permissions_for(uuid, uuid),
+  centrakit.authz_can_assign_for(uuid, uuid, text),
+  centrakit.authz_organization_users_with(text, uuid)
+  to service_role, supabase_auth_admin;

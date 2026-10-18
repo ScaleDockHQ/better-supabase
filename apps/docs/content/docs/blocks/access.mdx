@@ -405,6 +405,35 @@ tenant column of a referenced row. Rows stored before you add an entry are
 checked when they change. The triggers are written in managed and adopt
 mode; in custom mode the module writes no SQL.
 
+`sql sync` can derive the entries from the foreign keys in the schema files
+instead. With `sameTenant: { auto: true }`, every single-column foreign key
+from a table with the tenant column to another table with it gets an entry,
+unless the key already includes the tenant column. The scan reads
+`references` on a column, `foreign key (...) references` table constraints
+and `alter table ... add constraint ... foreign key`; a key without a column
+list references the table's declared primary key. Keys over more than one
+column, and references that need `match`, `through` or `where`, go in
+`entries`. A listed entry wins over the derived one for the same table and
+column:
+
+```ts
+sameTenant: {
+  auto: true,
+  entries: [
+    {
+      table: "public.jobs",
+      column: "asset_id",
+      references: "public.assets",
+      match: { customer_id: "customer_id" },
+    },
+  ],
+},
+```
+
+A derived entry renders the same trigger as the same entry listed by hand.
+`doctor` reports each such foreign key that has no `bs_same_tenant_<column>`
+trigger ([BS340](/docs/cli/doctor#bs340)).
+
 Composite foreign keys are the trigger-free alternative: a unique
 `(id, organization_id)` on the referenced table and a foreign key
 `(project_id, organization_id) references projects (id, organization_id)`

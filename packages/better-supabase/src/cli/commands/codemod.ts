@@ -5,7 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
-import { applyCodemod, CODEMODS } from "../codemod.ts";
+import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { writeIfChanged } from "../io.ts";
@@ -70,8 +70,9 @@ async function sourceFiles(path: string): Promise<string[]> {
         files.push(...(await sourceFiles(full)));
       }
     } else if (
-      SOURCE_EXTENSIONS.has(extname(entry.name)) &&
-      !entry.name.endsWith(".d.ts")
+      (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
+        !entry.name.endsWith(".d.ts")) ||
+      CONFIG_FILE.test(entry.name)
     ) {
       files.push(full);
     }
@@ -116,7 +117,7 @@ export async function runCodemod(
 
   for (const file of files) {
     const source = await readFile(file, "utf-8");
-    const result = applyCodemod(codemod, source);
+    const result = applyCodemod(codemod, source, file);
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
 
@@ -160,7 +161,8 @@ export async function runCodemod(
 export const codemodCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "codemod",
-    description: "Rewrites imports and calls for renamed better-supabase APIs",
+    description:
+      "Rewrites imports, calls and config keys for renamed better-supabase APIs",
   },
   args: CODEMOD_ARGS,
   run: (args, { config, io }) => runCodemod(config, args, painter(io.color)),

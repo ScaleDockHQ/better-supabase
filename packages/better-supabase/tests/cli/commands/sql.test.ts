@@ -260,7 +260,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
       written.indexOf("create trigger"),
     );
     expect(written).toContain(
-      "better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');",
+      "better_supabase.broadcast_topic('organization:{organizationId=organization_id}:quotes', 'quote.changed');",
     );
     await expect(
       sql(["sync"], { realtime: { policies, triggers } }),
@@ -621,6 +621,70 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(() =>
       resolveConfig({ expose: { posts: ["delete(id)" as "delete"] } }, root),
     ).toThrow(/is not a privilege/);
+  });
+
+  it("resolves expose exclusions against the declared columns", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_keys.sql"),
+      'create table public.api_keys (\n  id uuid primary key,\n  name text not null,\n  "token_hash" text,\n  secret text,\n  unique (name)\n);\n',
+    );
+    await sql(["sync"], {
+      expose: {
+        api_keys: {
+          authenticated: ["select(*, -token_hash, -secret)", "update(name)"],
+        },
+      },
+      blocks: ["grants"],
+    });
+
+    const file = await readFile(
+      join(schemas, "900_better_supabase_13_grants.sql"),
+      "utf-8",
+    );
+
+    expect(file).toContain(
+      'grant select ("id", "name"), update ("name") on table "public"."api_keys" to authenticated;',
+    );
+
+    await expect(
+      sql(["sync"], {
+        expose: { notes: ["select(*, -body)"] },
+        blocks: ["grants"],
+      }),
+    ).rejects.toThrow(
+      "no `create table` in the schema files declares public.notes",
+    );
+    expect(() =>
+      resolveConfig({ expose: { notes: ["select(*, body)"] } }, root),
+    ).toThrow(/is not a privilege/);
+  });
+
+  it("derives sameTenant triggers from the declared foreign keys", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create table public.customers (id uuid primary key, organization_id uuid not null);\ncreate table public.tasks (id uuid primary key, organization_id uuid not null, customer_id uuid references public.customers);\n",
+    );
+    await sql(["sync"], {
+      blocks: { tenant: { options: { sameTenant: { auto: true } } } },
+    });
+
+    const names = await readdir(schemas);
+
+    const tenant = await readFile(
+      join(
+        schemas,
+        names.find((name) => name.endsWith("_tenant.sql"))!,
+      ),
+      "utf-8",
+    );
+
+    expect(tenant).toContain(
+      `create trigger "bs_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "public"."tasks"`,
+    );
   });
 
   it("writes the session policy on the tables the schema files create", async () => {

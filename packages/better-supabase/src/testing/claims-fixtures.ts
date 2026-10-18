@@ -150,6 +150,7 @@ export const supabaseClaimFixtures: Readonly<
         kind: "agent",
         id: "agent-7",
         tools: ["search_knowledge"],
+        readOnly: false,
         chain: agentAct,
       },
       delegation: { scopes: ["posts:read"], chain: agentAct },

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "lint": "oxlint",
+    "sql:check": "better-supabase sql sync --check",
     "test": "vitest run",
     "transit": "true",
     "typecheck": "tsc --noEmit"

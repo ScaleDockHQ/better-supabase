@@ -132,6 +132,11 @@ export interface TopicTriggerConfig {
   readonly events?: readonly ("insert" | "update" | "delete")[];
   /** The broadcast event name. Defaults to the operation. */
   readonly event?: string;
+  /**
+   * `"keys"` (default) sends the primary key and the placeholder values.
+   * `"row"` sends the whole row, which bypasses column grants.
+   */
+  readonly payload?: "keys" | "row";
 }
 
 /** `realtime.policies`: where topic policies come from and go. */

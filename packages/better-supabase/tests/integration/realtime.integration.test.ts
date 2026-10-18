@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import {
   defineTopic,
-  rowChange,
+  rowKeys,
   type TopicMessage,
 } from "../../src/realtime/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -100,7 +100,8 @@ describe.skipIf(!live)("Realtime module", async () => {
     await pool.query(customers.sql());
     await pool.query(notifications.sql());
     await pool.query(
-      customers.triggerSql(betterSupabase, "customers", {
+      customers.trigger("customers", {
+        betterSupabase,
         values: { organizationId: "organizationId" },
       }),
     );
@@ -125,7 +126,8 @@ describe.skipIf(!live)("Realtime module", async () => {
       );
 
       await client.query(
-        tagged.triggerSql(betterSupabase, "customerTags", {
+        tagged.trigger("customerTags", {
+          betterSupabase,
           values: {
             customerId: "customerId",
             organizationSlug: {
@@ -227,8 +229,9 @@ describe.skipIf(!live)("Realtime module", async () => {
         event: string;
         payload: {
           operation: string;
-          record: { name: string };
-          old_record: { name: string } | null;
+          id: string;
+          values: Record<string, string>;
+          record?: unknown;
         };
         private: boolean;
       }>(
@@ -236,18 +239,25 @@ describe.skipIf(!live)("Realtime module", async () => {
         [`organization:${ACME}:quotes`],
       );
 
-      expect(
-        rows.map((row) => [
-          row.event,
-          row.payload.operation,
-          row.payload.record.name,
-          row.payload.old_record?.name ?? null,
-          row.private,
-        ]),
-      ).toEqual([
-        ["customer.changed", "INSERT", "Trigger Co", null, true],
-        ["customer.changed", "UPDATE", "Trigger BV", "Trigger Co", true],
+      expect(rows).toEqual([
+        {
+          event: "customer.changed",
+          payload: expect.objectContaining({
+            operation: "INSERT",
+            schema: "public",
+            table: "customers",
+            id,
+            values: { organizationId: ACME },
+          }),
+          private: true,
+        },
+        {
+          event: "customer.changed",
+          payload: expect.objectContaining({ operation: "UPDATE", id }),
+          private: true,
+        },
       ]);
+      expect(rows.some((row) => "record" in row.payload)).toBe(false);
 
       const { rows: kvk } = await client.query(
         "select 1 from realtime.messages where topic like 'kvk:%'",
@@ -267,14 +277,50 @@ describe.skipIf(!live)("Realtime module", async () => {
       ]);
 
       expect(sent).toEqual([{ event: "INSERT", private: false }]);
-      await client.query("savepoint bad");
+
+      const warnings: string[] = [];
+
+      const onNotice = (notice: { message?: string | undefined }) => {
+        warnings.push(notice.message ?? "");
+      };
+
+      client.on("notice", onNotice);
+      await client.query(
+        "insert into public.customers (organization_id, name, kvk) values ($1, 'Bad Co', 'a b')",
+        [ACME],
+      );
+      client.off("notice", onNotice);
+      expect(warnings).toEqual([
+        expect.stringContaining("contains characters topics do not allow"),
+      ]);
+
+      const rowTopic = defineTopic("rows:{organizationId}");
+      await client.query(rowTopic.trigger("customers", { payload: "row" }));
+      await client.query(
+        "update public.customers set name = 'Row BV' where id = $1",
+        [id],
+      );
+
+      const { rows: full } = await client.query<{
+        payload: { record: { name: string } };
+      }>("select payload from realtime.messages where topic = $1", [
+        `rows:${ACME}`,
+      ]);
+
+      expect(full.map((row) => row.payload.record.name)).toEqual(["Row BV"]);
+
+      await client.query("savepoint before");
+      await client.query(
+        `create trigger bs_before before insert on public.customers
+           for each row execute function better_supabase.broadcast_topic('x:{name}', '')`,
+      );
       await expect(
         client.query(
-          "insert into public.customers (organization_id, name, kvk) values ($1, 'Bad Co', 'a b')",
+          "insert into public.customers (organization_id, name) values ($1, 'Before Co')",
           [ACME],
         ),
-      ).rejects.toThrow("contains characters topics do not allow");
-      await client.query("rollback to savepoint bad");
+      ).rejects.toThrow("runs after the write");
+      await client.query("rollback to savepoint before");
     } finally {
       await client.query("rollback");
       client.release();
@@ -320,17 +366,13 @@ describe.skipIf(!live)("Realtime module", async () => {
       });
 
       const received = await got;
-      const change = rowChange(betterSupabase, "customers", received);
-      expect(change).toMatchObject({
+      expect(rowKeys(betterSupabase, "customers", received)).toMatchObject({
         operation: "INSERT",
         table: "customers",
-        record: {
-          name: "Realtime Co",
-          organizationId: ACME,
-          kvk: expect.stringMatching(new RegExp(`^${kvk}-\\d+$`)),
-        },
+        id: expect.any(String),
+        values: { organizationId: ACME },
       });
-      expect(rowChange(betterSupabase, "notes", received)).toBeNull();
+      expect(rowKeys(betterSupabase, "notes", received)).toBeNull();
     },
     20_000,
   );

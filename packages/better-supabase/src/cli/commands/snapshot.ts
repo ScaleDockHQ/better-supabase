@@ -254,6 +254,9 @@ export async function parseSnapshot(
         : {}),
       ...(doc.extras.functions ? { functions: doc.extras.functions } : {}),
       ...(doc.extras.hooks ? { hooks: doc.extras.hooks } : {}),
+      ...(doc.extras.functionComments
+        ? { functionComments: doc.extras.functionComments }
+        : {}),
     },
   };
 }

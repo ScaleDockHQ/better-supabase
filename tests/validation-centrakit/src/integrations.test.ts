@@ -159,11 +159,21 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
       ]);
       expect(
         await s.rows(
-          `select event, payload->'record'->>'name' as name, private
+          `select event, payload->>'table' as "table",
+             payload->'values'->>'organizationId' as organization,
+             payload ? 'record' as "hasRecord", private
            from realtime.messages where topic = $1`,
           [webhooks.topic({ organizationId: organization })],
         ),
-      ).toEqual([{ event: "webhook.created", name: "Stripe", private: true }]);
+      ).toEqual([
+        {
+          event: "webhook.created",
+          table: "inbound_webhooks",
+          organization,
+          hasRecord: false,
+          private: true,
+        },
+      ]);
     });
   });
 });

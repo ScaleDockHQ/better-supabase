@@ -9,6 +9,7 @@ export type DataLifecycleSqlOptions = {
   readonly autoTables?: unknown;
   readonly tenantRow?: unknown;
   readonly anonymize?: unknown;
+  readonly omitPattern?: unknown;
 };
 
 export const dataLifecycleSqlOptions: BlockOptionsSchema<DataLifecycleSqlOptions> =
@@ -20,4 +21,5 @@ export const dataLifecycleSqlOptions: BlockOptionsSchema<DataLifecycleSqlOptions
     autoTables: option.unknown(),
     tenantRow: option.unknown(),
     anonymize: option.unknown(),
+    omitPattern: option.unknown(),
   });

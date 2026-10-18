@@ -148,6 +148,31 @@ describe("config environments", () => {
     ).toThrow("The test environment makes the config invalid");
   });
 
+  it("points sql.modules at the 0.9 codemod", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        sql: { modules: ["tenant"] },
+        $production: { sql: { modules: { tenant: true } } },
+      }),
+    );
+
+    const error = await loadConfig(dir).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      code: "config_invalid",
+      message: expect.stringContaining(
+        "sql.modules: moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+      ),
+    });
+    expect(error).toMatchObject({
+      message: expect.stringContaining("$production.sql.modules: moved"),
+    });
+    expect(() =>
+      // @ts-expect-error -- `sql.modules` is the removed 0.8 key under test.
+      applyEnvironment({ $test: { sql: { modules: ["tenant"] } } }, "test"),
+    ).toThrow("sql.modules: moved to the top-level `blocks` key");
+  });
+
   it("picks --env, then $BETTER_SUPABASE_ENV, then ci in CI", () => {
     expect(
       configEnvironment("staging", { BETTER_SUPABASE_ENV: "x", CI: "1" }),

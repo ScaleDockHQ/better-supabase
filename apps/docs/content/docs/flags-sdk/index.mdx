@@ -83,6 +83,13 @@ has another type or fails to load answers the declaration's
 `defaultValue`, so a database outage turns features off instead of
 breaking the page. Without a `defaultValue`, `decide` throws.
 
+A variant whose value is `null` is served only when `defaultValue` is
+`null` or left out. With a `null` default, any other value must match the
+flag's `type`; with another default, it must have the default's type. A flag whose default variant is
+missing from its variants is treated as missing, not as `null`. A row
+whose `type` is not one the table allows never serves its variants; it
+always answers the fallback.
+
 `origin` tells Flags Explorer where each flag is managed: a URL in which
 `{key}` is replaced by the flag key, or a function of the key.
 
@@ -219,7 +226,8 @@ export const GET = createFlagsDiscoveryEndpoint(async () =>
 ```
 
 The route answers only requests signed with `FLAGS_SECRET`. A failed load
-shows as a hint in Explorer instead of an error. Exclude
+shows as a hint in Explorer instead of an error, and so does a flag with
+an unknown type. Exclude
 `/.well-known/vercel/` from the proxy matcher. An override set in the
 toolbar applies before the adapter's `decide`.
 

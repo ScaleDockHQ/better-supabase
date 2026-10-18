@@ -104,7 +104,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       await organizations.acceptInvitation(memberInvite.token).orThrow();
       expect(await roleOf(organization, USERS.member)).toBe(ROLES.member);
 
-      // The member's permissions come from the catalog, never from the role name.
+      // The member's permissions come from the provider, never from the role name.
       expect(
         (await organizations.update(organization, { name: "Mine" })).error,
       ).toMatchObject({
@@ -116,26 +116,6 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
           [organization],
         ),
       ).toBe(true);
-
-      // A per-organization override takes a permission from the admin role.
-      await s.as("admin");
-      expect(
-        await s.value(
-          "better_supabase.can('organization', $1, 'organization.members.invite')",
-          [organization],
-        ),
-      ).toBe(true);
-      await s.client.query(
-        `insert into centrakit.organization_permission_overrides (organization_id, role_id, permission_id, granted)
-         select $1, $2, id, false from centrakit.permissions where key = 'organization.members.invite'`,
-        [organization, ROLES.admin],
-      );
-      expect(
-        await s.value(
-          "better_supabase.can('organization', $1, 'organization.members.invite')",
-          [organization],
-        ),
-      ).toBe(false);
       expect(
         (
           await organizations.invite({
@@ -145,6 +125,25 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
           })
         ).error,
       ).toMatchObject({ hint: "INVITATION_FORBIDDEN" });
+
+      // Admins invite, but the roles table's system roles are not
+      // organization roles (roleThrough.where).
+      await s.as("admin");
+      expect(
+        await s.value(
+          "better_supabase.can('organization', $1, 'members.invite')",
+          [organization],
+        ),
+      ).toBe(true);
+      expect(
+        (
+          await organizations.invite({
+            organizationId: organization,
+            email: "late@centrakit.test",
+            role: ROLES.systemSupport,
+          })
+        ).error,
+      ).toMatchObject({ hint: "INVITATION_ROLE_UNKNOWN" });
 
       // The active organization lives in profiles.active_organization_id.
       await s.as("member");
@@ -175,7 +174,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       await s.as("admin");
       expect(
         await s.value(
-          "better_supabase.can('organization', $1, 'organization.settings.manage')",
+          "better_supabase.can('organization', $1, 'organization.update')",
           [organization],
         ),
       ).toBe(false);

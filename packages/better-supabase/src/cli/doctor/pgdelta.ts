@@ -98,6 +98,16 @@ const CREATE_EXTENSION =
   /\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?"?([\w-]+)"?/gi;
 
 /**
+ * `text` without comments and with string literals blanked, keeping every
+ * offset, so an error message that tells the reader to `create extension`
+ * doesn't count as one.
+ */
+const statements = (text: string): string =>
+  withoutComments(text).replaceAll(/'(?:[^']|'')*'/g, (literal) =>
+    literal.replaceAll(/[^\n]/g, " "),
+  );
+
+/**
  * Extensions a pg-delta schema file creates, SQL module files included, that
  * no migration creates. pg-delta can leave an extension that owns its own
  * schema (`pgmq`) out of the generated migration.
@@ -122,7 +132,7 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
 
   const created = new Set(
     migrations.flatMap((file) =>
-      [...withoutComments(file.text).matchAll(CREATE_EXTENSION)].map((match) =>
+      [...statements(file.text).matchAll(CREATE_EXTENSION)].map((match) =>
         match[1]!.toLowerCase(),
       ),
     ),
@@ -133,7 +143,7 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
   return files
     .filter((file) => file.path.startsWith(schemas))
     .flatMap((file) => {
-      const text = withoutComments(file.text);
+      const text = statements(file.text);
 
       return [...text.matchAll(CREATE_EXTENSION)].flatMap((match) => {
         const name = match[1]!.toLowerCase();

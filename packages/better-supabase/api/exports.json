@@ -2196,6 +2196,7 @@
       "liveQuery",
       "liveTopic",
       "rowChange",
+      "rowKeys",
       "subjectReaders",
       "topicPort",
       "watchTopic"
@@ -2220,6 +2221,7 @@
       "RealtimeClient",
       "RealtimeStatus",
       "RowChange",
+      "RowKeys",
       "SubjectReadersOptions",
       "SubscribeOptions",
       "Subscription",
@@ -2243,6 +2245,8 @@
       "TopicWatch",
       "TriggerLookup",
       "TriggerOptions",
+      "TriggerPayloadMode",
+      "TriggerTopic",
       "TriggerValue"
     ]
   },
@@ -2380,6 +2384,7 @@
       "splunkHec",
       "sqlSecretStore",
       "sqlTransport",
+      "standardEnvelope",
       "standardWebhooks",
       "standardWebhooksAsymmetric",
       "stripeInboxVerify",
@@ -4423,9 +4428,11 @@
       "agentToolApproval",
       "agentToolOperation",
       "agentTools",
+      "assertToolDelegated",
       "createAgentRuntime",
       "ModerationBlockedError",
-      "moderationMiddleware"
+      "moderationMiddleware",
+      "toolDelegated"
     ],
     "types": [
       "Agent",
@@ -4443,7 +4450,8 @@
       "AgentToolOperations",
       "AgentToolPermissions",
       "ModerationMiddlewareOptions",
-      "ModerationVerdict"
+      "ModerationVerdict",
+      "ToolDelegation"
     ]
   },
   "./ai-sdk/mcp": {
@@ -7142,7 +7150,9 @@
       "compileReadSets",
       "contractSignature",
       "customContracts",
+      "dataExportPlan",
       "declaredTables",
+      "excludedColumns",
       "expiredFlagsQuery",
       "extensionSchema",
       "isModuleIdType",
@@ -7161,13 +7171,18 @@
       "moduleVersion",
       "policyGrants",
       "renderModules",
+      "resolveExposeColumns",
       "resolveModule",
       "resolveModules",
       "resolveProviderSql",
       "rlsTables",
       "sameModuleFile",
+      "sameTenantColumn",
+      "sameTenantLayout",
+      "sameTenantTrigger",
       "SCOPE_ID_TYPES",
       "scopeProblems",
+      "SECRET_COLUMNS",
       "sharedRolesProblems",
       "SQL_MODULES",
       "subjectColumns",
@@ -7180,6 +7195,8 @@
       "AuditedTable",
       "BlockOptionsRegistry",
       "CompiledReadSet",
+      "DataExportPlan",
+      "DeclaredForeignKey",
       "InstalledModule",
       "MigrationOptionUse",
       "ModuleAccessProvider",
@@ -7207,6 +7224,7 @@
   },
   "./testing": {
     "values": [
+      "actCases",
       "asUser",
       "ConformanceError",
       "createTestSigner",
@@ -7258,6 +7276,8 @@
       "testWebhookTransport"
     ],
     "types": [
+      "ActCase",
+      "ActCases",
       "AdapterRun",
       "BudgetPage",
       "BudgetRequest",

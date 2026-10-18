@@ -1,0 +1,370 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "no actor",
+      "claims": {},
+      "valid": true,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "oauth client_id",
+      "claims": {
+        "client_id": "client-1"
+      },
+      "valid": true,
+      "kind": "oauth-client",
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "chain without kind",
+      "claims": {
+        "act": {
+          "sub": "agent-runner",
+          "act": {
+            "sub": "mcp-client-42"
+          }
+        }
+      },
+      "valid": true,
+      "kind": "oauth-client",
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "support, read_only missing",
+      "claims": {
+        "act": {
+          "kind": "support",
+          "sub": "admin-1",
+          "session_id": "session-1"
+        }
+      },
+      "valid": true,
+      "kind": "support",
+      "readOnly": true,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "support, read_only true",
+      "claims": {
+        "act": {
+          "kind": "support",
+          "sub": "admin-1",
+          "session_id": "session-1",
+          "read_only": true
+        }
+      },
+      "valid": true,
+      "kind": "support",
+      "readOnly": true,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "support, read_only false",
+      "claims": {
+        "act": {
+          "kind": "support",
+          "sub": "admin-1",
+          "session_id": "session-1",
+          "read_only": false
+        }
+      },
+      "valid": true,
+      "kind": "support",
+      "readOnly": false,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "support, read_only as a string",
+      "claims": {
+        "act": {
+          "kind": "support",
+          "sub": "admin-1",
+          "session_id": "session-1",
+          "read_only": "false"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "support without session_id",
+      "claims": {
+        "act": {
+          "kind": "support",
+          "sub": "admin-1",
+          "read_only": false
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "session_id without kind (0.5.0 support)",
+      "claims": {
+        "act": {
+          "sub": "admin-1",
+          "session_id": "session-1"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "impersonation",
+      "claims": {
+        "act": {
+          "kind": "impersonation",
+          "sub": "admin-1",
+          "reason": "ticket 42"
+        }
+      },
+      "valid": true,
+      "kind": "impersonation",
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "impersonation, read_only false",
+      "claims": {
+        "act": {
+          "kind": "impersonation",
+          "sub": "admin-1",
+          "read_only": false
+        }
+      },
+      "valid": true,
+      "kind": "impersonation",
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "agent, every tool",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7"
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": false,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "agent, listed tools",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "tools": ["search_knowledge"]
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": false,
+      "tools": ["search_knowledge"],
+      "mayWrite": true
+    },
+    {
+      "name": "agent, no tools",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "tools": []
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": false,
+      "tools": [],
+      "mayWrite": true
+    },
+    {
+      "name": "agent, read_only true",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "read_only": true
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": true,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "agent, read_only false",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "read_only": false
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": false,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "agent, read_only as a string",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "read_only": "true"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "agent over an OAuth client",
+      "claims": {
+        "scope": "posts:read",
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "tools": ["search_knowledge"],
+          "act": {
+            "sub": "mcp-client-42"
+          }
+        }
+      },
+      "valid": true,
+      "kind": "agent",
+      "readOnly": false,
+      "tools": ["search_knowledge"],
+      "mayWrite": true
+    },
+    {
+      "name": "agent, tools not a list",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "tools": "search_knowledge"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "agent, empty tool name",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "tools": [""]
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "agent with session_id",
+      "claims": {
+        "act": {
+          "kind": "agent",
+          "sub": "agent-7",
+          "session_id": "session-1"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "unknown kind",
+      "claims": {
+        "act": {
+          "kind": "robot",
+          "sub": "robot-1"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": false
+    },
+    {
+      "name": "act not an object",
+      "claims": {
+        "act": "agent-7"
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "act without sub",
+      "claims": {
+        "act": {
+          "kind": "agent"
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    },
+    {
+      "name": "nested level without sub",
+      "claims": {
+        "act": {
+          "sub": "agent-runner",
+          "act": {
+            "sub": ""
+          }
+        }
+      },
+      "valid": false,
+      "kind": null,
+      "readOnly": null,
+      "tools": null,
+      "mayWrite": true
+    }
+  ]
+}

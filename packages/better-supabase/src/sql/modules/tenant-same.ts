@@ -1,7 +1,9 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { moduleContext } from "../module-context.ts";
 import { quotedTable } from "../shared.ts";
 
 interface SameTenant {
@@ -26,22 +28,110 @@ interface Hop {
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
-function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
-  const where = "blocks.tenant.options.sameTenant";
+const WHERE = "blocks.tenant.options.sameTenant";
+
+/**
+ * One entry per declared foreign key from a table with the tenant column to
+ * another table with it, when the key doesn't already include the tenant
+ * column. Keys over more than one column are left to explicit entries.
+ */
+function autoEntries(
+  layout: ModuleLayout,
+  tenant: string,
+): readonly Record<string, unknown>[] {
+  if (
+    layout.foreignKeys === undefined ||
+    layout.declaredColumns === undefined
+  ) {
+    throw new TypeError(
+      `${WHERE}.auto derives the entries from the foreign keys in the schema files, which \`sql sync\` reads. Render the tenant module through \`sql sync\`, or list the entries.`,
+    );
+  }
+
+  const columns = layout.declaredColumns;
+
+  const hasTenant = (table: string): boolean =>
+    columns[table]?.includes(tenant) === true;
+
+  return layout.foreignKeys.flatMap((key) => {
+    const [column] = key.columns;
+    const [referenced] = key.referencedColumns;
+
+    if (
+      key.columns.length !== 1 ||
+      key.referencedColumns.length !== 1 ||
+      column === undefined ||
+      referenced === undefined ||
+      column === tenant ||
+      !hasTenant(key.table) ||
+      !hasTenant(key.references)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        table: key.table,
+        column,
+        references: { table: key.references, column: referenced },
+      },
+    ];
+  });
+}
+
+/** The explicit entries, then the derived ones whose `table.column` no explicit entry names. */
+function entriesOf(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): readonly SameTenant[] {
   const value = ctx.option("sameTenant");
 
   if (value === undefined) {
     return [];
   }
 
-  if (!Array.isArray(value)) {
+  const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
+
+  if (Array.isArray(value)) {
+    return parseEntries(value, fallback, WHERE);
+  }
+
+  if (
+    !isRecord(value) ||
+    typeof value["auto"] !== "boolean" ||
+    (value["entries"] !== undefined && !Array.isArray(value["entries"]))
+  ) {
     throw new TypeError(
-      `${where} must be a list of { table, column, references, tenant?, match?, through? }`,
+      `${WHERE} must be a list of { table, column, references, tenant?, match?, through? }, or { auto: true, entries?: [...] }`,
     );
   }
 
-  const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
+  const listed: unknown[] = value["entries"] ?? [];
+  const explicit = parseEntries(listed, fallback, `${WHERE}.entries`);
 
+  if (!value["auto"]) {
+    return explicit;
+  }
+
+  const named = new Set(
+    explicit.map((entry) => `${entry.table}.${entry.column}`),
+  );
+
+  return [
+    ...explicit,
+    ...parseEntries(
+      autoEntries(layout, fallback),
+      fallback,
+      `${WHERE}.auto`,
+    ).filter((entry) => !named.has(`${entry.table}.${entry.column}`)),
+  ];
+}
+
+function parseEntries(
+  value: readonly unknown[],
+  fallback: string,
+  where: string,
+): readonly SameTenant[] {
   const ident = (at: string, name: unknown, otherwise?: string): string => {
     const resolved = name ?? otherwise;
 
@@ -162,18 +252,30 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   });
 }
 
-/** A trigger name for `column`, within Postgres' 63 bytes. */
+/** The unquoted trigger name `sameTenant` gives `column`, within Postgres' 63 bytes. */
+export function sameTenantTrigger(column: string): string {
+  return `bs_same_tenant_${column}`.slice(0, 63);
+}
+
 function triggerName(column: string): string {
-  return sqlIdent(`bs_same_tenant_${column}`.slice(0, 63));
+  return sqlIdent(sameTenantTrigger(column));
+}
+
+/** The tenant column `sameTenant` entries default to: the memberships tenant column. */
+export function sameTenantColumn(layout: ModuleLayout): string {
+  return moduleContext("tenant", layout).colName("memberships", "tenant");
 }
 
 /**
  * `blocks.tenant.options.sameTenant`: one `same_tenant()` trigger per
- * entry, so a reference to a row of another tenant fails for every writer.
- * Empty without entries.
+ * entry, listed or derived with `auto`, so a reference to a row of another
+ * tenant fails for every writer. Empty without entries.
  */
-export function sameTenantSql(ctx: ModuleContext): string {
-  const entries = entriesOf(ctx);
+export function sameTenantSql(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): string {
+  const entries = entriesOf(ctx, layout);
 
   if (entries.length === 0) {
     return "";
