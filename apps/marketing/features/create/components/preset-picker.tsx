@@ -61,7 +61,8 @@ function blockCount(name: PresetName): string {
 
 /**
  * The named presets as a select. `selected` is undefined once the blocks no
- * longer match any preset, and the select then shows Custom.
+ * longer match any preset, and the select then shows Custom. The label is
+ * visually hidden because the Preset section's trigger names it.
  */
 export function PresetPicker({
   selected,
@@ -73,8 +74,8 @@ export function PresetPicker({
   const id = useId();
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+    <div className="flex flex-col">
+      <label htmlFor={id} className="sr-only">
         Preset
       </label>
       <Select

@@ -372,6 +372,79 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          budget_minor: number
+          created_at: string
+          currency: string
+          id: string
+          label_id: string | null
+          lead_id: string | null
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          budget_minor?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          label_id?: string | null
+          lead_id?: string | null
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          budget_minor?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          label_id?: string | null
+          lead_id?: string | null
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_views: {
+        Row: {
+          created_at: string
+          filters: NonNullable<Json>
+          id: string
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          filters?: NonNullable<Json>
+          id?: string
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          filters?: NonNullable<Json>
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           current_period_end: string | null

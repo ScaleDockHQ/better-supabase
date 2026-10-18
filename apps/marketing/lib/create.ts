@@ -68,16 +68,22 @@ export function packageDir(value: string | null): string | undefined {
 }
 
 /**
- * The URL `/create` keeps in sync with the selection, the authorization
- * library (`authz`, kept only with `access: "provider"`) and the monorepo
- * package when it is on.
+ * The URL `/create` keeps in sync with the selection, the canvas design
+ * (`designCode`, from `encodeDesign`), the authorization library (`authz`,
+ * kept only with `access: "provider"`) and the monorepo package when it is
+ * on.
  */
 export function createHref(
   preset: Preset,
   pkg?: string,
   authz?: string,
+  designCode = "",
 ): string {
   let href = `/create?preset=${encodePreset(preset)}`;
+
+  if (designCode !== "") {
+    href += `&design=${designCode}`;
+  }
 
   if (authz !== undefined && preset.access === "provider") {
     href += `&authz=${encodeURIComponent(authz)}`;
@@ -171,6 +177,40 @@ export function toggleBlock(preset: Preset, name: string): Preset {
     : [...preset.blocks, name];
 
   return { ...preset, blocks };
+}
+
+/** The drag data type of a block dragged from the options onto the canvas. */
+export const BLOCK_DRAG_TYPE = "application/x-better-supabase-block";
+
+export type BlockDrop =
+  | { readonly kind: "add"; readonly preset: Preset }
+  | { readonly kind: "installed" }
+  | { readonly kind: "conflict"; readonly reason: string }
+  | { readonly kind: "unknown" };
+
+/**
+ * What dropping block `name` on the canvas does: the same switch as its
+ * checkbox when it is off, nothing when it is already installed (selected or
+ * required by another block).
+ */
+export function dropBlock(
+  preset: Preset,
+  resolved: ResolvedPreset,
+  name: string,
+): BlockDrop {
+  if (!PRESET_CATALOG.blocks.some((block) => block.name === name)) {
+    return { kind: "unknown" };
+  }
+
+  if (resolved.blocks.some((block) => block.name === name)) {
+    return { kind: "installed" };
+  }
+
+  const reason = presetBlockConflict(preset, name);
+
+  return reason === undefined
+    ? { kind: "add", preset: toggleBlock(preset, name) }
+    : { kind: "conflict", reason };
 }
 
 /**

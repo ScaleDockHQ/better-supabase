@@ -1570,7 +1570,7 @@
       {
         "id": 1000119,
         "schema": "public",
-        "name": "subscriptions",
+        "name": "projects",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -1582,6 +1582,32 @@
       },
       {
         "id": 1000120,
+        "schema": "public",
+        "name": "saved_views",
+        "rls_enabled": true,
+        "rls_forced": false,
+        "replica_identity": "DEFAULT",
+        "bytes": 0,
+        "size": "0 bytes",
+        "live_rows_estimate": 0,
+        "dead_rows_estimate": 0,
+        "comment": null
+      },
+      {
+        "id": 1000121,
+        "schema": "public",
+        "name": "subscriptions",
+        "rls_enabled": true,
+        "rls_forced": false,
+        "replica_identity": "DEFAULT",
+        "bytes": 0,
+        "size": "0 bytes",
+        "live_rows_estimate": 0,
+        "dead_rows_estimate": 0,
+        "comment": null
+      },
+      {
+        "id": 1000122,
         "schema": "public",
         "name": "tags",
         "rls_enabled": true,
@@ -24306,13 +24332,97 @@
       {
         "table_id": 1000119,
         "schema": "public",
-        "table": "subscriptions",
-        "id": "1000119.4",
-        "ordinal_position": 4,
-        "name": "current_period_end",
-        "default_value": null,
+        "table": "projects",
+        "id": "1000119.6",
+        "ordinal_position": 6,
+        "name": "budget_minor",
+        "default_value": "0",
+        "data_type": "bigint",
+        "format": "int8",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.3",
+        "ordinal_position": 3,
+        "name": "created_at",
+        "default_value": "now()",
         "data_type": "timestamp with time zone",
         "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.7",
+        "ordinal_position": 7,
+        "name": "currency",
+        "default_value": "'EUR'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.9",
+        "ordinal_position": 9,
+        "name": "label_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -24327,9 +24437,51 @@
       {
         "table_id": 1000119,
         "schema": "public",
-        "table": "subscriptions",
-        "id": "1000119.1",
-        "ordinal_position": 1,
+        "table": "projects",
+        "id": "1000119.8",
+        "ordinal_position": 8,
+        "name": "lead_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.5",
+        "ordinal_position": 5,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000119,
+        "schema": "public",
+        "table": "projects",
+        "id": "1000119.2",
+        "ordinal_position": 2,
         "name": "organization_id",
         "default_value": null,
         "data_type": "uuid",
@@ -24348,51 +24500,9 @@
       {
         "table_id": 1000119,
         "schema": "public",
-        "table": "subscriptions",
-        "id": "1000119.2",
-        "ordinal_position": 2,
-        "name": "plan_key",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000119,
-        "schema": "public",
-        "table": "subscriptions",
-        "id": "1000119.3",
-        "ordinal_position": 3,
-        "name": "status",
-        "default_value": "'active'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "status = ANY (ARRAY['active'::text, 'trialing'::text, 'past_due'::text, 'canceled'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000119,
-        "schema": "public",
-        "table": "subscriptions",
-        "id": "1000119.5",
-        "ordinal_position": 5,
+        "table": "projects",
+        "id": "1000119.4",
+        "ordinal_position": 4,
         "name": "updated_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -24411,30 +24521,9 @@
       {
         "table_id": 1000120,
         "schema": "public",
-        "table": "tags",
-        "id": "1000120.4",
-        "ordinal_position": 4,
-        "name": "color",
-        "default_value": "'gray'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000120,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000120.5",
-        "ordinal_position": 5,
+        "table": "saved_views",
+        "id": "1000120.2",
+        "ordinal_position": 2,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -24453,7 +24542,28 @@
       {
         "table_id": 1000120,
         "schema": "public",
-        "table": "tags",
+        "table": "saved_views",
+        "id": "1000120.5",
+        "ordinal_position": 5,
+        "name": "filters",
+        "default_value": "'{}'::jsonb",
+        "data_type": "jsonb",
+        "format": "jsonb",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000120,
+        "schema": "public",
+        "table": "saved_views",
         "id": "1000120.1",
         "ordinal_position": 1,
         "name": "id",
@@ -24474,9 +24584,9 @@
       {
         "table_id": 1000120,
         "schema": "public",
-        "table": "tags",
-        "id": "1000120.3",
-        "ordinal_position": 3,
+        "table": "saved_views",
+        "id": "1000120.4",
+        "ordinal_position": 4,
         "name": "name",
         "default_value": null,
         "data_type": "text",
@@ -24495,8 +24605,239 @@
       {
         "table_id": 1000120,
         "schema": "public",
+        "table": "saved_views",
+        "id": "1000120.3",
+        "ordinal_position": 3,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000120,
+        "schema": "public",
+        "table": "saved_views",
+        "id": "1000120.6",
+        "ordinal_position": 6,
+        "name": "user_id",
+        "default_value": "auth.uid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
+        "table": "subscriptions",
+        "id": "1000121.4",
+        "ordinal_position": 4,
+        "name": "current_period_end",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
+        "table": "subscriptions",
+        "id": "1000121.1",
+        "ordinal_position": 1,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
+        "table": "subscriptions",
+        "id": "1000121.2",
+        "ordinal_position": 2,
+        "name": "plan_key",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
+        "table": "subscriptions",
+        "id": "1000121.3",
+        "ordinal_position": 3,
+        "name": "status",
+        "default_value": "'active'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": "status = ANY (ARRAY['active'::text, 'trialing'::text, 'past_due'::text, 'canceled'::text])",
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
+        "table": "subscriptions",
+        "id": "1000121.5",
+        "ordinal_position": 5,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000122,
+        "schema": "public",
         "table": "tags",
-        "id": "1000120.2",
+        "id": "1000122.4",
+        "ordinal_position": 4,
+        "name": "color",
+        "default_value": "'gray'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000122,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000122.5",
+        "ordinal_position": 5,
+        "name": "created_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000122,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000122.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000122,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000122.3",
+        "ordinal_position": 3,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000122,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000122.2",
         "ordinal_position": 2,
         "name": "organization_id",
         "default_value": null,
@@ -24514,10 +24855,10 @@
         "comment": null
       },
       {
-        "table_id": 1000120,
+        "table_id": 1000122,
         "schema": "public",
         "table": "tags",
-        "id": "1000120.6",
+        "id": "1000122.6",
         "ordinal_position": 6,
         "name": "updated_at",
         "default_value": "now()",
@@ -25553,11 +25894,23 @@
       {
         "table_id": 1000119,
         "schema": "public",
+        "table_name": "projects",
+        "name": "id"
+      },
+      {
+        "table_id": 1000120,
+        "schema": "public",
+        "table_name": "saved_views",
+        "name": "id"
+      },
+      {
+        "table_id": 1000121,
+        "schema": "public",
         "table_name": "subscriptions",
         "name": "organization_id"
       },
       {
-        "table_id": 1000120,
+        "table_id": 1000122,
         "schema": "public",
         "table_name": "tags",
         "name": "id"
@@ -27261,9 +27614,65 @@
         "is_one_to_one": true
       },
       {
+        "foreign_key_name": "projects_label_id_fkey",
+        "schema": "public",
+        "relation": "projects",
+        "columns": [
+          "label_id"
+        ],
+        "referenced_schema": "better_supabase",
+        "referenced_relation": "tags",
+        "referenced_columns": [
+          "id"
+        ],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "projects_lead_id_fkey",
+        "schema": "public",
+        "relation": "projects",
+        "columns": [
+          "lead_id"
+        ],
+        "referenced_schema": "auth",
+        "referenced_relation": "users",
+        "referenced_columns": [
+          "id"
+        ],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "projects_organization_id_fkey",
+        "schema": "public",
+        "relation": "projects",
+        "columns": [
+          "organization_id"
+        ],
+        "referenced_schema": "public",
+        "referenced_relation": "organizations",
+        "referenced_columns": [
+          "id"
+        ],
+        "is_one_to_one": false
+      },
+      {
         "foreign_key_name": "push_devices_user_id_fkey",
         "schema": "better_supabase",
         "relation": "push_devices",
+        "columns": [
+          "user_id"
+        ],
+        "referenced_schema": "auth",
+        "referenced_relation": "users",
+        "referenced_columns": [
+          "id"
+        ],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "saved_views_user_id_fkey",
+        "schema": "public",
+        "relation": "saved_views",
         "columns": [
           "user_id"
         ],
@@ -47441,7 +47850,7 @@
         ],
         "argument_types": "p_status text, p_limit integer DEFAULT 50",
         "identity_argument_types": "p_status text, p_limit integer",
-        "return_type_id": 2000257,
+        "return_type_id": 2000259,
         "return_type": "SETOF customers",
         "return_type_relation_id": 1000112,
         "is_set_returning_function": true,
@@ -47747,7 +48156,7 @@
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
         "identity_argument_types": "query vector, k integer",
-        "return_type_id": 2000261,
+        "return_type_id": 2000263,
         "return_type": "SETOF notes",
         "return_type_relation_id": 1000115,
         "is_set_returning_function": true,
@@ -50394,6 +50803,26 @@
       },
       {
         "id": 2000253,
+        "name": "_projects",
+        "schema": "public",
+        "format": "projects[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000254,
+        "name": "_saved_views",
+        "schema": "public",
+        "format": "saved_views[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000255,
         "name": "_subscriptions",
         "schema": "public",
         "format": "subscriptions[]",
@@ -50403,7 +50832,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000254,
+        "id": 2000256,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -50413,7 +50842,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000255,
+        "id": 2000257,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
@@ -50423,7 +50852,7 @@
         "type_relation_id": 1000110
       },
       {
-        "id": 2000256,
+        "id": 2000258,
         "name": "customer_tags",
         "schema": "public",
         "format": "customer_tags",
@@ -50433,7 +50862,7 @@
         "type_relation_id": 1000111
       },
       {
-        "id": 2000257,
+        "id": 2000259,
         "name": "customers",
         "schema": "public",
         "format": "customers",
@@ -50443,7 +50872,7 @@
         "type_relation_id": 1000112
       },
       {
-        "id": 2000258,
+        "id": 2000260,
         "name": "locations",
         "schema": "public",
         "format": "locations",
@@ -50453,7 +50882,7 @@
         "type_relation_id": 1000113
       },
       {
-        "id": 2000259,
+        "id": 2000261,
         "name": "memberships",
         "schema": "public",
         "format": "memberships",
@@ -50463,7 +50892,7 @@
         "type_relation_id": 1000114
       },
       {
-        "id": 2000260,
+        "id": 2000262,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -50477,7 +50906,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000261,
+        "id": 2000263,
         "name": "notes",
         "schema": "public",
         "format": "notes",
@@ -50487,7 +50916,7 @@
         "type_relation_id": 1000115
       },
       {
-        "id": 2000262,
+        "id": 2000264,
         "name": "organizations",
         "schema": "public",
         "format": "organizations",
@@ -50497,7 +50926,7 @@
         "type_relation_id": 1000116
       },
       {
-        "id": 2000263,
+        "id": 2000265,
         "name": "plan_features",
         "schema": "public",
         "format": "plan_features",
@@ -50507,7 +50936,7 @@
         "type_relation_id": 1000117
       },
       {
-        "id": 2000264,
+        "id": 2000266,
         "name": "plans",
         "schema": "public",
         "format": "plans",
@@ -50517,24 +50946,44 @@
         "type_relation_id": 1000118
       },
       {
-        "id": 2000265,
-        "name": "subscriptions",
+        "id": 2000267,
+        "name": "projects",
         "schema": "public",
-        "format": "subscriptions",
+        "format": "projects",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000119
       },
       {
-        "id": 2000266,
+        "id": 2000268,
+        "name": "saved_views",
+        "schema": "public",
+        "format": "saved_views",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000120
+      },
+      {
+        "id": 2000269,
+        "name": "subscriptions",
+        "schema": "public",
+        "format": "subscriptions",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000121
+      },
+      {
+        "id": 2000270,
         "name": "tags",
         "schema": "public",
         "format": "tags",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000120
+        "type_relation_id": 1000122
       }
     ]
   },
@@ -63408,6 +63857,298 @@
       {
         "id": 1000119,
         "schema": "public",
+        "name": "projects",
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": [],
+        "foreignKeys": [
+          {
+            "name": "projects_label_id_fkey",
+            "onDelete": "set null",
+            "onUpdate": "no action"
+          },
+          {
+            "name": "projects_lead_id_fkey",
+            "onDelete": "set null",
+            "onUpdate": "no action"
+          },
+          {
+            "name": "projects_organization_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          }
+        ],
+        "checks": [],
+        "indexes": [
+          {
+            "name": "projects_label_id_idx",
+            "columns": [
+              "label_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "projects_lead_id_idx",
+            "columns": [
+              "lead_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "projects_organization_id_idx",
+            "columns": [
+              "organization_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "projects_pkey",
+            "columns": [
+              "id"
+            ],
+            "unique": true,
+            "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          }
+        ],
+        "policies": [
+          {
+            "name": "projects_delete",
+            "command": "delete",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": null,
+            "functions": [
+              "better_supabase.member_organization_ids"
+            ]
+          },
+          {
+            "name": "projects_insert",
+            "command": "insert",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": null,
+            "check": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "functions": [
+              "better_supabase.member_organization_ids"
+            ]
+          },
+          {
+            "name": "projects_select",
+            "command": "select",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": null,
+            "functions": [
+              "better_supabase.member_organization_ids"
+            ]
+          },
+          {
+            "name": "projects_update",
+            "command": "update",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "functions": [
+              "better_supabase.member_organization_ids"
+            ]
+          }
+        ],
+        "triggers": [
+          {
+            "name": "bs_updated_at",
+            "timing": "before",
+            "events": [
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.set_updated_at"
+          }
+        ],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "SELECT",
+              "UPDATE"
+            ]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000120,
+        "schema": "public",
+        "name": "saved_views",
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": [],
+        "foreignKeys": [
+          {
+            "name": "saved_views_user_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          }
+        ],
+        "checks": [],
+        "indexes": [
+          {
+            "name": "saved_views_pkey",
+            "columns": [
+              "id"
+            ],
+            "unique": true,
+            "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "saved_views_user_id_idx",
+            "columns": [
+              "user_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          }
+        ],
+        "policies": [
+          {
+            "name": "saved_views_delete",
+            "command": "delete",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(user_id = ( SELECT auth.uid() AS uid))",
+            "check": null,
+            "functions": [
+              "auth.uid"
+            ]
+          },
+          {
+            "name": "saved_views_insert",
+            "command": "insert",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": null,
+            "check": "(user_id = ( SELECT auth.uid() AS uid))",
+            "functions": [
+              "auth.uid"
+            ]
+          },
+          {
+            "name": "saved_views_select",
+            "command": "select",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(user_id = ( SELECT auth.uid() AS uid))",
+            "check": null,
+            "functions": [
+              "auth.uid"
+            ]
+          },
+          {
+            "name": "saved_views_update",
+            "command": "update",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": true,
+            "using": "(user_id = ( SELECT auth.uid() AS uid))",
+            "check": "(user_id = ( SELECT auth.uid() AS uid))",
+            "functions": [
+              "auth.uid"
+            ]
+          }
+        ],
+        "triggers": [
+          {
+            "name": "bs_updated_at",
+            "timing": "before",
+            "events": [
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.set_updated_at"
+          }
+        ],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "SELECT",
+              "UPDATE"
+            ]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000121,
+        "schema": "public",
         "name": "subscriptions",
         "primaryKey": [
           "organization_id"
@@ -63537,7 +64278,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000120,
+        "id": 1000122,
         "schema": "public",
         "name": "tags",
         "primaryKey": [

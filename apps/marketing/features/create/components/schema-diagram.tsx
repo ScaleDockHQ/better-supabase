@@ -1,6 +1,6 @@
 "use client";
 
-import type { ResolvedPreset } from "better-supabase/preset";
+import type { Preset, ResolvedPreset } from "better-supabase/preset";
 import type { ReactElement } from "react";
 
 import {
@@ -8,9 +8,17 @@ import {
   DatabaseIcon,
   FolderTreeIcon,
   RotateCwIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Suspense, use, useReducer } from "react";
+import {
+  Suspense,
+  use,
+  useDeferredValue,
+  useMemo,
+  useReducer,
+  useSyncExternalStore,
+} from "react";
 import * as v from "valibot";
 
 import {
@@ -29,11 +37,17 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { categoryStyle } from "@/features/blocks/categories";
 import { blocks } from "@/lib/blocks";
 import { CONFIG_FILE, packagePath } from "@/lib/create";
-import { type SchemaTable, schemaRelations } from "@/lib/schema";
+import {
+  type DesignIssue,
+  designIssues,
+  isAppTable,
+  withDesign,
+} from "@/lib/design";
+import { type SchemaData, schemaRelations } from "@/lib/schema";
 
+import { useDesign } from "./design-provider";
 import { PlaceholderAccessNote } from "./placeholder-access-note";
 
 function CanvasSkeleton(): ReactElement {
@@ -56,9 +70,15 @@ const SchemaCanvas = dynamic(
 
 type SchemaState =
   | { readonly status: "error"; readonly message: string }
-  | { readonly status: "ready"; readonly tables: readonly SchemaTable[] };
+  | { readonly status: "ready"; readonly data: SchemaData };
 
-const column = v.object({ name: v.string(), type: v.string() });
+const column = v.object({
+  name: v.string(),
+  type: v.string(),
+  nullable: v.boolean(),
+  default: v.nullable(v.string()),
+  unique: v.boolean(),
+});
 
 const schemaResponse = v.union([
   v.object({
@@ -80,10 +100,24 @@ const schemaResponse = v.union([
           }),
         ),
         tenantColumn: v.nullable(v.string()),
-        keyColumns: v.array(column),
-        columnCount: v.number(),
+        columns: v.array(column),
       }),
     ),
+    softRefs: v.array(
+      v.object({
+        from: v.string(),
+        column: v.string(),
+        to: v.nullable(v.string()),
+        kind: v.picklist(["tenant", "user", "any"]),
+      }),
+    ),
+    manifests: v.record(v.string(), v.string()),
+    extraColumns: v.array(v.string()),
+    blockTables: v.record(
+      v.string(),
+      v.object({ block: v.string(), table: v.string() }),
+    ),
+    tenantTable: v.nullable(v.string()),
   }),
   v.object({ error: v.string() }),
 ]);
@@ -95,7 +129,7 @@ async function loadSchema(code: string): Promise<SchemaState> {
 
     return "error" in body
       ? { status: "error", message: body.error }
-      : { status: "ready", tables: body.tables };
+      : { status: "ready", data: body };
   } catch (error) {
     return {
       status: "error",
@@ -105,6 +139,21 @@ async function loadSchema(code: string): Promise<SchemaState> {
           : "The schema could not be read.",
     };
   }
+}
+
+// Nothing to subscribe to: the value only flips from the server render to the client.
+const subscribeToClient = (): (() => void) => () => {};
+
+/**
+ * False on the server and during hydration, so the server renders the
+ * skeleton instead of fetching `/create/schema` with a relative URL.
+ */
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false,
+  );
 }
 
 /**
@@ -136,6 +185,34 @@ function categoryOf(module: string): string {
   return CATEGORY_BY_BLOCK.get(module) ?? FALLBACK_CATEGORY;
 }
 
+function DesignIssues({
+  issues,
+}: {
+  issues: readonly DesignIssue[];
+}): ReactElement | null {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  return (
+    <Alert variant="warning">
+      <TriangleAlertIcon aria-hidden="true" />
+      <AlertTitle>
+        {issues.length === 1
+          ? "One thing to fix before sql sync"
+          : `${issues.length} things to fix before sql sync`}
+      </AlertTitle>
+      <AlertDescription>
+        <ul className="flex flex-col gap-1">
+          {issues.map((issue) => (
+            <li key={issue.message}>{issue.message}</li>
+          ))}
+        </ul>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function FolderLayout({ pkg }: { pkg: string }): ReactElement {
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -149,24 +226,41 @@ function FolderLayout({ pkg }: { pkg: string }): ReactElement {
 
 function SchemaView({
   code,
+  designCode,
+  preset,
   pkg,
   placeholder,
   onRetry,
+  onRemoveBlock,
 }: {
   code: string;
+  designCode: string;
+  preset: Preset;
   pkg: string | undefined;
   placeholder: boolean;
   onRetry: () => void;
+  onRemoveBlock: (module: string) => void;
 }): ReactElement {
   const state = use(schemaFor(code));
+  const { state: designState } = useDesign();
 
-  if (state.status === "error") {
+  const merged = useMemo(
+    () =>
+      state.status === "ready"
+        ? withDesign(state.data, designState.design, preset)
+        : undefined,
+    [designState.design, preset, state],
+  );
+
+  if (merged === undefined || state.status === "error") {
     return (
       <div className="p-4">
         <Alert variant="destructive">
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>The schema could not be read</AlertTitle>
-          <AlertDescription>{state.message}</AlertDescription>
+          <AlertDescription>
+            {state.status === "error" ? state.message : "The schema is empty."}
+          </AlertDescription>
           <AlertAction>
             <Button
               variant="outline"
@@ -185,47 +279,32 @@ function SchemaView({
     );
   }
 
-  const { tables } = state;
+  const data = merged;
+  const { tables } = data;
   const relations = schemaRelations(tables);
+  const issues = designIssues(designState.design, data);
 
-  const categories = [
-    ...new Set(tables.map((table) => categoryOf(table.module))),
-  ].toSorted();
+  const notes = pkg !== undefined || placeholder || issues.length > 0;
 
   return (
     <>
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="text-sm font-medium tabular-nums">
-            {tables.length} tables, {relations.length} relations
-          </p>
-          <ul
-            aria-label="Categories"
-            className="flex flex-wrap items-center gap-x-3 gap-y-1"
-          >
-            {categories.map((category) => (
-              <li
-                key={category}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
-              >
-                <span
-                  aria-hidden="true"
-                  className={`size-2 rounded-full ${categoryStyle(category).solid}`}
-                />
-                {category}
-              </li>
-            ))}
-          </ul>
+      {notes ? (
+        <div className="flex flex-col gap-2 border-b border-border px-4 py-2">
+          {pkg === undefined ? null : <FolderLayout pkg={pkg} />}
+          {placeholder ? <PlaceholderAccessNote /> : null}
+          <DesignIssues issues={issues} />
         </div>
-        {pkg === undefined ? null : <FolderLayout pkg={pkg} />}
-        {placeholder ? <PlaceholderAccessNote /> : null}
-      </div>
+      ) : null}
       <div className="sr-only">
-        <h2>Tables in this schema</h2>
+        <h2>
+          Tables in this schema: {tables.length} tables, {relations.length}{" "}
+          relations
+        </h2>
         <ul>
           {tables.map((table) => (
             <li key={table.id}>
-              {table.id} from {table.module}, {table.columnCount} columns
+              {table.id} from {isAppTable(table) ? "your app" : table.module},{" "}
+              {table.columns.length} columns
               {table.foreignKeys.length > 0
                 ? `, references ${table.foreignKeys
                     .map((key) => `${key.target.schema}.${key.target.table}`)
@@ -239,10 +318,13 @@ function SchemaView({
         <Suspense fallback={<CanvasSkeleton />}>
           <SchemaCanvas
             code={code}
-            tables={tables}
+            designCode={designCode}
+            data={data}
+            preset={preset}
             categories={Object.fromEntries(
               tables.map((table) => [table.module, categoryOf(table.module)]),
             )}
+            onRemoveBlock={onRemoveBlock}
           />
         </Suspense>
       </div>
@@ -256,16 +338,27 @@ function SchemaView({
  */
 export function SchemaDiagram({
   code,
+  designCode,
   resolved,
   pkg,
   onStart,
+  onRemoveBlock,
 }: {
   code: string;
+  designCode: string;
   resolved: ResolvedPreset;
   pkg: string | undefined;
   onStart: () => void;
+  onRemoveBlock: (module: string) => void;
 }): ReactElement {
   const [attempt, retry] = useReducer((count: number) => count + 1, 0);
+  const client = useIsClient();
+
+  // Keeps the drawn canvas while the next schema loads: a Suspense fallback
+  // hides it, and React Flow resets the viewport when it shows again.
+  const shown = useDeferredValue(
+    useMemo(() => ({ code, preset: resolved.preset }), [code, resolved.preset]),
+  );
 
   if (resolved.blocks.length === 0) {
     return (
@@ -291,15 +384,22 @@ export function SchemaDiagram({
 
   return (
     <div className="flex flex-1 flex-col">
-      <Suspense fallback={<CanvasSkeleton />}>
-        <SchemaView
-          key={attempt}
-          code={code}
-          pkg={pkg}
-          placeholder={resolved.preset.access === "provider"}
-          onRetry={retry}
-        />
-      </Suspense>
+      {client ? (
+        <Suspense fallback={<CanvasSkeleton />}>
+          <SchemaView
+            key={attempt}
+            code={shown.code}
+            designCode={designCode}
+            preset={shown.preset}
+            pkg={pkg}
+            placeholder={resolved.preset.access === "provider"}
+            onRetry={retry}
+            onRemoveBlock={onRemoveBlock}
+          />
+        </Suspense>
+      ) : (
+        <CanvasSkeleton />
+      )}
     </div>
   );
 }

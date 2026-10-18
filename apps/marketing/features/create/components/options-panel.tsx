@@ -7,15 +7,23 @@ import {
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
   type PresetName,
+  type PresetPlatforms,
+  PRESETS,
   type ResolvedPreset,
   withPresetField,
 } from "better-supabase/preset";
-import { ShuffleIcon, TerminalIcon, TriangleAlertIcon } from "lucide-react";
-import { useId } from "react";
+import {
+  ChevronDownIcon,
+  ShuffleIcon,
+  TerminalIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { useId, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
 import { BrandLogo } from "@/components/site/brand-icons";
+import { CopyButton } from "@/components/site/copy-button";
 import {
   Accordion,
   AccordionContent,
@@ -42,6 +50,7 @@ import {
   AUTH_CHOICES,
   type AuthChoice,
   CONVENTION_KEYS,
+  CUSTOM_PRESET,
   CONVENTION_VALUES,
   FIELD_LABELS,
   fieldLabel,
@@ -59,7 +68,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import { BlockPicker } from "./block-picker";
+import { useCanvasBridge } from "./canvas-bridge";
 import { PresetPicker } from "./preset-picker";
+import { PrimitivePicker } from "./primitive-picker";
 
 /** The monorepo option: `dir` is the text in the field, valid or not. */
 export interface PackageOption {
@@ -160,21 +171,6 @@ function FrameworkLabel({ framework }: { framework: string }): ReactNode {
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <fieldset className="flex flex-col gap-3">
-      <legend className="pb-2 text-sm font-medium">{title}</legend>
-      {children}
-    </fieldset>
-  );
-}
-
 function StackSection({
   preset,
   resolved,
@@ -197,7 +193,7 @@ function StackSection({
   const current = platformUnavailable(preset.framework, preset.platforms);
 
   return (
-    <Section title="Stack">
+    <div className="flex flex-col gap-3">
       <Field id={`${ids}-framework`} label={FIELD_LABELS.framework}>
         <Select
           value={preset.framework}
@@ -256,7 +252,7 @@ function StackSection({
                 title={reason}
                 className="flex-1"
               >
-                {PLATFORM_LABELS[platform]}
+                {PLATFORM_TOGGLE_LABELS[platform]}
               </ToggleGroupItem>
             );
           })}
@@ -286,7 +282,7 @@ function StackSection({
           </AlertDescription>
         </Alert>
       ) : null}
-    </Section>
+    </div>
   );
 }
 
@@ -300,8 +296,8 @@ function AuthSection({
   const ids = useId();
 
   return (
-    <div className="flex flex-col gap-3">
-      <p id={`${ids}-auth`} className="text-sm font-medium">
+    <div className="flex flex-col">
+      <p id={`${ids}-auth`} className="sr-only">
         {FIELD_LABELS.access}
       </p>
       <RadioGroup
@@ -430,10 +426,62 @@ function IntegrationRows({
   );
 }
 
+const GROUP_CONTENT = "px-2 pt-3";
+
+/** Shorter than `PLATFORM_LABELS` so three toggles fit the sidebar. */
+const PLATFORM_TOGGLE_LABELS = {
+  web: "Web",
+  native: "Native",
+  both: "Both",
+} satisfies Readonly<Record<PresetPlatforms, string>>;
+
+function GroupTrigger({
+  title,
+  summary,
+}: {
+  title: string;
+  summary: ReactNode;
+}): ReactElement {
+  return (
+    <AccordionTrigger className="items-center gap-2 px-2 py-3 transition-colors hover:bg-muted/50 hover:no-underline aria-expanded:bg-muted/50 aria-expanded:hover:bg-muted *:data-[slot=accordion-trigger-icon]:hidden">
+      <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2">
+        {title}
+        <span className="truncate text-xs font-normal text-muted-foreground tabular-nums">
+          {summary}
+        </span>
+      </span>
+      <ChevronDownIcon
+        aria-hidden="true"
+        className="pointer-events-none size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-aria-expanded/accordion-trigger:rotate-180 motion-reduce:transition-none"
+      />
+    </AccordionTrigger>
+  );
+}
+
+function stackSummary(preset: Preset): string {
+  const framework =
+    Object.entries(FRAMEWORKS).find(([name]) => name === preset.framework)?.[1]
+      .label ?? preset.framework;
+
+  return `${framework}, ${PLATFORM_LABELS[preset.platforms].toLowerCase()}`;
+}
+
+function integrationCount(preset: Preset): number {
+  const on = new Set<string>(preset.integrations);
+
+  for (const name of impliedIntegrations(preset.framework).keys()) {
+    on.add(name);
+  }
+
+  return on.size;
+}
+
 /**
  * Every option `/create` has, top to bottom like the shadcn customizer: the
- * preset, the stack, auth and permissions, then conventions, integrations
- * and blocks as collapsible sections, with the code and actions pinned below.
+ * preset, the stack, auth and permissions, conventions, integrations and
+ * primitives and blocks as collapsible sections whose triggers show the
+ * current value, with the code and actions pinned below. Only the preset
+ * starts open; the blocks open when the canvas asks to show one.
  */
 export function OptionsPanel({
   preset,
@@ -448,6 +496,7 @@ export function OptionsPanel({
   onNamedPreset,
   onToggleBlock,
   onPackage,
+  aiPrompt,
   onShuffle,
   onGetCode,
 }: {
@@ -463,12 +512,29 @@ export function OptionsPanel({
   onNamedPreset: (name: PresetName) => void;
   onToggleBlock: (name: string) => void;
   onPackage: (pkg: PackageOption) => void;
+  /** The AI instructions for the current choices, copied from the footer. */
+  aiPrompt: string;
   onShuffle: () => void;
   onGetCode: () => void;
 }): ReactElement {
   const ids = useId();
+  const { state: bridge } = useCanvasBridge();
+  const [sections, setSections] = useState<readonly string[]>(["preset"]);
+  const [revealed, setRevealed] = useState(bridge.reveal);
+
+  if (bridge.reveal !== revealed) {
+    setRevealed(bridge.reveal);
+
+    if (bridge.reveal !== null && !sections.includes("blocks")) {
+      setSections([...sections, "blocks"]);
+    }
+  }
 
   const dirInvalid = pkg.on && packageDir(pkg.dir) === undefined;
+
+  const stackConflicts = resolved.conflicts.filter(
+    (conflict) => conflict.field !== undefined,
+  ).length;
 
   return (
     <form
@@ -479,21 +545,63 @@ export function OptionsPanel({
       }}
     >
       <ScrollArea className="sidebar-scroll min-h-0 flex-1">
-        <div className="flex flex-col gap-6 p-4">
-          <PresetPicker selected={named} onSelect={onNamedPreset} />
-
-          <StackSection
-            preset={preset}
-            resolved={resolved}
-            onPreset={onPreset}
-          />
-
-          <AuthSection choice={authChoice} onChoice={onAuthChoice} />
-
-          <Accordion multiple defaultValue={["blocks"]}>
+        <div className="flex flex-col p-2">
+          <Accordion
+            multiple
+            value={[...sections]}
+            onValueChange={(value) => {
+              setSections(value.map(String));
+            }}
+          >
+            <AccordionItem value="preset">
+              <GroupTrigger
+                title="Preset"
+                summary={
+                  named === undefined
+                    ? CUSTOM_PRESET.label
+                    : PRESETS[named].title
+                }
+              />
+              <AccordionContent className={GROUP_CONTENT}>
+                <PresetPicker selected={named} onSelect={onNamedPreset} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="stack">
+              <GroupTrigger
+                title="Stack"
+                summary={
+                  stackConflicts > 0 ? (
+                    <Badge variant="warning-light">Conflict</Badge>
+                  ) : (
+                    stackSummary(preset)
+                  )
+                }
+              />
+              <AccordionContent className={GROUP_CONTENT}>
+                <StackSection
+                  preset={preset}
+                  resolved={resolved}
+                  onPreset={onPreset}
+                />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="auth">
+              <GroupTrigger
+                title={FIELD_LABELS.access}
+                summary={AUTH_CHOICE_INFO[authChoice].label}
+              />
+              <AccordionContent className={GROUP_CONTENT}>
+                <AuthSection choice={authChoice} onChoice={onAuthChoice} />
+              </AccordionContent>
+            </AccordionItem>
             <AccordionItem value="conventions">
-              <AccordionTrigger>Conventions</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-3">
+              <GroupTrigger
+                title="Conventions"
+                summary={`${preset.casing}, ${preset.idType}`}
+              />
+              <AccordionContent
+                className={cn(GROUP_CONTENT, "flex flex-col gap-3")}
+              >
                 {CONVENTION_KEYS.map((key) => {
                   const options: Readonly<Record<string, OptionInfo>> =
                     CONVENTION_VALUES[key];
@@ -583,21 +691,26 @@ export function OptionsPanel({
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="integrations">
-              <AccordionTrigger>Integrations</AccordionTrigger>
-              <AccordionContent>
+              <GroupTrigger
+                title="Integrations"
+                summary={`${integrationCount(preset)} on`}
+              />
+              <AccordionContent className={GROUP_CONTENT}>
                 <IntegrationRows preset={preset} onPreset={onPreset} />
               </AccordionContent>
             </AccordionItem>
+            <AccordionItem value="primitives">
+              <GroupTrigger title="Primitives" summary="Table, lookup" />
+              <AccordionContent className={GROUP_CONTENT}>
+                <PrimitivePicker />
+              </AccordionContent>
+            </AccordionItem>
             <AccordionItem value="blocks">
-              <AccordionTrigger>
-                <span className="flex flex-1 items-baseline justify-between gap-2 pr-2">
-                  Blocks
-                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
-                    {resolved.blocks.length} installed
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
+              <GroupTrigger
+                title="Blocks"
+                summary={`${resolved.blocks.length} installed`}
+              />
+              <AccordionContent className={GROUP_CONTENT}>
                 <BlockPicker groups={groups} onToggle={onToggleBlock} />
               </AccordionContent>
             </AccordionItem>
@@ -614,6 +727,14 @@ export function OptionsPanel({
             <ShuffleIcon aria-hidden="true" />
             Shuffle
           </Button>
+          <CopyButton
+            text={aiPrompt}
+            label="Copy AI instructions"
+            variant="outline"
+            size="sm"
+          >
+            AI
+          </CopyButton>
           <Button
             type="button"
             size="sm"

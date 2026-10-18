@@ -7,6 +7,7 @@ import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { expandPreset } from "../preset/config.ts";
+import { appTablesOf } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
@@ -288,6 +289,7 @@ export function resolveConfig(
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),
+    appTables: appTablesOf(config.appTables, config.sql?.naming?.tenant),
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
       output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,

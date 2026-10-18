@@ -3,16 +3,18 @@
 import type { ReactElement } from "react";
 
 import {
-  presetApplyCommand,
+  designApplyCommand,
+  designConfigSource,
+  designInstallCommand,
   presetBlocksSource,
   presetConfigSource,
-  presetInstallCommand,
   type ResolvedPreset,
 } from "better-supabase/preset";
 import { DownloadIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 
 import { CopyButton } from "@/components/site/copy-button";
+import { PromptFrame } from "@/components/site/prompt-frame";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -39,11 +42,157 @@ import {
   permDockInstall,
   withPermDock,
 } from "@/lib/create-options";
+import { presetPrompt } from "@/lib/create-prompt";
+import { type Design, EMPTY_DESIGN, isEmptyDesign } from "@/lib/design";
+import { site } from "@/lib/site";
 
 import { MigrationsPanel } from "./migrations-panel";
 import { PresetGraph } from "./preset-graph";
 
 const WIRING_FILE = "lib/blocks.ts";
+
+/** Scrolls sideways on a narrow screen instead of wrapping onto a second row. */
+const SCROLLING_TABS =
+  "max-w-full justify-start overflow-x-auto [scrollbar-width:none]";
+
+/**
+ * The config file for the preset and its design. A design the preset can't
+ * take (extra columns on a block it doesn't install) falls back to the
+ * preset's config; the canvas lists what to fix.
+ */
+function configSourceOf(
+  resolved: ResolvedPreset,
+  design: Design,
+  designCode: string,
+): string {
+  if (isEmptyDesign(design)) {
+    return presetConfigSource(resolved);
+  }
+
+  try {
+    return designConfigSource(resolved, design, designCode);
+  } catch {
+    return presetConfigSource(resolved);
+  }
+}
+
+/** The `/create/prompt.md` URL for the same choices, so an agent can fetch it. */
+function promptUrl({
+  code,
+  ui,
+  pkg,
+  authz,
+  manager,
+}: {
+  code: string;
+  ui: boolean;
+  pkg: string | undefined;
+  authz: AuthzLibrary | undefined;
+  manager: PackageManager;
+}): string {
+  const params = new URLSearchParams({ preset: code });
+
+  if (ui) {
+    params.set("ui", "1");
+  }
+
+  if (pkg !== undefined) {
+    params.set("package", pkg);
+  }
+
+  if (authz !== undefined) {
+    params.set("authz", authz);
+  }
+
+  if (manager !== "pnpm") {
+    params.set("manager", manager);
+  }
+
+  return `${site.url}/create/prompt.md?${params.toString()}`;
+}
+
+function AiInstructions({
+  code,
+  resolved,
+  design,
+  designCode,
+  pkg,
+  authz,
+  manager,
+}: {
+  code: string;
+  resolved: ResolvedPreset;
+  design: Design;
+  designCode: string;
+  pkg: string | undefined;
+  authz: AuthzLibrary | undefined;
+  manager: PackageManager;
+}): ReactElement {
+  const ids = useId();
+  const [ui, setUi] = useState(false);
+
+  const prompt = useMemo(
+    () =>
+      presetPrompt({
+        resolved,
+        design,
+        designCode,
+        ui,
+        manager,
+        pkg,
+        authz,
+        siteUrl: site.url,
+      }),
+    [resolved, design, designCode, ui, manager, pkg, authz],
+  );
+
+  const url = promptUrl({ code, ui, pkg, authz, manager });
+
+  return (
+    <PromptFrame
+      title="AI instructions"
+      description={
+        designCode === "" ? (
+          <>
+            Paste this into your coding agent, or have it fetch{" "}
+            <a
+              href={url}
+              className="break-all text-foreground underline underline-offset-4 transition-colors hover:text-primary"
+            >
+              the Markdown
+            </a>
+            .
+          </>
+        ) : (
+          "Paste this into your coding agent."
+        )
+      }
+      prompt={prompt}
+      copyLabel="Copy AI instructions"
+      testId="create-prompt"
+    >
+      <label
+        htmlFor={`${ids}-ui`}
+        className="flex cursor-pointer items-center gap-2 text-sm"
+      >
+        <Switch id={`${ids}-ui`} checked={ui} onCheckedChange={setUi} />
+        Include UI
+      </label>
+    </PromptFrame>
+  );
+}
+
+/** The command's words with where each starts, which also keys them. */
+function wordsOf(command: string): { at: number; word: string }[] {
+  let at = 0;
+
+  return command.split(" ").map((word) => {
+    const start = at;
+    at += word.length + 1;
+
+    return { at: start, word };
+  });
+}
 
 function CommandRow({
   label,
@@ -56,8 +205,22 @@ function CommandRow({
 }): ReactElement {
   return (
     <div className="flex items-center gap-1 rounded-md border border-border bg-muted/50 pl-3">
-      <pre className="min-w-0 flex-1 py-2 font-mono text-code break-all whitespace-pre-wrap">
-        <code data-testid={testId}>{command}</code>
+      <pre className="min-w-0 flex-1 py-2 font-mono text-code wrap-anywhere whitespace-pre-wrap">
+        <code data-testid={testId}>
+          {wordsOf(command).map(({ at, word }) => (
+            <Fragment key={at}>
+              {at === 0 ? null : " "}
+              {/* A line may break after any hyphen, which would split `--preset`. */}
+              <span
+                className={
+                  word.startsWith("-") ? "whitespace-nowrap" : undefined
+                }
+              >
+                {word}
+              </span>
+            </Fragment>
+          ))}
+        </code>
       </pre>
       <CopyButton text={command} label={`Copy the ${label} command`} />
     </div>
@@ -72,7 +235,7 @@ function CodePanel({
   code: string;
 }): ReactElement {
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-border">
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 py-1 pr-1 pl-3">
         <p className="truncate font-mono text-xs text-muted-foreground">
           {filename}
@@ -111,7 +274,10 @@ function isPackageManager(value: unknown): value is PackageManager {
 
 /**
  * The commands for a new or an existing project in the package manager the
- * person picks, then the files those commands write.
+ * person picks, then the files those commands write and the AI instructions.
+ * `design` holds the app tables and extra columns from the canvas, and
+ * `designCode` its URL code; the Markdown link shows only without one,
+ * because `/create/prompt.md` reads the preset alone.
  */
 export function GetCodeDialog({
   open,
@@ -120,6 +286,8 @@ export function GetCodeDialog({
   resolved,
   pkg,
   authz,
+  design = EMPTY_DESIGN,
+  designCode = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -127,32 +295,34 @@ export function GetCodeDialog({
   resolved: ResolvedPreset;
   pkg: string | undefined;
   authz: AuthzLibrary | undefined;
+  design?: Design;
+  designCode?: string;
 }): ReactElement {
   const ids = useId();
   const [manager, setManager] = useState<PackageManager>("pnpm");
 
   const install = commandFor(
-    withPackage(presetInstallCommand(resolved), pkg),
+    withPackage(designInstallCommand(resolved, designCode), pkg),
     manager,
   );
 
   const apply = commandFor(
-    withPackage(presetApplyCommand(resolved), pkg),
+    withPackage(designApplyCommand(resolved, designCode), pkg),
     manager,
   );
 
   const permDock = authz === "permdock";
 
-  const configSource = permDock
-    ? withPermDock(presetConfigSource(resolved))
-    : presetConfigSource(resolved);
+  const baseConfig = configSourceOf(resolved, design, designCode);
+
+  const configSource = permDock ? withPermDock(baseConfig) : baseConfig;
 
   const configFile = packagePath(CONFIG_FILE, pkg);
   const wiringFile = packagePath(WIRING_FILE, pkg);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[calc(100svh-2rem)] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Get the code</DialogTitle>
           <DialogDescription>
@@ -165,9 +335,13 @@ export function GetCodeDialog({
         <div className="flex min-w-0 flex-col gap-3">
           <Tabs defaultValue="new" className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <TabsList aria-label="Project">
-                <TabsTrigger value="new">New project</TabsTrigger>
-                <TabsTrigger value="existing">Existing project</TabsTrigger>
+              <TabsList aria-label="Project" className={SCROLLING_TABS}>
+                <TabsTrigger value="new" className="flex-none">
+                  New project
+                </TabsTrigger>
+                <TabsTrigger value="existing" className="flex-none">
+                  Existing project
+                </TabsTrigger>
               </TabsList>
               <ToggleGroup
                 aria-label="Package manager"
@@ -245,10 +419,7 @@ export function GetCodeDialog({
 
         <Tabs defaultValue="config" className="min-w-0 gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList
-              aria-label="Generated files"
-              className="flex-wrap justify-start group-data-horizontal/tabs:h-auto"
-            >
+            <TabsList aria-label="Generated files" className={SCROLLING_TABS}>
               <TabsTrigger value="config" className="flex-none">
                 Config
               </TabsTrigger>
@@ -260,6 +431,9 @@ export function GetCodeDialog({
               </TabsTrigger>
               <TabsTrigger value="graph" className="flex-none">
                 Graph
+              </TabsTrigger>
+              <TabsTrigger value="ai" className="flex-none">
+                AI instructions
               </TabsTrigger>
             </TabsList>
             <Button
@@ -274,23 +448,35 @@ export function GetCodeDialog({
               Download config
             </Button>
           </div>
-          <TabsContent value="config">
+          <TabsContent value="config" className="min-w-0">
             <CodePanel filename={configFile} code={configSource} />
           </TabsContent>
-          <TabsContent value="migrations">
+          <TabsContent value="migrations" className="min-w-0">
             <MigrationsPanel
               code={code}
+              designCode={designCode}
               placeholder={resolved.preset.access === "provider"}
             />
           </TabsContent>
-          <TabsContent value="wiring">
+          <TabsContent value="wiring" className="min-w-0">
             <CodePanel
               filename={wiringFile}
               code={presetBlocksSource(resolved)}
             />
           </TabsContent>
-          <TabsContent value="graph">
+          <TabsContent value="graph" className="min-w-0">
             <PresetGraph resolved={resolved} />
+          </TabsContent>
+          <TabsContent value="ai" className="min-w-0">
+            <AiInstructions
+              code={code}
+              resolved={resolved}
+              design={design}
+              designCode={designCode}
+              pkg={pkg}
+              authz={authz}
+              manager={manager}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>

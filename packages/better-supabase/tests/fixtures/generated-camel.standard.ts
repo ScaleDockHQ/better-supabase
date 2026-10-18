@@ -344,6 +344,87 @@ export const plansUpdate: TableSchema<UpdateOf<'plans'>> = tableSchema({
   },
 });
 
+export const projectsRow: TableSchema<RowOf<'projects'>> = tableSchema({
+  title: "Projects",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    name: { kind: "string" },
+    budgetMinor: { kind: "integer" },
+    currency: { kind: "string" },
+    leadId: { kind: "uuid", nullable: true },
+    labelId: { kind: "uuid", nullable: true },
+  },
+});
+
+export const projectsInsert: TableSchema<InsertOf<'projects'>> = tableSchema({
+  title: "Projects insert",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    name: { kind: "string" },
+    budgetMinor: { kind: "integer", optional: true },
+    currency: { kind: "string", optional: true },
+    leadId: { kind: "uuid", nullable: true, optional: true },
+    labelId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
+export const projectsUpdate: TableSchema<UpdateOf<'projects'>> = tableSchema({
+  title: "Projects update",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid", optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    name: { kind: "string", optional: true },
+    budgetMinor: { kind: "integer", optional: true },
+    currency: { kind: "string", optional: true },
+    leadId: { kind: "uuid", nullable: true, optional: true },
+    labelId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
+export const savedViewsRow: TableSchema<RowOf<'savedViews'>> = tableSchema({
+  title: "Saved views",
+  fields: {
+    id: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    name: { kind: "string" },
+    filters: { kind: "json" },
+    userId: { kind: "uuid", nullable: true },
+  },
+});
+
+export const savedViewsInsert: TableSchema<InsertOf<'savedViews'>> = tableSchema({
+  title: "Saved views insert",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    name: { kind: "string" },
+    filters: { kind: "json", optional: true },
+    userId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
+export const savedViewsUpdate: TableSchema<UpdateOf<'savedViews'>> = tableSchema({
+  title: "Saved views update",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    name: { kind: "string", optional: true },
+    filters: { kind: "json", optional: true },
+    userId: { kind: "uuid", nullable: true, optional: true },
+  },
+});
+
 export const subscriptionsRow: TableSchema<RowOf<'subscriptions'>> = tableSchema({
   title: "Subscriptions",
   fields: {
@@ -424,6 +505,8 @@ export const validators: {
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly projects: { readonly insert: typeof projectsInsert; readonly update: typeof projectsUpdate };
+  readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -436,6 +519,8 @@ export const validators: {
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },
+  projects: { insert: projectsInsert, update: projectsUpdate },
+  savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

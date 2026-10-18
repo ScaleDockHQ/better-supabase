@@ -1673,6 +1673,84 @@
         }
       ]
     },
+    "appTables": {
+      "description": "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "type": "object",
+            "description": "The table's own columns, keyed by lower snake name. id, created_at, updated_at, user_id and the tenant column are reserved.",
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9_]{0,62}$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "text",
+                    "uuid",
+                    "integer",
+                    "bigint",
+                    "numeric",
+                    "boolean",
+                    "timestamptz",
+                    "date",
+                    "jsonb",
+                    "text[]"
+                  ]
+                },
+                "nullable": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "default": {
+                  "type": "string",
+                  "description": "now(), gen_random_uuid(), auth.uid(), true, false, a number, a 'quoted' literal, '{}' or '[]'."
+                },
+                "unique": {
+                  "type": "boolean"
+                },
+                "references": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["table"],
+                  "description": "Another app table, auth.users, or a logical table of an installed block ({ block, table }).",
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "block": {
+                      "type": "string"
+                    },
+                    "onDelete": {
+                      "enum": ["cascade", "restrict", "set null", "no action"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "scope": {
+            "enum": ["inherit", "user", "none"],
+            "default": "inherit",
+            "description": "inherit follows sql.scope; user keeps rows per user; none lets signed-in users read and only the service role write."
+          },
+          "timestamps": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
     "sql": {
       "type": "object",
       "additionalProperties": false,

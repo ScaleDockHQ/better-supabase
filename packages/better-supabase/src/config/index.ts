@@ -42,6 +42,16 @@ export type {
 
 export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
+export {
+  APP_COLUMN_TYPES,
+  type AppColumnConfig,
+  type AppColumnType,
+  type AppReference,
+  type AppReferenceTarget,
+  type AppTableConfig,
+  type AppTablesConfig,
+} from "./types/app-tables.ts";
+
 export type {
   EntitlementPlansSource,
   EntitlementsConfig,

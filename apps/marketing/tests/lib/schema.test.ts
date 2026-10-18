@@ -12,6 +12,7 @@ import {
   parseSchema,
   type SchemaSource,
   schemaRelations,
+  tableStatements,
   tenantColumnOf,
 } from "../../lib/schema";
 
@@ -62,8 +63,10 @@ describe("parseSchema", () => {
 
       const wrong = tables.filter(
         (table) =>
-          table.columnCount === 0 ||
-          table.keyColumns.length > table.columnCount ||
+          table.columns.length === 0 ||
+          table.primaryKey.some(
+            (key) => !table.columns.some((column) => column.name === key),
+          ) ||
           !modules.has(table.module),
       );
 
@@ -87,7 +90,11 @@ describe("parseSchema", () => {
 
     const organizations = byId.get("better_supabase.organizations");
     expect(organizations?.primaryKey).toEqual(["id"]);
-    expect(organizations?.keyColumns[0]).toEqual({ name: "id", type: "uuid" });
+    expect(organizations?.columns[0]).toMatchObject({
+      name: "id",
+      type: "uuid",
+      nullable: false,
+    });
 
     const relations = schemaRelations(tables);
     expect(relations.some((each) => each.to === "auth.users")).toBe(true);
@@ -155,13 +162,50 @@ describe("parseSchema", () => {
         },
       ],
       tenantColumn: null,
-      keyColumns: [
-        { name: "order_id", type: "uuid" },
-        { name: "position", type: "integer" },
-        { name: "owner", type: "uuid" },
-        { name: "tenant_id", type: "uuid" },
+      columns: [
+        {
+          name: "order_id",
+          type: "uuid",
+          nullable: false,
+          default: null,
+          unique: false,
+        },
+        {
+          name: "position",
+          type: "integer",
+          nullable: false,
+          default: null,
+          unique: false,
+        },
+        {
+          name: "price",
+          type: "numeric(12, 2)",
+          nullable: true,
+          default: "0",
+          unique: false,
+        },
+        {
+          name: "note",
+          type: "text",
+          nullable: true,
+          default: null,
+          unique: false,
+        },
+        {
+          name: "owner",
+          type: "uuid",
+          nullable: true,
+          default: null,
+          unique: false,
+        },
+        {
+          name: "tenant_id",
+          type: "uuid",
+          nullable: true,
+          default: null,
+          unique: false,
+        },
       ],
-      columnCount: 6,
     });
   });
 
@@ -171,5 +215,41 @@ describe("parseSchema", () => {
         { path: "b.sql", module: "b", contents: "\ncreate table %I.%I ();" },
       ]),
     ).toThrow("b.sql:2");
+  });
+});
+
+describe("tableStatements", () => {
+  const files: readonly SchemaSource[] = [
+    {
+      path: "a.sql",
+      module: "a",
+      contents: `-- create table app.lines (in a comment);
+create table if not exists app.lines (
+  id uuid primary key,
+  note text default ';'
+);
+create table app.other (id int);
+alter table app.lines enable row level security;
+`,
+    },
+    {
+      path: "b.sql",
+      module: "b",
+      contents: "alter table app.lines add column owner uuid;\n",
+    },
+  ];
+
+  test("returns the create table and the later alter table statements, as written", () => {
+    expect(
+      tableStatements(files, "app.lines").map((each) => each.trim()),
+    ).toEqual([
+      "create table if not exists app.lines (\n  id uuid primary key,\n  note text default ';'\n);",
+      "alter table app.lines enable row level security;",
+      "alter table app.lines add column owner uuid;",
+    ]);
+  });
+
+  test("is empty for a table no file creates", () => {
+    expect(tableStatements(files, "app.missing")).toEqual([]);
   });
 });

@@ -25,6 +25,7 @@
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "elkjs": "catalog:",
+    "html-to-image": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "catalog:",
@@ -33,6 +34,7 @@
     "shadcn": "catalog:",
     "shiki": "catalog:",
     "simple-icons": "catalog:",
+    "sonner": "catalog:",
     "tailwind-merge": "catalog:",
     "tw-animate-css": "catalog:",
     "valibot": "catalog:"

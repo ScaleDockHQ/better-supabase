@@ -9,7 +9,12 @@ import { runBlocks } from "../../../src/cli/commands/blocks.ts";
 import { runPreset } from "../../../src/cli/commands/preset.ts";
 import { run } from "../../../src/cli/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { encodePreset, namedPreset } from "../../../src/preset/index.ts";
+import {
+  type CreateDesign,
+  encodeDesign,
+  encodePreset,
+  namedPreset,
+} from "../../../src/preset/index.ts";
 
 let dir: string;
 
@@ -31,6 +36,21 @@ async function files(entries: Record<string, string>): Promise<void> {
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
 const now = () => new Date("2026-10-15T12:00:00Z");
+
+const design: CreateDesign = {
+  appTables: {
+    notes: { scope: "user", columns: { body: { type: "text" } } },
+  },
+  extraColumns: { profiles: { nickname: "text" } },
+  positions: { "public.notes": [120, 40] },
+};
+
+/** The `/create` URL for the minimal preset with `value` as its design. */
+async function designUrl(value: CreateDesign = design): Promise<string> {
+  return `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&design=${await encodeDesign(value)}`;
+}
+
+const APP_TABLES_FILE = "supabase/schemas/900_better_supabase_app_tables.sql";
 
 describe("preset decode", () => {
   it("prints a named preset, a code and a /create URL", () => {
@@ -259,6 +279,115 @@ describe("apply", () => {
   });
 });
 
+describe("apply with a design", () => {
+  it("merges the design's app tables and extra columns into the config", async () => {
+    await files({
+      "better-supabase.config.json": json({
+        blocks: { profiles: { options: { extraColumns: { bio: "text" } } } },
+        appTables: {
+          links: { scope: "user", columns: { url: { type: "text" } } },
+        },
+      }),
+    });
+
+    const result = await run([
+      "apply",
+      "--preset",
+      await designUrl(),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+    expect(
+      JSON.parse(
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+      ),
+    ).toEqual({
+      blocks: {
+        profiles: {
+          options: { extraColumns: { bio: "text", nickname: "text" } },
+        },
+      },
+      appTables: {
+        links: { scope: "user", columns: { url: { type: "text" } } },
+        notes: { scope: "user", columns: { body: { type: "text" } } },
+      },
+      preset: encodePreset(namedPreset("minimal")),
+    });
+    expect(await readFile(join(dir, APP_TABLES_FILE), "utf-8")).toContain(
+      '"public"."notes"',
+    );
+  });
+
+  it("writes the design into a TypeScript config", async () => {
+    await files({
+      "better-supabase.config.ts":
+        "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n",
+    });
+
+    const result = await runApply(
+      resolveConfig({}, dir),
+      { preset: await designUrl(), "dry-run": true },
+      { configFile: join(dir, "better-supabase.config.ts"), now },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("+  appTables: {");
+    expect(result.output).toContain("+    notes: {");
+    expect(result.output).toContain("+          nickname: 'text',");
+  });
+
+  it("refuses a damaged design and an extra column without its block", async () => {
+    await files({ "better-supabase.config.json": json({}) });
+    const url = await designUrl();
+
+    const damaged = await run([
+      "apply",
+      "--preset",
+      `${url.slice(0, -4)}!!!!`,
+      "--cwd",
+      dir,
+    ]);
+
+    expect(damaged.code).toBe(2);
+
+    const stray = await run([
+      "apply",
+      "--preset",
+      await designUrl({ extraColumns: { organizations: { tier: "text" } } }),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(stray.code).toBe(2);
+    expect(stray.stderr).toContain("design.extraColumns.organizations");
+    expect(
+      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+    ).toBe(json({}));
+  });
+
+  it("leaves the design out with --only conventions", async () => {
+    await files({ "better-supabase.config.json": json({}) });
+
+    const result = await run([
+      "apply",
+      "--preset",
+      await designUrl(),
+      "--only",
+      "conventions",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(
+      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+    ).not.toContain("appTables");
+  });
+});
+
 describe("add <block>", () => {
   it("lists the block, writes its modules, wires its client and names its glue", async () => {
     await files({
@@ -372,5 +501,52 @@ describe("init --preset", () => {
     expect(
       (await run(["init", "--preset", "startup", "--cwd", dir])).code,
     ).toBe(2);
+  });
+
+  it("writes a design's app tables and extra columns from a /create URL", async () => {
+    await files({ "package.json": json({ name: "app" }) });
+
+    const stray = await run([
+      "init",
+      "--preset",
+      await designUrl({ extraColumns: { organizations: { tier: "text" } } }),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(stray.code).toBe(2);
+    expect(stray.stderr).toContain(
+      "the preset doesn't install the organizations block",
+    );
+
+    const result = await run([
+      "init",
+      "--preset",
+      await designUrl(),
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).toBe(0);
+
+    const config = await readFile(
+      join(dir, "better-supabase.config.ts"),
+      "utf-8",
+    );
+
+    expect(config).toContain(
+      "        extraColumns: {\n          nickname: 'text',",
+    );
+    expect(config).toContain("notes: {");
+    expect(config).not.toContain("positions");
+
+    const sql = await readFile(join(dir, APP_TABLES_FILE), "utf-8");
+    expect(sql).toContain('"public"."notes"');
+    expect(
+      await readFile(
+        join(dir, "supabase/schemas/900_better_supabase_22_profiles.sql"),
+        "utf-8",
+      ),
+    ).toContain("nickname");
   });
 });

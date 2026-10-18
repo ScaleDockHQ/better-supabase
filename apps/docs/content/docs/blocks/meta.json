@@ -4,6 +4,7 @@
     "index",
     "create-blocks",
     "sql",
+    "app-tables",
     "access",
     "organizations",
     "profiles",

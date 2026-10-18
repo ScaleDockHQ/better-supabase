@@ -18,6 +18,7 @@ import {
   CONFIG_FILE,
   createHref,
   DEFAULT_PRESET,
+  dropBlock,
   initialPreset,
   matchingPreset,
   PACKAGE_MANAGERS,
@@ -46,6 +47,11 @@ describe("the /create URL", () => {
     expect(initialPreset("not a preset")).toEqual(namedPreset(DEFAULT_PRESET));
     const code = createHref(minimal).split("=")[1] ?? "";
     expect(initialPreset(code)).toEqual(minimal);
+  });
+
+  test("opens on SaaS, so the preset select shows it instead of Custom", () => {
+    expect(DEFAULT_PRESET).toBe("saas");
+    expect(matchingPreset(initialPreset(null))).toBe("saas");
   });
 
   test("keeps the selection as a code that decodes to it", () => {
@@ -217,6 +223,35 @@ describe("blockGroups", () => {
     expect(rowNote(state ?? { kind: "selected" })).toContain("comments");
     expect(rowNote({ kind: "available", worksWith: [] })).toBeUndefined();
     expect(rowNote({ kind: "selected" })).toBeUndefined();
+  });
+});
+
+describe("dropBlock", () => {
+  const drop = (preset: Preset, name: string) =>
+    dropBlock(preset, resolvePreset(preset), name);
+
+  test("switches a block on like its checkbox", () => {
+    expect(drop(minimal, "comments")).toEqual({
+      kind: "add",
+      preset: toggleBlock(minimal, "comments"),
+    });
+  });
+
+  test("leaves a selected or required block alone", () => {
+    const preset = toggleBlock(minimal, "comments");
+    expect(drop(preset, "comments")).toEqual({ kind: "installed" });
+    expect(drop(preset, "tenant")).toEqual({ kind: "installed" });
+  });
+
+  test("refuses a block that can't install, with the reason", () => {
+    expect(drop({ ...minimal, scope: "user" }, "organizations")).toEqual({
+      kind: "conflict",
+      reason: 'it needs tenants, and scope "user" has none',
+    });
+  });
+
+  test("ignores a name that is not a block", () => {
+    expect(drop(minimal, "<script>")).toEqual({ kind: "unknown" });
   });
 });
 

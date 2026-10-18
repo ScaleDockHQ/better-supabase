@@ -79,7 +79,7 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: var(--color-red-700);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -166,6 +166,14 @@
 @utility bg-dots {
   background-image: radial-gradient(var(--foreground) 1px, transparent 1px);
   background-size: 14px 14px;
+}
+
+/*
+ * React Flow skips dragging from an element with this class, so a tap on a
+ * button inside a node clicks it instead of moving the node.
+ */
+@utility nodrag {
+  touch-action: manipulation;
 }
 
 /*

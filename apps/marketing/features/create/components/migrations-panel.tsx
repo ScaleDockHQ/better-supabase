@@ -12,12 +12,13 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
+import { Frame, FramePanel } from "@/components/reui/frame";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { PlaceholderAccessNote } from "./placeholder-access-note";
 
-type MigrationState =
+export type MigrationState =
   | { readonly status: "error"; readonly message: string }
   | {
       readonly status: "ready";
@@ -33,9 +34,18 @@ const migrationsResponse = v.union([
   v.object({ error: v.string() }),
 ]);
 
-async function loadMigrations(code: string): Promise<MigrationState> {
+async function loadMigrations(
+  code: string,
+  designCode: string,
+): Promise<MigrationState> {
   try {
-    const response = await fetch(`/create/migrations?preset=${code}`);
+    const query = new URLSearchParams({ preset: code });
+
+    if (designCode !== "") {
+      query.set("design", designCode);
+    }
+
+    const response = await fetch(`/create/migrations?${query.toString()}`);
     const body = v.parse(migrationsResponse, await response.json());
 
     return "error" in body
@@ -59,20 +69,30 @@ async function loadMigrations(code: string): Promise<MigrationState> {
  */
 const migrationRequests = new Map<string, Promise<MigrationState>>();
 
-function migrationsFor(code: string): Promise<MigrationState> {
-  const known = migrationRequests.get(code);
+/** The migration files for a preset code and a design code (`""` for none). */
+export function migrationsFor(
+  code: string,
+  designCode = "",
+): Promise<MigrationState> {
+  const key = `${code}:${designCode}`;
+  const known = migrationRequests.get(key);
 
   if (known !== undefined) {
     return known;
   }
 
-  const request = loadMigrations(code);
-  migrationRequests.set(code, request);
+  const request = loadMigrations(code, designCode);
+  migrationRequests.set(key, request);
 
   return request;
 }
 
-function MigrationsSkeleton() {
+/** Drops a failed request, so the next render starts a new one. */
+export function forgetMigrations(code: string, designCode = ""): void {
+  migrationRequests.delete(`${code}:${designCode}`);
+}
+
+export function MigrationsSkeleton() {
   return (
     <div aria-busy="true" className="flex flex-col gap-2">
       <span className="sr-only">Rendering the migrations</span>
@@ -86,14 +106,16 @@ function MigrationsSkeleton() {
 
 function MigrationFiles({
   code,
+  designCode,
   placeholder,
   onRetry,
 }: {
   code: string;
+  designCode: string;
   placeholder: boolean;
   onRetry: () => void;
 }) {
-  const state = use(migrationsFor(code));
+  const state = use(migrationsFor(code, designCode));
 
   if (state.status === "error") {
     return (
@@ -106,7 +128,7 @@ function MigrationFiles({
             variant="outline"
             size="sm"
             onClick={() => {
-              migrationRequests.delete(code);
+              forgetMigrations(code, designCode);
               onRetry();
             }}
           >
@@ -131,24 +153,28 @@ function MigrationFiles({
         </code>
         .
       </p>
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-        {state.files.map((file) => (
-          <li key={file.path}>
-            <details className="group">
-              <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 font-mono text-xs transition-colors hover:bg-muted/60">
-                <FileCodeIcon
-                  aria-hidden="true"
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-                <span className="truncate">{file.path}</span>
-              </summary>
-              <pre className="max-h-96 overflow-auto border-t border-border bg-muted/30 p-4 font-mono text-code leading-6">
-                <code>{file.contents}</code>
-              </pre>
-            </details>
-          </li>
-        ))}
-      </ul>
+      <Frame spacing="sm">
+        <FramePanel>
+          <ul aria-label="SQL files" className="flex flex-col gap-0.5">
+            {state.files.map((file) => (
+              <li key={file.path}>
+                <details className="group flex flex-col gap-1">
+                  <summary className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 font-mono text-xs transition-colors hover:bg-muted">
+                    <FileCodeIcon
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate">{file.path}</span>
+                  </summary>
+                  <pre className="max-h-96 overflow-auto rounded-md bg-muted/50 p-3 font-mono text-code leading-6">
+                    <code>{file.contents}</code>
+                  </pre>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </FramePanel>
+      </Frame>
     </div>
   );
 }
@@ -159,9 +185,11 @@ function MigrationFiles({
  */
 export function MigrationsPanel({
   code,
+  designCode = "",
   placeholder,
 }: {
   code: string;
+  designCode?: string;
   placeholder: boolean;
 }) {
   const [attempt, retry] = useReducer((count: number) => count + 1, 0);
@@ -171,6 +199,7 @@ export function MigrationsPanel({
       <MigrationFiles
         key={attempt}
         code={code}
+        designCode={designCode}
         placeholder={placeholder}
         onRetry={retry}
       />

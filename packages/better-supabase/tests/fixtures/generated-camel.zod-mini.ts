@@ -242,6 +242,65 @@ export const plansUpdate: z.ZodMiniType<UpdateOf<'plans'>> = z.object({
   currency: z.exactOptional(z.string()),
 }).check(z.meta({ title: "Plans update" }));
 
+export const projectsRow: z.ZodMiniType<RowOf<'projects'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  budgetMinor: z.int(),
+  currency: z.string(),
+  leadId: z.nullable(z.guid()),
+  labelId: z.nullable(z.guid()),
+}).check(z.meta({ title: "Projects" }));
+export const projectsInsert: z.ZodMiniType<InsertOf<'projects'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.guid(),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  name: z.string(),
+  budgetMinor: z.exactOptional(z.int()),
+  currency: z.exactOptional(z.string()),
+  leadId: z.exactOptional(z.nullable(z.guid())),
+  labelId: z.exactOptional(z.nullable(z.guid())),
+}).check(z.meta({ title: "Projects insert" }));
+export const projectsUpdate: z.ZodMiniType<UpdateOf<'projects'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.exactOptional(z.guid()),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  name: z.exactOptional(z.string()),
+  budgetMinor: z.exactOptional(z.int()),
+  currency: z.exactOptional(z.string()),
+  leadId: z.exactOptional(z.nullable(z.guid())),
+  labelId: z.exactOptional(z.nullable(z.guid())),
+}).check(z.meta({ title: "Projects update" }));
+
+export const savedViewsRow: z.ZodMiniType<RowOf<'savedViews'>> = z.object({
+  id: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  filters: z.json(),
+  userId: z.nullable(z.guid()),
+}).check(z.meta({ title: "Saved views" }));
+export const savedViewsInsert: z.ZodMiniType<InsertOf<'savedViews'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  name: z.string(),
+  filters: z.exactOptional(z.json()),
+  userId: z.exactOptional(z.nullable(z.guid())),
+}).check(z.meta({ title: "Saved views insert" }));
+export const savedViewsUpdate: z.ZodMiniType<UpdateOf<'savedViews'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  name: z.exactOptional(z.string()),
+  filters: z.exactOptional(z.json()),
+  userId: z.exactOptional(z.nullable(z.guid())),
+}).check(z.meta({ title: "Saved views update" }));
+
 export const subscriptionsRow: z.ZodMiniType<RowOf<'subscriptions'>> = z.object({
   organizationId: z.guid(),
   planKey: z.string(),
@@ -300,6 +359,8 @@ export const validators: {
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly projects: { readonly insert: typeof projectsInsert; readonly update: typeof projectsUpdate };
+  readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -312,6 +373,8 @@ export const validators: {
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },
+  projects: { insert: projectsInsert, update: projectsUpdate },
+  savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

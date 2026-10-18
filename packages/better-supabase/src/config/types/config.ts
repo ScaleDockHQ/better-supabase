@@ -3,6 +3,7 @@ import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
 import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
+import type { AppTablesConfig } from "./app-tables.ts";
 import type {
   ActorConfig,
   ClaimsConfig,
@@ -145,6 +146,13 @@ export interface BetterSupabaseConfig {
    * `ensure-rls`, ...) are configured here too.
    */
   readonly blocks?: readonly string[] | BlocksConfig;
+  /**
+   * Tables the app owns, keyed by name, created in `public` by
+   * `better-supabase sql sync` with an `id`, the scope column, timestamps,
+   * row level security and policies for the scope. Columns reference each
+   * other, `auth.users` or a block's logical table. ADR 0040.
+   */
+  readonly appTables?: AppTablesConfig;
   /** SQL-wide settings: the workflow, paths, and the `schema` and `api` every block inherits. */
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
@@ -246,6 +254,8 @@ export interface ResolvedConfig {
   readonly blocks: AnyBlocksConfig;
   /** The installed blocks, in config order. */
   readonly blockNames: readonly string[];
+  /** `appTables`, checked; empty without any. */
+  readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;

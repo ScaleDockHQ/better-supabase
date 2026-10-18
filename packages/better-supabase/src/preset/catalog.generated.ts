@@ -62,7 +62,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "organizations",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "invitations"
     },
     {
       "name": "reserved-slugs",
@@ -98,7 +99,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "data-lifecycle"
       ],
-      "manifest": "webhook-inbox"
+      "manifest": "webhook-inbox",
+      "extraColumns": "messages"
     },
     {
       "name": "realtime-tables",
@@ -234,7 +236,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "organizations",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "organizations"
     },
     {
       "name": "profiles",
@@ -247,7 +250,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "profiles",
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "profiles"
     },
     {
       "name": "outbox",
@@ -272,7 +276,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "data-lifecycle"
       ],
-      "manifest": "notifications"
+      "manifest": "notifications",
+      "extraColumns": "events"
     },
     {
       "name": "webhooks-out",
@@ -323,7 +328,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "api-keys",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "keys"
     },
     {
       "name": "settings",
@@ -388,7 +394,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "flags",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "flags"
     },
     {
       "name": "comments",
@@ -409,7 +416,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "user",
         "none"
-      ]
+      ],
+      "extraColumns": "comments"
     },
     {
       "name": "attachments",
@@ -423,7 +431,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "attachments",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "attachments"
     },
     {
       "name": "data-lifecycle",
@@ -489,7 +498,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "waitlist",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "entries"
     },
     {
       "name": "announcements",
@@ -505,7 +515,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "announcements",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "announcements"
     },
     {
       "name": "streams",
@@ -571,7 +582,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "workflow-builder",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "definitions"
     },
     {
       "name": "chat-sdk-state",
@@ -623,7 +635,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "ai-chat",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "chats"
     },
     {
       "name": "ai-files",
@@ -639,7 +652,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "ai-files",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "files"
     },
     {
       "name": "knowledge",
@@ -689,7 +703,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "agents",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "agents"
     },
     {
       "name": "connectors",
@@ -703,7 +718,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "connectors",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "servers"
     },
     {
       "name": "ai-tasks",
@@ -721,7 +737,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "ai-tasks",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "tasks"
     },
     {
       "name": "push",
@@ -729,7 +746,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "messaging",
       "requires": [],
       "integrates": [],
-      "manifest": "push"
+      "manifest": "push",
+      "extraColumns": "devices"
     },
     {
       "name": "ai-cache",
@@ -791,7 +809,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "teams"
     },
     {
       "name": "tags",
@@ -809,7 +828,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "user",
         "none"
-      ]
+      ],
+      "extraColumns": "tags"
     },
     {
       "name": "state-machine",
@@ -861,7 +881,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "share-links",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "links"
     },
     {
       "name": "reminders",
@@ -879,7 +900,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "reminders",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "reminders"
     },
     {
       "name": "imports",
@@ -947,7 +969,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "views"
     },
     {
       "name": "relations",
@@ -963,7 +986,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "relations",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "relations"
     },
     {
       "name": "bulk",
@@ -1038,7 +1062,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "calendar",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "events"
     },
     {
       "name": "bookings",
@@ -1059,7 +1084,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "bookings",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "bookings"
     },
     {
       "name": "versions",
@@ -1077,7 +1103,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "versions",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "versions"
     },
     {
       "name": "trash",
@@ -1095,7 +1122,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "trash",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "items"
     },
     {
       "name": "reactions",
@@ -1138,7 +1166,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "approvals",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "requests"
     },
     {
       "name": "access-requests",
@@ -1156,7 +1185,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "access-requests",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "requests"
     },
     {
       "name": "documents",
@@ -1193,7 +1223,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "catalog",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "products"
     },
     {
       "name": "inventory",
@@ -1210,7 +1241,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "inventory",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "locations"
     },
     {
       "name": "drive",
@@ -1236,7 +1268,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "nodes"
     },
     {
       "name": "drive-files",
@@ -1279,7 +1312,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "orders",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "orders"
     },
     {
       "name": "promotions",
@@ -1297,7 +1331,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "promotions",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "promotions"
     },
     {
       "name": "forms",
@@ -1318,7 +1353,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "forms",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "forms"
     },
     {
       "name": "signatures",
@@ -1338,7 +1374,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "signatures",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "requests"
     },
     {
       "name": "time-tracking",
@@ -1356,7 +1393,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "time-tracking",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "entries"
     },
     {
       "name": "identities",
@@ -1382,7 +1420,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "service-principals",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "principals"
     },
     {
       "name": "templates",
@@ -1401,7 +1440,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "templates",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "templates"
     },
     {
       "name": "pipelines",
@@ -1424,7 +1464,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "pipelines",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "pipelines"
     },
     {
       "name": "parties",
@@ -1443,7 +1484,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "parties",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "companies"
     },
     {
       "name": "engagements",
@@ -1461,7 +1503,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "engagements",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "engagements"
     },
     {
       "name": "deals",
@@ -1482,7 +1525,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "deals",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "deals"
     },
     {
       "name": "work-items",
@@ -1505,7 +1549,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "items"
     },
     {
       "name": "quotes",
@@ -1526,7 +1571,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "quotes",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "quotes"
     },
     {
       "name": "invoices",
@@ -1548,7 +1594,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "invoices",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "invoices"
     },
     {
       "name": "sla",
@@ -1566,7 +1613,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "sla",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "extraColumns": "policies"
     },
     {
       "name": "targets",
@@ -1587,7 +1635,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "targets"
     },
     {
       "name": "hiring",
@@ -1608,7 +1657,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "jobs"
     },
     {
       "name": "employees",
@@ -1629,7 +1679,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "employees"
     },
     {
       "name": "collections",
@@ -1650,7 +1701,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "extraColumns": "collections"
     },
     {
       "name": "signing-keys",

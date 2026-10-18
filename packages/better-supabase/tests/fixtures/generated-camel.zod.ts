@@ -242,6 +242,65 @@ export const plansUpdate: z.ZodType<UpdateOf<'plans'>> = z.object({
   currency: z.string().exactOptional(),
 }).meta({ title: "Plans update" });
 
+export const projectsRow: z.ZodType<RowOf<'projects'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  budgetMinor: z.int(),
+  currency: z.string(),
+  leadId: z.guid().nullable(),
+  labelId: z.guid().nullable(),
+}).meta({ title: "Projects" });
+export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  name: z.string(),
+  budgetMinor: z.int().exactOptional(),
+  currency: z.string().exactOptional(),
+  leadId: z.guid().nullable().exactOptional(),
+  labelId: z.guid().nullable().exactOptional(),
+}).meta({ title: "Projects insert" });
+export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  name: z.string().exactOptional(),
+  budgetMinor: z.int().exactOptional(),
+  currency: z.string().exactOptional(),
+  leadId: z.guid().nullable().exactOptional(),
+  labelId: z.guid().nullable().exactOptional(),
+}).meta({ title: "Projects update" });
+
+export const savedViewsRow: z.ZodType<RowOf<'savedViews'>> = z.object({
+  id: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  filters: z.json(),
+  userId: z.guid().nullable(),
+}).meta({ title: "Saved views" });
+export const savedViewsInsert: z.ZodType<InsertOf<'savedViews'>> = z.object({
+  id: z.guid().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  name: z.string(),
+  filters: z.json().exactOptional(),
+  userId: z.guid().nullable().exactOptional(),
+}).meta({ title: "Saved views insert" });
+export const savedViewsUpdate: z.ZodType<UpdateOf<'savedViews'>> = z.object({
+  id: z.guid().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  name: z.string().exactOptional(),
+  filters: z.json().exactOptional(),
+  userId: z.guid().nullable().exactOptional(),
+}).meta({ title: "Saved views update" });
+
 export const subscriptionsRow: z.ZodType<RowOf<'subscriptions'>> = z.object({
   organizationId: z.guid(),
   planKey: z.string(),
@@ -300,6 +359,8 @@ export const validators: {
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly projects: { readonly insert: typeof projectsInsert; readonly update: typeof projectsUpdate };
+  readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -312,6 +373,8 @@ export const validators: {
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },
+  projects: { insert: projectsInsert, update: projectsUpdate },
+  savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

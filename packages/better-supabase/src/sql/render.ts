@@ -14,6 +14,7 @@ import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
+import { appTablesFiles } from "./modules/app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
 import { tenantNameClashes } from "./tenant-clashes.ts";
@@ -105,7 +106,7 @@ export function renderModules(
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
 
-  return modules.flatMap((module): ModuleFile[] => {
+  const files = modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
 
     if (ctx.mode === "custom") {
@@ -210,6 +211,8 @@ export function renderModules(
       })),
     ];
   });
+
+  return [...files, ...appTablesFiles(layout, installed)];
 }
 
 /** Throws when `sql.naming.tenant` gives a renamed table or column a name a module already uses. */

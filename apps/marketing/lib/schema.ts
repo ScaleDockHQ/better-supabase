@@ -22,6 +22,10 @@ export interface SchemaForeignKey {
 export interface SchemaColumn {
   readonly name: string;
   readonly type: string;
+  readonly nullable: boolean;
+  /** The default expression as the SQL writes it, or `null` without one. */
+  readonly default: string | null;
+  readonly unique: boolean;
 }
 
 export interface SchemaTable {
@@ -34,9 +38,51 @@ export interface SchemaTable {
   readonly primaryKey: readonly string[];
   readonly foreignKeys: readonly SchemaForeignKey[];
   readonly tenantColumn: string | null;
-  /** The primary key, foreign key and tenant columns, in table order. */
-  readonly keyColumns: readonly SchemaColumn[];
-  readonly columnCount: number;
+  /** Every column, in table order. */
+  readonly columns: readonly SchemaColumn[];
+}
+
+/**
+ * A column that points at a table without a foreign key: the tenant or user
+ * column a block keeps plain so its rows outlive deletes, or a `regclass`
+ * that names any table (`to` is `null`).
+ */
+export interface SchemaSoftRef {
+  readonly from: string;
+  readonly column: string;
+  readonly to: string | null;
+  readonly kind: "tenant" | "user" | "any";
+}
+
+/** What `/create/schema` returns. */
+export interface SchemaData {
+  readonly tables: readonly SchemaTable[];
+  readonly softRefs: readonly SchemaSoftRef[];
+  /** Table id to the block manifest that installs it. */
+  readonly manifests: Readonly<Record<string, string>>;
+  /** The table ids `blocks.<module>.options.extraColumns` adds columns to. */
+  readonly extraColumns: readonly string[];
+  /** Table id to its module and logical table, the names an app table's reference uses. */
+  readonly blockTables: Readonly<
+    Record<string, { readonly block: string; readonly table: string }>
+  >;
+  /** The table tenant columns point at, or `null` without tenant foreign keys. */
+  readonly tenantTable: string | null;
+}
+
+/** The columns a diagram shows before a table is expanded: keys, tenant and soft references. */
+export function keyColumnsOf(
+  table: SchemaTable,
+  softColumns: ReadonlySet<string> = new Set(),
+): readonly SchemaColumn[] {
+  const keys = new Set([
+    ...table.primaryKey,
+    ...table.foreignKeys.flatMap((key) => key.columns),
+    ...(table.tenantColumn === null ? [] : [table.tenantColumn]),
+    ...softColumns,
+  ]);
+
+  return table.columns.filter((column) => keys.has(column.name));
 }
 
 export interface SchemaOptions {
@@ -175,10 +221,31 @@ function balanced(text: string, open: number): string | undefined {
   return undefined;
 }
 
-function splitTopLevel(text: string): string[] {
-  const parts: string[] = [];
+interface Element {
+  /** The element with comments and string contents blanked. */
+  readonly code: string;
+  /** The same element as written. */
+  readonly original: string;
+}
+
+/** The comma-separated elements of `text` at depth 0, with `original` sliced at the same offsets. */
+function splitTopLevel(text: string, original: string = text): Element[] {
+  const parts: Element[] = [];
   let depth = 0;
   let start = 0;
+
+  const push = (end: number): void => {
+    const code = text.slice(start, end);
+    const lead = code.length - code.trimStart().length;
+    const trimmed = code.trim();
+
+    if (trimmed !== "") {
+      parts.push({
+        code: trimmed,
+        original: original.slice(start + lead, start + lead + trimmed.length),
+      });
+    }
+  };
 
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
@@ -188,14 +255,14 @@ function splitTopLevel(text: string): string[] {
     } else if (char === ")") {
       depth -= 1;
     } else if (char === "," && depth === 0) {
-      parts.push(text.slice(start, index));
+      push(index);
       start = index + 1;
     }
   }
 
-  parts.push(text.slice(start));
+  push(text.length);
 
-  return parts.map((each) => each.trim()).filter((each) => each !== "");
+  return parts;
 }
 
 function lineOf(text: string, offset: number): number {
@@ -217,8 +284,52 @@ function target(match: RegExpMatchArray): SchemaTarget {
   return { schema, table, columns: identList(match[2]) };
 }
 
+/** Words that end a column's default expression at the top level. */
+const DEFAULT_END =
+  /^(?:not\s+null|null|primary\s+key|references|unique|check|constraint|generated|collate)\b/iu;
+
+/**
+ * The `default` expression of a column definition. `definition` is the code
+ * with strings blanked and `original` the same text as written, so a keyword
+ * inside a string never ends the expression.
+ */
+function defaultOf(definition: string, original: string): string | null {
+  const start = /\bdefault\s+/iu.exec(definition);
+
+  if (start === null) {
+    return null;
+  }
+
+  const from = start.index + start[0].length;
+  let depth = 0;
+  let end = definition.length;
+
+  for (let index = from; index < definition.length; index += 1) {
+    const char = definition[index];
+
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (
+      depth === 0 &&
+      /\s/u.test(char ?? "") &&
+      DEFAULT_END.test(definition.slice(index).trimStart())
+    ) {
+      end = index;
+      break;
+    }
+  }
+
+  return original.slice(from, end).trim();
+}
+
 /** Adds a column definition (`"name" type ...`) to the draft. */
-function addColumn(draft: TableDraft, definition: string): void {
+function addColumn(
+  draft: TableDraft,
+  definition: string,
+  original: string = definition,
+): void {
   const head = definition.match(LEADING_IDENT);
 
   if (head === null) {
@@ -234,9 +345,17 @@ function addColumn(draft: TableDraft, definition: string): void {
     return;
   }
 
-  draft.columns.push({ name, type });
+  const primary = /\bprimary\s+key\b/iu.test(rest);
 
-  if (/\bprimary\s+key\b/iu.test(rest)) {
+  draft.columns.push({
+    name,
+    type,
+    nullable: !primary && !/\bnot\s+null\b/iu.test(rest),
+    default: defaultOf(definition, original),
+    unique: /\bunique\b/iu.test(rest),
+  });
+
+  if (primary) {
     draft.primaryKey = [name];
   }
 
@@ -288,11 +407,7 @@ function finish(draft: TableDraft, tenantColumn: string | null): SchemaTable {
       ? tenantColumn
       : null;
 
-  const keys = new Set([
-    ...draft.primaryKey,
-    ...draft.foreignKeys.flatMap((key) => key.columns),
-    ...(tenant === null ? [] : [tenant]),
-  ]);
+  const primary = new Set(draft.primaryKey);
 
   return {
     id: `${draft.schema}.${draft.name}`,
@@ -302,8 +417,10 @@ function finish(draft: TableDraft, tenantColumn: string | null): SchemaTable {
     primaryKey: draft.primaryKey,
     foreignKeys: draft.foreignKeys,
     tenantColumn: tenant,
-    keyColumns: draft.columns.filter((column) => keys.has(column.name)),
-    columnCount: draft.columns.length,
+    // A table-level `primary key (...)` makes its columns not null too.
+    columns: draft.columns.map((column) =>
+      primary.has(column.name) ? { ...column, nullable: false } : column,
+    ),
   };
 }
 
@@ -327,6 +444,11 @@ export function parseSchema(
       const open = head === null ? -1 : offset + head[0].length - 1;
       const body = open === -1 ? undefined : balanced(text, open);
 
+      const original =
+        body === undefined
+          ? ""
+          : file.contents.slice(open + 1, open + 1 + body.length);
+
       if (head === null || body === undefined) {
         throw new Error(
           `parseSchema can't read the create table at ${file.path}:${lineOf(text, offset)}.`,
@@ -349,9 +471,9 @@ export function parseSchema(
         foreignKeys: [],
       };
 
-      for (const element of splitTopLevel(body)) {
-        if (!addConstraint(draft, element)) {
-          addColumn(draft, element);
+      for (const element of splitTopLevel(body, original)) {
+        if (!addConstraint(draft, element.code)) {
+          addColumn(draft, element.code, element.original);
         }
       }
 
@@ -359,7 +481,7 @@ export function parseSchema(
     }
   }
 
-  for (const { text } of code) {
+  for (const { file, text } of code) {
     for (const match of text.matchAll(ALTER_TABLE)) {
       const { schema, table } = qualified(match[1] ?? "");
       const draft = drafts.get(`${schema}.${table}`);
@@ -368,14 +490,23 @@ export function parseSchema(
         continue;
       }
 
-      for (const action of splitTopLevel(match[2] ?? "")) {
-        const column =
-          /^add\s+column\s+(?:if\s+not\s+exists\s+)?([\s\S]+)$/iu.exec(action);
+      const actions = match[2] ?? "";
+      const start = match.index + match[0].lastIndexOf(actions);
+      const original = file.contents.slice(start, start + actions.length);
+
+      for (const action of splitTopLevel(actions, original)) {
+        const column = /^add\s+column\s+(?:if\s+not\s+exists\s+)?/iu.exec(
+          action.code,
+        );
 
         if (column !== null) {
-          addColumn(draft, column[1] ?? "");
-        } else if (/^add\s+/iu.test(action)) {
-          addConstraint(draft, action.replace(/^add\s+/iu, ""));
+          addColumn(
+            draft,
+            action.code.slice(column[0].length),
+            action.original.slice(column[0].length),
+          );
+        } else if (/^add\s+/iu.test(action.code)) {
+          addConstraint(draft, action.code.replace(/^add\s+/iu, ""));
         }
       }
     }
@@ -386,6 +517,54 @@ export function parseSchema(
   return [...drafts.entries()]
     .filter(([id]) => !BOOKKEEPING_TABLES.has(id))
     .map(([, draft]) => finish(draft, tenantColumn));
+}
+
+/**
+ * The statements that shape one table, as written: its `create table` and
+ * the `alter table` statements after it. Empty when no file creates it.
+ */
+export function tableStatements(
+  files: readonly SchemaSource[],
+  id: string,
+): readonly string[] {
+  const statements: string[] = [];
+
+  for (const file of files) {
+    const text = codeOnly(file.contents);
+
+    for (const match of text.matchAll(CREATE_TABLE)) {
+      const head = text.slice(match.index).match(CREATE_HEAD);
+
+      if (head === null) {
+        continue;
+      }
+
+      const { schema, table } = qualified(head[1] ?? "");
+      const open = match.index + head[0].length - 1;
+      const body = balanced(text, open);
+
+      if (`${schema}.${table}` !== id || body === undefined) {
+        continue;
+      }
+
+      const end = text.indexOf(";", open + body.length + 1);
+      statements.push(
+        file.contents.slice(match.index, end === -1 ? text.length : end + 1),
+      );
+    }
+
+    for (const match of text.matchAll(ALTER_TABLE)) {
+      const { schema, table } = qualified(match[1] ?? "");
+
+      if (`${schema}.${table}` === id) {
+        statements.push(
+          file.contents.slice(match.index, match.index + match[0].length),
+        );
+      }
+    }
+  }
+
+  return statements;
 }
 
 /** The foreign keys between tables, one per pair, with the targets outside the schema named by id. */

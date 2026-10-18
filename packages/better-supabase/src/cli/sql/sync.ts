@@ -44,7 +44,10 @@ export async function syncModules(
         ),
   );
 
-  if (config.blockNames.length === 0 && topics === undefined) {
+  const hasSql =
+    config.blockNames.length > 0 || Object.keys(config.appTables).length > 0;
+
+  if (!hasSql && topics === undefined) {
     return { code: 0, output: "blocks is empty; nothing to sync." };
   }
 
@@ -61,16 +64,15 @@ export async function syncModules(
   }
 
   if (args.check !== true) {
-    const lines =
-      config.blockNames.length === 0
-        ? []
-        : await write(
-            config,
-            args,
-            config.blockNames,
-            await layoutFor(config, args, config.blockNames),
-            now,
-          );
+    const lines = hasSql
+      ? await write(
+          config,
+          args,
+          config.blockNames,
+          await layoutFor(config, args, config.blockNames),
+          now,
+        )
+      : [];
 
     if (topics !== undefined) {
       const shown = display(config.root, topics.path);

@@ -53,7 +53,7 @@ USAGE better-supabase apply [OPTIONS]
 
 OPTIONS
 
-     --preset=<name|code|url>    A named preset, a code from /create or its URL                                                                      
+     --preset=<name|code|url>    A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns     
   --only=<blocks|conventions>    blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
                       --adopt    Map the preset's blocks onto tables the database already has under their default names (adopt mode)                 
                     --dry-run    Show the config diff and write nothing                                                                              

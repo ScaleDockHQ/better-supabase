@@ -377,6 +377,34 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     });
   });
 
+  it("writes appTables without any block, and removes the file after", async () => {
+    const path = join(
+      root,
+      "supabase/schemas/900_better_supabase_app_tables.sql",
+    );
+
+    const config: BetterSupabaseConfig = {
+      sql: { scope: "user" },
+      appTables: { notes: { columns: { body: { type: "text" } } } },
+    };
+
+    expect((await sql(["sync"], config)).code).toBe(0);
+    expect(await readFile(path, "utf-8")).toContain(
+      'create table if not exists "public"."notes"',
+    );
+    expect(
+      await readFile(
+        join(root, "supabase/tests/900_better_supabase_app_tables.test.sql"),
+        "utf-8",
+      ),
+    ).toContain("-- @bs-module-test app-tables");
+    expect((await sql(["sync"], config)).output).toContain("Unchanged");
+
+    await sql(["sync"], { blocks: ["updated-at"] });
+
+    await expect(readFile(path, "utf-8")).rejects.toThrow("ENOENT");
+  });
+
   it("writes the rows a schema diff skips into a data migration", async () => {
     expect(await sql(["data"])).toEqual({
       code: 0,

@@ -14,6 +14,7 @@ function options(page: Page) {
   return page.getByLabel("Options", { exact: true });
 }
 
+/** A collapsible in the options panel: a section like Stack, or a block category. */
 function category(page: Page, name: string) {
   return options(page).getByRole("button", {
     name: new RegExp(`^${name}`, "u"),
@@ -29,11 +30,88 @@ async function openCode(page: Page) {
   return page.getByRole("dialog", { name: "Get the code" });
 }
 
+const SECTIONS = [
+  "Stack",
+  "Auth and permissions",
+  "Conventions",
+  "Integrations",
+  "Primitives",
+  "Blocks",
+] as const;
+
+test("the page opens on SaaS with only the preset section open", async ({
+  page,
+}) => {
+  await page.goto("/create");
+
+  await expect(
+    options(page).getByRole("combobox", { name: "Preset" }),
+  ).toContainText("SaaS");
+  await expect(category(page, "Preset")).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(category(page, "Preset")).toContainText("SaaS");
+  await expect(category(page, "Stack")).toContainText("Next.js, web");
+  await expect(category(page, "Blocks")).toContainText(/\d+ installed/u);
+  await expect(
+    options(page).getByRole("button", { name: "Copy AI instructions" }),
+  ).toBeVisible();
+
+  for (const name of SECTIONS) {
+    const trigger = category(page, name);
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  }
+
+  await category(page, "Preset").click();
+  await expect(category(page, "Preset")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+});
+
+test("the AI instructions add the UI when Include UI is on", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  const dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "AI instructions" }).click();
+
+  const prompt = dialog.getByTestId("create-prompt-text");
+  await expect(prompt).toContainText("# Install better-supabase");
+  await expect(prompt).not.toContainText("/recipes/");
+
+  await dialog.getByRole("switch", { name: "Include UI" }).click();
+  await expect(prompt).toContainText("## UI");
+  await expect(prompt).toContainText(/\/recipes\/[a-z-]+\.md/u);
+});
+
+test("/create/prompt.md returns the AI instructions as Markdown", async ({
+  request,
+}) => {
+  const response = await request.get("/create/prompt.md?preset=saas&ui=1");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toBe(
+    "text/markdown; charset=utf-8",
+  );
+  const text = await response.text();
+  expect(text).toMatch(/^# Install better-supabase: \d+ blocks on Next\.js/u);
+  expect(text).toMatch(/\/recipes\/[a-z-]+\.md/u);
+
+  const bad = await request.get("/create/prompt.md?manager=deno");
+  expect(bad.status()).toBe(400);
+});
+
 test("ticking comments switches on tenant and access, and the URL keeps the selection", async ({
   page,
 }) => {
   await page.goto("/create?preset=minimal");
 
+  await category(page, "Blocks").click();
   await expect(block(page, "comments")).not.toBeChecked();
   await expect(block(page, "tenant")).not.toBeChecked();
 
@@ -79,6 +157,7 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
 
   // The code alone restores the same selection.
   await page.goto(`/create?preset=${code}`);
+  await category(page, "Blocks").click();
   await expect(block(page, "comments")).toBeChecked();
   await expect(block(page, "access")).toBeDisabled();
 });
@@ -119,6 +198,7 @@ test("the monorepo option keeps the package in the URL and the commands", async 
 
 test("a framework turns off the platforms it can't build", async ({ page }) => {
   await page.goto("/create?preset=saas");
+  await category(page, "Stack").click();
 
   const platforms = options(page).getByRole("group", { name: "Platforms" });
   await expect(
@@ -168,6 +248,8 @@ test("the preset select applies a preset and shows Custom after a change", async
   await preset.click();
   await page.getByRole("option", { name: /^CRM/u }).click();
   await expect(preset).toContainText("CRM");
+  await expect(category(page, "Preset")).toContainText("CRM");
+  await category(page, "Blocks").click();
   await expect(block(page, "pipelines")).toBeChecked();
 
   await category(page, "Scheduling").click();
@@ -179,12 +261,16 @@ test("PermDock is an optional auth choice kept in the URL", async ({
   page,
 }) => {
   await page.goto("/create?preset=saas");
+  await category(page, "Auth and permissions").click();
 
   await options(page)
     .getByRole("radio", { name: /^PermDock/u })
     .click();
+  await expect(category(page, "Auth and permissions")).toContainText(
+    "PermDock",
+  );
   await expect(page).toHaveURL(/&authz=permdock$/u);
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
   await expect(page.getByText("Placeholder access functions")).toBeVisible();
 
   const dialog = await openCode(page);
@@ -199,6 +285,7 @@ test("PermDock is an optional auth choice kept in the URL", async ({
   ).toBeVisible();
 
   await page.reload();
+  await category(page, "Auth and permissions").click();
   await expect(
     options(page).getByRole("radio", { name: /^PermDock/u }),
   ).toBeChecked();
@@ -214,21 +301,464 @@ test("the diagram lists the tables and asks for a block when there are none", as
 }) => {
   await page.goto("/create?preset=saas");
 
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
   await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Tables in this schema" }),
+    page.getByRole("heading", {
+      name: /^Tables in this schema: \d+ tables, \d+ relations$/u,
+    }),
   ).toBeAttached();
 
   await page.goto("/create?preset=minimal");
+  await category(page, "Blocks").click();
   await block(page, "profiles").uncheck();
 
   await expect(page.getByText("Pick a block")).toBeVisible();
   await page
     .getByRole("button", { name: "Start from the SaaS preset" })
     .click();
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
 });
+
+test("a table drawn on the canvas travels in the design code", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  const inspector = page.getByRole("dialog", { name: "items" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("textbox", { name: "Add a column" }).fill("title");
+  await inspector.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page).toHaveURL(/&design=0[\w-]+$/u);
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+
+  // The link alone restores the table.
+  await page.reload();
+  await expect(
+    page.locator(".react-flow__node-table", { hasText: "items" }),
+  ).toBeVisible();
+
+  const dialog = await openCode(page);
+  await expect(dialog.getByTestId("install-command")).toHaveText(
+    /^pnpm dlx better-supabase init --preset "https:\/\/bettersupabase\.com\/create\?preset=\w+&design=0[\w-]+"$/u,
+  );
+  await expect(dialog.getByText("appTables").first()).toBeVisible();
+  await dialog.getByRole("tab", { name: "AI instructions" }).click();
+  await expect(dialog.getByTestId("create-prompt-text")).toContainText(
+    "&design=0",
+  );
+});
+
+test("a click on a table opens the inspector, and a drag doesn't", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const table = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(table).toBeVisible();
+
+  await table.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "organizations" });
+  await expect(inspector).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+
+  const box = await table.boundingBox();
+  expect(box).not.toBeNull();
+  const start = { x: (box?.x ?? 0) + 120, y: (box?.y ?? 0) + 18 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 60, start.y + 40, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await table.focus();
+  await page.keyboard.press("Enter");
+  await expect(inspector).toBeVisible();
+});
+
+test("dragging a group moves its tables, and Undo moves them back", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const group = page.locator(
+    '.react-flow__node[data-id="group:organizations"]',
+  );
+
+  const member = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(member).toBeVisible();
+
+  const before = await member.boundingBox();
+  const box = await group.boundingBox();
+  expect(box).not.toBeNull();
+
+  const start = {
+    x: (box?.x ?? 0) + (box?.width ?? 0) - 30,
+    y: (box?.y ?? 0) + 12,
+  };
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 100, start.y + 60, { steps: 10 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await member.boundingBox())?.x)
+    .toBeGreaterThan((before?.x ?? 0) + 50);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect
+    .poll(async () => (await member.boundingBox())?.x)
+    .toBeCloseTo(before?.x ?? 0, 0);
+});
+
+test("dropping a block on the canvas switches it on, once", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+  await category(page, "Blocks").click();
+  // A category with an installed block starts open.
+  const collaboration = category(page, "Collaboration");
+
+  if ((await collaboration.getAttribute("aria-expanded")) !== "true") {
+    await collaboration.click();
+  }
+
+  const row = options(page).locator(
+    'label:has(input[name="block"][value="comments"])',
+  );
+
+  await expect(block(page, "comments")).not.toBeChecked();
+  await row.dragTo(page.locator(".react-flow__pane"), {
+    targetPosition: { x: 600, y: 300 },
+  });
+
+  await expect(block(page, "comments")).toBeChecked();
+  await expect(
+    page.locator('.react-flow__node[data-id="better_supabase.comments"]'),
+  ).toBeVisible();
+
+  await row.dragTo(page.locator(".react-flow__pane"), {
+    targetPosition: { x: 400, y: 200 },
+  });
+  await expect(
+    page.getByText("The comments block is already on the canvas."),
+  ).toBeVisible();
+});
+
+/** The canvas rectangle of every table node, keyed by id. */
+async function tableBoxes(page: Page) {
+  return page.locator(".react-flow__node-table").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+
+      return {
+        id: node.dataset["id"] ?? "",
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    }),
+  );
+}
+
+/** The tables the table `id` covers, once it has settled. */
+async function expectClearOfOthers(page: Page, id: string) {
+  await expect(
+    page.locator(`.react-flow__node[data-id="${id}"]`),
+  ).toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const boxes = await tableBoxes(page);
+      const own = boxes.find((box) => box.id === id);
+
+      return boxes
+        .filter(
+          (box) =>
+            box.id !== id &&
+            own !== undefined &&
+            box.left < own.right &&
+            own.left < box.right &&
+            box.top < own.bottom &&
+            own.top < box.bottom,
+        )
+        .map((box) => box.id);
+    })
+    .toEqual([]);
+}
+
+/** An empty point on the canvas just above a table, where a new table would cover it. */
+async function paneAbove(page: Page, id: string) {
+  const point = await page.evaluate((tableId) => {
+    const table = document.querySelector(
+      `.react-flow__node[data-id="${tableId}"]`,
+    );
+
+    const rect = table?.getBoundingClientRect();
+
+    if (rect === undefined) {
+      return null;
+    }
+
+    for (let dy = 30; dy < 200; dy += 6) {
+      for (let dx = 0; dx < rect.width; dx += 12) {
+        const x = rect.left + dx;
+        const y = rect.top - dy;
+
+        if (document.elementFromPoint(x, y)?.matches(".react-flow__pane")) {
+          return { x, y };
+        }
+      }
+    }
+
+    return null;
+  }, id);
+
+  expect(point).not.toBeNull();
+
+  return point ?? { x: 0, y: 0 };
+}
+
+test("Add table here on the canvas menu adds a table that covers no other", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const organizations = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(organizations).toBeVisible();
+
+  // Close above a table, so the new table has to move aside.
+  const point = await paneAbove(page, "better_supabase.organizations");
+  await page.mouse.click(point.x, point.y, { button: "right" });
+
+  const menu = page.getByRole("menu");
+  await expect(
+    menu.getByRole("menuitem", { name: "Zoom to fit" }),
+  ).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Add table here" }).click();
+
+  await expect(page.getByRole("dialog", { name: "items" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await expectClearOfOthers(page, "public.items");
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(items).toHaveCount(0);
+});
+
+test("Add connection to on a table's menu adds a foreign key", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await items.click({ position: { x: 120, y: 18 }, button: "right" });
+  await page.getByRole("menuitem", { name: "Add connection to…" }).click();
+
+  // A target the key can't point at says why instead of failing on click.
+  await expect(
+    page.getByRole("menuitem", { name: /organizations.*already references/u }),
+  ).toHaveAttribute("aria-disabled", "true");
+
+  await page
+    .getByRole("menuitem", { name: "invitations", exact: true })
+    .click();
+  await expect(page.getByText("Added invitation_id to items.")).toBeVisible();
+  await expect(items).toContainText("invitation_id");
+
+  // A block table's menu explains why it can't hold the key.
+  const invitations = page.locator(
+    '.react-flow__node[data-id="better_supabase.invitations"]',
+  );
+
+  await invitations.focus();
+  await page.keyboard.press("Shift+F10");
+  await expect(
+    page.getByRole("menuitem", { name: /Add connection to/u }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(items).not.toContainText("invitation_id");
+});
+
+test("dragging the Table primitive onto the canvas adds a table there", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+  await category(page, "Primitives").click();
+
+  const pane = page.locator(".react-flow__pane");
+  const target = { x: 640, y: 320 };
+
+  await options(page)
+    .getByRole("button", { name: /^Table/u })
+    .dragTo(pane, { targetPosition: target });
+
+  await expect(page.getByRole("dialog", { name: "items" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expectClearOfOthers(page, "public.items");
+
+  // Enter on a primitive adds it in the middle of the view.
+  await options(page)
+    .getByRole("button", { name: /^Lookup table/u })
+    .press("Enter");
+  await expect(page.getByRole("dialog", { name: "lookups" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expectClearOfOthers(page, "public.lookups");
+});
+
+test("soft references are drawn by default", async ({ page }) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  const toggle = page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Hide soft references" });
+
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+  const soft = page.locator(
+    '.react-flow__edge path[class*="stroke-dasharray"]',
+  );
+
+  await expect(soft.first()).toBeAttached();
+
+  await toggle.click();
+  await expect(soft).toHaveCount(0);
+});
+
+test.describe("on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test("the toolbar collapses and the inspector takes the full width", async ({
+    page,
+  }) => {
+    await page.goto("/create?preset=saas");
+    await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+    const toolbar = page.getByRole("toolbar", { name: "Schema tools" });
+    await expect(toolbar.getByRole("group", { name: "View" })).toBeHidden();
+    await toolbar.getByRole("button", { name: "More tools" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Tidy layout" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await toolbar.getByRole("button", { name: "Add table" }).click();
+    const inspector = page.getByRole("dialog", { name: "items" });
+    await expect(inspector).toBeVisible();
+
+    await expect
+      .poll(async () => (await inspector.boundingBox())?.width)
+      .toBe(390);
+  });
+
+  test("the code panels stay inside the code dialog", async ({ page }) => {
+    await page.goto("/create?preset=saas");
+    await page.getByRole("button", { name: "Get code" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Get the code" });
+
+    const panel = dialog.getByRole("region", {
+      name: "better-supabase.config.ts",
+    });
+
+    await expect(panel).toBeVisible();
+
+    const outer = await dialog.boundingBox();
+    const inner = await panel.boundingBox();
+    expect(inner?.x ?? 0).toBeGreaterThanOrEqual(outer?.x ?? 0);
+    expect((inner?.x ?? 0) + (inner?.width ?? 0)).toBeLessThanOrEqual(
+      (outer?.x ?? 0) + (outer?.width ?? 0),
+    );
+  });
+});
+
+interface AxeFinding {
+  readonly id: string;
+  readonly targets: readonly string[];
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`an app table's inspector has no WCAG 2.2 AA violations in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.goto("/create?preset=saas");
+    await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+    await page
+      .getByRole("toolbar", { name: "Schema tools" })
+      .getByRole("button", { name: "Add table" })
+      .click();
+    const inspector = page.getByRole("dialog", { name: "items" });
+    await inspector.getByRole("tab", { name: "Overview" }).click();
+    const remove = inspector.getByRole("button", { name: "Delete table" });
+    await expect(remove).toBeVisible();
+
+    const audit = async (): Promise<readonly AxeFinding[]> => {
+      const { violations } = await new AxeBuilder({ page })
+        .include('[role="dialog"]')
+        .withTags(WCAG)
+        .analyze();
+
+      return violations.map((violation) => ({
+        id: violation.id,
+        targets: violation.nodes.map((node) => node.target.join(" ")),
+      }));
+    };
+
+    expect(await audit()).toEqual([]);
+
+    // The hover tint is darker, so the button's contrast is checked there too,
+    // once its color transition has finished.
+    await remove.hover();
+    await remove.evaluate(async (element) => {
+      await Promise.all(
+        element.getAnimations().map(async (animation) => animation.finished),
+      );
+    });
+    expect(await audit()).toEqual([]);
+  });
+}
 
 test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
   await page.goto("/create?preset=saas");

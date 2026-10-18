@@ -90,6 +90,27 @@ scope `user`, stops `init` with the reason. In a terminal without
 keeps the steps above out. To apply a preset to a project that already has
 a config, use [`apply`](/docs/cli/presets#apply).
 
+### A design from Create
+
+When you add tables or extra columns on the Create canvas, its URL carries a
+second code, `&design=`. Quote the whole URL so the shell keeps the `&`:
+
+```bash
+npx better-supabase init --preset "https://bettersupabase.com/create?preset=1pWEF3d578B1iGt16&design=0..."
+```
+
+`init` decodes the design locally, with no network call, and writes its
+[app tables](/docs/blocks/app-tables) into `appTables` and its extra columns into
+each block's `options.extraColumns`, next to `preset`. The canvas positions
+stay in the URL. A design that doesn't decode, or that adds columns to a
+block the preset doesn't install, stops `init` with the reason.
+
+A design is capped at 6000 characters so the URL stays usable. When Create
+says a design is too large to share, download its config instead and save
+it as `better-supabase.config.ts` in the project root. `npx better-supabase
+init` keeps a config that is already there and scaffolds the rest; then
+`npx better-supabase sql sync` (or `gen`) writes the module files.
+
 ## Supabase Lite
 
 ```bash

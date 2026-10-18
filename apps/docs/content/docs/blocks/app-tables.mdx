@@ -1,0 +1,113 @@
+---
+title: App tables
+description: Declare the tables your app owns in appTables, and better-supabase sql sync writes them with the scope column, row level security, grants and a pgTAP test.
+---
+
+Blocks cover the tables every app needs. The tables only your app has, such
+as `projects` and `tasks`, go in `appTables`. `better-supabase sql sync`
+writes them into one schema file next to the block files, with the scope
+column, row level security, grants, indexes and a pgTAP test, so they follow
+the same rules as the blocks around them.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  blocks: ["tenant", "organizations", "crm"],
+  appTables: {
+    projects: {
+      columns: {
+        name: { type: "text", nullable: false },
+        budget_minor: { type: "bigint", nullable: false, default: "0" },
+        currency: { type: "text", nullable: false, default: "'EUR'" },
+        owner_id: {
+          type: "uuid",
+          references: { table: "auth.users", onDelete: "set null" },
+        },
+        contact_id: {
+          type: "uuid",
+          references: { block: "crm", table: "contacts" },
+        },
+      },
+    },
+    tasks: {
+      columns: {
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+        title: { type: "text", nullable: false },
+        done: { type: "boolean", nullable: false, default: "false" },
+      },
+    },
+    drafts: { scope: "user", columns: { body: { type: "text" } } },
+  },
+});
+```
+
+[Create](https://bettersupabase.com/create) edits the same key on its
+canvas, and `init --preset` or `apply --preset` with its URL writes it into
+the config (see [init](/docs/cli/init#a-design-from-create)).
+
+## What each table gets
+
+Every table lives in `public` and gets `id` (a `uuid` primary key), the
+scope column and, unless `timestamps: false`, `created_at` and `updated_at`
+with the `updated-at` trigger. These names are reserved, so a column can't
+take them. Columns keep the order you write them in.
+
+| `scope`             | Scope column                                                            | Who reaches a row                                                     |
+| ------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `inherit` (default) | follows `sql.scope`: the tenant column (`organization_id`) or `user_id` | per tenant, the members of the row's tenant; per user, the row's user |
+| `user`              | `user_id`, referencing `auth.users`, defaulting to `auth.uid()`         | the row's user, in any `sql.scope`                                    |
+| `none`              | none                                                                    | every signed-in user reads; only the service role writes              |
+
+A tenant-scoped table needs the `tenant` block. The tenant column follows
+`sql.naming.tenant`, and the client sends its value on insert; the insert
+policy rejects a tenant the user isn't a member of.
+
+## Columns
+
+| Key          | Values                                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `type`       | `text`, `uuid`, `integer`, `bigint`, `numeric`, `boolean`, `timestamptz`, `date`, `jsonb`, `text[]`        |
+| `nullable`   | defaults to `true`                                                                                         |
+| `default`    | `now()`, `gen_random_uuid()`, `auth.uid()`, `true`, `false`, a number, a `'quoted'` text, `'{}'` or `'[]'` |
+| `unique`     | adds a unique constraint                                                                                   |
+| `references` | another app table, `auth.users`, or a block's table; `onDelete` defaults to `no action`                    |
+
+Keep money as a `bigint` of minor units next to a `text` currency column,
+as the blocks do. A reference to a block's table names the block's logical
+table (`{ block: "crm", table: "contacts" }`), so it follows the block's
+renames, and the block has to be in `blocks`. A name a block already uses,
+such as `tags` with the `tags` block, is rejected with the block's name.
+
+## The files
+
+| File                                                     | What it holds                                                                                               |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `supabase/schemas/900_better_supabase_app_tables.sql`    | the tables, the columns (`add column if not exists`), RLS, policies, grants, indexes and triggers           |
+| `supabase/tests/900_better_supabase_app_tables.test.sql` | pgTAP: each table exists, has RLS and its policies, and a stranger can't read or insert outside their scope |
+
+`sql sync --check` fails when the files are stale, and removing the last
+app table removes them. A table listed in `expose` keeps the grants
+`expose` gives it.
+
+## Example
+
+The Next.js example declares two app tables in
+`apps/examples/nextjs/better-supabase.config.ts`: `projects`, scoped to the
+organization with a label from the `tags` block, and `saved_views`, scoped
+to the user. `GET /api/projects` (`src/app/api/projects/route.ts`) lists the
+organization's projects, and `tests/lib/app-tables.test-d.ts` checks the
+generated repositories. The example writes its pgTAP test to the fixture's
+`supabase/tests/database` through `sql.testsDir`.
+
+## Limits
+
+The file adds new columns with `add column if not exists`, so under the
+`migrations` workflow a column you change or drop needs a migration of its
+own; pg-delta and migra diff the file and handle it. A foreign key between
+two tenant-scoped app tables doesn't check that both rows share a tenant,
+so validate that in the app when it matters.

@@ -20,6 +20,20 @@ export type { DecodedPreset } from "./code.ts";
 
 export { expandPreset, presetConfig, presetOf } from "./config.ts";
 
+export {
+  decodeDesign,
+  designApplyCommand,
+  designConfig,
+  designConfigSource,
+  designInstallCommand,
+  designOf,
+  encodeDesign,
+  isDesignCode,
+  MAX_DESIGN_CODE_LENGTH,
+} from "./design.ts";
+
+export type { CreateDesign } from "./design.ts";
+
 export type { PresetInput } from "./config.ts";
 
 export {

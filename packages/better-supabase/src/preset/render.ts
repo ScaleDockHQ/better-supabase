@@ -1,3 +1,4 @@
+import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { PresetCatalog, PresetGlueItem } from "./catalog-types.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
@@ -32,17 +33,31 @@ function literal(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/**
- * `better-supabase.config.ts` for a resolved preset: every block with its
- * reason, and the conventions that differ from the defaults.
- */
-export function presetConfigSource(resolved: ResolvedPreset): string {
-  const config = presetConfig(resolved);
+/** The keys `configSource` writes: `presetConfig`, and `appTables` for a design. */
+export type ConfigSourceKeys = ReturnType<typeof presetConfig> & {
+  readonly appTables?: AppTablesConfig;
+};
 
+/** The `/create` URL of a preset, with `&design=` when `designCode` isn't empty. */
+export function createUrl(resolved: ResolvedPreset, designCode = ""): string {
+  const preset = `${CREATE_URL}?preset=${encodePreset(resolved.preset)}`;
+
+  return designCode === "" ? preset : `${preset}&design=${designCode}`;
+}
+
+/**
+ * `better-supabase.config.ts` with these keys: every block with its reason,
+ * the conventions, and the app tables, under a comment with the `/create` URL.
+ */
+export function configSource(
+  resolved: ResolvedPreset,
+  config: ConfigSourceKeys,
+  url: string,
+): string {
   const lines = [
     'import { defineConfig } from "better-supabase/config";',
     "",
-    `// ${CREATE_URL}?preset=${encodePreset(resolved.preset)}`,
+    `// ${url}`,
     "export default defineConfig({",
   ];
 
@@ -74,9 +89,29 @@ export function presetConfigSource(resolved: ResolvedPreset): string {
     lines.push(`    ${key(block.name)}: ${literal(entry)},${note}`);
   }
 
-  lines.push("  },", "});", "");
+  lines.push("  },");
+
+  if (config.appTables !== undefined) {
+    lines.push("  appTables: {");
+
+    for (const [name, table] of Object.entries(config.appTables)) {
+      lines.push(`    ${key(name)}: ${literal(table)},`);
+    }
+
+    lines.push("  },");
+  }
+
+  lines.push("});", "");
 
   return lines.join("\n");
+}
+
+/**
+ * `better-supabase.config.ts` for a resolved preset: every block with its
+ * reason, and the conventions that differ from the defaults.
+ */
+export function presetConfigSource(resolved: ResolvedPreset): string {
+  return configSource(resolved, presetConfig(resolved), createUrl(resolved));
 }
 
 /**

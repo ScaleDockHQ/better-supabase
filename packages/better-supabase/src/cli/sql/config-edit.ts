@@ -628,11 +628,17 @@ function literal(value: unknown, indent: string, quote: string): string {
   }
 
   if (typeof value === "string") {
-    return `${quote}${value}${quote}`;
+    return value.includes(quote) || value.includes("\\")
+      ? JSON.stringify(value)
+      : `${quote}${value}${quote}`;
   }
 
   if (typeof value !== "object") {
     return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item: unknown) => literal(item, indent, quote)).join(", ")}]`;
   }
 
   const entries = Object.entries(value);
@@ -778,4 +784,136 @@ export function setBlockInJson(
     { ...config, blocks: { ...current, [name]: value } },
     indent,
   );
+}
+
+/** `value` under `path`, as nested objects: `["a", "b"]` and 1 give `{ a: { b: 1 } }`. */
+const nested = (path: readonly string[], value: unknown): unknown =>
+  path.reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
+
+/**
+ * `source` with the key at `path` set to `value`, replacing what it has and
+ * creating the objects on the way: `["appTables", "projects"]` sets one app
+ * table and keeps the others. A `blocks` list becomes an object.
+ */
+export function setPathInConfig(
+  source: string,
+  path: readonly [string, ...string[]],
+  value: unknown,
+): ConfigEdit {
+  const code = mask(source);
+  const root = configObject(code);
+
+  if (root === undefined) {
+    return {
+      ok: false,
+      reason: "it doesn't pass an object literal to defineConfig()",
+    };
+  }
+
+  const quote = source.includes("'better-supabase/config'") ? "'" : '"';
+
+  const edit = (start: number, end: number, text: string): ConfigEdit => ({
+    ok: true,
+    text: source.slice(0, start) + text + source.slice(end),
+  });
+
+  let open = root;
+
+  for (const [index, key] of path.entries()) {
+    const at = path.slice(0, index + 1).join(".");
+    const props = properties(source, code, open);
+
+    if (!props) {
+      return { ok: false, reason: `its ${at} object can't be read` };
+    }
+
+    const current = props.find((prop) => prop.key === key);
+    const rest = path.slice(index + 1);
+
+    if (!current) {
+      const indent = props[0]
+        ? indentAt(source, props[0].start)
+        : `${indentAt(source, open)}  `;
+
+      const change = append(source, code, open, lastOf(props), [
+        `${keyText(key)}: ${literal(nested(rest, value), indent, quote)}`,
+      ]);
+
+      return edit(change.start, change.end, change.text);
+    }
+
+    if (rest.length === 0) {
+      return edit(
+        current.valueStart,
+        current.valueEnd,
+        literal(value, indentAt(source, current.start), quote),
+      );
+    }
+
+    if (index === 0 && key === "blocks" && code[current.valueStart] === "[") {
+      const [block, ...inside] = rest;
+
+      return block === undefined
+        ? { ok: false, reason: "its blocks key is a list" }
+        : setBlockInConfig(source, block, nested(inside, value) ?? {});
+    }
+
+    if (code[current.valueStart] !== "{") {
+      return { ok: false, reason: `its ${at} key isn't a literal object` };
+    }
+
+    open = current.valueStart;
+  }
+
+  return { ok: false, reason: "the path is empty" };
+}
+
+/** `value` in `object` at `path`, with the objects on the way copied. */
+function withPath(
+  object: Readonly<Record<string, unknown>>,
+  path: readonly string[],
+  value: unknown,
+): Readonly<Record<string, unknown>> {
+  const [key, ...rest] = path;
+
+  if (key === undefined) {
+    return object;
+  }
+
+  if (rest.length === 0) {
+    return { ...object, [key]: value };
+  }
+
+  const inner: unknown = object[key];
+
+  const next: Readonly<Record<string, unknown>> = Array.isArray(inner)
+    ? Object.fromEntries(inner.map((item: unknown) => [String(item), {}]))
+    : isRecord(inner)
+      ? inner
+      : {};
+
+  return { ...object, [key]: withPath(next, rest, value) };
+}
+
+/** `setPathInConfig` for `better-supabase.config.json`. */
+export function setPathInJson(
+  source: string,
+  path: readonly [string, ...string[]],
+  value: unknown,
+): ConfigEdit {
+  let config: unknown;
+
+  try {
+    config = JSON.parse(source);
+  } catch {
+    return { ok: false, reason: "it isn't valid JSON" };
+  }
+
+  if (!isRecord(config)) {
+    return { ok: false, reason: "it isn't a JSON object" };
+  }
+
+  const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
+
+  return jsonEdit(source, config, withPath(config, path, value), indent);
 }

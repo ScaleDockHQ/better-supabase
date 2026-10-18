@@ -497,6 +497,48 @@ const PERMDOCK_AUTHORIZATION = [
   "  }),",
 ].join("\n");
 
+type AuthzPrompt = (
+  manager: PackageManager,
+  pkg: string | undefined,
+  configSource: string,
+) => string;
+
+const AUTHZ_PROMPTS = {
+  permdock: (manager, pkg, configSource) =>
+    [
+      "## Authorization with PermDock",
+      `PermDock 1.0 runs on better-supabase 0.9 (peer \`${PERMDOCK_PEER}\`). It plugs in as the authorization provider of the \`provider\` access model.`,
+      [
+        `1. Add the package: \`${permDockInstall(manager, pkg)}\`.`,
+        "2. Generate the SQL helpers, the token hook, `permdock.manifest.json` and `permissions.catalog.json` from your PermDock policy, in this order:",
+        "",
+        "```bash",
+        ...permDockGenerate(manager),
+        "```",
+        "",
+        "3. Set `authorization` in the config to the PermDock provider, which reads the two files:",
+        "",
+        "```ts",
+        withPermDock(configSource).trimEnd(),
+        "```",
+      ].join("\n"),
+    ].join("\n\n"),
+} as const satisfies Record<AuthzLibrary, AuthzPrompt>;
+
+/**
+ * The Markdown section of the `/create` AI instructions that sets up the
+ * authorization library: add it, generate its files, then the config that
+ * reads them (`configSource`, from `presetConfigSource`).
+ */
+export function authzPromptSection(
+  authz: AuthzLibrary,
+  manager: PackageManager,
+  pkg: string | undefined,
+  configSource: string,
+): string {
+  return AUTHZ_PROMPTS[authz](manager, pkg, configSource);
+}
+
 /**
  * The config `presetConfigSource` renders for `access: "provider"`, with
  * PermDock as the provider: the imports, a `read` helper for the two files
