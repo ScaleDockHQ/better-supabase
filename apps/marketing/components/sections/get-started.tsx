@@ -8,7 +8,7 @@ export function GetStarted() {
       eyebrow="Get started"
       title="From install to typed queries in four steps"
     >
-      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {getStartedSteps.map((step, index) => (
           <li
             key={step.title}

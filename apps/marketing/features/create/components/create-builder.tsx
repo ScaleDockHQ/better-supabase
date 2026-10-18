@@ -5,43 +5,38 @@ import {
   type Preset,
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
-  PRESET_NAMES,
   presetApplyCommand,
   presetBlocksSource,
   presetConfigSource,
   presetInstallCommand,
-  type PresetName,
-  PRESETS,
   resolvePreset,
   withPresetField,
 } from "better-supabase/preset";
-import { CheckIcon, CopyIcon, DownloadIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import {
-  type ReactNode,
-  Suspense,
-  use,
-  useEffect,
-  useId,
-  useMemo,
-  useState,
-} from "react";
-import * as v from "valibot";
+import { useEffect, useId, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   applyNamedPreset,
   blockGroups,
   createHref,
   initialPreset,
   matchingPreset,
-  type PresetMigrationFile,
-  rowNote,
   toggleBlock,
 } from "@/lib/create";
 
-import { PresetGraph } from "./preset-graph";
+import { BlockPicker } from "./block-picker";
+import { CreateOutput } from "./create-output";
+import { PresetPicker } from "./preset-picker";
 
 const CONVENTION_KEYS = [
   "casing",
@@ -65,169 +60,78 @@ const FIELD_LABELS = {
 
 const PLATFORMS = ["web", "native", "both"] as const;
 
-const selectClass =
-  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2.5 text-sm outline-none focus-visible:ring-3 disabled:opacity-50 dark:bg-input/30";
-
-const preClass =
-  "border-border bg-card max-h-144 overflow-auto rounded-xl border p-4 font-mono text-code leading-6";
+const PLATFORM_LABELS = {
+  web: "Web",
+  native: "Native",
+  both: "Both",
+} satisfies Readonly<Record<(typeof PLATFORMS)[number], string>>;
 
 function valuesOf(key: string): readonly string[] {
   return PRESET_FIELDS.find((field) => field.key === key)?.values ?? [];
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => {
-            setCopied(false);
-          }, 1500);
-        });
-      }}
-    >
-      {copied ? (
-        <CheckIcon aria-hidden="true" />
-      ) : (
-        <CopyIcon aria-hidden="true" />
-      )}
-      {copied ? "Copied" : label}
-    </Button>
-  );
-}
-
-function CodePanel({
-  filename,
-  code,
-  actions,
+function Field({
+  id,
+  label,
+  children,
 }: {
-  filename: string;
-  code: string;
-  actions?: ReactNode;
+  id: string;
+  label: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-xs text-muted-foreground">{filename}</p>
-        <div className="flex gap-2">
-          {actions}
-          <CopyButton text={code} label="Copy" />
-        </div>
-      </div>
-      <pre className={preClass}>
-        <code>{code}</code>
-      </pre>
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }
 
-type MigrationState =
-  | { readonly status: "error"; readonly message: string }
-  | {
-      readonly status: "ready";
-      readonly files: readonly PresetMigrationFile[];
-    };
-
-const migrationsResponse = v.union([
-  v.object({
-    files: v.array(
-      v.object({ path: v.string(), module: v.string(), contents: v.string() }),
-    ),
-  }),
-  v.object({ error: v.string() }),
-]);
-
-async function loadMigrations(code: string): Promise<MigrationState> {
-  try {
-    const response = await fetch(`/create/migrations?preset=${code}`);
-    const body = v.parse(migrationsResponse, await response.json());
-
-    return "error" in body
-      ? { status: "error", message: body.error }
-      : { status: "ready", files: body.files };
-  } catch (error) {
-    return {
-      status: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The migrations could not be rendered.",
-    };
-  }
-}
-
-/**
- * One request per code, kept for the session, so `use` gets the same
- * promise on every render and switching back to a selection is instant.
- */
-const migrationRequests = new Map<string, Promise<MigrationState>>();
-
-function migrationsFor(code: string): Promise<MigrationState> {
-  const known = migrationRequests.get(code);
-
-  if (known !== undefined) {
-    return known;
-  }
-
-  const request = loadMigrations(code);
-  migrationRequests.set(code, request);
-
-  return request;
-}
-
-function Migrations({ code }: { code: string }) {
-  const state = use(migrationsFor(code));
-
-  if (state.status === "error") {
-    return (
-      <p className="text-sm text-destructive" role="alert">
-        {state.message}
-      </p>
-    );
-  }
-
+function OptionSelect({
+  id,
+  value,
+  values,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  values: readonly string[];
+  onChange: (value: string) => void;
+}) {
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
-        {state.files.length} files that{" "}
-        <code className="font-mono text-code">sql sync</code> writes into{" "}
-        <code className="font-mono text-code">supabase/</code>. Turn them into a
-        migration with{" "}
-        <code className="font-mono text-code">
-          supabase db schema declarative sync
-        </code>
-        .
-      </p>
-      {state.files.map((file) => (
-        <details
-          key={file.path}
-          className="rounded-xl border border-border bg-card"
-        >
-          <summary className="cursor-pointer px-4 py-2 font-mono text-xs">
-            {file.path}
-          </summary>
-          <pre className="max-h-96 overflow-auto border-t border-border p-4 font-mono text-code leading-6">
-            <code>{file.contents}</code>
-          </pre>
-        </details>
-      ))}
-    </div>
+    <Select
+      value={value}
+      disabled={values.length < 2}
+      onValueChange={(next) => {
+        if (next !== null) {
+          onChange(next);
+        }
+      }}
+    >
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {values.map((each) => (
+          <SelectItem key={each} value={each}>
+            {each}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
 export function CreateBuilder() {
   const params = useSearchParams();
+  const ids = useId();
 
   const [preset, setPreset] = useState<Preset>(() =>
     initialPreset(params.get("preset")),
   );
 
-  const [tab, setTab] = useState("config");
   const resolved = useMemo(() => resolvePreset(preset), [preset]);
 
   const groups = useMemo(
@@ -236,12 +140,7 @@ export function CreateBuilder() {
   );
 
   const code = encodePreset(preset);
-  const configSource = presetConfigSource(resolved);
-  const wiringSource = presetBlocksSource(resolved);
-  const command = presetInstallCommand(resolved);
-  const applyCommand = presetApplyCommand(resolved);
   const named = matchingPreset(preset);
-  const ids = useId();
 
   useEffect(() => {
     const href = createHref(preset);
@@ -256,317 +155,162 @@ export function CreateBuilder() {
   );
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <form
-        className="flex flex-col gap-6 lg:col-span-1"
-        aria-label="Preset"
-        onSubmit={(event) => {
-          event.preventDefault();
+    <div className="flex flex-col gap-10">
+      <PresetPicker
+        selected={named}
+        onSelect={(name) => {
+          setPreset((current) => applyNamedPreset(current, name));
         }}
-      >
-        <div className="flex flex-col gap-2">
-          <label htmlFor={`${ids}-preset`} className="text-sm font-medium">
-            Preset
-          </label>
-          <select
-            id={`${ids}-preset`}
-            className={selectClass}
-            value={named ?? "custom"}
-            onChange={(event) => {
-              const value = PRESET_NAMES.find(
-                (name) => name === event.target.value,
-              );
+      />
 
-              if (value !== undefined) {
-                setPreset(applyNamedPreset(preset, value));
-              }
-            }}
-          >
-            {named === undefined && <option value="custom">Custom</option>}
-            {PRESET_NAMES.map((name: PresetName) => (
-              <option key={name} value={name}>
-                {PRESETS[name].title}
-              </option>
-            ))}
-          </select>
-          {named !== undefined && (
-            <p className="text-xs leading-5 text-muted-foreground">
-              {PRESETS[named].description}
-            </p>
-          )}
-        </div>
-
-        <fieldset className="flex flex-col gap-3">
-          <legend className="mb-2 text-sm font-medium">
-            Framework and platforms
-          </legend>
-          <label htmlFor={`${ids}-framework`} className="sr-only">
-            Framework
-          </label>
-          <select
-            id={`${ids}-framework`}
-            className={selectClass}
-            value={preset.framework}
-            onChange={(event) => {
-              const value = PRESET_FRAMEWORKS.find(
-                (each) => each === event.target.value,
-              );
-
-              if (value !== undefined) {
-                setPreset((current) => ({ ...current, framework: value }));
-              }
-            }}
-          >
-            {PRESET_FRAMEWORKS.map((framework) => (
-              <option key={framework} value={framework}>
-                {framework}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-4" role="radiogroup" aria-label="Platforms">
-            {PLATFORMS.map((platform) => (
-              <label key={platform} className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="platforms"
-                  value={platform}
-                  checked={preset.platforms === platform}
-                  onChange={() => {
-                    setPreset((current) => ({
-                      ...current,
-                      platforms: platform,
-                    }));
-                  }}
-                  className="size-4 accent-primary"
-                />
-                {platform}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="flex flex-col gap-3">
-          <legend className="mb-2 text-sm font-medium">Conventions</legend>
-          {CONVENTION_KEYS.map((key: ConventionKey) => {
-            const values = valuesOf(key);
-
-            return (
-              <div key={key} className="flex flex-col gap-1">
-                <label
-                  htmlFor={`${ids}-${key}`}
-                  className="text-sm text-muted-foreground"
-                >
-                  {FIELD_LABELS[key]}
-                </label>
-                <select
-                  id={`${ids}-${key}`}
-                  className={selectClass}
-                  value={preset[key]}
-                  disabled={values.length < 2}
-                  onChange={(event) => {
-                    const { value } = event.target;
-                    setPreset((current) =>
-                      withPresetField(current, key, value),
+      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:items-start">
+        <form
+          className="flex flex-col gap-8"
+          aria-label="Preset"
+          onSubmit={(event) => {
+            event.preventDefault();
+          }}
+        >
+          <fieldset className="flex flex-col gap-4">
+            <legend className="pb-3 text-base font-semibold tracking-tight">
+              Stack
+            </legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field id={`${ids}-framework`} label="Framework">
+                <OptionSelect
+                  id={`${ids}-framework`}
+                  value={preset.framework}
+                  values={PRESET_FRAMEWORKS}
+                  onChange={(value) => {
+                    const framework = PRESET_FRAMEWORKS.find(
+                      (each) => each === value,
                     );
-                  }}
-                >
-                  {values.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            );
-          })}
-          <p className="text-xs leading-5 text-muted-foreground">
-            Other tenant names arrive with naming conventions.
-          </p>
-        </fieldset>
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">Integrations</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {valuesOf("integrations").map((value) => (
-              <label key={value} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="integration"
-                  value={value}
-                  checked={preset.integrations.some((each) => each === value)}
-                  onChange={() => {
-                    setPreset((current) =>
-                      withPresetField(current, "integrations", value),
-                    );
+                    if (framework !== undefined) {
+                      setPreset((current) => ({ ...current, framework }));
+                    }
                   }}
-                  className="size-4 accent-primary"
                 />
-                {value}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="flex flex-col gap-5">
-          <p className="text-sm font-medium">
-            Blocks{" "}
-            <span className="font-normal text-muted-foreground">
-              ({resolved.blocks.length} installed)
-            </span>
-          </p>
-          {groups.map((group) => (
-            <fieldset key={group.category} className="flex flex-col gap-2">
-              <legend className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {group.category}
-              </legend>
-              {group.rows.map((row) => {
-                const note = rowNote(row.state);
-                const noteId = `${ids}-${row.name}-note`;
-
-                const checked =
-                  row.state.kind === "selected" ||
-                  row.state.kind === "required";
-
-                return (
-                  <label
-                    key={row.name}
-                    className="flex items-start gap-2.5 text-sm"
-                    title={row.description}
-                  >
-                    <input
-                      type="checkbox"
-                      name="block"
-                      value={row.name}
-                      checked={checked}
-                      disabled={
-                        row.state.kind === "required" ||
-                        row.state.kind === "conflict"
-                      }
-                      aria-describedby={note === undefined ? undefined : noteId}
-                      onChange={() => {
-                        setPreset((current) => toggleBlock(current, row.name));
-                      }}
-                      className="mt-0.5 size-4 shrink-0 accent-primary"
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      <span className="leading-5">{row.title}</span>
-                      {note !== undefined && (
-                        <span
-                          id={noteId}
-                          className="text-xs leading-5 text-muted-foreground"
-                        >
-                          {note}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
-            </fieldset>
-          ))}
-        </div>
-      </form>
-
-      <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-medium">Install</p>
-          <p className="text-sm leading-6 text-muted-foreground">
-            A new project starts from the preset: init writes the config, the
-            modules of the blocks and{" "}
-            <code className="font-mono text-code">lib/blocks.ts</code>.
-          </p>
-          <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-code">
-            <code data-testid="install-command">{command}</code>
-          </pre>
-          <p className="text-sm leading-6 text-muted-foreground">
-            In an existing project, apply shows the config diff and writes the
-            new modules.
-          </p>
-          <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-code">
-            <code data-testid="apply-command">{applyCommand}</code>
-          </pre>
-          <div className="flex flex-wrap gap-2">
-            <CopyButton text={command} label="Copy init command" />
-            <CopyButton text={applyCommand} label="Copy apply command" />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const url = URL.createObjectURL(
-                  new Blob([configSource], { type: "text/typescript" }),
-                );
-
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = "better-supabase.config.ts";
-                link.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              <DownloadIcon aria-hidden="true" />
-              Download config
-            </Button>
-          </div>
-          <p className="font-mono text-xs break-all text-muted-foreground">
-            preset: {code}
-          </p>
-        </div>
-
-        {fieldConflicts.length > 0 && (
-          <ul
-            role="alert"
-            className="flex flex-col gap-1 rounded-xl border border-destructive/40 p-4 text-sm text-destructive"
-          >
-            {fieldConflicts.map((conflict) => (
-              <li key={conflict.field}>
-                {conflict.field}: {conflict.reason}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList
-            aria-label="Output"
-            className="flex-wrap justify-start group-data-horizontal/tabs:h-auto"
-          >
-            <TabsTrigger value="config" className="flex-none">
-              Config
-            </TabsTrigger>
-            <TabsTrigger value="migrations" className="flex-none">
-              Migrations
-            </TabsTrigger>
-            <TabsTrigger value="wiring" className="flex-none">
-              lib/blocks.ts
-            </TabsTrigger>
-            <TabsTrigger value="graph" className="flex-none">
-              Graph
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="config" className="pt-2">
-            <CodePanel
-              filename="better-supabase.config.ts"
-              code={configSource}
-            />
-          </TabsContent>
-          <TabsContent value="migrations" className="pt-2">
-            <Suspense
-              fallback={
-                <p className="text-sm text-muted-foreground" aria-live="polite">
-                  Rendering the migrations.
+              </Field>
+              <div className="flex flex-col gap-1.5">
+                <p
+                  id={`${ids}-platforms`}
+                  className="text-xs text-muted-foreground"
+                >
+                  Platforms
                 </p>
-              }
-            >
-              <Migrations code={code} />
-            </Suspense>
-          </TabsContent>
-          <TabsContent value="wiring" className="pt-2">
-            <CodePanel filename="lib/blocks.ts" code={wiringSource} />
-          </TabsContent>
-          <TabsContent value="graph" className="pt-2">
-            <PresetGraph resolved={resolved} />
-          </TabsContent>
-        </Tabs>
+                <ToggleGroup
+                  aria-labelledby={`${ids}-platforms`}
+                  variant="outline"
+                  spacing={0}
+                  value={[preset.platforms]}
+                  onValueChange={(value) => {
+                    const platforms = PLATFORMS.find(
+                      (each) => each === value[0],
+                    );
+
+                    if (platforms !== undefined) {
+                      setPreset((current) => ({ ...current, platforms }));
+                    }
+                  }}
+                >
+                  {PLATFORMS.map((platform) => (
+                    <ToggleGroupItem key={platform} value={platform}>
+                      {PLATFORM_LABELS[platform]}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-4">
+            <legend className="pb-3 text-base font-semibold tracking-tight">
+              Conventions
+            </legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {CONVENTION_KEYS.map((key) => (
+                <Field key={key} id={`${ids}-${key}`} label={FIELD_LABELS[key]}>
+                  <OptionSelect
+                    id={`${ids}-${key}`}
+                    value={preset[key]}
+                    values={valuesOf(key)}
+                    onChange={(value) => {
+                      setPreset((current) =>
+                        withPresetField(current, key, value),
+                      );
+                    }}
+                  />
+                </Field>
+              ))}
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Other tenant names arrive with naming conventions.
+            </p>
+            {fieldConflicts.length > 0 ? (
+              <Alert variant="warning">
+                <TriangleAlertIcon aria-hidden="true" />
+                <AlertTitle>These choices conflict</AlertTitle>
+                <AlertDescription>
+                  <ul className="flex flex-col gap-1">
+                    {fieldConflicts.map((conflict) => (
+                      <li key={conflict.field}>
+                        {conflict.field}: {conflict.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="pb-3 text-base font-semibold tracking-tight">
+              Integrations
+            </legend>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {valuesOf("integrations").map((value) => (
+                <label
+                  key={value}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-muted/60"
+                >
+                  <input
+                    type="checkbox"
+                    name="integration"
+                    value={value}
+                    checked={preset.integrations.some((each) => each === value)}
+                    onChange={() => {
+                      setPreset((current) =>
+                        withPresetField(current, "integrations", value),
+                      );
+                    }}
+                    className="size-4 shrink-0 accent-primary"
+                  />
+                  {value}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <BlockPicker
+            groups={groups}
+            installed={resolved.blocks.length}
+            onToggle={(name) => {
+              setPreset((current) => toggleBlock(current, name));
+            }}
+          />
+        </form>
+
+        <div className="min-w-0 xl:sticky xl:top-20">
+          <CreateOutput
+            code={code}
+            resolved={resolved}
+            installCommand={presetInstallCommand(resolved)}
+            applyCommand={presetApplyCommand(resolved)}
+            configSource={presetConfigSource(resolved)}
+            wiringSource={presetBlocksSource(resolved)}
+          />
+        </div>
       </div>
     </div>
   );

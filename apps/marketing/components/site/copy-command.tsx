@@ -3,7 +3,7 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export function InstallButton({ command }: { command: string }) {
+export function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,13 +38,16 @@ export function InstallButton({ command }: { command: string }) {
       type="button"
       onClick={() => void handleCopy()}
       aria-label={`Copy ${command}`}
-      className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 font-mono text-sm hover:bg-muted"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 font-mono text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      {command}
+      <span className="truncate">{command}</span>
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied" : ""}
+      </span>
       {copied ? (
-        <CheckIcon aria-hidden="true" className="size-3.5" />
+        <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
       ) : (
-        <CopyIcon aria-hidden="true" className="size-3.5" />
+        <CopyIcon aria-hidden="true" className="size-3.5 shrink-0" />
       )}
     </button>
   );

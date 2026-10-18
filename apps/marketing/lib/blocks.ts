@@ -40,11 +40,11 @@ export function getBlock(name: string): CatalogBlock | undefined {
   return blocks.find((block) => block.name === name);
 }
 
-export function blockPath(name: string): string {
+export function blockPath(name: string): `/blocks/${string}` {
   return `/blocks/${name}`;
 }
 
-/** The `generateStaticParams` of `app/blocks/[name]`: one page per catalog block. */
+/** The `generateStaticParams` of `app/(catalog)/blocks/[name]`: one page per catalog block. */
 export function blockStaticParams(): { name: string }[] {
   return blocks.map((block) => ({ name: block.name }));
 }
@@ -58,6 +58,34 @@ export function blockSummaries(): BlockSummary[] {
     requires: block.requires,
     hasReact: block.react !== null,
   }));
+}
+
+export interface BlockGroup {
+  readonly category: string;
+  readonly blocks: readonly BlockSummary[];
+}
+
+/** The block summaries per category, in catalog order. */
+export function blockGroups(): BlockGroup[] {
+  const summaries = blockSummaries();
+
+  return blockCategories.map((category) => ({
+    category,
+    blocks: summaries.filter((block) => block.category === category),
+  }));
+}
+
+/** Other blocks in the same category, for the "More in" strip. */
+export function relatedBlocks(name: string, limit = 6): BlockSummary[] {
+  const block = getBlock(name);
+
+  if (!block) {
+    return [];
+  }
+
+  return blockSummaries()
+    .filter((other) => other.category === block.category && other.name !== name)
+    .slice(0, limit);
 }
 
 /** The command that installs the block's SQL today. */

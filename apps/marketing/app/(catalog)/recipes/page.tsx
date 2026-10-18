@@ -1,26 +1,31 @@
 import type { Metadata } from "next";
 
 import { Badge } from "@/components/reui/badge";
+import { JsonLd } from "@/components/site/json-ld";
 import { SiteLink } from "@/components/site/site-link";
+import { CategoryIcon } from "@/features/blocks/components/category-icon";
+import { PageHeader } from "@/features/catalog/components/page-header";
+import { RecipeTile } from "@/features/recipes/components/recipe-tile";
+import { blockPath, getBlock } from "@/lib/blocks";
 import { availableRecipes, plannedRecipes, recipePath } from "@/lib/recipes";
+import { site } from "@/lib/site";
+import { absoluteUrl, itemList } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Recipes",
   description:
     "Build a notification bell, a command search or an onboarding checklist from your own shadcn components and a block's hook, on the web and in React Native.",
+  alternates: { canonical: "/recipes" },
 };
 
 export default function RecipesPage() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 py-16 md:px-8">
-      <div className="flex max-w-2xl flex-col gap-3">
-        <p className="text-xs font-semibold tracking-wide text-brand uppercase">
-          Recipes
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Build the UI from your own components
-        </h1>
-        <p className="text-base leading-7 text-pretty text-muted-foreground">
+    <div className="flex flex-col gap-12">
+      <PageHeader
+        eyebrow="Recipes"
+        title="Build the UI from your own components"
+      >
+        <p>
           better-supabase ships no UI components. Each recipe shows the shadcn
           components to add, the glue to install from the{" "}
           <SiteLink href="/docs/registry" className="text-foreground underline">
@@ -30,31 +35,19 @@ export default function RecipesPage() {
           hook, and both are copied from the example apps, so they typecheck and
           run.
         </p>
-      </div>
+      </PageHeader>
 
       <section aria-labelledby="available" className="flex flex-col gap-4">
         <h2 id="available" className="text-xl font-semibold tracking-tight">
           Available
+          <span className="ml-2 text-sm font-normal text-muted-foreground tabular-nums">
+            {availableRecipes.length}
+          </span>
         </h2>
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {availableRecipes.map((recipe) => (
             <li key={recipe.slug}>
-              <SiteLink
-                href={recipePath(recipe.slug)}
-                className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <span className="text-sm font-semibold">{recipe.title}</span>
-                <span className="line-clamp-3 text-sm leading-6 text-muted-foreground">
-                  {recipe.description}
-                </span>
-                <span className="mt-auto flex flex-wrap gap-1.5">
-                  <Badge variant="secondary">{recipe.block}</Badge>
-                  <Badge variant="outline" className="font-mono">
-                    {recipe.hook.name}
-                  </Badge>
-                  <Badge variant="primary-light">Web and native</Badge>
-                </span>
-              </SiteLink>
+              <RecipeTile recipe={recipe} />
             </li>
           ))}
         </ul>
@@ -72,29 +65,46 @@ export default function RecipesPage() {
               loader.
             </p>
           </div>
-          <ul className="divide-y divide-border rounded-xl border border-border">
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
             {plannedRecipes.map((recipe) => (
               <li
                 key={recipe.slug}
-                className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
               >
-                <span className="text-sm font-medium sm:w-48">
+                <span className="flex items-center gap-3 text-sm font-medium sm:w-56">
+                  <CategoryIcon
+                    category={getBlock(recipe.block)?.category ?? "Foundation"}
+                    size="sm"
+                  />
                   {recipe.title}
                 </span>
                 <span className="flex-1 text-sm text-muted-foreground">
                   {recipe.description}
                 </span>
-                <SiteLink
-                  href={`/blocks/${recipe.block}`}
-                  className="font-mono text-xs text-muted-foreground hover:text-foreground"
-                >
-                  {recipe.block}
-                </SiteLink>
+                <span className="flex items-center gap-2">
+                  <Badge variant="outline">planned</Badge>
+                  <SiteLink
+                    href={blockPath(recipe.block)}
+                    className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {recipe.block}
+                  </SiteLink>
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <JsonLd
+        data={itemList(
+          "better-supabase UI recipes",
+          availableRecipes.map((recipe) => ({
+            name: recipe.title,
+            url: absoluteUrl(recipePath(recipe.slug), site.url),
+          })),
+        )}
+      />
     </div>
   );
 }

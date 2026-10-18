@@ -3,7 +3,7 @@ import { runtimes } from "@/lib/home";
 export function RuntimesBand() {
   return (
     <section className="border-y border-border bg-muted/30">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-6 py-12 text-center md:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-6 px-6 py-12 text-center md:px-8">
         <div className="flex max-w-2xl flex-col gap-2">
           <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
             Runs on every WinterTC runtime

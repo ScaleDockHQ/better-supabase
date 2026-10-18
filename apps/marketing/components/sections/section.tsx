@@ -16,7 +16,7 @@ export function Section({
   return (
     <section
       id={id}
-      className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-16 md:px-8"
+      className="mx-auto w-full max-w-7xl scroll-mt-20 px-6 py-16 md:px-8"
     >
       <div className="mb-8 flex max-w-2xl flex-col gap-3">
         {eyebrow ? (

@@ -10,7 +10,7 @@ import { navLinks, site } from "@/lib/site";
 export function Navbar() {
   return (
     <header className="sticky top-0 z-20 w-full border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-6 md:px-8">
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-6 md:px-8">
         <div className="flex items-center gap-6">
           <Link
             href="/"

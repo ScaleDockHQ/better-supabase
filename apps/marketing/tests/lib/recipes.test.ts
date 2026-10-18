@@ -11,7 +11,10 @@ import {
   recipeStaticParams,
 } from "../../lib/recipes";
 
-const PAGE = join(import.meta.dirname, "../../app/recipes/[slug]/page.tsx");
+const PAGE = join(
+  import.meta.dirname,
+  "../../app/(catalog)/recipes/[slug]/page.tsx",
+);
 
 const REGISTRY = join(
   import.meta.dirname,
