@@ -57,6 +57,7 @@ OPTIONS
      --preset=<name|code|url>    A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns     
   --only=<blocks|conventions>    blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
                       --adopt    Map the preset's blocks onto tables the database already has under their default names (adopt mode)                 
+             --allow-breaking    Write a design that drops, renames or retypes app table columns, or makes one required without a default            
                     --dry-run    Show the config diff and write nothing                                                                              
             --snapshot=<file>    Read a saved snapshot instead of the database                                                                       
                --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL                      

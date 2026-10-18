@@ -44,6 +44,14 @@ export {
 
 export type { CreateDesign } from "./design.ts";
 
+export { diffAppTables, diffDesigns } from "./design-diff.ts";
+
+export type {
+  DesignChange,
+  DesignChangeKind,
+  DiffOptions,
+} from "./design-diff.ts";
+
 export type { PresetInput } from "./config.ts";
 
 export {

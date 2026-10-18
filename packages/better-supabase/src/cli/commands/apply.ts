@@ -7,7 +7,9 @@ import type { Now } from "../sql/migrations.ts";
 
 import {
   type CreateDesign,
+  type DesignChange,
   designConfig,
+  diffAppTables,
   designOf,
   encodePreset,
   isPresetName,
@@ -57,6 +59,11 @@ const APPLY_ARGS = {
     type: "boolean",
     description:
       "Map the preset's blocks onto tables the database already has under their default names (adopt mode)",
+  },
+  "allow-breaking": {
+    type: "boolean",
+    description:
+      "Write a design that drops, renames or retypes app table columns, or makes one required without a default",
   },
   "dry-run": {
     type: "boolean",
@@ -187,6 +194,17 @@ async function designFor(
   return design;
 }
 
+/** Each breaking change with its expand-and-contract steps. */
+function describeBreaking(changes: readonly DesignChange[]): string[] {
+  return [
+    "Breaking changes to app tables:",
+    ...changes.flatMap((change) => [
+      `  ${change.summary}`,
+      ...change.steps.map((step, index) => `    ${String(index + 1)}. ${step}`),
+    ]),
+  ];
+}
+
 /** The config file edited for `--only`: the `preset` key, or the blocks. */
 function edited(
   file: string,
@@ -285,9 +303,30 @@ export async function runApply(
     return { code: 2, error: conflict };
   }
 
+  const breaking =
+    design?.appTables === undefined
+      ? []
+      : diffAppTables(config.appTables, design.appTables, {
+          keepMissing: true,
+        }).filter((change) => change.breaking);
+
+  const shown = display(config.root, file);
+
+  if (
+    breaking.length > 0 &&
+    args["allow-breaking"] !== true &&
+    args["dry-run"] !== true
+  ) {
+    return {
+      code: 1,
+      output: describeBreaking(breaking).join("\n"),
+      data: { file: shown, written: false, breaking },
+      error: `Nothing was written: the design has ${breaking.length === 1 ? "a breaking change" : `${String(breaking.length)} breaking changes`} to tables the app already has. Follow the steps above, or pass --allow-breaking to write it anyway.`,
+    };
+  }
+
   const source = await readFile(file, "utf-8");
   const edit = edited(file, source, input, preset, only);
-  const shown = display(config.root, file);
 
   if (!edit.ok) {
     return {
@@ -308,7 +347,10 @@ export async function runApply(
 
   const paint = deps.paint ?? plain;
   let text = withDesign.text;
-  const lines: string[] = [];
+
+  const lines: string[] =
+    breaking.length === 0 ? [] : [...describeBreaking(breaking), ""];
+
   let adopted: Readonly<Record<string, BlockConfig>> = {};
 
   if (args.adopt === true) {
