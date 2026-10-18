@@ -2,6 +2,7 @@ import type { CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { errorText } from "../errors.ts";
+import { PLATFORM_ROLES } from "./reserved-roles.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 
 /** The database doctor checks, for statistics and plans. */
@@ -255,7 +256,7 @@ export const LIVE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Queries spill to temporary files",
     description:
-      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`.",
+      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`. When every statement that spilled ran as a Supabase service role (PostgREST's schema cache query as `authenticator`, Auth or Storage), there is no finding.",
     async check(context) {
       const db = live(context);
 
@@ -282,11 +283,26 @@ export const LIVE_RULES: readonly Rule[] = [
         const view = await statementsView(db);
 
         if (view) {
-          const statements = await db
-            .query<{ query: string; temp_blks_written: number | string }>(
-              `select query, temp_blks_written from ${view} where temp_blks_written > 0 order by temp_blks_written desc limit 5`,
+          const spilled = await db
+            .query<{
+              query: string;
+              temp_blks_written: number | string;
+              role: string | null;
+            }>(
+              `select s.query, s.temp_blks_written, r.rolname as role from ${view} s left join pg_roles r on r.oid = s.userid where s.temp_blks_written > 0 order by s.temp_blks_written desc limit 50`,
             )
             .catch(() => []);
+
+          const statements = spilled
+            .filter(
+              (statement) =>
+                statement.role === null || !PLATFORM_ROLES.has(statement.role),
+            )
+            .slice(0, 5);
+
+          if (spilled.length > 0 && statements.length === 0) {
+            return [];
+          }
 
           if (statements.length > 0) {
             top = ` Top statements by temporary blocks written: ${statements

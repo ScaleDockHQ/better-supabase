@@ -25,6 +25,15 @@ const SETTINGS_ONLY_ROLES = new Set([
   "service_role",
 ]);
 
+/**
+ * Roles that Supabase's own services log in as. Their statements (PostgREST's
+ * schema cache query, Auth and Storage migrations) aren't the app's.
+ */
+export const PLATFORM_ROLES: ReadonlySet<string> = new Set([
+  ...RESERVED_ROLES,
+  "authenticator",
+]);
+
 /** Comments and string literals blanked, newlines kept so offsets map to lines. */
 const sqlCode = (text: string): string =>
   text
