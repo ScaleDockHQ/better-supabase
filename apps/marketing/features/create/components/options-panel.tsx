@@ -19,6 +19,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { useId, useState } from "react";
+import { siSupabase } from "simple-icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
@@ -499,6 +500,7 @@ export function OptionsPanel({
   aiPrompt,
   onShuffle,
   onGetCode,
+  onDeploy,
 }: {
   preset: Preset;
   resolved: ResolvedPreset;
@@ -516,6 +518,8 @@ export function OptionsPanel({
   aiPrompt: string;
   onShuffle: () => void;
   onGetCode: () => void;
+  /** Opens the deploy dialog; without it, deploying is turned off. */
+  onDeploy?: (() => void) | undefined;
 }): ReactElement {
   const ids = useId();
   const { state: bridge } = useCanvasBridge();
@@ -722,6 +726,12 @@ export function OptionsPanel({
         <p className="truncate font-mono text-xs text-muted-foreground">
           preset: {code}
         </p>
+        {onDeploy === undefined ? null : (
+          <Button type="button" variant="outline" size="sm" onClick={onDeploy}>
+            <BrandLogo mark={siSupabase} className="size-4" />
+            Deploy to Supabase
+          </Button>
+        )}
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onShuffle}>
             <ShuffleIcon aria-hidden="true" />

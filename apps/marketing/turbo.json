@@ -5,15 +5,33 @@
   "tasks": {
     "dev": {
       "dependsOn": ["//#catalog", "//#recipes"],
-      "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
+      "passThroughEnv": [
+        "PORT",
+        "DOCS_ORIGIN",
+        "SUPABASE_OAUTH_CLIENT_ID",
+        "SUPABASE_OAUTH_CLIENT_SECRET",
+        "SUPABASE_OAUTH_COOKIE_SECRET"
+      ]
     },
     "build": {
       "dependsOn": ["^build", "//#catalog", "//#recipes"],
-      "env": ["DOCS_ORIGIN", "NEXT_PUBLIC_SITE_URL"]
+      "env": [
+        "DOCS_ORIGIN",
+        "NEXT_PUBLIC_SITE_URL",
+        "SUPABASE_OAUTH_CLIENT_ID",
+        "SUPABASE_OAUTH_CLIENT_SECRET",
+        "SUPABASE_OAUTH_COOKIE_SECRET"
+      ]
     },
     "dev:portless": {
       "dependsOn": ["//#catalog", "//#recipes"],
-      "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
+      "passThroughEnv": [
+        "PORT",
+        "DOCS_ORIGIN",
+        "SUPABASE_OAUTH_CLIENT_ID",
+        "SUPABASE_OAUTH_CLIENT_SECRET",
+        "SUPABASE_OAUTH_COOKIE_SECRET"
+      ]
     },
     "lint": {
       "dependsOn": ["transit", "//#catalog", "//#recipes"]
