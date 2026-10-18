@@ -45,8 +45,10 @@ import {
 import { presetPrompt } from "@/lib/create-prompt";
 import { EMPTY_DESIGN } from "@/lib/design";
 import { site } from "@/lib/site";
+import { deployBlocker } from "@/lib/supabase-deploy";
 
 import { CanvasBridgeProvider, useCanvasBridgeState } from "./canvas-bridge";
+import { DeployDialog } from "./deploy-dialog";
 import { DesignProvider, useDesignState } from "./design-provider";
 import { GetCodeDialog } from "./get-code-dialog";
 import { OptionsPanel, type PackageOption } from "./options-panel";
@@ -79,8 +81,14 @@ async function attempt<T>(run: () => Promise<T>): Promise<Outcome<T>> {
  * The options in a rail on the left (a sheet on small screens) and the
  * schema the selection installs on the right. The URL keeps the preset code,
  * the canvas design and the monorepo package, so a link restores them.
+ * `deployEnabled` shows "Deploy to Supabase" when the OAuth app is set up;
+ * `?deploy=1` opens its dialog, which the Supabase consent screen returns to.
  */
-export function CreateBuilder(): ReactElement {
+export function CreateBuilder({
+  deployEnabled = false,
+}: {
+  deployEnabled?: boolean;
+}): ReactElement {
   const params = useSearchParams();
 
   const designValue = useDesignState(
@@ -110,6 +118,12 @@ export function CreateBuilder(): ReactElement {
   );
 
   const [codeOpen, setCodeOpen] = useState(false);
+
+  const [deployOpen, setDeployOpen] = useState(
+    () => deployEnabled && params.get("deploy") !== null,
+  );
+
+  const [connectFailed] = useState(() => params.get("deploy") === "error");
   const [optionsOpen, setOptionsOpen] = useState(false);
 
   const bridge = useCanvasBridgeState(
@@ -258,6 +272,11 @@ export function CreateBuilder(): ReactElement {
     setCodeOpen(true);
   };
 
+  const openDeploy = (): void => {
+    setOptionsOpen(false);
+    setDeployOpen(true);
+  };
+
   const panel = (
     <OptionsPanel
       preset={preset}
@@ -285,6 +304,7 @@ export function CreateBuilder(): ReactElement {
         setPreset((current) => applyNamedPreset(current, next));
       }}
       onGetCode={openCode}
+      onDeploy={deployEnabled ? openDeploy : undefined}
     />
   );
 
@@ -366,6 +386,20 @@ export function CreateBuilder(): ReactElement {
             design={design}
             designCode={designCode}
           />
+          {deployEnabled ? (
+            <DeployDialog
+              open={deployOpen}
+              onOpenChange={setDeployOpen}
+              code={code}
+              designCode={designCode}
+              resolved={resolved}
+              named={named}
+              pkg={pkg}
+              blocker={deployBlocker(preset)}
+              connectFailed={connectFailed}
+              returnTo={createHref(preset, pkg, authz, designCode)}
+            />
+          ) : null}
           <Toaster />
         </div>
       </CanvasBridgeProvider>

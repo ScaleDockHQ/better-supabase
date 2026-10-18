@@ -194,7 +194,7 @@ function wordsOf(command: string): { at: number; word: string }[] {
   });
 }
 
-function CommandRow({
+export function CommandRow({
   label,
   command,
   testId,

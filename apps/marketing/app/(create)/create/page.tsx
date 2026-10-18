@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateBuilder } from "@/features/create/components/create-builder";
+import { oauthConfig } from "@/lib/supabase-session";
 
 export const metadata: Metadata = {
   title: "Create",
@@ -40,7 +41,7 @@ export default function CreatePage(): ReactElement {
     <>
       <h1 className="sr-only">Start an app from a preset</h1>
       <Suspense fallback={<BuilderSkeleton />}>
-        <CreateBuilder />
+        <CreateBuilder deployEnabled={oauthConfig() !== undefined} />
       </Suspense>
     </>
   );
