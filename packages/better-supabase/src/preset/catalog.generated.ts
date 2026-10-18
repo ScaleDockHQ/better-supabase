@@ -7,7 +7,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "updated-at",
       "title": "Update timestamps",
-      "category": "foundation",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "updated-at"
@@ -15,7 +15,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "actor",
       "title": "Actor stamping",
-      "category": "foundation",
+      "category": "identity",
       "requires": [],
       "integrates": [],
       "manifest": "actor"
@@ -23,7 +23,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "audit",
       "title": "Audit log",
-      "category": "operations",
+      "category": "admin",
       "requires": [],
       "integrates": [
         "access",
@@ -35,7 +35,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "tenant",
       "title": "Tenant memberships and permission helper",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [
         "updated-at"
       ],
@@ -49,7 +49,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "invitations",
       "title": "Invitations",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [
         "tenant",
         "access",
@@ -67,7 +67,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "reserved-slugs",
       "title": "Reserved slugs",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [],
       "integrates": [],
       "manifest": "reserved-slugs"
@@ -75,7 +75,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "jobs",
       "title": "Job queue",
-      "category": "platform",
+      "category": "automation",
       "requires": [],
       "integrates": [
         "data-lifecycle"
@@ -85,7 +85,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "idempotency",
       "title": "Idempotency keys",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [],
       "manifest": "idempotency"
@@ -93,7 +93,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhook-inbox",
       "title": "Webhook inbox",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [
         "data-lifecycle"
@@ -103,7 +103,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "realtime-tables",
       "title": "Realtime table changes",
-      "category": "platform",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "realtime-tables"
@@ -111,7 +111,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "jsonb-schemas",
       "title": "JSON Schema checks for jsonb",
-      "category": "platform",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "jsonb-schemas"
@@ -119,7 +119,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "pgtap",
       "title": "pgTAP helpers",
-      "category": "platform",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "pgtap"
@@ -127,7 +127,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "grants",
       "title": "Data API grants",
-      "category": "platform",
+      "category": "identity",
       "requires": [],
       "integrates": [],
       "manifest": "grants"
@@ -135,7 +135,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "read-sets",
       "title": "Read sets",
-      "category": "platform",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "read-sets"
@@ -143,7 +143,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "mfa",
       "title": "MFA enforcement",
-      "category": "foundation",
+      "category": "identity",
       "requires": [],
       "integrates": [],
       "manifest": "mfa"
@@ -167,7 +167,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "rate-limit",
       "title": "Write rate limits",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [],
       "manifest": "rate-limit"
@@ -183,7 +183,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "access",
       "title": "Access contract",
-      "category": "foundation",
+      "category": "identity",
       "requires": [
         "tenant"
       ],
@@ -201,7 +201,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "support-sessions",
       "title": "Support sessions",
-      "category": "operations",
+      "category": "admin",
       "requires": [
         "access",
         "audit"
@@ -218,7 +218,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "organizations",
       "title": "Organizations",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [
         "tenant",
         "access",
@@ -239,7 +239,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "profiles",
       "title": "Profiles",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [],
       "integrates": [
         "tenant"
@@ -252,7 +252,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "outbox",
       "title": "Outbox",
-      "category": "platform",
+      "category": "automation",
       "requires": [],
       "integrates": [
         "data-lifecycle"
@@ -262,7 +262,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "notifications",
       "title": "Notifications",
-      "category": "collaboration",
+      "category": "messaging",
       "requires": [
         "updated-at"
       ],
@@ -277,7 +277,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhooks-out",
       "title": "Outgoing webhooks",
-      "category": "platform",
+      "category": "developer",
       "requires": [
         "updated-at"
       ],
@@ -291,7 +291,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "sessions",
       "title": "Session revocation",
-      "category": "foundation",
+      "category": "identity",
       "requires": [],
       "integrates": [],
       "manifest": "sessions"
@@ -299,7 +299,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhooks-in",
       "title": "Incoming webhook endpoints",
-      "category": "platform",
+      "category": "developer",
       "requires": [
         "access",
         "updated-at",
@@ -314,7 +314,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "api-keys",
       "title": "API keys",
-      "category": "platform",
+      "category": "developer",
       "requires": [
         "tenant",
         "access"
@@ -328,7 +328,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "settings",
       "title": "Settings",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [
         "tenant",
         "access"
@@ -377,7 +377,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "flags",
       "title": "Feature flags",
-      "category": "operations",
+      "category": "growth",
       "requires": [
         "tenant"
       ],
@@ -428,7 +428,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "data-lifecycle",
       "title": "Data lifecycle",
-      "category": "operations",
+      "category": "admin",
       "requires": [
         "tenant",
         "access"
@@ -444,7 +444,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "sso",
       "title": "SSO and SCIM",
-      "category": "foundation",
+      "category": "identity",
       "requires": [
         "tenant",
         "access"
@@ -461,7 +461,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "onboarding",
       "title": "Onboarding",
-      "category": "operations",
+      "category": "growth",
       "requires": [
         "tenant",
         "access"
@@ -477,7 +477,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "waitlist",
       "title": "Waitlist and invite codes",
-      "category": "operations",
+      "category": "growth",
       "requires": [
         "tenant",
         "access"
@@ -494,7 +494,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "announcements",
       "title": "Announcements",
-      "category": "operations",
+      "category": "growth",
       "requires": [
         "tenant",
         "access"
@@ -510,7 +510,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "streams",
       "title": "Durable streams",
-      "category": "platform",
+      "category": "automation",
       "requires": [],
       "integrates": [],
       "manifest": "streams"
@@ -518,7 +518,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "credentials",
       "title": "Credentials in Vault",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [],
       "manifest": "credentials"
@@ -526,7 +526,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "workflows",
       "title": "Workflows",
-      "category": "operations",
+      "category": "automation",
       "requires": [
         "tenant",
         "access"
@@ -542,7 +542,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "workflow-sdk-world",
       "title": "Workflow SDK World",
-      "category": "operations",
+      "category": "automation",
       "requires": [
         "workflows",
         "jobs",
@@ -557,7 +557,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "workflow-builder",
       "title": "Workflow builder",
-      "category": "operations",
+      "category": "automation",
       "requires": [
         "workflows",
         "tenant",
@@ -576,7 +576,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "chat-sdk-state",
       "title": "Chat SDK state",
-      "category": "collaboration",
+      "category": "messaging",
       "requires": [],
       "integrates": [],
       "manifest": "inbox"
@@ -584,7 +584,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "inbox",
       "title": "Shared inbox",
-      "category": "collaboration",
+      "category": "messaging",
       "requires": [
         "tenant",
         "access",
@@ -694,7 +694,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "connectors",
       "title": "Connectors",
-      "category": "ai",
+      "category": "automation",
       "requires": [
         "tenant",
         "access"
@@ -726,7 +726,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "push",
       "title": "Push devices",
-      "category": "collaboration",
+      "category": "messaging",
       "requires": [],
       "integrates": [],
       "manifest": "push"
@@ -758,7 +758,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "number-sequences",
       "title": "Number sequences",
-      "category": "platform",
+      "category": "database",
       "requires": [
         "tenant",
         "access"
@@ -775,7 +775,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "teams",
       "title": "Teams",
-      "category": "foundation",
+      "category": "tenancy",
       "requires": [
         "tenant",
         "access"
@@ -902,7 +902,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "subjects",
       "title": "Subjects",
-      "category": "foundation",
+      "category": "identity",
       "requires": [
         "access"
       ],
@@ -915,7 +915,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "rank",
       "title": "Rank",
-      "category": "work",
+      "category": "database",
       "requires": [
         "access",
         "subjects"
@@ -1008,7 +1008,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "metrics",
       "title": "Metrics",
-      "category": "operations",
+      "category": "admin",
       "requires": [
         "tenant",
         "access"
@@ -1143,7 +1143,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "access-requests",
       "title": "Access requests",
-      "category": "work",
+      "category": "identity",
       "requires": [
         "tenant",
         "access",
@@ -1343,7 +1343,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "time-tracking",
       "title": "Time tracking",
-      "category": "scheduling",
+      "category": "people",
       "requires": [
         "tenant",
         "access",
@@ -1361,7 +1361,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "identities",
       "title": "Identities",
-      "category": "foundation",
+      "category": "identity",
       "requires": [],
       "integrates": [
         "inbox"
@@ -1371,7 +1371,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "service-principals",
       "title": "Service principals",
-      "category": "platform",
+      "category": "developer",
       "requires": [
         "tenant",
         "access"
@@ -1592,7 +1592,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "hiring",
       "title": "Hiring",
-      "category": "work",
+      "category": "people",
       "requires": [
         "tenant",
         "access",
@@ -1613,7 +1613,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "employees",
       "title": "Employees",
-      "category": "work",
+      "category": "people",
       "requires": [
         "tenant",
         "access"
@@ -1655,7 +1655,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "signing-keys",
       "title": "Signing keys",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [
         "outbox",
@@ -1666,7 +1666,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "shared-signals",
       "title": "Shared signals",
-      "category": "platform",
+      "category": "developer",
       "requires": [],
       "integrates": [
         "webhooks-out",
@@ -1678,7 +1678,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "ensure-rls",
       "title": "RLS on every new table",
-      "category": "platform",
+      "category": "database",
       "requires": [],
       "integrates": [],
       "manifest": "ensure-rls"
@@ -1690,7 +1690,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "access"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -1700,7 +1700,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "access-requests"
       ],
-      "category": "work",
+      "category": "identity",
       "client": {
         "export": "accessRequestsBlock",
         "subpath": "better-supabase/blocks/access-requests"
@@ -1713,7 +1713,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "actor"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -1805,7 +1805,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "announcements"
       ],
-      "category": "operations",
+      "category": "growth",
       "client": {
         "export": "announcementsBlock",
         "subpath": "better-supabase/blocks/announcements"
@@ -1818,7 +1818,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "api-keys"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "apiKeysBlock",
         "subpath": "better-supabase/blocks/api-keys"
@@ -1859,7 +1859,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "audit"
       ],
-      "category": "operations",
+      "category": "admin",
       "client": {
         "export": "auditBlock",
         "subpath": "better-supabase/blocks/audit"
@@ -1963,7 +1963,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "connectors"
       ],
-      "category": "ai",
+      "category": "automation",
       "client": {
         "export": "connectorsBlock",
         "subpath": "better-supabase/blocks/connectors"
@@ -1976,7 +1976,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "credentials"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": null,
       "consumes": {},
       "provides": []
@@ -1999,7 +1999,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "data-lifecycle"
       ],
-      "category": "operations",
+      "category": "admin",
       "client": {
         "export": "dataLifecycleBlock",
         "subpath": "better-supabase/blocks/data-lifecycle"
@@ -2054,7 +2054,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "employees"
       ],
-      "category": "work",
+      "category": "people",
       "client": {
         "export": "employeesBlock",
         "subpath": "better-supabase/blocks/employees"
@@ -2080,7 +2080,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "ensure-rls"
       ],
-      "category": "platform",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2103,7 +2103,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "flags"
       ],
-      "category": "operations",
+      "category": "growth",
       "client": {
         "export": "flagsBlock",
         "subpath": "better-supabase/blocks/flags"
@@ -2142,7 +2142,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "grants"
       ],
-      "category": "platform",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2152,7 +2152,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "hiring"
       ],
-      "category": "work",
+      "category": "people",
       "client": {
         "export": "hiringBlock",
         "subpath": "better-supabase/blocks/hiring"
@@ -2165,7 +2165,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "identities"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": {
         "export": "identitiesBlock",
         "subpath": "better-supabase/blocks/identities"
@@ -2192,7 +2192,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inbox",
         "chat-sdk-state"
       ],
-      "category": "collaboration",
+      "category": "messaging",
       "client": {
         "export": "inboxBlock",
         "subpath": "better-supabase/blocks/inbox"
@@ -2231,7 +2231,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "idempotency"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "idempotencyBlock",
         "subpath": "better-supabase/blocks/jobs"
@@ -2244,7 +2244,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "jobs"
       ],
-      "category": "platform",
+      "category": "automation",
       "client": {
         "export": "jobsBlock",
         "subpath": "better-supabase/blocks/jobs"
@@ -2257,7 +2257,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "rate-limit"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "rateLimitBlock",
         "subpath": "better-supabase/blocks/jobs"
@@ -2270,7 +2270,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "webhook-inbox"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "webhookInboxBlock",
         "subpath": "better-supabase/blocks/jobs"
@@ -2283,7 +2283,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "jsonb-schemas"
       ],
-      "category": "platform",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2321,7 +2321,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "metrics"
       ],
-      "category": "operations",
+      "category": "admin",
       "client": {
         "export": "metricsBlock",
         "subpath": "better-supabase/blocks/metrics"
@@ -2336,7 +2336,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "mfa"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2346,7 +2346,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "notifications"
       ],
-      "category": "collaboration",
+      "category": "messaging",
       "client": {
         "export": "notificationsBlock",
         "subpath": "better-supabase/blocks/notifications"
@@ -2361,7 +2361,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "number-sequences"
       ],
-      "category": "platform",
+      "category": "database",
       "client": {
         "export": "numberSequencesBlock",
         "subpath": "better-supabase/blocks/number-sequences"
@@ -2374,7 +2374,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "onboarding"
       ],
-      "category": "operations",
+      "category": "growth",
       "client": {
         "export": "onboardingBlock",
         "subpath": "better-supabase/blocks/onboarding"
@@ -2401,7 +2401,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "organizations",
         "invitations"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": {
         "export": "organizationsBlock",
         "subpath": "better-supabase/blocks/organizations"
@@ -2414,7 +2414,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "outbox"
       ],
-      "category": "platform",
+      "category": "automation",
       "client": {
         "export": "outboxBlock",
         "subpath": "better-supabase/blocks/outbox"
@@ -2440,7 +2440,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "pgtap"
       ],
-      "category": "platform",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2463,7 +2463,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "profiles"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": {
         "export": "profilesBlock",
         "subpath": "better-supabase/blocks/profiles"
@@ -2489,7 +2489,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "push"
       ],
-      "category": "collaboration",
+      "category": "messaging",
       "client": {
         "export": "pushBlock",
         "subpath": "better-supabase/blocks/push"
@@ -2515,7 +2515,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "rank"
       ],
-      "category": "work",
+      "category": "database",
       "client": {
         "export": "rankBlock",
         "subpath": "better-supabase/blocks/rank"
@@ -2541,7 +2541,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "read-sets"
       ],
-      "category": "platform",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2551,7 +2551,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "realtime-tables"
       ],
-      "category": "platform",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2589,7 +2589,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "reserved-slugs"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2627,7 +2627,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "service-principals"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "servicePrincipalsBlock",
         "subpath": "better-supabase/blocks/service-principals"
@@ -2640,7 +2640,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "sessions"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2650,7 +2650,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "settings"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": {
         "export": "settingsBlock",
         "subpath": "better-supabase/blocks/settings"
@@ -2676,7 +2676,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "shared-signals"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "sharedSignalsBlock",
         "subpath": "better-supabase/blocks/shared-signals"
@@ -2689,7 +2689,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "signing-keys"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "signingKeysBlock",
         "subpath": "better-supabase/blocks/signing-keys"
@@ -2715,7 +2715,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "sso"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": {
         "export": "ssoBlock",
         "subpath": "better-supabase/blocks/sso"
@@ -2741,7 +2741,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "streams"
       ],
-      "category": "platform",
+      "category": "automation",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2751,7 +2751,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "subjects"
       ],
-      "category": "foundation",
+      "category": "identity",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2761,7 +2761,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "support-sessions"
       ],
-      "category": "operations",
+      "category": "admin",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2797,7 +2797,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "teams"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": {
         "export": "teamsBlock",
         "subpath": "better-supabase/blocks/teams"
@@ -2823,7 +2823,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "tenant"
       ],
-      "category": "foundation",
+      "category": "tenancy",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2833,7 +2833,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "time-tracking"
       ],
-      "category": "scheduling",
+      "category": "people",
       "client": {
         "export": "timeTrackingBlock",
         "subpath": "better-supabase/blocks/time-tracking"
@@ -2870,7 +2870,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "updated-at"
       ],
-      "category": "foundation",
+      "category": "database",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2916,7 +2916,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "waitlist"
       ],
-      "category": "operations",
+      "category": "growth",
       "client": {
         "export": "waitlistBlock",
         "subpath": "better-supabase/blocks/waitlist"
@@ -2929,7 +2929,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "webhooks-in"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "incomingWebhooksBlock",
         "subpath": "better-supabase/blocks/webhooks"
@@ -2942,7 +2942,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "webhooks-out"
       ],
-      "category": "platform",
+      "category": "developer",
       "client": {
         "export": "webhooksBlock",
         "subpath": "better-supabase/blocks/webhooks"
@@ -2968,7 +2968,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "workflow-builder"
       ],
-      "category": "operations",
+      "category": "automation",
       "client": {
         "export": "workflowBuilderBlock",
         "subpath": "better-supabase/blocks/workflow-builder"
@@ -2983,7 +2983,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "workflow-sdk-world"
       ],
-      "category": "operations",
+      "category": "automation",
       "client": null,
       "consumes": {},
       "provides": []
@@ -2993,7 +2993,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "workflows"
       ],
-      "category": "operations",
+      "category": "automation",
       "client": {
         "export": "workflowsBlock",
         "subpath": "better-supabase/blocks/workflows"

@@ -16,5 +16,5 @@ export const flagsBlock: BlockOf<"flags", typeof createFlags, FlagsEvents> =
     },
     events: flagsEvents,
     create: createFlags,
-    category: "operations",
+    category: "growth",
   });

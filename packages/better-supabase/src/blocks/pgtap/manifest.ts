@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const pgtapBlock: Block<"pgtap"> = defineBlock({
   name: "pgtap",
   sql: ["pgtap"],
-  category: "platform",
+  category: "database",
 });

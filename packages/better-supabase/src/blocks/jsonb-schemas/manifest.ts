@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const jsonbSchemasBlock: Block<"jsonb-schemas"> = defineBlock({
   name: "jsonb-schemas",
   sql: ["jsonb-schemas"],
-  category: "platform",
+  category: "database",
 });

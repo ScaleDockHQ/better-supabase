@@ -19,5 +19,5 @@ export const signingKeysBlock: BlockOf<
   },
   events: signingKeysEvents,
   create: createSigningKeys,
-  category: "platform",
+  category: "developer",
 });

@@ -18,5 +18,5 @@ export const credentialsBlock: Block<
     credentials: credentialsSqlOptions,
   },
   events: credentialsEvents,
-  category: "platform",
+  category: "developer",
 });

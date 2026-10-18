@@ -10,5 +10,5 @@ export const workflowSdkWorldBlock: Block<"workflow-sdk-world"> = defineBlock({
   options: {
     "workflow-sdk-world": workflowSdkWorldSqlOptions,
   },
-  category: "operations",
+  category: "automation",
 });

@@ -16,5 +16,5 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
     },
     events: teamsEvents,
     create: createTeams,
-    category: "foundation",
+    category: "tenancy",
   });

@@ -147,7 +147,7 @@ async function layoutDiagram(
       position: positions.get(table.id) ?? { x: 0, y: 0 },
       data: {
         table,
-        category: categories[table.module] ?? "Platform",
+        category: categories[table.module] ?? "Database primitives",
       },
     })),
   ];

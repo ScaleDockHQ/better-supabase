@@ -18,5 +18,5 @@ export const supportSessionsBlock: Block<
     "support-sessions": supportSessionsSqlOptions,
   },
   events: supportSessionsEvents,
-  category: "operations",
+  category: "admin",
 });

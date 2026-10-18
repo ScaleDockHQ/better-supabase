@@ -13,5 +13,5 @@ export const identitiesBlock: BlockOf<"identities", typeof createIdentities> =
       identities: identitiesSqlOptions,
     },
     create: createIdentities,
-    category: "foundation",
+    category: "identity",
   });

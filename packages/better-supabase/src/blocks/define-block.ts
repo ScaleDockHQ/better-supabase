@@ -5,16 +5,22 @@ import type { BlockPorts, PortName } from "./ports.ts";
 
 /** Where a block sits in the catalog and in presets. */
 export type BlockCategory =
-  | "foundation"
+  | "identity"
+  | "tenancy"
   | "collaboration"
+  | "messaging"
+  | "growth"
   | "crm"
   | "work"
+  | "people"
   | "commerce"
   | "scheduling"
-  | "ai"
   | "content"
-  | "operations"
-  | "platform";
+  | "ai"
+  | "automation"
+  | "developer"
+  | "admin"
+  | "database";
 
 /** The ports a block consumes: `required` fails `createBlocks` without a provider. */
 export type BlockConsumes = {

@@ -19,5 +19,5 @@ export const waitlistBlock: BlockOf<
   },
   events: waitlistEvents,
   create: createWaitlist,
-  category: "operations",
+  category: "growth",
 });

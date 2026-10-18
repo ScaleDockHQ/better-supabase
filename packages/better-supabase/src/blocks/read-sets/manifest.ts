@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const readSetsBlock: Block<"read-sets"> = defineBlock({
   name: "read-sets",
   sql: ["read-sets"],
-  category: "platform",
+  category: "database",
 });

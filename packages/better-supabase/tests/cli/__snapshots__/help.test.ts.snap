@@ -79,12 +79,12 @@ ARGUMENTS
 
 OPTIONS
 
-  --category=<name>    With list: one category (foundation, collaboration, crm, work, commerce, scheduling, ai, content, operations or platform)
-        --cwd=<dir>    Project directory                                                                                                        
-    --config=<file>    Config file, relative to --cwd                                                                                           
-       --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set          
-             --json    Print one JSON document on stdout; errors as Problem Details                                                             
-          -y, --yes    Ask nothing; use the flags and the defaults                                                                              
+  --category=<name>    With list: one category (identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database)
+        --cwd=<dir>    Project directory                                                                                                                                                            
+    --config=<file>    Config file, relative to --cwd                                                                                                                                               
+       --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set                                                              
+             --json    Print one JSON document on stdout; errors as Problem Details                                                                                                                 
+          -y, --yes    Ask nothing; use the flags and the defaults                                                                                                                                  
 "
 `;
 

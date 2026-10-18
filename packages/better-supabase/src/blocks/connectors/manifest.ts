@@ -19,5 +19,5 @@ export const connectorsBlock: BlockOf<
   },
   events: connectorsEvents,
   create: createConnectors,
-  category: "ai",
+  category: "automation",
 });

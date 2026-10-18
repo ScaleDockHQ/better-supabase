@@ -19,7 +19,7 @@ export const jobsBlock: BlockOf<"jobs", typeof createJobs> = defineBlock({
     jobs: jobsSqlOptions,
   },
   create: createJobs,
-  category: "platform",
+  category: "automation",
 });
 
 /** The `idempotency` block's manifest (ADR 0029). */
@@ -30,7 +30,7 @@ export const idempotencyBlock: BlockOf<
   name: "idempotency",
   sql: ["idempotency"],
   create: createIdempotency,
-  category: "platform",
+  category: "developer",
 });
 
 /** The `rate-limit` block's manifest (ADR 0029). */
@@ -42,7 +42,7 @@ export const rateLimitBlock: BlockOf<"rate-limit", typeof createRateLimit> =
       "rate-limit": rateLimitSqlOptions,
     },
     create: createRateLimit,
-    category: "platform",
+    category: "developer",
   });
 
 /** The `webhook-inbox` block's manifest (ADR 0029). */
@@ -56,5 +56,5 @@ export const webhookInboxBlock: BlockOf<
     "webhook-inbox": webhookInboxSqlOptions,
   },
   create: createWebhookInbox,
-  category: "platform",
+  category: "developer",
 });

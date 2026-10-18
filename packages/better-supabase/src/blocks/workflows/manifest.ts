@@ -21,5 +21,5 @@ export const workflowsBlock: BlockOf<
   },
   create: createWorkflows,
   client: "workflows",
-  category: "operations",
+  category: "automation",
 });

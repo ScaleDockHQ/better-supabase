@@ -17,5 +17,5 @@ export const servicePrincipalsBlock: BlockOf<
   options: { "service-principals": servicePrincipalsSqlOptions },
   events: servicePrincipalsEvents,
   create: createServicePrincipals,
-  category: "platform",
+  category: "developer",
 });

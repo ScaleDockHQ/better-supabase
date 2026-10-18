@@ -206,7 +206,7 @@ describe("columnLayout", () => {
     const spec = (id: string) => ({
       id,
       label: id,
-      category: "Foundation",
+      category: "Tenancy & accounts",
       href: null,
       focus: false,
     });

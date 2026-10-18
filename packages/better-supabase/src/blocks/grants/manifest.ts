@@ -10,5 +10,5 @@ export const grantsBlock: Block<"grants"> = defineBlock({
   options: {
     grants: grantsSqlOptions,
   },
-  category: "platform",
+  category: "identity",
 });

@@ -13,5 +13,5 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
       profiles: profilesSqlOptions,
     },
     create: createProfiles,
-    category: "foundation",
+    category: "tenancy",
   });

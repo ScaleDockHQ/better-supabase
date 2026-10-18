@@ -53,32 +53,44 @@ export const PRESET_CATALOG_FILE: string = join(
 const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
 
 export const CATEGORIES = [
-  "Foundation",
+  "Identity & access",
+  "Tenancy & accounts",
   "Collaboration",
+  "Notifications & messaging",
+  "Growth & engagement",
   "CRM & sales",
-  "Work",
+  "Work management",
+  "People",
   "Billing & commerce",
   "Scheduling",
+  "Content & files",
   "AI",
-  "Content",
-  "Operations",
-  "Platform",
+  "Automation",
+  "Developer platform",
+  "Admin & compliance",
+  "Database primitives",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
 /** The catalog heading for each manifest category. */
 const CATEGORY_TITLES = {
-  foundation: "Foundation",
+  identity: "Identity & access",
+  tenancy: "Tenancy & accounts",
   collaboration: "Collaboration",
+  messaging: "Notifications & messaging",
+  growth: "Growth & engagement",
   crm: "CRM & sales",
-  work: "Work",
+  work: "Work management",
+  people: "People",
   commerce: "Billing & commerce",
   scheduling: "Scheduling",
+  content: "Content & files",
   ai: "AI",
-  content: "Content",
-  operations: "Operations",
-  platform: "Platform",
+  automation: "Automation",
+  developer: "Developer platform",
+  admin: "Admin & compliance",
+  database: "Database primitives",
 } as const satisfies Readonly<Record<BlockCategory, Category>>;
 
 export interface CatalogBlock {

@@ -20,5 +20,5 @@ export const announcementsBlock: BlockOf<
   events: announcementsEvents,
   create: createAnnouncements,
   client: "announcements",
-  category: "operations",
+  category: "growth",
 });

@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const actorBlock: Block<"actor"> = defineBlock({
   name: "actor",
   sql: ["actor"],
-  category: "foundation",
+  category: "identity",
 });

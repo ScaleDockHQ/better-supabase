@@ -17,5 +17,5 @@ export const inboxBlock: BlockOf<"inbox", typeof createInbox, InboxEvents> =
     events: inboxEvents,
     create: createInbox,
     client: "inbox",
-    category: "collaboration",
+    category: "messaging",
   });

@@ -19,5 +19,5 @@ export const dataLifecycleBlock: BlockOf<
   },
   events: dataLifecycleEvents,
   create: createDataLifecycle,
-  category: "operations",
+  category: "admin",
 });

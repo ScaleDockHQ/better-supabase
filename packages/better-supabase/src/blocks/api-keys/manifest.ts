@@ -19,6 +19,6 @@ export const apiKeysBlock: BlockOf<
   },
   events: apiKeysEvents,
   create: createApiKeys,
-  category: "platform",
+  category: "developer",
   recipes: ["api-keys-table"],
 });

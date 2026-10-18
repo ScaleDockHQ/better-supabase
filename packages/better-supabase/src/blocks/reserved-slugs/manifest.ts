@@ -10,5 +10,5 @@ export const reservedSlugsBlock: Block<"reserved-slugs"> = defineBlock({
   options: {
     "reserved-slugs": reservedSlugsSqlOptions,
   },
-  category: "foundation",
+  category: "tenancy",
 });

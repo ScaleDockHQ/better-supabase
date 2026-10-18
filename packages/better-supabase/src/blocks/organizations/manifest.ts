@@ -20,6 +20,6 @@ export const organizationsBlock: BlockOf<
   },
   events: organizationsEvents,
   create: createOrganizations,
-  category: "foundation",
+  category: "tenancy",
   recipes: ["org-switcher", "members-table", "invite-dialog"],
 });

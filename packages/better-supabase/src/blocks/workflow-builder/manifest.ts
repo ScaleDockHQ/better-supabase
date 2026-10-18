@@ -22,5 +22,5 @@ export const workflowBuilderBlock: BlockOf<
   consumes: { workflows: "optional" },
   create: createWorkflowBuilder,
   client: "workflow-builder",
-  category: "operations",
+  category: "automation",
 });

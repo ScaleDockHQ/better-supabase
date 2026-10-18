@@ -27,7 +27,7 @@ export function RecipeCover({
   preload?: boolean;
   className?: string;
 }) {
-  const category = getBlock(recipe.block)?.category ?? "Foundation";
+  const category = getBlock(recipe.block)?.category ?? "Tenancy & accounts";
   const shot = recipe.screenshot;
 
   const usable =

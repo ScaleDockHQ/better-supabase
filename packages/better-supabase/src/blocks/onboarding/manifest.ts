@@ -14,6 +14,6 @@ export const onboardingBlock: BlockOf<"onboarding", typeof createOnboarding> =
     },
     create: createOnboarding,
     client: "onboarding",
-    category: "operations",
+    category: "growth",
     recipes: ["onboarding-checklist"],
   });
