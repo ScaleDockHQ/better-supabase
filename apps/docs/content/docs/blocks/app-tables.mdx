@@ -101,7 +101,9 @@ policy rejects a tenant the user isn't a member of.
 | `currency`  | `bigint`             | nothing; marks an amount in minor units       |
 
 Each check is a named constraint, `<table>_<column>_check`, and the pgTAP
-file checks that it exists. A column takes either `options` or a `format`,
+file checks that it exists. `FIELD_FORMATS` from `better-supabase/config`
+holds the same list with each format's types, check and input, and
+[custom fields](/docs/blocks/custom-fields#types) use the same names. A column takes either `options` or a `format`,
 not both. Keep money as a `bigint` of minor units next to a `text` currency
 column, as the blocks do: in Create, picking Currency renames the column to
 `<name>_minor` and adds `<name>_currency` with a length of 3. A reference to

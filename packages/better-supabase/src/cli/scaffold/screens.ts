@@ -2,12 +2,12 @@ import { posix } from "node:path";
 
 import type {
   AppColumnConfig,
-  AppColumnFormat,
   AppTableConfig,
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { ScaffoldFile } from "./api.ts";
 
+import { FIELD_FORMATS } from "../../config/index.ts";
 import { applyCasing } from "../gen/model-types.ts";
 
 export interface ScreensContext {
@@ -55,14 +55,6 @@ export class ScreensError extends Error {}
 
 // The built CLI is scanned for import lines that Node resolves, and next/navigation has no exports map.
 const NEXT_NAVIGATION = "next/navigation";
-
-const TEXT_INPUTS: Partial<Record<AppColumnFormat, InputKind>> = {
-  email: "email",
-  url: "url",
-  color: "color",
-  phone: "tel",
-  long_text: "textarea",
-};
 
 const FUNCTION_DEFAULTS = new Set(["now()", "gen_random_uuid()", "auth.uid()"]);
 
@@ -134,7 +126,7 @@ function inputOf(
 
       return column.format === undefined
         ? "text"
-        : (TEXT_INPUTS[column.format] ?? "text");
+        : FIELD_FORMATS[column.format].input;
     }
 
     case "uuid": {
