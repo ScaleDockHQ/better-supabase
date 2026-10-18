@@ -61,11 +61,11 @@ backlogs too large to clear in the upgrade.
 
 ### Docs site
 
-- The changelog page lives on marketing at `/changelog`, which renders
-  `packages/better-supabase/CHANGELOG.md`, and the docs nav links to it. The
-  root `CHANGELOG.md` holds the same summaries by release for readers of the
-  repository, so a docs page through `@fumadocs/local-md` would show the same
-  entries twice.
+- The changelog page at `/docs/changelog` pulls in the root `CHANGELOG.md`
+  with the `<include>` tag that `fumadocs-mdx` already ships, instead of
+  `@fumadocs/local-md`. It stays a page of the one docs collection, so search,
+  the `.md` routes, `llms-full.txt` and the docs MCP server serve it with no
+  second source. Marketing redirects its old `/changelog` route there.
 - Docs has no `robots.ts`. Marketing serves `/robots.txt` for the whole domain
   and lists both sitemaps.
 - OG images are at `/docs/og/...` instead of `/og/docs/...`, and Ask AI is at

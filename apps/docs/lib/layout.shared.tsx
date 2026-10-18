@@ -25,8 +25,7 @@ export function baseOptions(): BaseLayoutProps {
         icon: <GitHubIcon />,
         external: true,
       },
-      // Served by the marketing app on the same domain.
-      { text: "Changelog", url: "/changelog", external: true },
+      { text: "Changelog", url: "/docs/changelog" },
       { text: "Docs MCP server", url: "/docs/for-ai-agents#docs-mcp-server" },
     ],
   };
