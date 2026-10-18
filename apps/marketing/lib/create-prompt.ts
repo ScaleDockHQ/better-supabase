@@ -287,7 +287,9 @@ function uiSection(
   ).toSorted();
 
   const recipeGlue = unique(
-    recipes.flatMap((recipe) => sides.flatMap((side) => recipe[side].glue)),
+    recipes.flatMap((recipe) =>
+      sides.flatMap((side) => recipe[side]?.glue ?? []),
+    ),
   ).filter((name) => !glueNames.has(name));
 
   const setup = [
@@ -363,7 +365,7 @@ function uiSection(
           bullets(
             recipes.map(
               (recipe) =>
-                `[${recipe.title}](${siteUrl}/recipes/${recipe.slug}.md): ${recipe.description} It calls ${code(recipe.hook.name)} from ${code(recipe.hook.entry)}.`,
+                `[${recipe.title}](${siteUrl}/recipes/${recipe.slug}.md): ${recipe.description} ${recipe.hook ? `It calls ${code(recipe.hook.name)} from ${code(recipe.hook.entry)}.` : "It reads the block's data directly."}`,
             ),
           ),
         ].join("\n\n"),
