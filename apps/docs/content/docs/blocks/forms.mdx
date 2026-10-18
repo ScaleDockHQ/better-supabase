@@ -6,7 +6,7 @@ description: Versioned forms with steps and show or skip logic, a JSON Schema 20
 `forms` stores a form, its published versions and the submissions to them. Each version holds a definition (steps of fields, with `showIf` conditions) and the JSON Schema 2020-12 generated from it, and `pg_jsonschema` checks every submission against that schema inside Postgres. Reading forms needs `forms.read`, submitting needs `forms.submit`, and creating and publishing needs `forms.manage`. Respondents read their own submissions and delete their own drafts; reading anyone else's, reviewing and deleting needs `forms.review`.
 
 ```bash
-better-supabase sql add forms
+better-supabase add forms
 ```
 
 ```ts
@@ -166,7 +166,7 @@ An unknown, revoked or expired token fails with `FORM_LINK_INVALID`. With the `r
 The `signatures` SQL module asks members to sign one version of a record, kept by the [versions](/docs/blocks/versions) block. It needs `versions` in managed or adopt mode. Requesting needs `signatures.request`, and reading a record's requests needs `signatures.read`; signers always read the requests they are on. The signature is a simple electronic signature: the module records who signed which content, how and when, and the app renders the final document.
 
 ```bash
-better-supabase sql add versions signatures
+better-supabase add versions signatures
 ```
 
 ```ts

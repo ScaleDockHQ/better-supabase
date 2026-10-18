@@ -3,16 +3,16 @@ title: SQL modules
 description: Idempotent SQL modules for the database work every app repeats, written into your declarative schema.
 ---
 
-`better-supabase sql add` writes SQL modules into `supabase/schemas`, and
+`better-supabase add` writes SQL modules into `supabase/schemas`, and
 `supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`
-schema. `sql add` renders the new modules next to the ones `blocks`
+schema. `add` renders the new modules next to the ones `blocks`
 already lists, so a module sees what is installed (billing's foreign key to
 the organizations table, for example), and writes only the named modules and
 the ones they need.
 
-`sql add` also lists the new modules in `blocks` of your config file, in
+`add` also lists the new modules in `blocks` of your config file, in
 the form it already uses: `tags: {}` in an object, `"tags"` in a list. It
 edits the object literal you pass to `defineConfig()` and leaves the rest of
 the file as it is. When `blocks` is not a literal it can follow, such as
@@ -21,10 +21,13 @@ instead. `--dry-run` says what it would add.
 
 ```bash
 better-supabase sql list
-better-supabase sql add audit jobs pgtap
+better-supabase add audit jobs pgtap
 supabase db schema declarative sync -f better_supabase_block
 better-supabase sql data
 ```
+
+After the SQL, `add` wires the clients of blocks that have one into
+`lib/blocks.ts` and prints the registry command for your framework's glue.
 
 The extensions a module's schema file creates (`pgmq` for `jobs`,
 `pg_jsonschema` for `jsonb-schemas`, `vector` for `vector-search`) have to
@@ -60,6 +63,16 @@ files repeat the event triggers (`drop event trigger if exists`, then
 the schema migration lacks them, and
 [doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
 the database, or every migration, lacks.
+
+## Low-level: `sql add`
+
+`better-supabase sql add <module...>` writes the same module files and
+config entries as `add`, and stops there: it never edits `lib/blocks.ts` and
+prints no glue. Use it in a project that only uses the SQL, in CI, or when you
+wire the clients yourself. It takes the same `--dry-run`, `--force` and
+`--tests-dir` options. The rest of this page describes behavior both commands
+share, and the other `sql` actions (`list`, `sync`, `upgrade`, `data` and
+`print`) are low-level commands too.
 
 ## Workflows
 
@@ -996,7 +1009,7 @@ counts writes in PostgREST's
 before the query runs:
 
 ```bash
-better-supabase sql add rate-limit
+better-supabase add rate-limit
 ```
 
 ```sql
@@ -1107,7 +1120,7 @@ draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), and
 
 ## Enforcing jsonb shapes
 
-Give a `json` entry a `schema` and `sql add jsonb-schemas` adds a
+Give a `json` entry a `schema` and `better-supabase add jsonb-schemas` adds a
 [pg_jsonschema](https://supabase.com/docs/guides/database/extensions/pg_jsonschema)
 check constraint, so the database rejects rows the generated types would
 reject. `schema` takes a JSON Schema object, or any Standard JSON Schema value
@@ -1246,7 +1259,7 @@ registered table without row level security (BS332).
 
 ## RLS on every new table
 
-`sql add ensure-rls` installs an event trigger that enables row level
+`better-supabase add ensure-rls` installs an event trigger that enables row level
 security on every table created with `create table`, `create table as` or
 `select into`, so a table never reaches the Data API without RLS. Tables in
 the Supabase-managed schemas (`auth`, `storage`, `realtime`, `extensions`

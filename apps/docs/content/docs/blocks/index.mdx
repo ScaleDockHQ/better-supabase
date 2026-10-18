@@ -6,12 +6,12 @@ description: Feature modules for SaaS apps, each a set of SQL modules in your sc
 A block is a feature most SaaS apps build by hand: organizations and
 invitations, background jobs, notifications, outgoing webhooks, plan
 entitlements. Each block installs one or more [SQL modules](/docs/blocks/sql)
-into `supabase/schemas` with `better-supabase sql add`, and blocks with a
+into `supabase/schemas` with `better-supabase add`, and blocks with a
 TypeScript side import it from `better-supabase/blocks/<name>`. Blocks that are
 SQL only have no subpath; you call their functions from policies and RPCs.
 
 ```bash
-pnpm better-supabase sql add organizations invitations
+pnpm better-supabase add organizations invitations
 ```
 
 ```ts
@@ -183,7 +183,7 @@ and no SQL modules of its own: install the modules of the blocks it uses.
 
 ## How modules work together
 
-`sql add` installs a module with the modules it requires. The modules it
+`better-supabase add` installs a module with the modules it requires. The modules it
 works with are optional: when one of them is installed too, the module calls
 it (it queues a job, sends a notification, checks a plan), and without it the
 module installs and runs without that step. Every module also writes its

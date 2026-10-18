@@ -159,10 +159,11 @@ pnpm better-supabase add comments tags
 pnpm better-supabase add --framework hono,mcp
 ```
 
-`add` with block names adds blocks. It lists them in `blocks` of the
-config and writes their module files and the modules they require, as
-[`sql add`](/docs/blocks/sql) does (`--force` and `--dry-run` work the same
-way). It also wires the blocks that have a TypeScript client into
+`add` with block names is how you install blocks. It lists them in `blocks`
+of the config and writes their module files and the modules they require
+(`--force`, `--dry-run` and `--tests-dir` work as in
+[`sql add`](/docs/blocks/sql#low-level-sql-add), the low-level command that
+stops after the SQL). It also wires the blocks that have a TypeScript client into
 `lib/blocks.ts`: an import and an entry in the object passed to
 `createBlocks`. When the file is missing or doesn't call `createBlocks` with
 an object literal, `add` prints the lines to add instead. Last, it prints the

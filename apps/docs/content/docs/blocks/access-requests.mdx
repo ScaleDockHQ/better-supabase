@@ -6,7 +6,7 @@ description: Members ask for a role in their organization, for a set time if the
 `access-requests` lets a member ask for a role (a viewer asking to be an admin for month end, a contractor asking to join). It files the request with the [approvals](/docs/blocks/approvals) module, so approvers, steps, delegation, notifications and expiry work as they do there. The final approval grants the role, and when the grant has a duration, `expire_access_grants()` puts the previous role back. Asking needs `access_requests.create`, reading other people's requests needs `access_requests.read`, and ending someone else's grant needs `access_requests.manage`.
 
 ```bash
-better-supabase sql add access-requests
+better-supabase add access-requests
 ```
 
 ```ts

@@ -6,7 +6,7 @@ description: Link an email address or a chat user to an app user or a contact, t
 `identities` maps an email address or a chat user (a Slack, Teams or WhatsApp id) to an app user or a contact. A bot or a mail webhook sees only the platform's id; this table says who that is. An identity with no row is anonymous.
 
 ```bash
-better-supabase sql add identities
+better-supabase add identities
 ```
 
 ```ts

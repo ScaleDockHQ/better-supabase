@@ -6,7 +6,7 @@ description: CSV imports with a suggested mapping, a dry run and a jobs handler 
 `imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the kind, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`.
 
 ```bash
-better-supabase sql add imports
+better-supabase add imports
 ```
 
 ```ts

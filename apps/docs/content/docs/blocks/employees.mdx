@@ -8,7 +8,7 @@ description: Employees with or without an account, a manager, team and status, a
 Reading the directory needs `employees.read`, which members have. Creating, editing and offboarding needs `employees.write`, and the private details and contracts need `employees.view_sensitive`; admins have both. A manager without `employees.read` still reads the employees under them through `reportsOf` and `orgChart`, and every employee reads their own row, details and contracts.
 
 ```bash
-better-supabase sql add employees
+better-supabase add employees
 ```
 
 The module needs `tenant` and `access`. With `outbox` it records events, with `hiring` it makes employees from hired applications, and with `relations` it links them to the application they came from.

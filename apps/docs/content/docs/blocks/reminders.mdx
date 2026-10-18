@@ -6,7 +6,7 @@ description: RFC 5545 recurrence and reminders, expanded in TypeScript and deliv
 `reminders` stores a recurrence rule, a reminder (who, how, how long before) and one delivery row per occurrence. Expansion runs in the app with `expandRule`, on `Temporal.ZonedDateTime`, so a local time stays put across a daylight-saving change. `list_reminder_schedule` returns each reminder with its rule. `planReminderDeliveries` expands a horizon and returns one delayed job per occurrence, with a dedupe key of reminder id and occurrence. `deliverReminder` calls `mark_reminder_sent`, which records `reminder.sent`, then your notify function.
 
 ```bash
-better-supabase sql add reminders
+better-supabase add reminders
 ```
 
 ```ts

@@ -6,7 +6,7 @@ description: Allowed status transitions as the caller, a history row, status eve
 `state-machine` rejects a status change the machine does not allow (`STATE_TRANSITION_INVALID`), writes a history row and records `status.changed`. Audit, webhooks and notifications pick that event up when those modules are installed. A machine can also keep a stages timeline and a lifecycle row that pauses the record, holds flags and pins the machine version it started on.
 
 ```bash
-better-supabase sql add state-machine
+better-supabase add state-machine
 ```
 
 ```ts

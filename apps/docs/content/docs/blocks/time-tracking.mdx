@@ -8,7 +8,7 @@ description: Timers and logged time on any record, one running timer per member 
 Tracking your own time needs `time_tracking.track`, reading other members' entries and timesheets needs `time_tracking.read`, approving needs `time_tracking.approve` (the default approval step), and logging time for someone else, editing their entries and reopening an approved week needs `time_tracking.manage`. Admins get every permission and members get `time_tracking.track`.
 
 ```bash
-better-supabase sql add time-tracking
+better-supabase add time-tracking
 ```
 
 The module needs `tenant`, `access` and `approvals`, and creates the `btree_gist` extension for its exclusion constraint.

@@ -6,7 +6,7 @@ description: Gapless document numbers per tenant, entity and period, assigned in
 `number-sequences` allocates `INV-2026-00042` style numbers without gaps. `next_number` locks the sequence row in the caller's transaction, and a rollback releases the number. The function is service-only. A document takes its number from a trigger, so a separate client round trip cannot commit a number the document never keeps.
 
 ```bash
-better-supabase sql add number-sequences
+better-supabase add number-sequences
 ```
 
 ```ts

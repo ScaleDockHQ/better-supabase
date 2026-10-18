@@ -8,7 +8,7 @@ description: Collaborative Yjs documents attached to any subject. The database k
 The database never parses Yjs. It stores the updates as bytes and checks who may read and write: reading needs `documents.read` and the subject's read rules, editing needs `documents.write` and the subject's write rules, and compacting needs the service role or `documents.manage`.
 
 ```bash
-better-supabase sql add documents
+better-supabase add documents
 pnpm add yjs
 ```
 

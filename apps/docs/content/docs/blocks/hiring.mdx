@@ -8,7 +8,7 @@ description: Jobs and applications on a pipeline per job, candidates from config
 Reading needs `hiring.read`, moving applications, scheduling and scoring needs `hiring.write`, and jobs need `hiring.manage`. Admins get every permission and members none: give recruiters a role with `hiring.read` and `hiring.write`. An interviewer on an interview reads it and scores the application without those permissions.
 
 ```bash
-better-supabase sql add hiring
+better-supabase add hiring
 ```
 
 The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `application` type in the pipelines module with one pipeline per job (`scope: "job_id"`):

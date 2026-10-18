@@ -8,7 +8,7 @@ description: Issues and tasks on pipelines, with identifiers, parents without cy
 Reading needs `work_items.read`, creating, editing and assigning needs `work_items.write`, and projects, iterations and deleting someone else's item need `work_items.manage`. Admins get every permission, and members get `work_items.read` and `work_items.write`.
 
 ```bash
-better-supabase sql add work-items
+better-supabase add work-items
 ```
 
 The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `work_item` type in the pipelines module with one pipeline per team (`scope: "team_id"`) and the categories of Linear's workflow states:
