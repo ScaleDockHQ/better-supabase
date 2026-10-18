@@ -7,6 +7,8 @@ import {
   setBlockInConfig,
   setBlockInJson,
   setPresetInConfig,
+  setPathInConfig,
+  setPathInJson,
   setPresetInJson,
 } from "../../../src/cli/sql/config-edit.ts";
 
@@ -493,5 +495,74 @@ describe("setBlockInJson", () => {
     expect(setBlockInJson("{", "teams", {}).ok).toBe(false);
     expect(setBlockInJson("[]", "teams", {}).ok).toBe(false);
     expect(setBlockInJson('{"blocks":1}', "teams", {}).ok).toBe(false);
+  });
+});
+
+describe("setPathInConfig", () => {
+  const source =
+    "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  blocks: ['tags'],\n  appTables: {\n    links: { columns: { url: { type: 'text' } } },\n  },\n});\n";
+
+  const set = (
+    text: string,
+    path: readonly [string, ...string[]],
+    value: unknown,
+  ): string => {
+    const result = setPathInConfig(text, path, value);
+
+    if (!result.ok) {
+      throw new Error(result.reason);
+    }
+
+    return result.text;
+  };
+
+  it("adds a key in an object and keeps the others", () => {
+    const text = set(source, ["appTables", "notes"], {
+      columns: { body: { type: "text", default: "it's" } },
+      index: ["body"],
+    });
+
+    expect(text).toContain(
+      "    links: { columns: { url: { type: 'text' } } },",
+    );
+    expect(text).toContain('default: "it\'s"');
+    expect(text).toContain("index: ['body']");
+  });
+
+  it("replaces the value at the end of the path", () => {
+    const text = set(source, ["appTables", "links"], { columns: {} });
+    expect(text).toContain("    links: {\n      columns: {},\n    },");
+  });
+
+  it("creates the objects on the way, and turns a blocks list into entries", () => {
+    const text = set(
+      source,
+      ["blocks", "profiles", "options", "extraColumns"],
+      {
+        nickname: "text",
+      },
+    );
+
+    expect(text).toContain("tags: {}");
+    expect(text).toContain("nickname: 'text'");
+    expect(set(source, ["casing"], "camel")).toContain("casing: 'camel'");
+  });
+});
+
+describe("setPathInJson", () => {
+  it("sets a nested key, and turns a blocks list into entries", () => {
+    const result = setPathInJson(
+      '{\n  "blocks": ["tags"]\n}\n',
+      ["blocks", "profiles", "options", "extraColumns"],
+      { nickname: "text" },
+    );
+
+    expect(result.ok && JSON.parse(result.text)).toEqual({
+      blocks: {
+        tags: {},
+        profiles: { options: { extraColumns: { nickname: "text" } } },
+      },
+    });
+    expect(setPathInJson("[]", ["casing"], "camel").ok).toBe(false);
   });
 });

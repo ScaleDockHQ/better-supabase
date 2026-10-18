@@ -6,6 +6,9 @@ import type { CommandResult } from "../io.ts";
 import type { Now } from "../sql/migrations.ts";
 
 import {
+  type CreateDesign,
+  designConfig,
+  designOf,
   encodePreset,
   isPresetName,
   type Preset,
@@ -31,6 +34,7 @@ import {
   setPresetInConfig,
   setPresetInJson,
 } from "../sql/config-edit.ts";
+import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
@@ -39,7 +43,8 @@ import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 const APPLY_ARGS = {
   preset: {
     type: "string",
-    description: "A named preset, a code from /create or its URL",
+    description:
+      "A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns",
     valueHint: "name|code|url",
   },
   only: {
@@ -144,6 +149,44 @@ const describeConflicts = (preset: Preset): string | undefined => {
     : `The preset can't install: ${conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`;
 };
 
+/**
+ * The design in `input`'s `&design=`, checked against the blocks the config
+ * gets: an extra column needs its block in the preset or the config.
+ */
+async function designFor(
+  config: ResolvedConfig,
+  input: string,
+  preset: Preset,
+): Promise<CreateDesign | undefined> {
+  const design = await designOf(input);
+
+  if (design === undefined) {
+    return undefined;
+  }
+
+  const resolved = resolvePreset(preset);
+
+  const blocks = new Set([
+    ...config.blockNames,
+    ...resolved.blocks.map((block) => block.name),
+  ]);
+
+  for (const module of Object.keys(design.extraColumns ?? {})) {
+    if (!blocks.has(module)) {
+      throw new TypeError(
+        `design.extraColumns.${module}: neither the preset nor the config installs the ${module} block`,
+      );
+    }
+  }
+
+  designConfig(
+    resolved,
+    design.appTables === undefined ? {} : { appTables: design.appTables },
+  );
+
+  return design;
+}
+
 /** The config file edited for `--only`: the `preset` key, or the blocks. */
 function edited(
   file: string,
@@ -220,6 +263,20 @@ export async function runApply(
     };
   }
 
+  let design: CreateDesign | undefined;
+
+  try {
+    design =
+      only === "conventions"
+        ? undefined
+        : await designFor(config, input, preset);
+  } catch (error) {
+    return {
+      code: 2,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   const conflict = describeConflicts(
     only === "conventions" ? { ...preset, blocks: [] } : preset,
   );
@@ -239,8 +296,18 @@ export async function runApply(
     };
   }
 
+  const withDesign =
+    design === undefined ? edit : writeDesign(file, edit.text, design, config);
+
+  if (!withDesign.ok) {
+    return {
+      code: 1,
+      error: `${shown} wasn't changed: ${withDesign.reason}. Download the config from /create and copy its appTables and extraColumns yourself.`,
+    };
+  }
+
   const paint = deps.paint ?? plain;
-  let text = edit.text;
+  let text = withDesign.text;
   const lines: string[] = [];
   let adopted: Readonly<Record<string, BlockConfig>> = {};
 

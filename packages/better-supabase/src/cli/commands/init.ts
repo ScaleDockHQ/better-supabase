@@ -1,14 +1,22 @@
 import { existsSync } from "node:fs";
 import { join, posix, resolve } from "node:path";
 
-import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
+import type {
+  BetterSupabaseConfig,
+  ResolvedConfig,
+  SqlWorkflow,
+} from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
+import type { TemplateFile } from "../templates.ts";
 
 import { resolveConfig } from "../../config/index.ts";
 import {
+  type CreateDesign,
+  designConfig,
+  designOf,
   encodePreset,
   glueCommand,
   isPresetName,
@@ -41,6 +49,7 @@ import {
   type InstallTarget,
   type Project,
 } from "../project.ts";
+import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
 import {
@@ -181,7 +190,11 @@ async function chosenPreset(
   args: InitArgs,
   prompts: Prompter | undefined,
 ): Promise<
-  | { readonly value: string; readonly resolved: ResolvedPreset }
+  | {
+      readonly value: string;
+      readonly resolved: ResolvedPreset;
+      readonly design?: CreateDesign | undefined;
+    }
   | null
   | CommandResult
 > {
@@ -220,9 +233,11 @@ async function chosenPreset(
   }
 
   let preset: Preset;
+  let design: CreateDesign | undefined;
 
   try {
     preset = presetOf(value);
+    design = isPresetName(value) ? undefined : await designOf(value);
   } catch (error) {
     return {
       code: 2,
@@ -239,10 +254,51 @@ async function chosenPreset(
     };
   }
 
+  if (design !== undefined) {
+    try {
+      designConfig(resolved, design);
+    } catch (error) {
+      return {
+        code: 2,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   return {
     value: isPresetName(value) ? value : encodePreset(preset),
     resolved,
+    design,
   };
+}
+
+/** `files` with the design's keys written into the config file. */
+function withDesign(
+  files: readonly TemplateFile[],
+  design: CreateDesign | undefined,
+): TemplateFile[] | string {
+  if (design === undefined) {
+    return [...files];
+  }
+
+  const out: TemplateFile[] = [];
+
+  for (const file of files) {
+    if (posix.basename(file.path) !== "better-supabase.config.ts") {
+      out.push(file);
+      continue;
+    }
+
+    const edit = writeDesign(file.path, file.contents, design);
+
+    if (!edit.ok) {
+      return `The design can't be written to ${file.path}: ${edit.reason}`;
+    }
+
+    out.push({ ...file, contents: edit.text });
+  }
+
+  return out;
 }
 
 export async function runInit(
@@ -364,28 +420,35 @@ export async function runInit(
 
   const templateContext = templateContextFor(project, generated);
 
-  const files = [
-    ...baseFiles(
-      templateContext,
-      casing,
-      needsLib(integrations),
-      integrations,
-      workflow,
-      chosen?.value,
-    ),
-    ...integrationFiles(integrations, templateContext),
-    ...(chosen === null
-      ? []
-      : [
-          {
-            path: blocksWiringPath(templateContext),
-            contents: presetBlocksSource(
-              chosen.resolved,
-              blockConfigImport(templateContext),
-            ),
-          },
-        ]),
-  ];
+  const files = withDesign(
+    [
+      ...baseFiles(
+        templateContext,
+        casing,
+        needsLib(integrations),
+        integrations,
+        workflow,
+        chosen?.value,
+      ),
+      ...integrationFiles(integrations, templateContext),
+      ...(chosen === null
+        ? []
+        : [
+            {
+              path: blocksWiringPath(templateContext),
+              contents: presetBlocksSource(
+                chosen.resolved,
+                blockConfigImport(templateContext),
+              ),
+            },
+          ]),
+    ],
+    chosen?.design,
+  );
+
+  if (typeof files === "string") {
+    return { code: 1, error: files };
+  }
 
   const force = await overwrite(root, files, args, prompts, config.root);
 
@@ -412,6 +475,7 @@ export async function runInit(
         preset: chosen.value,
         casing,
         output: generated,
+        ...designKeys(chosen.resolved, chosen.design),
         ...(workflow === "pg-delta" ? {} : { sql: { workflow } }),
       },
       root,
@@ -490,3 +554,17 @@ export const initCommand: AnyCommand = defineCliCommand({
   lists: ["with"],
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
+
+/** The `blocks` and `appTables` keys a design adds to the preset's config. */
+function designKeys(
+  resolved: ResolvedPreset,
+  design: CreateDesign | undefined,
+): Pick<BetterSupabaseConfig, "appTables" | "blocks"> {
+  if (design === undefined) {
+    return {};
+  }
+
+  const { blocks, appTables } = designConfig(resolved, design);
+
+  return { blocks, ...(appTables === undefined ? {} : { appTables }) };
+}
