@@ -123,6 +123,9 @@ const NAMES: ModuleNames = {
 /** The keys a comment read returns next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
+/** Sorts after every uuid, so `after` without `after_id` means strictly later. */
+const MAX_UUID = "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid";
+
 /** One commentable subject type: its table, and who may read it. */
 export type CommentSubject = Omit<Subject, "extra">;
 
@@ -736,15 +739,19 @@ as $$
 $$;
 
 -- A subject's thread, oldest first; deleted comments stay as placeholders
--- so replies keep their parent. Page with after (a cursor) or skip (an offset).
+-- so replies keep their parent. Page with after and after_id (the last
+-- comment's created_at and id, so comments created in the same instant
+-- aren't skipped) or skip (an offset). after alone means strictly later.
 drop function if exists ${fn("list_comments")}(${id}, text, text, timestamptz, integer);
+drop function if exists ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer);
 create or replace function ${fn("list_comments")}(
   tenant ${id},
   subject_type text,
   subject_id text,
   after timestamptz default null,
   max_rows integer default 100,
-  skip integer default 0
+  skip integer default 0,
+  after_id uuid default null
 )
 returns jsonb
 language sql
@@ -758,7 +765,8 @@ as $$
     where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("list_comments.tenant"))}
       and y.${c("subjectType")} = list_comments.subject_type
       and y.${c("subjectId")} = list_comments.subject_id
-      and (list_comments.after is null or y.${c("createdAt")} > list_comments.after)
+      and (list_comments.after is null
+        or (y.${c("createdAt")}, y.${c("id")}) > (list_comments.after, coalesce(list_comments.after_id, ${MAX_UUID})))
     order by y.${c("createdAt")}, y.${c("id")}
     limit ${pageSize("list_comments.max_rows", 100, 500)}
     offset greatest(coalesce(list_comments.skip, 0), 0)
@@ -885,7 +893,7 @@ revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, bool
 revoke execute on function ${fn("copy_comments")}(${id}, text, text, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) from public, anon;
 revoke execute on function ${fn("delete_comment")}(uuid) from public, anon;
-revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer) from public, anon;
+revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function ${fn("comment_counts")}(${id}, text, text[]) from public, anon;
 revoke execute on function ${fn("record_activity")}(jsonb) from public, anon, authenticated;
 grant execute on function ${fn("comment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
@@ -894,7 +902,7 @@ grant execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boole
 grant execute on function ${fn("copy_comments")}(${id}, text, text, text, text) to service_role;
 grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) to authenticated, service_role;
 grant execute on function ${fn("delete_comment")}(uuid) to authenticated, service_role;
-grant execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer) to authenticated, service_role;
+grant execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function ${fn("comment_counts")}(${id}, text, text[]) to authenticated, service_role;
 grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
 }
@@ -947,6 +955,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "timestamp with time zone",
         "integer",
         "integer",
+        "uuid",
       ],
       returns: "jsonb",
     },
@@ -971,7 +980,7 @@ export const COMMENTS: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -991,6 +1000,13 @@ export const COMMENTS: ModuleDefinition = {
       description:
         "list_activity tags each entry with its source, checks can_subject for registered subjects and returns the subject's audit entries; comment authors and mentioned members follow the subject.",
       sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "list_comments takes after_id, so a cursor page doesn't skip comments created in the same instant.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer, integer);`,
     },
   ],
   names: NAMES,

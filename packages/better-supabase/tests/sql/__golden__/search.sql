@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_70_search.sql
 -- better-supabase module: search
--- @bs-module search@1 managed
+-- @bs-module search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -382,13 +382,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'managed')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_70_search.sql
 -- better-supabase module: search
--- @bs-module search@1 managed
+-- @bs-module search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -816,13 +816,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'managed')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_70_search.sql
 -- better-supabase module: search
--- @bs-module search@1 managed
+-- @bs-module search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1206,13 +1206,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'managed')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_70_search.sql
 -- better-supabase module: search
--- @bs-module search@1 managed
+-- @bs-module search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1674,13 +1674,13 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'managed')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_70_search.sql
 -- better-supabase module: search
--- @bs-module search@1 adopt
+-- @bs-module search@2 adopt
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2038,6 +2038,6 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'adopt')
+values ('search', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

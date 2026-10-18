@@ -13,6 +13,7 @@ import {
   fail,
   lockTable,
   schemaPreamble,
+  triggerGrant,
   userGrant,
   withExtraFields,
   writeExtraColumns,
@@ -313,6 +314,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant("better_supabase.bs_application_guard()")}
 drop trigger if exists bs_application_guard on ${t("applications")};
 create trigger bs_application_guard before update of ${a("state")} on ${t("applications")}
 for each row execute function better_supabase.bs_application_guard();

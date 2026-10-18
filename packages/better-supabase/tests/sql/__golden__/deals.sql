@@ -209,6 +209,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
 drop trigger if exists bs_deal_guard on "better_supabase"."deals";
 create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
 for each row execute function better_supabase.bs_deal_guard();
@@ -649,20 +650,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from public, anon, authenticated;
 
+-- Recounts each record a statement touched once, in id order so concurrent
+-- statements lock the records in the same order. A transition table needs a
+-- trigger per event, so there are three triggers on one function. The
+-- transition tables are read through execute because plpgsql_check (db lint)
+-- doesn't know them.
 create or replace function better_supabase.bs_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_parent uuid;
 begin
-  perform "better_supabase"."set_deal_lines_recount"(coalesce(new."parent_id", old."parent_id"));
+  for v_parent in execute case tg_op
+    when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
+    when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
+    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+  end loop
+    perform "better_supabase"."set_deal_lines_recount"(v_parent);
+  end loop;
   return null;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
 drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals after insert or update or delete on "better_supabase"."deal_lines"
-for each row execute function better_supabase.bs_deal_lines_totals();
+drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+referencing new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+referencing old table as old_rows new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+referencing old table as old_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -1120,6 +1145,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
 drop trigger if exists bs_deal_guard on "better_supabase"."deals";
 create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
 for each row execute function better_supabase.bs_deal_guard();
@@ -1565,20 +1591,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from public, anon, authenticated;
 
+-- Recounts each record a statement touched once, in id order so concurrent
+-- statements lock the records in the same order. A transition table needs a
+-- trigger per event, so there are three triggers on one function. The
+-- transition tables are read through execute because plpgsql_check (db lint)
+-- doesn't know them.
 create or replace function better_supabase.bs_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_parent uuid;
 begin
-  perform "better_supabase"."set_deal_lines_recount"(coalesce(new."parent_id", old."parent_id"));
+  for v_parent in execute case tg_op
+    when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
+    when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
+    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+  end loop
+    perform "better_supabase"."set_deal_lines_recount"(v_parent);
+  end loop;
   return null;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
 drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals after insert or update or delete on "better_supabase"."deal_lines"
-for each row execute function better_supabase.bs_deal_lines_totals();
+drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+referencing new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+referencing old table as old_rows new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+referencing old table as old_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -2017,6 +2067,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
 drop trigger if exists bs_deal_guard on "app_private"."deals";
 create trigger bs_deal_guard before insert or update on "app_private"."deals"
 for each row execute function better_supabase.bs_deal_guard();
@@ -2457,20 +2508,44 @@ end;
 $$;
 revoke execute on function "app_private"."set_deal_lines_recount"(uuid) from public, anon, authenticated;
 
+-- Recounts each record a statement touched once, in id order so concurrent
+-- statements lock the records in the same order. A transition table needs a
+-- trigger per event, so there are three triggers on one function. The
+-- transition tables are read through execute because plpgsql_check (db lint)
+-- doesn't know them.
 create or replace function better_supabase.bs_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_parent uuid;
 begin
-  perform "app_private"."set_deal_lines_recount"(coalesce(new."parent_id", old."parent_id"));
+  for v_parent in execute case tg_op
+    when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
+    when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
+    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+  end loop
+    perform "app_private"."set_deal_lines_recount"(v_parent);
+  end loop;
   return null;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
 drop trigger if exists bs_deal_lines_totals on "app_private"."deal_lines";
-create trigger bs_deal_lines_totals after insert or update or delete on "app_private"."deal_lines"
-for each row execute function better_supabase.bs_deal_lines_totals();
+drop trigger if exists bs_deal_lines_totals_insert on "app_private"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_update on "app_private"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_delete on "app_private"."deal_lines";
+create trigger bs_deal_lines_totals_insert after insert on "app_private"."deal_lines"
+referencing new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_update after update on "app_private"."deal_lines"
+referencing old table as old_rows new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_delete after delete on "app_private"."deal_lines"
+referencing old table as old_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -2906,6 +2981,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
 drop trigger if exists bs_deal_guard on "better_supabase"."deals";
 create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
 for each row execute function better_supabase.bs_deal_guard();
@@ -3346,20 +3422,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from public, anon, authenticated;
 
+-- Recounts each record a statement touched once, in id order so concurrent
+-- statements lock the records in the same order. A transition table needs a
+-- trigger per event, so there are three triggers on one function. The
+-- transition tables are read through execute because plpgsql_check (db lint)
+-- doesn't know them.
 create or replace function better_supabase.bs_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_parent uuid;
 begin
-  perform "better_supabase"."set_deal_lines_recount"(coalesce(new."parent_id", old."parent_id"));
+  for v_parent in execute case tg_op
+    when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
+    when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
+    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+  end loop
+    perform "better_supabase"."set_deal_lines_recount"(v_parent);
+  end loop;
   return null;
 end;
 $$;
+revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
 drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals after insert or update or delete on "better_supabase"."deal_lines"
-for each row execute function better_supabase.bs_deal_lines_totals();
+drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+referencing new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+referencing old table as old_rows new table as new_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
+create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+referencing old table as old_rows
+for each statement execute function better_supabase.bs_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,

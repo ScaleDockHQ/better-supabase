@@ -261,6 +261,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."ensure_workspace_owner"() from public, anon, authenticated;
 drop trigger if exists "bs_workspace_owner" on "better_supabase"."memberships";
 create constraint trigger "bs_workspace_owner" after update of "role", "workspace_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred

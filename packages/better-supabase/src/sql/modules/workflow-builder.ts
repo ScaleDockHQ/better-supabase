@@ -400,6 +400,8 @@ create table if not exists ${t} (
   ${ct("updatedAt")} timestamptz not null default now()
 );
 create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});
+create index if not exists workflow_triggers_event_type_idx on ${t} ((${ct("config")} ->> 'type'))
+  where ${ct("kind")} = 'event' and ${ct("enabled")};
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;

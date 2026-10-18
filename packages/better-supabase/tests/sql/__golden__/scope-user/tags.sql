@@ -66,6 +66,7 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
+create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
@@ -125,6 +126,9 @@ begin
   end if;
   if auth.role() is distinct from 'service_role' then
     tag.tenant := (select auth.uid());
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(tag.tenant = (select auth.uid()), false) or coalesce(tag.tenant = (select auth.uid()), false)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -266,6 +270,9 @@ begin
   end if;
   if auth.role() is distinct from 'service_role' then
     untag.tenant := (select auth.uid());
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(untag.tenant = (select auth.uid()), false) or coalesce(untag.tenant = (select auth.uid()), false)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';

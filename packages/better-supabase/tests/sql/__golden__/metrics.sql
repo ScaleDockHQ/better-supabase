@@ -49,7 +49,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 
   return v_total;
 end;
@@ -203,7 +202,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 
   return v_total;
 end;
@@ -359,7 +357,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 
   return v_total;
 end;
@@ -513,7 +510,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 
   return v_total;
 end;
@@ -692,7 +688,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 
   return v_total;
 end;

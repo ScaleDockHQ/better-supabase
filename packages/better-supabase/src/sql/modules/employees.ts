@@ -8,7 +8,13 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fail,
+  lockTable,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   employeeFunctions,
@@ -281,6 +287,7 @@ begin
   return null;
 end;
 $$;
+${triggerGrant("better_supabase.bs_employee_user_mirror()")}
 drop trigger if exists bs_employee_user_mirror on ${t("employees")};
 create trigger bs_employee_user_mirror after update of ${e("user")} on ${t("employees")}
 for each row execute function better_supabase.bs_employee_user_mirror();
@@ -319,6 +326,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant("better_supabase.bs_employee_manager_guard()")}
 drop trigger if exists bs_employee_manager_guard on ${t("employees")};
 create trigger bs_employee_manager_guard before insert or update of ${e("manager")} on ${t("employees")}
 for each row execute function better_supabase.bs_employee_manager_guard();

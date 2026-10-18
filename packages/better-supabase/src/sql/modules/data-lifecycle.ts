@@ -226,7 +226,7 @@ function build(ctx: ModuleContext): string {
   const platform =
     platformKey === ""
       ? ""
-      : `\n    and not coalesce(${ctx.scope.platform(sqlString(platformKey))}, false)`;
+      : `\n    and not ${ctx.scope.platform(sqlString(platformKey))}`;
 
   // An access module in custom mode may lack member_can_while_deleting; the
   // tenant module then resolves the owner's role name instead.

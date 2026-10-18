@@ -57,6 +57,7 @@ alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
+create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
 drop policy if exists booking_resources_read on "better_supabase"."booking_resources";
 create policy booking_resources_read on "better_supabase"."booking_resources" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -112,6 +113,7 @@ alter table "better_supabase"."booking_services" enable row level security;
 revoke all on "better_supabase"."booking_services" from anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
+create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
 drop policy if exists booking_services_read on "better_supabase"."booking_services";
 create policy booking_services_read on "better_supabase"."booking_services" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -806,6 +808,7 @@ alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
+create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
 drop policy if exists booking_resources_read on "better_supabase"."booking_resources";
 create policy booking_resources_read on "better_supabase"."booking_resources" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -861,6 +864,7 @@ alter table "better_supabase"."booking_services" enable row level security;
 revoke all on "better_supabase"."booking_services" from anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
+create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
 drop policy if exists booking_services_read on "better_supabase"."booking_services";
 create policy booking_services_read on "better_supabase"."booking_services" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -1793,6 +1797,7 @@ alter table "app_private"."booking_resources" enable row level security;
 revoke all on "app_private"."booking_resources" from anon, authenticated;
 grant select on "app_private"."booking_resources" to authenticated;
 grant all on "app_private"."booking_resources" to service_role;
+create index if not exists "booking_resources_tenant_idx" on "app_private"."booking_resources" ("tenant_id");
 drop policy if exists booking_resources_read on "app_private"."booking_resources";
 create policy booking_resources_read on "app_private"."booking_resources" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -1848,6 +1853,7 @@ alter table "app_private"."booking_services" enable row level security;
 revoke all on "app_private"."booking_services" from anon, authenticated;
 grant select on "app_private"."booking_services" to authenticated;
 grant all on "app_private"."booking_services" to service_role;
+create index if not exists "booking_services_tenant_idx" on "app_private"."booking_services" ("tenant_id");
 drop policy if exists booking_services_read on "app_private"."booking_services";
 create policy booking_services_read on "app_private"."booking_services" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -2542,6 +2548,7 @@ alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
+create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
 drop policy if exists booking_resources_read on "better_supabase"."booking_resources";
 create policy booking_resources_read on "better_supabase"."booking_resources" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
@@ -2597,6 +2604,7 @@ alter table "better_supabase"."booking_services" enable row level security;
 revoke all on "better_supabase"."booking_services" from anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
+create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
 drop policy if exists booking_services_read on "better_supabase"."booking_services";
 create policy booking_services_read on "better_supabase"."booking_services" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));

@@ -193,6 +193,8 @@ create table if not exists "better_supabase"."workflow_triggers" (
   "updated_at" timestamptz not null default now()
 );
 create index if not exists workflow_triggers_definition_idx on "better_supabase"."workflow_triggers" ("definition_id");
+create index if not exists workflow_triggers_event_type_idx on "better_supabase"."workflow_triggers" (("config" ->> 'type'))
+  where "kind" = 'event' and "enabled";
 alter table "better_supabase"."workflow_triggers" enable row level security;
 revoke all on "better_supabase"."workflow_triggers" from anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;

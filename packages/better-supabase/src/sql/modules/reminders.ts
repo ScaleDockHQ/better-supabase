@@ -7,7 +7,9 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
+  addCheck,
   addExtraColumns,
   columnsObject,
   extraFieldsArg,
@@ -129,6 +131,7 @@ function build(ctx: ModuleContext): string {
   unique (${ctx.col("rules", "tenant")}, ${ctx.col("rules", "subjectType")}, ${ctx.col("rules", "subjectId")})
 );
 ${lockTable(rules, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("rules").name}_subject_idx`)} on ${rules} (${ctx.col("rules", "subjectType")}, ${ctx.col("rules", "subjectId")});
 create table if not exists ${reminders} (
   ${ctx.col("reminders", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("reminders", "tenant")} ${ctx.idType} not null,
@@ -139,6 +142,14 @@ create table if not exists ${reminders} (
   ${ctx.col("reminders", "offsetMinutes")} integer not null default 0
 );${addExtraColumns(reminders, extras)}
 ${lockTable(reminders, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_subject_idx`)} on ${reminders} (${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")});
+create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_tenant_idx`)} on ${reminders} (${ctx.col("reminders", "tenant")});
+-- A negative offset fires after the occurrence; a year either way bounds it.
+${addCheck({
+  table: reminders,
+  name: `${ctx.tableName("reminders").name}_offset_check`,
+  expression: `${ctx.col("reminders", "offsetMinutes")} between -525600 and 525600`,
+})}
 create table if not exists ${deliveries} (
   ${ctx.col("deliveries", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("deliveries", "reminder")} uuid not null references ${reminders} (${ctx.col("reminders", "id")}) on delete cascade,

@@ -7,7 +7,13 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fail,
+  lockTable,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
   workItemFunctions,
@@ -311,6 +317,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant("better_supabase.bs_work_item_guard()")}
 drop trigger if exists bs_work_item_guard on ${t("items")};
 create trigger bs_work_item_guard before insert or update on ${t("items")}
 for each row execute function better_supabase.bs_work_item_guard();

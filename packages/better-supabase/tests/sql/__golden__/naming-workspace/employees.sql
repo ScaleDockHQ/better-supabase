@@ -167,6 +167,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
 drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
 create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bs_employee_manager_guard();
@@ -185,6 +186,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
 drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
 create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bs_employee_user_mirror();

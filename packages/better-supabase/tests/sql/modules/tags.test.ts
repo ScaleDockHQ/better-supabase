@@ -132,6 +132,27 @@ describe("tags module", () => {
     ).toThrow("kinds must be a list of strings");
   });
 
+  it("checks tags.apply in the tenant before tag and untag touch a subject", () => {
+    const sql = sqlOf();
+
+    const check = (tenant: string): string =>
+      `if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', ${tenant}, 'tags.apply'), false) or coalesce(better_supabase.can('tenant', ${tenant}, 'tags.manage'), false)) then`;
+
+    for (const fn of ["tag", "untag"]) {
+      const body = sql.slice(sql.indexOf(`"better_supabase"."${fn}"(`));
+      const applied = body.indexOf(check(`${fn}.tenant`));
+
+      expect(applied).toBeGreaterThan(-1);
+      expect(applied).toBeLessThan(body.indexOf("TAG_SUBJECT_FORBIDDEN"));
+    }
+  });
+
+  it("indexes taggings by tenant and subject", () => {
+    expect(sqlOf()).toContain(
+      `create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");`,
+    );
+  });
+
   it("renders nothing in custom mode", () => {
     expect(sqlOf({ modules: { tags: { mode: "custom" } } })).not.toContain(
       "create_tag",

@@ -187,6 +187,11 @@ function build(ctx: ModuleContext): string {
   const updatedAt = ctx.col("tags", "updatedAt");
   const manage = ctx.permission("manage", OPERATIONS["tags.manage"]);
   const read = ctx.permission("read", OPERATIONS["tags.read"]);
+  const applyKey = ctx.permission("apply", OPERATIONS["tags.apply"]);
+
+  const mayApply = (tenantArg: string): string =>
+    `auth.role() = 'service_role' or ${ctx.scope.can(tenantArg, applyKey)} or ${ctx.scope.can(tenantArg, manage)}`;
+
   const bound = links(ctx);
   const list = subjects(ctx);
   // Outside tenant scope the scope column can be null, and a null tenant
@@ -217,6 +222,7 @@ create table if not exists ${taggings} (
   ${ctx.col("taggings", "createdAt")} timestamptz not null default now(),
   primary key (${ctx.col("taggings", "tag")}, ${ctx.col("taggings", "subjectType")}, ${ctx.col("taggings", "subjectId")})
 );
+create index if not exists ${sqlIdent(`${ctx.tableName("taggings").name}_subject_idx`)} on ${taggings} (${ctx.col("taggings", "tenant")}, ${ctx.col("taggings", "subjectType")}, ${ctx.col("taggings", "subjectId")});
 ${lockTable(taggings, { read: true })}
 `
     : "";
@@ -300,7 +306,10 @@ as $$
 declare
   v_kind text;
 begin
-  ${ctx.scope.bind("tag.tenant")}if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
+  ${ctx.scope.bind("tag.tenant")}if not (${mayApply("tag.tenant")}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to apply tags")}
+  end if;
+  if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   select ${kind} into v_kind from ${tags} where ${id} = tag.tag_id and ${ctx.scope.eq(tenant, "tag.tenant")};
@@ -417,7 +426,10 @@ security definer
 set search_path = ''
 as $$
 begin
-  ${ctx.scope.bind("untag.tenant")}if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
+  ${ctx.scope.bind("untag.tenant")}if not (${mayApply("untag.tenant")}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to apply tags")}
+  end if;
+  if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   ${untagBody(ctx, bound, taggings)}

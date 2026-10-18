@@ -38,6 +38,8 @@ begin
 end;
 $$;
 
+revoke execute on function better_supabase.broadcast_changes() from public, anon, authenticated;
+
 -- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
@@ -47,6 +49,11 @@ $$;
 -- through RLS; 'row' sends old_record and record, which bypasses column
 -- grants. A null value skips the row; a value topics do not allow skips it
 -- with a warning instead of failing the write.
+-- The first row of a statement reads the primary key and the placeholder
+-- columns from the catalog and keeps one query that selects only those
+-- columns in a transaction setting stamped with statement_timestamp(); the
+-- other rows of the statement reuse it. A bulk write still sends one message
+-- per row, so a table written in bulk should use track_realtime instead.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -54,17 +61,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  rec jsonb := to_jsonb(case when tg_op = 'DELETE' then old else new end);
   topic text;
   event text := tg_op;
   private boolean := true;
   mode text := 'keys';
+  cache_key text := 'bs_topic.r' || tg_relid::text || '_' || md5(tg_name);
+  stamp text := statement_timestamp()::text;
+  plan jsonb;
   placeholder text;
   param text;
   col text;
-  value text;
-  vals jsonb := '{}';
+  placeholders text[] := '{}';
+  params text[] := '{}';
+  cols text[] := '{}';
   keys text[];
+  id_sql text;
+  vals text[];
+  value text;
+  payload_vals jsonb := '{}';
   id jsonb;
 begin
   if tg_level <> 'ROW' then
@@ -87,23 +101,57 @@ begin
     raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
       using errcode = '22023';
   end if;
-  for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    param := split_part(placeholder, '=', 1);
-    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
-    if not rec ? col then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
-        using errcode = '42703';
-    end if;
-    value := rec ->> col;
+  plan := nullif(current_setting(cache_key, true), '')::jsonb;
+  if plan is null or plan ->> 'stamp' is distinct from stamp then
+    for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
+      param := split_part(placeholder, '=', 1);
+      col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+      if not exists (
+        select 1 from pg_catalog.pg_attribute a
+        where a.attrelid = tg_relid and a.attname = col and a.attnum > 0 and not a.attisdropped
+      ) then
+        raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
+          using errcode = '42703';
+      end if;
+      placeholders := placeholders || placeholder;
+      params := params || param;
+      cols := cols || col;
+    end loop;
+    select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+      into keys
+      from pg_catalog.pg_index i
+      join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+      where i.indrelid = tg_relid and i.indisprimary;
+    id_sql := case
+      when keys is null then 'null::jsonb'
+      when cardinality(keys) = 1 then format('to_jsonb(($1).%I)', keys[1])
+      else 'jsonb_build_object(' || (select string_agg(format('%L, ($1).%I', k, k), ', ') from unnest(keys) as k) || ')'
+    end;
+    plan := jsonb_build_object(
+      'stamp', stamp,
+      'placeholders', to_jsonb(placeholders),
+      'params', to_jsonb(params),
+      'cols', to_jsonb(cols),
+      'sql', format(
+        'select array[%s]::text[], %s',
+        coalesce((select string_agg(format('($1).%I::text', c), ', ') from unnest(cols) as c), ''),
+        id_sql
+      )
+    );
+    perform set_config(cache_key, plan::text, true);
+  end if;
+  execute plan ->> 'sql' using case when tg_op = 'DELETE' then old else new end into vals, id;
+  for i in 1 .. coalesce(cardinality(vals), 0) loop
+    value := vals[i];
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, plan -> 'cols' ->> (i - 1);
       return null;
     end if;
-    vals := vals || jsonb_build_object(param, value);
-    topic := replace(topic, '{' || placeholder || '}', value);
+    payload_vals := payload_vals || jsonb_build_object(plan -> 'params' ->> (i - 1), value);
+    topic := replace(topic, '{' || (plan -> 'placeholders' ->> (i - 1)) || '}', value);
   end loop;
   if mode = 'row' then
     perform realtime.send(
@@ -112,18 +160,8 @@ begin
     );
     return null;
   end if;
-  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
-    into keys
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
-    where i.indrelid = tg_relid and i.indisprimary;
-  id := case
-    when keys is null then null
-    when cardinality(keys) = 1 then rec -> keys[1]
-    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
-  end;
   perform realtime.send(
-    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', payload_vals),
     event, topic, private
   );
   return null;
@@ -288,6 +326,8 @@ begin
 end;
 $$;
 
+revoke execute on function better_supabase.broadcast_changes() from public, anon, authenticated;
+
 -- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
@@ -297,6 +337,11 @@ $$;
 -- through RLS; 'row' sends old_record and record, which bypasses column
 -- grants. A null value skips the row; a value topics do not allow skips it
 -- with a warning instead of failing the write.
+-- The first row of a statement reads the primary key and the placeholder
+-- columns from the catalog and keeps one query that selects only those
+-- columns in a transaction setting stamped with statement_timestamp(); the
+-- other rows of the statement reuse it. A bulk write still sends one message
+-- per row, so a table written in bulk should use track_realtime instead.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -304,17 +349,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  rec jsonb := to_jsonb(case when tg_op = 'DELETE' then old else new end);
   topic text;
   event text := tg_op;
   private boolean := true;
   mode text := 'keys';
+  cache_key text := 'bs_topic.r' || tg_relid::text || '_' || md5(tg_name);
+  stamp text := statement_timestamp()::text;
+  plan jsonb;
   placeholder text;
   param text;
   col text;
-  value text;
-  vals jsonb := '{}';
+  placeholders text[] := '{}';
+  params text[] := '{}';
+  cols text[] := '{}';
   keys text[];
+  id_sql text;
+  vals text[];
+  value text;
+  payload_vals jsonb := '{}';
   id jsonb;
 begin
   if tg_level <> 'ROW' then
@@ -337,23 +389,57 @@ begin
     raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
       using errcode = '22023';
   end if;
-  for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    param := split_part(placeholder, '=', 1);
-    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
-    if not rec ? col then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
-        using errcode = '42703';
-    end if;
-    value := rec ->> col;
+  plan := nullif(current_setting(cache_key, true), '')::jsonb;
+  if plan is null or plan ->> 'stamp' is distinct from stamp then
+    for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
+      param := split_part(placeholder, '=', 1);
+      col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+      if not exists (
+        select 1 from pg_catalog.pg_attribute a
+        where a.attrelid = tg_relid and a.attname = col and a.attnum > 0 and not a.attisdropped
+      ) then
+        raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
+          using errcode = '42703';
+      end if;
+      placeholders := placeholders || placeholder;
+      params := params || param;
+      cols := cols || col;
+    end loop;
+    select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+      into keys
+      from pg_catalog.pg_index i
+      join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+      where i.indrelid = tg_relid and i.indisprimary;
+    id_sql := case
+      when keys is null then 'null::jsonb'
+      when cardinality(keys) = 1 then format('to_jsonb(($1).%I)', keys[1])
+      else 'jsonb_build_object(' || (select string_agg(format('%L, ($1).%I', k, k), ', ') from unnest(keys) as k) || ')'
+    end;
+    plan := jsonb_build_object(
+      'stamp', stamp,
+      'placeholders', to_jsonb(placeholders),
+      'params', to_jsonb(params),
+      'cols', to_jsonb(cols),
+      'sql', format(
+        'select array[%s]::text[], %s',
+        coalesce((select string_agg(format('($1).%I::text', c), ', ') from unnest(cols) as c), ''),
+        id_sql
+      )
+    );
+    perform set_config(cache_key, plan::text, true);
+  end if;
+  execute plan ->> 'sql' using case when tg_op = 'DELETE' then old else new end into vals, id;
+  for i in 1 .. coalesce(cardinality(vals), 0) loop
+    value := vals[i];
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, plan -> 'cols' ->> (i - 1);
       return null;
     end if;
-    vals := vals || jsonb_build_object(param, value);
-    topic := replace(topic, '{' || placeholder || '}', value);
+    payload_vals := payload_vals || jsonb_build_object(plan -> 'params' ->> (i - 1), value);
+    topic := replace(topic, '{' || (plan -> 'placeholders' ->> (i - 1)) || '}', value);
   end loop;
   if mode = 'row' then
     perform realtime.send(
@@ -362,18 +448,8 @@ begin
     );
     return null;
   end if;
-  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
-    into keys
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
-    where i.indrelid = tg_relid and i.indisprimary;
-  id := case
-    when keys is null then null
-    when cardinality(keys) = 1 then rec -> keys[1]
-    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
-  end;
   perform realtime.send(
-    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', payload_vals),
     event, topic, private
   );
   return null;
@@ -538,6 +614,8 @@ begin
 end;
 $$;
 
+revoke execute on function better_supabase.broadcast_changes() from public, anon, authenticated;
+
 -- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
@@ -547,6 +625,11 @@ $$;
 -- through RLS; 'row' sends old_record and record, which bypasses column
 -- grants. A null value skips the row; a value topics do not allow skips it
 -- with a warning instead of failing the write.
+-- The first row of a statement reads the primary key and the placeholder
+-- columns from the catalog and keeps one query that selects only those
+-- columns in a transaction setting stamped with statement_timestamp(); the
+-- other rows of the statement reuse it. A bulk write still sends one message
+-- per row, so a table written in bulk should use track_realtime instead.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -554,17 +637,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  rec jsonb := to_jsonb(case when tg_op = 'DELETE' then old else new end);
   topic text;
   event text := tg_op;
   private boolean := true;
   mode text := 'keys';
+  cache_key text := 'bs_topic.r' || tg_relid::text || '_' || md5(tg_name);
+  stamp text := statement_timestamp()::text;
+  plan jsonb;
   placeholder text;
   param text;
   col text;
-  value text;
-  vals jsonb := '{}';
+  placeholders text[] := '{}';
+  params text[] := '{}';
+  cols text[] := '{}';
   keys text[];
+  id_sql text;
+  vals text[];
+  value text;
+  payload_vals jsonb := '{}';
   id jsonb;
 begin
   if tg_level <> 'ROW' then
@@ -587,23 +677,57 @@ begin
     raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
       using errcode = '22023';
   end if;
-  for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    param := split_part(placeholder, '=', 1);
-    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
-    if not rec ? col then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
-        using errcode = '42703';
-    end if;
-    value := rec ->> col;
+  plan := nullif(current_setting(cache_key, true), '')::jsonb;
+  if plan is null or plan ->> 'stamp' is distinct from stamp then
+    for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
+      param := split_part(placeholder, '=', 1);
+      col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+      if not exists (
+        select 1 from pg_catalog.pg_attribute a
+        where a.attrelid = tg_relid and a.attname = col and a.attnum > 0 and not a.attisdropped
+      ) then
+        raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
+          using errcode = '42703';
+      end if;
+      placeholders := placeholders || placeholder;
+      params := params || param;
+      cols := cols || col;
+    end loop;
+    select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+      into keys
+      from pg_catalog.pg_index i
+      join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+      where i.indrelid = tg_relid and i.indisprimary;
+    id_sql := case
+      when keys is null then 'null::jsonb'
+      when cardinality(keys) = 1 then format('to_jsonb(($1).%I)', keys[1])
+      else 'jsonb_build_object(' || (select string_agg(format('%L, ($1).%I', k, k), ', ') from unnest(keys) as k) || ')'
+    end;
+    plan := jsonb_build_object(
+      'stamp', stamp,
+      'placeholders', to_jsonb(placeholders),
+      'params', to_jsonb(params),
+      'cols', to_jsonb(cols),
+      'sql', format(
+        'select array[%s]::text[], %s',
+        coalesce((select string_agg(format('($1).%I::text', c), ', ') from unnest(cols) as c), ''),
+        id_sql
+      )
+    );
+    perform set_config(cache_key, plan::text, true);
+  end if;
+  execute plan ->> 'sql' using case when tg_op = 'DELETE' then old else new end into vals, id;
+  for i in 1 .. coalesce(cardinality(vals), 0) loop
+    value := vals[i];
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, plan -> 'cols' ->> (i - 1);
       return null;
     end if;
-    vals := vals || jsonb_build_object(param, value);
-    topic := replace(topic, '{' || placeholder || '}', value);
+    payload_vals := payload_vals || jsonb_build_object(plan -> 'params' ->> (i - 1), value);
+    topic := replace(topic, '{' || (plan -> 'placeholders' ->> (i - 1)) || '}', value);
   end loop;
   if mode = 'row' then
     perform realtime.send(
@@ -612,18 +736,8 @@ begin
     );
     return null;
   end if;
-  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
-    into keys
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
-    where i.indrelid = tg_relid and i.indisprimary;
-  id := case
-    when keys is null then null
-    when cardinality(keys) = 1 then rec -> keys[1]
-    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
-  end;
   perform realtime.send(
-    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', payload_vals),
     event, topic, private
   );
   return null;
@@ -788,6 +902,8 @@ begin
 end;
 $$;
 
+revoke execute on function better_supabase.broadcast_changes() from public, anon, authenticated;
+
 -- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
@@ -797,6 +913,11 @@ $$;
 -- through RLS; 'row' sends old_record and record, which bypasses column
 -- grants. A null value skips the row; a value topics do not allow skips it
 -- with a warning instead of failing the write.
+-- The first row of a statement reads the primary key and the placeholder
+-- columns from the catalog and keeps one query that selects only those
+-- columns in a transaction setting stamped with statement_timestamp(); the
+-- other rows of the statement reuse it. A bulk write still sends one message
+-- per row, so a table written in bulk should use track_realtime instead.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -804,17 +925,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  rec jsonb := to_jsonb(case when tg_op = 'DELETE' then old else new end);
   topic text;
   event text := tg_op;
   private boolean := true;
   mode text := 'keys';
+  cache_key text := 'bs_topic.r' || tg_relid::text || '_' || md5(tg_name);
+  stamp text := statement_timestamp()::text;
+  plan jsonb;
   placeholder text;
   param text;
   col text;
-  value text;
-  vals jsonb := '{}';
+  placeholders text[] := '{}';
+  params text[] := '{}';
+  cols text[] := '{}';
   keys text[];
+  id_sql text;
+  vals text[];
+  value text;
+  payload_vals jsonb := '{}';
   id jsonb;
 begin
   if tg_level <> 'ROW' then
@@ -837,23 +965,57 @@ begin
     raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
       using errcode = '22023';
   end if;
-  for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    param := split_part(placeholder, '=', 1);
-    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
-    if not rec ? col then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
-        using errcode = '42703';
-    end if;
-    value := rec ->> col;
+  plan := nullif(current_setting(cache_key, true), '')::jsonb;
+  if plan is null or plan ->> 'stamp' is distinct from stamp then
+    for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
+      param := split_part(placeholder, '=', 1);
+      col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+      if not exists (
+        select 1 from pg_catalog.pg_attribute a
+        where a.attrelid = tg_relid and a.attname = col and a.attnum > 0 and not a.attisdropped
+      ) then
+        raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
+          using errcode = '42703';
+      end if;
+      placeholders := placeholders || placeholder;
+      params := params || param;
+      cols := cols || col;
+    end loop;
+    select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+      into keys
+      from pg_catalog.pg_index i
+      join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+      where i.indrelid = tg_relid and i.indisprimary;
+    id_sql := case
+      when keys is null then 'null::jsonb'
+      when cardinality(keys) = 1 then format('to_jsonb(($1).%I)', keys[1])
+      else 'jsonb_build_object(' || (select string_agg(format('%L, ($1).%I', k, k), ', ') from unnest(keys) as k) || ')'
+    end;
+    plan := jsonb_build_object(
+      'stamp', stamp,
+      'placeholders', to_jsonb(placeholders),
+      'params', to_jsonb(params),
+      'cols', to_jsonb(cols),
+      'sql', format(
+        'select array[%s]::text[], %s',
+        coalesce((select string_agg(format('($1).%I::text', c), ', ') from unnest(cols) as c), ''),
+        id_sql
+      )
+    );
+    perform set_config(cache_key, plan::text, true);
+  end if;
+  execute plan ->> 'sql' using case when tg_op = 'DELETE' then old else new end into vals, id;
+  for i in 1 .. coalesce(cardinality(vals), 0) loop
+    value := vals[i];
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, plan -> 'cols' ->> (i - 1);
       return null;
     end if;
-    vals := vals || jsonb_build_object(param, value);
-    topic := replace(topic, '{' || placeholder || '}', value);
+    payload_vals := payload_vals || jsonb_build_object(plan -> 'params' ->> (i - 1), value);
+    topic := replace(topic, '{' || (plan -> 'placeholders' ->> (i - 1)) || '}', value);
   end loop;
   if mode = 'row' then
     perform realtime.send(
@@ -862,18 +1024,8 @@ begin
     );
     return null;
   end if;
-  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
-    into keys
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
-    where i.indrelid = tg_relid and i.indisprimary;
-  id := case
-    when keys is null then null
-    when cardinality(keys) = 1 then rec -> keys[1]
-    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
-  end;
   perform realtime.send(
-    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', payload_vals),
     event, topic, private
   );
   return null;

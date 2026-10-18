@@ -61,6 +61,7 @@ alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
 grant all on "better_supabase"."share_links" to service_role;
+create index if not exists "share_links_subject_idx" on "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id");
 create table if not exists "better_supabase"."subject_views" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,

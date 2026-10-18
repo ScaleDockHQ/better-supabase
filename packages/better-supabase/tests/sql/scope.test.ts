@@ -35,7 +35,9 @@ describe("moduleScope", () => {
     expect(tenant.canUser("u", "t.org", "'x'")).toBe(
       "coalesce(better_supabase.can_user(u, 'tenant', t.org, 'x'), false)",
     );
-    expect(tenant.platform("'p'")).toBe("better_supabase.is_platform('p')");
+    expect(tenant.platform("'p'")).toBe(
+      "(select coalesce(better_supabase.is_platform('p'), false))",
+    );
     expect(tenant.members()).toBe("better_supabase.member_organization_ids()");
     expect(tenant.column()).toBe("uuid not null");
     expect(tenant.bind("f.tenant")).toBe("");

@@ -270,7 +270,7 @@ describe("data-lifecycle module", () => {
       `delete from "public"."teams" where "id" = purge_organization.tenant;`,
     );
     expect(sql).toContain(
-      "not coalesce(better_supabase.is_platform('platform.teams.delete'), false)",
+      "not (select coalesce(better_supabase.is_platform('platform.teams.delete'), false))",
     );
     expect(sql).toContain("ORGANIZATION_PURGE_BLOCKED");
   });

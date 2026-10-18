@@ -248,6 +248,7 @@ as $$
   order by ${lists ? `(x.${pr("priceList")} is null), ` : ""}x.${pr("updatedAt")} desc
   limit 1
 $$;
+revoke execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) from public;
 grant execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 `;
 }
@@ -615,6 +616,7 @@ set search_path = ''
 as $$
   select x.${s("tenant")} from ${storefronts} x where x.${s("publishedAt")} is not null
 $$;
+revoke execute on function ${fn("storefront_tenants")}() from public;
 grant execute on function ${fn("storefront_tenants")}() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -629,6 +631,7 @@ as $$
   where x.${p("status")} = 'active'
     and x.${p("tenant")} in (select y.${s("tenant")} from ${storefronts} y where y.${s("publishedAt")} is not null)
 $$;
+revoke execute on function ${fn("storefront_products")}() from public;
 grant execute on function ${fn("storefront_products")}() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront

@@ -7,6 +7,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   fail,
+  triggerGrant,
 } from "../shared.ts";
 
 const NAMES: ModuleNames = {
@@ -727,6 +728,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant(`${ctx.fn("guard_profile")}()`)}
 drop trigger if exists ${trigger} on ${t};
 create trigger ${trigger} before update on ${t}
   for each row execute function ${ctx.fn("guard_profile")}();`;
@@ -982,6 +984,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant(`${ctx.fn("on_auth_user_created")}()`)}
 drop trigger if exists ${sync} on auth.users;
 create trigger ${sync} after insert on auth.users
   for each row execute function ${ctx.fn("on_auth_user_created")}();`);
@@ -1004,6 +1007,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant(`${ctx.fn("mirror_profile_email")}()`)}
 drop trigger if exists ${mirror} on auth.users;
 create trigger ${mirror} after update of email on auth.users
   for each row execute function ${ctx.fn("mirror_profile_email")}();`);

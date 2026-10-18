@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -162,6 +163,7 @@ create table if not exists ${p.resources} (
   ${r("createdAt")} timestamptz not null default now()
 );
 ${lockTable(p.resources, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("resources").name}_tenant_idx`)} on ${p.resources} (${r("tenant")});
 drop policy if exists booking_resources_read on ${p.resources};
 create policy booking_resources_read on ${p.resources} for select to authenticated
 using (${ctx.scope.check(r("tenant"), p.read)} or ${ctx.scope.check(r("tenant"), p.create)});
@@ -208,6 +210,7 @@ create table if not exists ${p.services} (
   ${s("createdAt")} timestamptz not null default now()
 );
 ${lockTable(p.services, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("services").name}_tenant_idx`)} on ${p.services} (${s("tenant")});
 drop policy if exists booking_services_read on ${p.services};
 create policy booking_services_read on ${p.services} for select to authenticated
 using (${ctx.scope.check(s("tenant"), p.read)} or ${ctx.scope.check(s("tenant"), p.create)});

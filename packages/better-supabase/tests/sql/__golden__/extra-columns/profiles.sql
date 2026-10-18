@@ -116,6 +116,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
 drop trigger if exists "bs_profile_guard" on "better_supabase"."profiles";
 create trigger "bs_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
@@ -331,6 +332,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
 drop trigger if exists "bs_profile_sync" on auth.users;
 create trigger "bs_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
@@ -347,6 +349,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
 drop trigger if exists "bs_profile_email" on auth.users;
 create trigger "bs_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();

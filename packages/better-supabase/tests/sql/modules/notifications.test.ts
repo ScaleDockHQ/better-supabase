@@ -191,6 +191,7 @@ describe("notifications module", () => {
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
       "send_notification",
+      "send_notifications",
       "get_notification",
       "notification_enabled",
       "list_notifications",
@@ -219,7 +220,7 @@ describe("notifications module", () => {
       },
     });
 
-    expect(minimal!.functions).toHaveLength(11);
+    expect(minimal!.functions).toHaveLength(12);
   });
 
   it("reads one notification and returns the changed ones from each update", () => {
@@ -403,6 +404,20 @@ describe("notification actors", () => {
     );
     expect(sql).toContain(
       "if coalesce(set_notification_subscription.if_absent, false) then",
+    );
+  });
+});
+
+describe("send_notifications", () => {
+  it("sends a batch through send_notification, granted like it", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."send_notifications"(events jsonb)',
+    );
+    expect(sql).toContain("notification => batch_event");
+    expect(sql).toContain("hint = 'NOTIFICATION_BATCH_TOO_LARGE'");
+    expect(sql).toMatch(
+      /grant execute on function "better_supabase"\."send_notifications"\(jsonb\) to /,
     );
   });
 });

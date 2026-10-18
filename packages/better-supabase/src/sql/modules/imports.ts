@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
@@ -63,6 +64,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("runs", "createdAt")} timestamptz not null default now()
 );
 ${lockTable(runs, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("runs").name}_tenant_idx`)} on ${runs} (${ctx.col("runs", "tenant")});
 `
     : "";
 

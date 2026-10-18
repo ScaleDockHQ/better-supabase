@@ -56,6 +56,7 @@ alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 
 create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb
@@ -193,6 +194,7 @@ alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 
 create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb
@@ -332,6 +334,7 @@ alter table "app_private"."import_runs" enable row level security;
 revoke all on "app_private"."import_runs" from anon, authenticated;
 grant select on "app_private"."import_runs" to authenticated;
 grant all on "app_private"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "app_private"."import_runs" ("tenant_id");
 
 create or replace function "app_private"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb
@@ -469,6 +472,7 @@ alter table "better_supabase"."import_runs" enable row level security;
 revoke all on "better_supabase"."import_runs" from anon, authenticated;
 grant select on "better_supabase"."import_runs" to authenticated;
 grant all on "better_supabase"."import_runs" to service_role;
+create index if not exists "import_runs_tenant_idx" on "better_supabase"."import_runs" ("tenant_id");
 
 create or replace function "better_supabase"."start_import"(tenant uuid, kind text, mapping jsonb)
 returns jsonb

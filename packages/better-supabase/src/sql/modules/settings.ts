@@ -174,9 +174,7 @@ const readRule = (
   read: PlatformRead,
   permission: string,
 ): string =>
-  read === "staff"
-    ? `coalesce(${scope.platform(sqlString(permission))}, false)`
-    : "true";
+  read === "staff" ? scope.platform(sqlString(permission)) : "true";
 
 const unquote = (ident: string): string =>
   ident.startsWith('"') ? ident.slice(1, -1).replaceAll('""', '"') : ident;
@@ -349,12 +347,12 @@ function build(ctx: ModuleContext): string {
       ? ""
       : `${pc("key")} in (${platform.keys.map((entry) => sqlString(entry.key)).join(", ")}) and `;
 
-  const writeCheck = `${listedKeys}coalesce(${ctx.scope.platform(
+  const writeCheck = `${listedKeys}${ctx.scope.platform(
     byKey(
       (entry) => sqlString(entry.permission),
       sqlString(platform.fallback.permission),
     ),
-  )}, false)`;
+  )}`;
 
   const authenticatedRead = byKey(
     (entry) => readRule(ctx.scope, entry.read, entry.permission),

@@ -10,6 +10,9 @@ import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  batchFunction,
+  type BatchArgument,
+  defaultPartition,
   ensureCheck,
   EQUIVALENT_TRIGGERS,
   MONTHLY_PARTITIONS,
@@ -17,6 +20,7 @@ import {
   SCHEMA,
   SERVICE_CALLER,
   revokeTable,
+  triggerGrant,
 } from "../shared.ts";
 import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
@@ -334,15 +338,7 @@ create table if not exists ${log} (
     ? `,
   primary key (${c("id")}, ${c("occurredAt")})
 ) partition by range (${c("occurredAt")});
-do $$
-begin
-  if (select c.relkind from pg_catalog.pg_class c where c.oid = ${sqlString(log)}::regclass) = 'p' then
-    create table if not exists ${fallback} partition of ${log} default;
-    alter table ${fallback} enable row level security;
-    revoke all on ${fallback} from anon, authenticated;
-  end if;
-end;
-$$;`
+${defaultPartition(log, fallback)}`
     : `
 );`;
 
@@ -639,12 +635,41 @@ begin
   returning ${ctx.col("log", "id")} into entry_id;${once(restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb", changed: "changed_values" }))}
   return null;
 end;
-$$;`;
+$$;
+${triggerGrant("better_supabase.audit_row_change()")}`;
 }
 
 /** `audit_event`'s argument types. */
 const EVENT_ARGS = (id: string): string =>
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`;
+
+/** `audit_event`'s arguments, as the keys of an `audit_event_many` element. */
+const EVENT_KEYS = (id: string): readonly BatchArgument[] => [
+  ["event_type", "text"],
+  ["category", "text"],
+  ["outcome", "text", "'success'"],
+  ["source", "text"],
+  ["target_type", "text"],
+  ["record_id", "text"],
+  ["tenant", id],
+  ["metadata", "jsonb", "'{}'"],
+  ["idempotency_key", "text"],
+  ["restricted", "jsonb"],
+  ["actor_id", "uuid"],
+  ["summary", "text"],
+  ["target_label", "text"],
+  ["correlation_id", "text"],
+  ["actor_kind", "text"],
+  ["actor_label", "text"],
+  ["ip", "inet"],
+  ["user_agent", "text"],
+  ["session_id", "text"],
+  ["request_id", "text"],
+  ["scope", "text"],
+  ["support_session", "uuid"],
+  ["impersonated_by", "uuid"],
+  ["impersonation_reason", "text"],
+];
 
 const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`,
@@ -829,6 +854,20 @@ drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
 ${create("audit_event", false)}revoke execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) from public, anon, authenticated;
 grant execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) to ${roles.map(sqlIdent).join(", ")};
 
+-- audit_event for a batch of events in one call (the outbox sink): each
+-- element takes audit_event's argument names as keys, keeps its checks and
+-- returns {"id"} or {"error"} in order.
+${batchFunction({
+  name: "better_supabase.audit_event_many",
+  call: "better_supabase.audit_event",
+  args: EVENT_KEYS(id),
+  returns: "text",
+  result: "id",
+  hint: "AUDIT_BATCH",
+})}
+revoke execute on function better_supabase.audit_event_many(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_many(jsonb) to ${roles.map(sqlIdent).join(", ")};
+
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
 -- caller, so only the owner, the service role and
@@ -958,7 +997,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 8,
+  version: 9,
   names: NAMES,
   contract: (ctx) => [
     {
@@ -1006,6 +1045,7 @@ export const AUDIT: ModuleDefinition = {
       ],
       returns: "text",
     },
+    { name: "audit_event_many", args: ["jsonb"], returns: "jsonb" },
     {
       name: "purge_audit_log",
       args: ["interval", "integer", "{id}", "boolean"],

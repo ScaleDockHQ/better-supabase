@@ -881,6 +881,7 @@ as $$
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
+revoke execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
@@ -1240,6 +1241,7 @@ set search_path = ''
 as $$
   select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
 $$;
+revoke execute on function "better_supabase"."storefront_tenants"() from public;
 grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -1254,6 +1256,7 @@ as $$
   where x."status" = 'active'
     and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
 $$;
+revoke execute on function "better_supabase"."storefront_products"() from public;
 grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront
@@ -2211,6 +2214,7 @@ as $$
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
+revoke execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
@@ -2570,6 +2574,7 @@ set search_path = ''
 as $$
   select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
 $$;
+revoke execute on function "better_supabase"."storefront_tenants"() from public;
 grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -2584,6 +2589,7 @@ as $$
   where x."status" = 'active'
     and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
 $$;
+revoke execute on function "better_supabase"."storefront_products"() from public;
 grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront
@@ -3537,6 +3543,7 @@ as $$
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
+revoke execute on function "app_private"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "app_private"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
@@ -3896,6 +3903,7 @@ set search_path = ''
 as $$
   select x."tenant_id" from "app_private"."storefronts" x where x."published_at" is not null
 $$;
+revoke execute on function "app_private"."storefront_tenants"() from public;
 grant execute on function "app_private"."storefront_tenants"() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -3910,6 +3918,7 @@ as $$
   where x."status" = 'active'
     and x."tenant_id" in (select y."tenant_id" from "app_private"."storefronts" y where y."published_at" is not null)
 $$;
+revoke execute on function "app_private"."storefront_products"() from public;
 grant execute on function "app_private"."storefront_products"() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront
@@ -4861,6 +4870,7 @@ as $$
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
+revoke execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
@@ -5220,6 +5230,7 @@ set search_path = ''
 as $$
   select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
 $$;
+revoke execute on function "better_supabase"."storefront_tenants"() from public;
 grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -5234,6 +5245,7 @@ as $$
   where x."status" = 'active'
     and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
 $$;
+revoke execute on function "better_supabase"."storefront_products"() from public;
 grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront
@@ -6219,6 +6231,7 @@ as $$
   order by (x."price_list_id" is null), x."updated_at" desc
   limit 1
 $$;
+revoke execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
 -- Creates a category (category null) or updates one, under parent (null
@@ -6578,6 +6591,7 @@ set search_path = ''
 as $$
   select x."tenant_id" from "better_supabase"."storefronts" x where x."published_at" is not null
 $$;
+revoke execute on function "better_supabase"."storefront_tenants"() from public;
 grant execute on function "better_supabase"."storefront_tenants"() to anon, authenticated, service_role;
 
 -- Active products of published storefronts, for the storefront policies.
@@ -6592,6 +6606,7 @@ as $$
   where x."status" = 'active'
     and x."tenant_id" in (select y."tenant_id" from "better_supabase"."storefronts" y where y."published_at" is not null)
 $$;
+revoke execute on function "better_supabase"."storefront_products"() from public;
 grant execute on function "better_supabase"."storefront_products"() to anon, authenticated, service_role;
 
 -- Publishes or unpublishes a tenant's storefront. With options.storefront
