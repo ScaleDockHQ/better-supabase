@@ -25,4 +25,5 @@ export const attachmentsBlock: BlockOf<
   },
   create: createAttachments,
   category: "collaboration",
+  recipes: ["attachments-uploader"],
 });

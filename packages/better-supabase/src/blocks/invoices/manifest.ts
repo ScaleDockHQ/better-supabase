@@ -20,4 +20,5 @@ export const invoicesBlock: BlockOf<
   events: invoicesEvents,
   create: createInvoices,
   category: "commerce",
+  recipes: ["invoices-table"],
 });

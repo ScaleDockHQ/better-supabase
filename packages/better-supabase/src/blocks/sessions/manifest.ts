@@ -11,4 +11,5 @@ export const sessionsBlock: Block<"sessions"> = defineBlock({
     sessions: sessionsSqlOptions,
   },
   category: "identity",
+  recipes: ["sessions-list"],
 });

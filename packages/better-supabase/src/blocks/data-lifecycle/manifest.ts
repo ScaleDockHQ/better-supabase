@@ -20,4 +20,5 @@ export const dataLifecycleBlock: BlockOf<
   events: dataLifecycleEvents,
   create: createDataLifecycle,
   category: "admin",
+  recipes: ["data-export-delete"],
 });

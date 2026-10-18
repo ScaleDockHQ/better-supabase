@@ -20,4 +20,5 @@ export const signingKeysBlock: BlockOf<
   events: signingKeysEvents,
   create: createSigningKeys,
   category: "developer",
+  recipes: ["signing-keys-rotation"],
 });

@@ -17,4 +17,5 @@ export const dealsBlock: BlockOf<"deals", typeof createDeals, DealsEvents> =
     events: dealsEvents,
     create: createDeals,
     category: "crm",
+    recipes: ["deal-board"],
   });

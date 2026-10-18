@@ -19,6 +19,7 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
     create: createForms,
     client: "forms",
     category: "content",
+    recipes: ["form-builder"],
   });
 
 /** The `signatures` block's manifest (ADR 0029). */

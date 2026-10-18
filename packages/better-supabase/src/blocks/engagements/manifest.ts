@@ -20,4 +20,5 @@ export const engagementsBlock: BlockOf<
   events: engagementsEvents,
   create: createEngagements,
   category: "crm",
+  recipes: ["activity-timeline"],
 });

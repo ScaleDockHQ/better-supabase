@@ -17,4 +17,5 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
     events: quotesEvents,
     create: createQuotes,
     category: "crm",
+    recipes: ["quote-builder"],
   });

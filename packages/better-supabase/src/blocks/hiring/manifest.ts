@@ -17,4 +17,5 @@ export const hiringBlock: BlockOf<"hiring", typeof createHiring, HiringEvents> =
     events: hiringEvents,
     create: createHiring,
     category: "people",
+    recipes: ["hiring-board"],
   });

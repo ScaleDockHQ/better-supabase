@@ -19,14 +19,14 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { argv, exit } from "node:process";
 
+import { RECIPES } from "./recipes/sources.ts";
 import {
   NATIVE_APP,
   type RecipeKind,
-  RECIPES,
   type RecipeSource,
   type Side,
   WEB_APP,
-} from "./recipes/sources.ts";
+} from "./recipes/types.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const RECIPES_FILE = join(ROOT, "apps/marketing/lib/recipes.json");

@@ -21,4 +21,5 @@ export const calendarBlock: BlockOf<
   create: createCalendar,
   client: "calendar",
   category: "scheduling",
+  recipes: ["calendar-view"],
 });

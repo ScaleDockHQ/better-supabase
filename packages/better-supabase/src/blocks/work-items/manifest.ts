@@ -20,4 +20,5 @@ export const workItemsBlock: BlockOf<
   events: workItemsEvents,
   create: createWorkItems,
   category: "work",
+  recipes: ["work-item-board", "work-item-grid"],
 });

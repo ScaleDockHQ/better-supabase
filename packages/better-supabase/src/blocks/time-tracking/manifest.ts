@@ -20,4 +20,5 @@ export const timeTrackingBlock: BlockOf<
   events: timeTrackingEvents,
   create: createTimeTracking,
   category: "people",
+  recipes: ["timesheet"],
 });

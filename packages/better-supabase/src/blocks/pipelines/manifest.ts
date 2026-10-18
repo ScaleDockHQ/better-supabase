@@ -20,4 +20,5 @@ export const pipelinesBlock: BlockOf<
   events: pipelinesEvents,
   create: createPipelines,
   category: "work",
+  recipes: ["deal-board"],
 });

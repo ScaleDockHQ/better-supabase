@@ -20,4 +20,5 @@ export const partiesBlock: BlockOf<
   events: partiesEvents,
   create: createParties,
   category: "crm",
+  recipes: ["contact-detail"],
 });

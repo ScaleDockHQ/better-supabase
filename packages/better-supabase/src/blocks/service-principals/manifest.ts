@@ -18,4 +18,5 @@ export const servicePrincipalsBlock: BlockOf<
   events: servicePrincipalsEvents,
   create: createServicePrincipals,
   category: "developer",
+  recipes: ["service-principals-table"],
 });

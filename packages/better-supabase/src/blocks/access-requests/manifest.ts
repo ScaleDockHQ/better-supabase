@@ -20,4 +20,5 @@ export const accessRequestsBlock: BlockOf<
   events: accessRequestsEvents,
   create: createAccessRequests,
   category: "identity",
+  recipes: ["access-requests-inbox"],
 });

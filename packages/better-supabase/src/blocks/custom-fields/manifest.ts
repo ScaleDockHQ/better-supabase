@@ -20,4 +20,5 @@ export const customFieldsBlock: BlockOf<
   events: customFieldsEvents,
   create: createCustomFields,
   category: "work",
+  recipes: ["custom-fields-editor"],
 });
