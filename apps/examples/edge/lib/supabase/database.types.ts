@@ -377,6 +377,7 @@ export type Database = {
           budget_minor: number
           created_at: string
           currency: string
+          deleted_at: string | null
           id: string
           label_id: string | null
           lead_id: string | null
@@ -389,6 +390,7 @@ export type Database = {
           budget_minor?: number
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           id?: string
           label_id?: string | null
           lead_id?: string | null
@@ -400,6 +402,7 @@ export type Database = {
           budget_minor?: number
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           id?: string
           label_id?: string | null
           lead_id?: string | null

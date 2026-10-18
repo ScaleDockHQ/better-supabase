@@ -421,6 +421,7 @@ export type Models = {
       currency: string;
       leadId: string | null;
       labelId: string | null;
+      deletedAt: string | null;
     };
     Insert: {
       id?: string;
@@ -432,6 +433,7 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Update: {
       id?: string;
@@ -443,6 +445,7 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };

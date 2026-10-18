@@ -23,6 +23,7 @@ alter table "public"."projects" add column if not exists "budget_minor" bigint n
 alter table "public"."projects" add column if not exists "currency" text not null default 'EUR';
 alter table "public"."projects" add column if not exists "lead_id" uuid references auth.users (id) on delete set null;
 alter table "public"."projects" add column if not exists "label_id" uuid references "better_supabase"."tags" ("id") on delete set null;
+alter table "public"."projects" add column if not exists "deleted_at" timestamptz;
 
 alter table "public"."saved_views" add column if not exists "name" text not null;
 alter table "public"."saved_views" add column if not exists "filters" jsonb not null default '{}';
@@ -62,3 +63,8 @@ create index if not exists "saved_views_user_id_idx" on "public"."saved_views" (
 drop trigger if exists "bs_updated_at" on "public"."saved_views";
 create trigger "bs_updated_at" before update on "public"."saved_views"
   for each row execute function better_supabase.set_updated_at();
+
+drop trigger if exists "bs_search_project_index" on "public"."projects";
+create trigger "bs_search_project_index"
+  after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
+  for each row execute function "better_supabase"."search_index_row"('project', 'id');
