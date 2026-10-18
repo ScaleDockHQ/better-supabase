@@ -124471,6 +124471,20 @@
             ]
           },
           {
+            "name": "bs_notifications_product_variant_cascade",
+            "timing": "after",
+            "events": [
+              "delete"
+            ],
+            "level": "row",
+            "function": "better_supabase.notifications_subject_deleted",
+            "args": [
+              "product_variant",
+              "id",
+              "tenant_id"
+            ]
+          },
+          {
             "name": "bs_reactions_product_variant_cascade",
             "timing": "after",
             "events": [
@@ -124668,6 +124682,20 @@
             "args": [
               "product",
               "id"
+            ]
+          },
+          {
+            "name": "bs_notifications_product_cascade",
+            "timing": "after",
+            "events": [
+              "delete"
+            ],
+            "level": "row",
+            "function": "better_supabase.notifications_subject_deleted",
+            "args": [
+              "product",
+              "id",
+              "tenant_id"
             ]
           },
           {
