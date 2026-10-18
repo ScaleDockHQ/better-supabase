@@ -99,6 +99,7 @@ catalog:
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.5
+  elkjs: 0.12.0
   elysia: 1.4.30
   # eve peers on a recent ai floor (0.80.0 on ^7.0.137), so it moves with the ai pin above.
   eve: 0.80.0
@@ -160,6 +161,7 @@ catalog:
   server-only: 0.0.1
   shadcn: 4.21.5
   shiki: 4.5.0
+  simple-icons: 16.35.0
   smol-toml: 1.9.1
   solid-js: 1.9.17
   sonner: 2.0.8
