@@ -93,6 +93,15 @@ code starts with, followed by base64url of the design's JSON compressed
 with `deflate-raw`. It uses `CompressionStream`, so encoding and decoding
 are async and run on every runtime.
 
+The `0` stays the encoding. The JSON's own format goes in a `version` key,
+which `encodeDesign` writes only for a design that needs it:
+`designFormat(design)` returns `1` when a table or column uses a key added
+after the first release (`format`, `options`, `min`, `max`, `comment`,
+`identity`, or a table's `id`, `unique`, `indexes` or `comment`), and `0`
+otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
+the newest format this release reads; a code with a higher `version` fails
+with a message to update better-supabase instead of losing keys.
+
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
 table that `appTables` wouldn't accept, a column type outside a plain SQL
 type, a block with no table for extra columns, or a code that inflates past
