@@ -8,6 +8,7 @@ import {
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
 
 import { columnLabel, fitted } from "./column-keys";
+import { subjectColumns, subjectColumnsEdited } from "./design-subject";
 
 /** The column types an app table column can have (`appTables.<table>.columns.<column>.type`). */
 export const APP_COLUMN_TYPES = [
@@ -59,6 +60,20 @@ export type AppScope = "inherit" | "user" | "none";
 
 export type AppTableId = "uuid" | "bigint";
 
+/** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
+export interface AppSubject {
+  readonly type: string;
+  readonly title?: string;
+  readonly url?: string;
+  readonly search?: {
+    readonly title?: string;
+    readonly body?: readonly string[];
+  };
+  readonly permissions?: Readonly<Record<string, string>>;
+  readonly rank?: true | { readonly group?: string };
+  readonly softDelete?: boolean;
+}
+
 export interface AppTable {
   readonly columns?: Readonly<Record<string, AppColumn>>;
   readonly scope?: AppScope;
@@ -67,6 +82,7 @@ export interface AppTable {
   readonly unique?: readonly (readonly string[])[];
   readonly indexes?: readonly (readonly string[])[];
   readonly comment?: string;
+  readonly subject?: AppSubject;
 }
 
 /**
@@ -368,7 +384,14 @@ export function renameTable(design: Design, from: string, to: string): Design {
 
 export type TablePatch = {
   readonly [
-    K in "scope" | "timestamps" | "id" | "unique" | "indexes" | "comment"
+    K in
+      | "scope"
+      | "timestamps"
+      | "id"
+      | "unique"
+      | "indexes"
+      | "comment"
+      | "subject"
   ]?: AppTable[K] | undefined;
 };
 
@@ -379,6 +402,7 @@ const TABLE_PATCH_KEYS = [
   "unique",
   "indexes",
   "comment",
+  "subject",
 ] as const;
 
 /** An app table under construction. */
@@ -475,6 +499,11 @@ function withKeySets(
 
   const next: DraftTable = { ...rest };
   const nextUnique = sets(unique);
+
+  if (rest.subject !== undefined) {
+    next.subject = subjectColumnsEdited(rest.subject, edit);
+  }
+
   const nextIndexes = sets(indexes);
 
   if (nextUnique !== undefined) {
@@ -615,7 +644,9 @@ export function duplicateTable(
     design: addTable(
       design,
       copy,
-      table,
+      table.subject === undefined
+        ? table
+        : { ...table, subject: { ...table.subject, type: singular(copy) } },
       position === undefined ? undefined : [position[0] + 40, position[1] + 40],
     ),
     name: copy,
@@ -919,6 +950,15 @@ export function designIssues(
       });
     }
 
+    for (const column of subjectColumns(table.subject)) {
+      if (Object.hasOwn(table.columns ?? {}, column.name)) {
+        issues.push({
+          table: name,
+          message: `${name}.${column.name} clashes with the column its record features add. Rename it.`,
+        });
+      }
+    }
+
     const known = new Set([
       "id",
       ...Object.keys(table.columns ?? {}),
@@ -1076,6 +1116,7 @@ function appSchemaTable(
     ...Object.entries(table.columns ?? {}).map(([key, column]) =>
       appColumn(key, column),
     ),
+    ...subjectColumns(table.subject),
     ...(table.timestamps === false
       ? []
       : [

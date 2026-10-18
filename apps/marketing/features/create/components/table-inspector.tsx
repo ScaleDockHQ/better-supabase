@@ -64,6 +64,7 @@ import {
   OverviewTab,
   type InspectorPreset,
 } from "./inspector-columns";
+import { FeaturesTab } from "./inspector-features";
 import {
   forgetMigrations,
   migrationsFor,
@@ -78,6 +79,7 @@ const TABS: readonly {
   { value: "overview", label: "Overview" },
   { value: "columns", label: "Columns" },
   { value: "relations", label: "Relations" },
+  { value: "features", label: "Features" },
   { value: "options", label: "Options" },
   { value: "sql", label: "SQL" },
 ];
@@ -560,6 +562,9 @@ export function TableInspector({
                 </TabsContent>
                 <TabsContent value="relations">
                   <RelationsTab table={table} data={data} onOpen={onOpen} />
+                </TabsContent>
+                <TabsContent value="features">
+                  <FeaturesTab table={table} />
                 </TabsContent>
                 <TabsContent value="options">
                   <OptionsTab table={table} preset={preset} />

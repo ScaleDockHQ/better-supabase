@@ -21,6 +21,12 @@ export interface CreateState {
 export type CreateAction =
   /** Records a design change as one step. */
   | { readonly type: "design"; readonly design: Design }
+  /** Records a design change and a block list as one step. */
+  | {
+      readonly type: "step";
+      readonly design: Design;
+      readonly blocks: Preset["blocks"];
+    }
   /** Moves tables without a step, until `commitDrag`. */
   | { readonly type: "drag"; readonly design: Design }
   | { readonly type: "commitDrag" }
@@ -82,6 +88,21 @@ export function createReducer(
             history: undoHistory(state.history, {
               type: "apply",
               value: withDesign(state, action.design),
+            }),
+          };
+    }
+
+    case "step": {
+      const { present } = state.history;
+
+      return action.design === present.design &&
+        sameBlocks(action.blocks, present.blocks)
+        ? state
+        : {
+            settings: { ...state.settings, blocks: action.blocks },
+            history: undoHistory(state.history, {
+              type: "apply",
+              value: { design: action.design, blocks: action.blocks },
             }),
           };
     }
