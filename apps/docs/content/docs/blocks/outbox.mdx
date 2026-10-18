@@ -228,6 +228,19 @@ registered consumer hasn't passed (see `ignoreIdle` above). It returns how many 
 again while that equals `batch`. Schedule it with the jobs schedules or
 pg_cron.
 
+### Partitioned events
+
+`blocks.outbox.options.partitioned` creates a new `outbox_events` table
+partitioned by month on `created_at`, with the primary key
+`(id, created_at)` and a sequence for the position. `purge_outbox` then drops
+every month past the retention cutoff that no active consumer still waits
+for, before it deletes the remaining rows. A key stays unique per tenant
+through a lock in `emit_event` instead of a unique index. Schedule
+`better_supabase.maintain_partitions()` once a month to add the months ahead.
+
+The option applies when the module creates the table. An existing table
+stays as it is, and `better-supabase doctor` reports it as BS335.
+
 ## Existing tables
 
 Adopt an events table you already have and rename its columns. Adopt mode

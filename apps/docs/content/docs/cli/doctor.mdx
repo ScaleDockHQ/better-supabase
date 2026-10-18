@@ -277,6 +277,20 @@ then grant `execute` to the roles that call it (or list the function in
 caller check. Needs a snapshot taken with this version, which records who may
 execute each function.
 
+### BS117
+
+**Warning: policy without a role.** A policy without `to`, or with
+`to public`, applies to every role, `anon` included. Postgres evaluates it on
+requests it was never written for, and a later edit to its expression can
+open the table to signed-out users. Name the roles the policy is for:
+
+```sql
+create policy notes_read on public.notes for select to authenticated
+  using (organization_id = (select better_supabase.current_tenant_id()));
+```
+
+Restrictive policies only narrow access, so doctor skips them.
+
 ## Performance
 
 ### BS204
@@ -478,6 +492,8 @@ this check covers your own helpers. Immutable functions are skipped.
 **Info: foreign key without an index.** Deleting or updating a referenced row
 scans the referencing table for each row, and joins on the key can't use an
 index. Add an index whose leading columns are the key's columns, in any order.
+A partial index counts when its `where` only skips rows whose key is null
+(`where customer_id is not null`), because those rows reference nothing.
 When [BS200](#bs200) runs, splinter's `unindexed_foreign_keys` reports the
 tables it covers and this check skips them; on a saved snapshot, or when the
 advisor can't run, this check reports every table.
@@ -566,6 +582,68 @@ to cast. Return it as text (`returns text`, `select total::text`) when it can
 grow that large, or add BS223 to `doctor.ignore` when it stays small. Doctor
 can't see inside a `json` or `jsonb` result: cast large numbers to text when
 you build it.
+
+### BS224
+
+**Warning: Data API role without a timeout.** Without `statement_timeout`,
+one slow request holds a connection until the query finishes. Without
+`idle_in_transaction_session_timeout`, a client that leaves a transaction
+open keeps its locks and its connection. PostgREST applies the settings of
+`anon` and `authenticated` to each request, and the login role's
+(`authenticator`) apply when the request role sets none, so doctor reports a
+setting only when neither sets it. A value of 0 turns the timeout off and
+counts as unset. [BS211](#bs211) lists the current values. Set them in a
+migration:
+
+```sql
+alter role authenticated set statement_timeout = '8s';
+alter role authenticated set idle_in_transaction_session_timeout = '60s';
+notify pgrst, 'reload config';
+```
+
+Saved snapshots from before role settings were recorded skip it.
+
+### BS225
+
+**Info: `pg_stat_statements` is not installed.** The extension records the
+time and calls of each statement. `--stats` ([BS209](#bs209)), [BS208](#bs208)
+and the Supabase query performance report read it, so without it nothing
+shows which queries are slow. Doctor checks `pg_extension` on every run
+against a database; with `--stats`, BS209 reports it instead. Install it in a
+migration:
+
+```sql
+create extension if not exists pg_stat_statements with schema extensions;
+```
+
+### BS226
+
+**Warning: prepared statements through the transaction pooler.** The
+transaction pooler on port 6543 gives each transaction any server connection,
+so a named prepared statement from one transaction doesn't exist in the next
+and the query fails with `prepared statement does not exist`. When an env
+file or a file in `doctor.sources` has a `:6543` URL, doctor reports each
+source file that imports postgres.js without `prepare: false`, and, when the
+sources use Prisma, each `:6543` URL without `pgbouncer=true`:
+
+```ts
+const sql = postgres(process.env.DATABASE_URL!, { prepare: false });
+```
+
+`pg`, which `better-supabase/postgres` uses, sends unnamed statements and
+works through the pooler as it is. This is the reverse of [BS221](#bs221),
+which asks serverless apps to use the pooler.
+
+### BS227
+
+**Info: offset pagination or exact counts.** `pagination: "offset"` on a
+resource or list reads and skips every row before the page, so late pages get
+slower as the table grows, and rows written between requests shift the pages.
+`count: "exact"` counts every matching row on each request. Doctor reports
+each line in `doctor.sources` that sets either. Use `pagination: "cursor"`
+unless the UI needs page numbers, keep `[api] max_rows` set so no request
+reads a whole table, and use `count: "planned"` or `"estimated"` on tables
+that can grow large.
 
 ## Drift
 
@@ -949,12 +1027,21 @@ The modules' own `bs_` policies aren't reported.
 
 ### BS335
 
-**Warning: audit log not partitioned.** `blocks.audit.options.partitioned` is
-on, but `better_supabase.audit_events` was created before it: its primary key
-is `id` alone, so `purge_audit_log` deletes row by row instead of dropping
-whole months. Postgres can't convert a table in place. Copy the entries into
-a partitioned table and swap the names in a maintenance window, or turn the
-option off.
+**Warning: partitioned table created unpartitioned.** A block's
+`options.partitioned` is on, but its table was created before it: the primary
+key is `id` alone, so the purge deletes row by row instead of dropping whole
+months. The rule checks these tables in `better_supabase`:
+
+| Block                            | Table                          |
+| -------------------------------- | ------------------------------ |
+| `audit`                          | `audit_events`                 |
+| `outbox`                         | `outbox_events`                |
+| `usage` (with `options.history`) | `usage_history`                |
+| `webhooks`                       | `webhook_deliveries`           |
+| `notifications`                  | `notification_delivery_events` |
+
+Postgres can't convert a table in place. Copy the rows into a partitioned
+table and swap the names in a maintenance window, or turn the option off.
 
 ### BS336
 

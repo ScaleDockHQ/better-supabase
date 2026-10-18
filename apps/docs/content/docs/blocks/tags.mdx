@@ -3,7 +3,13 @@ title: Tags
 description: Tag definitions per kind, applied to subjects through one table or a link table per subject.
 ---
 
-`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Managing definitions needs `tags.manage`. Applying a tag needs the subject's own read permission, and the tag's kind must be one the subject allows.
+`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows.
+
+| Permission    | Checked by                                                     | Default roles        |
+| ------------- | -------------------------------------------------------------- | -------------------- |
+| `tags.read`   | `list`, `forSubject`                                           | owner, admin, member |
+| `tags.apply`  | `tag`, `untag`                                                 | owner, admin, member |
+| `tags.manage` | `create`, `update`, `reorder`, `delete`, and every check above | owner, admin         |
 
 ```bash
 better-supabase sql add tags

@@ -340,6 +340,13 @@ keys (30 days by default). `usage.purgeHistory({ olderThan, batch })` and
 [purges](/docs/blocks/sql#retention). A retry
 that arrives after its key is purged counts again. Without the option, both reads return `[]`.
 
+With `options.partitioned` as well, a new `usage_history` table is
+partitioned by month on `recorded_at` (primary key `(id, recorded_at)`), and
+`purge_usage_history` drops every month past the cutoff before it deletes
+rows. Schedule `better_supabase.maintain_partitions()` once a month. An
+existing table stays as it is, and `better-supabase doctor` reports it as
+BS335.
+
 ## Reporting to Stripe
 
 `reportUsageToStripe` sends the usage not yet reported as

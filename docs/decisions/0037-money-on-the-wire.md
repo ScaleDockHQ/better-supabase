@@ -22,7 +22,8 @@ amount looked like a real zero.
 
 Every amount that has a currency is a `Money` value (`{ amount: bigint,
 currency }` from `better-supabase/commerce`) in the public types of the
-deals, quotes, invoices, pipelines, employees, catalog and orders blocks.
+deals, quotes, invoices, pipelines, employees, catalog, orders and
+time-tracking blocks.
 The separate `currency` input field is gone where `Money` carries it: a
 contract's `salary` is `Money`, a deal's `amount` is `Money`. Counts and
 goals without a currency (target goals and progress, document numbers) stay
@@ -71,6 +72,14 @@ fails with `CurrencyMismatchError` instead of returning a wrong sum. This
 is a breaking change for every caller of the sales and employees blocks,
 listed in the changeset with an old-to-new table, and it needs a migration
 for the new `record_invoice_payment` signature and the line-items check.
+
+Time tracking joined later. Its `rate` was a `numeric` in the
+organization's currency with no currency column, so it became a `bigint` in
+minor units with a `rate_currency` set together with it, and the timesheet
+totals return one `amounts` entry per currency instead of a single `amount`.
+The module upgrade converts existing rates with `round(rate * 100)`, which
+assumes a currency with two decimals, and leaves `rate_currency` empty: the
+pairing check stays unvalidated with a warning until the app fills it in.
 
 Pipeline totals decode each currency with `money()`, so a deal stored with a
 code outside ISO 4217 makes the board fail instead of showing that total.

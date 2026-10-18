@@ -214,9 +214,9 @@ Each table in `resources` gets one tool per operation:
 | `<table>_update` | the key and `patch` (the `Update` schema)      | `destructiveHint`, `idempotentHint` |
 | `<table>_delete` | the key                                        | `destructiveHint`, `idempotentHint` |
 
-With `pagination: 'cursor'` on the resource (or its list query), the list
-tool takes `after` instead of `page` and returns `nextCursor`, which suits
-agents that read a table one page at a time. The schemas are generated from
+The list tool takes `after` and returns `nextCursor`, which suits agents that
+read a table one page at a time. With `pagination: 'offset'` on the resource
+(or its list query) it takes `page` instead. The schemas are generated from
 your database metadata, the same ones [`defineApi`](/docs/specs) publishes.
 Rows come back as `structuredContent` with a matching `outputSchema`.
 

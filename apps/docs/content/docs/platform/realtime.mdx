@@ -42,6 +42,11 @@ when a client joins. `topic.sql()` generates them:
 
 - The topic must match the template (`^organization:[^:]+:notifications:[^:]+$`).
 - `{organizationId}` must equal the JWT `tenant_id` (or `app_metadata.tenant_id`).
+  This check and the `bs:t:*` receive policy of `realtime-tables` read the
+  claim, not the membership table, so a removed member can still join until
+  their token expires. A topic with `access` checks membership through
+  `tenant_ids_with()` instead; see
+  [Removed members](/docs/blocks/access#removed-members-and-the-tenant-claim).
 - `{userId}` must equal `auth.uid()`.
 
 Both checks switch on automatically when the template has those placeholders.
@@ -300,7 +305,11 @@ create trigger quotes_broadcast after insert or update or delete on public.quote
 ```
 
 It reads each placeholder from the new row (the old one for a delete). A
-placeholder the table has no column for is an error.
+placeholder the table has no column for is an error. The key payload reads
+only the primary key and the placeholder columns, and the catalog lookup runs
+once per statement. It still sends one message per row, so a table that
+takes bulk writes should broadcast through `realtime.tables` (the
+statement-level `track_realtime`) instead.
 
 ### From the config
 

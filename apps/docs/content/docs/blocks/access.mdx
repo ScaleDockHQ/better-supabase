@@ -639,6 +639,41 @@ synchronous resolvers; pass `{ tenant }` to it when yours is async.
 With `'claim'`, [doctor `--as <user id>`](/docs/cli/doctor#bs308) calls your
 access token hook and warns when the claims it returns have no tenant.
 
+### Removed members and the tenant claim
+
+The tenant claim lives in the access token, and a token stays valid until it
+expires (`jwt_expiry` in `supabase/config.toml`: 3600 seconds by default and
+in the fixture). What a removed member can still do depends on which check
+reads the claim:
+
+| Check                                                                                                                                                                     | After the membership row is deleted                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current_tenant_id()` from the `tenant` module (managed or adopted)                                                                                                       | Returns no tenant on the next call: it returns the claimed tenant only while the caller is still a member, for every `activeTenant` source. |
+| `tenant_ids_with()` and `can()`                                                                                                                                           | Grant nothing on the next call: they read the membership table.                                                                             |
+| A `current_tenant_id()` you write yourself in custom mode that returns the claim, like the fixture's `supabase/schemas/better_supabase/functions/current_tenant_id.sql`   | Keeps returning the tenant until the token expires.                                                                                         |
+| The `bs:t:*` receive policy of [`realtime-tables`](/docs/platform/realtime), a topic's default tenant check, and your own policies that read `auth.jwt() ->> 'tenant_id'` | Keep passing until the token expires.                                                                                                       |
+
+A claim in `app_metadata` also survives a refresh. With the `'claim'`
+source, the `tenant` module (managed or adopted) clears `app_metadata.tenant_id` when the
+membership it points at is deleted, so the next token carries no tenant. In
+custom mode nothing clears it, and a removed member keeps the claim on every
+new token until you clear it.
+
+To close that window sooner:
+
+- Lower `jwt_expiry` (for example to 600). Clients refresh more often, and a
+  refresh drops the tenant once the claim's source no longer has it (an
+  access token hook that reads the membership table, or the cleared
+  `app_metadata`).
+- End the removed user's sessions so they get no new token: call
+  `supabase.auth.admin.signOut(jwt, "global")` with one of their access
+  tokens, or delete their rows in `auth.sessions` from a security definer
+  function. The current access token still works until it expires, but
+  `bs.proxy({ endedSession })` turns away their page loads right away (see
+  [Ended sessions](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
+- Prefer the module's `current_tenant_id()` or `tenant_ids_with()` over the
+  raw claim in your own policies, since both read the membership table.
+
 ## Claims for the access token hook
 
 The block never owns your access token hook. It gives you claim builders to

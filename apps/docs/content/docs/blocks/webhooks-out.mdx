@@ -234,6 +234,22 @@ prefix so endpoints subscribe to `invoice.paid` rather than
 `dev.better-supabase.invoice.paid`. Pass `sink({ typePrefix })` when the relay
 uses its own prefix.
 
+The sink publishes up to 1,000 events per call through
+`better_supabase.publish_webhook_events(events jsonb)`, which runs
+`publish_webhook_event` for each element. `webhooks.publishMany(inputs)`
+calls it from a service transport and returns one `Result` per event, the
+number of deliveries it queued or the error.
+
+### Partitioned deliveries
+
+`blocks.webhooks-out.options.partitioned` creates a new `webhook_deliveries`
+table partitioned by month on `created_at`, with the primary key
+`(id, created_at)`. A lock per event replaces the unique
+`(endpoint, event)` index, and `purge_webhook_deliveries` drops every month
+past the cutoff whose deliveries are all finished. Schedule
+`better_supabase.maintain_partitions()` once a month. An existing table stays
+as it is, and `better-supabase doctor` reports it as BS335.
+
 ## Delivering
 
 Call `deliver()` from a cron route or a job. `deliverRoute` wraps it for

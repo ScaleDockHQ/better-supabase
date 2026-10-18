@@ -297,11 +297,60 @@ including columns their grants hide.
 - A topic value with characters topics don't allow now raises a warning and
   skips that send instead of failing the write.
 - `broadcast_topic()` refuses to run as a `before` trigger.
+- The trigger function's name now includes the schema
+  (`bs_broadcast_<topic>_<schema>_<table>`), so tables with the same name in
+  two schemas no longer replace each other's function. The trigger keeps its
+  name. Drop the old `bs_broadcast_<topic>_<table>` functions in the
+  migration; grants on them don't carry over.
 
 Regenerate the triggers (`sql sync` for `realtime.triggers`, or rerun the
 code that writes them) and create a migration. Doctor reports trigger
 functions that still send whole rows without the opt-in
 ([BS337](/docs/cli/doctor#bs337)).
+
+## Pagination
+
+`defineListQuery` and the default list of `defineResource` and `defineApi`
+now page by cursor. A cursor page reads the same number of rows however deep
+it is, and rows inserted between requests don't shift it. It has no page
+number and no total:
+
+| 0.8 (offset, the old default)              | 0.9 (cursor, the new default)                               |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| `?page=3&size=50`                          | `?after=<nextCursor>&size=50`                               |
+| `page.page.number`, `.total`, `.pages`     | `page.hasMore`, `page.nextCursor`                           |
+| `ListPage<R, F, C>` is an `OffsetPage`     | `ListPage<R, F, C>` is a `CursorPage`                       |
+| `list.args(query)` returns `page`, `count` | `list.args(query)` returns `after`                          |
+| OpenAPI and MCP list `page`                | OpenAPI and MCP list `after`; Arazzo adds a paging workflow |
+
+A request that still sends `page` fails with "This list pages with `after`".
+To keep page numbers, set `pagination: "offset"`:
+
+```ts title="lib/lists.ts"
+export const customers = defineListQuery(betterSupabase, "customers", {
+  sorts: { name: [{ name: "asc" }, { id: "asc" }] },
+  defaultSort: "name",
+  pagination: "offset",
+});
+```
+
+The codemod adds `pagination: "offset"` to `defineListQuery` and
+`defineResource` calls that set no pagination, in files that read page
+numbers (`.page`, `pageCount`, `totalPages`, a `page` key or URL param). It
+lists the other calls, and every `defineApi` `resources` map, for review:
+add the key where a UI in another file shows page numbers or a total. A list
+that sorts by a relation (`{ organization: { name: "asc" } }`) needs
+`pagination: "offset"` too, since a cursor can only follow the table's own
+columns. Give each cursor list a unique column last in every sort, as the
+example does, so rows with the same name don't skip a page.
+
+The default list of a table or view without a primary key stays on offset,
+because it has no unique column to continue after.
+
+The World's `world.analytics` lists return keyset
+cursors instead of offsets. Treat a cursor as opaque and pass back the one
+the previous page returned; an offset number from 0.8 now fails with "not an
+analytics cursor".
 
 ## Blocks
 
@@ -330,6 +379,21 @@ now accept only the registered subject types and require that the caller can
 read the subject row. In 0.8 a comment could name any type. Register the
 types you comment on, or give `comments` its own `subjects`. See
 [Comments](/docs/blocks/comments#subjects).
+
+Tagging a record needs `tags.apply` (or `tags.manage`). In 0.8 any member
+could add or remove a tag on any record of their organization. The
+`role_permissions` defaults give `tags.apply` to members; apps with their own
+roles grant it to the roles that tag. See [Tags](/docs/blocks/tags).
+
+`calendar_attendees.role` accepts only `chair`, `required`, `optional` and
+`non-participant`. The check is added `not valid` and validated in the same
+migration; rows with another role leave it unvalidated with a warning, so fix
+them and run `validate constraint attendees_role_check`.
+
+`list_comments` takes an `after_id` after `after`, so rows with the same
+`created_at` no longer repeat or skip between pages. Pass the last comment's
+id as `cursorId` with `cursor`. Grants on the six-argument signature no longer
+exist after the sync. See [Comments](/docs/blocks/comments).
 
 ## Money in the sales blocks
 
@@ -360,6 +424,36 @@ gets strings where it got numbers. `db.$rpc` also casts the `int8` and
 column's codec. Doctor BS223 lists exposed functions that return a bare
 `bigint` or `numeric`, which PostgREST sends as a JSON number. See
 [ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md).
+
+### Time tracking rates
+
+A time entry's `rate` is `Money` too, and the timesheet totals return
+`amounts`, one `Money` per currency, instead of `amount`:
+
+| 0.8                                              | 0.9                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| `time.start(org, { billable: true, rate: 120 })` | `time.start(org, { billable: true, rate: money(12_000n, "EUR") })` |
+| `entry.rate` is `120`                            | `entry.rate` is `money(12_000n, "EUR")`                            |
+| `sheet.totals.amount` is `480`                   | `sheet.totals.amounts` is `[money(48_000n, "EUR")]`                |
+
+The `rate` column becomes `bigint` in minor units, next to a new
+`rate_currency`. `start_timer` and `log_time` take `rate bigint` and
+`rate_currency text`, and the `numeric` signatures are dropped, so grants
+your SQL wrote on them no longer exist. `time_entry.*` events carry `rate` as
+text and `rateCurrency`. The upgrade multiplies existing rates by 100, which
+is right for a currency with two decimals, and leaves `rate_currency` empty.
+Set it in the migration:
+
+```sql
+update better_supabase.time_entries
+set rate_currency = 'EUR'
+where rate is not null and rate_currency is null;
+alter table better_supabase.time_entries
+  validate constraint time_entries_rate_pair_check;
+```
+
+An adopted entries table needs a `rate_currency text` column. See
+[Time tracking](/docs/blocks/time-tracking#timers-and-entries).
 
 ## AI SDK and notifications
 

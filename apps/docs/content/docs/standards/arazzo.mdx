@@ -39,7 +39,7 @@ const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
 
 export const arazzo = createArazzo(betterSupabase, {
   info: { title: "CRM workflows", version: "1.0.0" },
-  resources: { customers: { pagination: "cursor" } },
+  resources: { customers: {} },
   workflows: [onboarding, paginationWorkflows(), createThenGetWorkflows()],
 });
 ```

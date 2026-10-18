@@ -45,7 +45,7 @@ const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
 
 export const api = defineApi(betterSupabase, {
   info: { title: "CRM workflows", version: "1.0.0" },
-  resources: { customers: { pagination: "cursor" } },
+  resources: { customers: {} },
   workflows: [
     onboarding,
     paginationWorkflows(),
@@ -194,7 +194,8 @@ workflows the API can run. Pass them in `workflows` next to your own.
 limit them to some resources.
 
 - `paginationWorkflows()`: for each resource whose list takes the `after`
-  cursor (`pagination: "cursor"`), the workflow `paginate<Table>`. It reads
+  cursor (the default; not `pagination: "offset"`), the workflow
+  `paginate<Table>`. It reads
   the first page with the `size` input, ends when `hasMore` is false, and
   otherwise reads the next page with the `nextCursor` the first page
   returned. Repeat the `nextPage` step with its own `nextCursor` to walk the

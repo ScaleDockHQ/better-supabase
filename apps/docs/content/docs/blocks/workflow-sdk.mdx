@@ -47,16 +47,30 @@ export const world = createSupabaseWorld({
 });
 ```
 
-| Variable                                                   | Option             | Default                                                                                     |
-| ---------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
-| `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL` | `connectionString` | the first one set                                                                           |
-| `WORKFLOW_DELIVERY`                                        | `delivery`         | `poll`                                                                                      |
-| `WORKFLOW_FLOW_URL`                                        | `flowUrl`          | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
-| `WORKFLOW_DELIVERY_SECRET`                                 | `deliverySecret`   | the Vault secret `workflow_delivery_secret`                                                 |
-| `WORKFLOW_ENCRYPTION_KEY`                                  | `encryptionKey`    | the Vault secret `workflow_encryption_key`                                                  |
-| `WORKFLOW_DELIVERY_QUEUE`                                  | `queue`            | `workflow_deliveries`                                                                       |
-| `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                     | `concurrency`      | 50                                                                                          |
-| `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`                       | `pollInterval`     | 250                                                                                         |
+| Variable                                                   | Option                     | Default                                                                                     |
+| ---------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL` | `connectionString`         | the first one set                                                                           |
+| `WORKFLOW_DELIVERY`                                        | `delivery`                 | `poll`                                                                                      |
+| `WORKFLOW_FLOW_URL`                                        | `flowUrl`                  | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
+| `WORKFLOW_DELIVERY_SECRET`                                 | `deliverySecret`           | the Vault secret `workflow_delivery_secret`                                                 |
+| `WORKFLOW_ENCRYPTION_KEY`                                  | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
+| `WORKFLOW_DELIVERY_QUEUE`                                  | `queue`                    | `workflow_deliveries`                                                                       |
+| `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                     | `concurrency`              | 50                                                                                          |
+| `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`                       | `pollInterval`             | 250                                                                                         |
+| `WORKFLOW_POSTGRES_MAX_CONNECTIONS`                        | `maxConnections`           | 10                                                                                          |
+| `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`                  | `connectionTimeout`        | 30000                                                                                       |
+| `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`                        | `idleTimeout`              | 10000                                                                                       |
+| `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`                   | `statementTimeout`         | 30000                                                                                       |
+| `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`         | `idleInTransactionTimeout` | 15000                                                                                       |
+
+The pool holds at most `maxConnections` connections. A delivery that finds
+them all busy waits up to `connectionTimeout` for one, so a burst queues
+instead of failing. `statementTimeout` ends a query that runs longer, and
+`idleInTransactionTimeout` ends a transaction left open with no query, so a
+stuck worker can't hold row locks. Pass `events` (`betterSupabase.events`)
+or a `logger` to see errors of idle pooled connections; without either, the
+World logs them to the console. They never throw, so a dropped connection
+can't crash the process.
 
 The World speaks the `@workflow/world` protocol in
 `WORKFLOW_WORLD_PROTOCOL` and stores its tables in the shape of the
@@ -402,5 +416,8 @@ step.
 
 `world.analytics` lists runs (by workflow name, status, attributes and a
 time window), their steps, events, hooks and waits, and the attribute keys
-in use. Pages hold at most 100 runs or 1000 steps and events. `startFor`
-uses it to find a run by its idempotency key.
+in use. Pages hold at most 100 runs or 1000 steps and events. Each page
+continues after the last row of the previous one (`created_at`, then the
+id), so runs started while you page don't shift it. Pass back the `cursor`
+the previous page returned. `startFor` uses it to find a run by its
+idempotency key.
