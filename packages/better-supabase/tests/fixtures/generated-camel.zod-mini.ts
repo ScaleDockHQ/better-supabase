@@ -225,18 +225,21 @@ export const plansRow: z.ZodMiniType<RowOf<'plans'>> = z.object({
   name: z.string(),
   priceCents: z.int(),
   position: z.int(),
+  currency: z.string(),
 }).check(z.meta({ title: "Plans" }));
 export const plansInsert: z.ZodMiniType<InsertOf<'plans'>> = z.object({
   key: z.string(),
   name: z.string(),
   priceCents: z.exactOptional(z.int()),
   position: z.exactOptional(z.int()),
+  currency: z.exactOptional(z.string()),
 }).check(z.meta({ title: "Plans insert" }));
 export const plansUpdate: z.ZodMiniType<UpdateOf<'plans'>> = z.object({
   key: z.exactOptional(z.string()),
   name: z.exactOptional(z.string()),
   priceCents: z.exactOptional(z.int()),
   position: z.exactOptional(z.int()),
+  currency: z.exactOptional(z.string()),
 }).check(z.meta({ title: "Plans update" }));
 
 export const subscriptionsRow: z.ZodMiniType<RowOf<'subscriptions'>> = z.object({

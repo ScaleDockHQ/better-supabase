@@ -363,6 +363,8 @@ export default defineConfig({
       tables: { tags: "centrakit.organization_tags", taggings: null },
       // CentraKit orders tags by an integer position, not rank keys.
       columns: { tags: { rank: null } },
+      // CentraKit's provider has no apply permission; tagging needs manage.
+      permissions: { apply: "tags.manage" },
       options: {
         subjects: {
           task: {

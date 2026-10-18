@@ -1,5 +1,5 @@
 -- better-supabase module: comments (0.8.0)
--- @bs-module comments@4 managed
+-- @bs-module comments@5 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,15 +315,19 @@ as $$
 $$;
 
 -- A subject's thread, oldest first; deleted comments stay as placeholders
--- so replies keep their parent. Page with after (a cursor) or skip (an offset).
+-- so replies keep their parent. Page with after and after_id (the last
+-- comment's created_at and id, so comments created in the same instant
+-- aren't skipped) or skip (an offset). after alone means strictly later.
 drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer);
+drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer);
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
   subject_id text,
   after timestamptz default null,
   max_rows integer default 100,
-  skip integer default 0
+  skip integer default 0,
+  after_id uuid default null
 )
 returns jsonb
 language sql
@@ -337,7 +341,8 @@ as $$
     where y."organization_id" = list_comments.tenant
       and y."subject_type" = list_comments.subject_type
       and y."subject_id" = list_comments.subject_id
-      and (list_comments.after is null or y."created_at" > list_comments.after)
+      and (list_comments.after is null
+        or (y."created_at", y."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by y."created_at", y."id"
     limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
     offset greatest(coalesce(list_comments.skip, 0), 0)
@@ -504,7 +509,7 @@ revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], 
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
-revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public, anon;
+revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
 revoke execute on function "better_supabase"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) to authenticated, service_role;
@@ -513,7 +518,7 @@ grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], j
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
 
@@ -530,6 +535,7 @@ drop function if exists "api"."edit_comment"(uuid, text, uuid[]);
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb, jsonb);
 drop function if exists "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
+drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer, integer);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -594,14 +600,14 @@ as $$ select "better_supabase"."delete_comment"($1) $$;
 revoke execute on function "api"."delete_comment"(uuid) from public, anon;
 grant execute on function "api"."delete_comment"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0)
+create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0, after_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public, anon;
-grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
+grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
 create or replace function "api"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb

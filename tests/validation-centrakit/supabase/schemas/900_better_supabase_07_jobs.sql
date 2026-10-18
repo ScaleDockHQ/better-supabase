@@ -150,13 +150,12 @@ set search_path = ''
 as $$
 declare
   r record;
+  dead bigint[] := '{}';
 begin
   perform better_supabase.ensure_job_queue(queue);
   for r in select * from pgmq.read(queue, lease, batch) loop
     if r.read_ct > coalesce((r.message ->> 'max_attempts')::integer, 5) then
-      execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', ''The lease ran out on the last attempt'', ''dead'', true) where msg_id = $1', 'q_' || queue)
-        using r.msg_id;
-      perform pgmq.archive(queue, r.msg_id);
+      dead := dead || r.msg_id;
     else
       id := r.msg_id;
       attempts := r.read_ct;
@@ -166,6 +165,11 @@ begin
       return next;
     end if;
   end loop;
+  if cardinality(dead) > 0 then
+    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', ''The lease ran out on the last attempt'', ''dead'', true) where msg_id = any ($1)', 'q_' || queue)
+      using dead;
+    perform pgmq.archive(queue, dead);
+  end if;
 end;
 $$;
 

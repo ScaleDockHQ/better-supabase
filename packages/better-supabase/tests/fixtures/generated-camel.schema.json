@@ -1060,13 +1060,17 @@
         },
         "position": {
           "type": "integer"
+        },
+        "currency": {
+          "type": "string"
         }
       },
       "required": [
         "key",
         "name",
         "priceCents",
-        "position"
+        "position",
+        "currency"
       ],
       "additionalProperties": false
     },
@@ -1085,6 +1089,9 @@
         },
         "position": {
           "type": "integer"
+        },
+        "currency": {
+          "type": "string"
         }
       },
       "required": [
@@ -1108,6 +1115,9 @@
         },
         "position": {
           "type": "integer"
+        },
+        "currency": {
+          "type": "string"
         }
       },
       "additionalProperties": false

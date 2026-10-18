@@ -6,6 +6,8 @@ on:
     paths:
       - "supabase/**"
       - "packages/better-supabase/src/cli/doctor/**"
+      - "packages/better-supabase/src/sql/**"
+      - "packages/better-supabase/src/realtime/**"
       - "packages/better-supabase/src/cli/introspect/**"
       - "packages/better-supabase/src/cli/commands/introspect.ts"
       - "packages/better-supabase/src/cli/commands/snapshot.ts"
@@ -17,6 +19,8 @@ on:
     paths:
       - "supabase/**"
       - "packages/better-supabase/src/cli/doctor/**"
+      - "packages/better-supabase/src/sql/**"
+      - "packages/better-supabase/src/realtime/**"
       - "packages/better-supabase/src/cli/introspect/**"
       - "packages/better-supabase/src/cli/commands/introspect.ts"
       - "packages/better-supabase/src/cli/commands/snapshot.ts"

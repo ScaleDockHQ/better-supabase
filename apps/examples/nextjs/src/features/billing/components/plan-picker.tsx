@@ -2,10 +2,12 @@
 "use client";
 
 import type { PlanCatalog } from "better-supabase/blocks/billing/react";
+import type { Money } from "better-supabase/commerce";
 
 import { DbException } from "better-supabase";
 import { usePlanPicker } from "better-supabase/blocks/billing/react";
-import { useExtracted, useFormatter } from "next-intl";
+import { formatMoney } from "better-supabase/commerce";
+import { useExtracted, useLocale } from "next-intl";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -46,7 +48,7 @@ export function PlanPicker({
   canManage: boolean;
 }) {
   const t = useExtracted("billing");
-  const format = useFormatter();
+  const locale = useLocale();
   const errorMessage = useErrorMessage();
 
   const { plans, current, pending, choose } = usePlanPicker({
@@ -58,15 +60,10 @@ export function PlanPicker({
     },
   });
 
-  const price = (cents: number) =>
-    cents === 0
+  const price = (value: Money) =>
+    value.amount === 0n
       ? t("Free")
-      : t("{price} per month", {
-          price: format.number(cents / 100, {
-            style: "currency",
-            currency: "USD",
-          }),
-        });
+      : t("{price} per month", { price: formatMoney(value, locale) });
 
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
@@ -101,7 +98,7 @@ export function PlanPicker({
           <Card key={plan.key} size="sm" data-testid="plan">
             <CardHeader>
               <CardTitle>{plan.name}</CardTitle>
-              <CardDescription>{price(plan.priceCents)}</CardDescription>
+              <CardDescription>{price(plan.price)}</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-1 text-sm text-muted-foreground">

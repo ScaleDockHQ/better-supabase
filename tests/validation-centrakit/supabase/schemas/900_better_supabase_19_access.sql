@@ -150,6 +150,7 @@ as $$
     when 'support-sessions.revoke' then 'support.revoke'
     when 'support-sessions.start' then 'platform.users.manage'
     when 'support-sessions.view' then 'platform.users.manage'
+    when 'tags.apply' then 'tags.manage'
     when 'tags.manage' then 'tags.manage'
     when 'tags.read' then 'tags.read'
     when 'teams.manage' then 'teams.manage'

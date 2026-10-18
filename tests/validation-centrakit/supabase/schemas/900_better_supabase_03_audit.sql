@@ -1,5 +1,5 @@
 -- better-supabase module: audit (0.8.0)
--- @bs-module audit@8 adopt
+-- @bs-module audit@9 adopt
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -158,6 +158,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
@@ -491,6 +492,76 @@ $$;
 revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
 
+-- audit_event for a batch of events in one call (the outbox sink): each
+-- element takes audit_event's argument names as keys, keeps its checks and
+-- returns {"id"} or {"error"} in order.
+create or replace function better_supabase.audit_event_many(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result text;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception 'audit_event_many takes a jsonb array of events'
+      using errcode = '22023', hint = 'AUDIT_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception 'audit_event_many got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'AUDIT_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := better_supabase.audit_event(
+        event_type => batch_event ->> 'event_type',
+        category => batch_event ->> 'category',
+        outcome => coalesce(batch_event ->> 'outcome', 'success'),
+        source => batch_event ->> 'source',
+        target_type => batch_event ->> 'target_type',
+        record_id => batch_event ->> 'record_id',
+        tenant => (batch_event ->> 'tenant')::uuid,
+        metadata => coalesce(nullif(batch_event -> 'metadata', 'null'::jsonb), '{}'),
+        idempotency_key => batch_event ->> 'idempotency_key',
+        restricted => nullif(batch_event -> 'restricted', 'null'::jsonb),
+        actor_id => (batch_event ->> 'actor_id')::uuid,
+        summary => batch_event ->> 'summary',
+        target_label => batch_event ->> 'target_label',
+        correlation_id => batch_event ->> 'correlation_id',
+        actor_kind => batch_event ->> 'actor_kind',
+        actor_label => batch_event ->> 'actor_label',
+        ip => (batch_event ->> 'ip')::inet,
+        user_agent => batch_event ->> 'user_agent',
+        session_id => batch_event ->> 'session_id',
+        request_id => batch_event ->> 'request_id',
+        scope => batch_event ->> 'scope',
+        support_session => (batch_event ->> 'support_session')::uuid,
+        impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
+        impersonation_reason => batch_event ->> 'impersonation_reason'
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
+revoke execute on function better_supabase.audit_event_many(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_many(jsonb) to "service_role";
+
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
 -- caller, so only the owner, the service role and
@@ -592,7 +663,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return better_supabase.is_platform('platform.users.manage');
+  return (select coalesce(better_supabase.is_platform('platform.users.manage'), false));
 end;
 $$;
 revoke execute on function "better_supabase"."audit_read_tenants"() from public, anon;
@@ -723,6 +794,7 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 -- values; search matches the event type, summary, labels, record and table.
 -- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
 -- or open page N with skip (an offset) and count_audit_events for the total.
+-- skip is ignored with a cursor, so keyset pages never scan skipped rows.
 drop function if exists "better_supabase"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
 create or replace function "better_supabase"."list_audit_events"(
@@ -754,6 +826,7 @@ as $$
 declare
   v_where text := 'true';
   v_order text := case when ascending then 'asc' else 'desc' end;
+  v_skip text := '';
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
@@ -794,6 +867,8 @@ begin
       then $q$ and (l."occurred_at", l."id"::text) > ($14, $15)$q$
       else $q$ and (l."occurred_at", l."id"::text) < ($14, $15)$q$
     end;
+  elsif coalesce(skip, 0) > 0 then
+    v_skip := ' offset $17';
   end if;
   -- Only the filters passed reach the query, so the planner sees no
   -- "is null or" branches and can use the (tenant, occurred_at) index.
@@ -803,8 +878,7 @@ begin
     from "centrakit"."audit_logs" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id"::text $q$ || v_order || $q$
-    limit $16
-    offset $17
+    limit $16$q$ || v_skip || $q$
   ) x$q$
   into result
   using for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until, cursor_at, cursor_id, least(greatest(coalesce(max_items, 50), 1), 1000), greatest(coalesce(skip, 0), 0);
@@ -897,7 +971,7 @@ begin
   select true, l."organization_id" into found_entry, owner from "centrakit"."audit_logs" l where l."id"::text = entry;
   if found_entry is null or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
-    or coalesce(better_supabase.is_platform('platform.users.manage'), false)
+    or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
     or (owner is not null and coalesce(better_supabase.member_can(auth.uid(), owner, 'audit.view'), false))
   ) then
     raise exception 'No audit entry %', entry using errcode = 'P0002', hint = 'AUDIT_ENTRY_NOT_FOUND';
@@ -939,7 +1013,7 @@ begin
   where l."id"::text = any (entries)
     and (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
-    or coalesce(better_supabase.is_platform('platform.users.manage'), false)
+    or (select coalesce(better_supabase.is_platform('platform.users.manage'), false))
     or (l."organization_id" is not null and coalesce(better_supabase.member_can(auth.uid(), l."organization_id", 'audit.view'), false))
     );
   select coalesce(jsonb_agg(jsonb_build_object('entry', v ->> 'entry', 'ip', d."ip_address", 'userAgent', d."user_agent", 'metadata', d."restricted_metadata")), '[]') into details

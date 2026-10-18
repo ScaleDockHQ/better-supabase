@@ -123,7 +123,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    if not service and not better_supabase.is_platform('platform.invite') then
+    if not service and not (select coalesce(better_supabase.is_platform('platform.invite'), false)) then
       raise exception 'Not allowed to invite platform users' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
     end if;
     if (select r."id" from "centrakit"."roles" r where (r."id"::text = (invitee_role)::text or r."key"::text = (invitee_role)::text) and (r.scope = 'system') order by (r."id"::text = (invitee_role)::text) desc limit 1) is null then
@@ -272,7 +272,7 @@ begin
     set "token" = token,
       "expires_at" = now() + valid_for
     where i."id" = invitation_id and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or better_supabase.is_platform('platform.invite'))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false)))
     returning * into platform_updated;
     if platform_updated."id" is not null then
       perform "better_supabase".emit_event('invitation.resent', jsonb_build_object('invitationId', platform_updated."id", 'organizationId', null, 'email', platform_updated."email"), 'invitations/' || platform_updated."id"::text, null, null, 'domain');
@@ -369,7 +369,7 @@ begin
       if platform_current."expires_at" < now() then
         raise exception 'The invitation has expired; resend it to renew it' using errcode = 'P0002', hint = 'INVITATION_EXPIRED';
       end if;
-      if not service and not better_supabase.is_platform('platform.invite') then
+      if not service and not (select coalesce(better_supabase.is_platform('platform.invite'), false)) then
         raise exception 'Not allowed to invite platform users' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
       end if;
       if invitee_role is not null and (select r."id" from "centrakit"."roles" r where (r."id"::text = (invitee_role)::text or r."key"::text = (invitee_role)::text) and (r.scope = 'system') order by (r."id"::text = (invitee_role)::text) desc limit 1) is null then
@@ -525,7 +525,7 @@ begin
   );
     return true;
   end if;
-  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or better_supabase.is_platform('platform.invite')) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null;
+  delete from "centrakit"."organization_invitations" i where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('platform.invite'), false))) and i."accepted_at" is null and i."declined_at" is null and i."organization_id" is null;
   if found then
     perform "better_supabase".emit_event('invitation.revoked', jsonb_build_object('invitationId', invitation_id, 'organizationId', null), 'invitations/' || invitation_id::text, null, null, 'domain');
   perform better_supabase.audit_event(

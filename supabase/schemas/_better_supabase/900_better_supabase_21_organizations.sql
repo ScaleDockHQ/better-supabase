@@ -242,6 +242,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
 drop trigger if exists "bs_organization_owner" on "public"."memberships";
 create constraint trigger "bs_organization_owner" after update of "role", "organization_id" or delete on "public"."memberships"
   deferrable initially deferred

@@ -12,6 +12,6 @@ create extension if not exists "unaccent" with schema "extensions";
 select "better_supabase"."search_reindex"();
 
 insert into better_supabase.modules (name, version, mode)
-values ('search', 1, 'managed')
+values ('search', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

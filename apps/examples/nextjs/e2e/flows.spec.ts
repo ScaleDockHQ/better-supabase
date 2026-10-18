@@ -178,8 +178,8 @@ test("reset a forgotten password through the email link", async ({ page }) => {
 
   await page.goto(await latestLink(page, email));
   await page.waitForURL((url) => url.pathname === "/en/reset-password");
-  await field(page, "New password").fill("a-new-password");
-  await field(page, "Repeat it").fill("a-new-password");
+  await field(page, "New password").fill("a-new-password-2");
+  await field(page, "Repeat it").fill("a-new-password-2");
   await page.getByRole("button", { name: "Change password" }).click();
   await page.waitForURL((url) => url.pathname === "/en");
 
@@ -187,7 +187,7 @@ test("reset a forgotten password through the email link", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await page.waitForURL((url) => url.pathname === "/en/login");
   await field(page, "Email").fill(email);
-  await field(page, "Password").fill("a-new-password");
+  await field(page, "Password").fill("a-new-password-2");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => url.pathname === "/en");
 });

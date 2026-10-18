@@ -1,4 +1,7 @@
 import "server-only";
+import type { Money } from "better-supabase/commerce";
+
+import { money } from "better-supabase/commerce";
 import { cacheLife } from "next/cache";
 
 import { bs } from "@/lib/supabase/server";
@@ -6,7 +9,8 @@ import { bs } from "@/lib/supabase/server";
 export interface PlanOption {
   readonly key: string;
   readonly name: string;
-  readonly priceCents: number;
+  /** The monthly price. */
+  readonly price: Money;
   readonly features: readonly {
     readonly key: string;
     readonly value: unknown;
@@ -27,7 +31,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
   const plans = await bs
     .admin()
     .plans.findMany({
-      select: ["key", "name", "priceCents"],
+      select: ["key", "name", "priceCents", "currency"],
       include: {
         planFeatures: { select: ["featureKey", "included", "value"] },
       },
@@ -38,7 +42,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
   return plans.map((plan) => ({
     key: plan.key,
     name: plan.name,
-    priceCents: plan.priceCents,
+    price: money(plan.priceCents, plan.currency),
     features: plan.planFeatures
       .filter((feature) => feature.included)
       .map((feature) => ({ key: feature.featureKey, value: feature.value })),
