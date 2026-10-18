@@ -7,13 +7,10 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ChevronUpIcon,
-  CopyIcon,
   KeyRoundIcon,
   Link2Icon,
   LinkIcon,
-  PanelRightOpenIcon,
   PlusIcon,
-  Trash2Icon,
   UsersIcon,
 } from "lucide-react";
 import { createContext, use } from "react";
@@ -22,13 +19,6 @@ import type { SchemaTable } from "@/lib/schema";
 import type { TableRows } from "@/lib/schema-layout";
 
 import { Badge } from "@/components/reui/badge";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import { categoryStyle } from "@/features/blocks/categories";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
 import { cn } from "@/lib/utils";
@@ -46,7 +36,8 @@ export interface CanvasActions {
   readonly toggleExpand: (id: string) => void;
   readonly toggleGroup: (manifest: string) => void;
   readonly duplicate: (id: string) => void;
-  readonly requestDelete: (id: string) => void;
+  /** Deletes an app table, asking first when other tables reference it or `confirm` is set. */
+  readonly requestDelete: (id: string, confirm?: boolean) => void;
   readonly removeBlock: (module: string) => void;
 }
 
@@ -54,7 +45,7 @@ const CanvasActionsContext = createContext<CanvasActions | null>(null);
 
 export const CanvasActionsProvider = CanvasActionsContext;
 
-function useCanvasActions(): CanvasActions {
+export function useCanvasActions(): CanvasActions {
   const actions = use(CanvasActionsContext);
 
   if (actions === null) {
@@ -145,65 +136,6 @@ function displayName(table: SchemaTable): string {
     : `${table.schema}.${table.name}`;
 }
 
-function TableMenu({
-  data,
-  children,
-}: {
-  data: TableNodeData;
-  children: ReactElement;
-}): ReactElement {
-  const actions = useCanvasActions();
-  const { table, app } = data;
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger render={children} />
-      <ContextMenuContent className="w-48">
-        <ContextMenuItem
-          onClick={() => {
-            actions.open(table.id);
-          }}
-        >
-          <PanelRightOpenIcon aria-hidden="true" />
-          Open
-        </ContextMenuItem>
-        {app ? (
-          <ContextMenuItem
-            onClick={() => {
-              actions.duplicate(table.id);
-            }}
-          >
-            <CopyIcon aria-hidden="true" />
-            Duplicate
-          </ContextMenuItem>
-        ) : null}
-        <ContextMenuSeparator />
-        {app ? (
-          <ContextMenuItem
-            variant="destructive"
-            onClick={() => {
-              actions.requestDelete(table.id);
-            }}
-          >
-            <Trash2Icon aria-hidden="true" />
-            Delete
-          </ContextMenuItem>
-        ) : (
-          <ContextMenuItem
-            variant="destructive"
-            onClick={() => {
-              actions.removeBlock(table.module);
-            }}
-          >
-            <Trash2Icon aria-hidden="true" />
-            Remove the {table.module} block
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-}
-
 function FooterRowView({
   row,
   hidden,
@@ -281,107 +213,105 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
   const style = categoryStyle(category);
 
   return (
-    <TableMenu data={data}>
+    <div
+      className={cn(
+        "relative flex w-62 flex-col rounded-lg border bg-card text-card-foreground shadow-xs transition-colors",
+        app ? "border-dashed border-primary/60" : style.ring,
+        selected ? "border-primary" : "",
+        emphasisClass(emphasis),
+      )}
+    >
+      <Handle
+        id=":in"
+        type="target"
+        position={Position.Left}
+        isConnectableStart={false}
+        isConnectableEnd
+        className={cn(HIDDEN_HANDLE, "top-4.5!")}
+      />
+      <Handle
+        id=":out"
+        type="source"
+        position={Position.Right}
+        isConnectable={false}
+        className={cn(HIDDEN_HANDLE, "top-4.5!")}
+      />
       <div
         className={cn(
-          "relative flex w-62 flex-col rounded-lg border bg-card text-card-foreground shadow-xs transition-colors",
-          app ? "border-dashed border-primary/60" : style.ring,
-          selected ? "border-primary" : "",
-          emphasisClass(emphasis),
+          "flex h-9 items-center gap-2 rounded-t-lg border-b px-2",
+          app ? "" : cn(style.tint, style.ring),
         )}
       >
+        <BlockIcon name={table.module} category={category} size="xs" />
+        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+          {displayName(table)}
+        </span>
+        {scopeLabel === null ? null : (
+          <Badge variant="outline" className="max-w-28 truncate">
+            {scopeLabel}
+          </Badge>
+        )}
+      </div>
+      <ul className="flex flex-col py-1">
+        {rows.columns.map((column) => {
+          const Icon = columnIcon(table, soft, column.name);
+
+          return (
+            <li
+              key={column.name}
+              className="relative flex h-6 items-center gap-2 px-2"
+            >
+              <Handle
+                id={`${column.name}:in`}
+                type="target"
+                position={Position.Left}
+                isConnectable={false}
+                className={HIDDEN_HANDLE}
+              />
+              <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
+                {Icon === undefined ? null : (
+                  <Icon aria-hidden="true" className="size-3" />
+                )}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                {column.name}
+              </span>
+              <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">
+                {column.type}
+                {column.nullable ? "?" : ""}
+              </span>
+              <Handle
+                id={`${column.name}:out`}
+                type="source"
+                position={Position.Right}
+                isConnectable={false}
+                className={HIDDEN_HANDLE}
+              />
+            </li>
+          );
+        })}
+        {rows.footer.map((row) => (
+          <FooterRowView
+            key={row}
+            row={row}
+            hidden={rows.hidden}
+            id={table.id}
+          />
+        ))}
+      </ul>
+      {app ? (
         <Handle
-          id=":in"
-          type="target"
-          position={Position.Left}
-          isConnectableStart={false}
-          isConnectableEnd
-          className={cn(HIDDEN_HANDLE, "top-4.5!")}
-        />
-        <Handle
-          id=":out"
+          id="connect"
           type="source"
           position={Position.Right}
-          isConnectable={false}
-          className={cn(HIDDEN_HANDLE, "top-4.5!")}
+          isConnectableStart
+          isConnectableEnd={false}
+          aria-label={`Connect ${table.name} to another table`}
+          title="Drag onto a table to add a foreign key"
+          className="top-4.5! size-3! border-2! border-primary! bg-background!"
         />
-        <div
-          className={cn(
-            "flex h-9 items-center gap-2 rounded-t-lg border-b px-2",
-            app ? "" : cn(style.tint, style.ring),
-          )}
-        >
-          <BlockIcon name={table.module} category={category} size="xs" />
-          <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
-            {displayName(table)}
-          </span>
-          {scopeLabel === null ? null : (
-            <Badge variant="outline" className="max-w-28 truncate">
-              {scopeLabel}
-            </Badge>
-          )}
-        </div>
-        <ul className="flex flex-col py-1">
-          {rows.columns.map((column) => {
-            const Icon = columnIcon(table, soft, column.name);
-
-            return (
-              <li
-                key={column.name}
-                className="relative flex h-6 items-center gap-2 px-2"
-              >
-                <Handle
-                  id={`${column.name}:in`}
-                  type="target"
-                  position={Position.Left}
-                  isConnectable={false}
-                  className={HIDDEN_HANDLE}
-                />
-                <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
-                  {Icon === undefined ? null : (
-                    <Icon aria-hidden="true" className="size-3" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                  {column.name}
-                </span>
-                <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">
-                  {column.type}
-                  {column.nullable ? "?" : ""}
-                </span>
-                <Handle
-                  id={`${column.name}:out`}
-                  type="source"
-                  position={Position.Right}
-                  isConnectable={false}
-                  className={HIDDEN_HANDLE}
-                />
-              </li>
-            );
-          })}
-          {rows.footer.map((row) => (
-            <FooterRowView
-              key={row}
-              row={row}
-              hidden={rows.hidden}
-              id={table.id}
-            />
-          ))}
-        </ul>
-        {app ? (
-          <Handle
-            id="connect"
-            type="source"
-            position={Position.Right}
-            isConnectableStart
-            isConnectableEnd={false}
-            aria-label={`Connect ${table.name} to another table`}
-            title="Drag onto a table to add a foreign key"
-            className="top-4.5! size-3! border-2! border-primary! bg-background!"
-          />
-        ) : null}
-      </div>
-    </TableMenu>
+      ) : null}
+    </div>
   );
 }
 

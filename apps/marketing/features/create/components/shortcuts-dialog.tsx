@@ -35,6 +35,7 @@ export function ShortcutsDialog({
     { keys: ["Enter"], label: "Open the selected table" },
     { keys: ["Delete"], label: "Delete the selected app table" },
     { keys: ["F"], label: "Focus on the selected table and its neighbours" },
+    { keys: [shift, "F10"], label: "Open the focused table's menu" },
     { keys: ["Esc"], label: "Clear the selection and the focus" },
     { keys: ["+"], label: "Zoom in" },
     { keys: ["-"], label: "Zoom out" },

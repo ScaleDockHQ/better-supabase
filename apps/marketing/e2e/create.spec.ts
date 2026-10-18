@@ -35,6 +35,7 @@ const SECTIONS = [
   "Auth and permissions",
   "Conventions",
   "Integrations",
+  "Primitives",
   "Blocks",
 ] as const;
 
@@ -461,6 +462,183 @@ test("dropping a block on the canvas switches it on, once", async ({
   await expect(
     page.getByText("The comments block is already on the canvas."),
   ).toBeVisible();
+});
+
+/** The canvas rectangle of every table node, keyed by id. */
+async function tableBoxes(page: Page) {
+  return page.locator(".react-flow__node-table").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+
+      return {
+        id: node.dataset["id"] ?? "",
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      };
+    }),
+  );
+}
+
+/** The tables the table `id` covers, once it has settled. */
+async function expectClearOfOthers(page: Page, id: string) {
+  await expect(
+    page.locator(`.react-flow__node[data-id="${id}"]`),
+  ).toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const boxes = await tableBoxes(page);
+      const own = boxes.find((box) => box.id === id);
+
+      return boxes
+        .filter(
+          (box) =>
+            box.id !== id &&
+            own !== undefined &&
+            box.left < own.right &&
+            own.left < box.right &&
+            box.top < own.bottom &&
+            own.top < box.bottom,
+        )
+        .map((box) => box.id);
+    })
+    .toEqual([]);
+}
+
+/** An empty point on the canvas just above a table, where a new table would cover it. */
+async function paneAbove(page: Page, id: string) {
+  const point = await page.evaluate((tableId) => {
+    const table = document.querySelector(
+      `.react-flow__node[data-id="${tableId}"]`,
+    );
+
+    const rect = table?.getBoundingClientRect();
+
+    if (rect === undefined) {
+      return null;
+    }
+
+    for (let dy = 30; dy < 200; dy += 6) {
+      for (let dx = 0; dx < rect.width; dx += 12) {
+        const x = rect.left + dx;
+        const y = rect.top - dy;
+
+        if (document.elementFromPoint(x, y)?.matches(".react-flow__pane")) {
+          return { x, y };
+        }
+      }
+    }
+
+    return null;
+  }, id);
+
+  expect(point).not.toBeNull();
+
+  return point ?? { x: 0, y: 0 };
+}
+
+test("Add table here on the canvas menu adds a table that covers no other", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const organizations = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(organizations).toBeVisible();
+
+  // Close above a table, so the new table has to move aside.
+  const point = await paneAbove(page, "better_supabase.organizations");
+  await page.mouse.click(point.x, point.y, { button: "right" });
+
+  const menu = page.getByRole("menu");
+  await expect(
+    menu.getByRole("menuitem", { name: "Zoom to fit" }),
+  ).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Add table here" }).click();
+
+  await expect(page.getByRole("dialog", { name: "items" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await expectClearOfOthers(page, "public.items");
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(items).toHaveCount(0);
+});
+
+test("Add connection to on a table's menu adds a foreign key", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await items.click({ position: { x: 120, y: 18 }, button: "right" });
+  await page.getByRole("menuitem", { name: "Add connection to…" }).click();
+
+  // A target the key can't point at says why instead of failing on click.
+  await expect(
+    page.getByRole("menuitem", { name: /organizations.*already references/u }),
+  ).toHaveAttribute("aria-disabled", "true");
+
+  await page
+    .getByRole("menuitem", { name: "invitations", exact: true })
+    .click();
+  await expect(page.getByText("Added invitation_id to items.")).toBeVisible();
+  await expect(items).toContainText("invitation_id");
+
+  // A block table's menu explains why it can't hold the key.
+  const invitations = page.locator(
+    '.react-flow__node[data-id="better_supabase.invitations"]',
+  );
+
+  await invitations.focus();
+  await page.keyboard.press("Shift+F10");
+  await expect(
+    page.getByRole("menuitem", { name: /Add connection to/u }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(items).not.toContainText("invitation_id");
+});
+
+test("dragging the Table primitive onto the canvas adds a table there", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+  await category(page, "Primitives").click();
+
+  const pane = page.locator(".react-flow__pane");
+  const target = { x: 640, y: 320 };
+
+  await options(page)
+    .getByRole("button", { name: /^Table/u })
+    .dragTo(pane, { targetPosition: target });
+
+  await expect(page.getByRole("dialog", { name: "items" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expectClearOfOthers(page, "public.items");
+
+  // Enter on a primitive adds it in the middle of the view.
+  await options(page)
+    .getByRole("button", { name: /^Lookup table/u })
+    .press("Enter");
+  await expect(page.getByRole("dialog", { name: "lookups" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expectClearOfOthers(page, "public.lookups");
 });
 
 test("soft references are drawn by default", async ({ page }) => {

@@ -8,8 +8,6 @@ import {
   Background,
   BackgroundVariant,
   type FinalConnectionState,
-  getNodesBounds,
-  getViewportForBounds,
   MiniMap,
   type NodeChange,
   Panel,
@@ -17,7 +15,6 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { toPng, toSvg } from "html-to-image";
 import { useTheme } from "next-themes";
 import {
   use,
@@ -43,30 +40,38 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  addTable,
+  APP_MODULE,
   appTableId,
   connect,
   deleteTable,
   duplicateTable,
-  freeTableName,
   isAppTable,
   isEmptyDesign,
   moveTables,
   tidy,
 } from "@/lib/design";
-import { toDbml, toJson, toMermaid } from "@/lib/schema-export";
+import { addPrimitive, type PrimitiveKind } from "@/lib/primitives";
 import {
   GROUP_PADDING,
   groupId,
-  layoutSchema,
   NODE_WIDTH,
   openingViewport,
-  type SchemaLayout,
+  type Point,
   softColumns,
 } from "@/lib/schema-layout";
 import { cn } from "@/lib/utils";
 
+import { useCanvasBridge } from "./canvas-bridge";
 import { DRAG_THRESHOLD, groupFollowers, isControl } from "./canvas-drag";
+import { CanvasMenu, type CanvasMenuValue } from "./canvas-menu";
+import {
+  exportSchema,
+  type LayoutInput,
+  layoutFor,
+  neighboursOf,
+  nodeUnder,
+  toggled,
+} from "./canvas-support";
 import {
   CanvasToolbar,
   type ExportFormat,
@@ -94,6 +99,7 @@ import {
 import { ShortcutsDialog } from "./shortcuts-dialog";
 import { TableInspector } from "./table-inspector";
 import { useBlockDrop } from "./use-block-drop";
+import { usePlacement } from "./use-placement";
 
 import "@xyflow/react/dist/style.css";
 
@@ -113,147 +119,6 @@ const FLOW_THEME = [
 const SNAP_GRID: [number, number] = [12, 12];
 
 type CanvasPreset = Pick<Preset, "scope" | "tenantName" | "idType">;
-
-interface LayoutInput {
-  readonly data: SchemaData;
-  readonly expanded: ReadonlySet<string>;
-  readonly softRefs: boolean;
-  readonly collapsed: ReadonlySet<string>;
-  readonly visible: ReadonlySet<string> | undefined;
-}
-
-/**
- * One layout per input for the session, so `use` gets the same promise on
- * every render and going back to a view is instant.
- */
-const layouts = new Map<string, Promise<SchemaLayout>>();
-
-const LAYOUT_CACHE_LIMIT = 64;
-
-function layoutKey(input: LayoutInput): string {
-  return JSON.stringify([
-    input.data.tables.map((table) => [
-      table.id,
-      table.columns.map((column) => column.name),
-      table.foreignKeys.map((key) => [
-        key.columns,
-        key.target.schema,
-        key.target.table,
-      ]),
-    ]),
-    input.data.softRefs.map((ref) => [ref.from, ref.column, ref.to]),
-    [...input.expanded].toSorted(),
-    input.softRefs,
-    [...input.collapsed].toSorted(),
-    input.visible === undefined ? null : [...input.visible].toSorted(),
-  ]);
-}
-
-function layoutFor(input: LayoutInput): Promise<SchemaLayout> {
-  const key = layoutKey(input);
-  const known = layouts.get(key);
-
-  if (known !== undefined) {
-    return known;
-  }
-
-  if (layouts.size >= LAYOUT_CACHE_LIMIT) {
-    layouts.clear();
-  }
-
-  const layout = layoutSchema(input.data, {
-    expanded: input.expanded,
-    softRefs: input.softRefs,
-    collapsed: input.collapsed,
-    visible: input.visible,
-    isApp: isAppTable,
-  });
-
-  layouts.set(key, layout);
-
-  return layout;
-}
-
-function toggled<T>(
-  set: ReadonlySet<T>,
-  value: T,
-  on?: boolean,
-): ReadonlySet<T> {
-  const next = new Set(set);
-
-  if (on ?? !next.has(value)) {
-    next.add(value);
-  } else {
-    next.delete(value);
-  }
-
-  return next;
-}
-
-/** The tables each table references or is referenced by, soft references included. */
-function neighboursOf(
-  data: SchemaData,
-): ReadonlyMap<string, ReadonlySet<string>> {
-  const map = new Map<string, Set<string>>();
-
-  const link = (a: string, b: string): void => {
-    map.set(a, (map.get(a) ?? new Set()).add(b));
-    map.set(b, (map.get(b) ?? new Set()).add(a));
-  };
-
-  for (const table of data.tables) {
-    for (const key of table.foreignKeys) {
-      link(table.id, `${key.target.schema}.${key.target.table}`);
-    }
-  }
-
-  for (const ref of data.softRefs) {
-    if (ref.to !== null) {
-      link(ref.from, ref.to);
-    }
-  }
-
-  return map;
-}
-
-function download(name: string, href: string): void {
-  const anchor = document.createElement("a");
-  anchor.href = href;
-  anchor.download = name;
-  anchor.click();
-}
-
-function downloadText(name: string, text: string, type: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  download(name, url);
-  URL.revokeObjectURL(url);
-}
-
-function pointerOf(
-  event: MouseEvent | TouchEvent,
-): { x: number; y: number } | undefined {
-  if ("changedTouches" in event) {
-    const touch = event.changedTouches[0];
-
-    return touch === undefined
-      ? undefined
-      : { x: touch.clientX, y: touch.clientY };
-  }
-
-  return { x: event.clientX, y: event.clientY };
-}
-
-/** The node under the pointer, so dropping a connection anywhere on a table works. */
-function nodeUnder(event: MouseEvent | TouchEvent): string | undefined {
-  const point = pointerOf(event);
-
-  const element =
-    point === undefined ? null : document.elementFromPoint(point.x, point.y);
-
-  const node = element?.closest<HTMLElement>(".react-flow__node");
-
-  return node?.dataset["id"];
-}
 
 interface PendingDelete {
   readonly name: string;
@@ -604,7 +469,7 @@ function CanvasInner({
   );
 
   const requestDelete = useCallback(
-    (id: string) => {
+    (id: string, confirm = false) => {
       const table = byId.get(id);
 
       if (table === undefined || !isAppTable(table)) {
@@ -621,7 +486,7 @@ function CanvasInner({
         )
         .map((each) => each.name);
 
-      if (referencedBy.length === 0) {
+      if (referencedBy.length === 0 && !confirm) {
         removeAppTable(table.name);
       } else {
         setPendingDelete({ name: table.name, referencedBy });
@@ -630,27 +495,55 @@ function CanvasInner({
     [byId, data.tables, removeAppTable],
   );
 
-  const addAppTable = useCallback(() => {
-    const name = freeTableName(design, taken);
-    const box = container.current?.getBoundingClientRect();
+  const expect = usePlacement(data, input.data, layout.tables);
 
-    const center =
-      box === undefined
-        ? { x: 0, y: 0 }
-        : flow.screenToFlowPosition({
-            x: box.left + box.width / 2,
-            y: box.top + box.height / 2,
-          });
+  /** Adds a primitive at `point`, or in the middle of the view, and opens it. */
+  const addAppTable = useCallback(
+    (kind: PrimitiveKind = "table", point?: Point) => {
+      const box = container.current?.getBoundingClientRect();
 
-    actions.apply(
-      addTable(design, name, {}, [
-        Math.round(center.x - NODE_WIDTH / 2),
-        Math.round(center.y - 60),
-      ]),
-    );
-    open(appTableId(name), "overview");
-    undoToast(`Added ${name}.`);
-  }, [actions, design, flow, open, taken, undoToast]);
+      const center =
+        box === undefined
+          ? { x: 0, y: 0 }
+          : flow.screenToFlowPosition({
+              x: box.left + box.width / 2,
+              y: box.top + box.height / 2,
+            });
+
+      const at = point ?? {
+        x: Math.round(center.x - NODE_WIDTH / 2),
+        y: Math.round(center.y - 60),
+      };
+
+      const added = addPrimitive(design, taken, kind, [
+        Math.round(at.x),
+        Math.round(at.y),
+      ]);
+
+      expect(at, APP_MODULE);
+      actions.apply(added.design);
+      open(appTableId(added.name), "overview");
+      undoToast(`Added ${added.name}.`);
+    },
+    [actions, design, expect, flow, open, taken, undoToast],
+  );
+
+  const { actions: bridge } = useCanvasBridge();
+
+  useEffect(() => {
+    bridge.register({
+      addPrimitive: (kind) => {
+        addAppTable(kind);
+      },
+    });
+  }, [addAppTable, bridge]);
+
+  useEffect(
+    () => () => {
+      bridge.register(null);
+    },
+    [bridge],
+  );
 
   const canvasActions = useMemo(
     (): CanvasActions => ({
@@ -729,15 +622,8 @@ function CanvasInner({
     [actions, byId, design, layout.groups, nodes],
   );
 
-  const onConnectEnd = useCallback(
-    (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
-      const from = connection.fromNode?.id;
-      const to = connection.toNode?.id ?? nodeUnder(event);
-
-      if (from === undefined || to === undefined || to.startsWith("group:")) {
-        return;
-      }
-
+  const addConnection = useCallback(
+    (from: string, to: string) => {
       const result = connect(design, data, preset, {
         source: from,
         target: to,
@@ -753,95 +639,33 @@ function CanvasInner({
     [actions, byId, data, design, preset, undoToast],
   );
 
-  const blockDrop = useBlockDrop(data, input.data, layout.tables, undoToast);
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
+      const from = connection.fromNode?.id;
+      const to = connection.toNode?.id ?? nodeUnder(event);
 
-  const exportAs = useCallback(
-    async (format: ExportFormat) => {
-      switch (format) {
-        case "mermaid": {
-          downloadText("schema.mmd", toMermaid(data), "text/plain");
-          break;
-        }
-
-        case "dbml": {
-          downloadText("schema.dbml", toDbml(data), "text/plain");
-          break;
-        }
-
-        case "json": {
-          downloadText(
-            "schema.json",
-            toJson(code, design, data),
-            "application/json",
-          );
-          break;
-        }
-
-        case "png":
-        case "svg": {
-          const viewport = container.current?.querySelector<HTMLElement>(
-            ".react-flow__viewport",
-          );
-
-          if (viewport === undefined || viewport === null) {
-            return;
-          }
-
-          const bounds = getNodesBounds(flow.getNodes());
-          const width = Math.min(Math.max(bounds.width + 64, 640), 4096);
-          const height = Math.min(Math.max(bounds.height + 64, 480), 4096);
-
-          const transform = getViewportForBounds(
-            bounds,
-            width,
-            height,
-            0.1,
-            2,
-            0.05,
-          );
-
-          const options = {
-            width,
-            height,
-            backgroundColor: getComputedStyle(document.body).backgroundColor,
-            style: {
-              width: `${width}px`,
-              height: `${height}px`,
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
-            },
-          };
-
-          try {
-            const url =
-              format === "png"
-                ? await toPng(viewport, options)
-                : await toSvg(viewport, options);
-
-            download(`schema.${format}`, url);
-          } catch {
-            toast.error(
-              "The image could not be drawn. Try the SVG or Mermaid export.",
-            );
-
-            return;
-          }
-
-          break;
-        }
-
-        default: {
-          const unreachable: never = format;
-
-          return unreachable;
-        }
+      if (from !== undefined && to !== undefined && !to.startsWith("group:")) {
+        addConnection(from, to);
       }
-
-      toast.success(
-        `Downloaded schema.${format === "mermaid" ? "mmd" : format}.`,
-      );
     },
-    [code, data, design, flow],
+    [addConnection],
   );
+
+  const blockDrop = useBlockDrop({
+    expect,
+    undoToast,
+    onPrimitive: addAppTable,
+  });
+
+  const exportAs = (format: ExportFormat): void => {
+    void exportSchema(format, {
+      code,
+      design,
+      data,
+      nodes: flow.getNodes(),
+      container: container.current,
+    });
+  };
 
   const find = useCallback(
     (id: string) => {
@@ -929,6 +753,73 @@ function CanvasInner({
     state.canUndo,
   ]);
 
+  const tidyUp = useCallback(() => {
+    actions.apply(tidy(design));
+    void flow.fitView(FIT_VIEW_OPTIONS);
+  }, [actions, design, flow]);
+
+  const menu = useMemo(
+    (): CanvasMenuValue => ({
+      state: {
+        data,
+        preset,
+        layout,
+        expanded,
+        collapsed,
+        softRefs,
+        focused: focus ? selected : null,
+      },
+      actions: {
+        addAt: addAppTable,
+        connect: addConnection,
+        focus: (id) => {
+          setSelected(id);
+          setFocus((current) => !(current && selected === id));
+        },
+        find,
+        fit: () => {
+          void flow.fitView(FIT_VIEW_OPTIONS);
+        },
+        tidy: tidyUp,
+        setSoftRefs,
+        setAllCollapsed: (all) => {
+          setCollapsed(
+            all
+              ? new Set(layout.groups.map((group) => group.manifest))
+              : new Set(),
+          );
+        },
+        selectTables: (ids) => {
+          const chosen = new Set(ids);
+          setNodes((current) =>
+            current.map((node) =>
+              node.type === "table"
+                ? { ...node, selected: chosen.has(node.id) }
+                : node,
+            ),
+          );
+        },
+        undoToast,
+      },
+    }),
+    [
+      addAppTable,
+      addConnection,
+      collapsed,
+      data,
+      expanded,
+      find,
+      flow,
+      focus,
+      layout,
+      preset,
+      selected,
+      softRefs,
+      tidyUp,
+      undoToast,
+    ],
+  );
+
   const categoryNames = useMemo(
     () => [...new Set(data.tables.map(categoryOf))].toSorted(),
     [categoryOf, data.tables],
@@ -936,150 +827,151 @@ function CanvasInner({
 
   return (
     <CanvasActionsProvider value={canvasActions}>
-      <div
-        ref={container}
-        className={cn("absolute inset-0", FLOW_THEME)}
-        onDragOver={blockDrop.onDragOver}
-        onDrop={blockDrop.onDrop}
-      >
-        <SchemaMarkers />
-        <ReactFlow<SchemaNode, SchemaEdge>
-          nodes={[...nodes]}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          colorMode={resolvedTheme === "dark" ? "dark" : "light"}
-          // React Flow's grey attribution falls below 4.5:1 on a group tint,
-          // and its unlayered CSS outranks a utility without `!`.
-          className="[&_.react-flow\\_\\_attribution_a]:text-muted-foreground!"
-          onNodesChange={onNodesChange}
-          onNodeDragStop={actions.commitDrag}
-          nodeDragThreshold={DRAG_THRESHOLD}
-          nodeClickDistance={DRAG_THRESHOLD}
-          onNodeClick={(event, node) => {
-            if (byId.has(node.id) && !isControl(event.target)) {
-              open(node.id);
-            }
-          }}
-          onNodeMouseEnter={(_, node) => {
-            if (node.type !== "blockGroup") {
-              setHovered(node.id);
-            }
-          }}
-          onNodeMouseLeave={() => {
-            setHovered(null);
-          }}
-          onPaneClick={() => {
-            setSelected(null);
-          }}
-          onConnectEnd={onConnectEnd}
-          connectionRadius={32}
-          connectionLineStyle={{ markerEnd: `url(#${MARKER_MANY})` }}
-          deleteKeyCode={null}
-          nodesConnectable
-          elementsSelectable
-          snapToGrid={snap}
-          snapGrid={SNAP_GRID}
-          zoomOnDoubleClick={false}
-          onInit={(instance) => {
-            const element = container.current;
-
-            if (element === null) {
-              return;
-            }
-
-            const rects = new Map(
-              instance.getNodes().map((node) => [
-                node.id,
-                {
-                  ...node.position,
-                  width: node.width ?? 0,
-                  height: node.height ?? 0,
-                },
-              ]),
-            );
-
-            const tenant = data.tenantTable;
-
-            const anchor =
-              tenant === null
-                ? undefined
-                : (rects.get(groupId(data.manifests[tenant] ?? tenant)) ??
-                  rects.get(tenant));
-
-            void instance.setViewport(
-              openingViewport(
-                [...rects.values()],
-                element.clientWidth,
-                element.clientHeight,
-                anchor,
-              ),
-            );
-          }}
-          minZoom={0.1}
-          maxZoom={2}
+      <CanvasMenu value={menu}>
+        <div
+          ref={container}
+          className={cn("absolute inset-0", FLOW_THEME)}
+          onDragOver={blockDrop.onDragOver}
+          onDrop={blockDrop.onDrop}
         >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={2} />
-          <Panel position="top-left" className="max-w-[calc(100%-2rem)]">
-            <CanvasToolbar
-              canUndo={state.canUndo}
-              canRedo={state.canRedo}
-              onUndo={actions.undo}
-              onRedo={actions.redo}
-              onAddTable={addAppTable}
-              onTidy={() => {
-                actions.apply(tidy(design));
-                void flow.fitView(FIT_VIEW_OPTIONS);
-              }}
-              hideSoftRefs={!softRefs}
-              onHideSoftRefs={(hide) => {
-                setSoftRefs(!hide);
-              }}
-              snap={snap}
-              onSnap={setSnap}
-              focus={focus}
-              canFocus={selected !== null}
-              onFocus={setFocus}
-              tables={data.tables.map((table) => ({
-                id: table.id,
-                label: table.name,
-              }))}
-              onFind={find}
-              categories={categoryNames}
-              hiddenCategories={hiddenCategories}
-              onCategory={(category, shown) => {
-                setHiddenCategories((current) =>
-                  toggled(current, category, !shown),
-                );
-              }}
-              onExport={(format) => {
-                void exportAs(format);
-              }}
-              onShortcuts={() => {
-                setShortcutsOpen(true);
-              }}
-              canReset={!isEmptyDesign(design)}
-              onReset={() => {
-                actions.apply({});
-                undoToast("Reset the schema to the preset.");
-              }}
+          <SchemaMarkers />
+          <ReactFlow<SchemaNode, SchemaEdge>
+            nodes={[...nodes]}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            colorMode={resolvedTheme === "dark" ? "dark" : "light"}
+            // React Flow's grey attribution falls below 4.5:1 on a group tint,
+            // and its unlayered CSS outranks a utility without `!`.
+            className="[&_.react-flow\\_\\_attribution_a]:text-muted-foreground!"
+            onNodesChange={onNodesChange}
+            onNodeDragStop={actions.commitDrag}
+            nodeDragThreshold={DRAG_THRESHOLD}
+            nodeClickDistance={DRAG_THRESHOLD}
+            onNodeClick={(event, node) => {
+              if (byId.has(node.id) && !isControl(event.target)) {
+                open(node.id);
+              }
+            }}
+            onNodeMouseEnter={(_, node) => {
+              if (node.type !== "blockGroup") {
+                setHovered(node.id);
+              }
+            }}
+            onNodeMouseLeave={() => {
+              setHovered(null);
+            }}
+            // An edge with no click handler ignores the pointer, right-click included.
+            onEdgeClick={() => undefined}
+            onPaneClick={() => {
+              setSelected(null);
+            }}
+            onConnectEnd={onConnectEnd}
+            connectionRadius={32}
+            connectionLineStyle={{ markerEnd: `url(#${MARKER_MANY})` }}
+            deleteKeyCode={null}
+            nodesConnectable
+            elementsSelectable
+            snapToGrid={snap}
+            snapGrid={SNAP_GRID}
+            zoomOnDoubleClick={false}
+            onInit={(instance) => {
+              const element = container.current;
+
+              if (element === null) {
+                return;
+              }
+
+              const rects = new Map(
+                instance.getNodes().map((node) => [
+                  node.id,
+                  {
+                    ...node.position,
+                    width: node.width ?? 0,
+                    height: node.height ?? 0,
+                  },
+                ]),
+              );
+
+              const tenant = data.tenantTable;
+
+              const anchor =
+                tenant === null
+                  ? undefined
+                  : (rects.get(groupId(data.manifests[tenant] ?? tenant)) ??
+                    rects.get(tenant));
+
+              void instance.setViewport(
+                openingViewport(
+                  [...rects.values()],
+                  element.clientWidth,
+                  element.clientHeight,
+                  anchor,
+                ),
+              );
+            }}
+            minZoom={0.1}
+            maxZoom={2}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={24} size={2} />
+            <Panel position="top-left" className="max-w-[calc(100%-2rem)]">
+              <CanvasToolbar
+                canUndo={state.canUndo}
+                canRedo={state.canRedo}
+                onUndo={actions.undo}
+                onRedo={actions.redo}
+                onAddTable={() => {
+                  addAppTable();
+                }}
+                onTidy={tidyUp}
+                hideSoftRefs={!softRefs}
+                onHideSoftRefs={(hide) => {
+                  setSoftRefs(!hide);
+                }}
+                snap={snap}
+                onSnap={setSnap}
+                focus={focus}
+                canFocus={selected !== null}
+                onFocus={setFocus}
+                tables={data.tables.map((table) => ({
+                  id: table.id,
+                  label: table.name,
+                }))}
+                onFind={find}
+                categories={categoryNames}
+                hiddenCategories={hiddenCategories}
+                onCategory={(category, shown) => {
+                  setHiddenCategories((current) =>
+                    toggled(current, category, !shown),
+                  );
+                }}
+                onExport={exportAs}
+                onShortcuts={() => {
+                  setShortcutsOpen(true);
+                }}
+                canReset={!isEmptyDesign(design)}
+                onReset={() => {
+                  actions.apply({});
+                  undoToast("Reset the schema to the preset.");
+                }}
+              />
+            </Panel>
+            <Panel position="bottom-right">
+              <ZoomControls />
+            </Panel>
+            <MiniMap
+              position="bottom-left"
+              pannable
+              zoomable
+              ariaLabel="Schema overview"
+              className="hidden sm:block"
+              nodeColor={(node) =>
+                node.type === "blockGroup" ? "transparent" : ""
+              }
             />
-          </Panel>
-          <Panel position="bottom-right">
-            <ZoomControls />
-          </Panel>
-          <MiniMap
-            position="bottom-left"
-            pannable
-            zoomable
-            ariaLabel="Schema overview"
-            className="hidden sm:block"
-            nodeColor={(node) =>
-              node.type === "blockGroup" ? "transparent" : ""
-            }
-          />
-        </ReactFlow>
-      </div>
+          </ReactFlow>
+        </div>
+      </CanvasMenu>
       <TableInspector
         table={inspector === null ? undefined : byId.get(inspector.id)}
         tab={inspector?.tab ?? "overview"}
@@ -1110,11 +1002,13 @@ function CanvasInner({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {pendingDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete?.referencedBy.join(", ")}{" "}
-              {pendingDelete?.referencedBy.length === 1
-                ? "references"
-                : "reference"}{" "}
-              this table. Deleting it also removes those columns.
+              {pendingDelete === null || pendingDelete.referencedBy.length === 0
+                ? "Undo brings it back."
+                : `${pendingDelete.referencedBy.join(", ")} ${
+                    pendingDelete.referencedBy.length === 1
+                      ? "references"
+                      : "reference"
+                  } this table. Deleting it also removes those columns.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
