@@ -68,16 +68,22 @@ export function packageDir(value: string | null): string | undefined {
 }
 
 /**
- * The URL `/create` keeps in sync with the selection, the authorization
- * library (`authz`, kept only with `access: "provider"`) and the monorepo
- * package when it is on.
+ * The URL `/create` keeps in sync with the selection, the canvas design
+ * (`designCode`, from `encodeDesign`), the authorization library (`authz`,
+ * kept only with `access: "provider"`) and the monorepo package when it is
+ * on.
  */
 export function createHref(
   preset: Preset,
   pkg?: string,
   authz?: string,
+  designCode = "",
 ): string {
   let href = `/create?preset=${encodePreset(preset)}`;
+
+  if (designCode !== "") {
+    href += `&design=${designCode}`;
+  }
 
   if (authz !== undefined && preset.access === "provider") {
     href += `&authz=${encodeURIComponent(authz)}`;

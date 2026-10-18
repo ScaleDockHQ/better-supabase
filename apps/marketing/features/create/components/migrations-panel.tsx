@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { PlaceholderAccessNote } from "./placeholder-access-note";
 
-type MigrationState =
+export type MigrationState =
   | { readonly status: "error"; readonly message: string }
   | {
       readonly status: "ready";
@@ -33,9 +33,18 @@ const migrationsResponse = v.union([
   v.object({ error: v.string() }),
 ]);
 
-async function loadMigrations(code: string): Promise<MigrationState> {
+async function loadMigrations(
+  code: string,
+  designCode: string,
+): Promise<MigrationState> {
   try {
-    const response = await fetch(`/create/migrations?preset=${code}`);
+    const query = new URLSearchParams({ preset: code });
+
+    if (designCode !== "") {
+      query.set("design", designCode);
+    }
+
+    const response = await fetch(`/create/migrations?${query.toString()}`);
     const body = v.parse(migrationsResponse, await response.json());
 
     return "error" in body
@@ -59,20 +68,30 @@ async function loadMigrations(code: string): Promise<MigrationState> {
  */
 const migrationRequests = new Map<string, Promise<MigrationState>>();
 
-function migrationsFor(code: string): Promise<MigrationState> {
-  const known = migrationRequests.get(code);
+/** The migration files for a preset code and a design code (`""` for none). */
+export function migrationsFor(
+  code: string,
+  designCode = "",
+): Promise<MigrationState> {
+  const key = `${code}:${designCode}`;
+  const known = migrationRequests.get(key);
 
   if (known !== undefined) {
     return known;
   }
 
-  const request = loadMigrations(code);
-  migrationRequests.set(code, request);
+  const request = loadMigrations(code, designCode);
+  migrationRequests.set(key, request);
 
   return request;
 }
 
-function MigrationsSkeleton() {
+/** Drops a failed request, so the next render starts a new one. */
+export function forgetMigrations(code: string, designCode = ""): void {
+  migrationRequests.delete(`${code}:${designCode}`);
+}
+
+export function MigrationsSkeleton() {
   return (
     <div aria-busy="true" className="flex flex-col gap-2">
       <span className="sr-only">Rendering the migrations</span>
@@ -86,14 +105,16 @@ function MigrationsSkeleton() {
 
 function MigrationFiles({
   code,
+  designCode,
   placeholder,
   onRetry,
 }: {
   code: string;
+  designCode: string;
   placeholder: boolean;
   onRetry: () => void;
 }) {
-  const state = use(migrationsFor(code));
+  const state = use(migrationsFor(code, designCode));
 
   if (state.status === "error") {
     return (
@@ -106,7 +127,7 @@ function MigrationFiles({
             variant="outline"
             size="sm"
             onClick={() => {
-              migrationRequests.delete(code);
+              forgetMigrations(code, designCode);
               onRetry();
             }}
           >
@@ -159,9 +180,11 @@ function MigrationFiles({
  */
 export function MigrationsPanel({
   code,
+  designCode = "",
   placeholder,
 }: {
   code: string;
+  designCode?: string;
   placeholder: boolean;
 }) {
   const [attempt, retry] = useReducer((count: number) => count + 1, 0);
@@ -171,6 +194,7 @@ export function MigrationsPanel({
       <MigrationFiles
         key={attempt}
         code={code}
+        designCode={designCode}
         placeholder={placeholder}
         onRetry={retry}
       />

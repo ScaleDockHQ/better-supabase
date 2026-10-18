@@ -1,5 +1,11 @@
 import { resolveConfig } from "better-supabase/config";
-import { type Preset, presetOf } from "better-supabase/preset";
+import {
+  type CreateDesign,
+  designConfig,
+  type Preset,
+  presetOf,
+  resolvePreset,
+} from "better-supabase/preset";
 import {
   type ModuleAccessProvider,
   moduleLayout,
@@ -31,13 +37,23 @@ export function previewAccessProvider(preset: Preset): ModuleAccessProvider {
 }
 
 /**
- * The files `sql sync` writes for a config with only this preset. With
+ * The files `sql sync` writes for a config with only this preset and its
+ * `/create` design (app tables and extra columns). With
  * `access: "provider"` the access functions come from
  * `previewAccessProvider`.
  */
-export function previewFiles(code: string): readonly PresetMigrationFile[] {
+export function previewFiles(
+  code: string,
+  design: CreateDesign = {},
+): readonly PresetMigrationFile[] {
   const preset = presetOf(code);
-  const config = resolveConfig({ preset: code }, "/");
+
+  const config = resolveConfig(
+    Object.keys(design).length === 0
+      ? { preset: code }
+      : designConfig(resolvePreset(preset), design),
+    "/",
+  );
 
   const provider =
     preset.access === "provider" ? previewAccessProvider(preset) : undefined;

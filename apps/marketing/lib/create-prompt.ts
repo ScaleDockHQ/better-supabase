@@ -1,10 +1,10 @@
 import {
+  designApplyCommand,
+  designInstallCommand,
   glueCommand,
-  presetApplyCommand,
   presetConfigSource,
   type PresetFramework,
   presetGlue,
-  presetInstallCommand,
   type ResolvedPreset,
 } from "better-supabase/preset";
 
@@ -463,18 +463,25 @@ export function createPrompt(input: CreatePromptInput): string {
 }
 
 /**
- * `createPrompt` with the preset's own init and apply commands, moved into
- * `pkg` in a monorepo.
+ * `createPrompt` with the init and apply commands for the preset and its
+ * design (`designCode`, empty without one), moved into `pkg` in a monorepo.
  */
 export function presetPrompt(
-  input: Omit<CreatePromptInput, "installCommand" | "applyCommand">,
+  input: Omit<CreatePromptInput, "installCommand" | "applyCommand"> & {
+    readonly designCode?: string;
+  },
 ): string {
+  const { designCode = "", ...rest } = input;
+
   return createPrompt({
-    ...input,
+    ...rest,
     installCommand: withPackage(
-      presetInstallCommand(input.resolved),
+      designInstallCommand(input.resolved, designCode),
       input.pkg,
     ),
-    applyCommand: withPackage(presetApplyCommand(input.resolved), input.pkg),
+    applyCommand: withPackage(
+      designApplyCommand(input.resolved, designCode),
+      input.pkg,
+    ),
   });
 }

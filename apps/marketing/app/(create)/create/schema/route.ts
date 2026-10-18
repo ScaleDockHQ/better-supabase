@@ -2,20 +2,25 @@ import { isPresetCode, presetOf } from "better-supabase/preset";
 import { cacheLife } from "next/cache";
 
 import { previewFiles } from "@/lib/preview-provider";
-import { parseSchema, type SchemaTable, tenantColumnOf } from "@/lib/schema";
+import { parseSchema, type SchemaData, tenantColumnOf } from "@/lib/schema";
+import { schemaData } from "@/lib/schema-meta";
 
 /**
  * The tables the preset's modules create, read from the same SQL
- * `/create/migrations` returns, for the diagram on `/create`.
+ * `/create/migrations` returns, with the soft references, manifests and
+ * extra-column tables the diagram on `/create` draws.
  */
 // oxlint-disable-next-line typescript/require-await -- a "use cache" function must be async; parsing is synchronous
-async function presetSchema(code: string): Promise<readonly SchemaTable[]> {
+async function presetSchema(code: string): Promise<SchemaData> {
   "use cache";
   cacheLife("max");
 
-  return parseSchema(previewFiles(code), {
-    tenantColumn: tenantColumnOf(presetOf(code)),
-  });
+  const preset = presetOf(code);
+
+  return schemaData(
+    parseSchema(previewFiles(code), { tenantColumn: tenantColumnOf(preset) }),
+    preset.tenantName,
+  );
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -26,7 +31,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    return Response.json({ tables: await presetSchema(code) });
+    return Response.json(await presetSchema(code));
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : String(error) },

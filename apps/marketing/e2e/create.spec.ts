@@ -317,6 +317,96 @@ test("the diagram lists the tables and asks for a block when there are none", as
   await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
 });
 
+test("a table drawn on the canvas travels in the design code", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  const inspector = page.getByRole("dialog", { name: "items" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("textbox", { name: "Add a column" }).fill("title");
+  await inspector.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page).toHaveURL(/&design=0[\w-]+$/u);
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+
+  // The link alone restores the table.
+  await page.reload();
+  await expect(
+    page.locator(".react-flow__node-table", { hasText: "items" }),
+  ).toBeVisible();
+
+  const dialog = await openCode(page);
+  await expect(dialog.getByTestId("install-command")).toHaveText(
+    /^pnpm dlx better-supabase init --preset "https:\/\/bettersupabase\.com\/create\?preset=\w+&design=0[\w-]+"$/u,
+  );
+  await expect(dialog.getByText("appTables").first()).toBeVisible();
+  await dialog.getByRole("tab", { name: "AI instructions" }).click();
+  await expect(dialog.getByTestId("create-prompt-text")).toContainText(
+    "&design=0",
+  );
+});
+
+test.describe("on a phone", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test("the toolbar collapses and the inspector takes the full width", async ({
+    page,
+  }) => {
+    await page.goto("/create?preset=saas");
+    await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+    const toolbar = page.getByRole("toolbar", { name: "Schema tools" });
+    await expect(toolbar.getByRole("group", { name: "View" })).toBeHidden();
+    await toolbar.getByRole("button", { name: "More tools" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Tidy layout" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await toolbar.getByRole("button", { name: "Add table" }).click();
+    const inspector = page.getByRole("dialog", { name: "items" });
+    await expect(inspector).toBeVisible();
+
+    await expect
+      .poll(async () => (await inspector.boundingBox())?.width)
+      .toBe(390);
+  });
+
+  test("the code panels stay inside the code dialog", async ({ page }) => {
+    await page.goto("/create?preset=saas");
+    await page.getByRole("button", { name: "Get code" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Get the code" });
+
+    const panel = dialog.getByRole("region", {
+      name: "better-supabase.config.ts",
+    });
+
+    await expect(panel).toBeVisible();
+
+    const outer = await dialog.boundingBox();
+    const inner = await panel.boundingBox();
+    expect(inner?.x ?? 0).toBeGreaterThanOrEqual(outer?.x ?? 0);
+    expect((inner?.x ?? 0) + (inner?.width ?? 0)).toBeLessThanOrEqual(
+      (outer?.x ?? 0) + (outer?.width ?? 0),
+    );
+  });
+});
+
 test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
   await page.goto("/create?preset=saas");
   await openCode(page);

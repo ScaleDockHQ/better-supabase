@@ -11,11 +11,26 @@ import {
   previewAccessProvider,
   previewFiles,
 } from "../../lib/preview-provider";
+import { tableStatements } from "../../lib/schema";
 
 const withProvider = (preset: Preset): string =>
   encodePreset({ ...preset, access: "provider" });
 
 describe("previewFiles", () => {
+  test("renders a design's app tables", () => {
+    const files = previewFiles(encodePreset(namedPreset("saas")), {
+      appTables: {
+        projects: { columns: { title: { type: "text", nullable: false } } },
+      },
+    });
+
+    const sql = tableStatements(files, "public.projects").join("\n");
+
+    expect(sql).toMatch(/create table if not exists "public"\."projects"/u);
+    expect(sql).toMatch(/"organization_id" uuid not null/u);
+    expect(sql).toMatch(/add column if not exists "title" text not null;/u);
+  });
+
   // sso needs roleOrder under access: provider; the next test covers that.
   test.each(
     PRESET_NAMES.filter((name) => !PRESETS[name].blocks.includes("sso")),

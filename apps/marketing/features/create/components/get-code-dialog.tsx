@@ -3,10 +3,11 @@
 import type { ReactElement } from "react";
 
 import {
-  presetApplyCommand,
+  designApplyCommand,
+  designConfigSource,
+  designInstallCommand,
   presetBlocksSource,
   presetConfigSource,
-  presetInstallCommand,
   type ResolvedPreset,
 } from "better-supabase/preset";
 import { DownloadIcon } from "lucide-react";
@@ -41,7 +42,8 @@ import {
   permDockInstall,
   withPermDock,
 } from "@/lib/create-options";
-import { type PromptDesign, presetPrompt } from "@/lib/create-prompt";
+import { presetPrompt } from "@/lib/create-prompt";
+import { type Design, EMPTY_DESIGN, isEmptyDesign } from "@/lib/design";
 import { site } from "@/lib/site";
 
 import { MigrationsPanel } from "./migrations-panel";
@@ -49,7 +51,26 @@ import { PresetGraph } from "./preset-graph";
 
 const WIRING_FILE = "lib/blocks.ts";
 
-const NO_DESIGN: PromptDesign = {};
+/**
+ * The config file for the preset and its design. A design the preset can't
+ * take (extra columns on a block it doesn't install) falls back to the
+ * preset's config; the canvas lists what to fix.
+ */
+function configSourceOf(
+  resolved: ResolvedPreset,
+  design: Design,
+  designCode: string,
+): string {
+  if (isEmptyDesign(design)) {
+    return presetConfigSource(resolved);
+  }
+
+  try {
+    return designConfigSource(resolved, design, designCode);
+  } catch {
+    return presetConfigSource(resolved);
+  }
+}
 
 /** The `/create/prompt.md` URL for the same choices, so an agent can fetch it. */
 function promptUrl({
@@ -97,7 +118,7 @@ function AiInstructions({
 }: {
   code: string;
   resolved: ResolvedPreset;
-  design: PromptDesign;
+  design: Design;
   designCode: string;
   pkg: string | undefined;
   authz: AuthzLibrary | undefined;
@@ -111,13 +132,14 @@ function AiInstructions({
       presetPrompt({
         resolved,
         design,
+        designCode,
         ui,
         manager,
         pkg,
         authz,
         siteUrl: site.url,
       }),
-    [resolved, design, ui, manager, pkg, authz],
+    [resolved, design, designCode, ui, manager, pkg, authz],
   );
 
   const url = promptUrl({ code, ui, pkg, authz, manager });
@@ -183,7 +205,7 @@ function CodePanel({
   code: string;
 }): ReactElement {
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-border">
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 py-1 pr-1 pl-3">
         <p className="truncate font-mono text-xs text-muted-foreground">
           {filename}
@@ -234,7 +256,7 @@ export function GetCodeDialog({
   resolved,
   pkg,
   authz,
-  design = NO_DESIGN,
+  design = EMPTY_DESIGN,
   designCode = "",
 }: {
   open: boolean;
@@ -243,27 +265,27 @@ export function GetCodeDialog({
   resolved: ResolvedPreset;
   pkg: string | undefined;
   authz: AuthzLibrary | undefined;
-  design?: PromptDesign;
+  design?: Design;
   designCode?: string;
 }): ReactElement {
   const ids = useId();
   const [manager, setManager] = useState<PackageManager>("pnpm");
 
   const install = commandFor(
-    withPackage(presetInstallCommand(resolved), pkg),
+    withPackage(designInstallCommand(resolved, designCode), pkg),
     manager,
   );
 
   const apply = commandFor(
-    withPackage(presetApplyCommand(resolved), pkg),
+    withPackage(designApplyCommand(resolved, designCode), pkg),
     manager,
   );
 
   const permDock = authz === "permdock";
 
-  const configSource = permDock
-    ? withPermDock(presetConfigSource(resolved))
-    : presetConfigSource(resolved);
+  const baseConfig = configSourceOf(resolved, design, designCode);
+
+  const configSource = permDock ? withPermDock(baseConfig) : baseConfig;
 
   const configFile = packagePath(CONFIG_FILE, pkg);
   const wiringFile = packagePath(WIRING_FILE, pkg);
@@ -398,22 +420,23 @@ export function GetCodeDialog({
               Download config
             </Button>
           </div>
-          <TabsContent value="config">
+          <TabsContent value="config" className="min-w-0">
             <CodePanel filename={configFile} code={configSource} />
           </TabsContent>
-          <TabsContent value="migrations">
+          <TabsContent value="migrations" className="min-w-0">
             <MigrationsPanel
               code={code}
+              designCode={designCode}
               placeholder={resolved.preset.access === "provider"}
             />
           </TabsContent>
-          <TabsContent value="wiring">
+          <TabsContent value="wiring" className="min-w-0">
             <CodePanel
               filename={wiringFile}
               code={presetBlocksSource(resolved)}
             />
           </TabsContent>
-          <TabsContent value="graph">
+          <TabsContent value="graph" className="min-w-0">
             <PresetGraph resolved={resolved} />
           </TabsContent>
           <TabsContent value="ai" className="min-w-0">

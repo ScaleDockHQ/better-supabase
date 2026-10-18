@@ -169,6 +169,14 @@
 }
 
 /*
+ * React Flow skips dragging from an element with this class, so a tap on a
+ * button inside a node clicks it instead of moving the node.
+ */
+@utility nodrag {
+  touch-action: manipulation;
+}
+
+/*
  * The sidebars' ScrollArea: the viewport hides the native scrollbar (Base UI
  * sets that), the overlay thumb shows on hover or while scrolling, and the
  * edges fade while there is more to scroll.
