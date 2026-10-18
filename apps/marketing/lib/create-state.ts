@@ -34,6 +34,12 @@ export type CreateAction =
   | { readonly type: "place"; readonly design: Design }
   /** A changed block list is one step; other fields change in place. */
   | { readonly type: "preset"; readonly update: (current: Preset) => Preset }
+  /** Replaces the design and updates the preset as one step, as starting from a template does. */
+  | {
+      readonly type: "template";
+      readonly update: (current: Preset) => Preset;
+      readonly design: Design;
+    }
   | { readonly type: "undo" }
   | { readonly type: "redo" }
   /** Replaces the design and clears the history, as loading a link does. */
@@ -146,6 +152,18 @@ export function createReducer(
               type: "apply",
               value: { ...present, blocks: next.blocks },
             }),
+      };
+    }
+
+    case "template": {
+      const next = action.update(presetOfState(state));
+
+      return {
+        settings: next,
+        history: undoHistory(state.history, {
+          type: "apply",
+          value: { design: action.design, blocks: next.blocks },
+        }),
       };
     }
 
