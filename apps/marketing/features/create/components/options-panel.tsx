@@ -14,6 +14,8 @@ import { ShuffleIcon, TerminalIcon, TriangleAlertIcon } from "lucide-react";
 import { useId } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import { BrandLogo } from "@/components/site/brand-icons";
 import {
   Accordion,
   AccordionContent,
@@ -21,7 +23,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -33,37 +37,29 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type BlockGroup, packageDir } from "@/lib/create";
+import {
+  AUTH_CHOICE_INFO,
+  AUTH_CHOICES,
+  type AuthChoice,
+  CONVENTION_KEYS,
+  CONVENTION_VALUES,
+  FIELD_LABELS,
+  fieldLabel,
+  FRAMEWORKS,
+  impliedIntegrations,
+  impliedNote,
+  INTEGRATION_ORDER,
+  INTEGRATIONS,
+  type OptionInfo,
+  PLATFORM_LABELS,
+  PLATFORMS,
+  platformUnavailable,
+  withFramework,
+} from "@/lib/create-options";
+import { cn } from "@/lib/utils";
 
 import { BlockPicker } from "./block-picker";
 import { PresetPicker } from "./preset-picker";
-
-const CONVENTION_KEYS = [
-  "casing",
-  "idType",
-  "scope",
-  "tenantName",
-  "access",
-  "api",
-] as const;
-
-type ConventionKey = (typeof CONVENTION_KEYS)[number];
-
-const FIELD_LABELS = {
-  casing: "Casing",
-  idType: "Tenant id type",
-  scope: "Scope",
-  tenantName: "Tenant name",
-  access: "Access model",
-  api: "API schema",
-} satisfies Readonly<Record<ConventionKey, string>>;
-
-const PLATFORMS = ["web", "native", "both"] as const;
-
-const PLATFORM_LABELS = {
-  web: "Web",
-  native: "Native",
-  both: "Both",
-} satisfies Readonly<Record<(typeof PLATFORMS)[number], string>>;
 
 /** The monorepo option: `dir` is the text in the field, valid or not. */
 export interface PackageOption {
@@ -78,10 +74,12 @@ function valuesOf(key: string): readonly string[] {
 function Field({
   id,
   label,
+  hint,
   children,
 }: {
   id: string;
   label: string;
+  hint?: string | undefined;
   children: ReactNode;
 }): ReactElement {
   return (
@@ -90,6 +88,11 @@ function Field({
         {label}
       </label>
       {children}
+      {hint === undefined ? null : (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -97,35 +100,63 @@ function Field({
 function OptionSelect({
   id,
   value,
-  values,
+  options,
+  describedBy,
   onChange,
 }: {
   id: string;
   value: string;
-  values: readonly string[];
+  options: Readonly<Record<string, OptionInfo>>;
+  describedBy?: string | undefined;
   onChange: (value: string) => void;
 }): ReactElement {
+  const entries = Object.entries(options);
+
   return (
     <Select
       value={value}
-      disabled={values.length < 2}
+      items={entries.map(([each, info]) => ({
+        value: each,
+        label: info.label,
+      }))}
+      disabled={entries.length < 2}
       onValueChange={(next) => {
         if (next !== null) {
           onChange(next);
         }
       }}
     >
-      <SelectTrigger id={id} size="sm" className="w-full">
+      <SelectTrigger
+        id={id}
+        size="sm"
+        className="w-full"
+        aria-describedby={describedBy}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {values.map((each) => (
+        {entries.map(([each, info]) => (
           <SelectItem key={each} value={each}>
-            {each}
+            {info.label}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function FrameworkLabel({ framework }: { framework: string }): ReactNode {
+  const info = Object.entries(FRAMEWORKS).find(
+    ([name]) => name === framework,
+  )?.[1];
+
+  return info === undefined ? (
+    framework
+  ) : (
+    <>
+      <BrandLogo mark={info.mark} className="size-4" />
+      {info.label}
+    </>
   );
 }
 
@@ -144,9 +175,264 @@ function Section({
   );
 }
 
+function StackSection({
+  preset,
+  resolved,
+  onPreset,
+}: {
+  preset: Preset;
+  resolved: ResolvedPreset;
+  onPreset: (update: (current: Preset) => Preset) => void;
+}): ReactElement {
+  const ids = useId();
+
+  const blocked = PLATFORMS.map((platform) =>
+    platformUnavailable(preset.framework, platform),
+  ).find((reason) => reason !== undefined);
+
+  const fieldConflicts = resolved.conflicts.filter(
+    (conflict) => conflict.field !== undefined,
+  );
+
+  const current = platformUnavailable(preset.framework, preset.platforms);
+
+  return (
+    <Section title="Stack">
+      <Field id={`${ids}-framework`} label={FIELD_LABELS.framework}>
+        <Select
+          value={preset.framework}
+          onValueChange={(value) => {
+            const framework = PRESET_FRAMEWORKS.find((each) => each === value);
+
+            if (framework !== undefined) {
+              onPreset((current) => withFramework(current, framework));
+            }
+          }}
+        >
+          <SelectTrigger id={`${ids}-framework`} size="sm" className="w-full">
+            <SelectValue>
+              {(value: string) => <FrameworkLabel framework={value} />}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {PRESET_FRAMEWORKS.map((framework) => (
+              <SelectItem key={framework} value={framework}>
+                <FrameworkLabel framework={framework} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <div className="flex flex-col gap-1.5">
+        <p id={`${ids}-platforms`} className="text-xs text-muted-foreground">
+          {FIELD_LABELS.platforms}
+        </p>
+        <ToggleGroup
+          aria-labelledby={`${ids}-platforms`}
+          aria-describedby={
+            blocked === undefined ? undefined : `${ids}-platforms-note`
+          }
+          variant="outline"
+          size="sm"
+          spacing={0}
+          className="w-full"
+          value={[preset.platforms]}
+          onValueChange={(value) => {
+            const platforms = PLATFORMS.find((each) => each === value[0]);
+
+            if (platforms !== undefined) {
+              onPreset((current) => ({ ...current, platforms }));
+            }
+          }}
+        >
+          {PLATFORMS.map((platform) => {
+            const reason = platformUnavailable(preset.framework, platform);
+
+            return (
+              <ToggleGroupItem
+                key={platform}
+                value={platform}
+                disabled={reason !== undefined}
+                title={reason}
+                className="flex-1"
+              >
+                {PLATFORM_LABELS[platform]}
+              </ToggleGroupItem>
+            );
+          })}
+        </ToggleGroup>
+        {blocked === undefined ? null : (
+          <p
+            id={`${ids}-platforms-note`}
+            className="text-xs text-muted-foreground"
+          >
+            {blocked}
+          </p>
+        )}
+      </div>
+      {fieldConflicts.length > 0 ? (
+        <Alert variant="warning">
+          <TriangleAlertIcon aria-hidden="true" />
+          <AlertTitle>These choices conflict</AlertTitle>
+          <AlertDescription>
+            <ul className="flex flex-col gap-1">
+              {fieldConflicts.map((conflict) => (
+                <li key={conflict.field}>
+                  {fieldLabel(conflict.field ?? "")}:{" "}
+                  {current ?? conflict.reason}
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </Section>
+  );
+}
+
+function AuthSection({
+  choice,
+  onChoice,
+}: {
+  choice: AuthChoice;
+  onChoice: (choice: AuthChoice) => void;
+}): ReactElement {
+  const ids = useId();
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p id={`${ids}-auth`} className="text-sm font-medium">
+        {FIELD_LABELS.access}
+      </p>
+      <RadioGroup
+        aria-labelledby={`${ids}-auth`}
+        value={choice}
+        className="gap-1"
+        onValueChange={(value) => {
+          const next = AUTH_CHOICES.find((each) => each === value);
+
+          if (next !== undefined) {
+            onChoice(next);
+          }
+        }}
+      >
+        {AUTH_CHOICES.map((each) => {
+          const info = AUTH_CHOICE_INFO[each];
+
+          return (
+            <label
+              key={each}
+              htmlFor={`${ids}-${each}`}
+              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/60"
+            >
+              <RadioGroupItem
+                id={`${ids}-${each}`}
+                value={each}
+                aria-describedby={`${ids}-${each}-hint`}
+                className="mt-0.5"
+              />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex items-center gap-2 text-sm">
+                  {info.label}
+                  {"optional" in info ? (
+                    <Badge variant="outline">Optional</Badge>
+                  ) : null}
+                </span>
+                <span
+                  id={`${ids}-${each}-hint`}
+                  className="text-xs text-muted-foreground"
+                >
+                  {info.hint}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </RadioGroup>
+    </div>
+  );
+}
+
+function IntegrationRows({
+  preset,
+  onPreset,
+}: {
+  preset: Preset;
+  onPreset: (update: (current: Preset) => Preset) => void;
+}): ReactElement {
+  const ids = useId();
+  const implied = impliedIntegrations(preset.framework);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Glue files <code className="font-mono">better-supabase init</code>{" "}
+        writes into your app.
+      </p>
+      <div className="flex flex-col gap-1">
+        {INTEGRATION_ORDER.map((name) => {
+          const info = INTEGRATIONS[name];
+          const reason = implied.get(name);
+          const locked = reason !== undefined;
+          const checked = locked || preset.integrations.includes(name);
+          const describedBy = `${ids}-${name}-about`;
+
+          return (
+            <label
+              key={name}
+              htmlFor={`${ids}-${name}`}
+              className={cn(
+                "flex items-start gap-3 rounded-md px-2 py-2 transition-colors",
+                locked
+                  ? "cursor-not-allowed"
+                  : "cursor-pointer hover:bg-muted/60",
+              )}
+            >
+              <Checkbox
+                id={`${ids}-${name}`}
+                name="integration"
+                value={name}
+                checked={checked}
+                disabled={locked}
+                aria-describedby={describedBy}
+                onCheckedChange={() => {
+                  onPreset((current) =>
+                    withPresetField(current, "integrations", name),
+                  );
+                }}
+                className="mt-0.5"
+              />
+              <BrandLogo mark={info.mark} className="mt-0.5 size-4" />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-sm font-medium">{info.title}</span>
+                <span
+                  id={describedBy}
+                  className="flex flex-col gap-0.5 text-xs text-muted-foreground"
+                >
+                  <span>{info.description}</span>
+                  <span className="flex flex-wrap gap-x-2 font-mono">
+                    {info.files.map((file) => (
+                      <span key={file} className="break-words">
+                        {file}
+                      </span>
+                    ))}
+                  </span>
+                  {locked ? (
+                    <span>{impliedNote(reason, preset.framework)}</span>
+                  ) : null}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Every option `/create` has, top to bottom like the shadcn customizer: the
- * preset, the stack, the monorepo package, then conventions, integrations
+ * preset, the stack, auth and permissions, then conventions, integrations
  * and blocks as collapsible sections, with the code and actions pinned below.
  */
 export function OptionsPanel({
@@ -156,7 +442,9 @@ export function OptionsPanel({
   code,
   groups,
   pkg,
+  authChoice,
   onPreset,
+  onAuthChoice,
   onNamedPreset,
   onToggleBlock,
   onPackage,
@@ -169,7 +457,9 @@ export function OptionsPanel({
   code: string;
   groups: readonly BlockGroup[];
   pkg: PackageOption;
+  authChoice: AuthChoice;
   onPreset: (update: (current: Preset) => Preset) => void;
+  onAuthChoice: (choice: AuthChoice) => void;
   onNamedPreset: (name: PresetName) => void;
   onToggleBlock: (name: string) => void;
   onPackage: (pkg: PackageOption) => void;
@@ -177,10 +467,6 @@ export function OptionsPanel({
   onGetCode: () => void;
 }): ReactElement {
   const ids = useId();
-
-  const fieldConflicts = resolved.conflicts.filter(
-    (conflict) => conflict.field !== undefined,
-  );
 
   const dirInvalid = pkg.on && packageDir(pkg.dir) === undefined;
 
@@ -196,175 +482,110 @@ export function OptionsPanel({
         <div className="flex flex-col gap-6 p-4">
           <PresetPicker selected={named} onSelect={onNamedPreset} />
 
-          <Section title="Stack">
-            <Field id={`${ids}-framework`} label="Framework">
-              <OptionSelect
-                id={`${ids}-framework`}
-                value={preset.framework}
-                values={PRESET_FRAMEWORKS}
-                onChange={(value) => {
-                  const framework = PRESET_FRAMEWORKS.find(
-                    (each) => each === value,
-                  );
+          <StackSection
+            preset={preset}
+            resolved={resolved}
+            onPreset={onPreset}
+          />
 
-                  if (framework !== undefined) {
-                    onPreset((current) => ({ ...current, framework }));
-                  }
-                }}
-              />
-            </Field>
-            <div className="flex flex-col gap-1.5">
-              <p
-                id={`${ids}-platforms`}
-                className="text-xs text-muted-foreground"
-              >
-                Platforms
-              </p>
-              <ToggleGroup
-                aria-labelledby={`${ids}-platforms`}
-                variant="outline"
-                size="sm"
-                spacing={0}
-                className="w-full"
-                value={[preset.platforms]}
-                onValueChange={(value) => {
-                  const platforms = PLATFORMS.find((each) => each === value[0]);
-
-                  if (platforms !== undefined) {
-                    onPreset((current) => ({ ...current, platforms }));
-                  }
-                }}
-              >
-                {PLATFORMS.map((platform) => (
-                  <ToggleGroupItem
-                    key={platform}
-                    value={platform}
-                    className="flex-1"
-                  >
-                    {PLATFORM_LABELS[platform]}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </div>
-          </Section>
-
-          <Section title="Monorepo">
-            <label
-              htmlFor={`${ids}-monorepo`}
-              className="flex cursor-pointer items-start justify-between gap-3"
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm">Workspace package</span>
-                <span className="text-xs text-muted-foreground">
-                  The app lives in a package; the SQL stays in the root{" "}
-                  <code className="font-mono">supabase/</code>.
-                </span>
-              </span>
-              <Switch
-                id={`${ids}-monorepo`}
-                checked={pkg.on}
-                onCheckedChange={(on) => {
-                  onPackage({ ...pkg, on });
-                }}
-              />
-            </label>
-            {pkg.on ? (
-              <Field id={`${ids}-package`} label="Package directory">
-                <Input
-                  id={`${ids}-package`}
-                  name="package"
-                  value={pkg.dir}
-                  spellCheck={false}
-                  autoComplete="off"
-                  aria-invalid={dirInvalid}
-                  aria-describedby={
-                    dirInvalid ? `${ids}-package-error` : undefined
-                  }
-                  onChange={(event) => {
-                    onPackage({ ...pkg, dir: event.target.value });
-                  }}
-                  className="font-mono"
-                />
-                {dirInvalid ? (
-                  <p
-                    id={`${ids}-package-error`}
-                    className="text-xs text-destructive"
-                  >
-                    Use a path inside the repository, like apps/web, without{" "}
-                    <code className="font-mono">..</code>.
-                  </p>
-                ) : null}
-              </Field>
-            ) : null}
-          </Section>
+          <AuthSection choice={authChoice} onChoice={onAuthChoice} />
 
           <Accordion multiple defaultValue={["blocks"]}>
             <AccordionItem value="conventions">
               <AccordionTrigger>Conventions</AccordionTrigger>
               <AccordionContent className="flex flex-col gap-3">
-                {CONVENTION_KEYS.map((key) => (
-                  <Field
-                    key={key}
-                    id={`${ids}-${key}`}
-                    label={FIELD_LABELS[key]}
-                  >
-                    <OptionSelect
+                {CONVENTION_KEYS.map((key) => {
+                  const options: Readonly<Record<string, OptionInfo>> =
+                    CONVENTION_VALUES[key];
+
+                  const hint = Object.entries(options).find(
+                    ([value]) => value === preset[key],
+                  )?.[1].hint;
+
+                  return (
+                    <Field
+                      key={key}
                       id={`${ids}-${key}`}
-                      value={preset[key]}
-                      values={valuesOf(key)}
-                      onChange={(value) => {
-                        onPreset((current) =>
-                          withPresetField(current, key, value),
-                        );
-                      }}
-                    />
-                  </Field>
-                ))}
+                      label={FIELD_LABELS[key]}
+                      hint={hint}
+                    >
+                      <OptionSelect
+                        id={`${ids}-${key}`}
+                        value={preset[key]}
+                        options={Object.fromEntries(
+                          valuesOf(key).map((value) => [
+                            value,
+                            options[value] ?? { label: value },
+                          ]),
+                        )}
+                        describedBy={
+                          hint === undefined ? undefined : `${ids}-${key}-hint`
+                        }
+                        onChange={(value) => {
+                          onPreset((current) =>
+                            withPresetField(current, key, value),
+                          );
+                        }}
+                      />
+                    </Field>
+                  );
+                })}
                 <p className="text-xs leading-5 text-muted-foreground">
                   Other tenant names arrive with naming conventions.
                 </p>
-                {fieldConflicts.length > 0 ? (
-                  <Alert variant="warning">
-                    <TriangleAlertIcon aria-hidden="true" />
-                    <AlertTitle>These choices conflict</AlertTitle>
-                    <AlertDescription>
-                      <ul className="flex flex-col gap-1">
-                        {fieldConflicts.map((conflict) => (
-                          <li key={conflict.field}>
-                            {conflict.field}: {conflict.reason}
-                          </li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
+                <label
+                  htmlFor={`${ids}-monorepo`}
+                  className="flex cursor-pointer items-start justify-between gap-3"
+                >
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm">Monorepo package</span>
+                    <span className="text-xs text-muted-foreground">
+                      The app lives in a package; the SQL stays in the root{" "}
+                      <code className="font-mono">supabase/</code>.
+                    </span>
+                  </span>
+                  <Switch
+                    id={`${ids}-monorepo`}
+                    checked={pkg.on}
+                    onCheckedChange={(on) => {
+                      onPackage({ ...pkg, on });
+                    }}
+                  />
+                </label>
+                {pkg.on ? (
+                  <Field id={`${ids}-package`} label="Package directory">
+                    <Input
+                      id={`${ids}-package`}
+                      name="package"
+                      value={pkg.dir}
+                      spellCheck={false}
+                      autoComplete="off"
+                      aria-invalid={dirInvalid}
+                      aria-describedby={
+                        dirInvalid ? `${ids}-package-error` : undefined
+                      }
+                      onChange={(event) => {
+                        onPackage({ ...pkg, dir: event.target.value });
+                      }}
+                      className="font-mono"
+                    />
+                    {dirInvalid ? (
+                      <p
+                        id={`${ids}-package-error`}
+                        className="text-xs text-destructive"
+                      >
+                        Use a path inside the repository, like apps/web, without{" "}
+                        <code className="font-mono">..</code>.
+                      </p>
+                    ) : null}
+                  </Field>
                 ) : null}
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="integrations">
               <AccordionTrigger>Integrations</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-1">
-                {valuesOf("integrations").map((value) => (
-                  <label
-                    key={value}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted/60"
-                  >
-                    <input
-                      type="checkbox"
-                      name="integration"
-                      value={value}
-                      checked={preset.integrations.some(
-                        (each) => each === value,
-                      )}
-                      onChange={() => {
-                        onPreset((current) =>
-                          withPresetField(current, "integrations", value),
-                        );
-                      }}
-                      className="size-4 shrink-0 accent-primary"
-                    />
-                    {value}
-                  </label>
-                ))}
+              <AccordionContent>
+                <IntegrationRows preset={preset} onPreset={onPreset} />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="blocks">

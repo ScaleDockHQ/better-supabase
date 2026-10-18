@@ -31,6 +31,14 @@ import {
   packagePath,
   withPackage,
 } from "@/lib/create";
+import {
+  type AuthzLibrary,
+  FRAMEWORKS,
+  PERMDOCK_PEER,
+  permDockGenerate,
+  permDockInstall,
+  withPermDock,
+} from "@/lib/create-options";
 
 import { MigrationsPanel } from "./migrations-panel";
 import { PresetGraph } from "./preset-graph";
@@ -111,12 +119,14 @@ export function GetCodeDialog({
   code,
   resolved,
   pkg,
+  authz,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   code: string;
   resolved: ResolvedPreset;
   pkg: string | undefined;
+  authz: AuthzLibrary | undefined;
 }): ReactElement {
   const ids = useId();
   const [manager, setManager] = useState<PackageManager>("pnpm");
@@ -131,7 +141,12 @@ export function GetCodeDialog({
     manager,
   );
 
-  const configSource = presetConfigSource(resolved);
+  const permDock = authz === "permdock";
+
+  const configSource = permDock
+    ? withPermDock(presetConfigSource(resolved))
+    : presetConfigSource(resolved);
+
   const configFile = packagePath(CONFIG_FILE, pkg);
   const wiringFile = packagePath(WIRING_FILE, pkg);
 
@@ -141,8 +156,9 @@ export function GetCodeDialog({
         <DialogHeader>
           <DialogTitle>Get the code</DialogTitle>
           <DialogDescription>
-            {resolved.blocks.length} blocks on {resolved.preset.framework}. Run
-            one command, or copy the files it writes.
+            {resolved.blocks.length} blocks on{" "}
+            {FRAMEWORKS[resolved.preset.framework].label}. Run one command, or
+            copy the files it writes.
           </DialogDescription>
         </DialogHeader>
 
@@ -196,6 +212,35 @@ export function GetCodeDialog({
               in <code className="font-mono">supabase/</code> at the root.
             </p>
           )}
+          {permDock ? (
+            <section
+              aria-labelledby={`${ids}-permdock`}
+              className="flex flex-col gap-2"
+            >
+              <h3 id={`${ids}-permdock`} className="text-sm font-medium">
+                PermDock
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                PermDock 1.0 runs on better-supabase 0.9 (peer{" "}
+                <code className="font-mono">{PERMDOCK_PEER}</code>), and both
+                releases are about to ship. Add the package, then generate the
+                SQL helpers, the token hook,{" "}
+                <code className="font-mono">permdock.manifest.json</code> and{" "}
+                <code className="font-mono">permissions.catalog.json</code> from
+                your PermDock policy; the config reads the two files.
+              </p>
+              <CommandRow
+                label="PermDock install"
+                command={permDockInstall(manager, pkg)}
+                testId="permdock-install"
+              />
+              <CommandRow
+                label="PermDock generate"
+                command={permDockGenerate(manager).join("\n")}
+                testId="permdock-generate"
+              />
+            </section>
+          ) : null}
         </div>
 
         <Tabs defaultValue="config" className="min-w-0 gap-3">

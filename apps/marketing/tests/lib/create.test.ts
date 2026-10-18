@@ -67,6 +67,17 @@ describe("the /create URL", () => {
     );
     expect(createHref(minimal)).toBe(`/create?preset=${code}`);
   });
+
+  test("keeps the authorization library only with the provider access model", () => {
+    const provider: Preset = { ...minimal, access: "provider" };
+    const code = encodePreset(provider);
+    expect(createHref(provider, "apps/web", "lib")).toBe(
+      `/create?preset=${code}&authz=lib&package=apps/web`,
+    );
+    expect(createHref(minimal, undefined, "lib")).toBe(
+      `/create?preset=${encodePreset(minimal)}`,
+    );
+  });
 });
 
 describe("the monorepo package", () => {

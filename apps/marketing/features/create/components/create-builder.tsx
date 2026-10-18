@@ -31,6 +31,12 @@ import {
   shuffledPreset,
   toggleBlock,
 } from "@/lib/create";
+import {
+  authChoiceOf,
+  type AuthzLibrary,
+  initialAuthz,
+  withAuthChoice,
+} from "@/lib/create-options";
 
 import { GetCodeDialog } from "./get-code-dialog";
 import { OptionsPanel, type PackageOption } from "./options-panel";
@@ -56,6 +62,10 @@ export function CreateBuilder(): ReactElement {
     initialPreset(params.get("preset")),
   );
 
+  const [authzOption, setAuthzOption] = useState<AuthzLibrary | undefined>(() =>
+    initialAuthz(params.get("authz"), initialPreset(params.get("preset"))),
+  );
+
   const [pkgOption, setPkgOption] = useState<PackageOption>(() =>
     initialPackage(params.get("package")),
   );
@@ -73,14 +83,15 @@ export function CreateBuilder(): ReactElement {
   const code = encodePreset(preset);
   const named = matchingPreset(preset);
   const pkg = pkgOption.on ? packageDir(pkgOption.dir) : undefined;
+  const authz = preset.access === "provider" ? authzOption : undefined;
 
   useEffect(() => {
-    const href = createHref(preset, pkg);
+    const href = createHref(preset, pkg, authz);
 
     if (`${window.location.pathname}${window.location.search}` !== href) {
       window.history.replaceState(null, "", href);
     }
-  }, [preset, pkg]);
+  }, [preset, pkg, authz]);
 
   const openCode = (): void => {
     setOptionsOpen(false);
@@ -95,7 +106,12 @@ export function CreateBuilder(): ReactElement {
       code={code}
       groups={groups}
       pkg={pkgOption}
+      authChoice={authChoiceOf(preset, authz)}
       onPreset={setPreset}
+      onAuthChoice={(choice) => {
+        setPreset((current) => withAuthChoice(current, choice).preset);
+        setAuthzOption(withAuthChoice(preset, choice).authz);
+      }}
       onNamedPreset={(name) => {
         setPreset((current) => applyNamedPreset(current, name));
       }}
@@ -174,6 +190,7 @@ export function CreateBuilder(): ReactElement {
         code={code}
         resolved={resolved}
         pkg={pkg}
+        authz={authz}
       />
     </div>
   );

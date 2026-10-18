@@ -66,13 +66,27 @@ export function packageDir(value: string | null): string | undefined {
   return valid ? segments.join("/") : undefined;
 }
 
-/** The URL `/create` keeps in sync with the selection, and the monorepo package when it is on. */
-export function createHref(preset: Preset, pkg?: string): string {
-  const base = `/create?preset=${encodePreset(preset)}`;
+/**
+ * The URL `/create` keeps in sync with the selection, the authorization
+ * library (`authz`, kept only with `access: "provider"`) and the monorepo
+ * package when it is on.
+ */
+export function createHref(
+  preset: Preset,
+  pkg?: string,
+  authz?: string,
+): string {
+  let href = `/create?preset=${encodePreset(preset)}`;
 
-  return pkg === undefined
-    ? base
-    : `${base}&package=${encodeURIComponent(pkg).replaceAll("%2F", "/")}`;
+  if (authz !== undefined && preset.access === "provider") {
+    href += `&authz=${encodeURIComponent(authz)}`;
+  }
+
+  if (pkg !== undefined) {
+    href += `&package=${encodeURIComponent(pkg).replaceAll("%2F", "/")}`;
+  }
+
+  return href;
 }
 
 /** The config file `init` writes. */

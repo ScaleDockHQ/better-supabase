@@ -10,6 +10,16 @@ function block(page: Page, name: string) {
     .locator(`input[name="block"][value="${name}"]`);
 }
 
+function options(page: Page) {
+  return page.getByLabel("Options", { exact: true });
+}
+
+function category(page: Page, name: string) {
+  return options(page).getByRole("button", {
+    name: new RegExp(`^${name}`, "u"),
+  });
+}
+
 async function openCode(page: Page) {
   await page
     .getByLabel("Options", { exact: true })
@@ -27,6 +37,13 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
   await expect(block(page, "comments")).not.toBeChecked();
   await expect(block(page, "tenant")).not.toBeChecked();
 
+  // Each category is a collapsible; one with nothing selected starts closed.
+  await expect(category(page, "Collaboration")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(category(page, "Collaboration")).toContainText(/0 of \d+/u);
+  await category(page, "Collaboration").click();
   await block(page, "comments").check();
 
   await expect(block(page, "comments")).toBeChecked();
@@ -71,7 +88,8 @@ test("the monorepo option keeps the package in the URL and the commands", async 
 }) => {
   await page.goto("/create?preset=saas");
 
-  await page.getByLabel("Options", { exact: true }).getByRole("switch").click();
+  await options(page).getByRole("button", { name: "Conventions" }).click();
+  await options(page).getByRole("switch").click();
   await expect(page).toHaveURL(/&package=apps\/web$/u);
   const code = new URL(page.url()).searchParams.get("preset") ?? "";
 
@@ -90,12 +108,82 @@ test("the monorepo option keeps the package in the URL and the commands", async 
 
   // A reload restores the package from the URL.
   await page.reload();
+  await options(page).getByRole("button", { name: "Conventions" }).click();
   await expect(
     page.getByLabel("Options", { exact: true }).getByRole("switch"),
   ).toBeChecked();
   await expect(
     page.getByLabel("Options", { exact: true }).getByLabel("Package directory"),
   ).toHaveValue("apps/web");
+});
+
+test("a framework turns off the platforms it can't build", async ({ page }) => {
+  await page.goto("/create?preset=saas");
+
+  const platforms = options(page).getByRole("group", { name: "Platforms" });
+  await expect(
+    platforms.getByRole("button", { name: "Native", exact: true }),
+  ).toBeDisabled();
+
+  await options(page).getByLabel("Framework").click();
+  await page.getByRole("option", { name: "Expo" }).click();
+
+  await expect(
+    platforms.getByRole("button", { name: "Web", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    platforms.getByRole("button", { name: "Native", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    options(page).getByText("These choices conflict"),
+  ).not.toBeAttached();
+});
+
+test("the framework's own integration is checked and locked", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await options(page).getByRole("button", { name: "Integrations" }).click();
+
+  const next = options(page).getByRole("checkbox", { name: /^Next\.js/u });
+  await expect(next).toBeChecked();
+  await expect(next).toBeDisabled();
+  await expect(options(page).getByText("Added for Next.js")).toBeVisible();
+  await expect(options(page).getByText("Needed by Next.js")).toBeVisible();
+
+  const hono = options(page).getByRole("checkbox", { name: /^Hono/u });
+  await expect(hono).not.toBeChecked();
+  await hono.click();
+  await expect(hono).toBeChecked();
+});
+
+test("PermDock is an optional auth choice kept in the URL", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  await options(page)
+    .getByRole("radio", { name: /^PermDock/u })
+    .click();
+  await expect(page).toHaveURL(/&authz=permdock$/u);
+
+  const dialog = await openCode(page);
+  await expect(dialog.getByTestId("permdock-install")).toHaveText(
+    "pnpm add permdock",
+  );
+  await expect(
+    dialog.getByText("authorization: authorizationProvider({"),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    options(page).getByRole("radio", { name: /^PermDock/u }),
+  ).toBeChecked();
+
+  await options(page)
+    .getByRole("radio", { name: /^Built-in roles/u })
+    .click();
+  await expect(page).not.toHaveURL(/authz=/u);
 });
 
 test("the diagram lists the tables and asks for a block when there are none", async ({
