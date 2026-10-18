@@ -58,28 +58,56 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
 - `components/reui`: ReUI components from the `@reui` registry (`alert`,
   `badge`, `frame`). The registry needs `REUI_LICENSE_KEY`.
 - `features/`: one folder per area, each with its `components/` and helpers.
-  - `features/catalog`: the shell that `app/(catalog)/layout.tsx` shares
-    across `/blocks`, `/recipes` and `/create`: the category sidebar
-    (`CatalogNav`, in a `Sheet` below `lg`), `PageHeader`, `Breadcrumbs`,
-    `OnThisPage` and the `DetailSkeleton` that detail pages show while they
-    read their params.
+  - `features/catalog`: what the catalog sections share. Each section has
+    its own route group and layout: `app/(blocks)/layout.tsx` and
+    `app/(recipes)/layout.tsx` wrap their pages in `SidebarShell`, which
+    takes the section's nav as a prop and renders it in a sticky aside on
+    large screens and in a `Sheet` below `lg`. `app/(create)/layout.tsx` is
+    full width with no sidebar. Both sidebars scroll through `SidebarScroll`
+    (the shadcn `ScrollArea`, with an overlay scrollbar, edges that fade while
+    there is more to scroll, and the current link scrolled into view). The
+    folder also holds `PageHeader`, `Breadcrumbs`, `OnThisPage` and the
+    `DetailSkeleton` that detail pages show while they read their params.
   - `features/blocks`: `categories.ts` (each category's icon, slug, summary
-    and color classes), the coded mini-UI previews (`BlockPreview`), tiles,
-    the search and the detail sections. The pages read `lib/blocks.ts`, which
-    parses `lib/catalog.json`; `scripts/build-catalog.ts` writes that file
-    from the SQL module registry before every marketing task.
-  - `features/recipes`: tiles, the screenshot cover and the step list.
+    and color classes), `block-icons.ts` (one lucide icon per block, with the
+    category icon as the fallback), the coded mini-UI previews
+    (`BlockPreview`), tiles, the search and the detail sections. `BlockIcon`
+    draws a block's icon in a tile tinted with its category color; tiles, the
+    hero, the sidebars, the create picker, the schema diagram and the recipes
+    use it, and category headings keep `CategoryIcon`. `BlocksNav` is the
+    blocks sidebar (it was `CatalogNav`). `MigrationViewer` shows a block's
+    migration files in one `Frame`: a file list next to the selected file,
+    highlighted on the server, with a `Select` on small screens.
+    `DependencyGraph` is a static SVG rendered on the server from the layout
+    helpers in `lib/blocks.ts` (`blockGraphLayout`, `columnLayout`), so it
+    ships no client JS. The pages read `lib/blocks.ts`, which parses
+    `lib/catalog.json`; `scripts/build-catalog.ts` writes that file from the
+    SQL module registry before every marketing task.
+  - `features/recipes`: tiles, the screenshot cover, the step list,
+    `RecipesNav` (recipes grouped by their block's category) and the Web and
+    Native tabs, kept in `?platform=`.
   - `features/create`: the `/create` builder. It resolves the selection in the
-    browser with `better-supabase/preset` (helpers in `lib/create.ts`),
-    fetches rendered migrations from `app/(catalog)/create/migrations/route.ts`
-    and draws the dependency graph as inline SVG with token classes. Presets
-    and blocks are native radio and checkbox inputs inside styled labels;
-    selects and toggles are the shadcn `Select` and `ToggleGroup`.
+    browser with `better-supabase/preset` (helpers in `lib/create.ts`). The
+    options panel sits on the left (in a sheet below `lg`), and "Get code"
+    opens a `Dialog` with the commands, the config and the files from
+    `app/(create)/create/migrations/route.ts`. The content area is the ER
+    diagram: `app/(create)/create/schema/route.ts` parses the rendered SQL
+    with `parseSchema` (`lib/schema.ts`), and `SchemaCanvas` draws it with
+    `@xyflow/react` and an `elkjs` layout. The canvas is loaded with
+    `next/dynamic` and `ssr: false`, so only `/create` downloads it, and an
+    sr-only table list holds the same data. The Graph tab reuses
+    `DependencyGraph`. Presets and blocks are native radio and checkbox
+    inputs inside styled labels; selects and toggles are the shadcn `Select`
+    and `ToggleGroup`.
 - `components/sections`: page sections. Every section renders through
   `Section`, which sets the width, padding, eyebrow, heading and description.
-- `components/site`: the navbar, footer, logo, theme toggle, `SiteLink`,
-  which picks a typed Next.js `Link` for app routes and a plain anchor for
-  `/docs` and external URLs, and `LinkButton`, a `SiteLink` with the button
+  `LogoCloud` on the home page lists every framework, runtime and
+  integration from `lib/integrations.ts`, each linking to its docs page. Marks come from `simple-icons`, imported by name; the few it
+  lacks are inline SVGs in `components/site/brand-icons.tsx`.
+- `components/site`: the navbar (with `NavLink` for the active section and an
+  icon button for GitHub), footer, logo, `ThemeHotkey`, `SiteLink`, which
+  picks a typed Next.js `Link` for app routes and a plain anchor for `/docs`
+  and external URLs, and `LinkButton`, a `SiteLink` with the button
   classes.
 - Buttons use the `buttonVariants` variants (`default`, `outline`,
   `secondary`, `ghost`, `destructive`, `link`) and sizes (`xs`, `sm`,
@@ -114,8 +142,9 @@ looping animation.
   `muted` surfaces when you add one.
 - Every interactive element has a visible focus ring (`focus-visible:ring-ring/50`)
   and an accessible name.
-- The theme follows the system setting (`next-themes`, `defaultTheme="system"`),
-  and the toggle overrides it.
+- The theme follows the system setting (`next-themes`, `defaultTheme="system"`).
+  There is no theme button: pressing D switches it (`ThemeHotkey` skips
+  modifier keys and form fields), and the footer names the shortcut.
 - Headings go in order: one `h1` per page, `h2` per section.
 - `jsx-a11y` runs in lint with no rules turned off, and `e2e/a11y.spec.ts`
   runs axe (WCAG 2.2 AA) on the main pages in both themes.
