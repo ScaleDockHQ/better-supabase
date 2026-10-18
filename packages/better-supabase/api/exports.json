@@ -207,6 +207,7 @@
   },
   "./config": {
     "values": [
+      "APP_COLUMN_FORMATS",
       "APP_COLUMN_TYPES",
       "buildJsonSchema",
       "claimPaths",
@@ -234,6 +235,7 @@
       "ActorConfig",
       "AnyBlocksConfig",
       "AppColumnConfig",
+      "AppColumnFormat",
       "AppColumnType",
       "AppReference",
       "AppReferenceTarget",
@@ -316,13 +318,16 @@
   },
   "./preset": {
     "values": [
+      "APP_COLUMN_FORMATS",
       "appReservedColumns",
       "decodeDesign",
       "decodePreset",
       "DEFAULT_CONVENTIONS",
+      "DESIGN_FORMAT",
       "designApplyCommand",
       "designConfig",
       "designConfigSource",
+      "designFormat",
       "designInstallCommand",
       "designOf",
       "DesignTooLongError",
@@ -357,6 +362,7 @@
       "withPresetField"
     ],
     "types": [
+      "AppColumnFormat",
       "CreateDesign",
       "DecodedPreset",
       "NamedPreset",

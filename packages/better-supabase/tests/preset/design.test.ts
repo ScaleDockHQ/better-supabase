@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   type CreateDesign,
   decodeDesign,
+  DESIGN_FORMAT,
   designApplyCommand,
+  designFormat,
   designConfig,
   designConfigSource,
   designInstallCommand,
@@ -73,6 +75,40 @@ describe("design codes", () => {
     expect(isDesignCode(code)).toBe(true);
     expect(isPresetCode(code)).toBe(false);
     expect(await decodeDesign(code)).toEqual(DESIGN);
+  });
+
+  it("writes format 1 only for a design that needs it", async () => {
+    const formatted: CreateDesign = {
+      appTables: {
+        contacts: {
+          id: "bigint",
+          unique: [["email"]],
+          columns: {
+            email: { type: "text", format: "email" },
+            stage: { type: "text", options: ["lead", "won"] },
+          },
+        },
+      },
+    };
+
+    expect(designFormat(DESIGN)).toBe(0);
+    expect(designFormat(formatted)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(formatted))).toEqual(
+      formatted,
+    );
+    expect(await decodeDesign(await deflated(JSON.stringify(DESIGN)))).toEqual(
+      DESIGN,
+    );
+    expect(
+      await decodeDesign(
+        await deflated(JSON.stringify({ version: 1, ...formatted })),
+      ),
+    ).toEqual(formatted);
+    await expect(
+      decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
+    ).rejects.toThrow(
+      "design: the code needs format 9, and this better-supabase reads up to 1; update better-supabase",
+    );
   });
 
   it("encodes an empty design to an empty code", async () => {

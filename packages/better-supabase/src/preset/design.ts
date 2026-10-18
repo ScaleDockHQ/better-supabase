@@ -34,11 +34,47 @@ export interface CreateDesign {
 }
 
 /**
- * The first character of a design code: the format version. `0` is
+ * The first character of a design code: how it is encoded. `0` is
  * deflate-raw compressed JSON in base64url. Preset codes never start with
- * `0`, and preset names never start with a digit.
+ * `0` (their first character is the preset version, from 1), and preset
+ * names never start with a digit. The JSON's own format is `DESIGN_FORMAT`.
  */
 const DESIGN_VERSION = "0";
+
+/**
+ * The newest format of the design JSON, in its `version` key (ADR 0042).
+ * A code carries the lowest format that reads it, and none for format 0,
+ * so a design without format 1 keys still opens in an older release.
+ * Format 1 adds column `format`, `options`, `min`, `max`, `comment` and
+ * `identity`, and table `id`, `unique`, `indexes` and `comment`.
+ */
+export const DESIGN_FORMAT = 1;
+
+const FORMAT_1_TABLE_KEYS = ["id", "unique", "indexes", "comment"] as const;
+
+const FORMAT_1_COLUMN_KEYS = [
+  "format",
+  "options",
+  "min",
+  "max",
+  "comment",
+  "identity",
+] as const;
+
+/** The lowest design format that reads `design`. */
+export function designFormat(design: CreateDesign): number {
+  const tables = Object.values(design.appTables ?? {});
+
+  return tables.some(
+    (table) =>
+      FORMAT_1_TABLE_KEYS.some((key) => table[key] !== undefined) ||
+      Object.values(table.columns ?? {}).some((column) =>
+        FORMAT_1_COLUMN_KEYS.some((key) => column[key] !== undefined),
+      ),
+  )
+    ? 1
+    : 0;
+}
 
 /** The longest design code, so a `/create` URL stays under common limits. */
 export const MAX_DESIGN_CODE_LENGTH = 6000;
@@ -210,12 +246,31 @@ function designOfValue(
 
   const unknownKey = Object.keys(value).find(
     (name) =>
-      name !== "appTables" && name !== "extraColumns" && name !== "positions",
+      name !== "appTables" &&
+      name !== "extraColumns" &&
+      name !== "positions" &&
+      name !== "version",
   );
 
   if (unknownKey !== undefined) {
     throw new TypeError(
       `design: unknown key "${unknownKey}"; a design has appTables, extraColumns and positions`,
+    );
+  }
+
+  const version = value["version"] ?? 0;
+
+  if (
+    typeof version !== "number" ||
+    !Number.isSafeInteger(version) ||
+    version < 0
+  ) {
+    throw new TypeError("design.version must be a whole number");
+  }
+
+  if (version > DESIGN_FORMAT) {
+    throw new TypeError(
+      `design: the code needs format ${String(version)}, and this better-supabase reads up to ${String(DESIGN_FORMAT)}; update better-supabase`,
     );
   }
 
@@ -313,7 +368,8 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
 
 /**
  * The design as a code for the `&design=` parameter: `0`, then its JSON
- * compressed with deflate-raw, in base64url. An empty design is `""`.
+ * (with `version` set to `designFormat` when it is above 0) compressed with
+ * deflate-raw, in base64url. An empty design is `""`.
  * Throws a TypeError when the design is invalid, and a `DesignTooLongError`
  * when the code would be longer than `MAX_DESIGN_CODE_LENGTH`.
  */
@@ -324,7 +380,11 @@ export async function encodeDesign(design: CreateDesign): Promise<string> {
     return "";
   }
 
-  const json = new TextEncoder().encode(JSON.stringify(checked));
+  const format = designFormat(checked);
+
+  const json = new TextEncoder().encode(
+    JSON.stringify(format === 0 ? checked : { version: format, ...checked }),
+  );
 
   const code = `${DESIGN_VERSION}${toBase64Url(
     await pipe(json, new CompressionStream("deflate-raw"), MAX_DESIGN_BYTES),

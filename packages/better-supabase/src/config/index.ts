@@ -43,8 +43,10 @@ export type {
 export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 export {
+  APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   type AppColumnConfig,
+  type AppColumnFormat,
   type AppColumnType,
   type AppReference,
   type AppReferenceTarget,
