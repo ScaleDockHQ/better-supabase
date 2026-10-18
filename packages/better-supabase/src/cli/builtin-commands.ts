@@ -143,7 +143,8 @@ const BUILTIN: readonly (readonly [string, CliEntry])[] = [
     "sql",
     {
       load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
-      description: "Lists, adds, syncs, upgrades and prints SQL modules",
+      description:
+        "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files",
     },
   ],
   [

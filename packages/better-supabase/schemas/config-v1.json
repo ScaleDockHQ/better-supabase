@@ -137,7 +137,7 @@
               },
               "schema": {
                 "type": "object",
-                "description": "JSON Schema enforced by `sql add jsonb-schemas` (pg_jsonschema)."
+                "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
               }
             }
           },
@@ -152,7 +152,7 @@
               },
               "schema": {
                 "type": "object",
-                "description": "JSON Schema enforced by `sql add jsonb-schemas` (pg_jsonschema)."
+                "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
               }
             }
           }

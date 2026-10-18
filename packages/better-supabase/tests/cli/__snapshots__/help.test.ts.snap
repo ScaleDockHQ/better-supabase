@@ -7,12 +7,13 @@ USAGE better-supabase add [OPTIONS] [BLOCK]
 
 ARGUMENTS
 
-  BLOCK    Blocks to add (\`better-supabase blocks list\`). Without blocks or --framework, sets up the integrations in the config that have no files yet
+  BLOCK    Blocks to install with what they require (\`better-supabase blocks list\`). Without blocks or --framework, sets up the integrations in the config that have no files yet
 
 OPTIONS
 
   --framework=<integration,...>    Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react                         
                         --force    Overwrite files that exist; with blocks, write modules a provider's hook would duplicate                       
+              --tests-dir=<dir>    With blocks: where the pgtap module goes. Defaults to sql.testsDir                                             
                       --dry-run    Show what would be written                                                                                     
                     --cwd=<dir>    Project directory                                                                                              
                 --config=<file>    Config file, relative to --cwd                                                                                 
@@ -397,13 +398,13 @@ OPTIONS
 `;
 
 exports[`help > documents sql 1`] = `
-"Lists, adds, syncs, upgrades and prints SQL modules, and writes their data migration (better-supabase sql v<version>)
+"Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration (better-supabase sql v<version>)
 
 USAGE better-supabase sql [OPTIONS] [ACTION]
 
 ARGUMENTS
 
-  ACTION    list (modules and whether they are installed), add <module...>, sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>
+  ACTION    list (modules and whether they are installed), add <module...> (SQL files only; \`better-supabase add\` also wires clients), sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>
 
 OPTIONS
 
@@ -450,7 +451,7 @@ COMMANDS
     scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js                            
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                       
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict        
-         sql    Lists, adds, syncs, upgrades and prints SQL modules                                                           
+         sql    Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files                           
       config    Prints the resolved config: the file it came from, the active environment and every option with its default   
      codemod    Rewrites imports, calls and config keys for renamed better-supabase APIs                                      
 

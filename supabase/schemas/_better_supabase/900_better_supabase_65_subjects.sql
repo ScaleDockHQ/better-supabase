@@ -1,7 +1,7 @@
 -- better-supabase module: subjects (0.8.0)
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;

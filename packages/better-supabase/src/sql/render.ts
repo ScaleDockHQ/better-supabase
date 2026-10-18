@@ -116,7 +116,7 @@ export function renderModules(
     const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
 
     const managed = [
-      "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
+      "-- Managed by `better-supabase add`; re-running it overwrites this file.",
       "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ];
 

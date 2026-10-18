@@ -1,7 +1,7 @@
 -- better-supabase module: tags (0.8.0)
 -- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

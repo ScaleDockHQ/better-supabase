@@ -5,7 +5,7 @@ export const SQL_ARGS = {
     type: "positional",
     required: false,
     description:
-      "list (modules and whether they are installed), add <module...>, sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>",
+      "list (modules and whether they are installed), add <module...> (SQL files only; `better-supabase add` also wires clients), sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>",
   },
   check: {
     type: "boolean",

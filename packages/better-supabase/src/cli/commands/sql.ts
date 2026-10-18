@@ -76,7 +76,7 @@ export const sqlCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "sql",
     description:
-      "Lists, adds, syncs, upgrades and prints SQL modules, and writes their data migration",
+      "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration",
   },
   args: SQL_ARGS,
   run: (args, { config, configFile, io }) =>

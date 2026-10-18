@@ -113,7 +113,7 @@ describe("renderModules", () => {
     expect(file!.contents).toMatch(
       /^-- better-supabase module: pgtap \(1\.2\.3\)\n/,
     );
-    expect(file!.contents).toContain("Managed by `better-supabase sql add`");
+    expect(file!.contents).toContain("Managed by `better-supabase add`");
     expect(file!.contents.endsWith("\n")).toBe(true);
   });
 

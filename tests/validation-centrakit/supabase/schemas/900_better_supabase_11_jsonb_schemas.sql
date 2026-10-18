@@ -1,7 +1,7 @@
 -- better-supabase module: jsonb-schemas (0.8.0)
 -- @bs-module jsonb-schemas@1 managed
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
