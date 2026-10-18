@@ -84,7 +84,7 @@ function constraintOf(table: string, text: string): Pending | undefined {
  * table constraints and `alter table ... add constraint ... foreign key`,
  * in the order they appear. Only tables in `schemas` are kept.
  */
-export function declaredForeignKeys(
+function declaredForeignKeys(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): DeclaredForeignKey[] {

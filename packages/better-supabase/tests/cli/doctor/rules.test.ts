@@ -2079,6 +2079,23 @@ describe("secret columns in data exports (BS341)", () => {
     ).toEqual([]);
     expect(await run("BS341", context(secrets))).toEqual([]);
   });
+
+  it("checks listed tables without autoTables and skips tables the snapshot lacks", async () => {
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({
+            tables: {
+              tags: { tenant: "organization_id" },
+              gone: { tenant: "organization_id" },
+            },
+            omitPattern: "(",
+          }),
+        ),
+      ),
+    ).toEqual(["public.tags.api_key", "public.tags.Password"]);
+  });
 });
 
 describe("whole-row broadcast triggers (BS337)", () => {
