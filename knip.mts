@@ -89,13 +89,19 @@ const config: KnipConfig = {
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
       ...browserExample,
-      ignore: [...exampleIgnore, "src/components/ui/**"],
+      ignore: [
+        ...exampleIgnore,
+        "src/components/ui/**",
+        "src/components/reui/**",
+      ],
       // Knip's Playwright plugin finds the specs and the `webServer`
       // command; the setup project is a `testMatch` regex, which it can't read.
+      // The browser loads the push worker by URL.
       entry: [
         "better-supabase.config.ts",
         "src/image-loader.ts",
         "e2e/auth.setup.ts",
+        "public/push-sw.js",
       ],
     },
     "apps/examples/vite-react": browserExample,
