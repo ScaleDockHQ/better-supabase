@@ -106,6 +106,13 @@ reference shows a row title from the table it points to, and a nullable
 column is empty in some rows. The rows are generated in the browser and
 never reach a database.
 
+The Changes tab in Get code lists what you changed in the app tables since
+the page loaded the design in its link. Each change is marked safe or
+breaking, and a breaking one (a dropped, renamed or retyped column, or a
+column made required without a default) lists the expand-and-contract steps
+that [`apply`](/docs/cli/presets#breaking-changes) prints before it refuses
+to write the design.
+
 ## The shared wiring
 
 Three pieces connect the blocks in every recipe.

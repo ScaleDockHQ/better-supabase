@@ -116,6 +116,26 @@ lists the columns every app table can get from its scope (`id`,
 columns may not name. `isAppDefault(type, value)` says whether a column of
 `type` accepts `value` as its default.
 
+`diffDesigns(before, after)` lists what changes between two designs, and
+`diffAppTables(before, after, { keepMissing })` does the same for two
+`appTables` objects; with `keepMissing: true`, a table missing from `after`
+is kept instead of dropped, as `apply` merges a design. Each `DesignChange`
+has a `kind`, the `table` and `column`, a one-sentence `summary`, and
+`breaking`. A dropped or renamed table or column, a type change and a column
+made required without a default are breaking, and their `steps` give the
+expand-and-contract migration that makes them safe:
+
+```ts
+import { diffAppTables } from "better-supabase/preset";
+
+const changes = diffAppTables(
+  { notes: { columns: { body: { type: "jsonb" } } } },
+  { notes: { columns: { body: { type: "text" } } } },
+);
+// [{ kind: "column.type", table: "notes", column: "body", breaking: true,
+//    summary: "Changes notes.body from jsonb to text.", steps: [...] }]
+```
+
 The AI instructions for a design are at
 `/create/prompt.md?preset=<code>&design=<code>`.
 
