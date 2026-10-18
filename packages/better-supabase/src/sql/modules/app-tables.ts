@@ -12,6 +12,7 @@ import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import { sessionPolicyTables } from "./sessions.ts";
 
 /**
  * The `module` of the files `renderModules` writes for `appTables`. App
@@ -47,6 +48,8 @@ interface AppTable {
   readonly scope: ScopeColumn | undefined;
   /** Whether `expose` sets the table's grants instead. */
   readonly exposed: boolean;
+  /** Whether `blocks.sessions.options.policies` adds `bs_session_active`. */
+  readonly sessionPolicy: boolean;
 }
 
 const qualified = (table: string): string =>
@@ -350,12 +353,18 @@ function testSql(table: AppTable): string {
   const name = sqlString(table.name);
   const label = `${SCHEMA}.${table.name}`;
   const regclass = `${sqlString(qualified(table.name))}::regclass`;
-  const policies = table.scope ? COMMANDS : (["select"] as const);
+
+  const policies = [
+    ...(table.scope ? COMMANDS : (["select"] as const)).map(
+      (command) => `${table.name}_${command}`,
+    ),
+    ...(table.sessionPolicy ? ["bs_session_active"] : []),
+  ];
 
   const checks = [
     `select extensions.has_table('${SCHEMA}', ${name}, ${sqlString(`${label} exists`)});`,
     `select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = ${regclass}), ${sqlString(`${label} has row level security on`)});`,
-    `select extensions.policies_are('${SCHEMA}', ${name}, array[${policies.map((command) => sqlString(`${table.name}_${command}`)).join(", ")}], ${sqlString(`${label} has the policies for its scope`)});`,
+    `select extensions.policies_are('${SCHEMA}', ${name}, array[${policies.map((policy) => sqlString(policy)).join(", ")}], ${sqlString(`${label} has the policies for its scope`)});`,
   ];
 
   if (!table.exposed) {
@@ -415,12 +424,17 @@ export function appTablesFiles(
       installed,
     );
 
+    const sessionTables = ctx.installed("sessions")
+      ? sessionPolicyTables(ctx.of("sessions"), layout)
+      : [];
+
     return {
       name,
       config,
       ctx,
       scope: scopeColumn(name, ctx),
       exposed: isExposed(name, layout),
+      sessionPolicy: sessionTables.includes(`${SCHEMA}.${name}`),
     };
   });
 

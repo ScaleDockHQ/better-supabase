@@ -5,20 +5,28 @@ import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";
 
+/** The `schema.table` names `blocks.sessions.options.policies` covers. */
+export function sessionPolicyTables(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): readonly string[] {
+  if (!ctx.flag("policies", false)) {
+    return [];
+  }
+
+  const exclude = tableGlobs(ctx.list("exclude", []));
+
+  return (layout.declaredTables ?? []).filter(
+    (table) => !exclude.some((pattern) => pattern.test(table)),
+  );
+}
+
 /**
  * `blocks.sessions.options.policies`: a restrictive session policy on
  * every table the schema files create in `schemas`, except `exclude`.
  */
 function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (!ctx.flag("policies", false)) {
-    return "";
-  }
-
-  const exclude = tableGlobs(ctx.list("exclude", []));
-
-  const tables = (layout.declaredTables ?? []).filter(
-    (table) => !exclude.some((pattern) => pattern.test(table)),
-  );
+  const tables = sessionPolicyTables(ctx, layout);
 
   if (tables.length === 0) {
     return "";

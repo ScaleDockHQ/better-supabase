@@ -7193,6 +7193,7 @@
       "moduleEventTriggers",
       "moduleFilePaths",
       "moduleFileVersion",
+      "moduleHidingColumns",
       "moduleIdType",
       "moduleLayout",
       "modulePermissionKeys",

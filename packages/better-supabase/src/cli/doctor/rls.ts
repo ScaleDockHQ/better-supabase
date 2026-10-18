@@ -5,6 +5,7 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, SqlObject } from "./rules.ts";
 
+import { moduleHidingColumns, moduleLayout } from "../../sql/index.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import {
   catalogOf,
@@ -342,8 +343,9 @@ function readTables(
  * Columns that decide who may read other rows, by `schema.table`: the
  * columns of the tables policy helpers read that their bodies mention
  * (qualified, or bare when the body reads one table), and the manifest's
- * `decidingColumns`. A subject's `deletedAt` column only hides rows, so it
- * counts only when the manifest lists it.
+ * `decidingColumns`. A subject's `deletedAt` column and a module's
+ * `hidingColumns` only hide rows, so they count only when the manifest
+ * lists them.
  */
 function grantColumns(
   context: DoctorContext,
@@ -366,15 +368,21 @@ function grantColumns(
     return created;
   };
 
-  const softDeleted = new Set(
-    Object.values(context.config.subjects).flatMap((subject) =>
+  const softDeleted = new Set([
+    ...Object.values(context.config.subjects).flatMap((subject) =>
       subject.deletedAt === undefined
         ? []
         : [
             `${subject.table.includes(".") ? subject.table : `public.${subject.table}`}.${subject.deletedAt}`,
           ],
     ),
-  );
+    ...(context.config.blockNames.length > 0
+      ? moduleHidingColumns(
+          context.config.blockNames,
+          moduleLayout(context.config),
+        )
+      : []),
+  ]);
 
   for (const [helper, body] of policyHelpers(context)) {
     const read = readTables(body, tables);
@@ -434,9 +442,38 @@ const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
   grant.role === role || grant.role === "PUBLIC";
 
 /**
+ * Whether every call of `name` (`schema.function`) in `expressions` takes
+ * no arguments inside `(select ...)`, which Postgres runs once per
+ * statement. An argument may come from the row, and then it runs per row.
+ */
+function onlyWrapped(
+  name: string,
+  expressions: readonly (string | null | undefined)[],
+): boolean {
+  const dot = name.indexOf(".");
+
+  const call = `"?${escape(name.slice(0, dot))}"?\\s*\\.\\s*"?${escape(name.slice(dot + 1))}"?\\s*\\(`;
+
+  const any = new RegExp(`(?<![\\w."])${call}`, "gi");
+  const wrapped = new RegExp(`\\(\\s*select\\s+${call}\\s*\\)`, "gi");
+  let calls = 0;
+  let wraps = 0;
+
+  for (const expression of expressions) {
+    if (expression) {
+      calls += expression.match(any)?.length ?? 0;
+      wraps += expression.match(wrapped)?.length ?? 0;
+    }
+  }
+
+  return calls > 0 && calls === wraps;
+}
+
+/**
  * Whether every permissive policy that lets `role` run `command` holds
- * `column` to the request's tenant in its check, with no `or` around it, so
- * a write can only name the tenant the caller already acts in.
+ * `column` to a tenant the caller acts in, with no `or` around it: equal to
+ * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in
+ * `(select tenant_ids_with(...))`. A write can't name another tenant then.
  */
 function pinnedToTenant(
   table: CatalogTable,
@@ -448,8 +485,14 @@ function pinnedToTenant(
     return false;
   }
 
+  const col = `"?${escape(column)}"?`;
+
   const pin = new RegExp(
-    `(?<![\\w."])"?${escape(column)}"?\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
+    [
+      `(?<![\\w."])${col}\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
+      `better_supabase\\.can\\(\\s*'tenant'(?:::text)?\\s*,\\s*${col}\\s*,`,
+      `(?<![\\w."])${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.tenant_ids_with\\(`,
+    ].join("|"),
     "i",
   );
 
@@ -587,6 +630,10 @@ export const RLS_RULES: readonly Rule[] = [
       for (const table of rlsTables(context)) {
         for (const policy of table.policies) {
           for (const name of policy.functions ?? []) {
+            if (onlyWrapped(name, [policy.using, policy.check])) {
+              continue;
+            }
+
             const list = uses.get(name) ?? [];
             list.push(`${qualified(table)}.${policy.name}`);
             uses.set(name, list);
@@ -671,7 +718,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to `current_tenant_id()`, and a subject's `deletedAt` column in `config.subjects` (it only hides rows) don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)` or `tenant_ids_with(...)`), a subject's `deletedAt` column in `config.subjects` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

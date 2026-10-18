@@ -162,6 +162,24 @@ describe("appTables SQL", () => {
     expect(schema?.contents).not.toContain("set_updated_at");
   });
 
+  it("expects the session policy on the tables the sessions block covers", () => {
+    const [, test] = render(["sessions"], {
+      scope: "user",
+      appTables: TABLES,
+      declaredTables: ["public.projects", "public.tasks"],
+      modules: {
+        sessions: { options: { policies: true, exclude: ["public.tasks"] } },
+      },
+    });
+
+    expect(test?.contents).toContain(
+      `array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bs_session_active']`,
+    );
+    expect(test?.contents).toContain(
+      `array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete']`,
+    );
+  });
+
   it("counts every check in the pgTAP plan", () => {
     const [, test] = render(BLOCKS, { appTables: TABLES });
 

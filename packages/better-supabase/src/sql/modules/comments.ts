@@ -970,6 +970,8 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 export const COMMENTS: ModuleDefinition = {
   internal: ["comment_subject_readable", "activity_subject_readable"],
+  // comments_before_write refuses any update to a deleted comment.
+  hidingColumns: ["comments.deletedAt"],
   name: "comments",
   scopes: ["tenant", "user", "none"],
   title: "Comments and activity",

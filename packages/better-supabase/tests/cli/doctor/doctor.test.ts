@@ -377,6 +377,30 @@ describe("doctor rules", () => {
       );
     });
 
+    it.each([
+      "COALESCE(better_supabase.can('tenant'::text, org_id, 'members.manage'::text), false)",
+      "(org_id IN ( SELECT better_supabase.tenant_ids_with('members.manage'::text) AS tenant_ids_with))",
+    ])(
+      "leaves out a tenant column a permission check pins: %s",
+      async (pinned) => {
+        const snap = withTable("memberships", (memberships) => {
+          memberships.primaryKey = ["user_id"];
+          memberships.policies = [
+            ...memberships.policies,
+            { ...updatePolicy, using: pinned, check: pinned },
+          ];
+          memberships.grants = [
+            { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+          ];
+        });
+
+        const findings = await runRules(context(snap), only);
+        expect(findings[0]?.message).toContain(
+          "authenticated may update role.",
+        );
+      },
+    );
+
     it("keeps a tenant column that an or lets the caller write elsewhere", async () => {
       const loose =
         "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id) or true";
@@ -866,7 +890,10 @@ describe("doctor rules", () => {
       const snap = snapshot((tables) => {
         for (const name of names) {
           table(tables, name).policies = [
-            memberPolicy(`${name}_member`, "(select private.is_member())"),
+            memberPolicy(
+              `${name}_member`,
+              "private.is_member(organization_id)",
+            ),
           ];
         }
       });
@@ -895,6 +922,27 @@ describe("doctor rules", () => {
 
       expect(
         await codes(context(invoker, { config: tight.config }), "BS206"),
+      ).toEqual([]);
+
+      // Without arguments inside (select ...), it runs once per statement.
+      const wrapped = snapshot((tables) => {
+        for (const name of names) {
+          table(tables, name).policies = [
+            memberPolicy(
+              `${name}_member`,
+              "( SELECT private.is_member() AS is_member)",
+            ),
+          ];
+        }
+      });
+
+      expect(
+        await codes(
+          context(withFunctions(wrapped, [helper({})]), {
+            config: tight.config,
+          }),
+          "BS206",
+        ),
       ).toEqual([]);
     });
 

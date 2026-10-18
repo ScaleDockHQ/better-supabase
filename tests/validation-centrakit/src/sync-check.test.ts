@@ -64,9 +64,9 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
 
       // The adopt options that keep CentraKit's own token storage, secret
       // column, audit values and event sources are the only warnings.
-      // The shared stack also has the Next.js example's reactions module, which
-      // the fixture doesn't install; its comment check reads comments columns
-      // that the comments policies already pin (doctor BS213 can't see that).
+      // The shared stack also has the Next.js example's comments and reactions
+      // modules, which the fixture doesn't install, so doctor BS213 doesn't
+      // know comments.deleted_at is a soft-delete column.
       expect(
         report.findings
           .filter((finding) => finding.severity !== "info")

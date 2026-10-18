@@ -140,6 +140,12 @@ export interface SqlModule {
    * entry point for them.
    */
   readonly internal?: readonly string[];
+  /**
+   * Soft-delete columns, as logical `table.column`: a write can set them to
+   * hide a row but never clear them again, so doctor BS213 doesn't count
+   * them as columns that grant access.
+   */
+  readonly hidingColumns?: readonly string[];
   readonly adoptOptional?: (
     ctx: ModuleContext,
   ) => Readonly<Record<string, readonly string[]>>;
