@@ -86,9 +86,36 @@ export default defineConfig({
   },
   // `search_notes(query, k)` for `db.$search('notes', …)`.
   vectorSearch: { notes: "embedding" },
+  // Tables only this app has. `sql sync` writes them with the organization
+  // column (or `user_id`), row level security and a pgTAP test.
+  appTables: {
+    projects: {
+      columns: {
+        name: { type: "text", nullable: false },
+        budget_minor: { type: "bigint", nullable: false, default: "0" },
+        currency: { type: "text", nullable: false, default: "'EUR'" },
+        lead_id: {
+          type: "uuid",
+          references: { table: "auth.users", onDelete: "set null" },
+        },
+        label_id: {
+          type: "uuid",
+          references: { block: "tags", table: "tags", onDelete: "set null" },
+        },
+      },
+    },
+    saved_views: {
+      scope: "user",
+      columns: {
+        name: { type: "text", nullable: false },
+        filters: { type: "jsonb", nullable: false, default: "'{}'" },
+      },
+    },
+  },
   // The block files live in the repo's fixture, so the stack runs them.
   sql: {
     dir: "../../../supabase/schemas/_better_supabase",
+    testsDir: "../../../supabase/tests/database",
     // Every module writes its Data API wrappers to `api`, except those
     // that set `api: false` (helpers with no client entry points).
     api: "api",

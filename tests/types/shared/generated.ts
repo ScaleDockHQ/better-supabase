@@ -336,6 +336,7 @@ export type Models = {
       locations: { table: "locations"; kind: "many"; nullable: true };
       memberships: { table: "memberships"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
+      projects: { table: "projects"; kind: "many"; nullable: true };
       subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
@@ -408,6 +409,86 @@ export type Models = {
     Checks: "plans_currency_check";
     ForeignKeys: never;
     Flags: Record<never, never>;
+  };
+  projects: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      name: string;
+      budgetMinor: number;
+      currency: string;
+      leadId: string | null;
+      labelId: string | null;
+    };
+    Insert: {
+      id?: string;
+      organizationId: string;
+      createdAt?: string;
+      updatedAt?: string;
+      name: string;
+      budgetMinor?: number;
+      currency?: string;
+      leadId?: string | null;
+      labelId?: string | null;
+    };
+    Update: {
+      id?: string;
+      organizationId?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      name?: string;
+      budgetMinor?: number;
+      currency?: string;
+      leadId?: string | null;
+      labelId?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  savedViews: {
+    Row: {
+      id: string;
+      createdAt: string;
+      updatedAt: string;
+      name: string;
+      filters: Json;
+      userId: string | null;
+    };
+    Insert: {
+      id?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      name: string;
+      filters?: Json;
+      userId?: string | null;
+    };
+    Update: {
+      id?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      name?: string;
+      filters?: Json;
+      userId?: string | null;
+    };
+    Relations: Record<never, never>;
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "saved_views_user_id_fkey";
+    Flags: {
+      timestamps: true;
+    };
   };
   subscriptions: {
     Row: {

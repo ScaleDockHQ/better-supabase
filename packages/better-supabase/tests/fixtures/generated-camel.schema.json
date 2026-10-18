@@ -1122,6 +1122,272 @@
       },
       "additionalProperties": false
     },
+    "projectsRow": {
+      "title": "Projects",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "budgetMinor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "leadId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "name",
+        "budgetMinor",
+        "currency",
+        "leadId",
+        "labelId"
+      ],
+      "additionalProperties": false
+    },
+    "projectsInsert": {
+      "title": "Projects insert",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "budgetMinor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "leadId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "organizationId",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "projectsUpdate": {
+      "title": "Projects update",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "budgetMinor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "leadId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false
+    },
+    "savedViewsRow": {
+      "title": "Saved views",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "filters": {},
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "id",
+        "createdAt",
+        "updatedAt",
+        "name",
+        "filters",
+        "userId"
+      ],
+      "additionalProperties": false
+    },
+    "savedViewsInsert": {
+      "title": "Saved views insert",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "filters": {},
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "savedViewsUpdate": {
+      "title": "Saved views update",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "filters": {},
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false
+    },
     "subscriptionsRow": {
       "title": "Subscriptions",
       "type": "object",

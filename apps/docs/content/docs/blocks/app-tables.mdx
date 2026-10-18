@@ -94,6 +94,16 @@ such as `tags` with the `tags` block, is rejected with the block's name.
 app table removes them. A table listed in `expose` keeps the grants
 `expose` gives it.
 
+## Example
+
+The Next.js example declares two app tables in
+`apps/examples/nextjs/better-supabase.config.ts`: `projects`, scoped to the
+organization with a label from the `tags` block, and `saved_views`, scoped
+to the user. `GET /api/projects` (`src/app/api/projects/route.ts`) lists the
+organization's projects, and `tests/lib/app-tables.test-d.ts` checks the
+generated repositories. The example writes its pgTAP test to the fixture's
+`supabase/tests/database` through `sql.testsDir`.
+
 ## Limits
 
 The file adds new columns with `add column if not exists`, so under the

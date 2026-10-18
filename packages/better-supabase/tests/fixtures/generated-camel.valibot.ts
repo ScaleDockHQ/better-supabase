@@ -246,6 +246,65 @@ export const plansUpdate: v.GenericSchema<UpdateOf<'plans'>> = v.pipe(v.object({
   currency: v.exactOptional(v.string()),
 }), v.title("Plans update"));
 
+export const projectsRow: v.GenericSchema<RowOf<'projects'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  name: v.string(),
+  budgetMinor: v.pipe(v.number(), v.integer()),
+  currency: v.string(),
+  leadId: v.nullable(v.pipe(v.string(), v.uuid())),
+  labelId: v.nullable(v.pipe(v.string(), v.uuid())),
+}), v.title("Projects"));
+export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  name: v.string(),
+  budgetMinor: v.exactOptional(v.pipe(v.number(), v.integer())),
+  currency: v.exactOptional(v.string()),
+  leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+}), v.title("Projects insert"));
+export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  name: v.exactOptional(v.string()),
+  budgetMinor: v.exactOptional(v.pipe(v.number(), v.integer())),
+  currency: v.exactOptional(v.string()),
+  leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+}), v.title("Projects update"));
+
+export const savedViewsRow: v.GenericSchema<RowOf<'savedViews'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  name: v.string(),
+  filters: json,
+  userId: v.nullable(v.pipe(v.string(), v.uuid())),
+}), v.title("Saved views"));
+export const savedViewsInsert: v.GenericSchema<InsertOf<'savedViews'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  name: v.string(),
+  filters: v.exactOptional(json),
+  userId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+}), v.title("Saved views insert"));
+export const savedViewsUpdate: v.GenericSchema<UpdateOf<'savedViews'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  name: v.exactOptional(v.string()),
+  filters: v.exactOptional(json),
+  userId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+}), v.title("Saved views update"));
+
 export const subscriptionsRow: v.GenericSchema<RowOf<'subscriptions'>> = v.pipe(v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
   planKey: v.string(),
@@ -304,6 +363,8 @@ export const validators: {
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly projects: { readonly insert: typeof projectsInsert; readonly update: typeof projectsUpdate };
+  readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -316,6 +377,8 @@ export const validators: {
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },
+  projects: { insert: projectsInsert, update: projectsUpdate },
+  savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };
