@@ -50,6 +50,20 @@ interface AppTable {
   readonly exposed: boolean;
   /** Whether `blocks.sessions.options.policies` adds `bs_session_active`. */
   readonly sessionPolicy: boolean;
+  /** The columns whose reference checks the tenant too, by column name. */
+  readonly tenantReferences: ReadonlyMap<string, TenantReference>;
+}
+
+/**
+ * A reference between two tenant-scoped app tables. It becomes a foreign
+ * key on `(tenant, column)` to the target's `(tenant, id)`, so a row can't
+ * point at a row of another tenant.
+ */
+interface TenantReference {
+  readonly column: string;
+  readonly target: string;
+  readonly tenant: string;
+  readonly onDelete: AppReference["onDelete"];
 }
 
 const qualified = (table: string): string =>
@@ -164,10 +178,9 @@ function referenceSql(
 }
 
 function columnSql(
-  where: string,
+  table: AppTable,
   name: string,
   column: AppColumnConfig,
-  ctx: ModuleContext,
 ): string {
   return [
     `${sqlIdent(name)} ${column.type}`,
@@ -175,10 +188,91 @@ function columnSql(
     column.nullable === false ? " not null" : "",
     column.default === undefined ? "" : ` default ${column.default}`,
     column.unique === true ? " unique" : "",
-    column.references === undefined
+    column.references === undefined || table.tenantReferences.has(name)
       ? ""
-      : referenceSql(where, column.references, ctx),
+      : referenceSql(
+          `appTables.${table.name}.columns.${name}`,
+          column.references,
+          table.ctx,
+        ),
   ].join("");
+}
+
+/**
+ * The references of a tenant-scoped table to another tenant-scoped app
+ * table (itself included), which `tenantKeysSql` checks per tenant.
+ */
+function tenantReferencesOf(
+  table: Omit<AppTable, "tenantReferences">,
+  tenantScoped: ReadonlySet<string>,
+): ReadonlyMap<string, TenantReference> {
+  const references = new Map<string, TenantReference>();
+
+  if (table.ctx.scope.kind !== "tenant" || !table.scope) {
+    return references;
+  }
+
+  for (const [column, config] of Object.entries(table.config.columns ?? {})) {
+    const reference = config.references;
+
+    if (
+      reference !== undefined &&
+      !("block" in reference) &&
+      tenantScoped.has(reference.table)
+    ) {
+      references.set(column, {
+        column,
+        target: reference.table,
+        tenant: table.scope.name,
+        onDelete: reference.onDelete,
+      });
+    }
+  }
+
+  return references;
+}
+
+/**
+ * The unique `(tenant, id)` index on every target of a tenant reference,
+ * then each reference as a foreign key on `(tenant, column)`. The key is
+ * dropped and added again so a re-run replaces the single-column key an
+ * earlier version wrote under the same name. `set null` names the column
+ * (Postgres 15), so the tenant column keeps its value.
+ */
+function tenantKeysSql(tables: readonly AppTable[]): string {
+  const references = tables.flatMap((table) =>
+    [...table.tenantReferences.values()].map((reference) => ({
+      table: table.name,
+      reference,
+    })),
+  );
+
+  const targets = new Map(
+    references.map(({ reference }) => [reference.target, reference.tenant]),
+  );
+
+  const indexes = [...targets].map(
+    ([target, tenant]) =>
+      `create unique index if not exists ${sqlIdent(`${target}_${tenant}_id_key`)} on ${qualified(target)} (${sqlIdent(tenant)}, id);`,
+  );
+
+  const keys = references.map(({ table, reference }) => {
+    const name = sqlIdent(`${table}_${reference.column}_fkey`);
+    const tenant = sqlIdent(reference.tenant);
+    const column = sqlIdent(reference.column);
+
+    const onDelete =
+      reference.onDelete === undefined
+        ? ""
+        : reference.onDelete === "set null"
+          ? ` on delete set null (${column})`
+          : ` on delete ${reference.onDelete}`;
+
+    return `alter table ${qualified(table)} drop constraint if exists ${name};
+alter table ${qualified(table)} add constraint ${name} foreign key (${tenant}, ${column}) references ${qualified(reference.target)} (${tenant}, id)${onDelete};`;
+  });
+
+  return [...indexes, ...keys].join("\n");
 }
 
 function createSql(table: AppTable): string {
@@ -208,7 +302,7 @@ function columnsSql(table: AppTable): string {
   return Object.entries(table.config.columns ?? {})
     .map(
       ([name, column]) =>
-        `alter table ${qualified(table.name)} add column if not exists ${columnSql(`appTables.${table.name}.columns.${name}`, name, column, table.ctx)};`,
+        `alter table ${qualified(table.name)} add column if not exists ${columnSql(table, name, column)};`,
     )
     .join("\n");
 }
@@ -538,6 +632,14 @@ function testSql(table: AppTable): string {
     );
   }
 
+  for (const reference of table.tenantReferences.values()) {
+    const constraint = sqlString(`${table.name}_${reference.column}_fkey`);
+
+    checks.push(
+      `select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = ${regclass} and k.conname = ${constraint} and k.contype = 'f' and cardinality(k.conkey) = 2), ${sqlString(`${label}.${reference.column} references a row of the same tenant`)});`,
+    );
+  }
+
   for (const columns of table.config.indexes ?? []) {
     checks.push(
       `select extensions.has_index('${SCHEMA}'::name, ${name}::name, ${sqlString(`${table.name}_${columns.join("_")}_idx`)}::name, ${sqlString(`${label} has an index on ${columns.join(", ")}`)});`,
@@ -594,26 +696,39 @@ export function appTablesFiles(
     installed,
   );
 
-  const tables = entries.map(([name, config]): AppTable => {
-    const ctx = moduleContext(
-      APP_TABLES_MODULE,
-      { ...layout, scope: scopeOf(config, layout) },
-      installed,
-    );
+  const scoped = entries.map(
+    ([name, config]): Omit<AppTable, "tenantReferences"> => {
+      const ctx = moduleContext(
+        APP_TABLES_MODULE,
+        { ...layout, scope: scopeOf(config, layout) },
+        installed,
+      );
 
-    const sessionTables = ctx.installed("sessions")
-      ? sessionPolicyTables(ctx.of("sessions"), layout)
-      : [];
+      const sessionTables = ctx.installed("sessions")
+        ? sessionPolicyTables(ctx.of("sessions"), layout)
+        : [];
 
-    return {
-      name,
-      config,
-      ctx,
-      scope: scopeColumn(name, ctx),
-      exposed: isExposed(name, layout),
-      sessionPolicy: sessionTables.includes(`${SCHEMA}.${name}`),
-    };
-  });
+      return {
+        name,
+        config,
+        ctx,
+        scope: scopeColumn(name, ctx),
+        exposed: isExposed(name, layout),
+        sessionPolicy: sessionTables.includes(`${SCHEMA}.${name}`),
+      };
+    },
+  );
+
+  const tenantScoped = new Set(
+    scoped
+      .filter((table) => table.ctx.scope.kind === "tenant" && table.scope)
+      .map((table) => table.name),
+  );
+
+  const tables = scoped.map((table): AppTable => ({
+    ...table,
+    tenantReferences: tenantReferencesOf(table, tenantScoped),
+  }));
 
   for (const table of tables) {
     checkKeyColumns(table);
@@ -640,6 +755,7 @@ export function appTablesFiles(
       .filter((part) => part !== "")
       .join("\n\n"),
     ...tables.map((table) => tableSql(table)),
+    tenantKeysSql(tables),
   ]
     .filter((part) => part !== "")
     .join("\n\n");

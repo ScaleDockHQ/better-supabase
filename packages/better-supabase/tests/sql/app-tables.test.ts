@@ -262,6 +262,48 @@ alter table "public"."contacts" add constraint "contacts_email_check" check ("em
     expect(test?.contents).not.toContain(`'phone'::name`);
   });
 
+  it("checks the tenant of a reference between tenant-scoped tables", () => {
+    const [schema, test] = render(BLOCKS, {
+      appTables: {
+        ...TABLES,
+        folders: {
+          columns: {
+            parent_id: {
+              type: "uuid",
+              references: { table: "folders", onDelete: "set null" },
+            },
+          },
+        },
+        drafts: {
+          scope: "user",
+          columns: {
+            project_id: { type: "uuid", references: { table: "projects" } },
+          },
+        },
+      },
+    });
+
+    expect(schema?.contents).toContain(
+      'add column if not exists "project_id" uuid not null;',
+    );
+    expect(schema?.contents).toContain(
+      `create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);`,
+    );
+    expect(schema?.contents).toContain(
+      `alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
+alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;`,
+    );
+    expect(schema?.contents).toContain(
+      `foreign key ("organization_id", "parent_id") references "public"."folders" ("organization_id", id) on delete set null ("parent_id");`,
+    );
+    expect(schema?.contents).toContain(
+      `add column if not exists "project_id" uuid references "public"."projects" (id);`,
+    );
+    expect(test?.contents).toContain(
+      `'public.tasks.project_id references a row of the same tenant'`,
+    );
+  });
+
   it("counts every check in the pgTAP plan", () => {
     const [, test] = render(BLOCKS, { appTables: TABLES });
 

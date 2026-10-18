@@ -24,7 +24,7 @@ alter table "public"."projects" add column if not exists "budget_minor" bigint n
 alter table "public"."projects" add column if not exists "currency" text not null default 'EUR';
 alter table "public"."projects" add column if not exists "owner_id" uuid references auth.users (id) on delete set null;
 
-alter table "public"."tasks" add column if not exists "project_id" uuid not null references "public"."projects" (id) on delete cascade;
+alter table "public"."tasks" add column if not exists "project_id" uuid not null;
 alter table "public"."tasks" add column if not exists "title" text not null;
 alter table "public"."tasks" add column if not exists "done" boolean not null default false;
 alter table "public"."tasks" add column if not exists "labels" text[] default '{}';
@@ -65,6 +65,10 @@ drop trigger if exists "bs_updated_at" on "public"."tasks";
 create trigger "bs_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
+create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
+alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
+alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;
+
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bs-module-test app-tables
@@ -73,7 +77,7 @@ create trigger "bs_updated_at" before update on "public"."tasks"
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(14);
+select extensions.plan(15);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
@@ -90,6 +94,7 @@ reset role;
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
 select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete'], 'public.tasks has the policies for its scope');
+select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."tasks"'::regclass and k.conname = 'tasks_project_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.tasks.project_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'tasks', 'anon', array[]::text[], 'anon has no privileges on public.tasks');
 select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.tasks');
 

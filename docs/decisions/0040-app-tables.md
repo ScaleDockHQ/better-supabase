@@ -57,7 +57,8 @@ App tables follow the same scope and RLS rules as blocks, and the pgTAP file
 proves it on every `supabase test db`. The file uses `add column if not
 exists`, so under the `migrations` workflow a changed or dropped column
 needs a migration by hand. A foreign key between two tenant-scoped app tables
-doesn't check that both rows share a tenant. A new design field raises the
+is composite, `(tenant, column)` against a unique `(tenant, id)` on the
+target, so both rows share a tenant. A new design field raises the
 version character; revisit the format if designs routinely hit the cap.
 
 The marketing app adds `html-to-image` (pinned at 1.11.13 in the catalog)
