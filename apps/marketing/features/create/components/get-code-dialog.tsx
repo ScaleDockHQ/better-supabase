@@ -46,6 +46,7 @@ import { presetPrompt, screensCommands } from "@/lib/create-prompt";
 import { type Design, EMPTY_DESIGN, isEmptyDesign } from "@/lib/design";
 import { site } from "@/lib/site";
 
+import { ChangesPanel } from "./changes-panel";
 import { MigrationsPanel } from "./migrations-panel";
 import { PresetGraph } from "./preset-graph";
 
@@ -279,6 +280,8 @@ function isPackageManager(value: unknown): value is PackageManager {
  * person picks, then the files those commands write and the AI instructions.
  * `design` holds the app tables and extra columns from the canvas, and
  * `designCode` its URL code, which the Markdown link carries too.
+ * `baseline` is the design the page loaded from its link, which the Changes
+ * tab compares `design` with; `linked` says whether there was one.
  */
 export function GetCodeDialog({
   open,
@@ -289,6 +292,8 @@ export function GetCodeDialog({
   authz,
   design = EMPTY_DESIGN,
   designCode = "",
+  baseline = EMPTY_DESIGN,
+  linked = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -298,6 +303,8 @@ export function GetCodeDialog({
   authz: AuthzLibrary | undefined;
   design?: Design;
   designCode?: string;
+  baseline?: Design;
+  linked?: boolean;
 }): ReactElement {
   const ids = useId();
   const [manager, setManager] = useState<PackageManager>("pnpm");
@@ -452,6 +459,9 @@ export function GetCodeDialog({
               <TabsTrigger value="migrations" className="flex-none">
                 Migrations
               </TabsTrigger>
+              <TabsTrigger value="changes" className="flex-none">
+                Changes
+              </TabsTrigger>
               <TabsTrigger value="wiring" className="flex-none">
                 {WIRING_FILE}
               </TabsTrigger>
@@ -482,6 +492,16 @@ export function GetCodeDialog({
               code={code}
               designCode={designCode}
               placeholder={resolved.preset.access === "provider"}
+            />
+          </TabsContent>
+          <TabsContent value="changes" className="min-w-0">
+            <ChangesPanel
+              baseline={baseline}
+              design={design}
+              linked={linked}
+              onEdit={() => {
+                onOpenChange(false);
+              }}
             />
           </TabsContent>
           <TabsContent value="wiring" className="min-w-0">

@@ -912,6 +912,56 @@ test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
   ).toEqual([]);
 });
 
+test("the Changes tab compares the design with the one in the link", async ({
+  page,
+}) => {
+  const design = await encodeDesign({
+    appTables: {
+      articles: {
+        columns: { title: { type: "text" }, pinned: { type: "boolean" } },
+      },
+    },
+  });
+
+  await page.goto(`/create?preset=saas&design=${design}`);
+  const articles = page.locator('.react-flow__node[data-id="public.articles"]');
+  await expect(articles).toBeVisible();
+
+  let dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Changes" }).click();
+  await expect(dialog.getByText("No changes yet")).toBeVisible();
+  await dialog.getByRole("button", { name: "Edit the canvas" }).click();
+  await expect(dialog).toBeHidden();
+
+  await articles.focus();
+  await page.keyboard.press("Enter");
+  const inspector = page.getByRole("dialog", { name: "articles" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("button", { name: "Delete pinned" }).click();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+
+  dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Changes" }).click();
+  const changes = dialog.getByRole("list", { name: "Changes" });
+  await expect(changes.getByRole("listitem").first()).toContainText(
+    "BreakingDrops articles.pinned and its values.",
+  );
+  await expect(
+    dialog.getByRole("list", {
+      name: "Steps for: Drops articles.pinned and its values.",
+    }),
+  ).toBeVisible();
+  await expect(dialog.getByText("1 breaking change")).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+});
+
 test("a template draws its tables, and the Data tab shows sample rows", async ({
   page,
 }) => {
