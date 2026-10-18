@@ -38,6 +38,7 @@ export interface Subject {
 }
 
 const SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_]{0,62}$/;
+const HYPHENATED_SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_-]{0,62}$/;
 
 const BASE_KEYS = new Set([
   "table",
@@ -164,15 +165,21 @@ export function subjectsOption(
     readonly tenantless?: boolean;
     /** `false`: read the registry only for the types `options.subjects` names. */
     readonly fallback?: boolean;
+    /**
+     * Subject types may contain `-` (`purchase-order`), for a module whose
+     * subject type column has no format check.
+     */
+    readonly hyphens?: boolean;
   } = {},
 ): readonly [string, Subject][] {
   const where = `blocks.${ctx.module}.options.subjects`;
   const raw = rawSubjects(ctx, where, extraKeys, allow);
+  const hyphens = allow.hyphens === true;
 
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
-    if (!SUBJECT_TYPE.test(type)) {
+    if (!(hyphens ? HYPHENATED_SUBJECT_TYPE : SUBJECT_TYPE).test(type)) {
       throw new TypeError(
-        `${where}: "${type}" must be lowercase letters, digits and underscores`,
+        `${where}: "${type}" must be lowercase letters, digits${hyphens ? ", hyphens" : ""} and underscores`,
       );
     }
 
@@ -399,12 +406,15 @@ export function subjectReadable(
 /**
  * `after delete` triggers on the subject tables with `cascade: true` that
  * delete the module's rows for the deleted subject. `remove` is the SQL that
- * deletes them, with `v_type` and `v_id` (text) in scope.
+ * deletes them, with `v_type` and `v_id` (text) in scope. With
+ * `tenant: true`, `v_tenant` (text) holds the subject row's tenant, or null
+ * for a subject with `tenant: false`.
  */
 export function subjectCascades(
   ctx: ModuleContext,
   subjects: readonly (readonly [string, Subject])[],
   remove: string,
+  options: { readonly tenant?: boolean } = {},
 ): string {
   const cascading = subjects.filter(([, subject]) => subject.cascade);
 
@@ -422,11 +432,21 @@ export function subjectCascades(
 
     const table = qualifiedTable(subject.table);
 
+    const tenant =
+      options.tenant === true && subject.tenant !== false
+        ? `, ${sqlString(subject.tenant ?? ctx.naming.rename("organization_id"))}`
+        : "";
+
     return `drop trigger if exists ${trigger} on ${table};
 create trigger ${trigger}
   after delete on ${table}
-  for each row execute function ${fn}(${sqlString(type)}, ${sqlString(subject.id ?? "id")});`;
+  for each row execute function ${fn}(${sqlString(type)}, ${sqlString(subject.id ?? "id")}${tenant});`;
   });
+
+  const tenantVariable =
+    options.tenant === true
+      ? "\n  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;"
+      : "";
 
   return `
 -- options.subjects with cascade: deleting a subject row deletes its ${ctx.module} rows.
@@ -438,7 +458,7 @@ set search_path = ''
 as $$
 declare
   v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_id text := to_jsonb(old) ->> tg_argv[1];${tenantVariable}
 begin
   ${remove}
   return null;

@@ -1227,6 +1227,10 @@ A module's own `subjects` option still works three ways:
 `webhooks-in` never falls back to the registry, because its subjects are the
 tables that inbound events write to.
 
+Subject types are lowercase letters, digits and underscores. The
+`notifications` module's own `subjects` keys may also contain hyphens
+(`time-off-request`), because its `subject_type` column takes any text.
+
 The `subjects` module installs four functions in the `better_supabase`
 schema. Each runs as the caller, so the subject table's own policies decide
 what is visible:

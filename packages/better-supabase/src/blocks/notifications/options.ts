@@ -2,6 +2,7 @@ import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
 
 /** `blocks.notifications.options`. */
 export type NotificationsSqlOptions = {
+  readonly subjects?: unknown;
   readonly channelDefaults?: unknown;
   readonly channels?: readonly string[];
   readonly createdEvent?: string;
@@ -16,6 +17,7 @@ export type NotificationsSqlOptions = {
 
 export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions> =
   blockOptions<NotificationsSqlOptions>({
+    subjects: option.unknown(),
     channelDefaults: option.unknown(),
     channels: option.strings({ default: ["in_app"] }),
     createdEvent: option.string({ default: "notification_created" }),

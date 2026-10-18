@@ -602,6 +602,109 @@ describe.skipIf(!live)("notifications", () => {
     }
   });
 
+  it("deletes a subject's notifications and subscriptions with the subject row", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+
+    try {
+      await client.query("begin");
+
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+
+      await client.query(
+        `create table public.bs_test_time_off_requests (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null
+         )`,
+      );
+
+      for (const file of renderModules(["organizations", "notifications"], {
+        modules: {
+          notifications: {
+            options: {
+              subjects: {
+                "time-off-request": {
+                  table: "bs_test_time_off_requests",
+                  cascade: true,
+                },
+              },
+            },
+          },
+        },
+      })) {
+        await client.query(file.contents);
+      }
+
+      await s.as("owner");
+
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-cascade-${USERS.owner.slice(0, 8)}` }],
+      );
+
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
+        [organization, USERS.member],
+      );
+
+      const { rows } = await client.query<{ id: string }>(
+        "insert into public.bs_test_time_off_requests (organization_id) values ($1), ($1) returning id",
+        [organization],
+      );
+
+      const [deleted, kept] = rows.map((row) => row.id);
+
+      const notifyAbout = (id: string) =>
+        s.notify({
+          type: "time_off.submitted",
+          tenant: organization,
+          subject_type: "time-off-request",
+          subject_id: id,
+          recipients: [USERS.member],
+        });
+
+      const gone = await notifyAbout(deleted!);
+      const stays = await notifyAbout(kept!);
+
+      for (const id of [deleted, kept]) {
+        await client.query(
+          "select better_supabase.set_notification_subscription('time-off-request', $1, 'all', $2)",
+          [id, organization],
+        );
+      }
+
+      await s.as("service");
+      await client.query(
+        "delete from public.bs_test_time_off_requests where id = $1",
+        [deleted],
+      );
+
+      expect(
+        await s.value(
+          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_events where organization_id = $1)",
+          [organization],
+        ),
+      ).toEqual([kept]);
+      expect(await s.recipients(gone!)).toEqual([]);
+      expect(await s.recipients(stays!)).toEqual([USERS.member]);
+      expect(
+        await s.value(
+          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_subscriptions where organization_id = $1)",
+          [organization],
+        ),
+      ).toEqual([kept]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("works end to end through createNotifications and sqlTransport", async () => {
     const client = await pool.connect();
     const s = new Session(client);
