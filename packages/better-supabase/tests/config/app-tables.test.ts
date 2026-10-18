@@ -195,6 +195,139 @@ describe("appTablesOf", () => {
   });
 });
 
+describe("appTablesOf formats and keys", () => {
+  const fails = (value: unknown, message: string): void => {
+    expect(() => appTablesOf(value)).toThrow(
+      expect.objectContaining({
+        name: "TypeError",
+        message: expect.stringContaining(message),
+      }),
+    );
+  };
+
+  const column = (value: unknown): unknown => ({
+    a: { columns: { b: value } },
+  });
+
+  it("keeps formats, options, bounds, comments, identity and table keys", () => {
+    const appTables = {
+      contacts: {
+        id: "bigint",
+        comment: "People.",
+        unique: [["name", "email"]],
+        indexes: [["created_at"]],
+        columns: {
+          name: { type: "text", min: 1, max: 80, comment: "Full name." },
+          email: { type: "text", format: "email" },
+          stage: { type: "text", options: ["lead", "won"] },
+          tags: { type: "text[]", options: ["a"] },
+          score: { type: "integer", format: "rating", max: 10 },
+          number: { type: "bigint", identity: true },
+          share: { type: "numeric", min: 0.5 },
+        },
+      },
+      notes: {
+        columns: {
+          contact_id: { type: "bigint", references: { table: "contacts" } },
+        },
+      },
+    } as const;
+
+    expect(appTablesOf(appTables)).toEqual(appTables);
+  });
+
+  it("refuses a format that doesn't fit the type", () => {
+    fails(
+      column({ type: "text", format: "zip" }),
+      "format must be one of email",
+    );
+    fails(
+      column({ type: "integer", format: "email" }),
+      "format: email fits a text column, not integer",
+    );
+    fails(
+      column({ type: "text", format: "currency" }),
+      "currency fits a bigint column, not text",
+    );
+  });
+
+  it("refuses options outside text and text[], empty or repeated", () => {
+    fails(
+      column({ type: "integer", options: ["1"] }),
+      "options fit a text (single select) or text[] (multi-select) column, not integer",
+    );
+    fails(column({ type: "text", options: [] }), "must list 1 to 100 values");
+    fails(column({ type: "text", options: ["a", "a"] }), '"a" is listed twice');
+    fails(
+      column({ type: "text", options: ["a\nb"] }),
+      "without control characters",
+    );
+    fails(
+      column({ type: "text", format: "email", options: ["a"] }),
+      "options make a select; drop the format email",
+    );
+  });
+
+  it("refuses bounds that don't fit", () => {
+    fails(
+      column({ type: "boolean", min: 1 }),
+      "min and max fit a number or text column",
+    );
+    fails(
+      column({ type: "text", min: 1.5 }),
+      "a text length is a whole number",
+    );
+    fails(
+      column({ type: "integer", max: 1.5 }),
+      "an integer bound is a whole number",
+    );
+    fails(column({ type: "integer", min: 5, max: 1 }), "min 5 is above max 1");
+    fails(column({ type: "numeric", min: "1" }), "min must be a number");
+  });
+
+  it("refuses an identity that isn't a plain whole number", () => {
+    fails(
+      column({ type: "text", identity: true }),
+      "an identity is an integer or bigint",
+    );
+    fails(
+      column({ type: "bigint", identity: true, default: "1" }),
+      "an identity takes no default",
+    );
+    fails(
+      column({ type: "bigint", identity: true, nullable: true }),
+      "an identity is never null",
+    );
+  });
+
+  it("refuses a reference whose type differs from the target id", () => {
+    fails(
+      {
+        a: { id: "bigint" },
+        b: { columns: { a_id: { type: "uuid", references: { table: "a" } } } },
+      },
+      "a reference to a needs a bigint column, not uuid",
+    );
+  });
+
+  it("refuses bad table keys", () => {
+    fails({ a: { id: "text" } }, "appTables.a.id must be uuid or bigint");
+    fails(
+      { a: { unique: [[]] } },
+      "appTables.a.unique[0] must list 1 to 32 column names",
+    );
+    fails(
+      { a: { indexes: [["a", "a"]] } },
+      "appTables.a.indexes[0] names a column twice",
+    );
+    fails({ a: { indexes: [["A"]] } }, '"A" is not a column name');
+    fails(
+      { a: { comment: "" } },
+      "appTables.a.comment must be text of 1 to 1000",
+    );
+  });
+});
+
 describe("isAppDefault", () => {
   it.each([
     ["timestamptz", "now()", true],

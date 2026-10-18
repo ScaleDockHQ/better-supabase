@@ -19,11 +19,31 @@ const live = await reachable();
 // rolls back (ADR 0040).
 const TABLES: AppTablesConfig = {
   it_projects: {
+    unique: [["organization_id", "code"]],
+    indexes: [["stage", "created_at"]],
+    comment: "Projects of a team.",
     columns: {
-      name: { type: "text", nullable: false },
+      name: { type: "text", nullable: false, max: 80 },
       owner_id: {
         type: "uuid",
         references: { table: "auth.users", onDelete: "set null" },
+      },
+      email: { type: "text", format: "email" },
+      stage: { type: "text", options: ["draft", "live"] },
+      labels: { type: "text[]", options: ["red", "blue"] },
+      rating: { type: "integer", format: "rating" },
+      code: { type: "text", comment: "A short code." },
+    },
+  },
+  it_tickets: {
+    id: "bigint",
+    columns: { number: { type: "bigint", identity: true } },
+  },
+  it_ticket_notes: {
+    columns: {
+      ticket_id: {
+        type: "bigint",
+        references: { table: "it_tickets", onDelete: "cascade" },
       },
     },
   },
@@ -130,6 +150,50 @@ describe.skipIf(!live)("app tables", () => {
     expect(
       await s.value<number>("(select count(*)::int from public.it_tasks)"),
     ).toBe(1);
+  });
+
+  it("checks formats, options, bounds and composite unique keys", async () => {
+    await s.asRole(ann);
+
+    const insert = (columns: string, values: string): Promise<string> =>
+      s.hint(
+        `insert into public.it_projects (organization_id, name, ${columns}) values ($1, 'P', ${values})`,
+        [annOrg],
+      );
+
+    for (const [columns, values, constraint] of [
+      ["email", "'nope'", "it_projects_email_check"],
+      ["stage", "'archived'", "it_projects_stage_check"],
+      ["labels", "array['green']", "it_projects_labels_check"],
+      ["rating", "6", "it_projects_rating_check"],
+    ] as const) {
+      expect(await insert(columns, values)).toContain(constraint);
+    }
+
+    expect(
+      await s.hint(
+        `insert into public.it_projects (organization_id, name) values ($1, repeat('x', 81))`,
+        [annOrg],
+      ),
+    ).toContain("it_projects_name_check");
+
+    await s.client.query(
+      "insert into public.it_projects (organization_id, name, email, stage, labels, rating, code) values ($1, 'A', 'a@example.com', 'live', array['red'], 5, 'A1')",
+      [annOrg],
+    );
+    expect(await insert("code", "'A1'")).toContain(
+      "it_projects_organization_id_code_key",
+    );
+
+    await s.client.query(
+      "insert into public.it_tickets (organization_id) values ($1), ($1)",
+      [annOrg],
+    );
+    expect(
+      await s.value<string>(
+        "(select string_agg(number::text, ',' order by number) from public.it_tickets)",
+      ),
+    ).toBe("1,2");
   });
 
   it("keeps a per-user table to its user and a shared table read-only", async () => {
