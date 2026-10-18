@@ -299,18 +299,16 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
           />
         ))}
       </ul>
-      {app ? (
-        <Handle
-          id="connect"
-          type="source"
-          position={Position.Right}
-          isConnectableStart
-          isConnectableEnd={false}
-          aria-label={`Connect ${table.name} to another table`}
-          title="Drag onto a table to add a foreign key"
-          className="top-4.5! size-3! border-2! border-primary! bg-background!"
-        />
-      ) : null}
+      <Handle
+        id="connect"
+        type="source"
+        position={Position.Right}
+        isConnectableStart
+        isConnectableEnd={false}
+        aria-label={`Connect ${table.name} to another table`}
+        title="Drag onto a table to add a foreign key"
+        className="top-4.5! size-3! border-2! border-primary! bg-background!"
+      />
     </div>
   );
 }
