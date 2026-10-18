@@ -31,7 +31,7 @@ alter table "public"."contacts" add column if not exists "code" text;
 alter table "public"."contacts" add column if not exists "price_minor" bigint;
 alter table "public"."contacts" add column if not exists "price_currency" text;
 
-alter table "public"."notes" add column if not exists "contact_id" bigint references "public"."contacts" (id) on delete cascade;
+alter table "public"."notes" add column if not exists "contact_id" bigint;
 
 alter table "public"."contacts" enable row level security;
 revoke all on "public"."contacts" from anon, authenticated;
@@ -89,6 +89,10 @@ drop trigger if exists "bs_updated_at" on "public"."notes";
 create trigger "bs_updated_at" before update on "public"."notes"
   for each row execute function better_supabase.set_updated_at();
 
+create unique index if not exists "contacts_organization_id_id_key" on "public"."contacts" ("organization_id", id);
+alter table "public"."notes" drop constraint if exists "notes_contact_id_fkey";
+alter table "public"."notes" add constraint "notes_contact_id_fkey" foreign key ("organization_id", "contact_id") references "public"."contacts" ("organization_id", id) on delete cascade;
+
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bs-module-test app-tables
@@ -97,7 +101,7 @@ create trigger "bs_updated_at" before update on "public"."notes"
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(24);
+select extensions.plan(25);
 
 select extensions.has_table('public', 'contacts', 'public.contacts exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."contacts"'::regclass), 'public.contacts has row level security on');
@@ -124,6 +128,7 @@ reset role;
 select extensions.has_table('public', 'notes', 'public.notes exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."notes"'::regclass), 'public.notes has row level security on');
 select extensions.policies_are('public', 'notes', array['notes_select', 'notes_insert', 'notes_update', 'notes_delete'], 'public.notes has the policies for its scope');
+select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."notes"'::regclass and k.conname = 'notes_contact_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.notes.contact_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'notes', 'anon', array[]::text[], 'anon has no privileges on public.notes');
 select extensions.table_privs_are('public', 'notes', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.notes');
 

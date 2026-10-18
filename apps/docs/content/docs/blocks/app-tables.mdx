@@ -110,6 +110,57 @@ a block's table names the block's logical table
 and the block has to be in `blocks`. A name a block already uses, such as
 `tags` with the `tags` block, is rejected with the block's name.
 
+A reference between two tenant-scoped app tables, a table's reference to
+itself included, also checks the tenant: the target gets a unique index on
+`(organization_id, id)`, and the reference becomes a foreign key on
+`(organization_id, <column>)`, so a row can't point at another tenant's
+row even when the caller knows its id. `onDelete: "set null"` clears only
+the reference column (`on delete set null (<column>)`, Postgres 15 and
+later). The pgTAP file checks that the key covers both columns.
+
+## Relations
+
+A column with `references` is a many-to-one link: many rows point at one
+row of the target. A table that references itself through a `parent_id`
+holds a tree. A many-to-many link is a table of its own with two
+references, each `onDelete: "cascade"`, and a composite `unique` on the
+pair, so the same two rows are linked once:
+
+```ts title="better-supabase.config.ts"
+appTables: {
+  projects: { columns: { name: { type: "text", nullable: false } } },
+  labels: { columns: { name: { type: "text", nullable: false } } },
+  projects_labels: {
+    unique: [["project_id", "label_id"]],
+    columns: {
+      project_id: {
+        type: "uuid",
+        nullable: false,
+        references: { table: "projects", onDelete: "cascade" },
+      },
+      label_id: {
+        type: "uuid",
+        nullable: false,
+        references: { table: "labels", onDelete: "cascade" },
+      },
+    },
+  },
+  folders: {
+    columns: {
+      name: { type: "text", nullable: false },
+      parent_id: {
+        type: "uuid",
+        references: { table: "folders", onDelete: "cascade" },
+      },
+    },
+  },
+},
+```
+
+In Create, connecting two tables offers "Many to many", which adds the
+junction table, and the Tree primitive adds a table with `parent_id`.
+Each edge shows its cardinality and its `onDelete` action.
+
 ```ts title="better-supabase.config.ts"
 appTables: {
   contacts: {
@@ -168,6 +219,4 @@ generated repositories. The example writes its pgTAP test to the fixture's
 
 The file adds new columns with `add column if not exists`, so under the
 `migrations` workflow a column you change or drop needs a migration of its
-own; pg-delta and migra diff the file and handle it. A foreign key between
-two tenant-scoped app tables doesn't check that both rows share a tenant,
-so validate that in the app when it matters.
+own; pg-delta and migra diff the file and handle it.

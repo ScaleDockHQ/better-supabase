@@ -152,6 +152,28 @@ describe.skipIf(!live)("app tables", () => {
     ).toBe(1);
   });
 
+  it("refuses a reference to a row of another organization", async () => {
+    await s.asRole(bob);
+    await s.client.query(
+      "insert into public.it_projects (organization_id, name) values ($1, 'Secret')",
+      [bobOrg],
+    );
+
+    await s.service();
+
+    const projectId = await s.value<string>(
+      "(select id::text from public.it_projects where name = 'Secret')",
+    );
+
+    await s.asRole(ann);
+    expect(
+      await s.hint(
+        "insert into public.it_tasks (organization_id, project_id, title) values ($1, $2, 'Peek')",
+        [annOrg, projectId],
+      ),
+    ).toContain("it_tasks_project_id_fkey");
+  });
+
   it("checks formats, options, bounds and composite unique keys", async () => {
     await s.asRole(ann);
 
