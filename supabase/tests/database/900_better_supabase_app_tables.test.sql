@@ -9,7 +9,7 @@ select extensions.plan(14);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bs_session_active'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.projects');
 
@@ -21,7 +21,7 @@ reset role;
 
 select extensions.has_table('public', 'saved_views', 'public.saved_views exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."saved_views"'::regclass), 'public.saved_views has row level security on');
-select extensions.policies_are('public', 'saved_views', array['saved_views_select', 'saved_views_insert', 'saved_views_update', 'saved_views_delete'], 'public.saved_views has the policies for its scope');
+select extensions.policies_are('public', 'saved_views', array['saved_views_select', 'saved_views_insert', 'saved_views_update', 'saved_views_delete', 'bs_session_active'], 'public.saved_views has the policies for its scope');
 select extensions.table_privs_are('public', 'saved_views', 'anon', array[]::text[], 'anon has no privileges on public.saved_views');
 select extensions.table_privs_are('public', 'saved_views', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.saved_views');
 

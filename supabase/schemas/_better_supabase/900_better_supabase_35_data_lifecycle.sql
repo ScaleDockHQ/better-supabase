@@ -358,9 +358,23 @@ drop function if exists "better_supabase"."data_lifecycle_tables"();
 create or replace function "better_supabase"."data_lifecycle_tables"()
 returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
-immutable
+stable
 set search_path = ''
 as $$
+  select t.subject, t.name, t.tbl, t.col, t.purge,
+    t.omit || array(
+      select a.attname::text
+      from pg_catalog.pg_attribute a
+      where a.attrelid = to_regclass(t.tbl)
+        and a.attnum > 0
+        and not a.attisdropped
+        and a.attname ~* 'token|secret|_hash|password|api_key|license_key'
+        and a.attname <> t.col
+        and not a.attname = any(t.omit)
+      order by a.attnum
+    ) as omit,
+    t.exported
+  from (
   select * from (values
     ('user', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'actor_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('user', 'public.memberships', '"public"."memberships"', 'user_id', true, '{}'::text[], true),
@@ -642,6 +656,7 @@ as $$
     ('organization', 'better_supabase.employees', '"better_supabase"."employees"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.employee_contracts', '"better_supabase"."employee_contracts"', 'tenant_id', true, '{}'::text[], true)
+  ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
