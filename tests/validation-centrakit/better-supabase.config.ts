@@ -1,38 +1,22 @@
 import { defineConfig } from "better-supabase/config";
 
-// The module config CentraKit adopts better-supabase with: every module runs on
-// its existing tables (`adopt`), its permission catalog and its names. Only
-// support sessions and the realtime registry are new tables. CentraKit keeps its tables in `public`;
-// the fixture puts them in `centrakit`.
+import { centrakitProvider } from "./src/provider.ts";
+
+// The module config CentraKit adopts better-supabase with: every module runs
+// on its existing tables (`adopt`) and its names, and the permissions are
+// CentraKit's authorization provider's, read from a frozen snapshot of its
+// output (authorization-provider.json). Only support sessions, the realtime
+// registry and the blocks CentraKit had no tables for are new. CentraKit keeps
+// its tables in `public`; the fixture puts them in `centrakit`.
 export default defineConfig({
+  authorization: centrakitProvider(),
   blocks: {
     access: {
-      model: "catalog",
-      tables: {
-        roles: "centrakit.roles",
-        permissions: "centrakit.permissions",
-        rolePermissions: "centrakit.role_permissions",
-        overrides: "centrakit.organization_permission_overrides",
-        platformAssignments: "centrakit.user_roles",
-      },
-      columns: {
-        roles: { scope: "scope" },
-        overrides: { tenant: "organization_id" },
-      },
-      options: {
-        tenantRoleScope: "organization",
-        platformRoleScope: "system",
-      },
-      disabled: {
-        tenant: "centrakit.organizations.disabled_at",
-        user: "centrakit.profiles.disabled_at",
-        userKey: "user_id",
-      },
+      model: "provider",
       activeTenant: {
         profileColumn: "centrakit.profiles.active_organization_id",
         key: "user_id",
       },
-      mode: "adopt",
     },
     tenant: {
       mode: "adopt",
@@ -40,18 +24,72 @@ export default defineConfig({
       columns: {
         memberships: { tenant: "organization_id", role: "role_id" },
       },
+      options: {
+        // The roles table holds the system roles too.
+        roleThrough: {
+          table: "centrakit.roles",
+          id: "id",
+          column: "key",
+          where: "{row}.scope = 'organization'",
+        },
+        sameTenant: [
+          {
+            table: "centrakit.tasks",
+            column: "project_id",
+            references: "centrakit.projects",
+          },
+          {
+            table: "centrakit.customer_contacts",
+            column: "customer_id",
+            references: "centrakit.customers",
+          },
+          // A task's contact works at the task's customer.
+          {
+            table: "centrakit.tasks",
+            column: "contact_id",
+            references: "centrakit.customer_contacts",
+            match: { customer_id: "customer_id" },
+          },
+          // A task's customer is its project's customer.
+          {
+            table: "centrakit.tasks",
+            column: "customer_id",
+            references: "centrakit.customers",
+            match: { "project_id.customer_id": "id" },
+            through: { project_id: "centrakit.projects" },
+          },
+          // Task labels are the organization's tags of kind task.
+          {
+            table: "centrakit.tasks",
+            column: "label_id",
+            references: {
+              table: "centrakit.organization_tags",
+              tenant: "tenant_id",
+              where: "{row}.kind = 'task'",
+            },
+          },
+          {
+            table: "centrakit.file_node_grant",
+            column: "team_id",
+            references: { table: "centrakit.teams", tenant: "tenant_id" },
+          },
+          {
+            table: "centrakit.employees",
+            column: "department_team_id",
+            references: { table: "centrakit.teams", tenant: "tenant_id" },
+          },
+          {
+            table: "centrakit.webhook_deliveries",
+            column: "destination_id",
+            references: "centrakit.webhook_destinations",
+          },
+        ],
+      },
     },
     organizations: {
       mode: "adopt",
       tables: { organizations: "centrakit.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
-      permissions: {
-        update: "organization.settings.manage",
-        delete: "organization.delete",
-        removeMember: "organization.members.remove",
-        updateRole: "organization.members.manage",
-        transferOwnership: "organization.ownership.transfer",
-      },
       hooks: {
         schema: "centrakit",
         functions: { after_organization_create: "seed_organization" },
@@ -59,6 +97,8 @@ export default defineConfig({
       options: {
         attributes: ["website", "logo_path", "default_currency"],
         reservedSlugs: ["app", "admin"],
+        // Deleting an organization runs the data-lifecycle purge.
+        deleteMode: "lifecycle",
       },
     },
     invitations: {
@@ -76,12 +116,20 @@ export default defineConfig({
           revokedAt: null,
         },
       },
-      permissions: {
-        invite: "organization.members.invite",
-        revoke: "organization.members.invite",
-        view: "organization.members.invite",
+      options: {
+        tokenStorage: "plain",
+        platformRoles: {
+          table: "centrakit.user_roles",
+          user: "user_id",
+          role: "role_id",
+          through: {
+            table: "centrakit.roles",
+            id: "id",
+            column: "key",
+            where: "{row}.scope = 'system'",
+          },
+        },
       },
-      options: { tokenStorage: "plain" },
     },
     profiles: {
       mode: "adopt",
@@ -107,8 +155,8 @@ export default defineConfig({
     },
     "support-sessions": {
       permissions: {
-        start: "system.users.manage",
-        view: "system.users.manage",
+        start: "platform.users.manage",
+        view: "platform.users.manage",
       },
       // CentraKit's support staff start sessions alone; it has no second approver.
       options: { auditCategory: "security", approval: "none" },
@@ -142,7 +190,7 @@ export default defineConfig({
           metadata: "restricted_metadata",
         },
       },
-      permissions: { view: "audit.view", viewAll: "system.users.manage" },
+      permissions: { view: "audit.view", viewAll: "platform.users.manage" },
       options: {
         eventSource: "saas",
         eventCategory: "data",
@@ -228,8 +276,8 @@ export default defineConfig({
         },
       },
       permissions: {
-        manage: "organization.webhooks.manage",
-        view: "organization.webhooks.view",
+        manage: "webhook.manage",
+        view: "webhook.view",
       },
       options: {
         secretStorage: "column",
@@ -279,10 +327,10 @@ export default defineConfig({
         },
       },
       permissions: {
-        create: "organization.webhooks.manage",
-        update: "organization.webhooks.manage",
-        delete: "organization.webhooks.manage",
-        view: "organization.webhooks.view",
+        create: "webhook.manage",
+        update: "webhook.manage",
+        delete: "webhook.manage",
+        view: "webhook.view",
       },
     },
     "webhook-inbox": {
@@ -391,5 +439,77 @@ export default defineConfig({
       options: { roles: ["viewer", "commenter", "editor"] },
     },
     "realtime-tables": {},
+    comments: {
+      options: {
+        subjects: {
+          task: { table: "centrakit.tasks", idType: "uuid" },
+          project: {
+            table: "centrakit.projects",
+            idType: "uuid",
+            scope: "project",
+          },
+          customer: { table: "centrakit.customers", idType: "bigint" },
+        },
+      },
+    },
+    attachments: {
+      options: {
+        subjects: {
+          task: { table: "centrakit.tasks", idType: "uuid", cascade: true },
+          project: {
+            table: "centrakit.projects",
+            idType: "uuid",
+            scope: "project",
+          },
+          customer: { table: "centrakit.customers", idType: "bigint" },
+        },
+      },
+    },
+    "data-lifecycle": {
+      options: {
+        autoTables: {
+          schemas: ["centrakit"],
+          tenant: "organization_id",
+          user: "created_by",
+          exclude: [
+            "centrakit.audit_*",
+            "centrakit.roles",
+            "centrakit.user_roles",
+          ],
+        },
+        anonymize: [
+          {
+            table: "centrakit.employees",
+            after: "365 days",
+            from: "archived_at",
+            set: {
+              first_name: "Anonymized",
+              last_name: null,
+              work_email: null,
+              job_title: null,
+            },
+            markedBy: "anonymized_at",
+          },
+        ],
+      },
+    },
+    "api-keys": { options: { scopes: "catalog" } },
+    sessions: {
+      options: { policies: true, exclude: ["centrakit.roles"] },
+    },
+    "jsonb-schemas": {},
+    settings: {
+      options: {
+        schemas: {
+          user: {
+            theme: { type: "string", enum: ["light", "dark", "system"] },
+          },
+          organization: {
+            fiscal_year_start: { type: "integer", minimum: 1, maximum: 12 },
+            default_currency: { type: "string", pattern: "^[A-Z]{3}$" },
+          },
+        },
+      },
+    },
   },
 });

@@ -5,13 +5,44 @@ import {
   resolveConfig,
   type SubjectsConfig,
 } from "better-supabase/config";
-import { renderModules } from "better-supabase/sql";
-import { readFile } from "node:fs/promises";
+import {
+  type ModuleAccessProvider,
+  moduleLayout,
+  renderModules,
+} from "better-supabase/sql";
+import { readdir, readFile } from "node:fs/promises";
 import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
 
 import config from "../better-supabase.config.ts";
+import { centrakitProvider } from "./provider.ts";
 
-const { blocks, blockNames } = resolveConfig(config, process.cwd());
+const resolved = resolveConfig(config, process.cwd());
+
+type Writable<T> = { -readonly [K in keyof T]: T[K] };
+
+const provider = centrakitProvider();
+
+// What `sql add` derives from config.authorization for the access module; the
+// extra modules a test installs render against the same provider.
+const accessProvider: Writable<ModuleAccessProvider> = {
+  name: provider.name,
+  scope: provider.tenantScope,
+  scopes: provider.scopes.map((scope) => scope.name),
+  idType: "uuid",
+  functions: provider.functions,
+};
+
+if (provider.suspension) {
+  accessProvider.suspension = provider.suspension;
+}
+
+if (provider.roleSources) {
+  accessProvider.roleSources = provider.roleSources;
+}
+
+if (provider.operations) {
+  accessProvider.operations = provider.operations;
+}
 
 // `pnpm env:local` writes it (the CLI picks the ports per checkout); without
 // it the suites skip, like they do when the stack is down.
@@ -58,79 +89,28 @@ export const ROLES = {
   systemSupport: "00000000-0000-4000-8000-00000000a004",
 } as const;
 
-const ORGANIZATION_PERMISSIONS = [
-  "organization.settings.manage",
-  "organization.delete",
-  "organization.members.invite",
-  "organization.members.remove",
-  "organization.members.manage",
-  "organization.ownership.transfer",
-  "organization.webhooks.manage",
-  "organization.webhooks.view",
-  "notifications.send",
-  "notifications.read",
-  "audit.view",
-  "drive.read",
-  "drive.create",
-  "drive.manage",
-];
+// Which permissions each role grants is the provider's, compiled into
+// centrakit.authz_role_grants(); the seed only creates the roles.
+const SEED = `insert into centrakit.roles (id, scope, key, name, system) values
+  ('${ROLES.owner}', 'organization', 'owner', 'Owner', true),
+  ('${ROLES.admin}', 'organization', 'admin', 'Admin', true),
+  ('${ROLES.member}', 'organization', 'member', 'Member', true),
+  ('${ROLES.systemSupport}', 'system', 'system-support', 'Support', true)`;
 
-/** What the CRM and work records need; members work with them, admins manage. */
-const RECORD_PERMISSIONS = [
-  "crm.read",
-  "pipelines.read",
-  "deals.read",
-  "deals.write",
-  "work_items.read",
-  "work_items.write",
-  "people.read",
-];
+const SUPABASE = new URL("../supabase/", import.meta.url);
 
-const RECORD_MANAGE = [
-  "pipelines.manage",
-  "deals.manage",
-  "work_items.manage",
-  "people.manage",
-  "people.view-sensitive",
-];
+/** The files `sql sync` wrote in `dir`, in the order a reset applies them. */
+async function generated(dir: string): Promise<string[]> {
+  const url = new URL(`${dir}/`, SUPABASE);
 
-const GRANTS = {
-  owner: [...ORGANIZATION_PERMISSIONS, ...RECORD_PERMISSIONS, ...RECORD_MANAGE],
-  admin: [
-    ...ORGANIZATION_PERMISSIONS.filter(
-      (key) =>
-        key !== "organization.delete" &&
-        key !== "organization.ownership.transfer",
-    ),
-    ...RECORD_PERMISSIONS,
-    ...RECORD_MANAGE,
-  ],
-  member: [
-    "notifications.send",
-    "notifications.read",
-    "drive.read",
-    "drive.create",
-    ...RECORD_PERMISSIONS,
-  ],
-  systemSupport: ["system.users.manage"],
-} satisfies Record<keyof typeof ROLES, readonly string[]>;
+  const names = (await readdir(url))
+    .filter((name) => name.startsWith("900_better_supabase_"))
+    .toSorted();
 
-const SEED = [
-  `insert into centrakit.roles (id, scope, key, name, system) values
-    ('${ROLES.owner}', 'organization', 'owner', 'Owner', true),
-    ('${ROLES.admin}', 'organization', 'admin', 'Admin', true),
-    ('${ROLES.member}', 'organization', 'member', 'Member', true),
-    ('${ROLES.systemSupport}', 'system', 'system-support', 'Support', true)`,
-  `insert into centrakit.permissions (scope, key, name)
-   select (case when key like 'system.%' then 'system' else 'organization' end)::centrakit.scope_type, key, key
-   from unnest($1::text[]) key`,
-  `insert into centrakit.role_permissions (role_id, permission_id)
-   select g.role_id::uuid, p.id
-   from jsonb_each($1::jsonb) as r(name, keys)
-   cross join lateral jsonb_array_elements_text(r.keys) as k(key)
-   join jsonb_each_text($2::jsonb) as g(name, role_id) on g.name = r.name
-   join centrakit.permissions p on p.key = k.key`,
-];
+  return Promise.all(
+    names.map((name) => readFile(new URL(name, url), "utf-8")),
+  );
+}
 
 /** A connection inside one transaction, acting as a user per call. */
 export class Session {
@@ -247,45 +227,65 @@ export async function withCentraKit(
       );
     }
 
+    // The extensions come first; the data migration repeats the data files,
+    // which load after the module files below.
+    const migrations = new URL("migrations/", SUPABASE);
+
+    const extensions = (await readdir(migrations))
+      .filter((name) => name.endsWith("_extensions.sql"))
+      .toSorted();
+
+    for (const name of extensions) {
+      await client.query(await readFile(new URL(name, migrations), "utf-8"));
+    }
+
     await client.query(
-      await readFile(
-        new URL("../supabase/schema.sql", import.meta.url),
-        "utf-8",
-      ),
+      await readFile(new URL("schemas/000_centrakit.sql", SUPABASE), "utf-8"),
     );
-    await client.query(SEED[0]!);
-    await client.query(SEED[1]!, [
-      [
-        ...ORGANIZATION_PERMISSIONS,
-        ...RECORD_PERMISSIONS,
-        ...RECORD_MANAGE,
-        "system.users.manage",
-      ],
-    ]);
-    await client.query(
-      SEED[2]!,
-      [GRANTS, ROLES].map((v) => JSON.stringify(v)),
-    );
+    await client.query(SEED);
     await client.query(
       "insert into centrakit.user_roles (user_id, role_id) values ($1, $2)",
       [USERS.support, ROLES.systemSupport],
     );
-    const modules = { ...blocks, ...extra?.config };
 
-    const layout = extra?.subjects
-      ? { modules, subjects: extra.subjects }
-      : { modules };
+    for (const file of [
+      ...(await generated("schemas")),
+      ...(await generated("better-supabase-data")),
+    ]) {
+      await client.query(file);
+    }
 
-    for (const file of renderModules(
-      [...blockNames, ...(extra?.modules ?? [])],
-      layout,
-    )) {
-      await client.query(file.contents);
+    // An app runs this once when it adopts the profiles block; a user without
+    // a profile counts as disabled.
+    await client.query("select better_supabase.backfill_profiles()");
+
+    if (extra !== undefined) {
+      const base = moduleLayout(
+        resolved,
+        undefined,
+        [],
+        undefined,
+        accessProvider,
+        provider.permissions?.map((permission) => permission.key),
+      );
+
+      const layout: Writable<typeof base> = {
+        ...base,
+        modules: { ...base.modules, ...extra.config },
+      };
+
+      if (extra.subjects) {
+        layout.subjects = extra.subjects;
+      }
+
+      for (const file of renderModules(extra.modules, layout)) {
+        await client.query(file.contents);
+      }
     }
 
     await client.query(
       await readFile(
-        new URL("../supabase/policies.sql", import.meta.url),
+        new URL("schemas/990_centrakit_policies.sql", SUPABASE),
         "utf-8",
       ),
     );

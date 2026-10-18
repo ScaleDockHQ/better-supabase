@@ -1,0 +1,6 @@
+# This file makes the folder its own Supabase project, so sql sync writes and
+# checks the module files in supabase/schemas here.
+project_id = "validation-centrakit"
+
+[experimental.pgdelta]
+enabled = true

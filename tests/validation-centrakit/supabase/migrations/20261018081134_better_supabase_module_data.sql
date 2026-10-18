@@ -1,0 +1,421 @@
+-- better-supabase sql data: the rows and settings of updated-at, audit, tenant, invitations, jobs, webhook-inbox, realtime-tables, jsonb-schemas, access, support-sessions, organizations, profiles, outbox, notifications, webhooks-out, sessions, webhooks-in, api-keys, settings, drive, comments, attachments, data-lifecycle, credentials, number-sequences, teams, tags, state-machine, custom-fields, share-links, reminders, imports, drive-files, which a schema diff skips.
+
+-- better-supabase module: updated-at (0.8.0)
+-- @bs-module-data updated-at
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('updated-at', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: audit (0.8.0)
+-- @bs-module-data audit
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+drop event trigger if exists bs_audit_forget_dropped;
+create event trigger bs_audit_forget_dropped on sql_drop
+  when tag in ('DROP TABLE', 'DROP SCHEMA')
+  execute function better_supabase.audit_forget_dropped();
+
+-- Registrations of tables dropped before bs_audit_forget_dropped existed.
+delete from better_supabase.audited_tables a
+where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+
+insert into better_supabase.modules (name, version, mode)
+values ('audit', 8, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: tenant (0.8.0)
+-- @bs-module-data tenant
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tenant', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: invitations (0.8.0)
+-- @bs-module-data invitations
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('invitations', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: jobs (0.8.0)
+-- @bs-module-data jobs
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create extension if not exists "pgmq";
+
+-- Indexes the queues that existed before the module.
+select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
+
+insert into better_supabase.modules (name, version, mode)
+values ('jobs', 8, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: webhook-inbox (0.8.0)
+-- @bs-module-data webhook-inbox
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('webhook-inbox', 8, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: realtime-tables (0.8.0)
+-- @bs-module-data realtime-tables
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('realtime-tables', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: jsonb-schemas (0.8.0)
+-- @bs-module-data jsonb-schemas
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create extension if not exists "pg_jsonschema" with schema "extensions";
+
+insert into better_supabase.modules (name, version, mode)
+values ('jsonb-schemas', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: access (0.8.0)
+-- @bs-module-data access
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('access', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: support-sessions (0.8.0)
+-- @bs-module-data support-sessions
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('support-sessions', 2, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: organizations (0.8.0)
+-- @bs-module-data organizations
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('organizations', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: profiles (0.8.0)
+-- @bs-module-data profiles
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('profiles', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: outbox (0.8.0)
+-- @bs-module-data outbox
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('outbox', 4, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: notifications (0.8.0)
+-- @bs-module-data notifications
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('notifications', 7, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: webhooks-out (0.8.0)
+-- @bs-module-data webhooks-out
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('webhooks-out', 4, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: sessions (0.8.0)
+-- @bs-module-data sessions
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('sessions', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: webhooks-in (0.8.0)
+-- @bs-module-data webhooks-in
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('webhooks-in', 4, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: api-keys (0.8.0)
+-- @bs-module-data api-keys
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('api-keys', 4, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: settings (0.8.0)
+-- @bs-module-data settings
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('settings', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: drive (0.8.0)
+-- @bs-module-data drive
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: comments (0.8.0)
+-- @bs-module-data comments
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('comments', 4, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: attachments (0.8.0)
+-- @bs-module-data attachments
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('attachments', 'attachments', false, 52428800, null)
+on conflict (id) do nothing;
+
+insert into better_supabase.modules (name, version, mode)
+values ('attachments', 2, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: data-lifecycle (0.8.0)
+-- @bs-module-data data-lifecycle
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into storage.buckets (id, name, public)
+values ('data-exports', 'data-exports', false)
+on conflict (id) do nothing;
+
+insert into better_supabase.modules (name, version, mode)
+values ('data-lifecycle', 6, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: credentials (0.8.0)
+-- @bs-module-data credentials
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('credentials', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: number-sequences (0.8.0)
+-- @bs-module-data number-sequences
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('number-sequences', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: teams (0.8.0)
+-- @bs-module-data teams
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('teams', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: tags (0.8.0)
+-- @bs-module-data tags
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('tags', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: state-machine (0.8.0)
+-- @bs-module-data state-machine
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('state-machine', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: custom-fields (0.8.0)
+-- @bs-module-data custom-fields
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('custom-fields', 2, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: share-links (0.8.0)
+-- @bs-module-data share-links
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('share-links', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: reminders (0.8.0)
+-- @bs-module-data reminders
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('reminders', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: imports (0.8.0)
+-- @bs-module-data imports
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('imports', 1, 'adopt')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: drive-files (0.8.0)
+-- @bs-module-data drive-files
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.modules (name, version, mode)
+values ('drive-files', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
