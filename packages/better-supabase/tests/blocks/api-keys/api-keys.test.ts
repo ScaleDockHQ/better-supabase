@@ -421,6 +421,54 @@ describe("apiKeyResolver", () => {
   });
 });
 
+describe("malformed keys with the prefix", () => {
+  const malformed = "acme_bad_key";
+
+  it("tells key-shaped tokens apart for the configured prefix", () => {
+    const keys = createApiKeys({
+      prefix: "acme",
+      transport: fakeTransport(() => null).transport,
+    });
+
+    expect(keys.isApiKey(malformed)).toBe(true);
+    expect(keys.isApiKey(` acme_${"0".repeat(16)}_secret `)).toBe(true);
+    expect(keys.isApiKey("bs_bad_key")).toBe(false);
+    expect(keys.isApiKey("acme")).toBe(false);
+    expect(keys.isApiKey("eyJhbGciOiJIUzI1NiJ9.e30.sig")).toBe(false);
+  });
+
+  it("verifies them as invalid without a lookup and answers INVALID_API_KEY", async () => {
+    const { transport, calls } = fakeTransport(() => ({ status: "ok" }));
+    const keys = createApiKeys({ prefix: "acme", transport });
+
+    expect(await keys.verify(malformed).orThrow()).toEqual({
+      status: "invalid",
+    });
+    expect(calls).toHaveLength(0);
+
+    const bearer = (token: string) =>
+      new Request("https://x.test", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    expect(await apiKeyResolver({ keys }).resolve(bearer(malformed))).toEqual({
+      kind: "invalid",
+      error: expect.objectContaining({
+        kind: "unauthorized",
+        code: "INVALID_API_KEY",
+      }),
+    });
+    expect(
+      await apiKeyResolver({ keys }).resolve(bearer("eyJ.a.b")),
+    ).toBeUndefined();
+    expect(
+      await apiKeyResolver({
+        keys: { verify: (token) => keys.verify(token) },
+      }).resolve(bearer(malformed)),
+    ).toBeUndefined();
+  });
+});
+
 describe("API keys in a server", () => {
   const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

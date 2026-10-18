@@ -76,6 +76,15 @@ describe("withApiKey", () => {
     expect(invalid.status).toBe(401);
     expect(await invalid.json()).toMatchObject({ code: "INVALID_API_KEY" });
 
+    const malformed = await handler({ status: "ok", key: keyRow })(
+      new Request("https://api.test/v1/deals", {
+        headers: { authorization: "Bearer bs_bad_key" },
+      }),
+    );
+
+    expect(malformed.status).toBe(401);
+    expect(await malformed.json()).toMatchObject({ code: "INVALID_API_KEY" });
+
     const limited = await handler({ status: "rate_limited", retry_after: 5 })(
       new Request("https://api.test/v1/deals", {
         headers: { "x-api-key": token },
