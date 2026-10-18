@@ -7,9 +7,19 @@ import {
   type PresetName,
   PRESETS,
 } from "better-supabase/preset";
-import { SlidersHorizontalIcon } from "lucide-react";
-import { useId } from "react";
+import { LayoutTemplateIcon, SlidersHorizontalIcon } from "lucide-react";
+import { useId, useState } from "react";
+import { toast } from "sonner";
 
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -22,8 +32,16 @@ import {
 } from "@/components/ui/select";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { CUSTOM_PRESET, PRESET_ITEMS } from "@/lib/create-options";
+import { isEmptyDesign } from "@/lib/design";
+import {
+  DESIGN_TEMPLATES,
+  type DesignTemplate,
+  templatePreset,
+  templateTables,
+} from "@/lib/design-templates";
 
 import { PRESET_CATEGORY } from "../preset-categories";
+import { useDesign } from "./design-provider";
 
 function PresetLabel({ value }: { value: string }): ReactElement {
   if (!isPresetName(value)) {
@@ -140,5 +158,104 @@ export function PresetPicker({
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+function TemplateOption({
+  template,
+  onPick,
+}: {
+  template: DesignTemplate;
+  onPick: (template: DesignTemplate) => void;
+}): ReactElement {
+  return (
+    <li>
+      <button
+        type="button"
+        className="flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+        onClick={() => {
+          onPick(template);
+        }}
+      >
+        <CategoryIcon category={PRESET_CATEGORY[template.preset]} size="sm" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-baseline gap-2">
+            <span className="text-sm font-medium">{template.title}</span>
+            <span className="text-xs text-muted-foreground">
+              {PRESETS[template.preset].title} preset
+            </span>
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {template.description}
+          </span>
+          <span className="flex flex-wrap gap-1">
+            {templateTables(template).map((table) => (
+              <Badge key={table} variant="outline" className="font-mono">
+                {table}
+              </Badge>
+            ))}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * "Start from a template": a dialog of starting designs. Picking one sets
+ * its preset and blocks and replaces the app tables as one undo step.
+ */
+export function TemplatePicker(): ReactElement {
+  const { state, actions } = useDesign();
+  const [open, setOpen] = useState(false);
+  const replaces = !isEmptyDesign(state.design);
+
+  const pick = (template: DesignTemplate): void => {
+    actions.startFrom(
+      (current) => templatePreset(current, template),
+      template.design,
+    );
+    setOpen(false);
+    toast(`Started from ${template.title}`, {
+      action: { label: "Undo", onClick: actions.undo },
+    });
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        <LayoutTemplateIcon aria-hidden="true" />
+        Start from a template
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[calc(100svh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Start from a template</DialogTitle>
+            <DialogDescription>
+              {replaces
+                ? "A template sets the preset and replaces the app tables on the canvas. Undo brings them back."
+                : "A template sets the preset and adds app tables, relations and record features you can edit."}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="min-h-0 divide-y divide-border overflow-y-auto border-y border-border">
+            {DESIGN_TEMPLATES.map((template) => (
+              <TemplateOption
+                key={template.id}
+                template={template}
+                onPick={pick}
+              />
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

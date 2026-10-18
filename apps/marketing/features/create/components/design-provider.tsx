@@ -32,6 +32,11 @@ export interface DesignContextValue {
     readonly step: (design: Design, blocks: Preset["blocks"]) => void;
     /** A changed block list is one step; other preset fields change in place. */
     readonly setPreset: (update: (current: Preset) => Preset) => void;
+    /** Replaces the design and updates the preset as one step. */
+    readonly startFrom: (
+      update: (current: Preset) => Preset,
+      design: Design,
+    ) => void;
     readonly undo: () => void;
     readonly redo: () => void;
     /** Replaces the design and clears the history. */
@@ -71,6 +76,9 @@ export function useDesignState(
       },
       setPreset: (update) => {
         dispatch({ type: "preset", update });
+      },
+      startFrom: (update, next) => {
+        dispatch({ type: "template", update, design: next });
       },
       undo: () => {
         dispatch({ type: "undo" });

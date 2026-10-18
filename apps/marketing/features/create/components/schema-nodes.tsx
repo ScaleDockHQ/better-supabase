@@ -31,6 +31,7 @@ export type InspectorTab =
   | "columns"
   | "relations"
   | "features"
+  | "data"
   | "options"
   | "sql";
 
