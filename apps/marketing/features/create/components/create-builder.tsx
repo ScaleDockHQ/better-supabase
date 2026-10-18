@@ -1,136 +1,67 @@
 "use client";
 
+import type { ReactElement } from "react";
+
 import {
   encodePreset,
   type Preset,
-  PRESET_FIELDS,
-  PRESET_FRAMEWORKS,
-  presetApplyCommand,
-  presetBlocksSource,
-  presetConfigSource,
-  presetInstallCommand,
   resolvePreset,
-  withPresetField,
 } from "better-supabase/preset";
-import { TriangleAlertIcon } from "lucide-react";
+import { SlidersHorizontalIcon, TerminalIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   applyNamedPreset,
   blockGroups,
   createHref,
+  DEFAULT_PACKAGE,
+  DEFAULT_PRESET,
   initialPreset,
   matchingPreset,
+  packageDir,
+  shuffledPreset,
   toggleBlock,
 } from "@/lib/create";
 
-import { BlockPicker } from "./block-picker";
-import { CreateOutput } from "./create-output";
-import { PresetPicker } from "./preset-picker";
+import { GetCodeDialog } from "./get-code-dialog";
+import { OptionsPanel, type PackageOption } from "./options-panel";
+import { SchemaDiagram } from "./schema-diagram";
 
-const CONVENTION_KEYS = [
-  "casing",
-  "idType",
-  "scope",
-  "tenantName",
-  "access",
-  "api",
-] as const;
+function initialPackage(value: string | null): PackageOption {
+  const dir = packageDir(value);
 
-type ConventionKey = (typeof CONVENTION_KEYS)[number];
-
-const FIELD_LABELS = {
-  casing: "Casing",
-  idType: "Tenant id type",
-  scope: "Scope",
-  tenantName: "Tenant name",
-  access: "Access model",
-  api: "API schema",
-} satisfies Readonly<Record<ConventionKey, string>>;
-
-const PLATFORMS = ["web", "native", "both"] as const;
-
-const PLATFORM_LABELS = {
-  web: "Web",
-  native: "Native",
-  both: "Both",
-} satisfies Readonly<Record<(typeof PLATFORMS)[number], string>>;
-
-function valuesOf(key: string): readonly string[] {
-  return PRESET_FIELDS.find((field) => field.key === key)?.values ?? [];
+  return dir === undefined
+    ? { on: false, dir: DEFAULT_PACKAGE }
+    : { on: true, dir };
 }
 
-function Field({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs text-muted-foreground">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function OptionSelect({
-  id,
-  value,
-  values,
-  onChange,
-}: {
-  id: string;
-  value: string;
-  values: readonly string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select
-      value={value}
-      disabled={values.length < 2}
-      onValueChange={(next) => {
-        if (next !== null) {
-          onChange(next);
-        }
-      }}
-    >
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {values.map((each) => (
-          <SelectItem key={each} value={each}>
-            {each}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function CreateBuilder() {
+/**
+ * The options in a rail on the left (a sheet on small screens) and the
+ * schema the selection installs on the right. The URL keeps the preset code
+ * and the monorepo package, so a link restores both.
+ */
+export function CreateBuilder(): ReactElement {
   const params = useSearchParams();
-  const ids = useId();
 
   const [preset, setPreset] = useState<Preset>(() =>
     initialPreset(params.get("preset")),
   );
+
+  const [pkgOption, setPkgOption] = useState<PackageOption>(() =>
+    initialPackage(params.get("package")),
+  );
+
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const resolved = useMemo(() => resolvePreset(preset), [preset]);
 
@@ -141,177 +72,109 @@ export function CreateBuilder() {
 
   const code = encodePreset(preset);
   const named = matchingPreset(preset);
+  const pkg = pkgOption.on ? packageDir(pkgOption.dir) : undefined;
 
   useEffect(() => {
-    const href = createHref(preset);
+    const href = createHref(preset, pkg);
 
     if (`${window.location.pathname}${window.location.search}` !== href) {
       window.history.replaceState(null, "", href);
     }
-  }, [preset]);
+  }, [preset, pkg]);
 
-  const fieldConflicts = resolved.conflicts.filter(
-    (conflict) => conflict.field !== undefined,
+  const openCode = (): void => {
+    setOptionsOpen(false);
+    setCodeOpen(true);
+  };
+
+  const panel = (
+    <OptionsPanel
+      preset={preset}
+      resolved={resolved}
+      named={named}
+      code={code}
+      groups={groups}
+      pkg={pkgOption}
+      onPreset={setPreset}
+      onNamedPreset={(name) => {
+        setPreset((current) => applyNamedPreset(current, name));
+      }}
+      onToggleBlock={(name) => {
+        setPreset((current) => toggleBlock(current, name));
+      }}
+      onPackage={setPkgOption}
+      onShuffle={() => {
+        const next = shuffledPreset(named);
+        setPreset((current) => applyNamedPreset(current, next));
+      }}
+      onGetCode={openCode}
+    />
   );
 
   return (
-    <div className="flex flex-col gap-10">
-      <PresetPicker
-        selected={named}
-        onSelect={(name) => {
-          setPreset((current) => applyNamedPreset(current, name));
-        }}
-      />
+    <div className="flex w-full flex-1">
+      <aside
+        aria-label="Options"
+        className="sticky top-14 hidden h-[calc(100svh-3.5rem)] w-80 shrink-0 flex-col border-r border-border lg:flex"
+      >
+        {panel}
+      </aside>
 
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:items-start">
-        <form
-          className="flex flex-col gap-8"
-          aria-label="Preset"
-          onSubmit={(event) => {
-            event.preventDefault();
-          }}
-        >
-          <fieldset className="flex flex-col gap-4">
-            <legend className="pb-3 text-base font-semibold tracking-tight">
-              Stack
-            </legend>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field id={`${ids}-framework`} label="Framework">
-                <OptionSelect
-                  id={`${ids}-framework`}
-                  value={preset.framework}
-                  values={PRESET_FRAMEWORKS}
-                  onChange={(value) => {
-                    const framework = PRESET_FRAMEWORKS.find(
-                      (each) => each === value,
-                    );
+      <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
+        <SheetContent side="left" className="w-80 gap-0 p-0 sm:max-w-80">
+          <SheetHeader className="border-b border-border">
+            <SheetTitle>Customize</SheetTitle>
+            <SheetDescription>
+              The preset, the stack and the blocks.
+            </SheetDescription>
+          </SheetHeader>
+          {optionsOpen ? panel : null}
+        </SheetContent>
+      </Sheet>
 
-                    if (framework !== undefined) {
-                      setPreset((current) => ({ ...current, framework }));
-                    }
-                  }}
-                />
-              </Field>
-              <div className="flex flex-col gap-1.5">
-                <p
-                  id={`${ids}-platforms`}
-                  className="text-xs text-muted-foreground"
-                >
-                  Platforms
-                </p>
-                <ToggleGroup
-                  aria-labelledby={`${ids}-platforms`}
-                  variant="outline"
-                  spacing={0}
-                  value={[preset.platforms]}
-                  onValueChange={(value) => {
-                    const platforms = PLATFORMS.find(
-                      (each) => each === value[0],
-                    );
-
-                    if (platforms !== undefined) {
-                      setPreset((current) => ({ ...current, platforms }));
-                    }
-                  }}
-                >
-                  {PLATFORMS.map((platform) => (
-                    <ToggleGroupItem key={platform} value={platform}>
-                      {PLATFORM_LABELS[platform]}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-4">
-            <legend className="pb-3 text-base font-semibold tracking-tight">
-              Conventions
-            </legend>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {CONVENTION_KEYS.map((key) => (
-                <Field key={key} id={`${ids}-${key}`} label={FIELD_LABELS[key]}>
-                  <OptionSelect
-                    id={`${ids}-${key}`}
-                    value={preset[key]}
-                    values={valuesOf(key)}
-                    onChange={(value) => {
-                      setPreset((current) =>
-                        withPresetField(current, key, value),
-                      );
-                    }}
-                  />
-                </Field>
-              ))}
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Other tenant names arrive with naming conventions.
-            </p>
-            {fieldConflicts.length > 0 ? (
-              <Alert variant="warning">
-                <TriangleAlertIcon aria-hidden="true" />
-                <AlertTitle>These choices conflict</AlertTitle>
-                <AlertDescription>
-                  <ul className="flex flex-col gap-1">
-                    {fieldConflicts.map((conflict) => (
-                      <li key={conflict.field}>
-                        {conflict.field}: {conflict.reason}
-                      </li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="pb-3 text-base font-semibold tracking-tight">
-              Integrations
-            </legend>
-            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-              {valuesOf("integrations").map((value) => (
-                <label
-                  key={value}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-muted/60"
-                >
-                  <input
-                    type="checkbox"
-                    name="integration"
-                    value={value}
-                    checked={preset.integrations.some((each) => each === value)}
-                    onChange={() => {
-                      setPreset((current) =>
-                        withPresetField(current, "integrations", value),
-                      );
-                    }}
-                    className="size-4 shrink-0 accent-primary"
-                  />
-                  {value}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <BlockPicker
-            groups={groups}
-            installed={resolved.blocks.length}
-            onToggle={(name) => {
-              setPreset((current) => toggleBlock(current, name));
+      <section
+        aria-label="Schema"
+        className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1 flex-col"
+      >
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2 lg:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setOptionsOpen(true);
             }}
-          />
-        </form>
-
-        <div className="min-w-0 xl:sticky xl:top-20">
-          <CreateOutput
-            code={code}
-            resolved={resolved}
-            installCommand={presetInstallCommand(resolved)}
-            applyCommand={presetApplyCommand(resolved)}
-            configSource={presetConfigSource(resolved)}
-            wiringSource={presetBlocksSource(resolved)}
-          />
+          >
+            <SlidersHorizontalIcon aria-hidden="true" />
+            Customize
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto"
+            onClick={openCode}
+          >
+            <TerminalIcon aria-hidden="true" />
+            Get code
+          </Button>
         </div>
-      </div>
+        <SchemaDiagram
+          code={code}
+          resolved={resolved}
+          pkg={pkg}
+          onStart={() => {
+            setPreset((current) => applyNamedPreset(current, DEFAULT_PRESET));
+          }}
+        />
+      </section>
+
+      <GetCodeDialog
+        open={codeOpen}
+        onOpenChange={setCodeOpen}
+        code={code}
+        resolved={resolved}
+        pkg={pkg}
+      />
     </div>
   );
 }
