@@ -44,6 +44,10 @@ function useTabLabel() {
         return t("Audit log");
       }
 
+      case "aiProviders": {
+        return t("AI providers");
+      }
+
       default: {
         const unknown: never = id;
 

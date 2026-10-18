@@ -5,6 +5,8 @@ import {
   CreditCardIcon,
   FlaskConicalIcon,
   BellIcon,
+  CalendarClockIcon,
+  CpuIcon,
   InboxIcon,
   BotIcon,
   KeyRoundIcon,
@@ -43,11 +45,13 @@ const ICONS = {
   assistant: BotIcon,
   knowledge: LibraryIcon,
   agentActivity: ActivityIcon,
+  aiTasks: CalendarClockIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
   apiKeys: KeyRoundIcon,
   audit: ScrollTextIcon,
+  aiProviders: CpuIcon,
   settings: SettingsIcon,
 } satisfies Record<NavId, LucideIcon>;
 
@@ -92,6 +96,10 @@ function useNavLabel() {
         return t("Agent activity");
       }
 
+      case "aiTasks": {
+        return t("AI tasks");
+      }
+
       case "beta": {
         return t("Beta");
       }
@@ -110,6 +118,10 @@ function useNavLabel() {
 
       case "audit": {
         return t("Audit log");
+      }
+
+      case "aiProviders": {
+        return t("AI providers");
       }
 
       case "settings": {

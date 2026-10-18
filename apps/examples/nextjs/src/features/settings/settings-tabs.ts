@@ -8,7 +8,8 @@ export type SettingsTabId =
   | "members"
   | "billing"
   | "apiKeys"
-  | "audit";
+  | "audit"
+  | "aiProviders";
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
@@ -30,4 +31,9 @@ export const settingsTabs: readonly SettingsTab[] = [
   { id: "billing", href: "/settings/billing", requires: "billing.read" },
   { id: "apiKeys", href: "/settings/api-keys", requires: "api_keys.own" },
   { id: "audit", href: "/settings/audit", requires: "audit.read" },
+  {
+    id: "aiProviders",
+    href: "/settings/ai-providers",
+    requires: "ai.admin",
+  },
 ];
