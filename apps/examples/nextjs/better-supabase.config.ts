@@ -1,9 +1,24 @@
+import { catalogSubjects } from "better-supabase/blocks/catalog";
+import { dealsSubjects } from "better-supabase/blocks/deals";
+import { driveSubject } from "better-supabase/blocks/drive";
+import { employeesSubjects } from "better-supabase/blocks/employees";
+import { partiesSubjects } from "better-supabase/blocks/parties";
+import { workItemsSubjects } from "better-supabase/blocks/work-items";
 import { defineConfig } from "better-supabase/config";
 
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
 
 const crud = ["select", "insert", "update", "delete"] as const;
+
+const WORK_STATES = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+  "completed",
+  "canceled",
+];
 
 export default defineConfig({
   source: {
@@ -80,8 +95,24 @@ export default defineConfig({
       title: "name",
       url: "/customers/{id}",
       deletedAt: "archived_at",
-      permissions: { read: "customers.read" },
+      permissions: { read: "customers.read", write: "customers.write" },
       search: {},
+    },
+    ...partiesSubjects({
+      url: { company: "/crm/contacts/{id}", person: "/crm/contacts/{id}" },
+    }),
+    ...dealsSubjects({ url: "/crm/deals" }),
+    ...workItemsSubjects({ url: "/work" }),
+    ...employeesSubjects({ url: "/people" }),
+    ...catalogSubjects({ productUrl: "/shop" }),
+    drive_node: driveSubject(),
+    application: {
+      table: "better_supabase.applications",
+      idType: "uuid",
+      tenant: "tenant_id",
+      url: "/people/hiring",
+      permissions: { read: "hiring.read", write: "hiring.write" },
+      rank: { column: "rank", group: "stage_id" },
     },
   },
   // `search_notes(query, k)` for `db.$search('notes', …)`.
@@ -219,13 +250,27 @@ export default defineConfig({
     // card each in the app.
     sessions: {},
     sso: {},
-    approvals: {},
+    approvals: {
+      options: {
+        policies: {
+          customer: {
+            discount: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 1 },
+              ],
+              selfApproval: true,
+            },
+          },
+        },
+      },
+    },
     "access-requests": {},
     grants: {},
     subjects: {},
     reactions: {},
     "share-links": {},
-    attachments: {},
+    // The example runs no malware scanner, so uploads are readable at once.
+    attachments: { options: { requireScan: false } },
     waitlist: {},
     teams: {},
     parties: {},
@@ -234,7 +279,25 @@ export default defineConfig({
     engagements: {},
     quotes: {},
     targets: {},
-    "state-machine": {},
+    "state-machine": {
+      options: {
+        machines: {
+          // Any state may follow any other, as the board allows; the machine
+          // adds the history and the status.changed events.
+          work_item: {
+            column: "state",
+            initial: "backlog",
+            transitions: Object.fromEntries(
+              WORK_STATES.map((from) => [
+                from,
+                WORK_STATES.filter((to) => to !== from),
+              ]),
+            ),
+            order: ["triage", "backlog", "unstarted", "started", "completed"],
+          },
+        },
+      },
+    },
     rank: {},
     // The app already has `projects` and `saved_views` tables (appTables).
     "work-items": { tables: { projects: "work_projects" } },
@@ -257,7 +320,9 @@ export default defineConfig({
     reminders: {},
     "drive-files": {},
     drive: {},
-    versions: {},
+    versions: {
+      options: { subjects: { customer: { columns: ["name", "kvk"] } } },
+    },
     "jsonb-schemas": {},
     forms: {},
     imports: {},

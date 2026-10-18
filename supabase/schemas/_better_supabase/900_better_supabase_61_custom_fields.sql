@@ -188,6 +188,32 @@ $$;
 revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
 
+-- The definitions of one entity in display order.
+create or replace function "better_supabase"."list_field_definitions"(tenant uuid, entity text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'rank', d."rank"
+  ) order by d."rank" collate "C", d."key"), '[]'::jsonb)
+  from "better_supabase"."field_definitions" d
+  where d."tenant_id" = list_field_definitions.tenant
+    and d."entity" = list_field_definitions.entity
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_field_definitions.tenant, 'custom_fields.read'), false))
+$$;
+revoke execute on function "better_supabase"."list_field_definitions"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."list_field_definitions"(uuid, text) to authenticated, service_role;
+
 -- Sets a field's rank key, from rankBetween over its neighbours' keys.
 create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
 returns boolean
@@ -275,6 +301,15 @@ set search_path = ''
 as $$ select "better_supabase"."delete_field_definition"($1) $$;
 revoke execute on function "api"."delete_field_definition"(uuid) from public, anon;
 grant execute on function "api"."delete_field_definition"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_field_definitions"(tenant uuid, entity text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_field_definitions"($1, $2) $$;
+revoke execute on function "api"."list_field_definitions"(uuid, text) from public, anon;
+grant execute on function "api"."list_field_definitions"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."rank_field_definition"(definition uuid, rank text)
 returns boolean

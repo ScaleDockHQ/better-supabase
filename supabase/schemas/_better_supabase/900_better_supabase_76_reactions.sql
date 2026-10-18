@@ -91,6 +91,15 @@ as $$
     when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
     else case reaction_subject_visible.subject_type
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'customers.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'parties.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'parties.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'work_items.read'), false)
+    when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'employees.read'), false)
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'catalog.read'), false)
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'catalog.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'drive.read'), false)
+    when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'hiring.read'), false)
     else false
   end
   end
@@ -358,6 +367,33 @@ begin
   end if;
 end;
 $do$;
+
+-- options.subjects with cascade: deleting a subject row deletes its reactions rows.
+create or replace function "better_supabase"."reactions_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+begin
+  delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reactions_subject_deleted"() from public, anon, authenticated;
+
+drop trigger if exists "bs_reactions_product_cascade" on "better_supabase"."products";
+create trigger "bs_reactions_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."reactions_subject_deleted"('product', 'id');
+
+drop trigger if exists "bs_reactions_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bs_reactions_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."reactions_subject_deleted"('product_variant', 'id');
 
 -- blocks.reactions.api: entry points for the Data API.
 create schema if not exists "api";

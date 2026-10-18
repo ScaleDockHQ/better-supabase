@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{customer}'::text[]
+  select '{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -30,6 +30,22 @@ begin
   case subject_title.subject_type
     when 'customer' then
       return (select s."name"::text from "public"."customers" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'company' then
+      return (select s."name"::text from "better_supabase"."companies" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'person' then
+      return (select s."name"::text from "better_supabase"."people" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'deal' then
+      return (select s."name"::text from "better_supabase"."deals" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'work_item' then
+      return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'employee' then
+      return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'product' then
+      return (select s."title"::text from "better_supabase"."products" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'product_variant' then
+      return (select s."sku"::text from "better_supabase"."product_variants" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'drive_node' then
+      return (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     else
       return null;
   end case;
@@ -50,6 +66,20 @@ begin
   case subject_url.subject_type
     when 'customer' then
       return (select '/customers/' || s."id"::text from "public"."customers" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
+    when 'company' then
+      return (select '/crm/contacts/' || s."id"::text from "better_supabase"."companies" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'person' then
+      return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'deal' then
+      return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
+    when 'work_item' then
+      return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
+    when 'employee' then
+      return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'product' then
+      return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'application' then
+      return (select '/people/hiring' from "better_supabase"."applications" s where s."id" = (subject_url.subject_id)::uuid);
     else
       return null;
   end case;
@@ -77,6 +107,97 @@ begin
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'customers.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'customers.write'), false)
+          else true
+        end)
+      );
+    when 'company' then
+      return exists (
+        select 1 from "better_supabase"."companies" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
+          else true
+        end)
+      );
+    when 'person' then
+      return exists (
+        select 1 from "better_supabase"."people" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
+          else true
+        end)
+      );
+    when 'deal' then
+      return exists (
+        select 1 from "better_supabase"."deals" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.write'), false)
+          else true
+        end)
+      );
+    when 'work_item' then
+      return exists (
+        select 1 from "better_supabase"."work_items" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.write'), false)
+          else true
+        end)
+      );
+    when 'employee' then
+      return exists (
+        select 1 from "better_supabase"."employees" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.write'), false)
+          else true
+        end)
+      );
+    when 'product' then
+      return exists (
+        select 1 from "better_supabase"."products" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.manage'), false)
+          else true
+        end)
+      );
+    when 'product_variant' then
+      return exists (
+        select 1 from "better_supabase"."product_variants" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.manage'), false)
+          else true
+        end)
+      );
+    when 'drive_node' then
+      return exists (
+        select 1 from "better_supabase"."drive_nodes" s
+        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
+          else true
+        end)
+      );
+    when 'application' then
+      return exists (
+        select 1 from "better_supabase"."applications" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.write'), false)
           else true
         end)
       );
@@ -109,6 +230,97 @@ begin
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'customers.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'customers.write'), false)
+          else false
+        end
+      );
+    when 'company' then
+      return exists (
+        select 1 from "better_supabase"."companies" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          else false
+        end
+      );
+    when 'person' then
+      return exists (
+        select 1 from "better_supabase"."people" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          else false
+        end
+      );
+    when 'deal' then
+      return exists (
+        select 1 from "better_supabase"."deals" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.write'), false)
+          else false
+        end
+      );
+    when 'work_item' then
+      return exists (
+        select 1 from "better_supabase"."work_items" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.write'), false)
+          else false
+        end
+      );
+    when 'employee' then
+      return exists (
+        select 1 from "better_supabase"."employees" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'employees.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'employees.write'), false)
+          else false
+        end
+      );
+    when 'product' then
+      return exists (
+        select 1 from "better_supabase"."products" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.manage'), false)
+          else false
+        end
+      );
+    when 'product_variant' then
+      return exists (
+        select 1 from "better_supabase"."product_variants" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.manage'), false)
+          else false
+        end
+      );
+    when 'drive_node' then
+      return exists (
+        select 1 from "better_supabase"."drive_nodes" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.manage'), false)
+          else false
+        end
+      );
+    when 'application' then
+      return exists (
+        select 1 from "better_supabase"."applications" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'hiring.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'hiring.write'), false)
           else false
         end
       );

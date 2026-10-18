@@ -1,35 +1,25 @@
 /**
- * Every recipe route renders its recipe. The region is the element with
- * `data-recipe="<slug>"`, the one `recipe-screenshots.spec.ts` captures.
+ * Every recipe route renders its recipe, and nothing on the page failed to
+ * load. The region is the element with `data-recipe="<slug>"`, the one
+ * `recipe-screenshots.spec.ts` captures.
  */
 import { expect, test } from "@playwright/test";
 
+import { RECIPE_ROUTES } from "./recipe-routes";
 import { users } from "./users";
-
-const ROUTES: readonly { readonly slug: string; readonly path: string }[] = [
-  { slug: "profile-form", path: "/en/settings/profile" },
-  { slug: "mfa-setup", path: "/en/settings/security" },
-  { slug: "workspace-url-field", path: "/en/settings/organization" },
-  { slug: "inbox-threads", path: "/en/inbox" },
-  { slug: "ai-task-queue", path: "/en/assistant/tasks" },
-  { slug: "ai-provider-settings", path: "/en/settings/ai-providers" },
-  { slug: "chat-with-history", path: "/en/assistant" },
-  { slug: "agent-run-trace", path: "/en/assistant/activity" },
-  { slug: "knowledge-upload", path: "/en/knowledge" },
-  { slug: "workflow-runs", path: "/en/workflows" },
-  { slug: "push-opt-in", path: "/en/settings/preferences" },
-  { slug: "metrics-dashboard", path: "/en/metrics" },
-  { slug: "feature-flag-toggles", path: "/en/settings/organization" },
-];
 
 test.use({ storageState: users.admin.storageState });
 
-for (const route of ROUTES) {
+for (const route of RECIPE_ROUTES) {
   test(`${route.slug} renders on ${route.path}`, async ({ page }) => {
     await page.goto(route.path);
+    await route.prepare?.(page);
 
-    await expect(
-      page.locator(`[data-recipe="${route.slug}"]`).filter({ visible: true }),
-    ).toBeVisible();
+    const region =
+      route.region?.(page) ??
+      page.locator(`[data-recipe="${route.slug}"]`).filter({ visible: true });
+
+    await expect(region.first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
   });
 }

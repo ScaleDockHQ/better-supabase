@@ -6,6 +6,10 @@ import {
   PlanGrid,
   PlanGridSkeleton,
 } from "@/features/billing/components/billing-overview";
+import {
+  InvoicesTable,
+  InvoicesTableSkeleton,
+} from "@/features/billing/components/invoices-table";
 
 export const instant = true;
 
@@ -17,6 +21,9 @@ export default function BillingSettingsPage() {
       </Suspense>
       <Suspense fallback={<PlanGridSkeleton />}>
         <PlanGrid />
+      </Suspense>
+      <Suspense fallback={<InvoicesTableSkeleton />}>
+        <InvoicesTable />
       </Suspense>
     </div>
   );

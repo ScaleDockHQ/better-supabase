@@ -81,6 +81,15 @@ set search_path = ''
 as $$
   select case subject_type
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'customers.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'work_items.read'), false)
+    when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'employees.read'), false)
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'drive.read'), false)
+    when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'hiring.read'), false)
     else false
   end
 $$;
@@ -171,7 +180,7 @@ begin
     select x from unnest(new."mentions") x
     where (tg_op = 'INSERT' or not x = any(old."mentions"))
       and coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'comments.read'), false)
-      and case new."subject_type" when 'customer' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'customers.read'), false) else true end
+      and case new."subject_type" when 'customer' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'customers.read'), false) when 'company' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'parties.read'), false) when 'person' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'parties.read'), false) when 'deal' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'deals.read'), false) when 'work_item' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'work_items.read'), false) when 'employee' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'employees.read'), false) when 'product' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'catalog.read'), false) when 'product_variant' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'catalog.read'), false) when 'drive_node' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'drive.read'), false) when 'application' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'hiring.read'), false) else true end
   );
   if tg_op = 'INSERT' then
     null;
@@ -408,7 +417,7 @@ drop policy if exists "activity_entries_read" on "better_supabase"."activity_ent
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{customer}'::text[]))
+      or not ("subject_type" = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
@@ -462,13 +471,22 @@ declare
   v_rows jsonb;
   v_table text;
 begin
-  if list_activity.subject_id is not null and list_activity.subject_type = any ('{customer}'::text[])
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application}'::text[])
     and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
     return '[]'::jsonb;
   end if;
   if list_activity.subject_id is not null then
     v_table := case list_activity.subject_type
       when 'customer' then 'public.customers'
+      when 'company' then 'better_supabase.companies'
+      when 'person' then 'better_supabase.people'
+      when 'deal' then 'better_supabase.deals'
+      when 'work_item' then 'better_supabase.work_items'
+      when 'employee' then 'better_supabase.employees'
+      when 'product' then 'better_supabase.products'
+      when 'product_variant' then 'better_supabase.product_variants'
+      when 'drive_node' then 'better_supabase.drive_nodes'
+      when 'application' then 'better_supabase.applications'
     end;
   end if;
   select coalesce(jsonb_agg(x.entry order by x.at desc, x.id desc), '[]'::jsonb)
@@ -502,6 +520,33 @@ begin
   return v_rows;
 end;
 $$;
+
+-- options.subjects with cascade: deleting a subject row deletes its comments rows.
+create or replace function "better_supabase"."comments_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+begin
+  delete from "better_supabase"."comments" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_subject_deleted"() from public, anon, authenticated;
+
+drop trigger if exists "bs_comments_product_cascade" on "better_supabase"."products";
+create trigger "bs_comments_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."comments_subject_deleted"('product', 'id');
+
+drop trigger if exists "bs_comments_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bs_comments_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id');
 
 revoke execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) from public, anon;
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;

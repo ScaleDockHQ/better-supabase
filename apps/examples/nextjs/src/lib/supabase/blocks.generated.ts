@@ -71,7 +71,7 @@ export const blockConfig = {
     schema: "better_supabase",
     api: "api",
     options: {
-      requireScan: true,
+      requireScan: false,
     },
   },
   audit: {

@@ -24,7 +24,10 @@ grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 drop policy if exists status_history_read on "better_supabase"."status_history";
 create policy status_history_read on "better_supabase"."status_history" for select to authenticated
-  using (false);
+  using (case "better_supabase"."status_history"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      else false
+    end);
 create table if not exists "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -43,7 +46,10 @@ grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 drop policy if exists status_stages_read on "better_supabase"."status_stages";
 create policy status_stages_read on "better_supabase"."status_stages" for select to authenticated
-  using (false);
+  using (case "better_supabase"."status_stages"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      else false
+    end);
 create table if not exists "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -66,9 +72,43 @@ grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
 create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" for select to authenticated
-  using (false);
+  using (case "better_supabase"."subject_lifecycles"."subject_type"
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      else false
+    end);
 
 
+create or replace function better_supabase.bs_transition_work_item()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new."state" is null then
+      new."state" := 'backlog';
+    end if;
+    
+    
+    return new;
+  end if;
+  if new."state" is not distinct from old."state" then
+    return new;
+  end if;
+  if not (case old."state" when 'triage' then new."state" = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state" = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state" = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state" = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state" = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state" = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
+    raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason")
+        values (new."tenant_id", 'work_item', new."id"::text, old."state", new."state", auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));
+  
+  null;
+  return new;
+end;
+$$;
+drop trigger if exists bs_transition_work_item on "better_supabase"."work_items";
+create trigger bs_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
+for each row execute function better_supabase.bs_transition_work_item();
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge.
@@ -90,7 +130,13 @@ begin
         using transition.subject_type, transition.subject_id, transition.to_status;
     end if;
   end;
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case transition.subject_type
+    when 'work_item' then
+      update "better_supabase"."work_items" s set "state" = transition.to_status
+      where s."id" = (transition.subject_id)::uuid;
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   perform set_config('better_supabase.transition_reason', '', true);
   if not v_found then
@@ -124,7 +170,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', pause_lifecycle.subject_type, 'id', pause_lifecycle.subject_id, 'op', 'pause', 'until', pause_lifecycle.until, 'reason', pause_lifecycle.reason))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case pause_lifecycle.subject_type
+    when 'work_item' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -151,7 +202,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', resume_lifecycle.subject_type, 'id', resume_lifecycle.subject_id, 'op', 'resume'))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case resume_lifecycle.subject_type
+    when 'work_item' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -179,7 +235,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', set_lifecycle_flag.subject_type, 'id', set_lifecycle_flag.subject_id, 'op', 'flag', 'flag', set_lifecycle_flag.flag, 'enabled', coalesce(set_lifecycle_flag.enabled, false)))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case set_lifecycle_flag.subject_type
+    when 'work_item' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -209,7 +270,22 @@ declare
   v_step integer;
   v_paused boolean := false;
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case status_state.subject_type
+    when 'work_item' then
+      select s."state"::text, s."tenant_id"::text into v_status, v_tenant
+      from "better_supabase"."work_items" s where s."id" = (status_state.subject_id)::uuid;
+      if not found then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+
+      v_step := array_position('{triage,backlog,unstarted,started,completed}'::text[], v_status);
+      return jsonb_build_object(
+        'organizationId', v_tenant, 'subjectType', 'work_item', 'subjectId', status_state.subject_id,
+        'status', v_status, 'order', to_jsonb('{triage,backlog,unstarted,started,completed}'::text[]), 'step', v_step, 'steps', 5, 'progress', case when v_step is null then null when 5 = 1 then 1 else round((v_step - 1)::numeric / 4, 4) end,
+        'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."status_state"(text, text) from public, anon;
@@ -224,7 +300,26 @@ security invoker
 set search_path = ''
 as $$
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case list_status_history.subject_type
+    when 'work_item' then
+      if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_history.subject_id)::uuid) then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+      return coalesce((
+        select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
+          'actorId', r.actor, 'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
+        from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
+          h."actor_user_id"::text as actor, h."reason" as reason, h."created_at" as created_at
+        from "better_supabase"."status_history" h
+        where h."subject_type" = 'work_item'
+          and h."subject_id" = list_status_history.subject_id
+          and (list_status_history.before is null or h."created_at" < list_status_history.before)
+        order by h."created_at" desc, h."id" desc
+        limit least(greatest(coalesce(list_status_history.max_rows, 50), 1), 500)) r
+      ), '[]'::jsonb);
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."list_status_history"(text, text, timestamptz, integer) from public, anon;
@@ -240,7 +335,15 @@ security invoker
 set search_path = ''
 as $$
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case list_status_stages.subject_type
+    when 'work_item' then
+      if not exists (select 1 from "better_supabase"."work_items" s where s."id" = (list_status_stages.subject_id)::uuid) then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+      return '[]'::jsonb;
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
