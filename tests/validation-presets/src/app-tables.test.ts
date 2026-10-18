@@ -10,7 +10,9 @@ import { dbUrl, installAndRollBack, reachable } from "./stack.ts";
 
 // `appTables` (ADR 0040) on top of the tenant and organizations blocks, installed as one
 // migration: the generated pgTAP checks pass, and RLS keeps one tenant's
-// rows from another tenant's members.
+// rows from another tenant's members. The table names stay clear of the
+// fixture's own app tables (`projects`, `saved_views`): the install uses
+// `create table if not exists`, so a shared name would test the fixture's table.
 
 const live = await reachable();
 
@@ -18,15 +20,15 @@ const config = resolveConfig(
   {
     blocks: ["tenant", "organizations"],
     appTables: {
-      projects: {
+      boards: {
         columns: { name: { type: "text", nullable: false } },
       },
       tasks: {
         columns: {
-          project_id: {
+          board_id: {
             type: "uuid",
             nullable: false,
-            references: { table: "projects", onDelete: "cascade" },
+            references: { table: "boards", onDelete: "cascade" },
           },
           title: { type: "text", nullable: false },
         },
@@ -108,26 +110,26 @@ describe.skipIf(!live)("appTables on the local stack", () => {
 
       await asUser(client, ids.owner);
       await client.query(
-        "insert into public.projects (organization_id, name) values ($1, 'Launch')",
+        "insert into public.boards (organization_id, name) values ($1, 'Launch')",
         [ids.a],
       );
       await client.query("insert into public.drafts (body) values ('mine')");
 
-      const own = await client.query("select name from public.projects");
+      const own = await client.query("select name from public.boards");
 
       expect(own.rows).toEqual([{ name: "Launch" }]);
 
       await client.query("reset role");
       await asUser(client, ids.stranger);
 
-      const projects = await client.query("select * from public.projects");
+      const boards = await client.query("select * from public.boards");
       const drafts = await client.query("select * from public.drafts");
 
-      expect(projects.rows).toEqual([]);
+      expect(boards.rows).toEqual([]);
       expect(drafts.rows).toEqual([]);
       await expect(
         client.query(
-          "insert into public.projects (organization_id, name) values ($1, 'Takeover')",
+          "insert into public.boards (organization_id, name) values ($1, 'Takeover')",
           [ids.a],
         ),
       ).rejects.toMatchObject({ code: "42501" });
