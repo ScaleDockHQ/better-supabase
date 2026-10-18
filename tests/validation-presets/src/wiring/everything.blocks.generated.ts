@@ -423,6 +423,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {
       allowHttp: false,
+      defaultFormat: "cloudevents",
     },
   },
   "work-items": {

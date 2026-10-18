@@ -477,6 +477,8 @@ export default defineConfig({
             "centrakit.user_roles",
           ],
         },
+        // Exports leave out token, secret and hash columns of the auto tables.
+        omitPattern: true,
         anonymize: [
           {
             table: "centrakit.employees",

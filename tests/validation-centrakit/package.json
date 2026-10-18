@@ -4,7 +4,6 @@
   "description": "CentraKit's schema adopting every SaaS SQL module, against the local stack.",
   "type": "module",
   "scripts": {
-    "doctor": "better-supabase doctor --ignore BS303",
     "lint": "oxlint",
     "sql:check": "better-supabase sql sync --check",
     "test": "vitest run",

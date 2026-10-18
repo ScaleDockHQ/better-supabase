@@ -13,10 +13,11 @@ set search_path = ''
 as $$
   select case
     when auth.jwt() is null then true
-    when coalesce(auth.jwt() -> 'act' ->> 'read_only', '') = 'false' then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
     when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' ->> 'read_only', '') <> 'true'
-    when auth.jwt() -> 'act' ->> 'kind' in ('support', 'impersonation') then false
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
     when auth.jwt() -> 'act' ->> 'session_id' is not null
       and auth.jwt() -> 'act' ->> 'kind' is null then false
     else true
@@ -355,6 +356,20 @@ language sql
 stable
 set search_path = ''
 as $$
+  select t.subject, t.name, t.tbl, t.col, t.purge,
+    t.omit || array(
+      select a.attname::text
+      from pg_catalog.pg_attribute a
+      where a.attrelid = to_regclass(t.tbl)
+        and a.attnum > 0
+        and not a.attisdropped
+        and a.attname ~* 'token|secret|_hash|password|api_key|license_key'
+        and a.attname <> t.col
+        and not a.attname = any(t.omit)
+      order by a.attnum
+    ) as omit,
+    t.exported
+  from (
   select * from (values
     ('user', 'centrakit.audit_logs', '"centrakit"."audit_logs"', 'actor_id', false, '{}'::text[], true),
     ('user', 'centrakit.organization_users', '"centrakit"."organization_users"', 'user_id', true, '{}'::text[], true),
@@ -437,6 +452,7 @@ as $$
     and not (n.nspname || '.' || c.relname like 'centrakit.audit\_%')
     and not (n.nspname || '.' || c.relname like 'centrakit.roles')
     and not (n.nspname || '.' || c.relname like 'centrakit.user\_roles')
+  ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
 -- The credential_ref columns of module tables: display name, quoted table,
