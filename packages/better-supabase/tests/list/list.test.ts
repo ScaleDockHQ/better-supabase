@@ -16,6 +16,7 @@ const list = defineListQuery(betterSupabase, "customers", {
   },
   defaultSort: "newest",
   pageSize: 25,
+  pagination: "offset",
 });
 
 describe("defineListQuery", () => {
@@ -128,6 +129,7 @@ describe("defineListQuery", () => {
       defaultSort: "name",
       facetCounts: true,
       count: "planned",
+      pagination: "offset",
     });
 
     const { client, requests } = capturingClient((request) => {
@@ -384,6 +386,7 @@ describe("defineListQuery", () => {
       search: { fts: "name", config: "dutch" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
+      pagination: "offset",
     });
 
     expect(fts.args(fts.parse({ q: "road" }).value!)).toMatchObject({
@@ -420,6 +423,7 @@ describe("defineListQuery", () => {
     const unsearchable = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
+      pagination: "offset",
     });
 
     expect(unsearchable.openapi.map((parameter) => parameter.name)).toEqual([
@@ -571,11 +575,10 @@ describe("defineListQuery", () => {
     expect(kvkRequest!.params.get("limit")).toBe("3");
   });
 
-  it("pages by cursor when pagination is cursor", async () => {
+  it("pages by cursor unless pagination is offset", async () => {
     const cursorList = defineListQuery(betterSupabase, "customers", {
       sorts: { name: [{ name: "asc" }, { id: "asc" }] },
       defaultSort: "name",
-      pagination: "cursor",
       pageSize: 1,
       maxPageSize: 2,
     });

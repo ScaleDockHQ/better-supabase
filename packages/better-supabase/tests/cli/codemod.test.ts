@@ -287,4 +287,56 @@ describe("codemod 0.9", () => {
       { line: 3, message: expect.stringContaining("environment block") },
     ]);
   });
+
+  it("pins offset pagination where the file reads page numbers", () => {
+    const source = `const customers = defineListQuery(betterSupabase, "customers", {
+  sorts: { name: { name: "asc" } },
+  defaultSort: "name",
+});
+const notes = defineListQuery(bs, "notes", { sorts, defaultSort: "new" });
+const tags = defineListQuery(bs, "tags", {});
+const kept = defineListQuery(bs, "tags", { sorts, pagination: "cursor" });
+const api = defineResource(bs, "customers");
+const trailing = defineResource(bs, "notes",);
+const listed = defineResource(bs, "customers", { list: customers });
+
+export const total = (page) => page.page.total;
+`;
+
+    const result = applyCodemod(v09, source, "src/lists.ts");
+
+    expect(result.text)
+      .toBe(`const customers = defineListQuery(betterSupabase, "customers", {
+  pagination: "offset",
+  sorts: { name: { name: "asc" } },
+  defaultSort: "name",
+});
+const notes = defineListQuery(bs, "notes", { pagination: "offset", sorts, defaultSort: "new" });
+const tags = defineListQuery(bs, "tags", { pagination: "offset" });
+const kept = defineListQuery(bs, "tags", { sorts, pagination: "cursor" });
+const api = defineResource(bs, "customers", { pagination: "offset" });
+const trailing = defineResource(bs, "notes", { pagination: "offset" });
+const listed = defineResource(bs, "customers", { list: customers });
+
+export const total = (page) => page.page.total;
+`);
+    expect(result.review).toEqual([]);
+  });
+
+  it("lists the calls it can't pin, and those in files without page numbers", () => {
+    const result = applyCodemod(
+      v09,
+      `const a = defineListQuery(bs, "customers", { ...shared });
+const b = defineListQuery(bs, "customers", config);
+const c = defineResource(bs, "customers");
+const api = defineApi(bs, { resources: { customers: {} } });
+`,
+      "src/lists.ts",
+    );
+
+    expect(result.text).toContain('defineResource(bs, "customers");');
+    expect(result.review.map((hint) => hint.line)).toEqual([1, 2, 3, 4]);
+    expect(result.review[0]!.message).toContain('pagination: "offset"');
+    expect(result.review[3]!.message).toContain("defineApi");
+  });
 });

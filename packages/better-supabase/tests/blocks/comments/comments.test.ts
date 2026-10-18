@@ -303,8 +303,23 @@ describe("createComments", () => {
         after: "2026-10-06T00:00:00Z",
         max_rows: 20,
         skip: undefined,
+        after_id: undefined,
       },
     ]);
+  });
+
+  it("passes the last comment's id with the cursor", async () => {
+    const fake = fakeTransport({ list_comments: [] });
+
+    const comments = createComments({ transport: fake.transport });
+    await comments.list("org-1", "project", "p1", {
+      cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
+      cursorId: "c1",
+    });
+    expect(fake.calls[0]![2]).toMatchObject({
+      after: "2026-10-06T00:00:00Z",
+      after_id: "c1",
+    });
   });
 
   it("pages by offset and counts comments per subject", async () => {

@@ -4,6 +4,8 @@ import { betterSupabase } from "./lib/supabase";
 
 /** One definition for both readers: PostgREST in web loaders, SQLite on the device. */
 export const customerList = defineListQuery(betterSupabase, "customers", {
+  // The device list shows a total and pages back, so it keeps page numbers.
+  pagination: "offset",
   search: ["name", "kvk"],
   facets: { status: "status" },
   sorts: {

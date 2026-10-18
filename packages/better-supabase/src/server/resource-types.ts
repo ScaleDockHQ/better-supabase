@@ -150,7 +150,7 @@ export interface ResourceRouteOptions<
   /**
    * Paging of the default list: `offset` (`page` and `size`) or `cursor`
    * (`after` and `size`, keyset). A `list` query brings its own. Defaults
-   * to `offset`.
+   * to `cursor`, or `offset` for a table or view without a primary key.
    */
   readonly pagination?: ResourcePagination;
   /** Largest page for the default list. Defaults to 200. */

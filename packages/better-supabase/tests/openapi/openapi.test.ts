@@ -88,7 +88,7 @@ describe("createOpenApi", () => {
     expect(list.parameters.map((parameter) => parameter.name)).toEqual([
       "q",
       "sort",
-      "page",
+      "after",
       "size",
       "status",
     ]);

@@ -97,7 +97,8 @@ export interface ListQueryConfig<
   /**
    * `cursor` takes an `after` cursor instead of `page` and returns
    * `nextCursor`: the cost of a page stays the same however deep it is, and
-   * rows inserted meanwhile don't shift it. Defaults to `offset`.
+   * rows inserted meanwhile don't shift it. Defaults to `cursor`; `offset`
+   * takes `page` and returns `total` and `pageCount`.
    */
   readonly pagination?: P;
   /** Defaults to 50. */
@@ -196,7 +197,7 @@ export type ListPage<
   R,
   F extends string,
   C extends boolean,
-  P extends ListPagination = "offset",
+  P extends ListPagination = "cursor",
 > = ([P] extends ["cursor"] ? CursorPage<R> : OffsetPage<R>) &
   ([C] extends [true]
     ? FacetCountFields<F>
@@ -218,7 +219,7 @@ export interface ListDefinition<
   S extends string,
   F extends string,
   C extends boolean = false,
-  P extends ListPagination = "offset",
+  P extends ListPagination = "cursor",
 > {
   readonly table: T;
   readonly pagination: P;
@@ -382,7 +383,7 @@ export function defineListQuery<
   const S extends string,
   const F extends string = never,
   const C extends boolean = false,
-  const P extends ListPagination = "offset",
+  const P extends ListPagination = "cursor",
 >(
   betterSupabase: BetterSupabase<M, D, Fn, E>,
   table: T,
@@ -398,7 +399,7 @@ export function defineListQuery<
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
   const facetLimit = config.facetLimit ?? 100;
-  const cursor = config.pagination === "cursor";
+  const cursor = config.pagination !== "offset";
   // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
   // SAFETY: config.facets is keyed by F, and Object.entries widens the keys to string.
@@ -1010,8 +1011,8 @@ export function defineListQuery<
 
   return {
     table,
-    // SAFETY: `pagination` is P when given, and P defaults to `offset`.
-    pagination: (config.pagination ?? "offset") as P,
+    // SAFETY: `pagination` is P when given, and P defaults to `cursor`.
+    pagination: (config.pagination ?? "cursor") as P,
     defaults,
     facets,
     filters: filterFields,

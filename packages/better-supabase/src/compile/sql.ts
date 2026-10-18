@@ -1,5 +1,6 @@
 import type {
   Condition,
+  CountMode,
   DeleteOp,
   Include,
   InsertOp,
@@ -36,7 +37,28 @@ export interface SqlPlan {
    * run after this plan, in the same transaction; rows and counts add up.
    */
   readonly chunks?: readonly SqlPlan[];
+  /**
+   * `explain (format json)` of the counted rows, for a `planned` or
+   * `estimated` count. The executor reads the top node's `Plan Rows`.
+   */
+  readonly plannedCount?: SqlQuery;
+  /**
+   * Set for an `estimated` count: `count` stops at this many rows plus one,
+   * and above it the executor answers with the planner's estimate.
+   */
+  readonly countThreshold?: number;
 }
+
+export interface CompileSqlOptions {
+  /**
+   * Where an `estimated` count switches from exact to planned, like
+   * PostgREST's `db-max-rows`. Defaults to 1000, Supabase's `max_rows`.
+   */
+  readonly estimatedCountThreshold?: number;
+}
+
+/** Supabase's default `max_rows`, which PostgREST uses for `count=estimated`. */
+const DEFAULT_ESTIMATED_COUNT_THRESHOLD = 1000;
 
 // The wire protocol counts bind parameters in 16 bits.
 const MAX_PARAMS = 65_535;
@@ -573,8 +595,84 @@ function returningRows(
     : " returning 1";
 }
 
+function estimatedThreshold(options: CompileSqlOptions): number {
+  const threshold =
+    options.estimatedCountThreshold ?? DEFAULT_ESTIMATED_COUNT_THRESHOLD;
+
+  if (!Number.isSafeInteger(threshold) || threshold < 0) {
+    invalidRequest(
+      `"estimatedCountThreshold" must be a non-negative integer, got ${threshold}`,
+    );
+  }
+
+  return threshold;
+}
+
+type CountParts = Pick<SqlPlan, "count" | "plannedCount" | "countThreshold">;
+
+/**
+ * The count queries for a mode. `exact` counts every row; `planned` asks the
+ * planner; `estimated` counts up to the threshold and asks the planner past
+ * it, the way PostgREST does. Counts are `bigint`, which the executor
+ * decodes.
+ */
+function countPlan(
+  mode: CountMode | undefined,
+  from: string,
+  params: readonly unknown[],
+  threshold: number,
+): CountParts {
+  switch (mode) {
+    case undefined: {
+      return { count: undefined };
+    }
+
+    case "exact": {
+      return {
+        count: {
+          text: `select count(*)::bigint as count ${from}`,
+          params: [...params],
+        },
+      };
+    }
+
+    case "planned": {
+      return {
+        count: undefined,
+        plannedCount: {
+          text: `explain (format json) select 1 ${from}`,
+          params: [...params],
+        },
+      };
+    }
+
+    case "estimated": {
+      return {
+        count: {
+          text: `select count(*)::bigint as count from (select 1 ${from} limit ${threshold + 1}) as c`,
+          params: [...params],
+        },
+        plannedCount: {
+          text: `explain (format json) select 1 ${from}`,
+          params: [...params],
+        },
+        countThreshold: threshold,
+      };
+    }
+
+    default: {
+      const exhaustive: never = mode;
+
+      return exhaustive;
+    }
+  }
+}
+
 /** Compiles an operation to parameterized SQL. Rows come back as json. */
-export function compileSql(op: Operation): SqlPlan {
+export function compileSql(
+  op: Operation,
+  options: CompileSqlOptions = {},
+): SqlPlan {
   const compiler = new SqlCompiler();
   const alias = compiler.alias();
   const source = op.kind === "select" ? op.source : undefined;
@@ -604,23 +702,16 @@ export function compileSql(op: Operation): SqlPlan {
       const required = compiler.requiredIncludes(op.selection, op.table, alias);
       const filter = whereClause([where, ...required]);
 
-      const countText = op.count
-        ? `select count(*)::int as count from ${from}${filter}`
-        : undefined;
+      const counting = countPlan(
+        op.head ? (op.count ?? "exact") : op.count,
+        `from ${from}${filter}`,
+        compiler.params,
+        estimatedThreshold(options),
+      );
 
       if (op.head) {
-        const countQuery = {
-          text:
-            countText ?? `select count(*)::int as count from ${from}${filter}`,
-          params: [...compiler.params],
-        };
-
-        return { rows: undefined, count: countQuery, never: false };
+        return { rows: undefined, never: false, ...counting };
       }
-
-      const countQuery = countText
-        ? { text: countText, params: [...compiler.params] }
-        : undefined;
 
       const row = compiler.rowExpression(op.selection, op.table, alias);
 
@@ -644,8 +735,8 @@ export function compileSql(op: Operation): SqlPlan {
           text: `select ${row} as row from ${from}${filter}${group}${order}${limit}${offset}`,
           params: compiler.params,
         },
-        count: countQuery,
         never: false,
+        ...counting,
       };
     }
 
@@ -837,7 +928,7 @@ function maxAffectedOf(op: UpdateOp | DeleteOp): number | undefined {
  * drops the unused column and never runs the check.
  */
 function guardedCount(max: number): string {
-  return `case when count(*) > ${max} then ('${MAX_AFFECTED_MARKER}:' || count(*))::int else count(*)::int end`;
+  return `case when count(*) > ${max} then ('${MAX_AFFECTED_MARKER}:' || count(*))::bigint else count(*)::bigint end`;
 }
 
 function mutation(
@@ -879,7 +970,7 @@ function mutation(
   return {
     rows: undefined,
     count: {
-      text: `with m as (${statement}) select count(*)::int as count from m`,
+      text: `with m as (${statement}) select count(*)::bigint as count from m`,
       params,
     },
     never: false,
