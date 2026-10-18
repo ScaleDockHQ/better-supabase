@@ -214,6 +214,24 @@ describe("gen", () => {
     });
   });
 
+  it("writes the read-sets module next to tenant-scoped app tables", async () => {
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
+
+    const config = configure({
+      readSets: ["src/read-sets.ts"],
+      blocks: { tenant: {} },
+      appTables: { projects: { columns: { name: { type: "text" } } } },
+    });
+
+    const result = await runGen({ config, env: {}, check: false, snapshot });
+
+    expect(result.code).toBe(0);
+    expect(await readFile(join(root, READ_SET_FILE), "utf-8")).toContain(
+      "create or replace function public.rs_chrome(p jsonb)",
+    );
+  });
+
   it("gives generators a frozen model with the column types gen wrote", async () => {
     let model: GeneratorModel | undefined;
 
