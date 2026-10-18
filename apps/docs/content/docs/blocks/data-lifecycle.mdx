@@ -103,6 +103,24 @@ options: {
 
 `tables: "auto"` is short for `autoTables: {}`.
 
+`omitPattern` leaves out columns by name, for tables you didn't list one by
+one. `true` matches `token`, `secret`, `_hash`, `password`, `api_key` and
+`license_key` anywhere in the name, ignoring case; a string is a Postgres
+regular expression of your own. The match runs on the catalog when an
+export runs, for listed and `autoTables` tables alike, and adds to each
+table's `omit`. It is off by default:
+
+```ts
+options: {
+  autoTables: {},
+  omitPattern: true, // or "^(private|internal)_"
+},
+```
+
+`doctor` warns about each exported column that matches the built-in pattern
+and that no `omit` or `omitPattern` leaves out
+([BS341](/docs/cli/doctor#bs341)).
+
 ## Exports
 
 `createDataExporter({ format: "csv" })` writes one CSV file per table instead

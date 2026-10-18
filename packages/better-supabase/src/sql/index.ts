@@ -60,6 +60,12 @@ export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
 
+export {
+  type DataExportPlan,
+  dataExportPlan,
+  SECRET_COLUMNS,
+} from "./modules/data-lifecycle-secrets.ts";
+
 export { sameTenantColumn, sameTenantTrigger } from "./modules/tenant-same.ts";
 
 export { expiredFlagsQuery } from "./flag-lifecycle.ts";

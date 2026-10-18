@@ -3005,7 +3005,8 @@
               "tables": {},
               "autoTables": {},
               "tenantRow": {},
-              "anonymize": {}
+              "anonymize": {},
+              "omitPattern": {}
             }
           }
         }

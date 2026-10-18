@@ -2017,6 +2017,70 @@ describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
   });
 });
 
+describe("secret columns in data exports (BS341)", () => {
+  const secrets = snapshot((tables) => {
+    for (const name of ["notes", "tags"]) {
+      const entry = table(tables, name);
+      const text = { ...entry.columns[0]!, udt: "text", type: "text" };
+
+      entry.columns = [
+        ...entry.columns.filter((column) => column.name !== "organization_id"),
+        { ...text, name: "organization_id" },
+        { ...text, name: "api_key" },
+        { ...text, name: "Password" },
+      ];
+    }
+  });
+
+  const lifecycle = (options: Readonly<Record<string, unknown>>) =>
+    context(secrets, {}, { blocks: { "data-lifecycle": { options } } });
+
+  const targets = (findings: readonly { readonly target?: string }[]) =>
+    findings
+      .map((finding) => finding.target)
+      .filter((target) => /^public\.(notes|tags)\./.test(target ?? ""));
+
+  it("reports secret-looking columns of listed and auto tables", async () => {
+    const findings = await run(
+      "BS341",
+      lifecycle({
+        tables: { notes: { tenant: "organization_id", omit: ["api_key"] } },
+        autoTables: { schemas: ["public"] },
+      }),
+    );
+
+    expect(targets(findings)).toEqual([
+      "public.notes.Password",
+      "public.tags.api_key",
+      "public.tags.Password",
+    ]);
+    expect(findings[0]).toMatchObject({ severity: "warning" });
+  });
+
+  it("passes with omitPattern, an excluded table, or no export", async () => {
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({ autoTables: { schemas: ["public"] }, omitPattern: true }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      targets(
+        await run(
+          "BS341",
+          lifecycle({
+            tables: { notes: { tenant: "organization_id", export: false } },
+            autoTables: { schemas: ["public"], exclude: ["public.tags"] },
+          }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS341", context(secrets))).toEqual([]);
+  });
+});
+
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
     name: "bs_broadcast_org_notes",

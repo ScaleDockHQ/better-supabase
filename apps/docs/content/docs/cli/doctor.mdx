@@ -1009,6 +1009,18 @@ the reference to `blocks.tenant.options.sameTenant`, or set
 `sameTenant: { auto: true }`. See
 [references within one tenant](/docs/blocks/access#references-within-one-tenant).
 
+### BS341
+
+**Warning: a data export includes a column that looks like a secret.** A
+data export writes every column of the tables it reads, except the ones in
+`omit`. Doctor reports each column of an exported table, including the ones
+`autoTables` finds, whose name contains `token`, `secret`, `_hash`,
+`password`, `api_key` or `license_key`, when no `omit` and no `omitPattern`
+leaves it out. Add the column to the table's `omit`, keep the table out of
+exports with `export: false` or `autoTables.exclude`, or set
+`blocks.data-lifecycle.options.omitPattern`. See
+[data lifecycle](/docs/blocks/data-lifecycle).
+
 ## Auth config
 
 ### BS401

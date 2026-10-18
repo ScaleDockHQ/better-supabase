@@ -1,8 +1,12 @@
+import type { DataExportPlan } from "../../sql/index.ts";
+import type { CatalogTable } from "../introspect/types.ts";
 import type { FindingInput, Rule } from "./rules.ts";
 
 import {
+  dataExportPlan,
   excludedColumns,
   moduleLayout,
+  SECRET_COLUMNS,
   sameTenantColumn,
   sameTenantTrigger,
 } from "../../sql/index.ts";
@@ -23,7 +27,7 @@ const sameNotNull = (
       a.length === b.length &&
       a.every((name) => b.includes(name));
 
-/** Checks that point at a shorter config for adopted schemas. */
+/** Checks for adopted schemas: config the SQL could carry, and references and exports the modules leave open. */
 export const ADOPTION_RULES: readonly Rule[] = [
   {
     code: "BS338",
@@ -156,4 +160,98 @@ export const ADOPTION_RULES: readonly Rule[] = [
         });
     },
   },
+  {
+    code: "BS341",
+    severity: "warning",
+    title: "Data export includes a column that looks like a secret",
+    description:
+      "A data export writes every column of each table it reads, except the ones in `omit`. Doctor reports columns of the exported tables, including the ones `autoTables` finds, whose name matches `token`, `secret`, `_hash`, `password`, `api_key` or `license_key` and that no `omit` and no `omitPattern` leaves out. Add the column to the table's `omit`, keep the table out of exports with `export: false` or `autoTables.exclude`, or set `blocks.data-lifecycle.options.omitPattern`.",
+    check: (context) => {
+      const plan = dataExportPlan(
+        moduleLayout(context.config),
+        context.config.blockNames,
+      );
+
+      if (plan === undefined) {
+        return [];
+      }
+
+      const secret = new RegExp(SECRET_COLUMNS, "i");
+      const omitted = patternOf(plan.omitPattern);
+      const tables = catalogOf(context).tables;
+      const byName = new Map(tables.map((table) => [qualified(table), table]));
+
+      const exported = [
+        ...plan.tables.map((entry) => ({
+          table: byName.get(entry.name),
+          omit: entry.omit,
+        })),
+        ...autoExported(plan, tables),
+      ];
+
+      const findings = new Map<string, FindingInput>();
+
+      for (const { table, omit } of exported) {
+        if (table === undefined) {
+          continue;
+        }
+
+        for (const column of table.columns) {
+          const target = `${qualified(table)}.${column.name}`;
+
+          if (
+            !secret.test(column.name) ||
+            omit.includes(column.name) ||
+            omitted?.test(column.name) === true ||
+            findings.has(target)
+          ) {
+            continue;
+          }
+
+          findings.set(target, {
+            message: `Data exports of ${qualified(table)} include ${column.name}, which looks like a secret. Add it to the table's omit, keep the table out of exports, or set blocks.data-lifecycle.options.omitPattern.`,
+            target,
+          });
+        }
+      }
+
+      return [...findings.values()];
+    },
+  },
 ];
+
+const NO_OMIT: readonly string[] = [];
+
+/** The tables `autoTables` adds to exports, which omit nothing. */
+function autoExported(
+  plan: DataExportPlan,
+  tables: readonly CatalogTable[],
+): { readonly table: CatalogTable; readonly omit: readonly string[] }[] {
+  const { auto } = plan;
+
+  if (auto === undefined) {
+    return [];
+  }
+
+  return tables
+    .filter(
+      (table) =>
+        auto.schemas.includes(table.schema) &&
+        !auto.excluded(qualified(table)) &&
+        table.columns.some((column) => auto.columns.includes(column.name)),
+    )
+    .map((table) => ({ table, omit: NO_OMIT }));
+}
+
+/** `omitPattern` as a JavaScript regex; undefined when off or not valid there. */
+function patternOf(pattern: string | undefined): RegExp | undefined {
+  if (pattern === undefined) {
+    return undefined;
+  }
+
+  try {
+    return new RegExp(pattern, "i");
+  } catch {
+    return undefined;
+  }
+}

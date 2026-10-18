@@ -232,6 +232,29 @@ describe("data-lifecycle module", () => {
     ).toThrow(/must be a list/);
   });
 
+  it("appends the columns omitPattern matches to omit when the function runs", () => {
+    const sql = sqlOf(["data-lifecycle"], {
+      omitPattern: true,
+      tables: { "app.notes": { tenant: "team_id", omit: ["body"] } },
+    });
+
+    expect(sql).toContain(
+      "and a.attname ~* 'token|secret|_hash|password|api_key|license_key'",
+    );
+    expect(sql).toContain("and not a.attname = any(t.omit)");
+    expect(sql).toContain("array['body']::text[]");
+    expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);
+    expect(sqlOf(["data-lifecycle"], { omitPattern: "^private_" })).toContain(
+      "a.attname ~* '^private_'",
+    );
+    expect(sqlOf(["data-lifecycle"], { omitPattern: false })).not.toContain(
+      "a.attname ~*",
+    );
+    expect(() => sqlOf(["data-lifecycle"], { omitPattern: "" })).toThrow(
+      /omitPattern must be true or a Postgres regular expression/,
+    );
+  });
+
   it("purges an adopted organization row and lets platform staff request deletion", () => {
     const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
       organizations: {
