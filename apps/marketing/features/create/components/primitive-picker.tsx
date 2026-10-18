@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 import { useCanvasBridge } from "./canvas-bridge";
 
-const ICONS = {
+export const PRIMITIVE_ICONS = {
   table: TableIcon,
   lookup: ListIcon,
 } satisfies Readonly<Record<PrimitiveKind, typeof TableIcon>>;
@@ -36,7 +36,7 @@ export function PrimitivePicker(): ReactElement {
       </p>
       <ul className="flex flex-col gap-0.5">
         {PRIMITIVES.map((primitive) => {
-          const Icon = ICONS[primitive.kind];
+          const Icon = PRIMITIVE_ICONS[primitive.kind];
 
           return (
             <li key={primitive.kind}>

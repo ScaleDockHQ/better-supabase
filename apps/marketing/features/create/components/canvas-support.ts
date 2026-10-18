@@ -115,7 +115,7 @@ export function neighboursOf(
   return map;
 }
 
-function pointerOf(
+export function pointerOf(
   event: MouseEvent | TouchEvent,
 ): { x: number; y: number } | undefined {
   if ("changedTouches" in event) {

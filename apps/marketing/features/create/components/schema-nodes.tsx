@@ -299,18 +299,16 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
           />
         ))}
       </ul>
-      {app ? (
-        <Handle
-          id="connect"
-          type="source"
-          position={Position.Right}
-          isConnectableStart
-          isConnectableEnd={false}
-          aria-label={`Connect ${table.name} to another table`}
-          title="Drag onto a table to add a foreign key"
-          className="top-4.5! size-3! border-2! border-primary! bg-background!"
-        />
-      ) : null}
+      <Handle
+        id="connect"
+        type="source"
+        position={Position.Right}
+        isConnectableStart
+        isConnectableEnd={false}
+        aria-label={`Connect ${table.name} to another table`}
+        title="Drag onto a table to add a foreign key"
+        className="top-4.5! size-3! border-2! border-primary! bg-background!"
+      />
     </div>
   );
 }
@@ -365,25 +363,31 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
           isConnectable={false}
           className={HIDDEN_HANDLE}
         />
-        <button
-          type="button"
-          className="flex h-full flex-1 nodrag items-center gap-2 rounded-lg px-3 text-xs transition-colors hover:bg-accent"
-          onClick={() => {
-            actions.toggleGroup(data.manifest);
-          }}
-        >
-          <ChevronRightIcon aria-hidden="true" className="size-3.5" />
-          <BlockIcon name={data.manifest} category={data.category} size="xs" />
-          <span className="sr-only">Expand </span>
-          <span className="truncate font-medium">{data.manifest}</span>
-          <span className="ml-auto text-muted-foreground tabular-nums">
-            {data.count}
+        <div className="flex h-full flex-1 cursor-grab items-center gap-2 pr-3 text-xs active:cursor-grabbing">
+          <button
+            type="button"
+            className="ml-1 flex size-7 nodrag items-center justify-center rounded-md transition-colors hover:bg-accent"
+            onClick={() => {
+              actions.toggleGroup(data.manifest);
+            }}
+          >
+            <ChevronRightIcon aria-hidden="true" className="size-3.5" />
             <span className="sr-only">
-              {" "}
+              Expand {data.manifest}, {data.count}{" "}
               {data.count === 1 ? "table" : "tables"}
             </span>
+          </button>
+          <BlockIcon name={data.manifest} category={data.category} size="xs" />
+          <span aria-hidden="true" className="truncate font-medium">
+            {data.manifest}
           </span>
-        </button>
+          <span
+            aria-hidden="true"
+            className="ml-auto text-muted-foreground tabular-nums"
+          >
+            {data.count}
+          </span>
+        </div>
         <Handle
           id=":out"
           type="source"

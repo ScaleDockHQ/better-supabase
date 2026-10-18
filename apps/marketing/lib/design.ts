@@ -569,23 +569,12 @@ export function connect(
     };
   }
 
-  const table = design.appTables?.[source.name];
-
-  if (table === undefined) {
+  if (design.appTables?.[source.name] === undefined) {
     return { ok: false, error: `${source.name} is not in the design.` };
   }
 
   if (connection.target === connection.source) {
     return { ok: false, error: "A table can't reference itself here." };
-  }
-
-  const target =
-    connection.target === AUTH_USERS
-      ? undefined
-      : data.tables.find((each) => each.id === connection.target);
-
-  if (connection.target !== AUTH_USERS && target === undefined) {
-    return { ok: false, error: "That table is not in the schema." };
   }
 
   if (
@@ -597,6 +586,35 @@ export function connect(
       ok: false,
       error: `${source.name} already references ${connection.target}.`,
     };
+  }
+
+  return referenceFrom(design, data, preset, source.name, connection.target);
+}
+
+/**
+ * Adds `<target>_id` to the app table `name` in the design, which can be a
+ * table the schema doesn't have yet.
+ */
+export function referenceFrom(
+  design: Design,
+  data: SchemaData,
+  preset: Pick<Preset, "scope" | "tenantName" | "idType">,
+  name: string,
+  targetId: string,
+): ConnectResult {
+  const table = design.appTables?.[name];
+
+  if (table === undefined) {
+    return { ok: false, error: `${name} is not in the design.` };
+  }
+
+  const target =
+    targetId === AUTH_USERS
+      ? undefined
+      : data.tables.find((each) => each.id === targetId);
+
+  if (targetId !== AUTH_USERS && target === undefined) {
+    return { ok: false, error: "That table is not in the schema." };
   }
 
   const keyType =
@@ -612,7 +630,7 @@ export function connect(
   if (type === undefined) {
     return {
       ok: false,
-      error: `${connection.target} has no single uuid, text or integer key to reference.`,
+      error: `${targetId} has no single uuid, text or integer key to reference.`,
     };
   }
 
@@ -626,7 +644,7 @@ export function connect(
   if (references === undefined) {
     return {
       ok: false,
-      error: `${connection.target} can't be referenced from an app table.`,
+      error: `${targetId} can't be referenced from an app table.`,
     };
   }
 
@@ -640,7 +658,7 @@ export function connect(
   return {
     ok: true,
     column,
-    design: setColumn(design, source.name, column, {
+    design: setColumn(design, name, column, {
       type,
       nullable: true,
       references: { ...references, onDelete: "cascade" },

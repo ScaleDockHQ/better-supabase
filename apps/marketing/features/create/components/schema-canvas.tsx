@@ -48,6 +48,7 @@ import {
   isAppTable,
   isEmptyDesign,
   moveTables,
+  referenceFrom,
   tidy,
 } from "@/lib/design";
 import { addPrimitive, type PrimitiveKind } from "@/lib/primitives";
@@ -70,6 +71,7 @@ import {
   layoutFor,
   neighboursOf,
   nodeUnder,
+  pointerOf,
   toggled,
 } from "./canvas-support";
 import {
@@ -79,6 +81,7 @@ import {
   isKeyboardOwned,
   ZoomControls,
 } from "./canvas-toolbar";
+import { type ConnectDrop, ConnectDropMenu } from "./connect-drop-menu";
 import { useDesign } from "./design-provider";
 import {
   MARKER_MANY,
@@ -99,6 +102,7 @@ import {
 import { ShortcutsDialog } from "./shortcuts-dialog";
 import { TableInspector } from "./table-inspector";
 import { useBlockDrop } from "./use-block-drop";
+import { useCollapsedDrag } from "./use-collapsed-drag";
 import { usePlacement } from "./use-placement";
 
 import "@xyflow/react/dist/style.css";
@@ -171,6 +175,7 @@ function CanvasInner({
   );
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [drop, setDrop] = useState<ConnectDrop | null>(null);
 
   const categoryOf = useCallback(
     (table: SchemaTable): string =>
@@ -288,16 +293,24 @@ function CanvasInner({
       const base = {
         id: group.id,
         type: "blockGroup" as const,
-        draggable: !group.collapsed,
+        draggable: true,
         selectable: false,
         focusable: false,
       };
 
       if (group.collapsed) {
+        const saved = design.positions?.[group.members[0] ?? ""];
+
         return [
           {
             ...base,
-            position: { x: group.x, y: group.y },
+            position:
+              saved === undefined
+                ? { x: group.x, y: group.y }
+                : {
+                    x: saved[0] - GROUP_PADDING.side,
+                    y: saved[1] - GROUP_PADDING.top,
+                  },
             data: {
               manifest: group.manifest,
               category,
@@ -410,6 +423,17 @@ function CanvasInner({
     );
   }
 
+  const moved = useCallback(
+    (id: string): boolean => {
+      const members = layout.groups.find((group) => group.id === id)?.members;
+
+      return (members ?? [id]).some(
+        (each) => design.positions?.[each] !== undefined,
+      );
+    },
+    [design.positions, layout.groups],
+  );
+
   const edges = useMemo(
     (): SchemaEdge[] =>
       layout.edges.map((edge) => {
@@ -429,15 +453,13 @@ function CanvasInner({
           data: {
             kind: edge.kind,
             points: edge.points,
-            routed:
-              design.positions?.[edge.source] === undefined &&
-              design.positions?.[edge.target] === undefined,
+            routed: !moved(edge.source) && !moved(edge.target),
             emphasis:
               highlight === undefined ? "none" : touches ? "highlight" : "dim",
           },
         };
       }),
-    [design.positions, highlight, hovered, layout.edges],
+    [highlight, hovered, layout.edges, moved],
   );
 
   const taken = useMemo(
@@ -502,7 +524,7 @@ function CanvasInner({
 
   /** Adds a primitive at `point`, or in the middle of the view, and opens it. */
   const addAppTable = useCallback(
-    (kind: PrimitiveKind = "table", point?: Point) => {
+    (kind: PrimitiveKind = "table", point?: Point, references?: string) => {
       const box = container.current?.getBoundingClientRect();
 
       const center =
@@ -523,12 +545,26 @@ function CanvasInner({
         Math.round(at.y),
       ]);
 
+      const linked =
+        references === undefined
+          ? undefined
+          : referenceFrom(added.design, data, preset, added.name, references);
+
       expect(at, APP_MODULE);
-      actions.apply(added.design);
+      actions.apply(linked?.ok === true ? linked.design : added.design);
       open(appTableId(added.name), "overview");
-      undoToast(`Added ${added.name}.`);
+
+      if (linked?.ok === false) {
+        toast.error(linked.error);
+      }
+
+      undoToast(
+        linked?.ok === true
+          ? `Added ${added.name} with ${linked.column}.`
+          : `Added ${added.name}.`,
+      );
     },
-    [actions, design, expect, flow, open, taken, undoToast],
+    [actions, data, design, expect, flow, open, preset, taken, undoToast],
   );
 
   const { actions: bridge } = useCanvasBridge();
@@ -583,6 +619,13 @@ function CanvasInner({
     ],
   );
 
+  const { onNodeDragStart, onNodeDragStop, movesFor } = useCollapsedDrag({
+    nodes,
+    groups: layout.groups,
+    positions: design.positions,
+    commitDrag: actions.commitDrag,
+  });
+
   const onNodesChange = useCallback(
     (changes: NodeChange<SchemaNode>[]) => {
       const followers = groupFollowers(
@@ -591,7 +634,7 @@ function CanvasInner({
         layout.groups,
       );
 
-      const moves: Record<string, readonly [number, number]> = {};
+      const moves = movesFor(changes);
 
       for (const change of [...changes, ...followers]) {
         if (
@@ -622,7 +665,7 @@ function CanvasInner({
         actions.drag(moveTables(design, moves));
       }
     },
-    [actions, byId, design, layout.groups, nodes],
+    [actions, byId, design, layout.groups, movesFor, nodes],
   );
 
   const addConnection = useCallback(
@@ -646,12 +689,35 @@ function CanvasInner({
     (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
       const from = connection.fromNode?.id;
       const to = connection.toNode?.id ?? nodeUnder(event);
+      const pointer = pointerOf(event);
 
-      if (from !== undefined && to !== undefined && !to.startsWith("group:")) {
+      if (from !== undefined && to === undefined && pointer !== undefined) {
+        setDrop({ from, fromName: byId.get(from)?.name ?? from, ...pointer });
+
+        return;
+      }
+
+      if (from === undefined || to === undefined || to.startsWith("group:")) {
+        return;
+      }
+
+      const source = byId.get(from);
+      const target = byId.get(to);
+
+      // A block table can't hold the key, so a drag from it onto one of
+      // your tables puts the key on yours.
+      if (
+        source !== undefined &&
+        target !== undefined &&
+        !isAppTable(source) &&
+        isAppTable(target)
+      ) {
+        addConnection(to, from);
+      } else {
         addConnection(from, to);
       }
     },
-    [addConnection],
+    [addConnection, byId],
   );
 
   const blockDrop = useBlockDrop({
@@ -848,7 +914,8 @@ function CanvasInner({
             // and its unlayered CSS outranks a utility without `!`.
             className="[&_.react-flow\\_\\_attribution_a]:text-muted-foreground!"
             onNodesChange={onNodesChange}
-            onNodeDragStop={actions.commitDrag}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDragStop={onNodeDragStop}
             nodeDragThreshold={DRAG_THRESHOLD}
             nodeClickDistance={DRAG_THRESHOLD}
             onNodeClick={(event, node) => {
@@ -973,6 +1040,17 @@ function CanvasInner({
               }
             />
           </ReactFlow>
+          <ConnectDropMenu
+            drop={drop}
+            onClose={() => {
+              setDrop(null);
+            }}
+            onPick={(kind, picked) => {
+              setDrop(null);
+              const at = flow.screenToFlowPosition(picked);
+              addAppTable(kind, { x: at.x, y: at.y - 24 }, picked.from);
+            }}
+          />
         </div>
       </CanvasMenu>
       <TableInspector
