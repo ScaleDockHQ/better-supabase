@@ -1261,7 +1261,9 @@ begin
   delete from "better_supabase"."notification_events"
   where "id" in (
     select ev."id" from "better_supabase"."notification_events" ev
-    where ev."created_at" < now() - coalesce(older_than, '90 days')
+    where (ev."created_at" < now() - least(coalesce(older_than, '90 days'), "better_supabase"."retention_floor"('notifications'))
+      and ev."created_at" < now() - coalesce("better_supabase"."retention_for"('notifications', (ev."organization_id")::text), coalesce(older_than, '90 days'))
+      and not "better_supabase"."is_held"('notifications', (ev."organization_id")::text))
     order by ev."created_at"
     limit coalesce(batch, 10000)
   );

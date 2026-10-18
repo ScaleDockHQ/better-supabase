@@ -264,7 +264,11 @@ as $$
 declare
   purged integer;
 begin
-  null;
+  if "better_supabase"."is_held"('job_archive', (null)::text) then
+    return 0;
+  end if;
+  older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), older_than);
+  dead_older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), dead_older_than);
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue

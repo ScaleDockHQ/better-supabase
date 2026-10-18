@@ -1180,13 +1180,22 @@ begin
     raise exception 'Approval % belongs to another chat', v_row."approval_id" using errcode = '23505', hint = 'AI_APPROVAL_EXISTS';
   end if;
   perform "better_supabase"."ai_chat_notify"(v_chat."id", null, 'approval.requested', jsonb_build_object('approvalId', v_row."approval_id"), false);
+  if v_row."decision" is null and not exists (
+    select 1 from "better_supabase"."approval_requests" r
+    where r."subject_type" = 'ai_tool_approval' and r."subject_id" = v_row."approval_id"
+  ) then
+    perform "better_supabase"."open_approval"(
+      v_chat."organization_id", 'ai_tool_approval', v_row."approval_id", 'run', jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', null, 'run', null), null,
+      jsonb_build_object('chatId', v_chat."id", 'tool', v_row."tool", 'toolCallId', v_row."tool_call_id", 'input', v_row."input")
+    );
+  end if;
   return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
--- Records the decision on a waiting tool call, once; decide_ai_tool_approval calls it after its own checks.
+-- Records the decision on a waiting tool call, once; decide_ai_tool_approval and the approvals module call it after their own checks.
 -- Repeating the same decision returns the row.
 create or replace function "better_supabase"."apply_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
 returns jsonb
@@ -1230,6 +1239,8 @@ begin
     metadata => jsonb_build_object('organizationId', (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision),
     idempotency_key => 'ai_tool_approval.decided:' || v_row."approval_id"
   );
+  perform "better_supabase"."approval_settle"('ai_tool_approval', v_row."approval_id", 'run',
+    case when apply_ai_tool_approval.approved then 'approved' else 'rejected' end, auth.uid(), apply_ai_tool_approval.reason);
   return jsonb_build_object('approval_id', v_row."approval_id", 'chat_id', v_row."chat_id", 'run_id', v_row."run_id", 'message_id', v_row."message_id", 'tool', v_row."tool", 'tool_call_id', v_row."tool_call_id", 'input', v_row."input", 'decision', v_row."decision", 'reason', v_row."reason", 'signature', v_row."signature", 'decided_by', v_row."decided_by", 'decided_at', v_row."decided_at", 'created_at', v_row."created_at");
 end;
 $$;
@@ -1750,7 +1761,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
-      and not false
+      and not "better_supabase"."is_held"('ai_chats', (x."organization_id")::text)
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";
