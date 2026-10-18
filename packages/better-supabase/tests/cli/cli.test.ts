@@ -724,6 +724,7 @@ describe("config JSON Schema", () => {
       expose: true,
       readSets: true,
       blocks: true,
+      appTables: true,
       sql: true,
       seed: true,
       openapi: true,

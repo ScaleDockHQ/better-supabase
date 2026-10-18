@@ -5,7 +5,11 @@ import type {
   EnvironmentConfig,
 } from "../config/index.ts";
 
-import { providerApiProblem, SKILLS_AGENTS } from "../config/index.ts";
+import {
+  APP_COLUMN_TYPES,
+  providerApiProblem,
+  SKILLS_AGENTS,
+} from "../config/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 
@@ -491,6 +495,40 @@ const ENTRIES = {
             group: v.optional(v.string()),
           }),
         ),
+      }),
+    ),
+  ),
+  appTables: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        columns: v.optional(
+          v.record(
+            v.string(),
+            v.strictObject({
+              type: v.picklist(APP_COLUMN_TYPES),
+              nullable: v.optional(v.boolean()),
+              default: v.optional(v.string()),
+              unique: v.optional(v.boolean()),
+              references: v.optional(
+                v.strictObject({
+                  table: v.string(),
+                  block: v.optional(v.string()),
+                  onDelete: v.optional(
+                    v.picklist([
+                      "cascade",
+                      "restrict",
+                      "set null",
+                      "no action",
+                    ]),
+                  ),
+                }),
+              ),
+            }),
+          ),
+        ),
+        scope: v.optional(v.picklist(["inherit", "user", "none"])),
+        timestamps: v.optional(v.boolean()),
       }),
     ),
   ),
