@@ -66,6 +66,7 @@ import {
 } from "@/lib/schema-layout";
 import { cn } from "@/lib/utils";
 
+import { DRAG_THRESHOLD, groupFollowers, isControl } from "./canvas-drag";
 import {
   CanvasToolbar,
   type ExportFormat,
@@ -92,6 +93,7 @@ import {
 } from "./schema-nodes";
 import { ShortcutsDialog } from "./shortcuts-dialog";
 import { TableInspector } from "./table-inspector";
+import { useBlockDrop } from "./use-block-drop";
 
 import "@xyflow/react/dist/style.css";
 
@@ -283,7 +285,7 @@ function CanvasInner({
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const [softRefs, setSoftRefs] = useState(false);
+  const [softRefs, setSoftRefs] = useState(true);
   const [snap, setSnap] = useState(false);
   const [focus, setFocus] = useState(false);
 
@@ -417,8 +419,8 @@ function CanvasInner({
 
       const base = {
         id: group.id,
-        type: "group" as const,
-        draggable: false,
+        type: "blockGroup" as const,
+        draggable: !group.collapsed,
         selectable: false,
         focusable: false,
       };
@@ -470,7 +472,6 @@ function CanvasInner({
           width: maxX - minX + GROUP_PADDING.side * 2,
           height: maxY - minY + GROUP_PADDING.top + GROUP_PADDING.bottom,
           zIndex: -1,
-          style: { pointerEvents: "none" },
           data: {
             manifest: group.manifest,
             category,
@@ -688,11 +689,15 @@ function CanvasInner({
 
   const onNodesChange = useCallback(
     (changes: NodeChange<SchemaNode>[]) => {
-      setNodes((current) => applyNodeChanges(changes, [...current]));
+      const followers = groupFollowers(
+        changes,
+        new Map(nodes.map((node) => [node.id, node.position])),
+        layout.groups,
+      );
 
       const moves: Record<string, readonly [number, number]> = {};
 
-      for (const change of changes) {
+      for (const change of [...changes, ...followers]) {
         if (
           change.type === "position" &&
           change.position !== undefined &&
@@ -713,11 +718,15 @@ function CanvasInner({
         }
       }
 
+      setNodes((current) =>
+        applyNodeChanges([...changes, ...followers], [...current]),
+      );
+
       if (Object.keys(moves).length > 0) {
         actions.drag(moveTables(design, moves));
       }
     },
-    [actions, byId, design],
+    [actions, byId, design, layout.groups, nodes],
   );
 
   const onConnectEnd = useCallback(
@@ -743,6 +752,8 @@ function CanvasInner({
     },
     [actions, byId, data, design, preset, undoToast],
   );
+
+  const blockDrop = useBlockDrop(data, input.data, layout.tables, undoToast);
 
   const exportAs = useCallback(
     async (format: ExportFormat) => {
@@ -878,8 +889,18 @@ function CanvasInner({
         void flow.zoomIn();
       } else if (key === "-") {
         void flow.zoomOut();
-      } else if (key === "enter" && selected !== null) {
-        open(selected);
+      } else if (key === "enter") {
+        const focused =
+          event.target instanceof HTMLElement &&
+          event.target.matches(".react-flow__node")
+            ? event.target.dataset["id"]
+            : undefined;
+
+        if (focused !== undefined && byId.has(focused)) {
+          open(focused);
+        } else if (selected !== null && !isControl(event.target)) {
+          open(selected);
+        }
       } else if (
         (key === "delete" || key === "backspace") &&
         selected !== null
@@ -899,6 +920,7 @@ function CanvasInner({
   }, [
     actions,
     addAppTable,
+    byId,
     flow,
     open,
     requestDelete,
@@ -914,7 +936,12 @@ function CanvasInner({
 
   return (
     <CanvasActionsProvider value={canvasActions}>
-      <div ref={container} className={cn("absolute inset-0", FLOW_THEME)}>
+      <div
+        ref={container}
+        className={cn("absolute inset-0", FLOW_THEME)}
+        onDragOver={blockDrop.onDragOver}
+        onDrop={blockDrop.onDrop}
+      >
         <SchemaMarkers />
         <ReactFlow<SchemaNode, SchemaEdge>
           nodes={[...nodes]}
@@ -922,20 +949,20 @@ function CanvasInner({
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
           colorMode={resolvedTheme === "dark" ? "dark" : "light"}
+          // React Flow's grey attribution falls below 4.5:1 on a group tint,
+          // and its unlayered CSS outranks a utility without `!`.
+          className="[&_.react-flow\\_\\_attribution_a]:text-muted-foreground!"
           onNodesChange={onNodesChange}
           onNodeDragStop={actions.commitDrag}
-          onNodeClick={(_, node) => {
-            if (byId.has(node.id)) {
-              setSelected(node.id);
-            }
-          }}
-          onNodeDoubleClick={(_, node) => {
-            if (byId.has(node.id)) {
+          nodeDragThreshold={DRAG_THRESHOLD}
+          nodeClickDistance={DRAG_THRESHOLD}
+          onNodeClick={(event, node) => {
+            if (byId.has(node.id) && !isControl(event.target)) {
               open(node.id);
             }
           }}
           onNodeMouseEnter={(_, node) => {
-            if (node.type !== "group") {
+            if (node.type !== "blockGroup") {
               setHovered(node.id);
             }
           }}
@@ -1004,8 +1031,10 @@ function CanvasInner({
                 actions.apply(tidy(design));
                 void flow.fitView(FIT_VIEW_OPTIONS);
               }}
-              softRefs={softRefs}
-              onSoftRefs={setSoftRefs}
+              hideSoftRefs={!softRefs}
+              onHideSoftRefs={(hide) => {
+                setSoftRefs(!hide);
+              }}
               snap={snap}
               onSnap={setSnap}
               focus={focus}
@@ -1045,7 +1074,9 @@ function CanvasInner({
             zoomable
             ariaLabel="Schema overview"
             className="hidden sm:block"
-            nodeColor={(node) => (node.type === "group" ? "transparent" : "")}
+            nodeColor={(node) =>
+              node.type === "blockGroup" ? "transparent" : ""
+            }
           />
         </ReactFlow>
       </div>

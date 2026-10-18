@@ -11,7 +11,7 @@ import {
 import { categoryStyle } from "@/features/blocks/categories";
 import { BlockGlyph } from "@/features/blocks/components/block-icon";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
-import { type BlockGroup, rowNote } from "@/lib/create";
+import { BLOCK_DRAG_TYPE, type BlockGroup, rowNote } from "@/lib/create";
 import { cn } from "@/lib/utils";
 
 function CategorySection({
@@ -64,10 +64,19 @@ function CategorySection({
             const checked =
               row.state.kind === "selected" || row.state.kind === "required";
 
+            const draggable = row.state.kind !== "conflict";
+
             return (
+              // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- dragging is a pointer shortcut; the checkbox inside is the keyboard path
               <label
                 key={row.name}
                 title={row.description}
+                draggable={draggable}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(BLOCK_DRAG_TYPE, row.name);
+                  event.dataTransfer.setData("text/plain", row.title);
+                  event.dataTransfer.effectAllowed = "copy";
+                }}
                 className={cn(
                   "flex items-start gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
                   locked
@@ -120,7 +129,8 @@ function CategorySection({
 /**
  * Every block by category, each category its own collapsible. A block
  * another one needs is checked and locked with the reason; the checkboxes
- * stay native and mounted while closed, so the form is plain HTML.
+ * stay native and mounted while closed, so the form is plain HTML. A row
+ * also drags onto the canvas, which switches the block on like its checkbox.
  */
 export function BlockPicker({
   groups,

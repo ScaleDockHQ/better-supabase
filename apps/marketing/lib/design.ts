@@ -462,6 +462,36 @@ export function moveTables(
   return withPositions(design, { ...design.positions, ...moves });
 }
 
+/**
+ * Saves positions for `tables` that keep their layout but move the box
+ * around them so its top-left corner lands on `point`.
+ */
+export function placeTables(
+  design: Design,
+  tables: Readonly<Record<string, { readonly x: number; readonly y: number }>>,
+  point: { readonly x: number; readonly y: number },
+): Design {
+  const entries = Object.entries(tables);
+
+  if (entries.length === 0) {
+    return design;
+  }
+
+  const left = Math.min(...entries.map(([, rect]) => rect.x));
+  const top = Math.min(...entries.map(([, rect]) => rect.y));
+
+  const moves: Record<string, readonly [number, number]> = {};
+
+  for (const [id, rect] of entries) {
+    moves[id] = [
+      Math.round(rect.x - left + point.x),
+      Math.round(rect.y - top + point.y),
+    ];
+  }
+
+  return moveTables(design, moves);
+}
+
 /** Drops every saved position, so the automatic layout places every table again. */
 export function tidy(design: Design): Design {
   return withPositions(design, {});

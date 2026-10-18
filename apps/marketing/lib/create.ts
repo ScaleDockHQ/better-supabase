@@ -179,6 +179,40 @@ export function toggleBlock(preset: Preset, name: string): Preset {
   return { ...preset, blocks };
 }
 
+/** The drag data type of a block dragged from the options onto the canvas. */
+export const BLOCK_DRAG_TYPE = "application/x-better-supabase-block";
+
+export type BlockDrop =
+  | { readonly kind: "add"; readonly preset: Preset }
+  | { readonly kind: "installed" }
+  | { readonly kind: "conflict"; readonly reason: string }
+  | { readonly kind: "unknown" };
+
+/**
+ * What dropping block `name` on the canvas does: the same switch as its
+ * checkbox when it is off, nothing when it is already installed (selected or
+ * required by another block).
+ */
+export function dropBlock(
+  preset: Preset,
+  resolved: ResolvedPreset,
+  name: string,
+): BlockDrop {
+  if (!PRESET_CATALOG.blocks.some((block) => block.name === name)) {
+    return { kind: "unknown" };
+  }
+
+  if (resolved.blocks.some((block) => block.name === name)) {
+    return { kind: "installed" };
+  }
+
+  const reason = presetBlockConflict(preset, name);
+
+  return reason === undefined
+    ? { kind: "add", preset: toggleBlock(preset, name) }
+    : { kind: "conflict", reason };
+}
+
 /**
  * A named preset's blocks and the conventions it sets, over the ones the user
  * already picked. The scope goes back to the default when the blocks need

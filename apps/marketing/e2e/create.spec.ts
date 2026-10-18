@@ -357,6 +357,132 @@ test("a table drawn on the canvas travels in the design code", async ({
   );
 });
 
+test("a click on a table opens the inspector, and a drag doesn't", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const table = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(table).toBeVisible();
+
+  await table.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "organizations" });
+  await expect(inspector).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+
+  const box = await table.boundingBox();
+  expect(box).not.toBeNull();
+  const start = { x: (box?.x ?? 0) + 120, y: (box?.y ?? 0) + 18 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 60, start.y + 40, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await table.focus();
+  await page.keyboard.press("Enter");
+  await expect(inspector).toBeVisible();
+});
+
+test("dragging a group moves its tables, and Undo moves them back", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const group = page.locator(
+    '.react-flow__node[data-id="group:organizations"]',
+  );
+
+  const member = page.locator(
+    '.react-flow__node[data-id="better_supabase.organizations"]',
+  );
+
+  await expect(member).toBeVisible();
+
+  const before = await member.boundingBox();
+  const box = await group.boundingBox();
+  expect(box).not.toBeNull();
+
+  const start = {
+    x: (box?.x ?? 0) + (box?.width ?? 0) - 30,
+    y: (box?.y ?? 0) + 12,
+  };
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 100, start.y + 60, { steps: 10 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await member.boundingBox())?.x)
+    .toBeGreaterThan((before?.x ?? 0) + 50);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect
+    .poll(async () => (await member.boundingBox())?.x)
+    .toBeCloseTo(before?.x ?? 0, 0);
+});
+
+test("dropping a block on the canvas switches it on, once", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+  await category(page, "Blocks").click();
+  // A category with an installed block starts open.
+  const collaboration = category(page, "Collaboration");
+
+  if ((await collaboration.getAttribute("aria-expanded")) !== "true") {
+    await collaboration.click();
+  }
+
+  const row = options(page).locator(
+    'label:has(input[name="block"][value="comments"])',
+  );
+
+  await expect(block(page, "comments")).not.toBeChecked();
+  await row.dragTo(page.locator(".react-flow__pane"), {
+    targetPosition: { x: 600, y: 300 },
+  });
+
+  await expect(block(page, "comments")).toBeChecked();
+  await expect(
+    page.locator('.react-flow__node[data-id="better_supabase.comments"]'),
+  ).toBeVisible();
+
+  await row.dragTo(page.locator(".react-flow__pane"), {
+    targetPosition: { x: 400, y: 200 },
+  });
+  await expect(
+    page.getByText("The comments block is already on the canvas."),
+  ).toBeVisible();
+});
+
+test("soft references are drawn by default", async ({ page }) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  const toggle = page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Hide soft references" });
+
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+  const soft = page.locator(
+    '.react-flow__edge path[class*="stroke-dasharray"]',
+  );
+
+  await expect(soft.first()).toBeAttached();
+
+  await toggle.click();
+  await expect(soft).toHaveCount(0);
+});
+
 test.describe("on a phone", () => {
   test.use({
     viewport: { width: 390, height: 844 },

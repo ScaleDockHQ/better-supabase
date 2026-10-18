@@ -14,6 +14,7 @@ import dynamic from "next/dynamic";
 import {
   Suspense,
   use,
+  useDeferredValue,
   useMemo,
   useReducer,
   useSyncExternalStore,
@@ -353,6 +354,12 @@ export function SchemaDiagram({
   const [attempt, retry] = useReducer((count: number) => count + 1, 0);
   const client = useIsClient();
 
+  // Keeps the drawn canvas while the next schema loads: a Suspense fallback
+  // hides it, and React Flow resets the viewport when it shows again.
+  const shown = useDeferredValue(
+    useMemo(() => ({ code, preset: resolved.preset }), [code, resolved.preset]),
+  );
+
   if (resolved.blocks.length === 0) {
     return (
       <Empty className="flex-1">
@@ -381,9 +388,9 @@ export function SchemaDiagram({
         <Suspense fallback={<CanvasSkeleton />}>
           <SchemaView
             key={attempt}
-            code={code}
+            code={shown.code}
             designCode={designCode}
-            preset={resolved.preset}
+            preset={shown.preset}
             pkg={pkg}
             placeholder={resolved.preset.access === "provider"}
             onRetry={retry}

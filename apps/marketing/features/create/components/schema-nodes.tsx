@@ -94,7 +94,7 @@ export type TableNode = Node<TableNodeData, "table">;
 
 export type ExternalNode = Node<CompactNodeData, "external">;
 
-export type GroupNode = Node<GroupNodeData, "group">;
+export type GroupNode = Node<GroupNodeData, "blockGroup">;
 
 export type SchemaNode = TableNode | ExternalNode | GroupNode;
 
@@ -468,35 +468,39 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
   return (
     <div
       className={cn(
-        "size-full rounded-xl border border-dashed bg-muted/30 transition-colors",
+        "size-full rounded-xl border border-dashed transition-colors",
+        style.tint,
         style.ring,
         data.emphasis === "dim" ? "opacity-40" : "",
       )}
     >
-      <button
-        type="button"
-        className="pointer-events-auto flex h-8 nodrag items-center gap-2 rounded-tl-xl px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        onClick={() => {
-          actions.toggleGroup(data.manifest);
-        }}
-      >
-        <ChevronDownIcon aria-hidden="true" className="size-3.5" />
-        <span className="sr-only">Collapse </span>
-        <span className="font-medium">{data.manifest}</span>
-        <span className="tabular-nums">
-          {data.count}
-          <span className="sr-only">
-            {" "}
-            {data.count === 1 ? "table" : "tables"}
+      <div className="flex h-8 items-center px-1">
+        <button
+          type="button"
+          className="flex h-6 nodrag items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => {
+            actions.toggleGroup(data.manifest);
+          }}
+        >
+          <ChevronDownIcon aria-hidden="true" className="size-3.5" />
+          <span className="sr-only">Collapse </span>
+          <span className="font-medium">{data.manifest}</span>
+          <span className="tabular-nums">
+            {data.count}
+            <span className="sr-only">
+              {" "}
+              {data.count === 1 ? "table" : "tables"}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
     </div>
   );
 }
 
+/** Not `group`: React Flow gives that type a solid border and a fill. */
 export const NODE_TYPES = {
   table: TableNodeView,
   external: ExternalNodeView,
-  group: GroupNodeView,
+  blockGroup: GroupNodeView,
 };

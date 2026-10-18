@@ -11,7 +11,7 @@ import {
   Grid3x3Icon,
   KeyboardIcon,
   LayoutDashboardIcon,
-  Link2Icon,
+  Link2OffIcon,
   MinusIcon,
   PlusIcon,
   Redo2Icon,
@@ -97,8 +97,8 @@ export interface CanvasToolbarProps {
   readonly onRedo: () => void;
   readonly onAddTable: () => void;
   readonly onTidy: () => void;
-  readonly softRefs: boolean;
-  readonly onSoftRefs: (on: boolean) => void;
+  readonly hideSoftRefs: boolean;
+  readonly onHideSoftRefs: (hide: boolean) => void;
   readonly snap: boolean;
   readonly onSnap: (on: boolean) => void;
   readonly focus: boolean;
@@ -289,10 +289,10 @@ function MoreItems(props: CanvasToolbarProps): ReactElement {
           Tidy layout
         </DropdownMenuItem>
         <DropdownMenuCheckboxItem
-          checked={props.softRefs}
-          onCheckedChange={props.onSoftRefs}
+          checked={props.hideSoftRefs}
+          onCheckedChange={props.onHideSoftRefs}
         >
-          Show soft references
+          Hide soft references
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={props.snap}
@@ -402,11 +402,11 @@ export function CanvasToolbar(props: CanvasToolbarProps): ReactElement {
             <LayoutDashboardIcon aria-hidden="true" />
           </IconAction>
           <ToggleAction
-            label="Show soft references"
-            pressed={props.softRefs}
-            onPressed={props.onSoftRefs}
+            label="Hide soft references"
+            pressed={props.hideSoftRefs}
+            onPressed={props.onHideSoftRefs}
           >
-            <Link2Icon aria-hidden="true" />
+            <Link2OffIcon aria-hidden="true" />
           </ToggleAction>
           <ToggleAction
             label="Snap to grid"
