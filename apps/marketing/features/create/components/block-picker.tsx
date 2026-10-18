@@ -33,7 +33,12 @@ function CategorySection({
         <CollapsibleTrigger className="group/category flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <CategoryIcon category={group.category} size="sm" />
           {group.category}
-          <span className="ml-auto font-normal text-muted-foreground tabular-nums">
+          <span
+            className={cn(
+              "ml-auto font-normal tabular-nums",
+              categoryStyle(group.category).text,
+            )}
+          >
             {on} of {group.rows.length}
           </span>
           <ChevronDownIcon
