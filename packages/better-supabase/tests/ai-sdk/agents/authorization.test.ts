@@ -8,12 +8,15 @@ import type {
   KnowledgeHit,
 } from "../../../src/blocks/knowledge/index.ts";
 
+import { toolPermitted } from "../../../src/ai-sdk/agents/authorization.ts";
 import {
   agentClaims,
   agentRunContext,
   agentToolOperation,
   type AgentRuntimeOptions,
+  assertToolDelegated,
   createAgentRuntime,
+  toolDelegated,
 } from "../../../src/ai-sdk/agents/index.ts";
 import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
@@ -452,5 +455,81 @@ describe("createAgentRuntime tool operations", () => {
       "tool-approval-request",
     );
     expect(execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("delegated tools", () => {
+  const delegated = (tools?: readonly string[], readOnly = false) =>
+    ({
+      kind: "agent",
+      id: "parent",
+      ...(tools === undefined ? {} : { tools }),
+      readOnly,
+      chain: { kind: "agent", sub: "parent" },
+    }) as const;
+
+  it("refuses a tool an agent level lists tools without", () => {
+    expect(toolDelegated(delegated(["a"]), "a")).toBe(true);
+    expect(toolDelegated(delegated(), "a")).toBe(true);
+    expect(toolDelegated(delegated([]), "a")).toBe(false);
+    expect(toolDelegated({ kind: "oauth-client" }, "a")).toBe(true);
+    expect(toolDelegated(undefined, "a")).toBe(true);
+
+    expect(() => {
+      assertToolDelegated(delegated(["b"]), "a");
+    }).toThrow(
+      expect.objectContaining({
+        name: "DbException",
+        error: expect.objectContaining({
+          kind: "forbidden",
+          code: "AGENT_TOOL_NOT_DELEGATED",
+        }),
+      }),
+    );
+    expect(() => {
+      assertToolDelegated(delegated(["a"]), "a");
+    }).not.toThrow(DbException);
+  });
+
+  it("drops undelegated tools from the run and never executes them", async () => {
+    const { agent: run, execute } = runtime({ actor: delegated(["b"]) });
+
+    expect(Object.keys(run.tools)).toEqual([]);
+    await run.generate({ prompt: "Hi" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("runs a delegated tool", async () => {
+    const { agent: run, execute } = runtime({ actor: delegated(["a"]) });
+
+    await run.generate({ prompt: "Hi" });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("makes the run read-only under a read-only agent", () => {
+    expect(
+      agentRunContext(agent(), { userId: "u1" }, ["a"], delegated(["a"], true))
+        .act,
+    ).toEqual({ agent: "a1", tools: ["a"], readOnly: true });
+  });
+
+  it("refuses in toolPermitted when the run's act does not list the tool", async () => {
+    const context = {
+      ...agentRunContext(agent(), { userId: "u1" }, ["b"]),
+      toolName: "a",
+      operation: "ai.tool.a",
+      input: {},
+    };
+
+    const authorize = vi.fn(() => true);
+
+    expect(
+      await toolPermitted(
+        authorize,
+        { operation: "ai.tool.a", permission: false },
+        context,
+      ),
+    ).toBe(false);
+    expect(authorize).not.toHaveBeenCalled();
   });
 });

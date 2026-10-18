@@ -7,6 +7,7 @@ import { delegatedClaims } from "../../src/auth/delegation.ts";
 import { impersonatorOf } from "../../src/auth/impersonation.ts";
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { toSession } from "../../src/auth/view.ts";
+import { actCases } from "../../src/testing/act-cases.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
 // An OAuth client token and a token with a delegation chain in `act`.
@@ -188,6 +189,7 @@ describe("agent actors", () => {
         kind: "agent",
         id: "agent-1",
         tools: ["lookup"],
+        readOnly: false,
         chain: agentAct,
       },
     });
@@ -224,4 +226,42 @@ describe("agent actors", () => {
       delegation: { scope: "posts:read", act: claims.act },
     });
   });
+
+  it("writes tools and read_only only when they are set", () => {
+    expect(agentClaims(base, { agent: "agent-1" }).act).toEqual({
+      kind: "agent",
+      sub: "agent-1",
+    });
+    expect(
+      agentClaims(base, { agent: "agent-1", tools: [], readOnly: true }).act,
+    ).toEqual({ kind: "agent", sub: "agent-1", tools: [], read_only: true });
+  });
+});
+
+describe("act-cases.json", () => {
+  it("is version 1 with unique case names", () => {
+    expect(actCases.version).toBe(1);
+    expect(new Set(actCases.cases.map((c) => c.name)).size).toBe(
+      actCases.cases.length,
+    );
+  });
+
+  it.each(actCases.cases)(
+    "$name",
+    ({ claims, valid, kind, readOnly, tools }) => {
+      const outcome = actorOf(claims);
+
+      expect(outcome.ok).toBe(valid);
+
+      const actor = outcome.ok ? outcome.actor : undefined;
+
+      expect(actor?.kind ?? null).toBe(kind);
+      expect(
+        actor !== undefined && "readOnly" in actor ? actor.readOnly : null,
+      ).toBe(readOnly);
+      expect(actor?.kind === "agent" ? (actor.tools ?? null) : null).toEqual(
+        tools,
+      );
+    },
+  );
 });

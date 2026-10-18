@@ -26,6 +26,9 @@ export {
   type AgentToolOperation,
   type AgentToolOperations,
   type AgentToolPermissions,
+  assertToolDelegated,
+  type ToolDelegation,
+  toolDelegated,
 } from "./authorization.ts";
 
 export { type AgentActOptions, agentClaims } from "../../auth/actor.ts";

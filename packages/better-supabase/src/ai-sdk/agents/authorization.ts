@@ -1,6 +1,6 @@
 import type { LanguageModel } from "ai";
 
-import type { AgentActOptions } from "../../auth/actor.ts";
+import type { AgentActOptions, SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
 import type { AuthorizationOperation } from "../../config/authorization.ts";
 
@@ -43,18 +43,66 @@ export type AgentRunContext = {
   readonly act: AgentActOptions;
 };
 
-/** The run context for an agent row, its caller and the tools it may call, frozen. */
+/**
+ * The run context for an agent row, its caller and the tools it may call,
+ * frozen. A read-only agent `actor` (the session's own agent level) makes
+ * the run's `act` read-only too.
+ */
 export function agentRunContext(
   agent: Pick<Agent, "id" | "organizationId">,
   caller?: AgentCaller,
   tools: readonly string[] = [],
+  actor?: SessionActor,
 ): AgentRunContext {
+  const readOnly = actor?.kind === "agent" && actor.readOnly;
+
   return Object.freeze({
     userId: caller?.userId,
     organizationId: caller?.organizationId ?? agent.organizationId,
     actor: Object.freeze({ kind: "agent", id: agent.id }),
-    act: Object.freeze({ agent: agent.id, tools: Object.freeze([...tools]) }),
+    act: Object.freeze({
+      agent: agent.id,
+      tools: Object.freeze([...tools]),
+      ...(readOnly ? { readOnly: true } : {}),
+    }),
   });
+}
+
+/** The part of an actor `assertToolDelegated` reads. */
+export interface ToolDelegation {
+  readonly kind: string;
+  readonly tools?: readonly string[];
+}
+
+/** Whether an agent level that lists tools lists `toolName`; every other actor may call it. */
+export function toolDelegated(
+  actor: ToolDelegation | undefined,
+  toolName: string,
+): boolean {
+  return (
+    actor?.kind !== "agent" ||
+    actor.tools === undefined ||
+    actor.tools.includes(toolName)
+  );
+}
+
+/**
+ * Throws a forbidden `DbException` (`AGENT_TOOL_NOT_DELEGATED`) when the
+ * actor is an agent whose `act.tools` lists tools and not `toolName`.
+ */
+export function assertToolDelegated(
+  actor: ToolDelegation | undefined,
+  toolName: string,
+): void {
+  if (!toolDelegated(actor, toolName)) {
+    throw new DbException(
+      dbError(
+        "forbidden",
+        `The agent was not delegated the tool ${toolName}.`,
+        { code: "AGENT_TOOL_NOT_DELEGATED" },
+      ),
+    );
+  }
 }
 
 /**
@@ -171,15 +219,20 @@ export async function assertModelAllowed(
 }
 
 /**
- * Whether the call may run as far as permissions go: a tool with no declared
- * permission is refused, a public one is allowed without a check, and a
- * check that throws refuses.
+ * Whether the call may run as far as permissions go: a tool the run's
+ * `act.tools` doesn't list is refused, a tool with no declared permission is
+ * refused, a public one is allowed without a check, and a check that throws
+ * refuses.
  */
 export async function toolPermitted(
   authorize: AgentToolAuthorizer,
   operation: AgentToolOperation,
   context: AgentToolCallContext,
 ): Promise<boolean> {
+  if (!toolDelegated({ kind: "agent", ...context.act }, context.toolName)) {
+    return false;
+  }
+
   if (operation.permission === false) {
     return true;
   }

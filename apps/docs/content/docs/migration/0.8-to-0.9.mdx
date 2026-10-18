@@ -260,15 +260,23 @@ See [Realtime](/docs/platform/realtime) and
 
 ## Agent actors
 
-An RFC 8693 `act` level may now be `{ kind: "agent", sub, tools }`, which
-`agentClaims(claims, { agent, tools })` from `better-supabase/server` builds.
-In 0.8 an unknown `kind` made the chain invalid. An agent writes with the
-user's row level security unless its level sets `read_only: true`, and a
-token that carries a `scope` limits it like an OAuth client. Pass
-`agentClaims(claims, run.act)` to `asUser` or `forContext` in agent tools so
-the audit log names the agent. A level with `kind: "agent"` whose `tools` is
-not a list of names is refused. See
+An RFC 8693 `act` level may now be `{ kind: "agent", sub, tools, read_only }`,
+which `agentClaims(claims, { agent, tools, readOnly })` from
+`better-supabase/server` builds. In 0.8 an unknown `kind` made the chain
+invalid. An agent writes with the user's row level security unless its
+level sets `read_only: true`, and a token that carries a `scope` limits it
+like an OAuth client. Pass `agentClaims(claims, run.act)` to `asUser` or
+`forContext` in agent tools so the audit log names the agent. A level with
+`kind: "agent"` whose `tools` is not a list of names, or whose `read_only`
+isn't a boolean, is refused. A level without `tools` delegates every tool and
+`tools: []` none; `createAgentRuntime({ actor })` refuses a tool the actor
+wasn't delegated with `AGENT_TOOL_NOT_DELEGATED`. See
 [Impersonation](/docs/auth/impersonation).
+
+`actor_may_write()` now decides by `kind` first. An impersonation token is
+read-only even with `read_only: false`, which 0.8 let write; use the
+provider's `authorization.functions.actorMayWrite` template to allow those
+writes. An unknown `kind`, or a `read_only` that is a string, can't write.
 
 ## Realtime triggers
 

@@ -187,3 +187,7 @@ export type { TestStreamStoreOptions } from "./streams.ts";
 export { testCredentialProvider } from "./credentials.ts";
 
 export type { TestCredentialProviderOptions } from "./credentials.ts";
+
+export { actCases } from "./act-cases.ts";
+
+export type { ActCase, ActCases } from "./act-cases.ts";

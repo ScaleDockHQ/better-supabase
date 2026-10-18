@@ -4428,9 +4428,11 @@
       "agentToolApproval",
       "agentToolOperation",
       "agentTools",
+      "assertToolDelegated",
       "createAgentRuntime",
       "ModerationBlockedError",
-      "moderationMiddleware"
+      "moderationMiddleware",
+      "toolDelegated"
     ],
     "types": [
       "Agent",
@@ -4448,7 +4450,8 @@
       "AgentToolOperations",
       "AgentToolPermissions",
       "ModerationMiddlewareOptions",
-      "ModerationVerdict"
+      "ModerationVerdict",
+      "ToolDelegation"
     ]
   },
   "./ai-sdk/mcp": {
@@ -7212,6 +7215,7 @@
   },
   "./testing": {
     "values": [
+      "actCases",
       "asUser",
       "ConformanceError",
       "createTestSigner",
@@ -7263,6 +7267,8 @@
       "testWebhookTransport"
     ],
     "types": [
+      "ActCase",
+      "ActCases",
       "AdapterRun",
       "BudgetPage",
       "BudgetRequest",

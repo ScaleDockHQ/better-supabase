@@ -9,6 +9,7 @@ import {
   type ToolSet,
 } from "ai";
 
+import type { SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
 import type {
   AiChat,
@@ -42,23 +43,31 @@ import {
   type AgentToolOperations,
   type AgentToolPermissions,
   assertModelAllowed,
+  assertToolDelegated,
+  toolDelegated,
   toolPermitted,
 } from "./authorization.ts";
 
 /**
  * The tools an agent may call: the ones it lists (every tool when it lists
- * none), without the tenant's `deny` tools.
+ * none), without the tenant's `deny` tools and, when the session's `actor`
+ * is an agent that lists tools, without the ones it wasn't delegated.
  */
 export function agentTools(
   agent: Pick<Agent, "tools">,
   available: ToolSet,
   policies: Readonly<Record<string, AiToolPolicy>> = {},
+  actor?: SessionActor,
 ): ToolSet {
   const allowed = agent.tools.length === 0 ? undefined : new Set(agent.tools);
   const tools: ToolSet = {};
 
   for (const [name, tool] of Object.entries(available)) {
     if (allowed !== undefined && !allowed.has(name)) {
+      continue;
+    }
+
+    if (!toolDelegated(actor, name)) {
       continue;
     }
 
@@ -113,6 +122,7 @@ const approvalType = (
       : status.type;
 
 interface ApprovalChecks {
+  readonly actor: SessionActor | undefined;
   readonly approve: AgentToolApprovalFunction | undefined;
   /** The tenant's `ask` tools and the provider's high-risk ones. */
   readonly ask: Readonly<Record<string, "user-approval">>;
@@ -122,15 +132,28 @@ interface ApprovalChecks {
 }
 
 /**
- * The permission check, then the app's `toolApproval`, then the `ask`
- * tools: a refused permission denies, and otherwise the stricter answer
- * wins (`denied`, then `user-approval`). A function that throws denies the
- * call.
+ * The delegation check, the permission check, then the app's
+ * `toolApproval`, then the `ask` tools: a tool the session's agent wasn't
+ * delegated or a refused permission denies, and otherwise the stricter
+ * answer wins (`denied`, then `user-approval`). A function that throws
+ * denies the call.
  */
 function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
   return async (options) => {
     const { toolName } = options.toolCall;
     const input: unknown = options.toolCall.input;
+
+    try {
+      assertToolDelegated(checks.actor, toolName);
+    } catch (error) {
+      return {
+        type: "denied",
+        reason:
+          error instanceof DbException
+            ? error.error.message
+            : "The tool was not delegated",
+      };
+    }
 
     if (checks.authorizeTool !== undefined) {
       const operation = checks.operation(toolName);
@@ -209,6 +232,13 @@ export interface AgentRuntimeOptions {
    */
   readonly caller?: AgentCaller;
   /**
+   * The session's actor, from `actorOf(claims)`. When it is an agent whose
+   * `act.tools` lists tools, the run gets only those, and a call to any
+   * other is denied (`AGENT_TOOL_NOT_DELEGATED`). A read-only agent makes
+   * the run's `act` read-only.
+   */
+  readonly actor?: SessionActor;
+  /**
    * Called before every model call with the model id and the run context.
    * `false` or a throw refuses the run with a `forbidden` error before the
    * model is called. Every model is allowed without it.
@@ -254,15 +284,25 @@ export function createAgentRuntime(
   options: AgentRuntimeOptions,
 ): ToolLoopAgent<never, ToolSet> {
   const { agent } = options;
-  const tools = agentTools(agent, options.tools ?? {}, options.policies);
+
+  const tools = agentTools(
+    agent,
+    options.tools ?? {},
+    options.policies,
+    options.actor,
+  );
 
   const searchesKnowledge =
-    options.knowledge !== undefined && agent.knowledgeScopes.length > 0;
+    options.knowledge !== undefined &&
+    agent.knowledgeScopes.length > 0 &&
+    toolDelegated(options.actor, "search_knowledge");
 
-  const run = agentRunContext(agent, options.caller, [
-    ...Object.keys(tools),
-    ...(searchesKnowledge ? ["search_knowledge"] : []),
-  ]);
+  const run = agentRunContext(
+    agent,
+    options.caller,
+    [...Object.keys(tools), ...(searchesKnowledge ? ["search_knowledge"] : [])],
+    options.actor,
+  );
 
   if (searchesKnowledge) {
     const {
@@ -331,9 +371,12 @@ export function createAgentRuntime(
     model: options.model(agent.model),
     tools,
     toolApproval:
-      options.toolApproval === undefined && options.authorizeTool === undefined
+      options.toolApproval === undefined &&
+      options.authorizeTool === undefined &&
+      options.actor === undefined
         ? ask
         : composedApproval({
+            actor: options.actor,
             approve: options.toolApproval,
             ask,
             authorizeTool: options.authorizeTool,
