@@ -130,7 +130,7 @@ const CATEGORY_BY_BLOCK = new Map(
   blocks.map((block) => [block.name, block.category]),
 );
 
-const FALLBACK_CATEGORY = "Platform";
+const FALLBACK_CATEGORY = "Database primitives";
 
 function categoryOf(module: string): string {
   return CATEGORY_BY_BLOCK.get(module) ?? FALLBACK_CATEGORY;

@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const ensureRlsBlock: Block<"ensure-rls"> = defineBlock({
   name: "ensure-rls",
   sql: ["ensure-rls"],
-  category: "platform",
+  category: "database",
 });

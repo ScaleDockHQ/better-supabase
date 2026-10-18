@@ -20,4 +20,5 @@ export const aiProvidersBlock: BlockOf<
   events: aiProvidersEvents,
   create: createAiProviders,
   category: "ai",
+  recipes: ["ai-provider-settings"],
 });

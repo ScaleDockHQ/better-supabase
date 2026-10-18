@@ -1,3 +1,4 @@
+// #region recipe:mfa-setup
 "use client";
 
 import { useSessionChange } from "better-supabase/next/client";
@@ -233,3 +234,4 @@ export function TwoFactorCard({
     </Card>
   );
 }
+// #endregion recipe:mfa-setup

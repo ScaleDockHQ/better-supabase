@@ -19,5 +19,5 @@ export const timeTrackingBlock: BlockOf<
   },
   events: timeTrackingEvents,
   create: createTimeTracking,
-  category: "scheduling",
+  category: "people",
 });

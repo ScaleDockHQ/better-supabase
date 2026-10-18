@@ -1,3 +1,4 @@
+// #region recipe:knowledge-upload
 "use client";
 
 import { useActionForm } from "better-supabase/react";
@@ -43,3 +44,4 @@ export function AddDocumentForm() {
     </form>
   );
 }
+// #endregion recipe:knowledge-upload

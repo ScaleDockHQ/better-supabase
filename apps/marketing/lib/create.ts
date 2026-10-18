@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CONVENTIONS,
   encodePreset,
   listNames,
   namedPreset,
@@ -172,9 +173,20 @@ export function toggleBlock(preset: Preset, name: string): Preset {
   return { ...preset, blocks };
 }
 
-/** A named preset's blocks with the conventions the user already picked. */
+/**
+ * A named preset's blocks and the conventions it sets, over the ones the user
+ * already picked. The scope goes back to the default when the blocks need
+ * tenants and the picked scope has none.
+ */
 export function applyNamedPreset(preset: Preset, name: PresetName): Preset {
-  return { ...preset, blocks: PRESETS[name].blocks };
+  const { blocks, conventions } = PRESETS[name];
+  const next = { ...preset, ...conventions, blocks };
+
+  const fits = blocks.every(
+    (block) => presetBlockConflict(next, block) === undefined,
+  );
+
+  return fits ? next : { ...next, scope: DEFAULT_CONVENTIONS.scope };
 }
 
 export type BlockRowState =

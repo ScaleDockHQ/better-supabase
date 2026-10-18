@@ -1,3 +1,4 @@
+// #region recipe:agent-run-trace
 import { ActivityIcon, InboxIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 
@@ -137,3 +138,4 @@ export async function AgentActivity() {
 export function AgentActivitySkeleton() {
   return <Skeleton className="h-96 w-full rounded-xl" />;
 }
+// #endregion recipe:agent-run-trace

@@ -22,7 +22,7 @@ export default function KnowledgePage() {
           "Documents on the knowledge block, chunked and embedded after you add them. The assistant searches them with a tool.",
         )}
       />
-      <section className="space-y-3">
+      <section className="space-y-3" data-recipe="knowledge-upload">
         <h2 className="text-sm font-medium">{t("Add a document")}</h2>
         <AddDocumentForm />
       </section>

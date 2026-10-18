@@ -1,3 +1,4 @@
+// #region recipe:workflow-runs
 "use client";
 
 import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
@@ -107,3 +108,4 @@ export function WorkflowRunsSkeleton() {
     </div>
   );
 }
+// #endregion recipe:workflow-runs

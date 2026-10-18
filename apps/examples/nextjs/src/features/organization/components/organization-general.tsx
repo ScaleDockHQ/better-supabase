@@ -40,7 +40,7 @@ export async function OrganizationGeneral() {
 
   return (
     <>
-      <Card>
+      <Card data-recipe="workspace-url-field">
         <CardHeader>
           <CardTitle>{t("General")}</CardTitle>
           <CardDescription>

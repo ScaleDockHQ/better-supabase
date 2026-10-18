@@ -15,5 +15,5 @@ export const outboxBlock: BlockOf<"outbox", typeof createOutbox> = defineBlock({
     outbox: outboxSqlOptions,
   },
   create: createOutbox,
-  category: "platform",
+  category: "automation",
 });

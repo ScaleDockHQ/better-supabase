@@ -117,6 +117,6 @@ export const config = {
   matcher: [
     // The workflow and Flags Explorer routes authenticate requests themselves;
     // the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|.*\\.(?:svg|png|jpg|webp|ico|txt)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|.*\\.(?:svg|png|jpg|webp|ico|txt|js)$).*)",
   ],
 };

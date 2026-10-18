@@ -19,5 +19,5 @@ export const accessRequestsBlock: BlockOf<
   },
   events: accessRequestsEvents,
   create: createAccessRequests,
-  category: "work",
+  category: "identity",
 });

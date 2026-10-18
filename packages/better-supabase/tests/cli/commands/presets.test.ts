@@ -108,11 +108,11 @@ describe("preset info", () => {
 describe("blocks", () => {
   it("lists every block by category, or one category", () => {
     const all = runBlocks({ _: ["list"] });
-    expect(all.output).toContain("foundation:\n");
+    expect(all.output).toContain("identity:\n");
     expect(all.output).toContain("  comments");
     const crm = runBlocks({ _: ["list"], category: "crm" });
     expect(crm.output).toMatch(/^crm:\n/);
-    expect(crm.output).not.toContain("foundation:");
+    expect(crm.output).not.toContain("identity:");
     expect(runBlocks({ _: ["list"], category: "nope" }).code).toBe(2);
   });
 

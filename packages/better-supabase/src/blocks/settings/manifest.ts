@@ -22,6 +22,6 @@ export const settingsBlock: BlockOf<
   },
   events: settingsEvents,
   create: createSettings,
-  category: "foundation",
+  category: "tenancy",
   recipes: ["settings-layout"],
 });

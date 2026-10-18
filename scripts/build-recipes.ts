@@ -19,9 +19,16 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { argv, exit } from "node:process";
 
+import {
+  NATIVE_APP,
+  type RecipeKind,
+  RECIPES,
+  type RecipeSource,
+  type Side,
+  WEB_APP,
+} from "./recipes/sources.ts";
+
 const ROOT = join(import.meta.dirname, "..");
-const WEB_APP = "apps/examples/nextjs";
-const NATIVE_APP = "apps/examples/expo-powersync";
 const RECIPES_FILE = join(ROOT, "apps/marketing/lib/recipes.json");
 const DOCS_FILE = join(ROOT, "apps/docs/content/docs/registry/ui-recipes.mdx");
 
@@ -32,393 +39,6 @@ const SKILL_FILE = join(
 
 const SITE = "https://bettersupabase.com";
 
-interface Side {
-  /** The example file, relative to the repo root. */
-  readonly file: string;
-  /** Web: shadcn components (`npx shadcn add ...`). Native: React Native primitives. */
-  readonly components: readonly string[];
-  /** `@better-supabase/<item>` registry items the snippet imports. */
-  readonly glue: readonly string[];
-}
-
-interface RecipeSource {
-  readonly slug: string;
-  readonly title: string;
-  /** The SQL module the recipe's hook calls. */
-  readonly block: string;
-  readonly description: string;
-  /** The hook both sides call, and the entry it comes from. */
-  readonly hook: { readonly name: string; readonly entry: string };
-  readonly web?: Side;
-  readonly native?: Side;
-  /** For a planned recipe: what has to ship first. */
-  readonly missing?: string;
-}
-
-const RECIPES: readonly RecipeSource[] = [
-  {
-    slug: "notification-bell",
-    title: "Notification bell",
-    block: "notifications",
-    description:
-      "A header button with the unread count, which updates when a notification arrives or is read.",
-    hook: {
-      name: "useNotifications",
-      entry: "better-supabase/blocks/notifications/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/notifications/components/unread-badge.tsx`,
-      components: ["badge", "button"],
-      glue: ["notifications-actions-next"],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/notification-bell.tsx`,
-      components: ["Pressable", "Text", "View"],
-      glue: ["blocks"],
-    },
-  },
-  {
-    slug: "notification-list",
-    title: "Notification list",
-    block: "notifications",
-    description:
-      "The caller's latest notifications with an unread marker, loaded again on every change.",
-    hook: {
-      name: "useNotifications",
-      entry: "better-supabase/blocks/notifications/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/notifications/components/notification-list.tsx`,
-      components: ["badge", "empty", "skeleton"],
-      glue: ["notifications-actions-next"],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/notification-list.tsx`,
-      components: ["ActivityIndicator", "FlatList", "Text", "View"],
-      glue: ["blocks"],
-    },
-  },
-  {
-    slug: "command-search",
-    title: "Command search",
-    block: "search",
-    description:
-      "A search dialog over the search index, with favorites and recents before the user types.",
-    hook: {
-      name: "useCommandSearch",
-      entry: "better-supabase/blocks/search/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/search/components/command-search.tsx`,
-      components: ["button", "dialog", "input"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/command-search.tsx`,
-      components: [
-        "Modal",
-        "Pressable",
-        "SectionList",
-        "Text",
-        "TextInput",
-        "View",
-      ],
-      glue: [],
-    },
-  },
-  {
-    slug: "onboarding-checklist",
-    title: "Onboarding checklist",
-    block: "onboarding",
-    description:
-      "The organization's getting-started steps with progress, hidden once every step is done.",
-    hook: {
-      name: "useOnboarding",
-      entry: "better-supabase/blocks/onboarding/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/dashboard/components/onboarding-card.tsx`,
-      components: ["button", "card", "progress", "skeleton"],
-      glue: ["onboarding-checklist"],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/onboarding-checklist.tsx`,
-      components: ["ActivityIndicator", "Text", "View"],
-      glue: ["onboarding-checklist"],
-    },
-  },
-  {
-    slug: "comment-thread",
-    title: "Comment thread",
-    block: "comments",
-    description:
-      "A record's comments with their authors and a form to add one, kept current after each write.",
-    hook: {
-      name: "useComments",
-      entry: "better-supabase/blocks/comments/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/customers/components/comment-thread.tsx`,
-      components: ["button", "field", "skeleton", "textarea"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/comment-thread.tsx`,
-      components: [
-        "ActivityIndicator",
-        "Button",
-        "FlatList",
-        "Text",
-        "TextInput",
-        "View",
-      ],
-      glue: [],
-    },
-  },
-  {
-    slug: "org-switcher",
-    title: "Organization switcher",
-    block: "organizations",
-    description:
-      "A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim.",
-    hook: {
-      name: "useOrganizations",
-      entry: "better-supabase/blocks/organizations/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/organization/components/organization-switcher-menu.tsx`,
-      components: ["dropdown-menu", "sidebar"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/organization-switcher.tsx`,
-      components: ["ActivityIndicator", "Pressable", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "plan-picker",
-    title: "Plan picker",
-    block: "billing",
-    description:
-      "The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns.",
-    hook: {
-      name: "usePlanPicker",
-      entry: "better-supabase/blocks/billing/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/billing/components/plan-picker.tsx`,
-      components: ["button", "card"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/plan-picker.tsx`,
-      components: ["ActivityIndicator", "Pressable", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "usage-meter",
-    title: "Usage meter",
-    block: "usage",
-    description:
-      "This period's usage per meter against the plan's quota, with the reset date.",
-    hook: {
-      name: "useUsageMeter",
-      entry: "better-supabase/blocks/usage/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/dashboard/components/usage-card.tsx`,
-      components: ["card", "progress", "skeleton"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/usage-meter.tsx`,
-      components: ["ActivityIndicator", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "feature-gate",
-    title: "Feature gate",
-    block: "entitlements",
-    description:
-      "Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes.",
-    hook: {
-      name: "useFeatureGate",
-      entry: "better-supabase/blocks/entitlements/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/billing/components/feature-gate.tsx`,
-      components: ["button", "skeleton"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/feature-gate.tsx`,
-      components: ["ActivityIndicator", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "settings-layout",
-    title: "Settings layout",
-    block: "settings",
-    description:
-      "Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares.",
-    hook: {
-      name: "useSettings",
-      entry: "better-supabase/blocks/settings/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/settings/components/settings-layout.tsx`,
-      components: ["card", "field", "input", "select", "skeleton", "switch"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/settings-layout.tsx`,
-      components: [
-        "ActivityIndicator",
-        "Pressable",
-        "ScrollView",
-        "Switch",
-        "Text",
-        "TextInput",
-        "View",
-      ],
-      glue: [],
-    },
-  },
-  {
-    slug: "members-table",
-    title: "Members table",
-    block: "organizations",
-    description:
-      "An organization's members with their roles, where a role change shows at once and a member can be removed.",
-    hook: {
-      name: "useMembers",
-      entry: "better-supabase/blocks/organizations/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/organization/components/member-table.tsx`,
-      components: ["avatar", "button", "select", "table"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/members-table.tsx`,
-      components: ["ActivityIndicator", "Pressable", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "invite-dialog",
-    title: "Invite dialog",
-    block: "invitations",
-    description:
-      "A form that invites a teammate by email with a role, then shows the token for the accept link.",
-    hook: {
-      name: "useInvitations",
-      entry: "better-supabase/blocks/organizations/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/organization/components/invite-member-dialog.tsx`,
-      components: ["button", "dialog", "field", "input", "select"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/invite-dialog.tsx`,
-      components: ["Button", "Modal", "Pressable", "Text", "TextInput", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "api-keys-table",
-    title: "API keys table",
-    block: "api-keys",
-    description:
-      "The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key.",
-    hook: {
-      name: "useApiKeys",
-      entry: "better-supabase/blocks/api-keys/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/api-keys/components/api-key-table.tsx`,
-      components: [
-        "alert",
-        "badge",
-        "button",
-        "dialog",
-        "empty",
-        "field",
-        "input",
-        "skeleton",
-        "table",
-      ],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/api-keys-table.tsx`,
-      components: [
-        "ActivityIndicator",
-        "Button",
-        "Pressable",
-        "Text",
-        "TextInput",
-        "View",
-      ],
-      glue: [],
-    },
-  },
-  {
-    slug: "audit-log-table",
-    title: "Audit log table",
-    block: "audit",
-    description:
-      "The audit trail, newest first, with filters by actor and action and older pages on demand.",
-    hook: {
-      name: "useAuditLog",
-      entry: "better-supabase/blocks/audit/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/audit/components/audit-log-table.tsx`,
-      components: ["button", "select", "skeleton", "table"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/audit-log-table.tsx`,
-      components: ["ActivityIndicator", "Button", "Pressable", "Text", "View"],
-      glue: [],
-    },
-  },
-  {
-    slug: "tag-input",
-    title: "Tag input",
-    block: "tags",
-    description:
-      "A record's tags with suggestions, where typing a name adds a tag or creates it.",
-    hook: {
-      name: "useTagInput",
-      entry: "better-supabase/blocks/tags/react",
-    },
-    web: {
-      file: `${WEB_APP}/src/features/customers/components/tag-input.tsx`,
-      components: ["badge", "button", "input", "skeleton"],
-      glue: [],
-    },
-    native: {
-      file: `${NATIVE_APP}/src/components/tag-input.tsx`,
-      components: [
-        "ActivityIndicator",
-        "Button",
-        "Pressable",
-        "Text",
-        "TextInput",
-        "View",
-      ],
-      glue: [],
-    },
-  },
-];
-
 interface Snippet {
   readonly file: string;
   readonly code: string;
@@ -427,7 +47,10 @@ interface Snippet {
 interface Recipe {
   readonly slug: string;
   readonly title: string;
+  /** The primary block, `blocks[0]`. */
   readonly block: string;
+  readonly blocks: readonly string[];
+  readonly kind: RecipeKind;
   readonly description: string;
   readonly status: "available" | "planned";
   readonly hook: { readonly name: string; readonly entry: string } | null;
@@ -555,16 +178,25 @@ function buildRecipes(): readonly Recipe[] {
   );
 
   return RECIPES.map((recipe): Recipe => {
-    const available = recipe.web !== undefined && recipe.native !== undefined;
+    const available = recipe.web !== undefined;
+
+    if (!available && recipe.missing === undefined) {
+      throw new Error(
+        `build-recipes: the recipe "${recipe.slug}" has no web code, so it needs a missing note.`,
+      );
+    }
+
     const screenshot = `${recipe.slug}.png`;
 
     return {
       slug: recipe.slug,
       title: recipe.title,
-      block: recipe.block,
+      block: recipe.blocks[0],
+      blocks: recipe.blocks,
+      kind: recipe.kind,
       description: recipe.description,
       status: available ? "available" : "planned",
-      hook: available ? recipe.hook : null,
+      hook: available ? (recipe.hook ?? null) : null,
       web: withSnippet(recipe.web, recipe.slug),
       native: withSnippet(recipe.native, recipe.slug),
       screenshot:
@@ -579,16 +211,33 @@ function buildRecipes(): readonly Recipe[] {
 const fence = (language: string, code: string, title?: string): string =>
   `\`\`\`${language}${title ? ` title="${title}"` : ""}\n${code}\`\`\``;
 
+const blockLinks = (blocks: readonly string[]): string =>
+  blocks.map((name) => `[${name}](${SITE}/blocks/${name})`).join(", ");
+
+/** What the recipe calls, and the blocks it needs installed. */
+function recipeUses(recipe: Recipe): string {
+  const call = recipe.hook
+    ? `${recipe.native ? "Both sides call" : "It calls"} \`${recipe.hook.name}\` from \`${recipe.hook.entry}\``
+    : "It loads its data on the server through the block's client";
+
+  const install =
+    recipe.blocks.length === 1
+      ? `the [${recipe.block} block](${SITE}/blocks/${recipe.block}) must be installed`
+      : `the ${blockLinks(recipe.blocks)} blocks must be installed`;
+
+  return `${call}; ${install} (\`npx better-supabase sql add ${recipe.blocks.join(" ")}\`).`;
+}
+
 /** One recipe as Markdown, shared by the docs page and the skill. */
 function recipeMarkdown(recipe: Recipe, heading: string): string {
-  if (!recipe.web || !recipe.native || !recipe.hook) {
+  if (!recipe.web) {
     return "";
   }
 
   const lines = [
     `${heading} ${recipe.title}`,
     "",
-    `${recipe.description} Both sides call \`${recipe.hook.name}\` from \`${recipe.hook.entry}\`; the [${recipe.block} block](${SITE}/blocks/${recipe.block}) must be installed (\`npx better-supabase sql add ${recipe.block}\`). Page: ${SITE}/recipes/${recipe.slug}.`,
+    `${recipe.description} ${recipeUses(recipe)} Page: ${SITE}/recipes/${recipe.slug}.`,
     "",
     "Web, with shadcn components:",
     "",
@@ -608,6 +257,13 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
   lines.push(
     "",
     fence("tsx", recipe.web.snippet.code, recipe.web.snippet.file),
+  );
+
+  if (!recipe.native) {
+    return lines.join("\n");
+  }
+
+  lines.push(
     "",
     `React Native, with ${recipe.native.components.map((name) => `\`${name}\``).join(", ")} from \`react-native\`:`,
     "",
@@ -664,10 +320,10 @@ function plannedSection(
     "",
     ...lead,
     table([
-      ["Recipe", "Block", "Waits for"],
+      ["Recipe", "Blocks", "Waits for"],
       ...planned.map((recipe) => [
         recipe.title,
-        `\`${recipe.block}\``,
+        recipe.blocks.map((name) => `\`${name}\``).join(", "),
         recipe.missing ?? "",
       ]),
     ]),
@@ -675,7 +331,7 @@ function plannedSection(
   ];
 }
 
-const INTRO = `better-supabase ships no visible UI components. A recipe builds one interface from your own shadcn components (web) or React Native primitives (native) and a block's hook. The web and native code call the same hook, and both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
+const INTRO = `better-supabase ships no visible UI components. A recipe builds one component or one screen from your own shadcn components (web) or React Native primitives (native) and one or more blocks. Every recipe has web code; the ones that fit a phone also have native code, which calls the same hook. Both come from the example apps, \`apps/examples/nextjs\` and \`apps/examples/expo-powersync\`, so they typecheck and run.`;
 
 function renderDocsPage(recipes: readonly Recipe[]): string {
   const available = recipes.filter((recipe) => recipe.status === "available");
@@ -683,7 +339,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
   return [
     "---",
     "title: UI recipes",
-    "description: Build notifications, search, onboarding, comments, an organization switcher, members, invitations, API keys, the audit log, tags, a plan picker, a usage meter, a feature gate and settings pages from shadcn or React Native components and the blocks' hooks.",
+    "description: Build components and screens for the blocks, such as notifications, search, onboarding, comments, members, API keys, the audit log, billing and settings, from shadcn or React Native components and the blocks' hooks.",
     "---",
     "",
     "{/* Generated by scripts/build-recipes.ts from the example apps. Edit the examples or the script, then run `pnpm recipes`. */}",
@@ -711,7 +367,7 @@ function renderSkill(recipes: readonly Recipe[]): string {
     "",
     ...available.flatMap((recipe) => [recipeMarkdown(recipe, "##"), ""]),
     ...plannedSection(recipes, [
-      "These have no hook yet. Build them from the block's TypeScript client in a server action or loader until the hook ships.",
+      "These have no example code yet. Build them from the block's TypeScript client in a server action or loader, or from its hook where it has one.",
       "",
     ]),
   ].join("\n");

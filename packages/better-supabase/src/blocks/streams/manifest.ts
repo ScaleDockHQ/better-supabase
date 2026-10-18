@@ -10,5 +10,5 @@ export const streamsBlock: Block<"streams"> = defineBlock({
   options: {
     streams: streamsSqlOptions,
   },
-  category: "platform",
+  category: "automation",
 });

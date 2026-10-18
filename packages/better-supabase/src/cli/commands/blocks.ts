@@ -16,16 +16,22 @@ const USAGE = `Usage:
   better-supabase blocks search <text>              Blocks whose name, title or description match`;
 
 const CATEGORIES: readonly BlockCategory[] = [
-  "foundation",
+  "identity",
+  "tenancy",
   "collaboration",
+  "messaging",
+  "growth",
   "crm",
   "work",
+  "people",
   "commerce",
   "scheduling",
-  "ai",
   "content",
-  "operations",
-  "platform",
+  "ai",
+  "automation",
+  "developer",
+  "admin",
+  "database",
 ];
 
 const BLOCKS_ARGS = {
@@ -37,7 +43,7 @@ const BLOCKS_ARGS = {
   category: {
     type: "string",
     description:
-      "With list: one category (foundation, collaboration, crm, work, commerce, scheduling, ai, content, operations or platform)",
+      "With list: one category (identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database)",
     valueHint: "name",
   },
 } as const;

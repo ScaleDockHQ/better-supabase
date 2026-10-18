@@ -1,8 +1,15 @@
 import type { BlockGroup, CatalogBlock } from "./blocks";
+import type { RecipePlatform } from "./recipe-platform";
 import type { AvailableRecipe, Recipe } from "./recipes";
 
 import { configSnippet, installCommand } from "./blocks";
-import { recipePrompt, shadcnAdd } from "./recipes";
+import {
+  recipeInstall,
+  recipePlatformsOf,
+  recipePrompt,
+  recipeSide,
+  shadcnAdd,
+} from "./recipes";
 
 /** The headers of every Markdown mirror, the same ones the docs app sends. */
 export const markdownHeaders: HeadersInit = {
@@ -112,7 +119,7 @@ export function blockMarkdown(
         recipes.map((recipe) =>
           recipe.status === "available"
             ? `[${recipe.title}](${site.url}/recipes/${recipe.slug}.md): ${recipe.description}`
-            : `${recipe.title} (planned): ${recipe.description}`,
+            : `${recipe.title} (planned): ${recipe.description}${recipe.missing ? ` Waits for: ${recipe.missing}` : ""}`,
         ),
       ),
     );
@@ -121,32 +128,42 @@ export function blockMarkdown(
   return `${sections.join("\n\n")}\n`;
 }
 
+const SIDE_LABEL = {
+  web: "Web (Next.js)",
+  native: "Native (Expo)",
+} as const satisfies Record<RecipePlatform, string>;
+
+const PROMPT_LABEL = {
+  web: "Web",
+  native: "Native",
+} as const satisfies Record<RecipePlatform, string>;
+
 /** `/recipes/<slug>.md`: one recipe as Markdown. */
 export function recipeMarkdown(
   recipe: AvailableRecipe,
   site: MarkdownSite,
 ): string {
-  const sides = [
-    ["Web (Next.js)", "web"],
-    ["Native (Expo)", "native"],
-  ] as const;
+  const platforms = recipePlatformsOf(recipe);
 
   const sections = [
     `# ${recipe.title}`,
     `> ${recipe.description}`,
     list([
-      `Block: ${blockLink(site, recipe.block)}`,
-      `Hook: \`${recipe.hook.name}\` from \`${recipe.hook.entry}\``,
+      `${recipe.blocks.length === 1 ? "Block" : "Blocks"}: ${recipe.blocks.map((name) => blockLink(site, name)).join(", ")}`,
+      `Kind: ${recipe.kind}`,
+      recipe.hook
+        ? `Hook: \`${recipe.hook.name}\` from \`${recipe.hook.entry}\``
+        : "Data: loaded on the server through the block's client",
       `Page: ${site.url}/recipes/${recipe.slug}`,
     ]),
-    "## Install the block",
-    fence("bash", installCommand(recipe.block)),
+    `## Install the ${recipe.blocks.length === 1 ? "block" : "blocks"}`,
+    fence("bash", recipeInstall(recipe)),
   ];
 
-  for (const [label, platform] of sides) {
-    const side = recipe[platform];
+  for (const platform of platforms) {
+    const side = recipeSide(recipe, platform);
 
-    sections.push(`## ${label}`);
+    sections.push(`## ${SIDE_LABEL[platform]}`);
 
     if (platform === "native") {
       sections.push(
@@ -174,11 +191,13 @@ export function recipeMarkdown(
 
   sections.push(
     "## Prompt",
-    "Paste one of these into a coding agent to build the recipe in your app.",
-    "### Web",
-    fence("text", recipePrompt(recipe, "web", site.url)),
-    "### Native",
-    fence("text", recipePrompt(recipe, "native", site.url)),
+    platforms.length === 1
+      ? "Paste this into a coding agent to build the recipe in your app."
+      : "Paste one of these into a coding agent to build the recipe in your app.",
+    ...platforms.flatMap((platform) => [
+      `### ${PROMPT_LABEL[platform]}`,
+      fence("text", recipePrompt(recipe, platform, site.url)),
+    ]),
   );
 
   return `${sections.join("\n\n")}\n`;
@@ -223,7 +242,7 @@ export function recipesIndexMarkdown(
 ): string {
   const sections = [
     "# better-supabase recipes",
-    "> UI for a block, built from shadcn components and the block's React hooks, for Next.js and Expo.",
+    "> Components and screens for the blocks, built from shadcn components and the blocks' hooks, for Next.js and, where they fit a phone, Expo.",
     "## Available",
     list(
       available.map(
@@ -236,7 +255,12 @@ export function recipesIndexMarkdown(
   if (planned.length > 0) {
     sections.push(
       "## Planned",
-      list(planned.map((recipe) => `${recipe.title}: ${recipe.description}`)),
+      list(
+        planned.map(
+          (recipe) =>
+            `${recipe.title}: ${recipe.description}${recipe.missing ? ` Waits for: ${recipe.missing}` : ""}`,
+        ),
+      ),
     );
   }
 

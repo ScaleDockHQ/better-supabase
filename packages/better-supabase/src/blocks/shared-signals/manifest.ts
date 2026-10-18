@@ -19,5 +19,5 @@ export const sharedSignalsBlock: BlockOf<
   },
   events: sharedSignalsEvents,
   create: createSharedSignals,
-  category: "platform",
+  category: "developer",
 });

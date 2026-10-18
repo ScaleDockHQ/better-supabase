@@ -10,5 +10,5 @@ export const tenantBlock: Block<"tenant"> = defineBlock({
   options: {
     tenant: tenantSqlOptions,
   },
-  category: "foundation",
+  category: "tenancy",
 });

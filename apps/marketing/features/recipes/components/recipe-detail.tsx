@@ -9,12 +9,15 @@ import { LinkButton } from "@/components/site/link-button";
 import { SiteLink } from "@/components/site/site-link";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
 import { Breadcrumbs } from "@/features/catalog/components/breadcrumbs";
-import { blockPath } from "@/lib/blocks";
+import { blockPath, getBlock } from "@/lib/blocks";
 import {
   getRecipe,
-  recipeCategory,
+  recipeInstall,
   recipePath,
+  recipePlatformsOf,
   recipePrompt,
+  recipeSide,
+  recipeSummary,
   shadcnAdd,
   sourcePath,
 } from "@/lib/recipes";
@@ -41,8 +44,8 @@ function PlatformSteps({
   recipe: AvailableRecipe;
   platform: RecipePlatform;
 }) {
-  const side = recipe[platform];
-  const addBlock = `npx better-supabase sql add ${recipe.block}`;
+  const side = recipeSide(recipe, platform);
+  const addBlock = recipeInstall(recipe);
 
   return (
     <RecipeSteps>
@@ -74,13 +77,15 @@ function PlatformSteps({
 
       <RecipeStep number={2} title="Install the glue">
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-          Install the block with{" "}
+          Install {recipe.blocks.length === 1 ? "the block" : "the blocks"} with{" "}
           <code className="font-mono text-code">{addBlock}</code>. The glue
           items are copied into your app, so edit them as you need.
         </p>
         {side.glue.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            None: the hook calls the block from the client.
+            {recipe.hook
+              ? "None: the hook calls the block from the client."
+              : "None: the page calls the block's client on the server."}
           </p>
         ) : (
           <CodeBlock
@@ -93,7 +98,10 @@ function PlatformSteps({
         )}
       </RecipeStep>
 
-      <RecipeStep number={3} title="Write the component">
+      <RecipeStep
+        number={3}
+        title={`Write the ${recipe.kind === "screen" ? "screen" : "component"}`}
+      >
         <div className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-sm font-semibold">{SNIPPET_LABEL[platform]}</h3>
@@ -130,7 +138,9 @@ export async function RecipeDetail({
   }
 
   const { web, hook } = recipe;
-  const addBlock = `npx better-supabase sql add ${recipe.block}`;
+  const addBlock = recipeInstall(recipe);
+  const platforms = recipePlatformsOf(recipe);
+  const summary = recipeSummary(recipe);
 
   return (
     <article className="flex flex-col gap-8">
@@ -146,46 +156,65 @@ export async function RecipeDetail({
             {recipe.title}
           </h1>
           <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
-            {recipe.description} Web and native call{" "}
-            <code className="font-mono text-code text-foreground">
-              {hook.name}
-            </code>{" "}
-            from{" "}
-            <code className="font-mono text-code text-foreground">
-              {hook.entry}
-            </code>
-            .
+            {recipe.description}{" "}
+            {hook ? (
+              <>
+                {platforms.length > 1 ? "Web and native call" : "It calls"}{" "}
+                <code className="font-mono text-code text-foreground">
+                  {hook.name}
+                </code>{" "}
+                from{" "}
+                <code className="font-mono text-code text-foreground">
+                  {hook.entry}
+                </code>
+                .
+              </>
+            ) : (
+              "It loads its data on the server through the block's client."
+            )}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <LinkButton
-              variant="outline"
-              size="sm"
-              href={blockPath(recipe.block)}
-            >
-              <BlockIcon
-                name={recipe.block}
-                category={recipeCategory(recipe)}
-                size="xs"
-              />
-              The {recipe.block} block
-            </LinkButton>
+            {recipe.blocks.map((name) => (
+              <LinkButton
+                key={name}
+                variant="outline"
+                size="sm"
+                href={blockPath(name)}
+              >
+                <BlockIcon
+                  name={name}
+                  category={getBlock(name)?.category ?? summary.category}
+                  size="xs"
+                />
+                The {name} block
+              </LinkButton>
+            ))}
           </div>
         </header>
       </div>
 
       <RecipePlatforms
-        prompts={{
-          web: recipePrompt(recipe, "web", site.url),
-          native: recipePrompt(recipe, "native", site.url),
-        }}
-        steps={{
-          web: <PlatformSteps recipe={recipe} platform="web" />,
-          native: <PlatformSteps recipe={recipe} platform="native" />,
-        }}
+        platforms={platforms}
+        prompts={Object.fromEntries(
+          platforms.map((platform) => [
+            platform,
+            recipePrompt(recipe, platform, site.url),
+          ]),
+        )}
+        steps={Object.fromEntries(
+          platforms.map((platform) => [
+            platform,
+            <PlatformSteps
+              key={platform}
+              recipe={recipe}
+              platform={platform}
+            />,
+          ]),
+        )}
       >
         <figure className="flex flex-col gap-2">
           <RecipeCover
-            recipe={recipe}
+            recipe={summary}
             size="lg"
             preload
             className="rounded-xl border border-border"
@@ -225,8 +254,10 @@ export async function RecipeDetail({
               ].join(" then "),
             },
             {
-              name: "Write the component",
-              text: `Call ${hook.name} from ${hook.entry} in your component.`,
+              name: `Write the ${recipe.kind === "screen" ? "screen" : "component"}`,
+              text: hook
+                ? `Call ${hook.name} from ${hook.entry} in your component.`
+                : "Load the data on the server with the block's client.",
             },
           ],
         })}

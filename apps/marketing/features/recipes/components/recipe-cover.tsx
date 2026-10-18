@@ -1,20 +1,19 @@
 import Image from "next/image";
 
-import type { Recipe } from "@/lib/recipes";
+import type { RecipeSummary } from "@/lib/recipe-filter";
 
 import {
   BlockPreview,
   PreviewSurface,
 } from "@/features/blocks/components/block-preview";
-import { getBlock } from "@/lib/blocks";
 import { cn } from "@/lib/utils";
 
 /** Below this height-to-width ratio a screenshot is a strip that reads as a line in a tile. */
 const MIN_TILE_RATIO = 0.25;
 
 /**
- * The recipe's screenshot from the Next.js example on its block's category
- * surface, or the category scene until a usable screenshot exists.
+ * The recipe's screenshot from the Next.js example on its primary block's
+ * category surface, or the category scene until a usable screenshot exists.
  */
 export function RecipeCover({
   recipe,
@@ -22,12 +21,12 @@ export function RecipeCover({
   preload = false,
   className,
 }: {
-  recipe: Recipe;
+  recipe: Pick<RecipeSummary, "title" | "category" | "screenshot">;
   size?: "default" | "lg";
   preload?: boolean;
   className?: string;
 }) {
-  const category = getBlock(recipe.block)?.category ?? "Foundation";
+  const { category } = recipe;
   const shot = recipe.screenshot;
 
   const usable =

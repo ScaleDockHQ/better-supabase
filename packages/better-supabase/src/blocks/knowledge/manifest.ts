@@ -19,4 +19,5 @@ export const knowledgeBlock: BlockOf<
   consumes: { files: "optional" },
   create: createKnowledge,
   category: "ai",
+  recipes: ["knowledge-upload"],
 });

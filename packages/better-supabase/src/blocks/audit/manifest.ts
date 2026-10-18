@@ -16,6 +16,6 @@ export const auditBlock: BlockOf<"audit", typeof createAudit, AuditEvents> =
     },
     events: auditEvents,
     create: createAudit,
-    category: "operations",
+    category: "admin",
     recipes: ["audit-log-table"],
   });

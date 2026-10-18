@@ -37,19 +37,36 @@ how your config differs from its preset ([CLI](/docs/cli/presets)).
 
 ## Named presets
 
-| Preset       | Blocks                                                                                                                           |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `minimal`    | profiles                                                                                                                         |
-| `saas`       | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
-| `crm`        | `saas` plus parties, pipelines, engagements, tags, comments, custom-fields, saved-views, search                                  |
-| `projects`   | `saas` plus tags, comments, attachments, state-machine, rank, reminders, time-tracking                                           |
-| `commerce`   | `saas` plus catalog, inventory, orders, promotions                                                                               |
-| `scheduling` | `saas` plus calendar, bookings, reminders                                                                                        |
-| `ai`         | `saas` plus ai-chat, ai-files, knowledge, memory, agents, ai-tasks                                                               |
-| `everything` | every block, for demos and tests                                                                                                 |
+| Preset          | Group      | Blocks                                                                                                                           |
+| --------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `minimal`       | Starters   | profiles                                                                                                                         |
+| `saas`          | Starters   | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
+| `consumer`      | Starters   | profiles, identities, mfa, sessions, notifications, push, with `scope: "user"`                                                   |
+| `crm`           | Products   | `saas` plus parties, pipelines, engagements, tags, comments, custom-fields, saved-views, search                                  |
+| `projects`      | Products   | `saas` plus tags, comments, attachments, state-machine, rank, reminders, time-tracking                                           |
+| `helpdesk`      | Products   | `saas` plus inbox, work-items, sla, comments, attachments, tags, saved-views, knowledge, search                                  |
+| `commerce`      | Products   | `saas` plus catalog, inventory, orders, promotions                                                                               |
+| `marketplace`   | Products   | `saas` plus parties, catalog, orders, invoices, reactions, share-links                                                           |
+| `scheduling`    | Products   | `saas` plus calendar, bookings, reminders                                                                                        |
+| `people`        | Products   | `saas` plus employees, hiring, time-tracking, approvals, calendar, documents                                                     |
+| `drive`         | Products   | `saas` plus drive, attachments, share-links, versions, trash, search                                                             |
+| `docs`          | Products   | `saas` plus documents, versions, comments, reactions, templates, search, share-links                                             |
+| `invoicing`     | Products   | `saas` plus parties, quotes, invoices, number-sequences                                                                          |
+| `forms`         | Products   | `saas` plus forms, templates, imports                                                                                            |
+| `ai`            | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, agents, ai-tasks                                                               |
+| `ai-chat`       | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, ai-providers, usage                                                            |
+| `ai-agents`     | AI         | `saas` plus agents, ai-tasks, approvals, connectors, credentials, workflows, metrics                                             |
+| `developer-api` | Platforms  | `saas` plus webhooks-out, usage, service-principals, signing-keys                                                                |
+| `automation`    | Platforms  | `saas` plus workflow-builder, workflows, jobs, webhooks-out, connectors, credentials                                             |
+| `enterprise`    | Platforms  | `saas` plus sso, mfa, sessions, access-requests, support-sessions, data-lifecycle, grants                                        |
+| `admin`         | Platforms  | `saas` plus flags, metrics, approvals, saved-views, bulk                                                                         |
+| `everything`    | Everything | every block, for demos and tests                                                                                                 |
 
 Each one also installs what its blocks require (`tenant`, `access`,
-`updated-at`, ...). The named presets use the default conventions.
+`updated-at`, ...). The named presets use the default conventions, except
+`consumer`, which scopes rows to the user (`scope: "user"`) and so leaves out
+the blocks that need tenants, such as billing and settings. The `/create`
+preset picker and `init` list them in these groups.
 `tests/validation-presets` renders each one, applies it to the local stack
 as one migration, and typechecks the `lib/blocks.ts` it generates.
 

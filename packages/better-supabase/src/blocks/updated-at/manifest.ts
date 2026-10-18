@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const updatedAtBlock: Block<"updated-at"> = defineBlock({
   name: "updated-at",
   sql: ["updated-at"],
-  category: "foundation",
+  category: "database",
 });

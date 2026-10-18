@@ -344,15 +344,24 @@ function CrmScene({ tone }: { tone: CategoryStyle }) {
 
 function Scene({ tone }: { tone: CategoryStyle }) {
   switch (tone.name) {
-    case "Foundation": {
+    case "Identity & access":
+    case "Tenancy & accounts": {
       return <FoundationScene tone={tone} />;
     }
 
-    case "Operations": {
+    case "Collaboration":
+    case "Notifications & messaging": {
+      return <CollaborationScene tone={tone} />;
+    }
+
+    case "Growth & engagement":
+    case "Admin & compliance": {
       return <OperationsScene tone={tone} />;
     }
 
-    case "Platform": {
+    case "Automation":
+    case "Developer platform":
+    case "Database primitives": {
       return <PlatformScene tone={tone} />;
     }
 
@@ -364,11 +373,8 @@ function Scene({ tone }: { tone: CategoryStyle }) {
       return <AiScene tone={tone} />;
     }
 
-    case "Collaboration": {
-      return <CollaborationScene tone={tone} />;
-    }
-
-    case "Work": {
+    case "Work management":
+    case "People": {
       return <WorkScene tone={tone} />;
     }
 
@@ -376,7 +382,7 @@ function Scene({ tone }: { tone: CategoryStyle }) {
       return <SchedulingScene tone={tone} />;
     }
 
-    case "Content": {
+    case "Content & files": {
       return <ContentScene tone={tone} />;
     }
 

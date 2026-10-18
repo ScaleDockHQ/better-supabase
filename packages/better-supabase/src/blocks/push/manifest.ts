@@ -14,5 +14,6 @@ export const pushBlock: BlockOf<"push", typeof createPush, PushEvents> =
     options: { push: pushSqlOptions },
     events: pushEvents,
     create: createPush,
-    category: "collaboration",
+    category: "messaging",
+    recipes: ["push-opt-in"],
   });

@@ -1,3 +1,4 @@
+// #region recipe:support-session-banner
 import { LifeBuoyIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
@@ -30,3 +31,4 @@ export async function ImpersonationBanner() {
     </Alert>
   );
 }
+// #endregion recipe:support-session-banner

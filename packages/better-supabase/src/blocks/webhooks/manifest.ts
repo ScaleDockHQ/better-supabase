@@ -20,7 +20,7 @@ export const webhooksBlock: BlockOf<
   },
   events: webhooksEvents,
   create: createWebhooks,
-  category: "platform",
+  category: "developer",
 });
 
 /** The `incoming-webhooks` block's manifest (ADR 0029). */
@@ -36,5 +36,5 @@ export const incomingWebhooksBlock: BlockOf<
   },
   events: incomingWebhooksEvents,
   create: createIncomingWebhooks,
-  category: "platform",
+  category: "developer",
 });

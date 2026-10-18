@@ -1,3 +1,4 @@
+// #region recipe:connector-setup
 "use client";
 
 import { useAction } from "better-supabase/react";
@@ -114,3 +115,4 @@ export function CredentialSheet({
     </Sheet>
   );
 }
+// #endregion recipe:connector-setup

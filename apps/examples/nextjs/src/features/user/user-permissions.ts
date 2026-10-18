@@ -40,6 +40,7 @@ export const PERMISSIONS = [
   "inbox.manage",
   "ai_chat.create",
   "ai.create",
+  "ai.admin",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -80,6 +81,7 @@ const grants = {
     "inbox.manage",
     "ai_chat.create",
     "ai.create",
+    "ai.admin",
   ],
   member: [
     "customers.read",

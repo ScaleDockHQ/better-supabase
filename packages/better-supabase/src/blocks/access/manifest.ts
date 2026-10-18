@@ -10,5 +10,5 @@ export const accessBlock: Block<"access"> = defineBlock({
   options: {
     access: accessSqlOptions,
   },
-  category: "foundation",
+  category: "identity",
 });

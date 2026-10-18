@@ -25,9 +25,11 @@ export default function WorkflowsPage() {
         )}
         actions={<WorkflowActions />}
       />
-      <Suspense fallback={<WorkflowRunsSkeleton />}>
-        <TenantWorkflowRuns />
-      </Suspense>
+      <div data-recipe="workflow-runs">
+        <Suspense fallback={<WorkflowRunsSkeleton />}>
+          <TenantWorkflowRuns />
+        </Suspense>
+      </div>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{t("Schedules")}</h2>
         <Suspense fallback={<ScheduleListSkeleton />}>

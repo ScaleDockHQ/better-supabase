@@ -19,5 +19,5 @@ export const numberSequencesBlock: BlockOf<
   },
   events: numberSequencesEvents,
   create: createNumberSequences,
-  category: "platform",
+  category: "database",
 });

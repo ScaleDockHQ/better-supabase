@@ -29,6 +29,12 @@ const routes: readonly Route[] = [
     visibleTo: everyone,
   },
   {
+    path: "/metrics",
+    label: { en: "Metrics", nl: "Statistieken" },
+    heading: { en: "Metrics", nl: "Statistieken" },
+    visibleTo: everyone,
+  },
+  {
     path: "/notifications",
     label: { en: "Notifications", nl: "Meldingen" },
     heading: { en: "Notifications", nl: "Meldingen" },
@@ -59,6 +65,12 @@ const routes: readonly Route[] = [
     visibleTo: everyone,
   },
   {
+    path: "/assistant/tasks",
+    label: { en: "AI tasks", nl: "AI-taken" },
+    heading: { en: "AI tasks", nl: "AI-taken" },
+    visibleTo: everyone,
+  },
+  {
     // The `beta-page` flag is on for Acme only.
     path: "/beta",
     label: { en: "Beta", nl: "Bèta" },
@@ -86,6 +98,12 @@ const routes: readonly Route[] = [
   {
     path: "/settings/audit",
     label: { en: "Audit log", nl: "Auditlog" },
+    heading: settings,
+    visibleTo: ["admin", "globex"],
+  },
+  {
+    path: "/settings/ai-providers",
+    label: { en: "AI providers", nl: "AI-providers" },
     heading: settings,
     visibleTo: ["admin", "globex"],
   },

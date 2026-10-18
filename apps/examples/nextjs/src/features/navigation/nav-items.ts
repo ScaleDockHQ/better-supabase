@@ -3,6 +3,7 @@ import type { Permission } from "@/features/user/user-permissions";
 export type NavId =
   | "dashboard"
   | "customers"
+  | "metrics"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -10,11 +11,13 @@ export type NavId =
   | "assistant"
   | "knowledge"
   | "agentActivity"
+  | "aiTasks"
   | "beta"
   | "members"
   | "billing"
   | "apiKeys"
   | "audit"
+  | "aiProviders"
   | "settings";
 
 export interface NavItem {
@@ -36,6 +39,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "customers.read",
   },
+  { id: "metrics", href: "/metrics", group: "workspace" },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",
@@ -68,6 +72,12 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "ai_chat.create",
   },
+  {
+    id: "aiTasks",
+    href: "/assistant/tasks",
+    group: "workspace",
+    requires: "ai.create",
+  },
   { id: "beta", href: "/beta", group: "workspace", flag: "beta-page" },
   {
     id: "members",
@@ -92,6 +102,12 @@ export const navItems: readonly NavItem[] = [
     href: "/settings/audit",
     group: "organization",
     requires: "audit.read",
+  },
+  {
+    id: "aiProviders",
+    href: "/settings/ai-providers",
+    group: "organization",
+    requires: "ai.admin",
   },
   {
     id: "settings",

@@ -25,6 +25,6 @@ export const notificationsBlock: BlockOf<
   },
   create: createNotifications,
   client: "notifications",
-  category: "collaboration",
+  category: "messaging",
   recipes: ["notification-bell", "notification-list"],
 });

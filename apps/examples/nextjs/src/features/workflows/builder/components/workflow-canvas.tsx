@@ -1,3 +1,4 @@
+// #region recipe:workflow-canvas
 "use client";
 
 import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
@@ -353,3 +354,4 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
     </div>
   );
 }
+// #endregion recipe:workflow-canvas

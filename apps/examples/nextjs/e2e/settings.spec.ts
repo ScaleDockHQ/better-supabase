@@ -70,6 +70,12 @@ const tabs: readonly Tab[] = [
     visibleTo: ["admin", "globex"],
   },
   {
+    path: "/settings/ai-providers",
+    label: "AI providers",
+    content: (page) => [cardTitle(page, "AI providers")],
+    visibleTo: ["admin", "globex"],
+  },
+  {
     path: "/settings/profile",
     label: "Profile",
     content: (page) => [visibleTestId(page, "profile-role")],

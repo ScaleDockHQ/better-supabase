@@ -8,5 +8,5 @@ export const rankBlock: BlockOf<"rank", typeof createRank> = defineBlock({
   name: "rank",
   sql: ["rank"],
   create: createRank,
-  category: "work",
+  category: "database",
 });

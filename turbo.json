@@ -216,6 +216,7 @@
     "//#recipes": {
       "inputs": [
         "scripts/build-recipes.ts",
+        "scripts/recipes/**",
         "apps/examples/nextjs/src/**",
         "apps/examples/expo-powersync/src/**",
         "apps/marketing/public/recipes/**"
@@ -225,6 +226,7 @@
     "//#recipes:check": {
       "inputs": [
         "scripts/build-recipes.ts",
+        "scripts/recipes/**",
         "apps/examples/nextjs/src/**",
         "apps/examples/expo-powersync/src/**",
         "apps/marketing/public/recipes/**",

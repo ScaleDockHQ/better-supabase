@@ -25,5 +25,6 @@ export const metricsBlock: BlockOf<
         : metricsSink(client, options.sink),
   },
   create: createMetrics,
-  category: "operations",
+  category: "admin",
+  recipes: ["metrics-dashboard"],
 });

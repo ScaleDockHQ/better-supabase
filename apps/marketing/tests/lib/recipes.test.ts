@@ -9,7 +9,9 @@ import {
   plannedRecipes,
   recipeCategory,
   recipeGroups,
+  recipePlatformsOf,
   recipes,
+  recipeSide,
   recipeStaticParams,
 } from "../../lib/recipes";
 
@@ -37,20 +39,44 @@ describe("recipes", () => {
     }
 
     expect(availableRecipes.length).toBeGreaterThan(0);
-    expect(plannedRecipes.length + availableRecipes.length).toBe(15);
+    expect(plannedRecipes.length + availableRecipes.length).toBe(
+      recipes.length,
+    );
+    expect(new Set(recipes.map((recipe) => recipe.slug)).size).toBe(
+      recipes.length,
+    );
+  });
+
+  test("every planned recipe says what it waits for", () => {
+    for (const recipe of plannedRecipes) {
+      expect(recipe.missing).toBeTruthy();
+    }
   });
 
   test.each(availableRecipes.map((recipe) => [recipe.slug, recipe] as const))(
-    "%s calls the same hook on the web and in React Native",
+    "%s has web code, and its hook is on every side",
     (_slug, recipe) => {
-      for (const side of [recipe.web, recipe.native]) {
-        expect(side.snippet.code).toContain(`import { ${recipe.hook.name} }`);
-        expect(side.snippet.code).toContain(`${recipe.hook.name}(`);
-        expect(side.snippet.code).not.toContain("#region");
+      const platforms = recipePlatformsOf(recipe);
+
+      expect(platforms[0]).toBe("web");
+      expect(recipe.blocks[0]).toBe(recipe.block);
+
+      for (const platform of platforms) {
+        const { code } = recipeSide(recipe, platform).snippet;
+
+        for (const name of recipe.hook ? [recipe.hook.name] : []) {
+          expect(code).toContain(`import { ${name} }`);
+          expect(code).toContain(`${name}(`);
+        }
+
+        expect(code).not.toContain("#region");
       }
 
       expect(recipe.web.snippet.code).not.toContain("react-native");
-      expect(recipe.native.snippet.code).toContain('from "react-native"');
+
+      for (const native of recipe.native ? [recipe.native] : []) {
+        expect(native.snippet.code).toContain('from "react-native"');
+      }
     },
   );
 
@@ -95,7 +121,9 @@ describe("recipes", () => {
     );
 
     for (const recipe of recipes) {
-      expect(getBlock(recipe.block)?.name).toBe(recipe.block);
+      for (const block of recipe.blocks) {
+        expect(getBlock(block)?.name).toBe(block);
+      }
 
       for (const item of [
         ...(recipe.web?.glue ?? []),

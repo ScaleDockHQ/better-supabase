@@ -6,5 +6,6 @@ import { defineBlock } from "../define-block.ts";
 export const mfaBlock: Block<"mfa"> = defineBlock({
   name: "mfa",
   sql: ["mfa"],
-  category: "foundation",
+  category: "identity",
+  recipes: ["mfa-setup"],
 });

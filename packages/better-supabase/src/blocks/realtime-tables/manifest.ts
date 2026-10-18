@@ -6,5 +6,5 @@ import { defineBlock } from "../define-block.ts";
 export const realtimeTablesBlock: Block<"realtime-tables"> = defineBlock({
   name: "realtime-tables",
   sql: ["realtime-tables"],
-  category: "platform",
+  category: "database",
 });

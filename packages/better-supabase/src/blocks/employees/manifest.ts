@@ -19,5 +19,5 @@ export const employeesBlock: BlockOf<
   },
   events: employeesEvents,
   create: createEmployees,
-  category: "work",
+  category: "people",
 });
