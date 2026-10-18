@@ -147,7 +147,14 @@ select t.tgrelid::int8 as table_id, t.tgname as name,
     case when t.tgtype & 8 = 8 then 'delete' end,
     case when t.tgtype & 32 = 32 then 'truncate' end
   ], null)::text[] as events,
-  case when t.tgtype & 1 = 1 then 'row' else 'statement' end as level
+  case when t.tgtype & 1 = 1 then 'row' else 'statement' end as level,
+  case when t.tgnargs > 0 then array(
+    select replace(a, '\\\\', '\\') from unnest(string_to_array(left(encode(t.tgargs, 'escape'), -4), '\\000')) with ordinality as x(a, i) order by i
+  ) end as args,
+  case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
+    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then p.prosrc end as source,
+  case when pn.nspname || '.' || p.proname <> 'better_supabase.broadcast_topic'
+    and p.prosrc ~ 'realtime\\.(broadcast_changes|send)\\s*\\(' then obj_description(p.oid, 'pg_proc') end as comment
 from pg_trigger t
 join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
@@ -353,6 +360,9 @@ interface TriggerRow {
   timing: CatalogTrigger["timing"];
   events: CatalogTrigger["events"][number][];
   level: CatalogTrigger["level"];
+  args: string[] | null;
+  source: string | null;
+  comment: string | null;
 }
 
 interface GrantRow {
@@ -526,6 +536,9 @@ export async function readExtras(
         events: trigger.events,
         level: trigger.level,
         function: trigger.function,
+        ...(trigger.args === null ? {} : { args: trigger.args }),
+        ...(trigger.source === null ? {} : { source: trigger.source }),
+        ...(trigger.comment === null ? {} : { comment: trigger.comment }),
       })),
       grants: (grants.get(id) ?? []).map((grant) => ({
         role: grant.role,

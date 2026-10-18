@@ -174,6 +174,15 @@ export interface CatalogTrigger {
   readonly events: readonly ("insert" | "update" | "delete" | "truncate")[];
   readonly level: "row" | "statement";
   readonly function: string;
+  /** The `create trigger` arguments, when there are any. */
+  readonly args?: readonly string[];
+  /**
+   * The function's body, only for functions that call `realtime.send()` or
+   * `realtime.broadcast_changes()`, other than `broadcast_topic()`.
+   */
+  readonly source?: string;
+  /** The function's comment, for the same functions as `source`. */
+  readonly comment?: string;
 }
 
 export interface CatalogGrant {

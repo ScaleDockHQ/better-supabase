@@ -234,6 +234,31 @@ the audit log names the agent. A level with `kind: "agent"` whose `tools` is
 not a list of names is refused. See
 [Impersonation](/docs/auth/impersonation).
 
+## Realtime triggers
+
+Topic triggers no longer send the whole row. The default message is
+`{ operation, schema, table, id, values }`: the primary key and the topic
+values. A 0.8 trigger sent every column to every subscriber of the topic,
+including columns their grants hide.
+
+- `triggerSql(betterSupabase, table, options)` is deprecated. Call
+  `trigger(table, { ...options, betterSupabase })`, which takes the same
+  options plus `topics` for fan-out. The alias stays for 0.9.
+- Subscribers that read the row with `rowChange` switch to `rowKeys` and
+  refetch the row through the Data API, so policies and column grants apply.
+- A table whose subscribers need the whole row passes `payload: "row"`, or
+  `payload: "row"` in its `realtime.triggers` entry. Read
+  [Row changes](/docs/platform/realtime#row-changes) first: it bypasses column
+  grants.
+- A topic value with characters topics don't allow now raises a warning and
+  skips that send instead of failing the write.
+- `broadcast_topic()` refuses to run as a `before` trigger.
+
+Regenerate the triggers (`sql sync` for `realtime.triggers`, or rerun the
+code that writes them) and create a migration. Doctor reports trigger
+functions that still send whole rows without the opt-in
+([BS337](/docs/cli/doctor#bs337)).
+
 ## Blocks
 
 `create_share_link` takes two more arguments: `version_id`, which pins the

@@ -1,4 +1,4 @@
-export { defineTopic, rowChange } from "./topic.ts";
+export { defineTopic, rowChange, rowKeys } from "./topic.ts";
 
 export { topicPort, watchTopic } from "./watch-topic.ts";
 
@@ -14,6 +14,7 @@ export type {
   PresenceSubscription,
   RealtimeClient,
   RowChange,
+  RowKeys,
   SubscribeOptions,
   Subscription,
   SubscriptionStatus,
@@ -30,6 +31,8 @@ export type {
   TopicTriggerOptions,
   TriggerLookup,
   TriggerOptions,
+  TriggerPayloadMode,
+  TriggerTopic,
   TriggerValue,
 } from "./topic.ts";
 

@@ -377,6 +377,20 @@ const ENTRIES = {
       policies: v.optional(
         v.strictObject({ from: strings, output: v.string() }),
       ),
+      triggers: v.optional(
+        v.array(
+          v.strictObject({
+            topic: v.string(),
+            table: v.string(),
+            values: v.optional(stringRecord),
+            events: v.optional(
+              v.array(v.picklist(["insert", "update", "delete"])),
+            ),
+            event: v.optional(v.string()),
+            payload: v.optional(v.picklist(["keys", "row"])),
+          }),
+        ),
+      ),
     }),
   ),
   entitlements: v.optional(

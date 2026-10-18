@@ -1859,6 +1859,71 @@ describe("tables without the session policy (BS320)", () => {
   });
 });
 
+describe("whole-row broadcast triggers (BS337)", () => {
+  const trigger = (source: string, comment?: string) => ({
+    name: "bs_broadcast_org_notes",
+    timing: "after" as const,
+    events: ["insert" as const],
+    level: "row" as const,
+    function: "better_supabase.bs_broadcast_org_notes",
+    source,
+    ...(comment === undefined ? {} : { comment }),
+  });
+
+  it("reports broadcast_changes with new and old, and old_record sends", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        trigger(
+          "begin perform realtime.broadcast_changes(topic, tg_op, tg_op, tg_table_name, tg_table_schema, new, old); return null; end;",
+        ),
+      ];
+      table(tables, "tags").triggers = [
+        {
+          ...trigger(
+            "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
+          ),
+          name: "bs_broadcast_tags",
+        },
+      ];
+    });
+
+    expect(await run("BS337", context(snap))).toMatchObject([
+      {
+        target: "public.notes.bs_broadcast_org_notes",
+        message: expect.stringContaining('pass `payload: "row"`'),
+      },
+      { target: "public.tags.bs_broadcast_tags" },
+    ]);
+  });
+
+  it("passes key payloads, marked row payloads and commented-out calls", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        trigger(
+          "begin perform realtime.send(jsonb_build_object('id', 1, 'values', vals), tg_op, 't', true); end;",
+        ),
+        trigger(
+          "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
+          "better-supabase: payload row",
+        ),
+        trigger(
+          "begin\n-- realtime.broadcast_changes(topic, tg_op, tg_op, t, s, new, old)\nreturn null; end;",
+        ),
+        {
+          name: "bs_broadcast_topic",
+          timing: "after",
+          events: ["insert"],
+          level: "row",
+          function: "better_supabase.broadcast_topic",
+          args: ["t:{id}", "", "", "row"],
+        },
+      ];
+    });
+
+    expect(await run("BS337", context(snap))).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {

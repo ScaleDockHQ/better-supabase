@@ -966,6 +966,18 @@ the flag (`flags.save(key, { archived: true })`), or move `expires_at` when
 the flag stays. The finding names the `owner` column when the table has one.
 See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
 
+### BS337
+
+**Warning: broadcast trigger sends whole rows.** A trigger function calls
+`realtime.broadcast_changes(..., new, old)` or sends `old_record` and `record`
+through `realtime.send()`, and has no `better-supabase: payload row` comment.
+Every subscriber of the topic then sees every column, including ones their
+column grants hide. 0.8 `triggerSql()` functions and hand-written ones are
+reported. Regenerate the trigger with `topic.trigger()`, whose default payload
+sends the primary key and the topic values, or pass `payload: "row"` to keep
+whole rows on purpose. See
+[row changes](/docs/platform/realtime#row-changes).
+
 ## Auth config
 
 ### BS401

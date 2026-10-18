@@ -2196,6 +2196,7 @@
       "liveQuery",
       "liveTopic",
       "rowChange",
+      "rowKeys",
       "subjectReaders",
       "topicPort",
       "watchTopic"
@@ -2220,6 +2221,7 @@
       "RealtimeClient",
       "RealtimeStatus",
       "RowChange",
+      "RowKeys",
       "SubjectReadersOptions",
       "SubscribeOptions",
       "Subscription",
@@ -2243,6 +2245,8 @@
       "TopicWatch",
       "TriggerLookup",
       "TriggerOptions",
+      "TriggerPayloadMode",
+      "TriggerTopic",
       "TriggerValue"
     ]
   },

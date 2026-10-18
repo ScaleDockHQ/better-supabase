@@ -177,28 +177,52 @@ receive policy for broadcasts.
 
 ## Row changes
 
-`triggerSql` writes a trigger that sends row changes with
-`realtime.broadcast_changes`. Placeholders map to columns by their app names:
+`topic.trigger(table, options)` writes a trigger that broadcasts a table's
+changes to a topic. By default each message carries the row's key and the
+topic values, never the row itself:
+
+```json
+{
+  "operation": "UPDATE",
+  "schema": "public",
+  "table": "customers",
+  "id": "c1",
+  "values": { "organizationId": "o1" }
+}
+```
+
+`id` is the primary key value, an object keyed by column for a composite key,
+or `null` for a table without one. Clients refetch the row through the Data
+API, so their column grants and policies decide what they see.
+
+For column values only, the trigger calls the `realtime-tables` module's
+`better_supabase.broadcast_topic()` and needs no function of its own. A
+placeholder reads its snake_case column (`{organizationId}` reads
+`organization_id`) unless `values` names another one; `events` limits the
+operations and `event` names the broadcast event:
 
 ```ts
-customersTopic.triggerSql(betterSupabase, "customers", {
+quotesTopic.trigger("public.quotes", { event: "quote.changed" });
+```
+
+Pass `betterSupabase` to name the table by its app key, check the columns
+against the schema and look values up in parent rows:
+
+```ts
+customersTopic.trigger("customers", {
+  betterSupabase,
   values: { organizationId: "organizationId" },
 });
 ```
 
-The trigger function goes into the `better_supabase` schema, which the Data
-API does not expose, so clients can't call it through `/rpc`. Pass
-`functionSchema` to put it somewhere else.
-
-A placeholder can also come from a parent row. A lookup `{ from, via,
-select }` reads the `select` column of the `from` row whose primary key
-(or `key`) equals `via`, a column of the changed row or another lookup, so a
-delivery can reach its thread's topic through the message it belongs to.
-A row whose topic comes out null, such as one whose parent is gone, sends
-nothing.
+A lookup `{ from, via, select }` reads the `select` column of the `from` row
+whose primary key (or `key`) equals `via`, a column of the changed row or
+another lookup, so a delivery can reach its thread's topic through the
+message it belongs to:
 
 ```ts
-threadTopic.triggerSql(betterSupabase, "deliveries", {
+threadTopic.trigger("deliveries", {
+  betterSupabase,
   values: {
     threadId: { from: "messages", via: "messageId", select: "threadId" },
   },
@@ -216,44 +240,74 @@ threadTopic.triggerSql(betterSupabase, "deliveries", {
 ```
 
 `event` names the broadcast event, for every operation or per operation
-(`INSERT`, `UPDATE` or `DELETE` otherwise). With `payload` the trigger
-sends that object with `realtime.send` instead of the row change: each key is
-a column, a lookup, or `{ sql }`, an expression on the row `{row}` with
-`tg_op` for the operation. `rowChange` reads only the row-change shape, so
-handle a custom payload with its own event schema.
+(`INSERT`, `UPDATE` or `DELETE` otherwise). A `payload` object replaces the
+key payload: each key is a column, a lookup, or `{ sql }`, an expression on
+the row `{row}` with `tg_op` for the operation. Handle a custom payload with
+its own event schema.
 
-### One trigger function for every topic
+`topics` sends the same change to more topics, each with its own `values`:
 
-When the placeholders are columns of the changed row, the `realtime-tables`
-module's `better_supabase.broadcast_topic()` sends the row change without a
-function per topic. Its trigger arguments are the topic with `{column}`
-placeholders, the event (empty for the operation) and `'false'` for a public
-topic, so a schema file can call it directly:
+```ts
+customersTopic.trigger("customers", {
+  betterSupabase,
+  values: { organizationId: "organizationId" },
+  topics: [{ topic: ownerTopic, values: { userId: "ownerId" } }],
+});
+```
+
+Lookups, a custom payload, per-operation events and `topics` need a function
+per trigger. It goes into the `better_supabase` schema, which the Data API
+does not expose, so clients can't call it through `/rpc`. Pass
+`functionSchema` to put it somewhere else.
+
+A topic whose value comes out null, such as one whose parent is gone, is
+skipped. So is a value with characters a topic doesn't allow (the check
+`topic()` makes): the trigger raises a warning that names the table and
+column, skips that topic, and the write goes through. The other topics
+still get the change.
+
+Both kinds of trigger run after the write. Attached as a `before` trigger
+they raise an error, since returning `null` there would cancel the write.
+
+<Callout type="warn">
+  `payload: "row"` sends the old and new row in full (`old_record` and
+  `record`). That bypasses column grants: every subscriber of the topic sees
+  every column, including the ones their role can't select. Use it only for
+  tables with nothing to hide, and prefer the key payload.
+</Callout>
+
+```ts
+auditTopic.trigger("public.audit_notes", { payload: "row" });
+```
+
+`triggerSql(betterSupabase, table, options)` from 0.8 still works as an alias
+for `trigger(table, { ...options, betterSupabase })` and is deprecated. Its
+default payload is now the key payload too.
+
+### Calling broadcast_topic from SQL
+
+A schema file can call `better_supabase.broadcast_topic()` directly. Its
+arguments are the topic template, the event (empty for the operation),
+`'false'` for a public topic (empty for private), and `'row'` for the whole
+row (empty or `'keys'` for the key payload). A placeholder is `{column}`, or
+`{name=column}` to name the value in `values` differently from the column:
 
 ```sql title="supabase/schemas/030_quotes.sql"
 create trigger quotes_broadcast after insert or update or delete on public.quotes
   for each row execute function better_supabase.broadcast_topic(
-    'organization:{organization_id}:quotes', 'quote.changed'
+    'organization:{organizationId=organization_id}:quotes', 'quote.changed'
   );
 ```
 
-It reads each placeholder from the new row (the old one for a delete), sends
-nothing when a value is null, and refuses a value with characters a topic
-doesn't allow, the same check `topic()` makes. A placeholder the table has no
-column for is an error.
+It reads each placeholder from the new row (the old one for a delete). A
+placeholder the table has no column for is an error.
 
-`topic.trigger(table, options)` returns that statement for a topic. A
-placeholder reads its snake_case column (`{organizationId}` reads
-`organization_id`) unless `values` names another one; `events` limits the
-operations and `event` names the broadcast event:
-
-```ts
-quotesTopic.trigger("public.quotes", { event: "quote.changed" });
-```
+### From the config
 
 `realtime.triggers` makes `sql sync` write them to the `realtime.policies`
 output after the policies. Each entry names a topic that `from` exports by its
-template, and takes the same options:
+template, and takes `values`, `events`, `event` and `payload` (`"keys"` or
+`"row"`):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -278,13 +332,24 @@ export default defineConfig({
 `realtime-tables` in `blocks`, or for a template no module in `from`
 exports.
 
-On the client, `rowChange` turns a message into an app-cased change, or `null`
-for other tables:
+### On the client
+
+`rowKeys` reads the key payload, or returns `null` for other tables:
+
+```ts
+const change = rowKeys(betterSupabase, "customers", message);
+// { operation: 'UPDATE', schema: 'public', table: 'customers', id: 'c1', values: { organizationId: 'o1' } }
+```
+
+`rowChange` reads the `payload: "row"` shape and returns app-cased rows:
 
 ```ts
 const change = rowChange(betterSupabase, "customers", message);
 // { operation: 'UPDATE', table: 'customers', record: Customer | null, oldRecord: Partial<Customer> | null }
 ```
+
+Doctor reports trigger functions that still send whole rows without the
+`payload: "row"` marker ([BS337](/docs/cli/doctor#bs337)).
 
 ## Subscribe
 
@@ -427,7 +492,7 @@ topics:
   tenant or owner placeholder, and turn off public access (see
   [Before production](#before-production)).
 - **Persist messages.** Insert each message into a table and broadcast it
-  with [`triggerSql`](#row-changes), so the row is the record. Clients that
+  with [`trigger`](#row-changes), so the row is the record. Clients that
   join late or reconnect load the history from the table, and the sender's
   id comes from `auth.uid()` in the row's policy instead of from the client.
 - **Throttle sends in the app.** Realtime limits the messages per second for

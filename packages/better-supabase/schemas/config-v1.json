@@ -1216,6 +1216,10 @@
               "event": {
                 "description": "The broadcast event name. Defaults to the operation.",
                 "type": "string"
+              },
+              "payload": {
+                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants.",
+                "enum": ["keys", "row"]
               }
             }
           }

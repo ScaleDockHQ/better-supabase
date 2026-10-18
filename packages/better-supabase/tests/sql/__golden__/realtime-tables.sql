@@ -38,11 +38,15 @@ begin
 end;
 $$;
 
--- Row trigger for a topic (defineTopic) that carries the row change:
+-- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
--- Arguments: the topic with {column} placeholders, the event (empty for the
--- operation) and 'false' for a public topic. A null value skips the row.
+-- Arguments: the topic with {column} or {name=column} placeholders, the event (empty for the
+-- operation), 'false' for a public topic, and the payload: 'keys' (the
+-- default) sends { operation, schema, table, id, values } so clients refetch
+-- through RLS; 'row' sends old_record and record, which bypasses column
+-- grants. A null value skips the row; a value topics do not allow skips it
+-- with a warning instead of failing the write.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -54,11 +58,21 @@ declare
   topic text;
   event text := tg_op;
   private boolean := true;
+  mode text := 'keys';
   placeholder text;
+  param text;
+  col text;
   value text;
+  vals jsonb := '{}';
+  keys text[];
+  id jsonb;
 begin
   if tg_level <> 'ROW' then
     raise exception 'better_supabase.broadcast_topic() runs for each row'
+      using errcode = '39P01';
+  end if;
+  if tg_when <> 'AFTER' then
+    raise exception 'better_supabase.broadcast_topic() runs after the write; as a % trigger it would cancel the write', lower(tg_when)
       using errcode = '39P01';
   end if;
   if tg_nargs = 0 or tg_argv[0] = '' then
@@ -67,24 +81,49 @@ begin
   end if;
   topic := tg_argv[0];
   if tg_nargs > 1 and tg_argv[1] <> '' then event := tg_argv[1]; end if;
-  if tg_nargs > 2 then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 2 and tg_argv[2] <> '' then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 3 and tg_argv[3] <> '' then mode := tg_argv[3]; end if;
+  if mode not in ('keys', 'row') then
+    raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
+      using errcode = '22023';
+  end if;
   for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    if not rec ? placeholder then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, placeholder, tg_argv[0]
+    param := split_part(placeholder, '=', 1);
+    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+    if not rec ? col then
+      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
         using errcode = '42703';
     end if;
-    value := rec ->> placeholder;
+    value := rec ->> col;
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise exception 'topic value % of %.%.% contains characters topics do not allow', value, tg_table_schema, tg_table_name, placeholder
-        using errcode = '22023';
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      return null;
     end if;
+    vals := vals || jsonb_build_object(param, value);
     topic := replace(topic, '{' || placeholder || '}', value);
   end loop;
+  if mode = 'row' then
+    perform realtime.send(
+      jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+      event, topic, private
+    );
+    return null;
+  end if;
+  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+    into keys
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+    where i.indrelid = tg_relid and i.indisprimary;
+  id := case
+    when keys is null then null
+    when cardinality(keys) = 1 then rec -> keys[1]
+    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
+  end;
   perform realtime.send(
-    jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
     event, topic, private
   );
   return null;
@@ -249,11 +288,15 @@ begin
 end;
 $$;
 
--- Row trigger for a topic (defineTopic) that carries the row change:
+-- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
--- Arguments: the topic with {column} placeholders, the event (empty for the
--- operation) and 'false' for a public topic. A null value skips the row.
+-- Arguments: the topic with {column} or {name=column} placeholders, the event (empty for the
+-- operation), 'false' for a public topic, and the payload: 'keys' (the
+-- default) sends { operation, schema, table, id, values } so clients refetch
+-- through RLS; 'row' sends old_record and record, which bypasses column
+-- grants. A null value skips the row; a value topics do not allow skips it
+-- with a warning instead of failing the write.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -265,11 +308,21 @@ declare
   topic text;
   event text := tg_op;
   private boolean := true;
+  mode text := 'keys';
   placeholder text;
+  param text;
+  col text;
   value text;
+  vals jsonb := '{}';
+  keys text[];
+  id jsonb;
 begin
   if tg_level <> 'ROW' then
     raise exception 'better_supabase.broadcast_topic() runs for each row'
+      using errcode = '39P01';
+  end if;
+  if tg_when <> 'AFTER' then
+    raise exception 'better_supabase.broadcast_topic() runs after the write; as a % trigger it would cancel the write', lower(tg_when)
       using errcode = '39P01';
   end if;
   if tg_nargs = 0 or tg_argv[0] = '' then
@@ -278,24 +331,49 @@ begin
   end if;
   topic := tg_argv[0];
   if tg_nargs > 1 and tg_argv[1] <> '' then event := tg_argv[1]; end if;
-  if tg_nargs > 2 then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 2 and tg_argv[2] <> '' then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 3 and tg_argv[3] <> '' then mode := tg_argv[3]; end if;
+  if mode not in ('keys', 'row') then
+    raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
+      using errcode = '22023';
+  end if;
   for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    if not rec ? placeholder then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, placeholder, tg_argv[0]
+    param := split_part(placeholder, '=', 1);
+    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+    if not rec ? col then
+      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
         using errcode = '42703';
     end if;
-    value := rec ->> placeholder;
+    value := rec ->> col;
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise exception 'topic value % of %.%.% contains characters topics do not allow', value, tg_table_schema, tg_table_name, placeholder
-        using errcode = '22023';
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      return null;
     end if;
+    vals := vals || jsonb_build_object(param, value);
     topic := replace(topic, '{' || placeholder || '}', value);
   end loop;
+  if mode = 'row' then
+    perform realtime.send(
+      jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+      event, topic, private
+    );
+    return null;
+  end if;
+  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+    into keys
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+    where i.indrelid = tg_relid and i.indisprimary;
+  id := case
+    when keys is null then null
+    when cardinality(keys) = 1 then rec -> keys[1]
+    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
+  end;
   perform realtime.send(
-    jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
     event, topic, private
   );
   return null;
@@ -460,11 +538,15 @@ begin
 end;
 $$;
 
--- Row trigger for a topic (defineTopic) that carries the row change:
+-- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
--- Arguments: the topic with {column} placeholders, the event (empty for the
--- operation) and 'false' for a public topic. A null value skips the row.
+-- Arguments: the topic with {column} or {name=column} placeholders, the event (empty for the
+-- operation), 'false' for a public topic, and the payload: 'keys' (the
+-- default) sends { operation, schema, table, id, values } so clients refetch
+-- through RLS; 'row' sends old_record and record, which bypasses column
+-- grants. A null value skips the row; a value topics do not allow skips it
+-- with a warning instead of failing the write.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -476,11 +558,21 @@ declare
   topic text;
   event text := tg_op;
   private boolean := true;
+  mode text := 'keys';
   placeholder text;
+  param text;
+  col text;
   value text;
+  vals jsonb := '{}';
+  keys text[];
+  id jsonb;
 begin
   if tg_level <> 'ROW' then
     raise exception 'better_supabase.broadcast_topic() runs for each row'
+      using errcode = '39P01';
+  end if;
+  if tg_when <> 'AFTER' then
+    raise exception 'better_supabase.broadcast_topic() runs after the write; as a % trigger it would cancel the write', lower(tg_when)
       using errcode = '39P01';
   end if;
   if tg_nargs = 0 or tg_argv[0] = '' then
@@ -489,24 +581,49 @@ begin
   end if;
   topic := tg_argv[0];
   if tg_nargs > 1 and tg_argv[1] <> '' then event := tg_argv[1]; end if;
-  if tg_nargs > 2 then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 2 and tg_argv[2] <> '' then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 3 and tg_argv[3] <> '' then mode := tg_argv[3]; end if;
+  if mode not in ('keys', 'row') then
+    raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
+      using errcode = '22023';
+  end if;
   for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    if not rec ? placeholder then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, placeholder, tg_argv[0]
+    param := split_part(placeholder, '=', 1);
+    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+    if not rec ? col then
+      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
         using errcode = '42703';
     end if;
-    value := rec ->> placeholder;
+    value := rec ->> col;
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise exception 'topic value % of %.%.% contains characters topics do not allow', value, tg_table_schema, tg_table_name, placeholder
-        using errcode = '22023';
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      return null;
     end if;
+    vals := vals || jsonb_build_object(param, value);
     topic := replace(topic, '{' || placeholder || '}', value);
   end loop;
+  if mode = 'row' then
+    perform realtime.send(
+      jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+      event, topic, private
+    );
+    return null;
+  end if;
+  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+    into keys
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+    where i.indrelid = tg_relid and i.indisprimary;
+  id := case
+    when keys is null then null
+    when cardinality(keys) = 1 then rec -> keys[1]
+    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
+  end;
   perform realtime.send(
-    jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
     event, topic, private
   );
   return null;
@@ -671,11 +788,15 @@ begin
 end;
 $$;
 
--- Row trigger for a topic (defineTopic) that carries the row change:
+-- Row trigger for a topic (defineTopic) that announces the row change:
 --   create trigger quotes_broadcast after insert or update or delete on public.quotes
 --     for each row execute function better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');
--- Arguments: the topic with {column} placeholders, the event (empty for the
--- operation) and 'false' for a public topic. A null value skips the row.
+-- Arguments: the topic with {column} or {name=column} placeholders, the event (empty for the
+-- operation), 'false' for a public topic, and the payload: 'keys' (the
+-- default) sends { operation, schema, table, id, values } so clients refetch
+-- through RLS; 'row' sends old_record and record, which bypasses column
+-- grants. A null value skips the row; a value topics do not allow skips it
+-- with a warning instead of failing the write.
 create or replace function better_supabase.broadcast_topic()
 returns trigger
 language plpgsql
@@ -687,11 +808,21 @@ declare
   topic text;
   event text := tg_op;
   private boolean := true;
+  mode text := 'keys';
   placeholder text;
+  param text;
+  col text;
   value text;
+  vals jsonb := '{}';
+  keys text[];
+  id jsonb;
 begin
   if tg_level <> 'ROW' then
     raise exception 'better_supabase.broadcast_topic() runs for each row'
+      using errcode = '39P01';
+  end if;
+  if tg_when <> 'AFTER' then
+    raise exception 'better_supabase.broadcast_topic() runs after the write; as a % trigger it would cancel the write', lower(tg_when)
       using errcode = '39P01';
   end if;
   if tg_nargs = 0 or tg_argv[0] = '' then
@@ -700,24 +831,49 @@ begin
   end if;
   topic := tg_argv[0];
   if tg_nargs > 1 and tg_argv[1] <> '' then event := tg_argv[1]; end if;
-  if tg_nargs > 2 then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 2 and tg_argv[2] <> '' then private := tg_argv[2]::boolean; end if;
+  if tg_nargs > 3 and tg_argv[3] <> '' then mode := tg_argv[3]; end if;
+  if mode not in ('keys', 'row') then
+    raise exception 'better_supabase.broadcast_topic() payload must be keys or row, not %', mode
+      using errcode = '22023';
+  end if;
   for placeholder in select distinct m[1] from regexp_matches(tg_argv[0], '\{([^}]+)\}', 'g') as m loop
-    if not rec ? placeholder then
-      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, placeholder, tg_argv[0]
+    param := split_part(placeholder, '=', 1);
+    col := coalesce(nullif(split_part(placeholder, '=', 2), ''), param);
+    if not rec ? col then
+      raise exception '%.% has no column % for the topic %', tg_table_schema, tg_table_name, col, tg_argv[0]
         using errcode = '42703';
     end if;
-    value := rec ->> placeholder;
+    value := rec ->> col;
     if value is null then
       return null;
     end if;
     if value !~ '^[\w.@+=-]+$' then
-      raise exception 'topic value % of %.%.% contains characters topics do not allow', value, tg_table_schema, tg_table_name, placeholder
-        using errcode = '22023';
+      raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', tg_argv[0], value, tg_table_schema, tg_table_name, col;
+      return null;
     end if;
+    vals := vals || jsonb_build_object(param, value);
     topic := replace(topic, '{' || placeholder || '}', value);
   end loop;
+  if mode = 'row' then
+    perform realtime.send(
+      jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+      event, topic, private
+    );
+    return null;
+  end if;
+  select array_agg(a.attname::text order by array_position(i.indkey::int2[], a.attnum))
+    into keys
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey::int2[])
+    where i.indrelid = tg_relid and i.indisprimary;
+  id := case
+    when keys is null then null
+    when cardinality(keys) = 1 then rec -> keys[1]
+    else (select jsonb_object_agg(k, rec -> k) from unnest(keys) as k)
+  end;
   perform realtime.send(
-    jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema),
+    jsonb_build_object('operation', tg_op, 'schema', tg_table_schema, 'table', tg_table_name, 'id', id, 'values', vals),
     event, topic, private
   );
   return null;

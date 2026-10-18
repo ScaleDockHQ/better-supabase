@@ -260,7 +260,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
       written.indexOf("create trigger"),
     );
     expect(written).toContain(
-      "better_supabase.broadcast_topic('organization:{organization_id}:quotes', 'quote.changed');",
+      "better_supabase.broadcast_topic('organization:{organizationId=organization_id}:quotes', 'quote.changed');",
     );
     await expect(
       sql(["sync"], { realtime: { policies, triggers } }),
