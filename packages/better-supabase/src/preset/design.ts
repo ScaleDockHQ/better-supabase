@@ -315,7 +315,7 @@ export async function encodeDesign(design: CreateDesign): Promise<string> {
 
   if (code.length > MAX_DESIGN_CODE_LENGTH) {
     throw new TypeError(
-      `design: the code is ${String(code.length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the config instead and run \`better-supabase init --config\`.`,
+      `design: the code is ${String(code.length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the config instead, save it as better-supabase.config.ts, then run \`better-supabase init\` and \`better-supabase sql sync\`.`,
     );
   }
 

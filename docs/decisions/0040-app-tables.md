@@ -59,3 +59,7 @@ exists`, so under the `migrations` workflow a changed or dropped column
 needs a migration by hand. A foreign key between two tenant-scoped app tables
 doesn't check that both rows share a tenant. A new design field raises the
 version character; revisit the format if designs routinely hit the cap.
+
+The marketing app adds `html-to-image` (pinned at 1.11.13 in the catalog)
+to export the diagram as PNG and SVG, and `sonner` for its toasts. Neither
+reaches the library.
