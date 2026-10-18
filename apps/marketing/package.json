@@ -35,6 +35,7 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
     "@better-supabase/next-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@playwright/test": "catalog:",
