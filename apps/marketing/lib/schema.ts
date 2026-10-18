@@ -17,6 +17,8 @@ export interface SchemaTarget {
 export interface SchemaForeignKey {
   readonly columns: readonly string[];
   readonly target: SchemaTarget;
+  /** The `on delete` action, lower case: `cascade`, `set null`, `no action`. */
+  readonly onDelete: string;
 }
 
 export interface SchemaColumn {
@@ -286,6 +288,16 @@ function target(match: RegExpMatchArray): SchemaTarget {
   return { schema, table, columns: identList(match[2]) };
 }
 
+const ON_DELETE =
+  /\bon\s+delete\s+(cascade|restrict|set\s+null|set\s+default|no\s+action)\b/iu;
+
+/** The `on delete` action of a reference, `no action` when it names none. */
+function onDeleteOf(text: string): string {
+  return (ON_DELETE.exec(text)?.[1] ?? "no action")
+    .toLowerCase()
+    .replaceAll(/\s+/gu, " ");
+}
+
 /** Words that end a column's default expression at the top level. */
 const DEFAULT_END =
   /^(?:not\s+null|null|primary\s+key|references|unique|check|constraint|generated|collate)\b/iu;
@@ -364,7 +376,11 @@ function addColumn(
   const references = rest.match(REFERENCES);
 
   if (references !== null) {
-    draft.foreignKeys.push({ columns: [name], target: target(references) });
+    draft.foreignKeys.push({
+      columns: [name],
+      target: target(references),
+      onDelete: onDeleteOf(rest),
+    });
   }
 }
 
@@ -393,6 +409,7 @@ function addConstraint(draft: TableDraft, element: string): boolean {
       draft.foreignKeys.push({
         columns: identList(foreign[1]),
         target: target(references),
+        onDelete: onDeleteOf(foreign[2] ?? ""),
       });
     }
 

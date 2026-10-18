@@ -1029,10 +1029,15 @@ function referencedId(
 function foreignKey(
   column: string,
   to: string,
+  onDelete = "no action",
 ): SchemaTable["foreignKeys"][number] {
   const [schema = "", target = ""] = to.split(".");
 
-  return { columns: [column], target: { schema, table: target, columns: [] } };
+  return {
+    columns: [column],
+    target: { schema, table: target, columns: [] },
+    onDelete,
+  };
 }
 
 /** An app table as the diagram reads it. */
@@ -1082,7 +1087,7 @@ function appSchemaTable(
   const scopeKeys =
     scope === null || scopeTo === undefined
       ? []
-      : [foreignKey(scope.name, scopeTo)];
+      : [foreignKey(scope.name, scopeTo, "cascade")];
 
   const columnKeys = Object.entries(table.columns ?? {}).flatMap(
     ([key, column]) => {
@@ -1091,7 +1096,9 @@ function appSchemaTable(
           ? undefined
           : referencedId(column.references, data);
 
-      return to === undefined ? [] : [foreignKey(key, to)];
+      return to === undefined
+        ? []
+        : [foreignKey(key, to, column.references?.onDelete)];
     },
   );
 

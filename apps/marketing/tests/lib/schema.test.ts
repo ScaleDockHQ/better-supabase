@@ -151,14 +151,17 @@ describe("parseSchema", () => {
         {
           columns: ["order_id"],
           target: { schema: "app", table: "orders", columns: ["id"] },
+          onDelete: "cascade",
         },
         {
           columns: ["owner"],
           target: { schema: "auth", table: "users", columns: ["id"] },
+          onDelete: "no action",
         },
         {
           columns: ["tenant_id"],
           target: { schema: "app", table: "tenants", columns: ["id"] },
+          onDelete: "no action",
         },
       ],
       tenantColumn: null,
