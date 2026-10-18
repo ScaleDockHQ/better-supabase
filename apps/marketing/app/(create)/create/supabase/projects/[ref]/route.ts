@@ -9,9 +9,9 @@ import { errorResponse, withSupabase } from "@/lib/supabase-session";
  */
 export async function GET(
   _request: Request,
-  context: RouteContext<"/create/supabase/projects/[ref]">,
+  { params }: { params: Promise<{ ref: string }> },
 ): Promise<Response> {
-  const { ref } = await context.params;
+  const { ref } = await params;
 
   if (!isProjectRef(ref)) {
     return errorResponse("invalid", "That isn't a project ref.", 400);
