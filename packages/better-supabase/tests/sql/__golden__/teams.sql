@@ -2,7 +2,7 @@
 -- better-supabase module: teams
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -334,7 +334,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data teams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -346,7 +346,7 @@ on conflict (name) do update
 -- better-supabase module: teams
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -758,7 +758,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data teams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -770,7 +770,7 @@ on conflict (name) do update
 -- better-supabase module: teams
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1104,7 +1104,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data teams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -1116,7 +1116,7 @@ on conflict (name) do update
 -- better-supabase module: teams
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1545,7 +1545,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data teams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -1557,7 +1557,7 @@ on conflict (name) do update
 -- better-supabase module: teams
 -- @bs-module teams@1 adopt
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -1848,7 +1848,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data teams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)

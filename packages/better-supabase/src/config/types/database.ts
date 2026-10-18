@@ -90,7 +90,7 @@ export interface RealtimeConfig {
   /**
    * Tables that broadcast a change signal for live queries (`table` or
    * `schema.table`). Tenant tables broadcast per tenant. Install the
-   * triggers with `better-supabase sql add realtime-tables`.
+   * triggers with `better-supabase add realtime-tables`.
    */
   readonly tables?: readonly string[];
   /**

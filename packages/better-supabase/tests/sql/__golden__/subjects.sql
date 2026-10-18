@@ -2,7 +2,7 @@
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -124,7 +124,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data subjects
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -136,7 +136,7 @@ on conflict (name) do update
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -258,7 +258,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data subjects
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -270,7 +270,7 @@ on conflict (name) do update
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -394,7 +394,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data subjects
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
@@ -406,7 +406,7 @@ on conflict (name) do update
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -577,7 +577,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data subjects
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)

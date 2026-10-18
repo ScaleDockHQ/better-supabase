@@ -60,7 +60,7 @@ export interface ModuleDeprecation {
 }
 
 /**
- * SQL modules for `better-supabase sql add`. Every module is idempotent
+ * SQL modules for `better-supabase add`. Every module is idempotent
  * (`create or replace`, `if not exists`), so re-running it upgrades in place.
  */
 export interface SqlModule {

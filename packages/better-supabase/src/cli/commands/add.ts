@@ -45,7 +45,7 @@ const ADD_ARGS = {
     type: "positional",
     required: false,
     description:
-      "Blocks to add (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
+      "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
   },
   framework: {
     type: "string",
@@ -57,6 +57,12 @@ const ADD_ARGS = {
     type: "boolean",
     description:
       "Overwrite files that exist; with blocks, write modules a provider's hook would duplicate",
+  },
+  "tests-dir": {
+    type: "string",
+    description:
+      "With blocks: where the pgtap module goes. Defaults to sql.testsDir",
+    valueHint: "dir",
   },
   "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;

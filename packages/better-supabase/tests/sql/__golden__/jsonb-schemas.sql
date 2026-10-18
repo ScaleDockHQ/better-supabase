@@ -2,7 +2,7 @@
 -- better-supabase module: jsonb-schemas
 -- @bs-module jsonb-schemas@1 managed
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -66,7 +66,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data jsonb-schemas
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -80,7 +80,7 @@ on conflict (name) do update
 -- better-supabase module: jsonb-schemas
 -- @bs-module jsonb-schemas@1 managed
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -144,7 +144,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data jsonb-schemas
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -158,7 +158,7 @@ on conflict (name) do update
 -- better-supabase module: jsonb-schemas
 -- @bs-module jsonb-schemas@1 managed
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -222,7 +222,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data jsonb-schemas
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -236,7 +236,7 @@ on conflict (name) do update
 -- better-supabase module: jsonb-schemas
 -- @bs-module jsonb-schemas@1 managed
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -300,7 +300,7 @@ grant select on better_supabase.modules to service_role;
 -- @bs-module-data jsonb-schemas
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";

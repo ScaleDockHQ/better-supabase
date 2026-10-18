@@ -1,7 +1,7 @@
 -- better-supabase module: imports (0.8.0)
 -- @bs-module imports@1 adopt
 -- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()

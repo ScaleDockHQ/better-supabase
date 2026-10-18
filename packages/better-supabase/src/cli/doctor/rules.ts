@@ -397,7 +397,7 @@ const OWN_RULES: readonly Rule[] = [
 
           return [
             {
-              message: `${role} has no ${missing.join(", ")} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase sql add grants\`, or run \`grant ${missing.join(", ")} on table ${qualified(table)} to ${role};\`.${note}`,
+              message: `${role} has no ${missing.join(", ")} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase add grants\`, or run \`grant ${missing.join(", ")} on table ${qualified(table)} to ${role};\`.${note}`,
               target: `${qualified(table)}:${role}`,
               object: tableObject(table),
             },
@@ -534,7 +534,7 @@ const OWN_RULES: readonly Rule[] = [
             MFA_FACTORS.test(`${policy.using ?? ""} ${policy.check ?? ""}`),
           )
           .map((policy) => ({
-            message: `Policy "${policy.name}" on ${qualified(table)} reads auth.mfa_factors, which authenticated can't select, so every request fails with 42501. Use \`(select better_supabase.mfa_satisfied())\` from \`better-supabase sql add mfa\` instead.`,
+            message: `Policy "${policy.name}" on ${qualified(table)} reads auth.mfa_factors, which authenticated can't select, so every request fails with 42501. Use \`(select better_supabase.mfa_satisfied())\` from \`better-supabase add mfa\` instead.`,
             target: `${qualified(table)}.${policy.name}`,
             object: policyObject(table, policy),
           })),
@@ -892,7 +892,7 @@ const OWN_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
+            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
             target: qualified(table),
             object: tableObject(table),
           },

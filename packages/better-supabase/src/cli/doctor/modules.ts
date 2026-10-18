@@ -766,7 +766,7 @@ function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
   return exposedSchemas(context)
     .filter((schema) => moduleSchemas.has(schema))
     .map((schema) => ({
-      message: `The Data API serves the module schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), set blocks.<module>.api to an exposed schema such as "api" so \`sql add\` writes security invoker entry points there, and call them with rpcTransport(supabase, { schema: "api" }).`,
+      message: `The Data API serves the module schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), set blocks.<module>.api to an exposed schema such as "api" so \`better-supabase add\` writes security invoker entry points there, and call them with rpcTransport(supabase, { schema: "api" }).`,
       target: schema,
     }));
 }

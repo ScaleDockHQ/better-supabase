@@ -139,7 +139,7 @@ export interface BetterSupabaseConfig {
    */
   readonly preset?: PresetName | (string & {});
   /**
-   * The blocks to install and keep in sync (`better-supabase sql add`): a
+   * The blocks to install and keep in sync (`better-supabase add`): a
    * list of names, or an object keyed by block name whose values set each
    * block's mode, schema, table and column names, permission keys and
    * options. The foundation blocks (`tenant`, `access`, `updated-at`,

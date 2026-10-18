@@ -51,7 +51,7 @@ export type JsonTypeConfig = (
   | { readonly import: string }
   | { readonly type: string }
 ) & {
-  /** Enforced in the database by `sql add jsonb-schemas` (pg_jsonschema). */
+  /** Enforced in the database by `better-supabase add jsonb-schemas` (pg_jsonschema). */
   readonly schema?: JsonSchemaSource;
 };
 
