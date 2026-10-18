@@ -6,7 +6,6 @@ import {
   decodeDesign,
   encodeDesign,
   encodePreset,
-  type Preset,
   presetOf,
   resolvePreset,
 } from "better-supabase/preset";
@@ -82,9 +81,14 @@ async function attempt<T>(run: () => Promise<T>): Promise<Outcome<T>> {
  */
 export function CreateBuilder(): ReactElement {
   const params = useSearchParams();
-  const designValue = useDesignState(EMPTY_DESIGN);
-  const { design } = designValue.state;
-  const { reset } = designValue.actions;
+
+  const designValue = useDesignState(
+    () => initialPreset(params.get("preset")),
+    EMPTY_DESIGN,
+  );
+
+  const { preset, design } = designValue.state;
+  const { reset, restore, setPreset } = designValue.actions;
 
   const [linkedDesign] = useState(() => params.get("design"));
 
@@ -95,10 +99,6 @@ export function CreateBuilder(): ReactElement {
   const [designLoaded, setDesignLoaded] = useState(linkedDesign === null);
 
   const [designCode, setDesignCode] = useState("");
-
-  const [preset, setPreset] = useState<Preset>(() =>
-    initialPreset(params.get("preset")),
-  );
 
   const [authzOption, setAuthzOption] = useState<AuthzLibrary | undefined>(() =>
     initialAuthz(params.get("authz"), initialPreset(params.get("preset"))),
@@ -177,15 +177,14 @@ export function CreateBuilder(): ReactElement {
       return;
     }
 
-    const restore = async (): Promise<void> => {
+    const restoreDraft = async (): Promise<void> => {
       const outcome = await attempt(async () => ({
         saved: presetOf(draft.preset),
         decoded: await decodeDesign(draft.design),
       }));
 
       if (outcome.ok) {
-        setPreset(outcome.value.saved);
-        reset(outcome.value.decoded);
+        restore(outcome.value.saved, outcome.value.decoded);
       } else {
         clearDraft(window.localStorage);
         toast.error("The saved design can't be read", {
@@ -199,11 +198,11 @@ export function CreateBuilder(): ReactElement {
       action: {
         label: "Restore",
         onClick: () => {
-          void restore();
+          void restoreDraft();
         },
       },
     });
-  }, [linked, reset]);
+  }, [linked, restore]);
 
   useEffect(() => {
     let current = true;
