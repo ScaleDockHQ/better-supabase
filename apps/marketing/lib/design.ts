@@ -1,4 +1,8 @@
-import type { Preset } from "better-supabase/preset";
+import {
+  appReservedColumns,
+  isAppDefault,
+  type Preset,
+} from "better-supabase/preset";
 
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
 
@@ -179,7 +183,48 @@ export function columnError(
     return `The table already has a ${name} column.`;
   }
 
+  if (appReservedColumns(preset.tenantName).includes(name)) {
+    return `${name} is a column every app table can get from its scope. Choose another name.`;
+  }
+
   return undefined;
+}
+
+/** Why `value` can't be the default of a `type` column, or `undefined` when it can. */
+export function defaultError(
+  type: AppColumnType,
+  value: string,
+): string | undefined {
+  const trimmed = value.trim();
+
+  if (trimmed === "" || isAppDefault(type, trimmed)) {
+    return undefined;
+  }
+
+  return `A ${type} column takes ${DEFAULT_EXAMPLES[type]} as its default.`;
+}
+
+/** The defaults `isAppDefault` accepts, per type, as the inspector explains them. */
+const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
+  text: "a 'quoted' text",
+  integer: "a whole number",
+  bigint: "a whole number",
+  numeric: "a number",
+  boolean: "true or false",
+  uuid: "gen_random_uuid(), auth.uid() or a 'quoted' value",
+  timestamptz: "now() or a 'quoted' value",
+  date: "now() or a 'quoted' value",
+  jsonb: "'{}' or '[]'",
+  "text[]": "'{}'",
+};
+
+/** A column with its type changed, dropping a default the new type can't take. */
+export function retyped(column: AppColumn, type: AppColumnType): AppColumn {
+  const { default: fallback, ...rest } = column;
+
+  return fallback === undefined || isAppDefault(type, fallback)
+    ? { ...column, type }
+    : { ...rest, type };
 }
 
 /** A free app table name: `base`, then `base_2`, `base_3` and so on. */
@@ -549,10 +594,12 @@ export type ConnectResult =
   | { readonly ok: false; readonly error: string };
 
 /**
- * Adds `<target>_id` to an app table with a foreign key to `target`. Only
- * app tables get new columns; a self reference, a target without a
- * single-column primary key and a second reference to the same table are
- * refused with a message.
+ * Adds a foreign key column from an app table to `target`. Only app tables
+ * get new columns. A self reference gets `parent_id`, and a second
+ * reference to the same table gets a role name (`owner_id`, `<target>_2_id`)
+ * the user can rename. A target without a single-column primary key, and
+ * the tenant table the scope column already references, are refused with a
+ * message.
  */
 export function connect(
   design: Design,
@@ -573,27 +620,43 @@ export function connect(
     return { ok: false, error: `${source.name} is not in the design.` };
   }
 
-  if (connection.target === connection.source) {
-    return { ok: false, error: "A table can't reference itself here." };
-  }
-
-  if (
-    source.foreignKeys.some(
-      (key) => `${key.target.schema}.${key.target.table}` === connection.target,
-    )
-  ) {
+  if (source.tenantColumn !== null && connection.target === data.tenantTable) {
     return {
       ok: false,
-      error: `${source.name} already references ${connection.target}.`,
+      error: `${source.name} already references ${connection.target} through ${source.tenantColumn}.`,
     };
   }
 
   return referenceFrom(design, data, preset, source.name, connection.target);
 }
 
+/** Second references to `auth.users`, in the order they are offered. */
+const USER_ROLES = ["owner_id", "assignee_id", "reviewer_id", "approver_id"];
+
+/** The first column name for a reference that the table can still take. */
+function referenceColumn(
+  table: AppTable,
+  base: string,
+  roles: readonly string[],
+  preset: Pick<Preset, "scope" | "tenantName" | "idType">,
+): string | undefined {
+  const stem = base.replace(/_id$/u, "");
+
+  const candidates = [
+    base,
+    ...roles,
+    ...Array.from({ length: 8 }, (_, index) => `${stem}_${index + 2}_id`),
+  ];
+
+  return candidates.find(
+    (candidate) => columnError(table, candidate, preset) === undefined,
+  );
+}
+
 /**
- * Adds `<target>_id` to the app table `name` in the design, which can be a
- * table the schema doesn't have yet.
+ * Adds a key to `targetId` on the app table `name` in the design, which can
+ * be a table the schema doesn't have yet: `<target>_id`, `parent_id` for a
+ * self reference, or a free role name when that column is taken.
  */
 export function referenceFrom(
   design: Design,
@@ -648,11 +711,20 @@ export function referenceFrom(
     };
   }
 
-  const column = `${singular(target === undefined ? "user" : target.name)}_id`;
-  const error = columnError(table, column, preset);
+  const self = targetId === appTableId(name);
+  const user = target === undefined;
 
-  if (error !== undefined) {
-    return { ok: false, error };
+  const base = self
+    ? "parent_id"
+    : `${singular(user ? "user" : target.name)}_id`;
+
+  const column = referenceColumn(table, base, user ? USER_ROLES : [], preset);
+
+  if (column === undefined) {
+    return {
+      ok: false,
+      error: `${name} already has every column name a reference to ${targetId} gets. Rename one first.`,
+    };
   }
 
   return {
@@ -661,7 +733,10 @@ export function referenceFrom(
     design: setColumn(design, name, column, {
       type,
       nullable: true,
-      references: { ...references, onDelete: "cascade" },
+      references: {
+        ...references,
+        onDelete: self || user ? "set null" : "cascade",
+      },
     }),
   };
 }

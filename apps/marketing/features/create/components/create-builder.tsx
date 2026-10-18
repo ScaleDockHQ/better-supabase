@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 
 import {
   decodeDesign,
+  DesignTooLongError,
   encodeDesign,
   encodePreset,
   presetOf,
@@ -64,7 +65,7 @@ function initialPackage(value: string | null): PackageOption {
 
 type Outcome<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly message: string; readonly error: unknown };
 
 async function attempt<T>(run: () => Promise<T>): Promise<Outcome<T>> {
   try {
@@ -73,6 +74,7 @@ async function attempt<T>(run: () => Promise<T>): Promise<Outcome<T>> {
     return {
       ok: false,
       message: error instanceof Error ? error.message : String(error),
+      error,
     };
   }
 }
@@ -239,10 +241,12 @@ export function CreateBuilder({
       if (outcome.ok) {
         setDesignCode(outcome.value);
       } else {
-        toast.error("The design is too large for a link", {
-          id: "design-code",
-          description: outcome.message,
-        });
+        toast.error(
+          outcome.error instanceof DesignTooLongError
+            ? "The design is too large for a link"
+            : "The design has a problem the link can't carry",
+          { id: "design-code", description: outcome.message },
+        );
       }
     });
 

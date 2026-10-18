@@ -60,6 +60,7 @@ describe("names", () => {
     );
     expect(columnError(table, "created_at", preset)).toMatch(/already has/u);
     expect(columnError(table, "body", preset)).toBeUndefined();
+    expect(columnError(table, "user_id", preset)).toMatch(/scope/u);
   });
 
   test("makes table names singular", () => {
@@ -195,17 +196,71 @@ describe("connect", () => {
     ).toBeUndefined();
   });
 
-  test("refuses block tables as the source, self references and duplicates", () => {
+  test("a self reference is parent_id and sets null on delete", () => {
+    const result = connect(projects, merged, preset, {
+      source: appTableId("projects"),
+      target: appTableId("projects"),
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    expect(result.column).toBe("parent_id");
+    expect(
+      result.design.appTables?.["projects"]?.columns?.["parent_id"]?.references,
+    ).toEqual({ table: "projects", onDelete: "set null" });
+  });
+
+  test("a second reference to the same table gets a free role name", () => {
+    const two = addTable(projects, "tasks");
+    const target = appTableId("projects");
+
+    const first = connect(two, withDesign(data, two, preset), preset, {
+      source: appTableId("tasks"),
+      target,
+    });
+
+    if (!first.ok) {
+      throw new Error(first.error);
+    }
+
+    const second = connect(
+      first.design,
+      withDesign(data, first.design, preset),
+      preset,
+      { source: appTableId("tasks"), target },
+    );
+
+    expect(second).toMatchObject({ ok: true, column: "project_2_id" });
+  });
+
+  test("a reference to auth.users never takes the reserved user_id", () => {
+    const first = connect(projects, merged, preset, {
+      source: appTableId("projects"),
+      target: "auth.users",
+    });
+
+    if (!first.ok) {
+      throw new Error(first.error);
+    }
+
+    expect(first.column).toBe("owner_id");
+
+    const second = connect(
+      first.design,
+      withDesign(data, first.design, preset),
+      preset,
+      { source: appTableId("projects"), target: "auth.users" },
+    );
+
+    expect(second).toMatchObject({ ok: true, column: "assignee_id" });
+  });
+
+  test("refuses block tables as the source and the tenant table", () => {
     expect(
       connect(projects, merged, preset, {
         source: blockTable?.id ?? "",
-        target: appTableId("projects"),
-      }),
-    ).toMatchObject({ ok: false });
-
-    expect(
-      connect(projects, merged, preset, {
-        source: appTableId("projects"),
         target: appTableId("projects"),
       }),
     ).toMatchObject({ ok: false });

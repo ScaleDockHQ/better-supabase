@@ -8,6 +8,7 @@ import {
   designConfigSource,
   designInstallCommand,
   designOf,
+  DesignTooLongError,
   encodeDesign,
   encodePreset,
   isDesignCode,
@@ -115,6 +116,33 @@ describe("design codes", () => {
     ).rejects.toThrow(
       `design: the code is longer than ${String(MAX_DESIGN_CODE_LENGTH)} characters`,
     );
+  });
+
+  it("throws DesignTooLongError only for a valid design that is too long", async () => {
+    const columns = Object.fromEntries(
+      Array.from({ length: 900 }, (_, index) => [
+        `c${String(index * 7919)}_${String(index).padStart(4, "x")}`,
+        { type: "text" as const },
+      ]),
+    );
+
+    const long = await encodeDesign({ appTables: { wide: { columns } } }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(long).toBeInstanceOf(DesignTooLongError);
+    expect(long).toBeInstanceOf(TypeError);
+
+    const invalid = await encodeDesign({
+      appTables: { notes: { columns: { user_id: { type: "uuid" } } } },
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(invalid).toBeInstanceOf(TypeError);
+    expect(invalid).not.toBeInstanceOf(DesignTooLongError);
   });
 
   it("rejects a code that inflates past the cap", async () => {

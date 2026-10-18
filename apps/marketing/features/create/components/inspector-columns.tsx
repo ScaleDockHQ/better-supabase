@@ -37,12 +37,14 @@ import {
   APP_COLUMN_TYPES,
   appTableId,
   columnError,
+  defaultError,
   deleteColumn,
   deleteExtraColumn,
   identifierError,
   isAppTable,
   renameColumn,
   renameTable,
+  retyped,
   setColumn,
   setExtraColumn,
 } from "@/lib/design";
@@ -275,7 +277,9 @@ function AppColumnRow({
           <TypeSelect
             value={column.type}
             onChange={(type) => {
-              update({ type });
+              actions.apply(
+                setColumn(state.design, table, name, retyped(column, type)),
+              );
             }}
           />
         </div>
@@ -322,6 +326,7 @@ function AppColumnRow({
           label="Default"
           value={column.default ?? ""}
           placeholder="now(), 0, 'draft'"
+          validate={(next) => defaultError(column.type, next)}
           onCommit={(next) => {
             const { default: _drop, ...rest } = column;
             actions.apply(

@@ -96,8 +96,19 @@ are async and run on every runtime.
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
 table that `appTables` wouldn't accept, a column type outside a plain SQL
 type, a block with no table for extra columns, or a code that inflates past
-256 KB. `encodeDesign` throws when the code would pass
-`MAX_DESIGN_CODE_LENGTH` (6000 characters); download the config then.
+256 KB. `encodeDesign` throws a `TypeError` for an invalid design, and a
+`DesignTooLongError` (a `TypeError` with the code's `length`) when a valid
+design would pass `MAX_DESIGN_CODE_LENGTH` (6000 characters); download the
+config then. Check for `DesignTooLongError` to tell the two apart.
+
+Two helpers check a design before it is encoded. `appReservedColumns(tenant)`
+lists the columns every app table can get from its scope (`id`,
+`created_at`, `updated_at`, `user_id` and `<tenant>_id`), which a design's
+columns may not name. `isAppDefault(type, value)` says whether a column of
+`type` accepts `value` as its default.
+
+The AI instructions for a design are at
+`/create/prompt.md?preset=<code>&design=<code>`.
 
 | Function               | What it does                                                                                          |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |

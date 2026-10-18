@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { blocks } from "@/lib/blocks";
 import { CONFIG_FILE, packagePath } from "@/lib/create";
 import {
+  addTable,
   type DesignIssue,
   designIssues,
   isAppTable,
@@ -360,23 +361,48 @@ export function SchemaDiagram({
     useMemo(() => ({ code, preset: resolved.preset }), [code, resolved.preset]),
   );
 
-  if (resolved.blocks.length === 0) {
+  const { state: designState, actions } = useDesign();
+  const drawn = Object.keys(designState.design.appTables ?? {}).length > 0;
+
+  if (resolved.blocks.length === 0 && !drawn) {
     return (
       <Empty className="flex-1">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <DatabaseIcon aria-hidden="true" />
           </EmptyMedia>
-          <EmptyTitle>Pick a block</EmptyTitle>
+          <EmptyTitle>Pick a block or draw a table</EmptyTitle>
           <EmptyDescription>
             The tables each block creates show up here, with the foreign keys
-            between them.
+            between them. Your own tables go on the same canvas.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button type="button" size="sm" onClick={onStart}>
-            Start from the SaaS preset
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button type="button" size="sm" onClick={onStart}>
+              Start from the SaaS preset
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                actions.apply(
+                  addTable(
+                    designState.design,
+                    "items",
+                    {
+                      scope: "user",
+                      columns: { name: { type: "text", nullable: false } },
+                    },
+                    [0, 0],
+                  ),
+                );
+              }}
+            >
+              Draw your own tables
+            </Button>
+          </div>
         </EmptyContent>
       </Empty>
     );

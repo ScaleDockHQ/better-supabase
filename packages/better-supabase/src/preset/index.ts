@@ -20,8 +20,11 @@ export type { DecodedPreset } from "./code.ts";
 
 export { expandPreset, presetConfig, presetOf } from "./config.ts";
 
+export { appReservedColumns, isAppDefault } from "../config/app-tables.ts";
+
 export {
   decodeDesign,
+  DesignTooLongError,
   designApplyCommand,
   designConfig,
   designConfigSource,

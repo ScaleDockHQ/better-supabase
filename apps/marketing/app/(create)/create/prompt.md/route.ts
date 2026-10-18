@@ -1,5 +1,7 @@
 import {
+  decodeDesign,
   encodePreset,
+  isDesignCode,
   isPresetCode,
   isPresetName,
   namedPreset,
@@ -16,12 +18,12 @@ import { site } from "@/lib/site";
 
 /**
  * The AI instructions `/create` copies, for an agent to fetch:
- * `?preset=<code or name>&ui=1&package=<dir>&authz=<library>&manager=<pm>`.
+ * `?preset=<code or name>&design=<code>&ui=1&package=<dir>&authz=<library>&manager=<pm>`.
  * Every parameter is optional; the preset defaults to the one `/create` opens on.
  */
-// oxlint-disable-next-line typescript/require-await -- a "use cache" function must be async; building the prompt is synchronous
 async function promptMarkdown(
   code: string,
+  designCode: string,
   ui: boolean,
   pkg: string | undefined,
   authz: string | null,
@@ -31,9 +33,12 @@ async function promptMarkdown(
   cacheLife("max");
 
   const preset = presetOf(code);
+  const design = designCode === "" ? {} : await decodeDesign(designCode);
 
   return presetPrompt({
     resolved: resolvePreset(preset),
+    design,
+    designCode,
     ui,
     manager,
     pkg,
@@ -65,6 +70,12 @@ export async function GET(request: Request): Promise<Response> {
     return badRequest("preset must be a code or a preset name");
   }
 
+  const designCode = params.get("design") ?? "";
+
+  if (designCode !== "" && !isDesignCode(designCode)) {
+    return badRequest("design must be a design code from /create");
+  }
+
   const ui = params.get("ui");
 
   if (ui !== null && ui !== "0" && ui !== "1") {
@@ -93,7 +104,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     return new Response(
-      await promptMarkdown(code, ui === "1", pkg, authz, manager),
+      await promptMarkdown(code, designCode, ui === "1", pkg, authz, manager),
       { headers: markdownHeaders },
     );
   } catch (error) {
