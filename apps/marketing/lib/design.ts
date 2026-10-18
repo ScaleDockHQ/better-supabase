@@ -69,7 +69,7 @@ export const EMPTY_DESIGN: Design = {};
 const APP_SCHEMA = "public";
 
 /** The module name app tables carry in the diagram. */
-const APP_MODULE = "app-tables";
+export const APP_MODULE = "app-tables";
 
 /** Column names every app table creates itself. */
 const IMPLICIT_COLUMNS = new Set(["id", "created_at", "updated_at"]);
@@ -463,33 +463,25 @@ export function moveTables(
 }
 
 /**
- * Saves positions for `tables` that keep their layout but move the box
- * around them so its top-left corner lands on `point`.
+ * The app table column behind a foreign key from `tableId`, when the canvas
+ * added it, or `undefined` when a block or the preset owns the key.
  */
-export function placeTables(
+export function userConnection(
   design: Design,
-  tables: Readonly<Record<string, { readonly x: number; readonly y: number }>>,
-  point: { readonly x: number; readonly y: number },
-): Design {
-  const entries = Object.entries(tables);
+  tableId: string,
+  column: string | null,
+): { readonly table: string; readonly column: string } | undefined {
+  const name = Object.keys(design.appTables ?? {}).find(
+    (each) => appTableId(each) === tableId,
+  );
 
-  if (entries.length === 0) {
-    return design;
+  if (name === undefined || column === null) {
+    return undefined;
   }
 
-  const left = Math.min(...entries.map(([, rect]) => rect.x));
-  const top = Math.min(...entries.map(([, rect]) => rect.y));
-
-  const moves: Record<string, readonly [number, number]> = {};
-
-  for (const [id, rect] of entries) {
-    moves[id] = [
-      Math.round(rect.x - left + point.x),
-      Math.round(rect.y - top + point.y),
-    ];
-  }
-
-  return moveTables(design, moves);
+  return design.appTables?.[name]?.columns?.[column]?.references === undefined
+    ? undefined
+    : { table: name, column };
 }
 
 /** Drops every saved position, so the automatic layout places every table again. */

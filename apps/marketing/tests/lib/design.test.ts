@@ -15,13 +15,13 @@ import {
   identifierError,
   isEmptyDesign,
   moveTables,
-  placeTables,
   renameColumn,
   renameTable,
   setColumn,
   setExtraColumn,
   singular,
   tidy,
+  userConnection,
   withDesign,
 } from "../../lib/design";
 import { presetSchema } from "./schema-fixture";
@@ -130,23 +130,6 @@ describe("edits", () => {
     expect(isEmptyDesign(deleteExtraColumn(one, "tenant", "plan"))).toBe(true);
   });
 
-  test("placing tables keeps their layout and moves the box to the point", () => {
-    const placed = placeTables(
-      projects,
-      {
-        "better_supabase.comments": { x: 500, y: 300 },
-        "better_supabase.comment_reads": { x: 820.4, y: 360 },
-      },
-      { x: 10, y: 20 },
-    );
-
-    expect(placed.positions).toEqual({
-      "better_supabase.comments": [10, 20],
-      "better_supabase.comment_reads": [330, 80],
-    });
-    expect(placeTables(projects, {}, { x: 0, y: 0 })).toBe(projects);
-  });
-
   test("tidy drops every position", () => {
     expect(
       tidy(moveTables(projects, { [appTableId("projects")]: [1, 2] }))
@@ -195,6 +178,20 @@ describe("connect", () => {
     });
 
     expect(result).toMatchObject({ ok: true, column: "project_id" });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    expect(
+      userConnection(result.design, appTableId("tasks"), "project_id"),
+    ).toEqual({ table: "tasks", column: "project_id" });
+    expect(
+      userConnection(result.design, appTableId("projects"), "title"),
+    ).toBeUndefined();
+    expect(
+      userConnection(result.design, "better_supabase.members", "user_id"),
+    ).toBeUndefined();
   });
 
   test("refuses block tables as the source, self references and duplicates", () => {

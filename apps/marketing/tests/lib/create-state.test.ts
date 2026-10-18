@@ -13,7 +13,6 @@ import {
   appTableId,
   EMPTY_DESIGN,
   moveTables,
-  placeTables,
 } from "../../lib/design";
 
 const minimal = namedPreset("minimal");
@@ -53,8 +52,6 @@ describe("the /create state", () => {
   });
 
   test("a dropped block and its placement are one step", () => {
-    const point = { x: 40, y: 60 };
-
     const dropped = run(
       start,
       {
@@ -63,11 +60,9 @@ describe("the /create state", () => {
       },
       {
         type: "place",
-        design: placeTables(
-          EMPTY_DESIGN,
-          { "better_supabase.comments": { x: 0, y: 0 } },
-          point,
-        ),
+        design: moveTables(EMPTY_DESIGN, {
+          "better_supabase.comments": [40, 60],
+        }),
       },
     );
 
