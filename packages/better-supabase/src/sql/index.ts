@@ -16,6 +16,7 @@ export { moduleFileVersion, sameModuleFile } from "./markers.ts";
 export {
   modulePermissionKeys,
   moduleEventTriggers,
+  moduleHidingColumns,
   moduleSchemaExtensions,
 } from "./introspect.ts";
 

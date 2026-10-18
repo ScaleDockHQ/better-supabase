@@ -1910,6 +1910,13 @@ describe("tables without the session policy (BS320)", () => {
 
   it("lists RLS tables without a restrictive session_active() policy", async () => {
     const covered = snapshot((tables) => {
+      // The repo's stack turns blocks.sessions.options.policies on.
+      for (const entry of tables) {
+        entry.policies = entry.policies.filter(
+          (policy) => policy.name !== "bs_session_active",
+        );
+      }
+
       const customers = table(tables, "customers");
       customers.policies = [
         ...customers.policies,
@@ -1965,6 +1972,30 @@ describe("tables without the session policy (BS320)", () => {
       ),
     ).toEqual([]);
     expect(await run("BS320", context(base))).toEqual([]);
+  });
+});
+
+describe("comments columns reactions reads (BS213)", () => {
+  it("leaves out the tenant pinned by can() and the comments soft delete", async () => {
+    const comments = (findings: readonly { target?: string }[]) =>
+      findings.filter(
+        (finding) => finding.target === "better_supabase.comments",
+      );
+
+    const bare = comments(await run("BS213", context()));
+    expect(bare).toHaveLength(1);
+    expect(bare[0]).toMatchObject({
+      message: expect.stringContaining("authenticated may update deleted_at."),
+    });
+
+    expect(
+      comments(
+        await run(
+          "BS213",
+          context(base, {}, { blocks: { comments: {}, reactions: {} } }),
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 

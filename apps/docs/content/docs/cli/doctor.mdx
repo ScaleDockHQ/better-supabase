@@ -324,7 +324,8 @@ one written in `language sql stable`, so a call that takes a column of the row
 runs once per row. Call it as `(select helper(...))` when its arguments don't
 come from the row, so Postgres evaluates it once per statement as an
 InitPlan, or have it return the allowed ids as a set and compare with
-`organization_id in (select helper())`.
+`organization_id in (select helper())`. A policy whose every call to the
+helper already reads `(select helper())`, with no arguments, doesn't count.
 
 ### BS207
 
@@ -431,14 +432,18 @@ those columns and a policy lets them write the row: a member who can update
 their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
 
-Three columns don't count: a single-column primary key, whose uniqueness stops
-a write from taking over another row, a tenant column that every policy
-for the write pins to `better_supabase.current_tenant_id()` without an `or`,
-so a write can only name the tenant the caller already acts in, and a
-subject's `deletedAt` column in `config.subjects`. `can_subject` filters
-soft-deleted rows out of a check that the row's own policies already pass, so
-clearing the column only shows a row again to someone who could already write
-it. A column the provider lists in `decidingColumns` always counts.
+Four kinds of column don't count. A single-column primary key doesn't, because
+its uniqueness stops a write from taking over another row. A tenant column
+doesn't when every policy for the write pins it without an `or`, to
+`better_supabase.current_tenant_id()`, to `better_supabase.can('tenant', column, ...)`
+or to `column in (select better_supabase.tenant_ids_with(...))`, so a write can
+only name a tenant the caller already acts in or holds the permission in. A
+subject's `deletedAt` column in `config.subjects` doesn't: `can_subject`
+filters soft-deleted rows out of a check that the row's own policies already
+pass, so clearing the column only shows a row again to someone who could
+already write it. A block's soft-delete column that its triggers never let a
+write clear, such as `comments.deleted_at`, doesn't either. A column the
+provider lists in `decidingColumns` always counts.
 
 A table-level grant counts even after a column-level revoke, because
 Postgres checks the table grant first. A grant to `public` counts for both

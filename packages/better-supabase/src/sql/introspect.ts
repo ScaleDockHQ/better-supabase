@@ -155,6 +155,35 @@ export const moduleSchemaExtensions = (
   );
 
 /**
+ * The installed modules' soft-delete columns (`SqlModule.hidingColumns`), as
+ * `schema.table.column` after the layout's renames, for doctor BS213.
+ */
+export function moduleHidingColumns(
+  installed: readonly string[],
+  layout: ModuleLayout,
+): string[] {
+  return resolveModules(installed, layout).flatMap((module) => {
+    if (!module.hidingColumns) {
+      return [];
+    }
+
+    const ctx = moduleContext(module.name, layout, installed);
+
+    return module.hidingColumns.flatMap((entry) => {
+      const [table = "", column = ""] = entry.split(".");
+
+      if (!ctx.hasTable(table) || !ctx.has(table, column)) {
+        return [];
+      }
+
+      const { schema, name } = ctx.tableName(table);
+
+      return [`${schema}.${name}.${ctx.colName(table, column)}`];
+    });
+  });
+}
+
+/**
  * The event triggers each of these modules creates, as its default file
  * renders them, for doctor's check of a database.
  */
