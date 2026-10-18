@@ -125,6 +125,7 @@ const NAMES: ModuleNames = {
         "revokedAt",
       ],
       optionalTable: true,
+      adoptOnlyWhenMapped: true,
     },
   },
   hooks: [

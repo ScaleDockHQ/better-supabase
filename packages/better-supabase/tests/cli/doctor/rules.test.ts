@@ -1286,6 +1286,39 @@ describe("adopted tables without a mapped column (BS330)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("checks tables an adopted module uses only when mapped, once they are mapped", async () => {
+    const targets = async (tables: Record<string, string>) =>
+      (
+        await run(
+          "BS330",
+          context(
+            base,
+            { database: live([]) },
+            { blocks: { notifications: { mode: "adopt", tables } } },
+          ),
+        )
+      ).map((finding) => finding.target);
+
+    const unmapped = await targets({});
+    expect(unmapped).not.toContain(
+      "better_supabase.notification_delivery_events",
+    );
+    expect(unmapped).not.toContain("better_supabase.notification_suppressions");
+    expect(unmapped).toContain("better_supabase.notification_deliveries");
+
+    expect(
+      await targets({
+        deliveryEvents: "public.delivery_events",
+        suppressions: "public.suppressed_addresses",
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        "public.delivery_events",
+        "public.suppressed_addresses",
+      ]),
+    );
+  });
 });
 
 describe("subject registry (BS331, BS332)", () => {
