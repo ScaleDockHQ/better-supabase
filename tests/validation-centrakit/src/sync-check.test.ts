@@ -58,14 +58,25 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         readonly findings: readonly {
           readonly code: string;
           readonly severity: string;
+          readonly message: string;
         }[];
       };
 
       // The adopt options that keep CentraKit's own token storage, secret
       // column, audit values and event sources are the only warnings.
+      // The shared stack also has the Next.js example's reactions module, which
+      // the fixture doesn't install; its comment check reads comments columns
+      // that the comments policies already pin (doctor BS213 can't see that).
       expect(
         report.findings
           .filter((finding) => finding.severity !== "info")
+          .filter(
+            (finding) =>
+              !(
+                finding.code === "BS213" &&
+                finding.message.includes("reaction_subject_visible")
+              ),
+          )
           .map((finding) => `${finding.severity} ${finding.code}`),
       ).toEqual(Array.from({ length: 5 }, () => "warning BS314"));
     } finally {

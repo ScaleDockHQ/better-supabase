@@ -298,6 +298,15 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
         url: "/admin/products/{id}",
         search: { body: ["description"] },
       },
+      // The shared stack indexes variants (the Next.js example installs
+      // catalogSubjects), and reinstalling search keeps that trigger.
+      product_variant: {
+        table: "better_supabase.product_variants",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "sku",
+        search: { body: ["title", "barcode"] },
+      },
     },
     blocks: {
       imports: {},

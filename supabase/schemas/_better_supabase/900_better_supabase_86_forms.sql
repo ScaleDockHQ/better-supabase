@@ -270,7 +270,7 @@ begin
         exit steps;
         end if;
         if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass('"better_supabase"."field_options"') is not null then
-          execute 'select jsonb_agg(jsonb_build_object(''value'', o."value", ''label'', o."label") order by o."value") from "better_supabase"."field_options" o where o."definition_id" = $1'
+          execute format('select jsonb_agg(jsonb_build_object(''value'', o."value", ''label'', o."label") order by o."value") from %s o where o."definition_id" = $1', to_regclass('"better_supabase"."field_options"'))
             into v_options using (v_field ->> 'customField')::uuid;
           v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));
         end if;
