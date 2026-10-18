@@ -48,7 +48,12 @@ export default defineConfig({
 
 [Create](https://bettersupabase.com/create) edits the same key on its
 canvas, and `init --preset` or `apply --preset` with its URL writes it into
-the config (see [init](/docs/cli/init#a-design-from-create)).
+the config (see [init](/docs/cli/init#a-design-from-create)). Dragging a
+table onto itself adds `parent_id` with `on delete set null`. A second key to
+the same table gets a free name you can rename: `owner_id`, `assignee_id`
+and so on for `auth.users` (the scope can claim `user_id`), and
+`<table>_2_id` for other tables. Create also starts without blocks: "Draw
+your own tables" adds a per-user table to an empty canvas.
 
 ## What each table gets
 

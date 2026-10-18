@@ -243,11 +243,9 @@ function ConnectTargets({ table }: { table: SchemaTable }): ReactElement {
   const { state, actions } = useCanvasMenu();
   const { state: designState } = useDesign();
 
-  const options = [
-    ...state.data.tables.filter((each) => each.id !== table.id),
-  ].map((target) => ({
+  const options = state.data.tables.map((target) => ({
     id: target.id,
-    label: target.name,
+    label: target.id === table.id ? `${target.name} (itself)` : target.name,
     app: isAppTable(target),
     result: connect(designState.design, state.data, state.preset, {
       source: table.id,

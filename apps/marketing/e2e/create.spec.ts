@@ -1,6 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
-import { decodePreset } from "better-supabase/preset";
+import { decodePreset, encodeDesign } from "better-supabase/preset";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -104,6 +104,20 @@ test("/create/prompt.md returns the AI instructions as Markdown", async ({
 
   const bad = await request.get("/create/prompt.md?manager=deno");
   expect(bad.status()).toBe(400);
+
+  const design = await encodeDesign({
+    appTables: { projects: { columns: { name: { type: "text" } } } },
+  });
+
+  const designed = await request.get(
+    `/create/prompt.md?preset=saas&design=${design}`,
+  );
+
+  expect(designed.status()).toBe(200);
+  expect(await designed.text()).toContain(`&design=${design}`);
+
+  const damaged = await request.get("/create/prompt.md?design=nope");
+  expect(damaged.status()).toBe(400);
 });
 
 test("ticking comments switches on tenant and access, and the URL keeps the selection", async ({

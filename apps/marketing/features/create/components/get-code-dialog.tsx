@@ -79,18 +79,24 @@ function configSourceOf(
 /** The `/create/prompt.md` URL for the same choices, so an agent can fetch it. */
 function promptUrl({
   code,
+  designCode,
   ui,
   pkg,
   authz,
   manager,
 }: {
   code: string;
+  designCode: string;
   ui: boolean;
   pkg: string | undefined;
   authz: AuthzLibrary | undefined;
   manager: PackageManager;
 }): string {
   const params = new URLSearchParams({ preset: code });
+
+  if (designCode !== "") {
+    params.set("design", designCode);
+  }
 
   if (ui) {
     params.set("ui", "1");
@@ -146,26 +152,22 @@ function AiInstructions({
     [resolved, design, designCode, ui, manager, pkg, authz],
   );
 
-  const url = promptUrl({ code, ui, pkg, authz, manager });
+  const url = promptUrl({ code, designCode, ui, pkg, authz, manager });
 
   return (
     <PromptFrame
       title="AI instructions"
       description={
-        designCode === "" ? (
-          <>
-            Paste this into your coding agent, or have it fetch{" "}
-            <a
-              href={url}
-              className="break-all text-foreground underline underline-offset-4 transition-colors hover:text-primary"
-            >
-              the Markdown
-            </a>
-            .
-          </>
-        ) : (
-          "Paste this into your coding agent."
-        )
+        <>
+          Paste this into your coding agent, or have it fetch{" "}
+          <a
+            href={url}
+            className="break-all text-foreground underline underline-offset-4 transition-colors hover:text-primary"
+          >
+            the Markdown
+          </a>
+          .
+        </>
       }
       prompt={prompt}
       copyLabel="Copy AI instructions"
@@ -276,8 +278,7 @@ function isPackageManager(value: unknown): value is PackageManager {
  * The commands for a new or an existing project in the package manager the
  * person picks, then the files those commands write and the AI instructions.
  * `design` holds the app tables and extra columns from the canvas, and
- * `designCode` its URL code; the Markdown link shows only without one,
- * because `/create/prompt.md` reads the preset alone.
+ * `designCode` its URL code, which the Markdown link carries too.
  */
 export function GetCodeDialog({
   open,

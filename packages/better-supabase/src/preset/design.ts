@@ -43,6 +43,23 @@ const DESIGN_VERSION = "0";
 /** The longest design code, so a `/create` URL stays under common limits. */
 export const MAX_DESIGN_CODE_LENGTH = 6000;
 
+/**
+ * What `encodeDesign` throws when a valid design is too long for a URL, so
+ * a caller can offer the config download instead of a fix.
+ */
+export class DesignTooLongError extends TypeError {
+  /** The length the code would have. */
+  readonly length: number;
+
+  constructor(length: number) {
+    super(
+      `design: the code is ${String(length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the config instead, save it as better-supabase.config.ts, then run \`better-supabase init\` and \`better-supabase sql sync\`.`,
+    );
+    this.name = "DesignTooLongError";
+    this.length = length;
+  }
+}
+
 /** The most bytes a design code inflates to; a longer one is rejected. */
 const MAX_DESIGN_BYTES = 256 * 1024;
 
@@ -297,8 +314,8 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
 /**
  * The design as a code for the `&design=` parameter: `0`, then its JSON
  * compressed with deflate-raw, in base64url. An empty design is `""`.
- * Throws a TypeError when the design is invalid or the code would be longer
- * than `MAX_DESIGN_CODE_LENGTH`.
+ * Throws a TypeError when the design is invalid, and a `DesignTooLongError`
+ * when the code would be longer than `MAX_DESIGN_CODE_LENGTH`.
  */
 export async function encodeDesign(design: CreateDesign): Promise<string> {
   const checked = designOfValue(design);
@@ -314,9 +331,7 @@ export async function encodeDesign(design: CreateDesign): Promise<string> {
   )}`;
 
   if (code.length > MAX_DESIGN_CODE_LENGTH) {
-    throw new TypeError(
-      `design: the code is ${String(code.length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the config instead, save it as better-supabase.config.ts, then run \`better-supabase init\` and \`better-supabase sql sync\`.`,
-    );
+    throw new DesignTooLongError(code.length);
   }
 
   return code;

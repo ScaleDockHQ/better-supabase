@@ -316,6 +316,7 @@
   },
   "./preset": {
     "values": [
+      "appReservedColumns",
       "decodeDesign",
       "decodePreset",
       "DEFAULT_CONVENTIONS",
@@ -324,10 +325,12 @@
       "designConfigSource",
       "designInstallCommand",
       "designOf",
+      "DesignTooLongError",
       "encodeDesign",
       "encodePreset",
       "expandPreset",
       "glueCommand",
+      "isAppDefault",
       "isDesignCode",
       "isPresetCode",
       "isPresetName",
