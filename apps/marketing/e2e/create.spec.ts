@@ -143,9 +143,11 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
   for (const name of ["tenant", "access"]) {
     await expect(block(page, name)).toBeChecked();
     await expect(block(page, name)).toBeDisabled();
+    await expect(block(page, name)).toHaveAccessibleDescription(
+      /^Required by .*comments$/u,
+    );
   }
 
-  await expect(page.getByText("Required by comments").first()).toBeVisible();
   await expect(page).toHaveURL(/\/create\?preset=[1-9A-Z][0-9A-Za-z]+$/u);
   const code = new URL(page.url()).searchParams.get("preset") ?? "";
 
@@ -699,6 +701,7 @@ test("Add table here on the canvas menu adds a table that covers no other", asyn
   const items = page.locator('.react-flow__node[data-id="public.items"]');
   await expectClearOfOthers(page, "public.items");
 
+  await expect(items).toBeFocused();
   await page.keyboard.press("ControlOrMeta+z");
   await expect(items).toHaveCount(0);
 });
@@ -907,4 +910,27 @@ test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
       targets: violation.nodes.map((node) => node.target.join(" ")),
     })),
   ).toEqual([]);
+});
+
+test("a template draws its tables, and the Data tab shows sample rows", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await page.getByRole("button", { name: "Start from a template" }).click();
+  const picker = page.getByRole("dialog", { name: "Start from a template" });
+  await picker.getByRole("button", { name: /^Projects and tasks/u }).click();
+  await expect(picker).toBeHidden();
+  await expect(page).toHaveURL(/&design=0[\w-]+$/u);
+
+  const tasks = page.locator('.react-flow__node[data-id="public.tasks"]');
+  await expect(tasks).toBeVisible();
+
+  await tasks.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "tasks" });
+  await inspector.getByRole("tab", { name: "Data" }).click();
+  await expect(inspector.getByRole("cell", { name: "Task 1" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Undo" }).first().click();
+  await expect(tasks).toHaveCount(0);
 });

@@ -8,7 +8,7 @@ import {
   LinkIcon,
   RotateCwIcon,
 } from "lucide-react";
-import { Suspense, use, useId, useReducer } from "react";
+import { Suspense, use, useId, useReducer, useState } from "react";
 
 import {
   Alert,
@@ -64,6 +64,7 @@ import {
   OverviewTab,
   type InspectorPreset,
 } from "./inspector-columns";
+import { DataTab } from "./inspector-data";
 import { FeaturesTab } from "./inspector-features";
 import {
   forgetMigrations,
@@ -80,6 +81,7 @@ const TABS: readonly {
   { value: "columns", label: "Columns" },
   { value: "relations", label: "Relations" },
   { value: "features", label: "Features" },
+  { value: "data", label: "Data" },
   { value: "options", label: "Options" },
   { value: "sql", label: "SQL" },
 ];
@@ -506,6 +508,21 @@ export function TableInspector({
   data: SchemaData;
   preset: InspectorPreset;
 }): ReactElement {
+  const [shown, setShown] = useState(table?.id);
+
+  if (table !== undefined && table.id !== shown) {
+    setShown(table.id);
+  }
+
+  // A menu item that opened the inspector is gone when it closes, so focus
+  // returns to the table's node and the canvas shortcuts keep working.
+  const returnFocus = (): HTMLElement | true =>
+    (shown === undefined
+      ? null
+      : document.querySelector<HTMLElement>(
+          `.react-flow__node[data-id="${CSS.escape(shown)}"]`,
+        )) ?? true;
+
   return (
     <Sheet
       open={table !== undefined}
@@ -517,6 +534,7 @@ export function TableInspector({
     >
       <SheetContent
         side="right"
+        finalFocus={returnFocus}
         className="w-full gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-none lg:data-[side=right]:w-[34rem]"
       >
         {table === undefined ? null : (
@@ -565,6 +583,9 @@ export function TableInspector({
                 </TabsContent>
                 <TabsContent value="features">
                   <FeaturesTab table={table} />
+                </TabsContent>
+                <TabsContent value="data">
+                  <DataTab table={table} onTab={onTab} />
                 </TabsContent>
                 <TabsContent value="options">
                   <OptionsTab table={table} preset={preset} />
