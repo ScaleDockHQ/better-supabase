@@ -41,6 +41,7 @@ export const EXTRAS_RULES: ReadonlySet<string> = new Set([
   "BS305",
   "BS306",
   "BS337",
+  "BS338",
   "BS310",
   "BS315",
   "BS404",

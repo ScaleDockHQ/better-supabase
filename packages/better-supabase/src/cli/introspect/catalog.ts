@@ -297,14 +297,21 @@ export function toCatalog(snapshot: Snapshot): Catalog {
 
   const types = new Map(meta.types.map((type) => [type.id, type]));
 
+  const comments = snapshot.extras.functionComments ?? {};
+
   const functions = meta.functions
-    .map((fn) =>
-      toFunction(
+    .map((fn) => {
+      const entry = toFunction(
         fn,
         (id) => types.get(id),
         (id) => (id === null ? null : (relationNames.get(id) ?? null)),
-      ),
-    )
+      );
+
+      const comment =
+        comments[`${fn.schema}.${fn.name}(${fn.identity_argument_types})`];
+
+      return comment === undefined ? entry : { ...entry, comment };
+    })
     .sort((a, b) => byName(a, b) || byCodePoint(a.signature, b.signature));
 
   return {

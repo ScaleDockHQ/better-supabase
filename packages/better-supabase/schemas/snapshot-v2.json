@@ -958,6 +958,12 @@
             }
           }
         },
+        "functionComments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "hooks": {
           "type": "array",
           "items": {

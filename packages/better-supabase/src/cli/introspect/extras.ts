@@ -218,6 +218,15 @@ where r.rolname in ('authenticator', 'anon', 'authenticated')
   and s.setdatabase in (0, (select oid from pg_catalog.pg_database where datname = current_database()))
 order by s.setdatabase`;
 
+// Only comments with a gen tag, so snapshots of untagged schemas don't change.
+const FUNCTION_COMMENTS = (schemas: string) => `
+select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as key,
+  obj_description(p.oid, 'pg_proc') as comment
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = any(${schemas}) and obj_description(p.oid, 'pg_proc') ~ '@notNull'
+order by 1`;
+
 const HAS_TABLE = (qualified: string) =>
   `select to_regclass('${qualified}') is not null as present`;
 
@@ -442,6 +451,7 @@ export async function readExtras(
     functions,
     roleRows,
     hookRows,
+    commentRows,
   ] = await Promise.all([
     rows<{
       id: number | string;
@@ -460,6 +470,7 @@ export async function readExtras(
     rows<ExtrasFunctionRow>(db, FUNCTIONS(list)),
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
     hooks.length > 0 ? readHooks(db, hooks) : undefined,
+    rows<{ key: string; comment: string }>(db, FUNCTION_COMMENTS(list)),
   ]);
 
   const constraints = groupById(constraintRows);
@@ -571,5 +582,12 @@ export async function readExtras(
       execute: row.execute,
     })),
     ...(hookRows ? { hooks: hookRows } : {}),
+    ...(commentRows.length > 0
+      ? {
+          functionComments: Object.fromEntries(
+            commentRows.map((row) => [row.key, row.comment]),
+          ),
+        }
+      : {}),
   };
 }

@@ -1859,6 +1859,56 @@ describe("tables without the session policy (BS320)", () => {
   });
 });
 
+describe("functions.notNull entries a tag could replace (BS338)", () => {
+  const tagged = (comments: Record<string, string>) =>
+    snapshot((_tables, catalog) => {
+      catalog.functions = catalog.functions.map((fn) =>
+        comments[fn.name] === undefined
+          ? fn
+          : { ...fn, comment: comments[fn.name]! },
+      );
+    });
+
+  it("suggests the tag, and reports entries that match or differ from it", async () => {
+    const config = {
+      functions: {
+        customer_note_counts: { notNull: ["customer_id", "note_count"] },
+        rs_workspace_summary: { notNull: true as const },
+      },
+    };
+
+    const untagged = await run("BS338", context(tagged({}), {}, config));
+
+    expect(untagged.map((finding) => finding.severity)).toEqual([
+      "info",
+      "info",
+    ]);
+    expect(untagged[0]!.message).toContain(
+      "add `@notNull(customer_id, note_count)` to the comment on public.customer_note_counts(p_customer_ids uuid[])",
+    );
+
+    const findings = await run(
+      "BS338",
+      context(
+        tagged({
+          customer_note_counts: "Counts. @notNull(note_count, customer_id)",
+          rs_workspace_summary: "@notNull(id)",
+        }),
+        {},
+        config,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining(
+        "matches the @notNull(customer_id, note_count) tag",
+      ),
+      expect.stringContaining("differs from the @notNull(id) tag"),
+    ]);
+    expect(await run("BS338", context(tagged({}), {}, {}))).toEqual([]);
+  });
+});
+
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
     name: "bs_broadcast_org_notes",

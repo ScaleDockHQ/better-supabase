@@ -53,6 +53,11 @@ export interface SnapshotExtras {
    */
   readonly hooks?: readonly ExtrasHook[];
   /**
+   * Comments of the functions in the read schemas that carry a gen tag
+   * (`@notNull`), keyed by `schema.name(signature)`. Absent when none do.
+   */
+  readonly functionComments?: Readonly<Record<string, string>>;
+  /**
    * Set when the snapshot comes from a `GeneratorMetadata` document alone
    * (`gen --metadata`): unique keys, checks and foreign keys are inferred from
    * the columns and relationships, and the rest is empty, so doctor skips
@@ -310,6 +315,8 @@ export interface CatalogFunction {
   readonly language: string;
   /** `search_path` from `SET search_path`, or `null` when unset. */
   readonly searchPath: string | null;
+  /** The function's comment, when it carries a gen tag such as `@notNull`. */
+  readonly comment?: string;
 }
 
 export interface CatalogFunctionArg {

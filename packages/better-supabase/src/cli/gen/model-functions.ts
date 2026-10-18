@@ -4,6 +4,31 @@ import type { FunctionModel, ModelContext, TableModel } from "./model-types.ts";
 import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
 import { arrayOf, configFor } from "./shared.ts";
 
+const NOT_NULL_TAG = /@notNull(?:\(([^)]*)\))?/u;
+
+/**
+ * The `@notNull` tag in a function's comment: `true` for every result, or the
+ * columns `@notNull(a, b)` names. `undefined` without a tag.
+ */
+export function notNullTag(
+  comment: string | undefined,
+): true | readonly string[] | undefined {
+  const match = comment === undefined ? null : NOT_NULL_TAG.exec(comment);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const list = match[1];
+
+  return list === undefined
+    ? true
+    : list
+        .split(",")
+        .map((name) => name.trim())
+        .filter((name) => name !== "");
+}
+
 /** The callable functions; warns about functions another schema shadows. */
 export function buildFunctions(
   ctx: ModelContext,
@@ -62,14 +87,26 @@ export function buildFunctions(
         return tsType(fn.schema, format, typeSchema);
       };
 
-      const notNull = configFor(config.functions, fn.schema, fn.name)?.notNull;
+      const configured = configFor(
+        config.functions,
+        fn.schema,
+        fn.name,
+      )?.notNull;
+
+      const notNull = configured ?? notNullTag(fn.comment);
+
+      const source =
+        configured === undefined
+          ? `the @notNull tag on ${fn.schema}.${fn.name}`
+          : `functions.${fn.name}.notNull`;
+
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
 
       if (Array.isArray(notNull)) {
         for (const name of notNullColumns) {
           if (!fn.returnsTable?.some((column) => column.name === name)) {
             throw new TypeError(
-              `functions.${fn.name}.notNull: "${name}" is not a column the function returns`,
+              `${source}: "${name}" is not a column the function returns`,
             );
           }
         }

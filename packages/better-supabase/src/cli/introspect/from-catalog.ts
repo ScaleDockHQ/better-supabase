@@ -227,6 +227,12 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     });
   });
 
+  const comments = catalog.functions.flatMap((fn) =>
+    fn.comment === undefined
+      ? []
+      : [[`${fn.schema}.${fn.name}(${fn.signature})`, fn.comment] as const],
+  );
+
   return {
     version: 2,
     schemas,
@@ -252,6 +258,9 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       })),
       buckets: catalog.buckets,
       realtime: catalog.realtime,
+      ...(comments.length > 0
+        ? { functionComments: Object.fromEntries(comments) }
+        : {}),
     },
   };
 }

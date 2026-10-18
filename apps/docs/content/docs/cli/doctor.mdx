@@ -978,6 +978,17 @@ sends the primary key and the topic values, or pass `payload: "row"` to keep
 whole rows on purpose. See
 [row changes](/docs/platform/realtime#row-changes).
 
+### BS338
+
+**Info: `functions.notNull` entry a comment tag could replace.** `gen` reads
+`@notNull` and `@notNull(a, b)` from a function's comment, so the promise can
+live next to the SQL instead of in `better-supabase.config.ts`. Doctor lists
+each `functions.<name>.notNull` entry for a function in the read schemas: one
+the function's tag already matches (remove the entry), one with no tag (add
+the tag the finding prints, then remove the entry), and one that differs from
+the tag, where the config entry wins. See
+[nullable function results](/docs/cli/gen).
+
 ## Auth config
 
 ### BS401

@@ -310,7 +310,10 @@ describe("function results", () => {
 });
 
 describe("function result nullability", () => {
-  const withScalars = async (config: BetterSupabaseConfig = {}) => {
+  const withScalars = async (
+    config: BetterSupabaseConfig = {},
+    functionComments?: Record<string, string>,
+  ) => {
     const fixture = await loadFixtureSnapshot();
 
     const template = fixture.generator.functions.find(
@@ -340,6 +343,9 @@ describe("function result nullability", () => {
 
     const snapshot = {
       ...fixture,
+      extras: functionComments
+        ? { ...fixture.extras, functionComments }
+        : fixture.extras,
       generator: {
         ...fixture.generator,
         functions: [
@@ -392,6 +398,41 @@ describe("function result nullability", () => {
       }),
     ).rejects.toThrow(
       'functions.customer_note_counts.notNull: "missing" is not a column the function returns',
+    );
+  });
+
+  it("reads @notNull from the function comment, and the config wins", async () => {
+    const tagged = {
+      "public.open_count()": "Open tickets. @notNull",
+      "public.customer_note_counts(p_customer_ids uuid[])":
+        "@notNull(customer_id, note_count)",
+    };
+
+    const returns = await withScalars({}, tagged);
+
+    expect(returns("open_count")).toBe("number");
+    expect(returns("customer_note_counts")).toBe(
+      '{ "customer_id": string; "last_note_at": string | null; "note_count": number }[]',
+    );
+
+    const configured = await withScalars(
+      { functions: { customer_note_counts: { notNull: ["customer_id"] } } },
+      tagged,
+    );
+
+    expect(configured("customer_note_counts")).toBe(
+      '{ "customer_id": string; "last_note_at": string | null; "note_count": number | null }[]',
+    );
+    await expect(
+      withScalars(
+        {},
+        {
+          "public.customer_note_counts(p_customer_ids uuid[])":
+            "@notNull(nope)",
+        },
+      ),
+    ).rejects.toThrow(
+      'the @notNull tag on public.customer_note_counts: "nope" is not a column the function returns',
     );
   });
 });

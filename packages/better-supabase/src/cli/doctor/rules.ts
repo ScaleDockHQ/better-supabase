@@ -21,6 +21,7 @@ import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { sameText } from "../io.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
+import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
@@ -1132,6 +1133,7 @@ export const RULES: readonly Rule[] = [
   ...WORKFLOW_BUILDER_RULES,
   ...FLAG_RULES,
   ...REALTIME_RULES,
+  ...ADOPTION_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
