@@ -24,7 +24,6 @@ export const navLinks: readonly NavLink[] = [
   { href: "/blocks", label: "Blocks" },
   { href: "/recipes", label: "Recipes" },
   { href: "/create", label: "Create" },
-  { href: "/changelog", label: "Changelog" },
 ];
 
 export const footerColumns: readonly {
@@ -45,7 +44,6 @@ export const footerColumns: readonly {
     title: "Resources",
     links: [
       { href: "/docs", label: "Docs" },
-      { href: "/changelog", label: "Changelog" },
       { href: "/docs/examples", label: "Examples" },
       { href: "/docs/for-ai-agents", label: "For AI agents" },
     ],

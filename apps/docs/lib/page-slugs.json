@@ -114,6 +114,7 @@
   "build/chatgpt-clone",
   "build/unibox-inbox",
   "build/workflow-builder",
+  "changelog",
   "chat-sdk",
   "chat-sdk/channels",
   "chat-sdk/identities",

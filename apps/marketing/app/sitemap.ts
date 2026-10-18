@@ -9,7 +9,6 @@ const routes = [
   "/blocks",
   "/recipes",
   "/create",
-  "/changelog",
   "/enterprise",
   "/docs",
 ] as const;
