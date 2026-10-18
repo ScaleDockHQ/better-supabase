@@ -245,12 +245,22 @@ after the `search` block.
 app table removes them. A table listed in `expose` keeps the grants
 `expose` gives it.
 
+## Screens
+
+`better-supabase scaffold screens <table>` writes a list, a create form and
+a detail page for a table in Next.js, with an input per column from its
+type, format and options (see [scaffold](/docs/cli/scaffold#screens)). The
+`record-*` [UI recipes](/docs/registry/ui-recipes) build richer screens on
+ReUI: a grid with saved views, a board, a calendar, a timeline and a Gantt
+chart.
+
 ## Example
 
-The Next.js example declares two app tables in
+The Next.js example declares three app tables in
 `apps/examples/nextjs/better-supabase.config.ts`: `projects`, scoped to the
-organization with a label from the `tags` block, and `saved_views`, scoped
-to the user. `GET /api/projects` (`src/app/api/projects/route.ts`) lists the
+organization with a label from the `tags` block, `tasks` in those projects,
+and `saved_views`, scoped to the user. `/projects` shows the tasks in the
+`record-*` screens. `GET /api/projects` (`src/app/api/projects/route.ts`) lists the
 organization's projects, and `tests/lib/app-tables.test-d.ts` checks the
 generated repositories. The example writes its pgTAP test to the fixture's
 `supabase/tests/database` through `sql.testsDir`.

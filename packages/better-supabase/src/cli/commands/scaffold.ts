@@ -21,12 +21,18 @@ import {
   scaffoldApiFiles,
   scaffoldNextSteps,
 } from "../scaffold/api.ts";
+import { ScreensError, scaffoldScreensFiles } from "../scaffold/screens.ts";
 
 const ARGS = {
   kind: {
     type: "positional",
     required: false,
-    description: "api",
+    description: "api, or screens <table>",
+  },
+  table: {
+    type: "positional",
+    required: false,
+    description: "The app table `scaffold screens` writes pages for",
   },
   framework: {
     type: "string",
@@ -47,7 +53,8 @@ const ARGS = {
   },
   "base-path": {
     type: "string",
-    description: "Where the resources are served. Defaults to /api",
+    description:
+      "Where the resources are served (default /api), or the route the screens live under (default /<table>)",
     valueHint: "path",
   },
 } as const;
@@ -98,12 +105,16 @@ export async function runScaffold(
   args: ScaffoldFlags,
   options: ScaffoldOptions = {},
 ): Promise<CommandResult> {
-  const [kind] = args._ ?? [];
+  const [kind, table] = args._ ?? [];
+
+  if (kind === "screens") {
+    return runScaffoldScreens(config, args, table);
+  }
 
   if (kind !== "api") {
     return {
       code: 2,
-      error: `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\`.`,
+      error: `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\` or \`better-supabase scaffold screens <table>\`.`,
     };
   }
 
@@ -257,6 +268,79 @@ export async function runScaffold(
   };
 }
 
+/** Writes list, create and detail pages for one app table, each once. */
+async function runScaffoldScreens(
+  config: ResolvedConfig,
+  args: ScaffoldFlags,
+  table: string | undefined,
+): Promise<CommandResult> {
+  if (table === undefined) {
+    return {
+      code: 2,
+      error: "Name the app table: `better-supabase scaffold screens <table>`.",
+    };
+  }
+
+  const project = await detectProject(config.root);
+
+  const framework =
+    args.framework ??
+    (project.frameworks.includes("next") ? "next" : undefined);
+
+  if (framework !== "next") {
+    return {
+      code: 2,
+      error:
+        framework === undefined
+          ? "Screens are Next.js pages, and package.json has no next. Pass --framework next."
+          : `Screens are Next.js pages; --framework ${framework} has none.`,
+    };
+  }
+
+  const basePath = `/${(args["base-path"] ?? table).replaceAll(/^\/+|\/+$/g, "")}`;
+  let files;
+
+  try {
+    files = scaffoldScreensFiles({
+      config,
+      table,
+      srcDir: project.srcDir,
+      tsExtensions: project.tsExtensions,
+      basePath,
+    });
+  } catch (error) {
+    if (error instanceof ScreensError) {
+      return { code: 1, error: error.message };
+    }
+
+    throw error;
+  }
+
+  const lines: string[] = [];
+
+  for (const file of files) {
+    const path = resolve(config.root, file.path);
+
+    if (existsSync(path)) {
+      lines.push(`Kept ${file.path} (yours)`);
+      continue;
+    }
+
+    lines.push((await writeLine(path, file.contents, file.path)).line);
+  }
+
+  return {
+    code: 0,
+    output: [
+      ...lines,
+      "",
+      "Next:",
+      `- Open ${basePath} in \`next dev\`. The pages call \`bs\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
+      "- The files are yours. For search, saved views, a board or a calendar, start from the record-* recipes: https://bettersupabase.com/docs/registry/ui-recipes",
+    ].join("\n"),
+  };
+}
+
 const quote = (value: string): string => `'${value}'`;
 
 const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
@@ -271,7 +355,7 @@ export const scaffoldCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "scaffold",
     description:
-      "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
+      "Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table",
   },
   args: ARGS,
   lists: ["tables"],

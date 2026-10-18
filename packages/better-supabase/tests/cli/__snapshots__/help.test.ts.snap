@@ -301,20 +301,21 @@ OPTIONS
 `;
 
 exports[`help > documents scaffold 1`] = `
-"Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js (better-supabase scaffold v<version>)
+"Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table (better-supabase scaffold v<version>)
 
-USAGE better-supabase scaffold [OPTIONS] [KIND]
+USAGE better-supabase scaffold [OPTIONS] [KIND] [TABLE]
 
 ARGUMENTS
 
-  KIND    api
+   KIND    api, or screens <table>                          
+  TABLE    The app table \`scaffold screens\` writes pages for
 
 OPTIONS
 
   --framework=<name>    hono or next. Defaults to the one in package.json                                                              
      --tables=<list>    Tables to serve. Defaults to every table and view in the public schema                                         
        --name=<name>    The API module's name: lib/<name>.ts and lib/<name>.generated.ts. Defaults to api                              
-  --base-path=<path>    Where the resources are served. Defaults to /api                                                               
+  --base-path=<path>    Where the resources are served (default /api), or the route the screens live under (default /<table>)          
          --cwd=<dir>    Project directory                                                                                              
      --config=<file>    Config file, relative to --cwd                                                                                 
         --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
@@ -448,7 +449,7 @@ COMMANDS
   introspect    Saves the database schema as a snapshot for offline gen                                                       
      openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                         
         spec    Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders              
-    scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js                            
+    scaffold    Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table    
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                       
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict        
          sql    Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files                           
