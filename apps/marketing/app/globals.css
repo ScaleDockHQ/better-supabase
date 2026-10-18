@@ -219,6 +219,13 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Tailwind 4 resets buttons to the default cursor. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [draggable="true"] {
+    cursor: pointer;
+  }
+
   html {
     scrollbar-gutter: stable;
   }
