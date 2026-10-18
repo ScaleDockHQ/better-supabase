@@ -30,7 +30,7 @@ security`, a policy per role and command the app uses, and an index on
    `organization_id in (select better_supabase.member_organization_ids())`, which
    Postgres runs once per statement, not `has_organization_role(organization_id)`,
    which runs once per row. List the table in `expose` in
-   `better-supabase.config.ts` and run `pnpm better-supabase sql add grants`:
+   `better-supabase.config.ts` and run `pnpm better-supabase add grants`:
    new tables get no Data API grants on their own.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
 4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces. It

@@ -9,7 +9,7 @@ once with a Standard Schema each (Zod, Valibot, ArkType), and the block gives
 you typed `get`, `set` and `reset` that validate before they write.
 
 ```bash
-better-supabase sql add settings   # adds tenant and access as well
+better-supabase add settings   # adds tenant and access as well
 ```
 
 | Table                   | Key                      | Who reads                    | Who writes                     |
@@ -296,7 +296,7 @@ export default defineConfig({
 ```
 
 ```bash
-better-supabase sql add jsonb-schemas settings
+better-supabase add jsonb-schemas settings
 ```
 
 The checks need the `jsonb-schemas` module, which installs `pg_jsonschema`.

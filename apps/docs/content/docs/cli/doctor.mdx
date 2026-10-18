@@ -159,7 +159,7 @@ need exactly the privileges listed; other tables in the generated schemas need
 policy when
 `blocks.grants.options.fromPolicies` is on: those are service-only, so
 BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
-and run `better-supabase sql add grants`. When `config.toml` sets
+and run `better-supabase add grants`. When `config.toml` sets
 `[api] auto_expose_new_tables = false`, the finding says so.
 
 A table that only the server reads, such as an audit log written with the
@@ -187,7 +187,7 @@ itself (the one the tenant column references) is skipped.
 **Error: policy reads `auth.mfa_factors` directly.** `authenticated` can't
 select from `auth.mfa_factors`, so the policy fails every request with
 `42501`. Use `(select better_supabase.mfa_satisfied())` from
-`better-supabase sql add mfa`, a `security definer` function. See
+`better-supabase add mfa`, a `security definer` function. See
 [MFA and SSO](/docs/auth/mfa-sso).
 
 ### BS109
@@ -688,7 +688,7 @@ doctor skips that file instead of reporting it.
 **Warning: live query table without change broadcasts.** A table in
 `realtime.tables` has no `bs_realtime` trigger, so
 [live queries](/docs/frontend/live-queries) never hear about its changes. Run
-`better-supabase sql add realtime-tables`, then
+`better-supabase add realtime-tables`, then
 `supabase db schema declarative sync`.
 
 ### BS306

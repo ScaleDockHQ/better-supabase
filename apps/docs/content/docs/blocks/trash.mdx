@@ -6,7 +6,7 @@ description: Soft delete through each subject's deletedAt column, with children 
 `trash` sets a subject's `deletedAt` column instead of deleting the row, records it in `trash_items`, and trashes the rows that point at it in the same batch. Restoring a trash item restores its whole batch. Reading the trash needs `trash.read`, trashing needs `trash.create` and the subject's `write` permission, restoring needs `trash.restore`, and purging needs `trash.manage`.
 
 ```bash
-better-supabase sql add trash
+better-supabase add trash
 ```
 
 ```ts

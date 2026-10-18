@@ -10,7 +10,7 @@ A list is the static counterpart of a [saved view](/docs/blocks/saved-views). A 
 Reading needs `collections.read`, and starring, creating personal lists and changing entries need `collections.write`. Creating, renaming or archiving a team or organization list needs `collections.share`. Admins get every permission, and members get `collections.read` and `collections.write`.
 
 ```bash
-better-supabase sql add collections
+better-supabase add collections
 ```
 
 The module needs `tenant`, `access` and `subjects`, and uses `teams` for team lists and `outbox` for its events.

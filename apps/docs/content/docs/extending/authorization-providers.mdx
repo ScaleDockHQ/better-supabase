@@ -50,7 +50,7 @@ instead of calling it with defaults. See the
 | Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
 | `options.subjects.<type>.scope` in attachments and comments                                | `idsWith` at that scope, for grants on a single record                            |
 | [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
-| `better-supabase sql add tenant`                                                           | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
+| `better-supabase add tenant`                                                               | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
 | `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
 | [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
 

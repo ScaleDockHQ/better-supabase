@@ -5,7 +5,7 @@ description: Install better-supabase glue (block wiring, server actions, hooks, 
 
 The `@better-supabase` registry serves glue as [shadcn registry](https://ui.shadcn.com/docs/registry) items: the code that wires blocks into your app and that you are expected to edit. The shadcn CLI copies an item into your project, so it becomes yours.
 
-The registry holds no UI. better-supabase ships no visible components: the interface comes from your own shadcn components and a block's hook, following a [UI recipe](/docs/registry/ui-recipes). It holds no config or SQL either: install a block with `npx better-supabase sql add <block>`, which writes its migration and config, and each item's docs say which blocks it needs.
+The registry holds no UI. better-supabase ships no visible components: the interface comes from your own shadcn components and a block's hook, following a [UI recipe](/docs/registry/ui-recipes). It holds no config or SQL either: install a block with `npx better-supabase add <block>`, which writes its migration and config, and each item's docs say which blocks it needs.
 
 ## Add the namespace
 
@@ -22,7 +22,7 @@ Add the registry to `components.json`:
 Then install items by name:
 
 ```bash
-npx better-supabase sql add outbox
+npx better-supabase add outbox
 npx shadcn add @better-supabase/outbox-relay-next
 ```
 

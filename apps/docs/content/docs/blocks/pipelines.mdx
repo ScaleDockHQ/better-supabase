@@ -10,7 +10,7 @@ The module writes a history row every time a record changes stage, keeps the tim
 Reading pipelines and boards needs `pipelines.read`, and creating, renaming, reordering or archiving pipelines and stages needs `pipelines.manage`. Admins get both and members get `pipelines.read`. Moving a record is an update of its own table, so your table's policies decide who may move it.
 
 ```bash
-better-supabase sql add pipelines
+better-supabase add pipelines
 ```
 
 The module needs `tenant`, `access` and `subjects`.

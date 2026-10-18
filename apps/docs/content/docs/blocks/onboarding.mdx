@@ -10,7 +10,7 @@ app calls `complete`, or on its own when the outbox records one of the event
 types it lists.
 
 ```bash
-better-supabase sql add onboarding   # adds tenant and access as well
+better-supabase add onboarding   # adds tenant and access as well
 ```
 
 | Table                 | Holds                                                                                                   |
@@ -65,7 +65,7 @@ export default defineConfig({
 
 Steps with `events` need the [outbox](/docs/blocks/outbox). An organization
 step completes for the event's tenant; a user step completes for its actor.
-Run `better-supabase sql add onboarding` again after you change a
+Run `better-supabase add onboarding` again after you change a
 checklist's steps.
 
 ## Progress

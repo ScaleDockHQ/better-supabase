@@ -6,7 +6,7 @@ description: Hashed share links, view counts and per-user state. The token is re
 `share-links` creates a link, returns the token once and stores only its SHA-256. `resolve_share_link` is granted to `anon` and hashes the token it is given, so a row that still holds a plaintext token keeps working after you store `sha256` of it. Revoking, listing, recording a view and setting starred or last-opened state are the other calls.
 
 ```bash
-better-supabase sql add share-links
+better-supabase add share-links
 ```
 
 ```ts

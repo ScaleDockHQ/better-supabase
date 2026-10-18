@@ -10,7 +10,7 @@ System templates (no organization) are starters your app ships and keeps by key 
 Reading templates needs `templates.read`, applying one needs `templates.apply`, and creating, editing, publishing, forking and attaching workflows needs `templates.manage`. Admins get every permission, and members get `templates.read` and `templates.apply`. Only the service role changes system templates.
 
 ```bash
-better-supabase sql add templates
+better-supabase add templates
 ```
 
 The module needs `tenant` and `access`. With `outbox` it records events, with `audit` it audits publishes and applications, with `workflow-builder` it attaches workflows, and with `jsonb-schemas` it checks a workflow's inputs against its whole input schema.

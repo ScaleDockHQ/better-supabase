@@ -6,7 +6,7 @@ description: Folders and files on the attachments module. Access is granted to u
 `drive` keeps a tree of folders and files per organization. A file is a node that points at an [attachment](/docs/blocks/attachments), so uploads, scanning and signed downloads work as they do there. Access is granted on a node to a user, a team or an organization role and applies to everything under it: a viewer on `Projects` can read `Projects/Launch/plan.pdf`. The same check runs in the drive functions, in the policies on the attachment rows and in restrictive policies on `storage.objects`, so a signed URL never opens a file the caller can't read.
 
 ```bash
-better-supabase sql add drive
+better-supabase add drive
 ```
 
 `drive` installs `drive-files` with it, which adds what needs the attachments module: uploads and revisions, the storage policies, the bin, stars, recent items, folder links and the purge. Install [versions](/docs/blocks/versions), [trash](/docs/blocks/trash), [share-links](/docs/blocks/share-links) and [teams](/docs/blocks/teams) for revisions, the bin, stars and links, and team grants.
