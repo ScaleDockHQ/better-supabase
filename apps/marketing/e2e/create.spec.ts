@@ -269,7 +269,7 @@ test("PermDock is an optional auth choice kept in the URL", async ({
     "PermDock",
   );
   await expect(page).toHaveURL(/&authz=permdock$/u);
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
   await expect(page.getByText("Placeholder access functions")).toBeVisible();
 
   const dialog = await openCode(page);
@@ -300,10 +300,11 @@ test("the diagram lists the tables and asks for a block when there are none", as
 }) => {
   await page.goto("/create?preset=saas");
 
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
   await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Tables in this schema" }),
+    page.getByRole("heading", {
+      name: /^Tables in this schema: \d+ tables, \d+ relations$/u,
+    }),
   ).toBeAttached();
 
   await page.goto("/create?preset=minimal");
@@ -314,7 +315,7 @@ test("the diagram lists the tables and asks for a block when there are none", as
   await page
     .getByRole("button", { name: "Start from the SaaS preset" })
     .click();
-  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
 });
 
 test("a table drawn on the canvas travels in the design code", async ({

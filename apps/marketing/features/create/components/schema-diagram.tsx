@@ -36,7 +36,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { categoryStyle } from "@/features/blocks/categories";
 import { blocks } from "@/lib/blocks";
 import { CONFIG_FILE, packagePath } from "@/lib/create";
 import {
@@ -284,41 +283,22 @@ function SchemaView({
   const relations = schemaRelations(tables);
   const issues = designIssues(designState.design, data);
 
-  const categories = [
-    ...new Set(tables.map((table) => categoryOf(table.module))),
-  ].toSorted();
+  const notes = pkg !== undefined || placeholder || issues.length > 0;
 
   return (
     <>
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="text-sm font-medium tabular-nums">
-            {tables.length} tables, {relations.length} relations
-          </p>
-          <ul
-            aria-label="Categories"
-            className="flex flex-wrap items-center gap-x-3 gap-y-1"
-          >
-            {categories.map((category) => (
-              <li
-                key={category}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
-              >
-                <span
-                  aria-hidden="true"
-                  className={`size-2 rounded-full ${categoryStyle(category).solid}`}
-                />
-                {category}
-              </li>
-            ))}
-          </ul>
+      {notes ? (
+        <div className="flex flex-col gap-2 border-b border-border px-4 py-2">
+          {pkg === undefined ? null : <FolderLayout pkg={pkg} />}
+          {placeholder ? <PlaceholderAccessNote /> : null}
+          <DesignIssues issues={issues} />
         </div>
-        {pkg === undefined ? null : <FolderLayout pkg={pkg} />}
-        {placeholder ? <PlaceholderAccessNote /> : null}
-        <DesignIssues issues={issues} />
-      </div>
+      ) : null}
       <div className="sr-only">
-        <h2>Tables in this schema</h2>
+        <h2>
+          Tables in this schema: {tables.length} tables, {relations.length}{" "}
+          relations
+        </h2>
         <ul>
           {tables.map((table) => (
             <li key={table.id}>

@@ -7,11 +7,17 @@ import {
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
   type PresetName,
+  type PresetPlatforms,
   PRESETS,
   type ResolvedPreset,
   withPresetField,
 } from "better-supabase/preset";
-import { ShuffleIcon, TerminalIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ShuffleIcon,
+  TerminalIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useId } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
@@ -244,7 +250,7 @@ function StackSection({
                 title={reason}
                 className="flex-1"
               >
-                {PLATFORM_LABELS[platform]}
+                {PLATFORM_TOGGLE_LABELS[platform]}
               </ToggleGroupItem>
             );
           })}
@@ -418,6 +424,15 @@ function IntegrationRows({
   );
 }
 
+const GROUP_CONTENT = "px-2 pt-3";
+
+/** Shorter than `PLATFORM_LABELS` so three toggles fit the sidebar. */
+const PLATFORM_TOGGLE_LABELS = {
+  web: "Web",
+  native: "Native",
+  both: "Both",
+} satisfies Readonly<Record<PresetPlatforms, string>>;
+
 function GroupTrigger({
   title,
   summary,
@@ -426,13 +441,17 @@ function GroupTrigger({
   summary: ReactNode;
 }): ReactElement {
   return (
-    <AccordionTrigger>
-      <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2 pr-2">
+    <AccordionTrigger className="items-center gap-2 px-2 py-3 transition-colors hover:bg-muted/50 hover:no-underline aria-expanded:bg-muted/50 aria-expanded:hover:bg-muted *:data-[slot=accordion-trigger-icon]:hidden">
+      <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2">
         {title}
         <span className="truncate text-xs font-normal text-muted-foreground tabular-nums">
           {summary}
         </span>
       </span>
+      <ChevronDownIcon
+        aria-hidden="true"
+        className="pointer-events-none size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-aria-expanded/accordion-trigger:rotate-180 motion-reduce:transition-none"
+      />
     </AccordionTrigger>
   );
 }
@@ -512,7 +531,7 @@ export function OptionsPanel({
       }}
     >
       <ScrollArea className="sidebar-scroll min-h-0 flex-1">
-        <div className="flex flex-col p-4">
+        <div className="flex flex-col p-2">
           <Accordion multiple defaultValue={["preset"]}>
             <AccordionItem value="preset">
               <GroupTrigger
@@ -523,7 +542,7 @@ export function OptionsPanel({
                     : PRESETS[named].title
                 }
               />
-              <AccordionContent>
+              <AccordionContent className={GROUP_CONTENT}>
                 <PresetPicker selected={named} onSelect={onNamedPreset} />
               </AccordionContent>
             </AccordionItem>
@@ -538,7 +557,7 @@ export function OptionsPanel({
                   )
                 }
               />
-              <AccordionContent>
+              <AccordionContent className={GROUP_CONTENT}>
                 <StackSection
                   preset={preset}
                   resolved={resolved}
@@ -551,7 +570,7 @@ export function OptionsPanel({
                 title={FIELD_LABELS.access}
                 summary={AUTH_CHOICE_INFO[authChoice].label}
               />
-              <AccordionContent>
+              <AccordionContent className={GROUP_CONTENT}>
                 <AuthSection choice={authChoice} onChoice={onAuthChoice} />
               </AccordionContent>
             </AccordionItem>
@@ -560,7 +579,9 @@ export function OptionsPanel({
                 title="Conventions"
                 summary={`${preset.casing}, ${preset.idType}`}
               />
-              <AccordionContent className="flex flex-col gap-3">
+              <AccordionContent
+                className={cn(GROUP_CONTENT, "flex flex-col gap-3")}
+              >
                 {CONVENTION_KEYS.map((key) => {
                   const options: Readonly<Record<string, OptionInfo>> =
                     CONVENTION_VALUES[key];
@@ -654,7 +675,7 @@ export function OptionsPanel({
                 title="Integrations"
                 summary={`${integrationCount(preset)} on`}
               />
-              <AccordionContent>
+              <AccordionContent className={GROUP_CONTENT}>
                 <IntegrationRows preset={preset} onPreset={onPreset} />
               </AccordionContent>
             </AccordionItem>
@@ -663,7 +684,7 @@ export function OptionsPanel({
                 title="Blocks"
                 summary={`${resolved.blocks.length} installed`}
               />
-              <AccordionContent>
+              <AccordionContent className={GROUP_CONTENT}>
                 <BlockPicker groups={groups} onToggle={onToggleBlock} />
               </AccordionContent>
             </AccordionItem>

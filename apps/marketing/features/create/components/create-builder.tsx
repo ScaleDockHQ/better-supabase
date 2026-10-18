@@ -290,7 +290,10 @@ export function CreateBuilder(): ReactElement {
         </aside>
 
         <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
-          <SheetContent side="left" className="w-80 gap-0 p-0 sm:max-w-80">
+          <SheetContent
+            side="left"
+            className="gap-0 p-0 data-[side=left]:w-full data-[side=left]:sm:max-w-80"
+          >
             <SheetHeader className="border-b border-border">
               <SheetTitle>Customize</SheetTitle>
               <SheetDescription>

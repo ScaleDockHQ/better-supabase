@@ -12,6 +12,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
+import { Frame, FramePanel } from "@/components/reui/frame";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -152,24 +153,28 @@ function MigrationFiles({
         </code>
         .
       </p>
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
-        {state.files.map((file) => (
-          <li key={file.path}>
-            <details className="group">
-              <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 font-mono text-xs transition-colors hover:bg-muted/60">
-                <FileCodeIcon
-                  aria-hidden="true"
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-                <span className="truncate">{file.path}</span>
-              </summary>
-              <pre className="max-h-96 overflow-auto border-t border-border bg-muted/30 p-4 font-mono text-code leading-6">
-                <code>{file.contents}</code>
-              </pre>
-            </details>
-          </li>
-        ))}
-      </ul>
+      <Frame spacing="sm">
+        <FramePanel>
+          <ul aria-label="SQL files" className="flex flex-col gap-0.5">
+            {state.files.map((file) => (
+              <li key={file.path}>
+                <details className="group flex flex-col gap-1">
+                  <summary className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 font-mono text-xs transition-colors hover:bg-muted">
+                    <FileCodeIcon
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate">{file.path}</span>
+                  </summary>
+                  <pre className="max-h-96 overflow-auto rounded-md bg-muted/50 p-3 font-mono text-code leading-6">
+                    <code>{file.contents}</code>
+                  </pre>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </FramePanel>
+      </Frame>
     </div>
   );
 }

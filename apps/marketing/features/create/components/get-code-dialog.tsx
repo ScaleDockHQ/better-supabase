@@ -11,7 +11,7 @@ import {
   type ResolvedPreset,
 } from "better-supabase/preset";
 import { DownloadIcon } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 
 import { CopyButton } from "@/components/site/copy-button";
 import { PromptFrame } from "@/components/site/prompt-frame";
@@ -50,6 +50,10 @@ import { MigrationsPanel } from "./migrations-panel";
 import { PresetGraph } from "./preset-graph";
 
 const WIRING_FILE = "lib/blocks.ts";
+
+/** Scrolls sideways on a narrow screen instead of wrapping onto a second row. */
+const SCROLLING_TABS =
+  "max-w-full justify-start overflow-x-auto [scrollbar-width:none]";
 
 /**
  * The config file for the preset and its design. A design the preset can't
@@ -178,6 +182,18 @@ function AiInstructions({
   );
 }
 
+/** The command's words with where each starts, which also keys them. */
+function wordsOf(command: string): { at: number; word: string }[] {
+  let at = 0;
+
+  return command.split(" ").map((word) => {
+    const start = at;
+    at += word.length + 1;
+
+    return { at: start, word };
+  });
+}
+
 function CommandRow({
   label,
   command,
@@ -189,8 +205,22 @@ function CommandRow({
 }): ReactElement {
   return (
     <div className="flex items-center gap-1 rounded-md border border-border bg-muted/50 pl-3">
-      <pre className="min-w-0 flex-1 py-2 font-mono text-code break-all whitespace-pre-wrap">
-        <code data-testid={testId}>{command}</code>
+      <pre className="min-w-0 flex-1 py-2 font-mono text-code wrap-anywhere whitespace-pre-wrap">
+        <code data-testid={testId}>
+          {wordsOf(command).map(({ at, word }) => (
+            <Fragment key={at}>
+              {at === 0 ? null : " "}
+              {/* A line may break after any hyphen, which would split `--preset`. */}
+              <span
+                className={
+                  word.startsWith("-") ? "whitespace-nowrap" : undefined
+                }
+              >
+                {word}
+              </span>
+            </Fragment>
+          ))}
+        </code>
       </pre>
       <CopyButton text={command} label={`Copy the ${label} command`} />
     </div>
@@ -305,12 +335,13 @@ export function GetCodeDialog({
         <div className="flex min-w-0 flex-col gap-3">
           <Tabs defaultValue="new" className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <TabsList
-                aria-label="Project"
-                className="flex-wrap justify-start group-data-horizontal/tabs:h-auto"
-              >
-                <TabsTrigger value="new">New project</TabsTrigger>
-                <TabsTrigger value="existing">Existing project</TabsTrigger>
+              <TabsList aria-label="Project" className={SCROLLING_TABS}>
+                <TabsTrigger value="new" className="flex-none">
+                  New project
+                </TabsTrigger>
+                <TabsTrigger value="existing" className="flex-none">
+                  Existing project
+                </TabsTrigger>
               </TabsList>
               <ToggleGroup
                 aria-label="Package manager"
@@ -388,10 +419,7 @@ export function GetCodeDialog({
 
         <Tabs defaultValue="config" className="min-w-0 gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList
-              aria-label="Generated files"
-              className="flex-wrap justify-start group-data-horizontal/tabs:h-auto"
-            >
+            <TabsList aria-label="Generated files" className={SCROLLING_TABS}>
               <TabsTrigger value="config" className="flex-none">
                 Config
               </TabsTrigger>

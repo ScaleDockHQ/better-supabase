@@ -222,12 +222,12 @@ function FooterRowView({
           <button
             type="button"
             className="flex flex-1 nodrag items-center gap-2 px-2 text-xs text-muted-foreground tabular-nums transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show all ${hidden} more columns`}
             onClick={() => {
               actions.toggleExpand(id);
             }}
           >
-            <ChevronDownIcon aria-hidden="true" className="size-3.5" />+{hidden}{" "}
+            <ChevronDownIcon aria-hidden="true" className="size-3.5" />
+            <span className="sr-only">Show </span>+{hidden}{" "}
             {hidden === 1 ? "column" : "columns"}
           </button>
         </li>
@@ -418,7 +418,6 @@ function ExternalNodeView({ data }: NodeProps<ExternalNode>): ReactElement {
 function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
   const actions = useCanvasActions();
   const style = categoryStyle(data.category);
-  const label = `${data.manifest}, ${data.count} ${data.count === 1 ? "table" : "tables"}`;
 
   if (data.collapsed) {
     return (
@@ -439,16 +438,20 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
         <button
           type="button"
           className="flex h-full flex-1 nodrag items-center gap-2 rounded-lg px-3 text-xs transition-colors hover:bg-accent"
-          aria-label={`Expand ${data.manifest}`}
           onClick={() => {
             actions.toggleGroup(data.manifest);
           }}
         >
           <ChevronRightIcon aria-hidden="true" className="size-3.5" />
           <BlockIcon name={data.manifest} category={data.category} size="xs" />
+          <span className="sr-only">Expand </span>
           <span className="truncate font-medium">{data.manifest}</span>
           <span className="ml-auto text-muted-foreground tabular-nums">
             {data.count}
+            <span className="sr-only">
+              {" "}
+              {data.count === 1 ? "table" : "tables"}
+            </span>
           </span>
         </button>
         <Handle
@@ -473,14 +476,20 @@ function GroupNodeView({ data }: NodeProps<GroupNode>): ReactElement {
       <button
         type="button"
         className="pointer-events-auto flex h-8 nodrag items-center gap-2 rounded-tl-xl px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        aria-label={`Collapse ${label}`}
         onClick={() => {
           actions.toggleGroup(data.manifest);
         }}
       >
         <ChevronDownIcon aria-hidden="true" className="size-3.5" />
+        <span className="sr-only">Collapse </span>
         <span className="font-medium">{data.manifest}</span>
-        <span className="tabular-nums">{data.count}</span>
+        <span className="tabular-nums">
+          {data.count}
+          <span className="sr-only">
+            {" "}
+            {data.count === 1 ? "table" : "tables"}
+          </span>
+        </span>
       </button>
     </div>
   );
