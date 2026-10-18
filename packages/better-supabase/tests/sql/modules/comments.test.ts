@@ -228,6 +228,9 @@ describe("comments module", () => {
         subjects: { task: { table: "t", cascade: "yes" } },
       }),
     ).toThrow(/cascade must be true or false/);
+    expect(() =>
+      sqlOf(["comments"], { subjects: { "time-off": { table: "t" } } }),
+    ).toThrow(/"time-off" must be lowercase letters, digits and underscores/);
   });
 
   it("labels mention notifications, filters recipients by the subject and can stay quiet", () => {

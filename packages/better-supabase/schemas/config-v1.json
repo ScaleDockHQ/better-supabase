@@ -3584,6 +3584,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "subjects": {},
               "channelDefaults": {},
               "channels": {
                 "type": "array",

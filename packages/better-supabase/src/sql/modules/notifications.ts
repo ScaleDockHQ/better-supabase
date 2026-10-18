@@ -17,6 +17,7 @@ import {
   updatedAt,
   revokeTable,
 } from "../shared.ts";
+import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
@@ -71,6 +72,7 @@ const EVENTS: ModuleEvents<NotificationsEvents> = {
 const NAMES: ModuleNames = {
   events: EVENTS,
   options: [
+    "subjects",
     "channelDefaults",
     "channels",
     "createdEvent",
@@ -641,6 +643,55 @@ $$;`;
   }
 }
 
+/**
+ * `options.subjects` with `cascade: true`: deleting a subject row deletes
+ * its notifications (recipients and deliveries follow by foreign key) and
+ * the subscriptions to it. The deletes match the subject's tenant too, so
+ * they use indexes that lead with the tenant column.
+ */
+function subjectCleanup(ctx: ModuleContext, n: NotifyNames): string {
+  const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
+
+  if (!subjects.some(([, subject]) => subject.cascade)) {
+    return "";
+  }
+
+  if (!n.has("events", "subjectType") || !n.has("events", "subjectId")) {
+    throw new TypeError(
+      "blocks.notifications.options.subjects with cascade needs the subjectType and subjectId columns of the events table",
+    );
+  }
+
+  const tables = ctx.hasTable("subscriptions")
+    ? ["events", "subscriptions"]
+    : ["events"];
+
+  const removeFrom = (table: string, tenant: boolean) =>
+    `delete from ${n.table(table)} x where ${
+      tenant && n.has(table, "tenant")
+        ? `x.${n.col(table, "tenant")} = v_tenant::${ctx.idType} and `
+        : ""
+    }x.${n.col(table, "subjectType")} = v_type and x.${n.col(table, "subjectId")} = v_id;`;
+
+  const remove = (tenant: boolean) =>
+    tables.map((table) => removeFrom(table, tenant)).join("\n    ");
+
+  if (!tables.some((table) => n.has(table, "tenant"))) {
+    return subjectCascades(ctx, subjects, remove(false));
+  }
+
+  return subjectCascades(
+    ctx,
+    subjects,
+    `if v_tenant is null then
+    ${remove(false)}
+  else
+    ${remove(true)}
+  end if;`,
+    { tenant: true },
+  );
+}
+
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
@@ -655,6 +706,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     functions(ctx, n, layout),
     realtime(ctx, n),
+    subjectCleanup(ctx, n),
   ].join("\n");
 }
 

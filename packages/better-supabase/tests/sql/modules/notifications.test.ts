@@ -351,6 +351,103 @@ describe("notifications module", () => {
   });
 });
 
+describe("notification subjects", () => {
+  it("deletes a subject's notifications and subscriptions when the subject row is deleted", () => {
+    const sql = body({
+      notifications: {
+        options: {
+          subjects: {
+            "time-off-request": {
+              table: "app.time_off_requests",
+              cascade: true,
+            },
+            expense: { table: "expenses", tenant: false, cascade: true },
+            invoice: { table: "invoices" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."notifications_subject_deleted"()',
+    );
+    expect(sql).toContain(
+      "v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;",
+    );
+    expect(sql).toContain(
+      `  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;`,
+    );
+    expect(sql).toContain(
+      `create trigger "bs_notifications_time-off-request_cascade"
+  after delete on "app"."time_off_requests"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('time-off-request', 'id', 'organization_id');`,
+    );
+    expect(sql).toContain(
+      `after delete on "public"."expenses"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('expense', 'id');`,
+    );
+    expect(sql).not.toContain("bs_notifications_invoice_cascade");
+    expect(body()).not.toContain("notifications_subject_deleted");
+  });
+
+  it("leaves subscriptions alone without the table and needs the subject columns", () => {
+    const subjects = { task: { table: "tasks", cascade: true } };
+
+    const sql = body({
+      notifications: {
+        tables: { subscriptions: null },
+        options: { subjects },
+      },
+    });
+
+    expect(sql).toContain("notifications_subject_deleted");
+    expect(sql).not.toContain("notification_subscriptions");
+
+    const untenanted = body({
+      notifications: {
+        columns: { events: { tenant: null }, subscriptions: { tenant: null } },
+        options: { subjects },
+      },
+    });
+
+    expect(untenanted).not.toContain("tg_argv[2]");
+    expect(untenanted).toContain(
+      `"notifications_subject_deleted"('task', 'id');`,
+    );
+    expect(untenanted).toContain(
+      `delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;`,
+    );
+    expect(() =>
+      body({
+        notifications: {
+          columns: { events: { subjectType: null } },
+          options: { subjects },
+        },
+      }),
+    ).toThrow(/needs the subjectType and subjectId columns/);
+    expect(() =>
+      body({
+        notifications: {
+          options: { subjects: { "Time-Off": { table: "t", cascade: true } } },
+        },
+      }),
+    ).toThrow(/lowercase letters, digits, hyphens and underscores/);
+    expect(() =>
+      body({
+        notifications: {
+          options: { subjects: { task: { table: "t", cascade: "yes" } } },
+        },
+      }),
+    ).toThrow(/cascade must be true or false/);
+  });
+});
+
 describe("notification actors", () => {
   it("reads actor profiles only next to the profiles module", () => {
     const file = (names: readonly string[]) =>

@@ -405,6 +405,36 @@ query, and `notify` refuses more than `options.maxRecipients` (1,000)
 recipients with `NOTIFICATION_TOO_MANY_RECIPIENTS`; fan out larger audiences
 from a job.
 
+## Deleted subjects
+
+`subject_type` and `subject_id` are text with no foreign key, so deleting a
+subject row leaves its notifications in every recipient's inbox. List the
+subject types in `blocks.notifications.options.subjects` with
+`cascade: true`, and the module writes an `after delete` trigger on each
+table that deletes the subject's notifications (their recipients and
+deliveries go with them) and the subscriptions to it:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  notifications: {
+    options: {
+      subjects: {
+        expense: { table: "expenses", cascade: true },
+        "time-off-request": { table: "time_off_requests", cascade: true },
+      },
+    },
+  },
+},
+```
+
+The key is the `subject_type` your notifications store, and it may contain
+hyphens. `id` names the subject's id column when it isn't `id`. Without
+`options.subjects` the module reads `config.subjects`, so a registered type
+with `cascade: true` cleans up its notifications too. A list of registered
+type names (`subjects: ["expense"]`) limits it to those. The subject tables
+must exist before the module file, and the events table needs its
+`subjectType` and `subjectId` columns.
+
 ## Email, push and other channels
 
 Every channel except `in_app` gets a `pending` delivery row per recipient.
