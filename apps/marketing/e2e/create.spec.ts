@@ -157,6 +157,24 @@ test("the framework's own integration is checked and locked", async ({
   await expect(hono).toBeChecked();
 });
 
+test("the preset select applies a preset and shows Custom after a change", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const preset = options(page).getByRole("combobox", { name: "Preset" });
+  await expect(preset).toContainText("SaaS");
+
+  await preset.click();
+  await page.getByRole("option", { name: /^CRM/u }).click();
+  await expect(preset).toContainText("CRM");
+  await expect(block(page, "pipelines")).toBeChecked();
+
+  await category(page, "Scheduling").click();
+  await block(page, "bookings").check();
+  await expect(preset).toContainText("Custom");
+});
+
 test("PermDock is an optional auth choice kept in the URL", async ({
   page,
 }) => {
@@ -166,8 +184,13 @@ test("PermDock is an optional auth choice kept in the URL", async ({
     .getByRole("radio", { name: /^PermDock/u })
     .click();
   await expect(page).toHaveURL(/&authz=permdock$/u);
+  await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
+  await expect(page.getByText("Placeholder access functions")).toBeVisible();
 
   const dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Migrations" }).click();
+  await expect(dialog.getByText("Placeholder access functions")).toBeVisible();
+  await dialog.getByRole("tab", { name: "Config" }).click();
   await expect(dialog.getByTestId("permdock-install")).toHaveText(
     "pnpm add permdock",
   );

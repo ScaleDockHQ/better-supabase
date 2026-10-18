@@ -34,6 +34,8 @@ import { blocks } from "@/lib/blocks";
 import { CONFIG_FILE, packagePath } from "@/lib/create";
 import { type SchemaTable, schemaRelations } from "@/lib/schema";
 
+import { PlaceholderAccessNote } from "./placeholder-access-note";
+
 function CanvasSkeleton(): ReactElement {
   return (
     <div aria-busy="true" className="flex flex-1 flex-col gap-3 p-4">
@@ -148,10 +150,12 @@ function FolderLayout({ pkg }: { pkg: string }): ReactElement {
 function SchemaView({
   code,
   pkg,
+  placeholder,
   onRetry,
 }: {
   code: string;
   pkg: string | undefined;
+  placeholder: boolean;
   onRetry: () => void;
 }): ReactElement {
   const state = use(schemaFor(code));
@@ -214,6 +218,7 @@ function SchemaView({
           </ul>
         </div>
         {pkg === undefined ? null : <FolderLayout pkg={pkg} />}
+        {placeholder ? <PlaceholderAccessNote /> : null}
       </div>
       <div className="sr-only">
         <h2>Tables in this schema</h2>
@@ -287,7 +292,13 @@ export function SchemaDiagram({
   return (
     <div className="flex flex-1 flex-col">
       <Suspense fallback={<CanvasSkeleton />}>
-        <SchemaView key={attempt} code={code} pkg={pkg} onRetry={retry} />
+        <SchemaView
+          key={attempt}
+          code={code}
+          pkg={pkg}
+          placeholder={resolved.preset.access === "provider"}
+          onRetry={retry}
+        />
       </Suspense>
     </div>
   );

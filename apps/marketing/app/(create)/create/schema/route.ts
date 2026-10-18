@@ -1,8 +1,7 @@
-import { resolveConfig } from "better-supabase/config";
 import { isPresetCode, presetOf } from "better-supabase/preset";
-import { moduleLayout, renderModules } from "better-supabase/sql";
 import { cacheLife } from "next/cache";
 
+import { previewFiles } from "@/lib/preview-provider";
 import { parseSchema, type SchemaTable, tenantColumnOf } from "@/lib/schema";
 
 /**
@@ -13,9 +12,8 @@ import { parseSchema, type SchemaTable, tenantColumnOf } from "@/lib/schema";
 async function presetSchema(code: string): Promise<readonly SchemaTable[]> {
   "use cache";
   cacheLife("max");
-  const config = resolveConfig({ preset: code }, "/");
 
-  return parseSchema(renderModules(config.blockNames, moduleLayout(config)), {
+  return parseSchema(previewFiles(code), {
     tenantColumn: tenantColumnOf(presetOf(code)),
   });
 }

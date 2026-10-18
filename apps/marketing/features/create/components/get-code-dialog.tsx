@@ -278,7 +278,10 @@ export function GetCodeDialog({
             <CodePanel filename={configFile} code={configSource} />
           </TabsContent>
           <TabsContent value="migrations">
-            <MigrationsPanel code={code} />
+            <MigrationsPanel
+              code={code}
+              placeholder={resolved.preset.access === "provider"}
+            />
           </TabsContent>
           <TabsContent value="wiring">
             <CodePanel

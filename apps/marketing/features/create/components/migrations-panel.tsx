@@ -15,6 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { PlaceholderAccessNote } from "./placeholder-access-note";
+
 type MigrationState =
   | { readonly status: "error"; readonly message: string }
   | {
@@ -84,9 +86,11 @@ function MigrationsSkeleton() {
 
 function MigrationFiles({
   code,
+  placeholder,
   onRetry,
 }: {
   code: string;
+  placeholder: boolean;
   onRetry: () => void;
 }) {
   const state = use(migrationsFor(code));
@@ -116,6 +120,7 @@ function MigrationFiles({
 
   return (
     <div className="flex flex-col gap-3">
+      {placeholder ? <PlaceholderAccessNote /> : null}
       <p className="text-sm leading-6 text-muted-foreground">
         {state.files.length} files that{" "}
         <code className="font-mono text-code">sql sync</code> writes into{" "}
@@ -148,13 +153,27 @@ function MigrationFiles({
   );
 }
 
-/** The migration files for a preset code, loaded from `/create/migrations`. */
-export function MigrationsPanel({ code }: { code: string }) {
+/**
+ * The migration files for a preset code, loaded from `/create/migrations`.
+ * `placeholder` marks SQL rendered with the stand-in authorization provider.
+ */
+export function MigrationsPanel({
+  code,
+  placeholder,
+}: {
+  code: string;
+  placeholder: boolean;
+}) {
   const [attempt, retry] = useReducer((count: number) => count + 1, 0);
 
   return (
     <Suspense fallback={<MigrationsSkeleton />}>
-      <MigrationFiles key={attempt} code={code} onRetry={retry} />
+      <MigrationFiles
+        key={attempt}
+        code={code}
+        placeholder={placeholder}
+        onRetry={retry}
+      />
     </Suspense>
   );
 }

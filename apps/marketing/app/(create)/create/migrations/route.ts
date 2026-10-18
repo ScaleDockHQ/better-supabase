@@ -1,9 +1,9 @@
-import { resolveConfig } from "better-supabase/config";
 import { isPresetCode } from "better-supabase/preset";
-import { moduleLayout, renderModules } from "better-supabase/sql";
 import { cacheLife } from "next/cache";
 
 import type { PresetMigrationFile } from "@/lib/create";
+
+import { previewFiles } from "@/lib/preview-provider";
 
 /**
  * The files `sql sync` writes for a config with only this preset. The SQL
@@ -16,13 +16,8 @@ async function presetMigrations(
 ): Promise<readonly PresetMigrationFile[]> {
   "use cache";
   cacheLife("max");
-  const config = resolveConfig({ preset: code }, "/");
 
-  return renderModules(config.blockNames, moduleLayout(config)).map((file) => ({
-    path: file.path,
-    module: file.module,
-    contents: file.contents,
-  }));
+  return previewFiles(code);
 }
 
 export async function GET(request: Request): Promise<Response> {
