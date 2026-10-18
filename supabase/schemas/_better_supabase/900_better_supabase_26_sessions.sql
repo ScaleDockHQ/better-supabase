@@ -152,6 +152,74 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 --   using ((select better_supabase.session_active()))
 --   with check ((select better_supabase.session_active()));
 
+-- blocks.sessions.options.policies: every table in the schema files,
+-- except blocks.sessions.options.exclude. `sql sync` rewrites these.
+drop policy if exists bs_session_active on "public"."projects";
+create policy bs_session_active on "public"."projects" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."saved_views";
+create policy bs_session_active on "public"."saved_views" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."contacts";
+create policy bs_session_active on "public"."contacts" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."customer_tags";
+create policy bs_session_active on "public"."customer_tags" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."customers";
+create policy bs_session_active on "public"."customers" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."locations";
+create policy bs_session_active on "public"."locations" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."memberships";
+create policy bs_session_active on "public"."memberships" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."notes";
+create policy bs_session_active on "public"."notes" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."organizations";
+create policy bs_session_active on "public"."organizations" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."plan_features";
+create policy bs_session_active on "public"."plan_features" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."plans";
+create policy bs_session_active on "public"."plans" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."subscriptions";
+create policy bs_session_active on "public"."subscriptions" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."tags";
+create policy bs_session_active on "public"."tags" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+
 -- blocks.sessions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

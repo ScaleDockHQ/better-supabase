@@ -248,7 +248,9 @@ export default defineConfig({
     "ai-providers": {},
     // The blocks behind the remaining UI recipes (`/recipes`), one page or
     // card each in the app.
-    sessions: {},
+    // Ending a session on /settings/sessions cuts its access at once: every
+    // app table gets the restrictive session_active() policy.
+    sessions: { options: { policies: true } },
     sso: {},
     approvals: {
       options: {
@@ -331,6 +333,7 @@ export default defineConfig({
     "webhooks-out": {},
     "service-principals": {},
     "signing-keys": {},
-    "data-lifecycle": {},
+    // Exports leave out token, hash and secret columns (doctor BS341).
+    "data-lifecycle": { options: { omitPattern: true } },
   },
 });
