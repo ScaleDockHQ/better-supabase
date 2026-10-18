@@ -31,6 +31,16 @@ msgctxt "assistant.p-0Iui"
 msgid "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
 msgstr "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
 
+#: src/app/[locale]/(app)/assistant/tasks/page.tsx
+msgctxt "aiTasks.9iOYC0"
+msgid "AI tasks"
+msgstr "AI tasks"
+
+#: src/app/[locale]/(app)/assistant/tasks/page.tsx
+msgctxt "aiTasks.YcuQ6T"
+msgid "Prompts on the ai-tasks block that the assistant runs on a schedule."
+msgstr "Prompts on the ai-tasks block that the assistant runs on a schedule."
+
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
 msgid "Beta"
@@ -249,6 +259,241 @@ msgstr "Page not found"
 msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "It moved, or it isn't available to your organization."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.or3Lzc"
+msgid "Key saved"
+msgstr "Key saved"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.Q613QW"
+msgid "Add a key"
+msgstr "Add a key"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.nfpM7z"
+msgid "Add a provider key"
+msgstr "Add a provider key"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.1nrzUv"
+msgid "The key goes to Vault under this organization. Requests then bill the organization's own provider account."
+msgstr "The key goes to Vault under this organization. Requests then bill the organization's own provider account."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.xaj9Ba"
+msgid "Provider"
+msgstr "Provider"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.L6UdDM"
+msgid "Optional. Leave it empty to use the app's default model."
+msgstr "Optional. Leave it empty to use the app's default model."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.KTNoOq"
+msgid "API key"
+msgstr "API key"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.iAmxlI"
+msgid "Save key"
+msgstr "Save key"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.rjLtgJ"
+msgid "Remove the {provider} key"
+msgstr "Remove the {provider} key"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.U8pNBv"
+msgid "Remove the {provider} key?"
+msgstr "Remove the {provider} key?"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.49f6g8"
+msgid "Its secret is revoked in Vault, and requests fall back to the app's own key."
+msgstr "Its secret is revoked in Vault, and requests fall back to the app's own key."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.8xM61p"
+msgid "App default"
+msgstr "App default"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.V52jNn"
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.tthToS"
+msgid "Disabled"
+msgstr "Disabled"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders._3yfCs"
+msgid "AI providers"
+msgstr "AI providers"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.ItEK0n"
+msgid "The organization's own provider keys, used instead of the app's key for the assistant."
+msgstr "The organization's own provider keys, used instead of the app's key for the assistant."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.y1rlCZ"
+msgid "No provider keys yet"
+msgstr "No provider keys yet"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.4ApY9m"
+msgid "The assistant uses the app's key until you add one for a provider."
+msgstr "The assistant uses the app's key until you add one for a provider."
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.maaPyx"
+msgid "The providers didn't load"
+msgstr "The providers didn't load"
+
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.XSxDou"
+msgid "Not run yet"
+msgstr "Not run yet"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.Cnm0QA"
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.nDyaq_"
+msgid "Running"
+msgstr "Running"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.f_ixcL"
+msgid "Schedule a sample task"
+msgstr "Schedule a sample task"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.0wJ7N-"
+msgid "Task"
+msgstr "Task"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.hGQqkW"
+msgid "Schedule"
+msgstr "Schedule"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.3yurtF"
+msgid "Next run"
+msgstr "Next run"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.mHep2R"
+msgid "Last run"
+msgstr "Last run"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.rfF2rE"
+msgid "On the next tick"
+msgstr "On the next tick"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.BsjGVQ"
+msgid "Pause {title}"
+msgstr "Pause {title}"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.ULhAyF"
+msgid "Resume {title}"
+msgstr "Resume {title}"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.sy7vzf"
+msgid "Scheduled tasks"
+msgstr "Scheduled tasks"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.9cXOOr"
+msgid "Prompts the assistant runs on a cron, with the status of each task's latest run."
+msgstr "Prompts the assistant runs on a cron, with the status of each task's latest run."
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.y5xnG5"
+msgid "No tasks scheduled"
+msgstr "No tasks scheduled"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.d80JVG"
+msgid "Schedule a prompt to run every weekday at 9:00, then watch its runs here."
+msgstr "Schedule a prompt to run every weekday at 9:00, then watch its runs here."
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.Iiiu0z"
+msgid "The tasks didn't load"
+msgstr "The tasks didn't load"
+
+#: src/features/ai-tasks/components/ai-task-queue.tsx
+msgctxt "aiTasks.62nsdy"
+msgid "Retry"
+msgstr "Retry"
 
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"
@@ -1615,6 +1860,11 @@ msgid "Agent activity"
 msgstr "Agent activity"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.9iOYC0"
+msgid "AI tasks"
+msgstr "AI tasks"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
 msgid "Beta"
 msgstr "Beta"
@@ -1638,6 +1888,11 @@ msgstr "API keys"
 msgctxt "navigation.ED9RG5"
 msgid "Audit log"
 msgstr "Audit log"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._3yfCs"
+msgid "AI providers"
+msgstr "AI providers"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.D3idYv"
@@ -2165,6 +2420,11 @@ msgstr "API keys"
 msgctxt "settings.ED9RG5"
 msgid "Audit log"
 msgstr "Audit log"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings._3yfCs"
+msgid "AI providers"
+msgstr "AI providers"
 
 #: src/features/user/components/avatar-form.tsx
 msgctxt "user.6V-aAL"
