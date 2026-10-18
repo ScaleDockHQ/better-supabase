@@ -2,6 +2,7 @@ import type { CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { errorText } from "../errors.ts";
+import { CLI_QUERY_TAG } from "../introspect/source.ts";
 import { PLATFORM_ROLES } from "./reserved-roles.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 
@@ -256,7 +257,7 @@ export const LIVE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Queries spill to temporary files",
     description:
-      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`. When every statement that spilled ran as a Supabase service role (PostgREST's schema cache query as `authenticator`, Auth or Storage), there is no finding.",
+      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`. When every statement that spilled ran as a Supabase service role (PostgREST's schema cache query as `authenticator`, Auth or Storage) or came from better-supabase's own catalog reads (`introspect`, `gen`, `doctor`), there is no finding.",
     async check(context) {
       const db = live(context);
 
@@ -296,7 +297,9 @@ export const LIVE_RULES: readonly Rule[] = [
           const statements = spilled
             .filter(
               (statement) =>
-                statement.role === null || !PLATFORM_ROLES.has(statement.role),
+                !statement.query.startsWith(CLI_QUERY_TAG) &&
+                (statement.role === null ||
+                  !PLATFORM_ROLES.has(statement.role)),
             )
             .slice(0, 5);
 

@@ -10,6 +10,7 @@ import {
   runRules,
 } from "../../../src/cli/doctor/rules.ts";
 import { errorText } from "../../../src/cli/errors.ts";
+import { CLI_QUERY_TAG } from "../../../src/cli/introspect/source.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
 import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
@@ -136,6 +137,29 @@ describe("BS208 temporary files", () => {
                 query: "with pgrst_source as (select 1) select 1",
                 temp_blks_written: 26,
                 role: "authenticator",
+              },
+            ],
+          ],
+        ]),
+      }),
+    ).toEqual([]);
+  });
+
+  it("passes when only better-supabase's own catalog reads spilled", async () => {
+    const extension = [/pg_extension/, [{ schema: "extensions" }]] as const;
+
+    expect(
+      await check("BS208", {
+        database: database([
+          stats(1),
+          extension,
+          [
+            /temp_blks_written > 0/,
+            [
+              {
+                query: `${CLI_QUERY_TAG}\n-- CTE with sane arg_modes\nselect 1`,
+                temp_blks_written: 28,
+                role: "postgres",
               },
             ],
           ],

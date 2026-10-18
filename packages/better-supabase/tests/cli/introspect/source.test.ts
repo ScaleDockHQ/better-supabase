@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "../../../src/cli/db.ts";
 
 import {
+  CLI_QUERY_TAG,
   managementSource,
   pgSource,
 } from "../../../src/cli/introspect/source.ts";
@@ -14,7 +15,8 @@ describe("pgSource", () => {
     const pending = new Map<string, () => void>();
 
     const client: PgQueryable = {
-      query: <R>(text: string) => {
+      query: <R>(sql: string) => {
+        const text = sql.replace(`${CLI_QUERY_TAG}\n`, "");
         events.push(`start ${text}`);
 
         return new Promise<{ rows: R[] }>((done, fail) => {
@@ -68,9 +70,15 @@ describe("pgSource", () => {
     expect(closed).toBe(1);
   });
 
-  it("asks for a pool and passes a pooled client through", async () => {
+  it("asks for a pool and tags each query it sends", async () => {
+    const texts: string[] = [];
+
     const client: PgQueryable = {
-      query: <R>() => Promise.resolve({ rows: [] as R[] }),
+      query: <R>(text: string) => {
+        texts.push(text);
+
+        return Promise.resolve({ rows: [] as R[] });
+      },
     };
 
     const signal = new AbortController().signal;
@@ -92,7 +100,8 @@ describe("pgSource", () => {
     );
 
     expect(requested).toEqual([{ pool: 4, statementTimeout: 120_000, signal }]);
-    expect(source.queryable).toBe(client);
+    expect(await source.queryable.query("select 1")).toEqual({ rows: [] });
+    expect(texts).toEqual(["/* better-supabase */\nselect 1"]);
   });
 });
 
