@@ -17,4 +17,5 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
     events: agentsEvents,
     create: createAgents,
     category: "ai",
+    recipes: ["agent-run-trace"],
   });

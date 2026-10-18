@@ -11,4 +11,5 @@ export const reservedSlugsBlock: Block<"reserved-slugs"> = defineBlock({
     "reserved-slugs": reservedSlugsSqlOptions,
   },
   category: "tenancy",
+  recipes: ["workspace-url-field"],
 });

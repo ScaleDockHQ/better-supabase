@@ -7,4 +7,5 @@ export const mfaBlock: Block<"mfa"> = defineBlock({
   name: "mfa",
   sql: ["mfa"],
   category: "identity",
+  recipes: ["mfa-setup"],
 });

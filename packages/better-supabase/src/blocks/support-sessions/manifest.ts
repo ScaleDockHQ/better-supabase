@@ -19,4 +19,5 @@ export const supportSessionsBlock: Block<
   },
   events: supportSessionsEvents,
   category: "admin",
+  recipes: ["support-session-banner"],
 });

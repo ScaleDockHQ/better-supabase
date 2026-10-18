@@ -18,4 +18,5 @@ export const inboxBlock: BlockOf<"inbox", typeof createInbox, InboxEvents> =
     create: createInbox,
     client: "inbox",
     category: "messaging",
+    recipes: ["inbox-threads"],
   });

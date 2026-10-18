@@ -21,4 +21,5 @@ export const aiChatBlock: BlockOf<
   create: createAiChat,
   client: "ai-chat",
   category: "ai",
+  recipes: ["chat-with-history"],
 });

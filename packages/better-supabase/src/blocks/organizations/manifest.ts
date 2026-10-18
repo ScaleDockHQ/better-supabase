@@ -21,5 +21,10 @@ export const organizationsBlock: BlockOf<
   events: organizationsEvents,
   create: createOrganizations,
   category: "tenancy",
-  recipes: ["org-switcher", "members-table", "invite-dialog"],
+  recipes: [
+    "org-switcher",
+    "members-table",
+    "invite-dialog",
+    "workspace-url-field",
+  ],
 });

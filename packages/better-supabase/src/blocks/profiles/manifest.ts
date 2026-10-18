@@ -14,4 +14,5 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
     },
     create: createProfiles,
     category: "tenancy",
+    recipes: ["profile-form"],
   });

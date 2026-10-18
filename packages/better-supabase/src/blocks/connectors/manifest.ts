@@ -20,4 +20,5 @@ export const connectorsBlock: BlockOf<
   events: connectorsEvents,
   create: createConnectors,
   category: "automation",
+  recipes: ["connector-setup"],
 });

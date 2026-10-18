@@ -19,4 +19,5 @@ export const credentialsBlock: Block<
   },
   events: credentialsEvents,
   category: "developer",
+  recipes: ["connector-setup"],
 });

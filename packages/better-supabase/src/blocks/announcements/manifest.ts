@@ -21,4 +21,5 @@ export const announcementsBlock: BlockOf<
   create: createAnnouncements,
   client: "announcements",
   category: "growth",
+  recipes: ["announcement-banner"],
 });

@@ -23,4 +23,5 @@ export const workflowBuilderBlock: BlockOf<
   create: createWorkflowBuilder,
   client: "workflow-builder",
   category: "automation",
+  recipes: ["workflow-canvas"],
 });

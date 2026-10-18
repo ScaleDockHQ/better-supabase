@@ -16,9 +16,10 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 const BLOCKS_DIR = join(import.meta.dirname, "../../src/blocks");
 const SRC_DIR = join(import.meta.dirname, "../../src");
 
+/** The available recipes; the planned ones live in `planned.ts`. */
 const RECIPES = join(
   import.meta.dirname,
-  "../../../../scripts/build-recipes.ts",
+  "../../../../scripts/recipes/sources.ts",
 );
 
 /** Blocks whose creator is not `create<Name>(options)`. */
@@ -267,12 +268,13 @@ describe("block manifests", () => {
 
     const named = [
       ...source.matchAll(
-        /slug: "([a-z-]+)",\s*title: "[^"]*",\s*block: "([a-z-]+)"/g,
+        /slug: "([a-z-]+)",\s*title: "[^"]*",\s*blocks: \[([^\]]*)\]/g,
       ),
-      ...source.matchAll(
-        /\[\s*"([a-z-]+)",\s*"[^"]+",\s*"([a-z-]+)",\s*"[^"]* [^"]*",\s*\]/g,
+    ].flatMap((match) =>
+      [...(match[2] ?? "").matchAll(/"([a-z-]+)"/g)].map(
+        (block) => `${block[1]}: ${match[1]}`,
       ),
-    ].map((match) => `${match[2]}: ${match[1]}`);
+    );
 
     const owner = (module: string) =>
       BLOCK_MANIFESTS.find((block) => block.sql.includes(module))?.name ??
