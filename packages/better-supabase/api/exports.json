@@ -207,6 +207,7 @@
   },
   "./config": {
     "values": [
+      "APP_COLUMN_TYPES",
       "buildJsonSchema",
       "claimPaths",
       "CONFIG_DEFAULTS",
@@ -232,6 +233,12 @@
       "ActiveTenantSource",
       "ActorConfig",
       "AnyBlocksConfig",
+      "AppColumnConfig",
+      "AppColumnType",
+      "AppReference",
+      "AppReferenceTarget",
+      "AppTableConfig",
+      "AppTablesConfig",
       "AuthorizationFunctions",
       "AuthorizationMembership",
       "AuthorizationOperation",
@@ -309,14 +316,23 @@
   },
   "./preset": {
     "values": [
+      "decodeDesign",
       "decodePreset",
       "DEFAULT_CONVENTIONS",
+      "designApplyCommand",
+      "designConfig",
+      "designConfigSource",
+      "designInstallCommand",
+      "designOf",
+      "encodeDesign",
       "encodePreset",
       "expandPreset",
       "glueCommand",
+      "isDesignCode",
       "isPresetCode",
       "isPresetName",
       "listNames",
+      "MAX_DESIGN_CODE_LENGTH",
       "namedPreset",
       "PRESET_BLOCKS",
       "PRESET_CATALOG",
@@ -338,6 +354,7 @@
       "withPresetField"
     ],
     "types": [
+      "CreateDesign",
       "DecodedPreset",
       "NamedPreset",
       "Preset",
@@ -7151,6 +7168,9 @@
     "values": [
       "adoptedColumnProblems",
       "adoptedTables",
+      "APP_TABLES_MARKER",
+      "APP_TABLES_MODULE",
+      "appTablesFiles",
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "BLOCK_OPTION_SCHEMAS",
