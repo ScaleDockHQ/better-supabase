@@ -2314,7 +2314,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
-      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;",
+      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
       "supabase/schemas/900_better_supabase_07_jobs.sql",
     );
 
