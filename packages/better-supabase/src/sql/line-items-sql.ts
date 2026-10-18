@@ -1,7 +1,7 @@
 import type { ModuleContext, ModuleTableSpec } from "./context.ts";
 
-import { sqlIdent } from "../core/template.ts";
-import { fail, lockTable } from "./shared.ts";
+import { sqlIdent, sqlString } from "../core/template.ts";
+import { fail, lockTable, triggerGrant } from "./shared.ts";
 
 /**
  * The logical columns of a line table (`<record>_lines`). Every block with
@@ -134,20 +134,44 @@ end;
 $$;
 revoke execute on function ${recount}(uuid) from public, anon, authenticated;
 
+-- Recounts each record a statement touched once, in id order so concurrent
+-- statements lock the records in the same order. A transition table needs a
+-- trigger per event, so there are three triggers on one function. The
+-- transition tables are read through execute because plpgsql_check (db lint)
+-- doesn't know them.
 create or replace function better_supabase.${trigger}()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_parent uuid;
 begin
-  perform ${recount}(coalesce(new.${c("parent")}, old.${c("parent")}));
+  for v_parent in execute case tg_op
+    when 'INSERT' then ${sqlString(`select distinct n.${c("parent")} from new_rows n order by 1`)}
+    when 'DELETE' then ${sqlString(`select distinct o.${c("parent")} from old_rows o order by 1`)}
+    else ${sqlString(`select n.${c("parent")} from new_rows n union select o.${c("parent")} from old_rows o order by 1`)}
+  end loop
+    perform ${recount}(v_parent);
+  end loop;
   return null;
 end;
 $$;
+${triggerGrant(`better_supabase.${trigger}()`)}
 drop trigger if exists ${trigger} on ${t};
-create trigger ${trigger} after insert or update or delete on ${t}
-for each row execute function better_supabase.${trigger}();
+drop trigger if exists ${trigger}_insert on ${t};
+drop trigger if exists ${trigger}_update on ${t};
+drop trigger if exists ${trigger}_delete on ${t};
+create trigger ${trigger}_insert after insert on ${t}
+referencing new table as new_rows
+for each statement execute function better_supabase.${trigger}();
+create trigger ${trigger}_update after update on ${t}
+referencing old table as old_rows new table as new_rows
+for each statement execute function better_supabase.${trigger}();
+create trigger ${trigger}_delete after delete on ${t}
+referencing old table as old_rows
+for each statement execute function better_supabase.${trigger}();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,

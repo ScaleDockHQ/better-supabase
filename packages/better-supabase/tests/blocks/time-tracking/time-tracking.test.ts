@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createTimeTracking } from "../../../src/blocks/time-tracking/index.ts";
+import { money } from "../../../src/commerce/money.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
@@ -33,7 +34,8 @@ const ENTRY = {
   endedAt: "2026-10-06T11:00:00Z",
   seconds: 7200,
   billable: true,
-  rate: 100,
+  rate: "10000",
+  rateCurrency: "EUR",
   note: "Design",
   createdAt: AT,
   updatedAt: AT,
@@ -48,6 +50,7 @@ const RUNNING = {
   seconds: null,
   billable: false,
   rate: null,
+  rateCurrency: null,
   note: null,
 };
 
@@ -85,12 +88,16 @@ describe("time-tracking client", () => {
         subjectType: "project",
         subjectId: "apollo",
         billable: true,
-        rate: 80,
+        rate: money(8000n, "EUR"),
         note: "x",
       })
       .orThrow();
     const stopped = await time.stop("o").orThrow();
-    expect(stopped).toMatchObject({ seconds: 7200, rate: 100, note: "Design" });
+    expect(stopped).toMatchObject({
+      seconds: 7200,
+      rate: money(10_000n, "EUR"),
+      note: "Design",
+    });
     expect(stopped.endedAt?.toString()).toBe("2026-10-06T11:00:00Z");
     expect(await time.running("o").orThrow()).toBeUndefined();
     expect(fake.calls).toEqual([
@@ -102,6 +109,7 @@ describe("time-tracking client", () => {
           subject_id: null,
           billable: false,
           rate: null,
+          rate_currency: null,
           note: null,
         },
       ],
@@ -112,7 +120,8 @@ describe("time-tracking client", () => {
           subject_type: "project",
           subject_id: "apollo",
           billable: true,
-          rate: 80,
+          rate: "8000",
+          rate_currency: "EUR",
           note: "x",
         },
       ],
@@ -142,7 +151,7 @@ describe("time-tracking client", () => {
         subjectType: "project",
         subjectId: "apollo",
         billable: true,
-        rate: 100,
+        rate: money(10_000n, "EUR"),
         note: "Design",
         userId: "u2",
       })
@@ -184,6 +193,7 @@ describe("time-tracking client", () => {
           subject_id: null,
           billable: false,
           rate: null,
+          rate_currency: null,
           note: null,
           user_id: null,
         },
@@ -197,7 +207,8 @@ describe("time-tracking client", () => {
           subject_type: "project",
           subject_id: "apollo",
           billable: true,
-          rate: 100,
+          rate: "10000",
+          rate_currency: "EUR",
           note: "Design",
           user_id: "u2",
         },
@@ -213,6 +224,7 @@ describe("time-tracking client", () => {
             subjectId: "zeus",
             billable: false,
             rate: null,
+            rateCurrency: null,
             note: null,
           },
         },
@@ -257,7 +269,14 @@ describe("time-tracking client", () => {
       get_timesheet: () => ({
         ...SHEET,
         entries: [ENTRY],
-        totals: { seconds: 7200, billableSeconds: 7200, amount: 200 },
+        totals: {
+          seconds: 7200,
+          billableSeconds: 7200,
+          amounts: [
+            { amount: "20000", currency: "EUR" },
+            { amount: "5000", currency: "USD" },
+          ],
+        },
       }),
       submit_timesheet: () => SHEET,
       reopen_timesheet: () => ({
@@ -277,7 +296,7 @@ describe("time-tracking client", () => {
     expect(sheet.totals).toEqual({
       seconds: 7200,
       billableSeconds: 7200,
-      amount: 200,
+      amounts: [money(20_000n, "EUR"), money(5000n, "USD")],
     });
     await time.timesheet("o", WEEK, "u2").orThrow();
     expect(await time.submit("o", WEEK).orThrow()).toMatchObject({
@@ -337,7 +356,43 @@ describe("time-tracking client", () => {
     const time = createTimeTracking({ transport: fake });
     const sheet = await time.timesheet("o", WEEK).orThrow();
     expect(sheet.id).toBeUndefined();
-    expect(sheet.totals).toEqual({ seconds: 0, billableSeconds: 0, amount: 0 });
+    expect(sheet.totals).toEqual({
+      seconds: 0,
+      billableSeconds: 0,
+      amounts: [],
+    });
+  });
+
+  it("sends a rate change as minor units and currency, and refuses an unknown code", async () => {
+    const fake = transport({ update_time_entry: () => ENTRY });
+
+    const time = createTimeTracking({ transport: fake });
+    await time.update("e1", { rate: money(12_550n, "USD") }).orThrow();
+    expect(fake.calls).toEqual([
+      [
+        "update_time_entry",
+        { entry_id: "e1", patch: { rate: "12550", rateCurrency: "USD" } },
+      ],
+    ]);
+
+    for (const result of [
+      await time.start("o", { rate: { amount: 100n, currency: "XYZ" } }),
+      await time.update("e1", { rate: { amount: 100n, currency: "XYZ" } }),
+    ]) {
+      expect(result.ok ? undefined : result.error).toMatchObject({
+        kind: "invalid_request",
+        hint: "CURRENCY_INVALID",
+      });
+    }
+
+    expect(fake.calls).toHaveLength(1);
+  });
+
+  it("refuses a rate sent as a JSON number", async () => {
+    const fake = transport({ stop_timer: () => ({ ...ENTRY, rate: 100 }) });
+
+    const time = createTimeTracking({ transport: fake });
+    expect((await time.stop("o")).ok).toBe(false);
   });
 
   it("rejects an unknown timesheet status", async () => {
