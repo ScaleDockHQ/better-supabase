@@ -116,14 +116,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -411,14 +411,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -780,14 +780,14 @@ create policy "platform_settings_read_public" on "app_private"."platform_setting
   using (false);
 drop policy if exists "platform_settings_insert" on "app_private"."platform_settings";
 create policy "platform_settings_insert" on "app_private"."platform_settings" for insert to authenticated
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "app_private"."platform_settings";
 create policy "platform_settings_update" on "app_private"."platform_settings" for update to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "app_private"."platform_settings";
 create policy "platform_settings_delete" on "app_private"."platform_settings" for delete to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
@@ -1075,14 +1075,14 @@ create policy "platform_settings_read_public" on "better_supabase"."platform_set
   using (false);
 drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
 create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
 create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()))
-  with check ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
+  with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
 create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
-  using ((coalesce(better_supabase.is_platform('settings.manage'), false)) and (select better_supabase.actor_may_write()));
+  using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and

@@ -183,6 +183,7 @@ export function listEntries(
 -- values; search matches the event type, summary, labels, record and table.
 -- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
 -- or open page N with skip (an offset) and count_audit_events for the total.
+-- skip is ignored with a cursor, so keyset pages never scan skipped rows.
 drop function if exists ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists ${ctx.fn("list_audit_events")}(${filterTypes}, timestamptz, text, integer, boolean);
 create or replace function ${ctx.fn("list_audit_events")}(
@@ -202,6 +203,7 @@ as $$
 declare
   v_where text := 'true';
   v_order text := case when ascending then 'asc' else 'desc' end;
+  v_skip text := '';
   result jsonb;
 begin
 ${where}
@@ -210,6 +212,8 @@ ${where}
       then $q$ and (l.${c("occurredAt")}, ${idKey}) > ($14, ${cursorKey})$q$
       else $q$ and (l.${c("occurredAt")}, ${idKey}) < ($14, ${cursorKey})$q$
     end;
+  elsif coalesce(skip, 0) > 0 then
+    v_skip := ' offset $17';
   end if;
   -- Only the filters passed reach the query, so the planner sees no
   -- "is null or" branches and can use the (tenant, occurred_at) index.
@@ -219,8 +223,7 @@ ${where}
     from ${log} l
     where $q$ || v_where || $q$
     order by l.${c("occurredAt")} $q$ || v_order || $q$, ${idKey} $q$ || v_order || $q$
-    limit $16
-    offset $17
+    limit $16$q$ || v_skip || $q$
   ) x$q$
   into result
   using ${using}, cursor_at, cursor_id, ${pageSize("max_items", 50, 1000)}, greatest(coalesce(skip, 0), 0);
@@ -291,7 +294,7 @@ export function reveal(ctx: ModuleContext, restricted: boolean): string {
     .join("");
 
   const allowed = (tenant: string) => `(${SERVICE_CALLER})
-    or coalesce(${ctx.scope.platform(viewAll)}, false)
+    or ${ctx.scope.platform(viewAll)}
     or (${tenant} is not null and coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key}), false))`;
 
   return `-- The restricted details of one entry for a member with the reveal

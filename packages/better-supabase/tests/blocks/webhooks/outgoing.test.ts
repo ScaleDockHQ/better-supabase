@@ -995,7 +995,10 @@ describe("createWebhooks: management", () => {
       [],
       ok,
       {},
-      { publish_webhook_event: () => 1 },
+      {
+        publish_webhook_events: (args) =>
+          (args["events"] as unknown[]).map(() => ({ count: 1 })),
+      },
     );
 
     await webhooks.sink().send([
@@ -1010,16 +1013,99 @@ describe("createWebhooks: management", () => {
       },
       { specversion: "1.0", id: "ce-2", source: "/crm", type: "deal.lost" },
     ]);
-    expect(calls.map((call) => call.args)).toEqual([
-      {
-        event_type: "deal.won",
-        payload: { id: 1 },
-        tenant: "org-1",
-        event_id: "ce-1",
-        subject: "deals/1",
-      },
-      { event_type: "deal.lost", payload: {}, tenant: null, event_id: "ce-2" },
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      [
+        "publish_webhook_events",
+        {
+          events: [
+            {
+              event_type: "deal.won",
+              payload: { id: 1 },
+              tenant: "org-1",
+              event_id: "ce-1",
+              subject: "deals/1",
+            },
+            {
+              event_type: "deal.lost",
+              payload: {},
+              tenant: null,
+              event_id: "ce-2",
+            },
+          ],
+        },
+      ],
     ]);
+  });
+
+  it("sends one call per batch and throws the first failure after all of them", async () => {
+    const { webhooks, calls } = setup(
+      [],
+      ok,
+      {},
+      {
+        publish_webhook_events: (args) =>
+          (args["events"] as { event_id: string }[]).map((event) =>
+            event.event_id === "bad"
+              ? { error: { code: "42501", message: "denied", hint: null } }
+              : { count: 1 },
+          ),
+      },
+    );
+
+    const event = (id: string) => ({
+      specversion: "1.0" as const,
+      id,
+      source: "/crm",
+      type: "deal.won",
+    });
+
+    await expect(
+      webhooks
+        .sink()
+        .send([
+          event("bad"),
+          ...Array.from({ length: 1000 }, (_, index) =>
+            event(`e${String(index)}`),
+          ),
+        ]),
+    ).rejects.toThrow("denied");
+    expect(calls.map((call) => call.fn)).toEqual([
+      "publish_webhook_events",
+      "publish_webhook_events",
+    ]);
+    expect(calls[0]?.args["events"]).toHaveLength(1000);
+    expect(calls[1]?.args["events"]).toHaveLength(1);
+  });
+
+  it("publishes many events with one result each", async () => {
+    const { webhooks } = setup(
+      [],
+      ok,
+      {},
+      {
+        publish_webhook_events: () => [
+          { count: 2 },
+          {
+            error: {
+              code: "22023",
+              message: "bad type",
+              hint: "WEBHOOK_TYPE_REQUIRED",
+            },
+          },
+        ],
+      },
+    );
+
+    const results = await webhooks
+      .publishMany([
+        { type: "deal.won", data: {} },
+        { type: "", data: {} },
+      ])
+      .orThrow();
+
+    expect(results[0]).toMatchObject({ ok: true, data: 2 });
+    expect(results[1]).toMatchObject({ ok: false });
+    expect(await webhooks.publishMany([]).orThrow()).toEqual([]);
   });
 
   it("removes the relay's type prefix before publishing", async () => {
@@ -1027,7 +1113,10 @@ describe("createWebhooks: management", () => {
       [],
       ok,
       {},
-      { publish_webhook_event: () => 1 },
+      {
+        publish_webhook_events: (args) =>
+          (args["events"] as unknown[]).map(() => ({ count: 1 })),
+      },
     );
 
     const event = (type: string) => ({
@@ -1046,11 +1135,13 @@ describe("createWebhooks: management", () => {
     await webhooks
       .sink({ typePrefix: "com.acme" })
       .send([event("com.acme.deal.lost")]);
-    expect(calls.map((call) => call.args["event_type"])).toEqual([
-      "deal.won",
-      "com.acme.deal.won",
-      "deal.lost",
-    ]);
+    expect(
+      calls.flatMap((call) =>
+        (call.args["events"] as { event_type: string }[]).map(
+          (published) => published.event_type,
+        ),
+      ),
+    ).toEqual(["deal.won", "com.acme.deal.won", "deal.lost"]);
   });
 });
 

@@ -30,7 +30,7 @@ import { type ProblemFormat, problemResponse } from "../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
-import { fromPgError } from "../postgres/executor.ts";
+import { fromPgError } from "../postgres/pg-error.ts";
 
 type UserAuth = Extract<AuthState, { kind: "user" }>;
 

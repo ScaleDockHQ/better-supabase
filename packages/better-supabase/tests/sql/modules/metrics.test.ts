@@ -48,7 +48,12 @@ describe("metrics module", () => {
     expect(sql).toContain("when 'week' then 'day'");
     expect(sql).toContain("when 'hour' then 'hour'");
     expect(sql).toContain("v_source := 'hour';");
-    expect(sql).toContain("perform pg_advisory_xact_lock");
+    expect(sql).toContain(
+      "perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'), hashtext('orders'));",
+    );
+    expect(sql).not.toContain(
+      "pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));",
+    );
     expect(sql).toContain("now() - interval '3 days'");
   });
 

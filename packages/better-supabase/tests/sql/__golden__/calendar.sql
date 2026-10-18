@@ -55,6 +55,7 @@ alter table "better_supabase"."calendars" enable row level security;
 revoke all on "better_supabase"."calendars" from anon, authenticated;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
+create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
 drop policy if exists calendars_read on "better_supabase"."calendars";
 create policy calendars_read on "better_supabase"."calendars" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
@@ -109,6 +110,23 @@ alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
+  ) then
+    alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+      check ("role" in ('chair', 'required', 'optional', 'non-participant')) not valid;
+    begin
+      alter table "better_supabase"."calendar_attendees" validate constraint "calendar_attendees_role_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check', '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check';
+    end;
+  end if;
+end;
+$$;
 drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
 create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
@@ -501,6 +519,9 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if coalesce(set_calendar_attendee.role, 'required') not in ('chair', 'required', 'optional', 'non-participant') then
+    raise exception 'role must be chair, required, optional or non-participant' using errcode = '22023', hint = 'CALENDAR_ROLE_INVALID';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = set_calendar_attendee.event_id;
   if not found then
     raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
@@ -656,6 +677,7 @@ alter table "better_supabase"."calendars" enable row level security;
 revoke all on "better_supabase"."calendars" from anon, authenticated;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
+create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
 drop policy if exists calendars_read on "better_supabase"."calendars";
 create policy calendars_read on "better_supabase"."calendars" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
@@ -710,6 +732,23 @@ alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
+  ) then
+    alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+      check ("role" in ('chair', 'required', 'optional', 'non-participant')) not valid;
+    begin
+      alter table "better_supabase"."calendar_attendees" validate constraint "calendar_attendees_role_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check', '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check';
+    end;
+  end if;
+end;
+$$;
 drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
 create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
@@ -1110,6 +1149,9 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if coalesce(set_calendar_attendee.role, 'required') not in ('chair', 'required', 'optional', 'non-participant') then
+    raise exception 'role must be chair, required, optional or non-participant' using errcode = '22023', hint = 'CALENDAR_ROLE_INVALID';
+  end if;
   select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = set_calendar_attendee.event_id;
   if not found then
     raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
@@ -1312,6 +1354,7 @@ alter table "app_private"."calendars" enable row level security;
 revoke all on "app_private"."calendars" from anon, authenticated;
 grant select on "app_private"."calendars" to authenticated;
 grant all on "app_private"."calendars" to service_role;
+create index if not exists "calendars_tenant_idx" on "app_private"."calendars" ("tenant_id");
 drop policy if exists calendars_read on "app_private"."calendars";
 create policy calendars_read on "app_private"."calendars" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
@@ -1366,6 +1409,23 @@ alter table "app_private"."calendar_attendees" enable row level security;
 revoke all on "app_private"."calendar_attendees" from anon, authenticated;
 grant select on "app_private"."calendar_attendees" to authenticated;
 grant all on "app_private"."calendar_attendees" to service_role;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"app_private"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
+  ) then
+    alter table "app_private"."calendar_attendees" add constraint "calendar_attendees_role_check"
+      check ("role" in ('chair', 'required', 'optional', 'non-participant')) not valid;
+    begin
+      alter table "app_private"."calendar_attendees" validate constraint "calendar_attendees_role_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"app_private"."calendar_attendees"', 'calendar_attendees_role_check', '"app_private"."calendar_attendees"', 'calendar_attendees_role_check';
+    end;
+  end if;
+end;
+$$;
 drop policy if exists calendar_attendees_read on "app_private"."calendar_attendees";
 create policy calendar_attendees_read on "app_private"."calendar_attendees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
@@ -1758,6 +1818,9 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if coalesce(set_calendar_attendee.role, 'required') not in ('chair', 'required', 'optional', 'non-participant') then
+    raise exception 'role must be chair, required, optional or non-participant' using errcode = '22023', hint = 'CALENDAR_ROLE_INVALID';
+  end if;
   select "tenant_id" into v_tenant from "app_private"."calendar_events" where "id" = set_calendar_attendee.event_id;
   if not found then
     raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
@@ -1913,6 +1976,7 @@ alter table "better_supabase"."calendars" enable row level security;
 revoke all on "better_supabase"."calendars" from anon, authenticated;
 grant select on "better_supabase"."calendars" to authenticated;
 grant all on "better_supabase"."calendars" to service_role;
+create index if not exists "calendars_tenant_idx" on "better_supabase"."calendars" ("tenant_id");
 drop policy if exists calendars_read on "better_supabase"."calendars";
 create policy calendars_read on "better_supabase"."calendars" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')));
@@ -1967,6 +2031,23 @@ alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."calendar_attendees"'::regclass and conname = 'calendar_attendees_role_check'
+  ) then
+    alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+      check ("role" in ('chair', 'required', 'optional', 'non-participant')) not valid;
+    begin
+      alter table "better_supabase"."calendar_attendees" validate constraint "calendar_attendees_role_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check', '"better_supabase"."calendar_attendees"', 'calendar_attendees_role_check';
+    end;
+  end if;
+end;
+$$;
 drop policy if exists calendar_attendees_read on "better_supabase"."calendar_attendees";
 create policy calendar_attendees_read on "better_supabase"."calendar_attendees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('calendar.read')) or "user_id" = (select auth.uid()));
@@ -2358,6 +2439,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(set_calendar_attendee.role, 'required') not in ('chair', 'required', 'optional', 'non-participant') then
+    raise exception 'role must be chair, required, optional or non-participant' using errcode = '22023', hint = 'CALENDAR_ROLE_INVALID';
   end if;
   select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = set_calendar_attendee.event_id;
   if not found then
@@ -3018,6 +3102,9 @@ declare
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if coalesce(set_calendar_attendee.role, 'required') not in ('chair', 'required', 'optional', 'non-participant') then
+    raise exception 'role must be chair, required, optional or non-participant' using errcode = '22023', hint = 'CALENDAR_ROLE_INVALID';
   end if;
   select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = set_calendar_attendee.event_id;
   if not found then

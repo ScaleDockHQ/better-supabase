@@ -318,6 +318,7 @@ export const plansRow: TableSchema<RowOf<'plans'>> = tableSchema({
     name: { kind: "string" },
     priceCents: { kind: "integer" },
     position: { kind: "integer" },
+    currency: { kind: "string" },
   },
 });
 
@@ -328,6 +329,7 @@ export const plansInsert: TableSchema<InsertOf<'plans'>> = tableSchema({
     name: { kind: "string" },
     priceCents: { kind: "integer", optional: true },
     position: { kind: "integer", optional: true },
+    currency: { kind: "string", optional: true },
   },
 });
 
@@ -338,6 +340,7 @@ export const plansUpdate: TableSchema<UpdateOf<'plans'>> = tableSchema({
     name: { kind: "string", optional: true },
     priceCents: { kind: "integer", optional: true },
     position: { kind: "integer", optional: true },
+    currency: { kind: "string", optional: true },
   },
 });
 

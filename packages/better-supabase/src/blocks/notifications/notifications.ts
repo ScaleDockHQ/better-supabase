@@ -17,14 +17,15 @@ import type {
   Rendered,
   SendInput,
   SentNotification,
+  SinkNotification,
   SubjectDelivery,
   SuppressionReason,
-  TypeName,
 } from "./api-types.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
 import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import {
   blockEmitter,
   type NotificationDeliveryEventData,
@@ -35,9 +36,14 @@ import {
   type FieldsOf,
   type RowFields,
 } from "../../core/block-fields.ts";
-import { budget, toBlockError } from "../../core/block-helpers.ts";
+import {
+  batchResultsOf,
+  budget,
+  chunksOf,
+  toBlockError,
+} from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { dbError } from "../../core/errors.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import {
   AsyncResult,
   err,
@@ -575,117 +581,190 @@ export function createNotifications<
     }
   }
 
+  /** `send_notification`'s argument for one send, after the type's schema and the fields. */
+  const prepare = async (
+    type: string,
+    input: SendInput<unknown, F>,
+  ): Promise<Result<Record<string, unknown>>> => {
+    const schemaOf = Object.hasOwn(options.types, type)
+      ? options.types[type]
+      : undefined;
+
+    if (schemaOf === undefined) {
+      return err(
+        dbError("validation", `Unknown notification type "${type}"`, {
+          issues: [{ path: ["type"], message: `Unknown type "${type}"` }],
+          hint: "NOTIFICATION_TYPE_UNKNOWN",
+        }),
+      );
+    }
+
+    const data = await validate(schemaOf, input.data, `${type} data`);
+
+    if (!data.ok) {
+      return err(data.error);
+    }
+
+    const extra =
+      input.fields === undefined
+        ? ok(undefined)
+        : await fields.write({ ...input.fields });
+
+    if (!extra.ok) {
+      return extra;
+    }
+
+    if (
+      input.permission !== undefined &&
+      (input.tenant === undefined || input.tenant === "")
+    ) {
+      const message = "A permission audience needs a tenant";
+
+      return err(
+        dbError("validation", message, {
+          issues: [{ path: ["tenant"], message }],
+          hint: "NOTIFICATION_PERMISSION_NEEDS_TENANT",
+        }),
+      );
+    }
+
+    return ok({
+      type,
+      data: data.data,
+      recipients: input.recipients ?? [],
+      tenant: input.tenant,
+      permission: input.permission,
+      subject_type: input.subject?.type,
+      subject_id: input.subject?.id,
+      subject_label: input.subject?.label,
+      summary: input.summary,
+      action_path: input.actionPath,
+      priority: input.priority,
+      key: input.key,
+      channels: input.channels,
+      include_actor: input.includeActor,
+      activity: input.activity,
+      resolved: input.resolved,
+      actor: input.actorId,
+      watchers: input.watchers,
+      exclude: input.exclude,
+      fields: extra.data,
+    });
+  };
+
+  const sentOf = (value: unknown): SentNotification | null =>
+    isRecord(value) && value["id"] !== null && value["id"] !== undefined
+      ? {
+          id: String(value["id"]),
+          recipients: (Array.isArray(value["recipients"])
+            ? value["recipients"]
+            : []
+          ).map(String),
+        }
+      : null;
+
+  /** Announces a sent notification and runs `onSent`. */
+  const settle = async (
+    sent: SentNotification | null,
+    type: string,
+    tenant: string | undefined,
+  ): Promise<Result<SentNotification | null>> => {
+    if (sent === null) {
+      return ok(null);
+    }
+
+    const { id, recipients } = sent;
+    emit(
+      "notification.created",
+      { notificationId: id, type, recipientIds: recipients },
+      tenant ?? null,
+    );
+
+    if (options.onSent) {
+      try {
+        await options.onSent({
+          id,
+          type,
+          tenant: tenant ?? null,
+          recipients,
+        });
+      } catch (cause) {
+        return err(toDbError(cause));
+      }
+    }
+
+    return ok(sent);
+  };
+
   const notifications: Notifications<K, F> = {
     send(type, input) {
       return AsyncResult.from(async () => {
-        const schemaOf = Object.hasOwn(options.types, type)
-          ? options.types[type]
-          : undefined;
+        const notification = await prepare(type, input);
 
-        if (schemaOf === undefined) {
-          return err(
-            dbError("validation", `Unknown notification type "${type}"`, {
-              issues: [{ path: ["type"], message: `Unknown type "${type}"` }],
-              hint: "NOTIFICATION_TYPE_UNKNOWN",
-            }),
-          );
+        if (!notification.ok) {
+          return notification;
         }
-
-        const data = await validate(schemaOf, input.data, `${type} data`);
-
-        if (!data.ok) {
-          return err(data.error);
-        }
-
-        const extra =
-          input.fields === undefined
-            ? ok(undefined)
-            : await fields.write({ ...input.fields });
-
-        if (!extra.ok) {
-          return extra;
-        }
-
-        if (
-          input.permission !== undefined &&
-          (input.tenant === undefined || input.tenant === "")
-        ) {
-          return err(
-            dbError("validation", "A permission audience needs a tenant", {
-              issues: [
-                {
-                  path: ["tenant"],
-                  message: "A permission audience needs a tenant",
-                },
-              ],
-              hint: "NOTIFICATION_PERMISSION_NEEDS_TENANT",
-            }),
-          );
-        }
-
-        const notification = {
-          type,
-          data: data.data,
-          recipients: input.recipients ?? [],
-          tenant: input.tenant,
-          permission: input.permission,
-          subject_type: input.subject?.type,
-          subject_id: input.subject?.id,
-          subject_label: input.subject?.label,
-          summary: input.summary,
-          action_path: input.actionPath,
-          priority: input.priority,
-          key: input.key,
-          channels: input.channels,
-          include_actor: input.includeActor,
-          activity: input.activity,
-          resolved: input.resolved,
-          actor: input.actorId,
-          watchers: input.watchers,
-          exclude: input.exclude,
-          fields: extra.data,
-        };
 
         const sent = await run(
           "send_notification",
-          { notification },
-          (value): SentNotification | null =>
-            isRecord(value) && value["id"] !== null && value["id"] !== undefined
-              ? {
-                  id: String(value["id"]),
-                  recipients: (Array.isArray(value["recipients"])
-                    ? value["recipients"]
-                    : []
-                  ).map(String),
-                }
-              : null,
+          { notification: notification.data },
+          sentOf,
         );
 
-        if (!sent.ok || sent.data === null) {
+        return sent.ok ? settle(sent.data, type, input.tenant) : sent;
+      });
+    },
+    sendMany(items) {
+      return AsyncResult.from(async () => {
+        const prepared = await Promise.all(
+          items.map((item) => prepare(item.type, item)),
+        );
+
+        const valid = prepared.flatMap((result, index) =>
+          result.ok ? [{ index, notification: result.data }] : [],
+        );
+
+        const sent =
+          valid.length === 0
+            ? ok([])
+            : await run(
+                "send_notifications",
+                { events: valid.map((entry) => entry.notification) },
+                (value) =>
+                  batchResultsOf(
+                    value,
+                    valid.length,
+                    "notification",
+                    sentOf,
+                    mappers,
+                  ),
+              );
+
+        if (!sent.ok) {
           return sent;
         }
 
-        const { id, recipients } = sent.data;
-        emit(
-          "notification.created",
-          { notificationId: id, type, recipientIds: recipients },
-          input.tenant ?? null,
+        const results: Result<SentNotification | null>[] = prepared.map(
+          (result) =>
+            result.ok
+              ? err(dbError("unexpected", "The notification was not sent"))
+              : result,
         );
 
-        if (options.onSent) {
-          try {
-            await options.onSent({
-              id,
-              type,
-              tenant: input.tenant ?? null,
-              recipients,
-            });
-          } catch (cause) {
-            return err(toDbError(cause));
+        for (const [position, { index }] of valid.entries()) {
+          const result = sent.data[position];
+          const item = items[index];
+
+          if (result === undefined || item === undefined) {
+            continue;
           }
+
+          results[index] = result.ok
+            ? await settle(result.data, item.type, item.tenant)
+            : result;
         }
 
-        return sent;
+        return ok(results);
       });
     },
     get(id, getOptions = {}) {
@@ -994,8 +1073,22 @@ export function createNotifications<
       );
     },
     sink(sinkOptions) {
+      const sendEach = async (
+        chunk: readonly SinkNotification<K>[],
+      ): Promise<readonly Result<SentNotification | null>[]> => {
+        const results: Result<SentNotification | null>[] = [];
+
+        for (const item of chunk) {
+          results.push(await hooked.send(item.type, item));
+        }
+
+        return results;
+      };
+
       return {
         async send(events) {
+          const items: SinkNotification<K>[] = [];
+
           for (const event of events) {
             const type = stripTypePrefix(event.type, sinkOptions.typePrefix);
             const mapped = await sinkOptions.map({ ...event, type });
@@ -1004,28 +1097,44 @@ export function createNotifications<
               continue;
             }
 
-            const { type: notificationType, ...rest } = mapped;
-
-            // SAFETY: SinkNotification pairs each type with its own send input;
-            // destructuring loses that pairing, not the shape.
-            const input = rest as SendInput<
-              StandardSchemaV1.InferInput<K[TypeName<K>]>
-            >;
-
             const tenant =
               typeof event["partitionkey"] === "string"
                 ? event["partitionkey"]
                 : undefined;
 
-            await hooked
-              .send(notificationType, {
-                ...input,
-                key: input.key ?? event.id,
-                ...(input.tenant === undefined && tenant !== undefined
-                  ? { tenant }
-                  : {}),
-              })
-              .orThrow();
+            items.push({
+              ...mapped,
+              key: mapped.key ?? event.id,
+              ...(mapped.tenant === undefined && tenant !== undefined
+                ? { tenant }
+                : {}),
+            });
+          }
+
+          let failure: DbException | undefined;
+
+          // A rule on send must see every sink delivery, so it skips the batch.
+          const perEvent = options.hooks?.send !== undefined;
+
+          for (const chunk of chunksOf(items, MAX_BATCH)) {
+            const results = perEvent
+              ? ok(await sendEach(chunk))
+              : await hooked.sendMany(chunk);
+
+            if (!results.ok) {
+              failure ??= new DbException(results.error);
+              continue;
+            }
+
+            for (const result of results.data) {
+              if (!result.ok) {
+                failure ??= new DbException(result.error);
+              }
+            }
+          }
+
+          if (failure !== undefined) {
+            throw failure;
           }
         },
       };

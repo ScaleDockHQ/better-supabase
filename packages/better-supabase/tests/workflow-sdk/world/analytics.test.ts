@@ -15,12 +15,16 @@ const lastCall = (query: ReturnType<typeof fakePool>["query"]) =>
   query.mock.calls.at(-1)!;
 
 describe("createAnalytics", () => {
-  it("pages runs with an offset cursor and drops SQL nulls", async () => {
+  it("pages runs with a (created_at, id) keyset cursor and drops SQL nulls", async () => {
     const { pool, query } = fakePool([
-      { runId: "a", errorCode: null },
-      { runId: "b", errorCode: null },
-      { runId: "c", errorCode: null },
+      { runId: "a", errorCode: null, __cursor: ["2026-01-01 00:00:00.1", "a"] },
+      { runId: "b", errorCode: null, __cursor: ["2026-01-01 00:00:00.2", "b"] },
+      { runId: "c", errorCode: null, __cursor: ["2026-01-01 00:00:00.3", "c"] },
     ]);
+
+    const cursor = Buffer.from(
+      JSON.stringify(["2026-01-01 00:00:00", "z"]),
+    ).toString("base64url");
 
     const analytics = createAnalytics(pool);
 
@@ -30,31 +34,43 @@ describe("createAnalytics", () => {
       attributes: { "bs.key": "k" },
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-02T00:00:00Z",
-      pagination: { limit: 2, cursor: "4", sortOrder: "asc" },
+      pagination: { limit: 2, cursor, sortOrder: "asc" },
     });
 
     expect(page).toEqual({
       data: [{ runId: "a" }, { runId: "b" }],
       hasMore: true,
-      cursor: "6",
+      cursor: Buffer.from(
+        JSON.stringify(["2026-01-01 00:00:00.2", "b"]),
+      ).toString("base64url"),
     });
     const [sql, params] = lastCall(query);
     expect(sql).toContain("r.attributes @> $3::jsonb");
+    expect(sql).toContain("and (r.created_at, r.id) > ($6, $7)");
     expect(sql).toContain("order by r.created_at asc");
+    expect(sql).not.toContain("offset");
     expect(params).toEqual([
       "w",
       "running",
       '{"bs.key":"k"}',
       "2026-01-01T00:00:00Z",
       "2026-01-02T00:00:00Z",
+      "2026-01-01 00:00:00",
+      "z",
       3,
-      4,
     ]);
 
-    const last = await analytics.runs.list({ pagination: { cursor: "x" } });
+    const last = await analytics.runs.list();
     expect(last.hasMore).toBe(false);
     expect(last.cursor).toBeNull();
-    expect(lastCall(query)[1]).toEqual([101, 0]);
+    expect(lastCall(query)[1]).toEqual([101]);
+    expect(lastCall(query)[0]).toContain("order by r.created_at desc");
+
+    await analytics.runs.list({ pagination: { cursor } });
+    expect(lastCall(query)[0]).toContain("(r.created_at, r.id) < ($1, $2)");
+    await expect(
+      analytics.runs.list({ pagination: { cursor: "4" } }),
+    ).rejects.toThrow("not an analytics cursor");
   });
 
   it("rejects pages, windows and filters past the limits", async () => {
@@ -111,14 +127,14 @@ describe("createAnalytics", () => {
       startTime: "a",
       endTime: "b",
     });
-    expect(lastCall(query)[1]).toEqual(["w", "a", "b", 101, 0]);
+    expect(lastCall(query)[1]).toEqual(["w", "a", "b", 101]);
     await analytics.attributes.list();
-    expect(lastCall(query)[1]).toEqual([101, 0]);
+    expect(lastCall(query)[1]).toEqual([101]);
 
     await analytics.steps.get("r", "s");
     expect(lastCall(query)[1]).toEqual(["r", "s"]);
     await analytics.steps.list({ runId: "r" });
-    expect(lastCall(query)[1]).toEqual(["r", 1001, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", 1001]);
 
     await analytics.events.list({ runId: "r", eventType: "step_created" });
     expect(lastCall(query)[0]).toContain("e.type = $2");
@@ -128,24 +144,24 @@ describe("createAnalytics", () => {
       correlationId: "c",
       pagination: { limit: 5 },
     });
-    expect(lastCall(query)[1]).toEqual(["r", "c", 6, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", "c", 6]);
     // oxlint-disable-next-line typescript/no-deprecated -- covers the method the World interface still requires.
     await analytics.events.listByCorrelationId({
       runId: "r",
       correlationId: "c",
     });
-    expect(lastCall(query)[1]).toEqual(["r", "c", 1001, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", "c", 1001]);
     await analytics.events.getMany("r", ["e1", "e1", "e2"]);
     expect(lastCall(query)[1]).toEqual(["r", ["e1", "e2"]]);
 
     await analytics.hooks.get("h", { runId: "r" });
     expect(lastCall(query)[1]).toEqual(["h", "r"]);
     await analytics.hooks.list({ runId: "r" });
-    expect(lastCall(query)[1]).toEqual(["r", 101, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", 101]);
 
     await analytics.waits.list({ runId: "r", status: "waiting" });
-    expect(lastCall(query)[1]).toEqual(["r", "waiting", 1001, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", "waiting", 1001]);
     await analytics.waits.list({ runId: "r" });
-    expect(lastCall(query)[1]).toEqual(["r", 1001, 0]);
+    expect(lastCall(query)[1]).toEqual(["r", 1001]);
   });
 });

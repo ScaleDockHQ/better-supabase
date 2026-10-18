@@ -8,13 +8,19 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  defaultPartition,
+  defaultPartitionName,
+  dropExpiredPartitions,
+  fail,
+  lockTable,
+  MONTHLY_PARTITIONS,
+  PARTITION_VARIABLES,
+  pageSize,
+  raise,
+  registerPartitions,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
-  pageSize,
-  revokeTable,
-  lockTable,
-  fail,
-  raise,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 import {
@@ -25,7 +31,7 @@ import {
 } from "./usage-meters.ts";
 
 const NAMES: ModuleNames = {
-  options: ["meters", "history"],
+  options: ["meters", "history", "partitioned"],
   hooks: ["usage_billing_period"],
   tables: {
     counters: {
@@ -96,6 +102,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const history = ctx.table("history");
   const hc = (logical: string): string => ctx.col("history", logical);
   const keepHistory = ctx.flag("history", false);
+  const partitioned = keepHistory && ctx.flag("partitioned", false);
+  const historySequence = `${ctx.schema}.${ctx.naming.rename("usage_history_id_seq")}`;
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("usage");
 
@@ -216,16 +224,30 @@ ${
     ? `
 -- options.history: one row per recorded quantity, with who (actor_id) and
 -- what (source, metadata) used it, for a usage page.
-create table if not exists ${history} (
-  ${hc("id")} bigint generated always as identity primary key,
+${
+  partitioned
+    ? `create sequence if not exists ${historySequence};
+`
+    : ""
+}create table if not exists ${history} (
+  ${partitioned ? `${hc("id")} bigint not null default nextval('${historySequence}')` : `${hc("id")} bigint generated always as identity primary key`},
   ${hc("tenant")} ${id} not null,
   ${hc("meter")} text not null,
   ${hc("quantity")} numeric not null,
   ${hc("actor")} uuid,
   ${hc("source")} text check (length(${hc("source")}) <= 200),
   ${hc("metadata")} jsonb not null default '{}',
-  ${hc("recordedAt")} timestamptz not null default now()
-);
+  ${hc("recordedAt")} timestamptz not null default now()${
+    partitioned
+      ? `,
+  primary key (${hc("id")}, ${hc("recordedAt")})
+) partition by range (${hc("recordedAt")});
+${defaultPartition(history, defaultPartitionName(ctx.tableName("history")))}
+revoke all on sequence ${historySequence} from anon, authenticated;
+grant usage on sequence ${historySequence} to service_role;`
+      : `
+);`
+  }
 create index if not exists usage_history_tenant_idx on ${history} (${hc("tenant")}, ${hc("recordedAt")} desc, ${hc("id")} desc);
 alter table ${history} enable row level security;
 ${revokeTable(history)}
@@ -233,7 +255,14 @@ grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
 drop policy if exists "usage_history_read" on ${history};
 create policy "usage_history_read" on ${history} for select to authenticated
-  using (${readPolicy(hc("tenant"))});
+  using (${readPolicy(hc("tenant"))});${
+    partitioned
+      ? `
+
+${MONTHLY_PARTITIONS}
+${registerPartitions(history)}`
+      : ""
+  }
 `
     : ""
 }
@@ -778,8 +807,19 @@ as $$
 ${
   keepHistory
     ? `declare
-  purged integer;
-begin
+  purged integer;${
+    partitioned
+      ? `
+  v_dropped integer := 0;${PARTITION_VARIABLES}`
+      : ""
+  }
+begin${
+        partitioned
+          ? `
+  -- Whole months past every tenant's retention go at once.
+  ${dropExpiredPartitions({ table: history, cutoff: ctx.cutoff("usage", "older_than"), purged: "v_dropped" })}`
+          : ""
+      }
   with gone as (
     delete from ${history} where ${hc("id")} in (
       select h.${hc("id")} from ${history} h
@@ -789,7 +829,7 @@ begin
     returning 1
   )
   select count(*)::integer into purged from gone;
-  return purged;
+  return purged${partitioned ? " + v_dropped" : ""};
 end;`
     : `begin
   return 0;
@@ -915,7 +955,7 @@ export const USAGE: ModuleDefinition = {
   providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -945,6 +985,12 @@ export const USAGE: ModuleDefinition = {
       from: 4,
       description:
         "purge_usage_history keeps history for the data-lifecycle retention policy and skips rows under a legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "options.partitioned partitions a new usage_history table by month on recorded_at, and purge_usage_history drops whole months past retention. It applies to new tables only.",
       sql: () => "",
     },
   ],

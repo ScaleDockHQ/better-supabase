@@ -55,6 +55,7 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
 create table if not exists "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -68,6 +69,26 @@ alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+      check ("offset_minutes" between -525600 and 525600) not valid;
+    begin
+      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
 create table if not exists "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
@@ -253,6 +274,7 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
 create table if not exists "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -266,6 +288,26 @@ alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+      check ("offset_minutes" between -525600 and 525600) not valid;
+    begin
+      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
 create table if not exists "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,
@@ -453,6 +495,7 @@ alter table "app_private"."recurrence_rules" enable row level security;
 revoke all on "app_private"."recurrence_rules" from anon, authenticated;
 grant select on "app_private"."recurrence_rules" to authenticated;
 grant all on "app_private"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "app_private"."recurrence_rules" ("subject_type", "subject_id");
 create table if not exists "app_private"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -466,6 +509,26 @@ alter table "app_private"."reminders" enable row level security;
 revoke all on "app_private"."reminders" from anon, authenticated;
 grant select on "app_private"."reminders" to authenticated;
 grant all on "app_private"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "app_private"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "app_private"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"app_private"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    alter table "app_private"."reminders" add constraint "reminders_offset_check"
+      check ("offset_minutes" between -525600 and 525600) not valid;
+    begin
+      alter table "app_private"."reminders" validate constraint "reminders_offset_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"app_private"."reminders"', 'reminders_offset_check', '"app_private"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
 create table if not exists "app_private"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "app_private"."reminders" ("id") on delete cascade,
@@ -651,6 +714,7 @@ alter table "better_supabase"."recurrence_rules" enable row level security;
 revoke all on "better_supabase"."recurrence_rules" from anon, authenticated;
 grant select on "better_supabase"."recurrence_rules" to authenticated;
 grant all on "better_supabase"."recurrence_rules" to service_role;
+create index if not exists "recurrence_rules_subject_idx" on "better_supabase"."recurrence_rules" ("subject_type", "subject_id");
 create table if not exists "better_supabase"."reminders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -664,6 +728,26 @@ alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;
 grant all on "better_supabase"."reminders" to service_role;
+create index if not exists "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
+create index if not exists "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
+-- A negative offset fires after the occurrence; a year either way bounds it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."reminders"'::regclass and conname = 'reminders_offset_check'
+  ) then
+    alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+      check ("offset_minutes" between -525600 and 525600) not valid;
+    begin
+      alter table "better_supabase"."reminders" validate constraint "reminders_offset_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."reminders"', 'reminders_offset_check', '"better_supabase"."reminders"', 'reminders_offset_check';
+    end;
+  end if;
+end;
+$$;
 create table if not exists "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "reminder_id" uuid not null references "better_supabase"."reminders" ("id") on delete cascade,

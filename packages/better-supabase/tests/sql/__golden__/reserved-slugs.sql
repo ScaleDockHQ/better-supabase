@@ -16,7 +16,7 @@ alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
+create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -129,7 +129,7 @@ alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
+create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -242,7 +242,7 @@ alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
+create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -355,7 +355,7 @@ alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
+create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.

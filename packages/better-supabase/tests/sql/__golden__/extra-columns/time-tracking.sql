@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bs-module time-tracking@1 managed
+-- @bs-module time-tracking@2 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,9 @@ create table if not exists "better_supabase"."time_entries" (
   "started_at" timestamptz not null,
   "ended_at" timestamptz,
   "billable" boolean not null default false,
-  "rate" numeric(12, 2) check ("rate" is null or "rate" >= 0),
+  -- Minor units of rate_currency per hour (ADR 0037).
+  "rate" bigint check ("rate" is null or "rate" >= 0),
+  "rate_currency" text,
   "note" text check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -68,6 +70,41 @@ create table if not exists "better_supabase"."time_entries" (
   )
 );
 alter table "better_supabase"."time_entries" add column if not exists "app_note" text;
+alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_currency_check'
+  ) then
+    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_currency_check"
+      check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$') not valid;
+    begin
+      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_currency_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."time_entries"', 'time_entries_rate_currency_check', '"better_supabase"."time_entries"', 'time_entries_rate_currency_check';
+    end;
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."time_entries"'::regclass and conname = 'time_entries_rate_pair_check'
+  ) then
+    alter table "better_supabase"."time_entries" add constraint "time_entries_rate_pair_check"
+      check (("rate" is null) = ("rate_currency" is null)) not valid;
+    begin
+      alter table "better_supabase"."time_entries" validate constraint "time_entries_rate_pair_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."time_entries"', 'time_entries_rate_pair_check', '"better_supabase"."time_entries"', 'time_entries_rate_pair_check';
+    end;
+  end if;
+end;
+$$;
 create unique index if not exists "time_entries_running_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id") where "ended_at" is null;
 create index if not exists "time_entries_user_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id", "started_at" desc);
 create index if not exists "time_entries_subject_idx" on "better_supabase"."time_entries" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
@@ -159,7 +196,11 @@ create trigger bs_time_entry_guard
 -- Starts a timer for the caller, stopping the one that runs. fields: the
 -- extra columns (blocks.time-tracking.options.extraColumns) to set.
 drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text);
-create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, fields jsonb default null)
+drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text, jsonb);
+drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid);
+drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb);
+drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text);
+create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -183,6 +224,12 @@ begin
   if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
+  if (start_timer.rate is null) <> (start_timer.rate_currency is null) then
+    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
+  if start_timer.rate_currency !~ '^[A-Z]{3}$' then
+    raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   perform pg_advisory_xact_lock(hashtextextended('time_entry:' || start_timer.tenant::text || ':' || v_me::text, 0));
   update "better_supabase"."time_entries" x set "ended_at" = v_at, "updated_at" = v_at
     where x."tenant_id" = start_timer.tenant and x."user_id" = v_me and x."ended_at" is null
@@ -199,6 +246,7 @@ begin
   v_row."started_at" := v_at;
   v_row."billable" := coalesce(start_timer.billable, false);
   v_row."rate" := start_timer.rate;
+  v_row."rate_currency" := start_timer.rate_currency;
   v_row."note" := start_timer.note;
   if exists (
     select 1 from "better_supabase"."time_entries" x
@@ -215,8 +263,8 @@ begin
         using v_row."id", v_row."tenant_id", v_row."user_id";
     end if;
   end;
-  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."note")
+  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "rate_currency", "note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
   returning * into v_row;
   update "better_supabase"."time_entries" x set "app_note" = case when start_timer.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."time_entries", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(start_timer.fields) e where e.key in ('app_note'))) r
@@ -231,11 +279,11 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
-revoke execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_timer"(uuid, text, text, boolean, bigint, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."stop_timer"(tenant uuid)
 returns jsonb
@@ -270,7 +318,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."stop_timer"(uuid) from public, anon;
@@ -284,15 +332,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."time_entries" x
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) from "better_supabase"."time_entries" x
   where x."tenant_id" = running_timer.tenant and x."user_id" = auth.uid() and x."ended_at" is null;
 $$;
 revoke execute on function "better_supabase"."running_timer"(uuid) from public, anon;
 grant execute on function "better_supabase"."running_timer"(uuid) to authenticated, service_role;
 
 -- Records finished time. Logging for another member needs the manage permission.
-drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid);
-create or replace function "better_supabase"."log_time"(tenant uuid, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, user_id uuid default null, fields jsonb default null)
+drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid);
+create or replace function "better_supabase"."log_time"(tenant uuid, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, user_id uuid default null, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -328,6 +376,12 @@ begin
   if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or true) then
     raise exception 'not allowed to track time on this record' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
+  if (log_time.rate is null) <> (log_time.rate_currency is null) then
+    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
+  if log_time.rate_currency !~ '^[A-Z]{3}$' then
+    raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   perform pg_advisory_xact_lock(hashtextextended('time_entry:' || log_time.tenant::text || ':' || v_user::text, 0));
   v_row."id" := gen_random_uuid();
   v_row."tenant_id" := log_time.tenant;
@@ -338,6 +392,7 @@ begin
   v_row."ended_at" := log_time.ended_at;
   v_row."billable" := coalesce(log_time.billable, false);
   v_row."rate" := log_time.rate;
+  v_row."rate_currency" := log_time.rate_currency;
   v_row."note" := log_time.note;
   if exists (
     select 1 from "better_supabase"."time_entries" x
@@ -354,8 +409,8 @@ begin
         using v_row."id", v_row."tenant_id", v_row."user_id";
     end if;
   end;
-  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "note")
-  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."note")
+  insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "rate_currency", "note")
+  values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
   returning * into v_row;
   update "better_supabase"."time_entries" x set "app_note" = case when log_time.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."time_entries", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(log_time.fields) e where e.key in ('app_note'))) r
@@ -370,14 +425,15 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
-revoke execute on function "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid, jsonb) to authenticated, service_role;
 
 -- Changes the keys in patch: startedAt, endedAt, subjectType and subjectId
--- together, billable, rate, note and fields (the extra columns).
+-- together, billable, rate and rateCurrency together (minor units per
+-- hour as text), note and fields (the extra columns).
 create or replace function "better_supabase"."update_time_entry"(entry_id uuid, patch jsonb)
 returns jsonb
 language plpgsql
@@ -426,8 +482,15 @@ begin
   if v_patch ? 'billable' then
     v_row."billable" := coalesce((v_patch ->> 'billable')::boolean, false);
   end if;
-  if v_patch ? 'rate' then
-    v_row."rate" := (v_patch ->> 'rate')::numeric;
+  if v_patch ? 'rate' or v_patch ? 'rateCurrency' then
+    v_row."rate" := (v_patch ->> 'rate')::bigint;
+    v_row."rate_currency" := v_patch ->> 'rateCurrency';
+    if (v_row."rate" is null) <> (v_row."rate_currency" is null) then
+    raise exception 'name both rate and rate_currency, or neither' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
+  if v_row."rate_currency" !~ '^[A-Z]{3}$' then
+    raise exception 'rate_currency must be a three-letter currency code' using errcode = '22023', hint = 'TIME_RATE_INVALID';
+  end if;
   end if;
   if v_patch ? 'note' then
     v_row."note" := v_patch ->> 'note';
@@ -454,6 +517,7 @@ begin
       "subject_id" = v_row."subject_id",
       "billable" = v_row."billable",
       "rate" = v_row."rate",
+      "rate_currency" = v_row."rate_currency",
       "note" = v_row."note",
       "updated_at" = now()
   where x."id" = v_row."id"
@@ -471,7 +535,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."update_time_entry"(uuid, jsonb) from public, anon;
@@ -499,7 +563,7 @@ begin
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."delete_time_entry"(uuid) from public, anon;
@@ -521,7 +585,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((v_user = auth.uid() and not list_time_entries.everyone) and coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.track'), false)) or coalesce(better_supabase.can('tenant', list_time_entries.tenant, 'time_tracking.read'), false)) then
     raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at", 'fields', jsonb_build_object('app_note', q."app_note")) order by q."started_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'userId', q."user_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'startedAt', q."started_at", 'endedAt', q."ended_at", 'seconds', case when q."ended_at" is null then null else extract(epoch from q."ended_at" - q."started_at")::bigint end, 'billable', q."billable", 'rate', q."rate"::text, 'rateCurrency', q."rate_currency", 'note', q."note", 'createdAt', q."created_at", 'updatedAt', q."updated_at", 'fields', jsonb_build_object('app_note', q."app_note")) order by q."started_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."time_entries" x
     where x."tenant_id" = list_time_entries.tenant
@@ -568,11 +632,23 @@ begin
   else
     v_json := jsonb_build_object('id', null, 'organizationId', get_timesheet.tenant, 'userId', v_user, 'week', v_week, 'status', 'open');
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) order by x."started_at"), '[]'::jsonb),
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) order by x."started_at"), '[]'::jsonb),
     jsonb_build_object(
       'seconds', coalesce(sum(extract(epoch from coalesce(x."ended_at", now()) - x."started_at")), 0)::bigint,
       'billableSeconds', coalesce(sum(extract(epoch from coalesce(x."ended_at", now()) - x."started_at")) filter (where x."billable"), 0)::bigint,
-      'amount', round(coalesce(sum(extract(epoch from coalesce(x."ended_at", now()) - x."started_at") / 3600 * x."rate") filter (where x."billable"), 0), 2)
+      -- Billable hours times the rate, per currency, rounded to minor units.
+      'amounts', (
+        select coalesce(jsonb_agg(jsonb_build_object('amount', q.amount::text, 'currency', q.currency) order by q.currency), '[]'::jsonb)
+        from (
+          select y."rate_currency" as currency,
+            round(sum(extract(epoch from coalesce(y."ended_at", now()) - y."started_at") * y."rate" / 3600))::bigint as amount
+          from "better_supabase"."time_entries" y
+          where y."tenant_id" = get_timesheet.tenant and y."user_id" = v_user
+            and "better_supabase"."time_week"(y."started_at") = v_week
+            and y."billable" and y."rate" is not null
+          group by y."rate_currency"
+        ) q
+      )
     )
     into v_entries, v_totals
   from "better_supabase"."time_entries" x
@@ -778,6 +854,6 @@ grant select on better_supabase.modules to service_role;
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.modules (name, version, mode)
-values ('time-tracking', 1, 'managed')
+values ('time-tracking', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -135,3 +135,58 @@ describe("outbox module", () => {
     expect(silenced.contents).not.toContain("emit_event");
   });
 });
+
+describe("outbox partitioned", () => {
+  const sql = body({ outbox: { options: { partitioned: true } } });
+
+  it("partitions events by month with a sequence for the position", () => {
+    expect(sql).toContain(
+      'create sequence if not exists "better_supabase".outbox_events_position_seq;',
+    );
+    expect(sql).toContain(
+      `"position" bigint not null default nextval('"better_supabase".outbox_events_position_seq')`,
+    );
+    expect(sql).toContain('primary key ("id", "created_at")');
+    expect(sql).toContain(') partition by range ("created_at");');
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."outbox_events_default" partition of "better_supabase"."outbox_events" default;',
+    );
+    expect(sql).toContain(
+      `select better_supabase.ensure_partitions('"better_supabase"."outbox_events"'::regclass, 3);`,
+    );
+    expect(sql).not.toContain(
+      "create unique index if not exists outbox_events_key_idx",
+    );
+  });
+
+  it("dedupes keys with an advisory lock", () => {
+    expect(sql).toContain(
+      `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('"better_supabase"."outbox_events"'), pg_catalog.hashtext(coalesce(tenant, '') || ':' || key));`,
+    );
+  });
+
+  it("drops whole months no active consumer still waits for", () => {
+    expect(sql).toContain(
+      `better_supabase.expired_partitions('"better_supabase"."outbox_events"'::regclass, now() - coalesce(older_than, '30 days'::interval))`,
+    );
+    expect(sql).toContain(
+      `where $1 and (p."xid", p."position") > ($2, $3))', v_part) into v_part_busy using v_waiting, v_min_xid, v_min_cursor;`,
+    );
+    expect(sql).toContain("return v_purged + v_dropped;");
+  });
+
+  it("stays unpartitioned by default", () => {
+    const plain = body({});
+    expect(plain).not.toContain("partition by range");
+    expect(plain).not.toContain("expired_partitions");
+    expect(plain).toContain(
+      "create unique index if not exists outbox_events_key_idx",
+    );
+  });
+
+  it("revokes the row trigger function from the API roles", () => {
+    expect(body({})).toContain(
+      'revoke execute on function "better_supabase"."outbox_row_event"() from public, anon, authenticated;',
+    );
+  });
+});

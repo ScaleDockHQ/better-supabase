@@ -168,6 +168,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
 drop trigger if exists bs_application_guard on "better_supabase"."applications";
 create trigger bs_application_guard before update of "state" on "better_supabase"."applications"
 for each row execute function better_supabase.bs_application_guard();

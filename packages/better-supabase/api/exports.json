@@ -942,8 +942,10 @@
     ],
     "types": [
       "BetterPostgres",
+      "CompileSqlOptions",
       "PgPool",
       "PgPoolClient",
+      "PostgresExecutorOptions",
       "PostgresOptions",
       "PostgresTimeouts",
       "SessionOptions",

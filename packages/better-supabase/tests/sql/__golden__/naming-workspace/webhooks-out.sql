@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_25_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bs-module webhooks-out@4 managed
+-- @bs-module webhooks-out@5 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -208,6 +208,58 @@ end;
 $$;
 revoke execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text, text, text) to service_role;
+
+-- publish_webhook_event for a batch of events in one call (the outbox
+-- sink): each element takes its argument names as keys, keeps its checks
+-- and returns {"count"} or {"error"} in order.
+create or replace function "better_supabase"."publish_webhook_events"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result integer;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"publish_webhook_events" takes a jsonb array of events'
+      using errcode = '22023', hint = 'WEBHOOK_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"publish_webhook_events" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'WEBHOOK_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."publish_webhook_event"(
+        event_type => batch_event ->> 'event_type',
+        payload => coalesce(nullif(batch_event -> 'payload', 'null'::jsonb), '{}'),
+        tenant => (batch_event ->> 'tenant')::uuid,
+        event_id => batch_event ->> 'event_id',
+        subject => batch_event ->> 'subject',
+        read_permission => batch_event ->> 'read_permission'
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('count', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_webhook_events"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_webhook_events"(jsonb) to service_role;
 
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -570,6 +622,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('webhooks-out', 4, 'managed')
+values ('webhooks-out', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

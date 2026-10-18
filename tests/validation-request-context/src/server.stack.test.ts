@@ -53,7 +53,7 @@ const admin = createClient(stack.url, stack.secretKey, {
 
 async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
   const email = `request-context-${crypto.randomUUID()}@example.com`;
-  const password = "correct horse battery staple";
+  const password = "correct horse battery staple 42";
 
   const { data, error } = await admin.auth.admin.createUser({
     email,

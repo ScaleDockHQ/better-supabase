@@ -3522,6 +3522,10 @@
                 "type": "number",
                 "default": 1000
               },
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
               "priorities": {
                 "type": "array",
                 "items": {
@@ -3672,6 +3676,10 @@
                 "default": ["service_role"]
               },
               "blockSource": {},
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
               "retention": {
                 "type": "string",
                 "default": "30 days"
@@ -4346,6 +4354,10 @@
               "history": {
                 "type": "boolean",
                 "default": false
+              },
+              "partitioned": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4468,6 +4480,10 @@
                 "default": "5 days"
               },
               "eventIdType": {},
+              "partitioned": {
+                "type": "boolean",
+                "default": false
+              },
               "runIdType": {},
               "secretStorage": {
                 "type": "string",

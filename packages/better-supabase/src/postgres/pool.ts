@@ -1,8 +1,11 @@
 import { Pool } from "pg";
 
+import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
+import type { Logger } from "../core/logger.ts";
 
 import { postgresExecutor, type SqlClient } from "./executor.ts";
+import { watchPoolErrors } from "./pool-errors.ts";
 
 /** The part of a `pg` pool client `createPostgres` uses. */
 export interface PgPoolClient {
@@ -14,6 +17,8 @@ export interface PgPoolClient {
 export interface PgPool {
   connect(): Promise<PgPoolClient>;
   end(): Promise<void>;
+  /** `pg.Pool` reports errors of idle connections here. */
+  on?(event: "error", listener: (error: Error) => void): unknown;
 }
 
 /** Statement timeouts in milliseconds by the role a transaction runs as. */
@@ -39,13 +44,28 @@ export interface PostgresOptions {
    * and 3 s unless you set them.
    */
   readonly statementTimeout?: number | PostgresTimeouts;
-  /** Ends a session that stays idle inside a transaction this long, in milliseconds. */
+  /**
+   * Ends a session that stays idle inside a transaction this long, in
+   * milliseconds, so `transaction(fn)` can't hold a connection while `fn`
+   * waits on something else. Defaults to 15000; `0` turns it off. Statements
+   * outside a transaction don't set it.
+   */
   readonly idleInTransactionTimeout?: number;
   /** How long `connect` waits for a connection, in milliseconds. Defaults to 10000. */
   readonly connectionTimeout?: number;
   /** How long an unused connection stays open, in milliseconds. Defaults to 10000. */
   readonly idleTimeout?: number;
+  /**
+   * `betterSupabase.events`: an error on an idle pooled connection arrives as
+   * an `error` event instead of crashing the process.
+   */
+  readonly events?: EventHub;
+  /** Where idle-connection errors go without `error` handlers. Defaults to the console. */
+  readonly logger?: Logger;
 }
+
+/** Supabase sets no idle-in-transaction timeout; 15 s frees a stuck connection. */
+const DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT = 15_000;
 
 const DEFAULT_TIMEOUTS: PostgresTimeouts = {
   authenticated: 8000,
@@ -164,6 +184,15 @@ function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
 export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   const pool = options.pool ?? openPool(options);
 
+  watchPoolErrors(pool, {
+    ...(options.events ? { events: options.events } : {}),
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
+
+  const idleInTransaction = Math.trunc(
+    options.idleInTransactionTimeout ?? DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT,
+  );
+
   const timeouts: PostgresTimeouts =
     typeof options.statementTimeout === "number"
       ? {
@@ -189,13 +218,6 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
       settings.push(["statement_timeout", String(Math.trunc(timeout))]);
     }
 
-    if (options.idleInTransactionTimeout !== undefined) {
-      settings.push([
-        "idle_in_transaction_session_timeout",
-        String(Math.trunc(options.idleInTransactionTimeout)),
-      ]);
-    }
-
     if (session.claims && session.role) {
       settings.push(
         [
@@ -217,13 +239,21 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   ): Promise<void> {
     await client.query(session.readOnly ? "begin read only" : "begin");
 
-    if (settings.length === 0) {
+    const all: readonly (readonly [string, string])[] =
+      idleInTransaction > 0
+        ? [
+            ...settings,
+            ["idle_in_transaction_session_timeout", String(idleInTransaction)],
+          ]
+        : settings;
+
+    if (all.length === 0) {
       return;
     }
 
     await client.query(
-      `select ${settings.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
-      settings.flat(),
+      `select ${all.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
+      all.flat(),
     );
   }
 

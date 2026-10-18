@@ -13,7 +13,13 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
-import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  fail,
+  lockTable,
+  schemaPreamble,
+  triggerGrant,
+} from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { moduleOperations } from "./access-model.ts";
 import { dealFunctions, type DealNames } from "./deals-functions.ts";
@@ -374,6 +380,7 @@ begin
   return new;
 end;
 $$;
+${triggerGrant("better_supabase.bs_deal_guard()")}
 drop trigger if exists bs_deal_guard on ${t("deals")};
 create trigger bs_deal_guard before insert or update on ${t("deals")}
 for each row execute function better_supabase.bs_deal_guard();

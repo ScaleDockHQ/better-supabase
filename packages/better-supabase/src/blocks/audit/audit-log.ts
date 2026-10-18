@@ -8,9 +8,10 @@ import type { AuditEntry, OcsfProduct } from "./audit.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
+  batchResultsOf,
   blockCall,
   instantArg,
   isRecord,
@@ -240,6 +241,15 @@ function revertedOf(value: unknown): AuditReverted {
 
 export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   record(event: AuditEventInput): AsyncResult<string>;
+  /**
+   * Records up to 1000 events in one `audit_event_many` call, with
+   * `record`'s checks per event: one `Result` per event, in order, so a bad
+   * event never drops the others. The outer result fails only when the
+   * call itself does (more than 1000 events, the network).
+   */
+  recordMany(
+    events: readonly AuditEventInput[],
+  ): AsyncResult<readonly Result<string>[]>;
   /** A page of the entries the caller can read, newest first. */
   list(options?: AuditListOptions): AsyncResult<AuditPage<Columns>>;
   /**
@@ -397,6 +407,36 @@ function detailsOf(value: unknown, entryId: string): AuditDetails {
     ...(row["changes"] === undefined || row["changes"] === null
       ? {}
       : { changes: row["changes"] }),
+  };
+}
+
+/** `audit_event`'s named arguments for one event. */
+function eventArgs(event: AuditEventInput): Record<string, unknown> {
+  return {
+    event_type: event.eventType,
+    category: event.category,
+    outcome: event.outcome,
+    source: event.source,
+    target_type: event.targetType,
+    record_id: event.record,
+    tenant: event.organizationId,
+    metadata: event.metadata,
+    idempotency_key: event.idempotencyKey,
+    restricted: event.restricted,
+    actor_id: event.actorId,
+    summary: event.summary,
+    target_label: event.targetLabel,
+    correlation_id: event.correlationId,
+    actor_kind: event.actorKind,
+    actor_label: event.actorLabel,
+    ip: event.ip,
+    user_agent: event.userAgent,
+    session_id: event.sessionId,
+    request_id: event.requestId,
+    scope: event.scope,
+    support_session: event.supportSessionId,
+    impersonated_by: event.impersonatedBy,
+    impersonation_reason: event.impersonationReason,
   };
 }
 
@@ -593,40 +633,21 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
   };
 
   const record = (event: AuditEventInput): AsyncResult<string> =>
-    call(
-      "audit_event",
-      {
-        event_type: event.eventType,
-        category: event.category,
-        outcome: event.outcome,
-        source: event.source,
-        target_type: event.targetType,
-        record_id: event.record,
-        tenant: event.organizationId,
-        metadata: event.metadata,
-        idempotency_key: event.idempotencyKey,
-        restricted: event.restricted,
-        actor_id: event.actorId,
-        summary: event.summary,
-        target_label: event.targetLabel,
-        correlation_id: event.correlationId,
-        actor_kind: event.actorKind,
-        actor_label: event.actorLabel,
-        ip: event.ip,
-        user_agent: event.userAgent,
-        session_id: event.sessionId,
-        request_id: event.requestId,
-        scope: event.scope,
-        support_session: event.supportSessionId,
-        impersonated_by: event.impersonatedBy,
-        impersonation_reason: event.impersonationReason,
-      },
-      textOf,
-    );
+    call("audit_event", eventArgs(event), textOf);
+
+  const recordMany = (
+    events: readonly AuditEventInput[],
+  ): AsyncResult<readonly Result<string>[]> =>
+    events.length === 0
+      ? AsyncResult.ok([])
+      : call("audit_event_many", { events: events.map(eventArgs) }, (value) =>
+          batchResultsOf(value, events.length, "id", textOf, options.mappers),
+        );
 
   const client: AuditLog<Columns> = {
     record,
-    sink: (sinkOptions) => auditSink(record, sinkOptions),
+    recordMany,
+    sink: (sinkOptions) => auditSink(recordMany, sinkOptions),
     list,
     reveal: (entryId) =>
       call("reveal_audit_entry", { entry: entryId }, (value) =>

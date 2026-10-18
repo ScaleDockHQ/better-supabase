@@ -7,15 +7,17 @@ import type {
 import type { Result } from "../core/result.ts";
 import type { Operation } from "../ir/types.ts";
 
-import { compileSql, quoteIdent, type SqlPlan } from "../compile/sql.ts";
-import { isPlainObject } from "../core/clone.ts";
 import {
-  dbError,
-  mapDbError,
-  type RawDbError,
-  withMaxAffected,
-} from "../core/errors.ts";
+  compileSql,
+  type CompileSqlOptions,
+  quoteIdent,
+  type SqlPlan,
+  type SqlQuery,
+} from "../compile/sql.ts";
+import { isPlainObject } from "../core/clone.ts";
+import { dbError, mapDbError, withMaxAffected } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
+import { fromPgError } from "./pg-error.ts";
 
 /**
  * Anything that runs parameterized SQL: `ctx.postgres` from
@@ -33,86 +35,56 @@ export interface SqlClient {
   transaction?<T>(fn: (client: SqlClient) => Promise<T>): Promise<T>;
 }
 
-interface PgErrorLike {
-  readonly code?: string;
-  readonly message?: string;
-  readonly detail?: string;
-  readonly hint?: string;
-  readonly constraint?: string;
-  readonly column?: string;
-  readonly table?: string;
-  /** `@supabase/server`'s `PostgresPoolError` puts `retryAfterMs` here. */
-  readonly details?: unknown;
+export interface PostgresExecutorOptions {
+  /**
+   * Rows an `estimated` count counts exactly before it switches to the
+   * planner's estimate, like PostgREST's `db-max-rows`. Defaults to 1000.
+   */
+  readonly estimatedCountThreshold?: number;
 }
 
-function isPgError(value: unknown): value is PgErrorLike {
-  // SAFETY: value is a non-null object here, and the code field is checked before use.
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as PgErrorLike).code === "string"
-  );
+/**
+ * A `count(*)::bigint`, which node-postgres returns as text. A count past
+ * `Number.MAX_SAFE_INTEGER` fails instead of losing precision.
+ */
+function countOf(value: unknown): number {
+  const count =
+    value === null || value === undefined
+      ? 0
+      : typeof value === "number"
+        ? value
+        : typeof value === "bigint" || typeof value === "string"
+          ? Number(value)
+          : Number.NaN;
+
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new TypeError(`Unreadable row count: ${String(value)}`);
+  }
+
+  return count;
 }
 
-function retryAfterMsOf(details: unknown): number | undefined {
-  if (
-    typeof details !== "object" ||
-    details === null ||
-    !("retryAfterMs" in details)
-  ) {
-    return undefined;
+/** `Plan Rows` of the top node of an `explain (format json)` result. */
+async function plannedRows(
+  client: SqlClient,
+  query: SqlQuery,
+): Promise<number> {
+  const [first] = await client.queryRaw(query.text, [...query.params]);
+
+  const raw = first?.["QUERY PLAN"];
+  const plan: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const top: unknown = Array.isArray(plan) ? plan[0] : undefined;
+
+  const rows =
+    isPlainObject(top) && isPlainObject(top["Plan"])
+      ? top["Plan"]["Plan Rows"]
+      : undefined;
+
+  if (typeof rows !== "number" || !Number.isFinite(rows) || rows < 0) {
+    throw new TypeError("The query plan has no row estimate");
   }
 
-  const value = details.retryAfterMs;
-
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-/** node-postgres error fields to the shape `mapDbError` reads. */
-export function fromPgError(error: unknown): RawDbError | undefined {
-  if (!isPgError(error)) {
-    return undefined;
-  }
-
-  const raw: { -readonly [K in keyof RawDbError]: RawDbError[K] } = {};
-
-  if (error.code !== undefined) {
-    raw.code = error.code;
-  }
-
-  if (error.message !== undefined) {
-    raw.message = error.message;
-  }
-
-  if (error.detail !== undefined) {
-    raw.details = error.detail;
-  }
-
-  if (error.hint !== undefined) {
-    raw.hint = error.hint;
-  }
-
-  if (error.constraint !== undefined) {
-    raw.constraint = error.constraint;
-  }
-
-  if (error.column !== undefined) {
-    raw.column = error.column;
-  }
-
-  if (error.table !== undefined) {
-    raw.table = error.table;
-  }
-
-  const retryAfterMs = retryAfterMsOf(error.details);
-
-  if (retryAfterMs !== undefined) {
-    raw.retryAfterMs = retryAfterMs;
-  }
-
-  return raw;
+  return Math.min(Math.round(rows), Number.MAX_SAFE_INTEGER);
 }
 
 async function run(
@@ -132,11 +104,21 @@ async function run(
   let count: number | null = null;
 
   if (plan.count) {
-    const [first] = await client.queryRaw<{ count: number }>(plan.count.text, [
+    const [first] = await client.queryRaw<{ count: unknown }>(plan.count.text, [
       ...plan.count.params,
     ]);
 
-    count = first?.count ?? 0;
+    count = first ? countOf(first.count) : 0;
+
+    if (
+      plan.plannedCount &&
+      plan.countThreshold !== undefined &&
+      count > plan.countThreshold
+    ) {
+      count = Math.max(count, await plannedRows(client, plan.plannedCount));
+    }
+  } else if (plan.plannedCount) {
+    count = await plannedRows(client, plan.plannedCount);
   } else if (op.kind !== "select") {
     count = rows.length;
   }
@@ -159,9 +141,29 @@ async function run(
  * A call's `timeout` is checked before the statement starts; set
  * `statement_timeout` on the connection to bound a running statement.
  * `retry` does nothing here.
+ *
+ * `count: "planned"` reads the planner's row estimate from
+ * `explain (format json)`; `count: "estimated"` counts exactly up to
+ * `estimatedCountThreshold` rows and uses the estimate past it, like
+ * PostgREST.
  */
-export function postgresExecutor(client: SqlClient): Executor {
+export function postgresExecutor(
+  client: SqlClient,
+  options: PostgresExecutorOptions = {},
+): Executor {
   const signatures: SignatureCache = new Map();
+
+  const compile: CompileSqlOptions =
+    options.estimatedCountThreshold === undefined
+      ? {}
+      : { estimatedCountThreshold: options.estimatedCountThreshold };
+
+  const executeOn = (
+    scoped: SqlClient,
+    op: Operation,
+    context: ExecuteContext,
+  ): Promise<Result<ExecuteResult>> =>
+    executeWith(scoped, op, context, compile);
 
   return {
     name: "postgres",
@@ -213,15 +215,16 @@ export function postgresExecutor(client: SqlClient): Executor {
 
 class BatchFailed extends Error {}
 
-async function executeOn(
+async function executeWith(
   client: SqlClient,
   op: Operation,
   context: ExecuteContext,
+  options: CompileSqlOptions,
 ): Promise<Result<ExecuteResult>> {
   let plan: SqlPlan;
 
   try {
-    plan = compileSql(op);
+    plan = compileSql(op, options);
   } catch (cause) {
     return err(toDbError(cause));
   }

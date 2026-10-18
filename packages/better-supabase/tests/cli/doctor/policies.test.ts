@@ -423,3 +423,38 @@ describe("policy security rules", () => {
     expect(await run(context(wrapped), "BS215")).toEqual([]);
   });
 });
+
+describe("policies without a role (BS117)", () => {
+  it("passes the fixture schema", async () => {
+    expect(await run(context(base), "BS117")).toEqual([]);
+  });
+
+  it("flags permissive policies for public and skips restrictive ones", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        ...table(tables, "notes").policies,
+        policy({ name: "notes_no_role", roles: ["public"] }),
+        policy({ name: "notes_no_roles", roles: [] }),
+        policy({
+          name: "notes_deny_archived",
+          roles: ["public"],
+          permissive: false,
+          using: "(archived_at IS NULL)",
+        }),
+        policy({ name: "notes_named", roles: ["anon", "authenticated"] }),
+      ];
+    });
+
+    const findings = await run(context(snap), "BS117");
+
+    expect(findings).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.notes.notes_no_role",
+        object: { kind: "policy", schema: "public", name: "notes_no_role" },
+        message: expect.stringContaining("applies to public"),
+      },
+      { target: "public.notes.notes_no_roles" },
+    ]);
+  });
+});

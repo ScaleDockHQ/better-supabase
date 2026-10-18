@@ -324,7 +324,7 @@ export function savedViewIssues(
     if (!isRecord(query)) {
       issues.push({ message: "query must be an object", path: ["query"] });
     } else if (list) {
-      const parsed = list.parse(query);
+      const parsed = list.parse(withoutPage(query));
 
       for (const issue of parsed.ok ? [] : (parsed.issues ?? [])) {
         issues.push({
@@ -376,14 +376,13 @@ function storedState(state: SavedViewState): Record<string, unknown> {
     return { ...state };
   }
 
-  return {
-    ...state,
-    query: Object.fromEntries(
-      Object.entries(state.query).filter(
-        ([key]) => key !== "page" && key !== "after",
-      ),
-    ),
-  };
+  return { ...state, query: withoutPage(state.query) };
+}
+
+function withoutPage(query: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(query).filter(([key]) => key !== "page" && key !== "after"),
+  );
 }
 
 function oneOfOr<T extends string>(

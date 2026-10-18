@@ -58,6 +58,7 @@ create table if not exists "better_supabase"."bulk_runs" (
   "finished_at" timestamptz
 );
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
@@ -338,6 +339,7 @@ create table if not exists "better_supabase"."bulk_runs" (
   "finished_at" timestamptz
 );
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
@@ -638,6 +640,7 @@ create table if not exists "app_private"."bulk_runs" (
   "finished_at" timestamptz
 );
 create index if not exists bulk_runs_created_by_idx on "app_private"."bulk_runs" ("created_by", "created_at" desc);
+create index if not exists "bulk_runs_tenant_idx" on "app_private"."bulk_runs" ("tenant_id");
 alter table "app_private"."bulk_runs" enable row level security;
 revoke all on "app_private"."bulk_runs" from anon, authenticated;
 grant select on "app_private"."bulk_runs" to authenticated;
@@ -918,6 +921,7 @@ create table if not exists "better_supabase"."bulk_runs" (
   "finished_at" timestamptz
 );
 create index if not exists bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index if not exists "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
 alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;

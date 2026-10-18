@@ -191,6 +191,8 @@ function rollupBranch(
   });
 
   return `  if p_metric is null or p_metric = ${key} then
+    -- One rollup per metric at a time; every caller locks metrics in the same order.
+    perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'), hashtext(${key}));
     ${ctx.hook("before_metric_rollup", [
       ["text", key],
       ["timestamptz", "v_since"],
@@ -451,7 +453,6 @@ begin
   if v_until <= v_since then
     return 0;
   end if;
-  perform pg_advisory_xact_lock(hashtext('better_supabase.metrics_rollup'));
 ${rollups.join("\n")}
   return v_total;
 end;

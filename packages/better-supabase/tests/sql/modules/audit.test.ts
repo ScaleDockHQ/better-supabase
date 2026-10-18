@@ -228,9 +228,9 @@ describe("audit module", () => {
     expect(sql).not.toContain("audit_events_correlation_idx");
   });
 
-  it("upgrades from versions 5, 6 and 7 without SQL of their own", () => {
+  it("upgrades from versions 5 to 8 without SQL of their own", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 5 }]);
-    expect(plan!.steps.map((step) => step.sql)).toEqual(["", "", ""]);
+    expect(plan!.steps.map((step) => step.sql)).toEqual(["", "", "", ""]);
   });
 
   it("chains entries and lists the chain functions only with options.chain", () => {
@@ -545,5 +545,23 @@ describe("audit revert", () => {
   it("needs the access module and the row snapshots", () => {
     expect(sqlOf({}, ["audit"])).not.toContain("revert_audit_entries");
     expect(sqlOf(CENTRAKIT)).not.toContain("revert_audit_entries");
+  });
+});
+
+describe("audit_event_many", () => {
+  it("records a batch through audit_event, each event in its own savepoint", () => {
+    const sql = audit();
+    expect(sql).toContain(
+      "create or replace function better_supabase.audit_event_many(events jsonb)",
+    );
+    expect(sql).toContain("batch_result := better_supabase.audit_event(");
+    expect(sql).toContain(
+      "outcome => coalesce(batch_event ->> 'outcome', 'success')",
+    );
+    expect(sql).toContain("exception when others then");
+    expect(sql).toContain("hint = 'AUDIT_BATCH_TOO_LARGE'");
+    expect(sql).toContain(
+      "revoke execute on function better_supabase.audit_event_many(jsonb) from public, anon, authenticated;",
+    );
   });
 });

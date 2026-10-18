@@ -71,7 +71,16 @@ const column = (overrides: Partial<CatalogColumn>): CatalogColumn => ({
 
 describe("schema design rules", () => {
   it("pass the fixture schema", async () => {
-    for (const code of ["BS216", "BS217", "BS218", "BS219", "BS220", "BS221"]) {
+    for (const code of [
+      "BS216",
+      "BS217",
+      "BS218",
+      "BS219",
+      "BS220",
+      "BS221",
+      "BS226",
+      "BS227",
+    ]) {
       expect(await run(context(base), code)).toEqual([]);
     }
   });
@@ -122,6 +131,46 @@ describe("schema design rules", () => {
         (finding) => finding.target,
       ),
     ).toEqual(["public.notes.notes_customer_id_fkey"]);
+  });
+
+  it("accepts partial indexes that only skip null keys (BS216)", async () => {
+    const partial = (predicate: string | undefined) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        notes.indexes = [
+          ...notes.indexes.filter(
+            (index) => index.columns[0] !== "customer_id",
+          ),
+          {
+            name: "notes_customer_partial",
+            columns: ["customer_id", "organization_id"],
+            unique: false,
+            primary: false,
+            partial: true,
+            ...(predicate === undefined ? {} : { predicate }),
+          },
+        ];
+      });
+
+    for (const predicate of [
+      "(customer_id IS NOT NULL)",
+      "((customer_id IS NOT NULL) AND (organization_id IS NOT NULL))",
+      '("customer_id" is not null)',
+    ]) {
+      expect(await run(context(partial(predicate)), "BS216")).toEqual([]);
+    }
+
+    for (const predicate of [
+      "(archived_at IS NULL)",
+      "((customer_id IS NOT NULL) AND (archived_at IS NULL))",
+      undefined,
+    ]) {
+      expect(
+        (await run(context(partial(predicate)), "BS216")).map(
+          (finding) => finding.target,
+        ),
+      ).toEqual(["public.notes.notes_customer_id_fkey"]);
+    }
   });
 
   it("flags tenant foreign keys without the tenant column (BS217)", async () => {
@@ -241,6 +290,94 @@ describe("schema design rules", () => {
     ]);
     expect(findings[0]!.message).not.toContain("postgres:x@");
     expect(await run(context(base, { envFiles }), "BS221")).toEqual([]);
+  });
+
+  it("flags prepared statements through the transaction pooler (BS226)", async () => {
+    const pooled = {
+      path: ".env.local",
+      text: "# DIRECT=postgres://postgres:x@db.abcdefgh.supabase.co:5432/postgres\nDATABASE_URL=postgres://postgres.abc:x@aws-0-eu-central-1.pooler.supabase.com:6543/postgres\nPRISMA_URL=postgres://postgres.abc:x@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true\n",
+    };
+
+    const sources = [
+      {
+        path: "src/db.ts",
+        text: 'import postgres from "postgres";\n\nexport const sql = postgres(process.env.DATABASE_URL!);\n',
+      },
+      {
+        path: "src/db-safe.ts",
+        text: 'import postgres from "postgres";\n\nexport const sql = postgres(url, { prepare: false });\n',
+      },
+      {
+        path: "src/prisma.ts",
+        text: 'import { PrismaClient } from "@prisma/client";\n\nexport const prisma = new PrismaClient();\n',
+      },
+    ];
+
+    const findings = await run(
+      context(base, { envFiles: [pooled], sources }),
+      "BS226",
+    );
+
+    expect(findings).toMatchObject([
+      {
+        severity: "warning",
+        target: "src/db.ts:postgres",
+        location: { file: "src/db.ts", line: 1 },
+      },
+      {
+        target: ".env.local:DATABASE_URL",
+        location: { file: ".env.local", line: 2 },
+      },
+    ]);
+    expect(findings[1]!.message).not.toContain("postgres.abc:x@");
+
+    expect(
+      await run(
+        context(base, {
+          envFiles: [{ path: ".env.local", text: pooled.text.split("\n")[0]! }],
+          sources,
+        }),
+        "BS226",
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        context(base, { envFiles: [pooled], sources: [sources[1]!] }),
+        "BS226",
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports offset pagination and exact counts (BS227)", async () => {
+    const sources = [
+      {
+        path: "src/lists.ts",
+        text: [
+          "export const customers = defineList({",
+          '  pagination: "offset",',
+          "});",
+          "// pagination: 'offset' was the old default",
+          "const { count } = await supabase",
+          '  .from("notes")',
+          "  .select(\"*\", { count: 'exact' });",
+          'export const notes = defineList({ pagination: "cursor", count: "planned" });',
+        ].join("\n"),
+      },
+    ];
+
+    expect(await run(context(base, { sources }), "BS227")).toMatchObject([
+      {
+        severity: "info",
+        target: "src/lists.ts:2:pagination",
+        location: { file: "src/lists.ts", line: 2 },
+        message: expect.stringContaining('Use `pagination: "cursor"`'),
+      },
+      {
+        target: "src/lists.ts:7:count",
+        location: { file: "src/lists.ts", line: 7 },
+        message: expect.stringContaining('`count: "planned"`'),
+      },
+    ]);
   });
 
   it("flags int8 sequences and numeric columns decoded as number (BS222)", async () => {

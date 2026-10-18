@@ -9,22 +9,26 @@ import type {
   DeliverWebhooksOptions,
   DeliverWebhooksResult,
   Outcome,
+  PublishInput,
   WebhookDelivery,
   Webhooks,
   WebhooksOptions,
   WebhookSubscriber,
 } from "./outgoing-types.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { blockEmitter } from "../../core/block-events.ts";
 import {
+  batchResultsOf,
   blockCall,
   budget,
+  chunksOf,
   seconds,
   toBlockError,
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
-import { dbError } from "../../core/errors.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
@@ -50,6 +54,20 @@ import {
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
 import { publicUrl } from "./url-policy.ts";
+
+/** `publish_webhook_event`'s named arguments for one event. */
+function publishArgs(event: PublishInput): Record<string, unknown> {
+  return {
+    event_type: event.type,
+    payload: event.data ?? {},
+    tenant: event.tenant ?? null,
+    event_id: event.id ?? null,
+    ...(event.subject === undefined ? {} : { subject: event.subject }),
+    ...(event.readPermission === undefined
+      ? {}
+      : { read_permission: event.readPermission }),
+  };
+}
 
 const textOf = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
@@ -741,24 +759,21 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       (value) => Number(value ?? 0),
     );
 
+  const publishMany: Webhooks["publishMany"] = (events) =>
+    events.length === 0
+      ? AsyncResult.ok([])
+      : db(
+          "publish_webhook_events",
+          { events: events.map(publishArgs) },
+          (value) =>
+            batchResultsOf(value, events.length, "count", Number, mappers),
+        );
+
   const client: Webhooks = {
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
-    publish: (event) =>
-      db(
-        "publish_webhook_event",
-        {
-          event_type: event.type,
-          payload: event.data ?? {},
-          tenant: event.tenant ?? null,
-          event_id: event.id ?? null,
-          ...(event.subject === undefined ? {} : { subject: event.subject }),
-          ...(event.readPermission === undefined
-            ? {}
-            : { read_permission: event.readPermission }),
-        },
-        Number,
-      ),
+    publish: (event) => db("publish_webhook_event", publishArgs(event), Number),
+    publishMany,
     dispatch: (input) =>
       db(
         "dispatch_webhook",
@@ -816,15 +831,39 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     },
     sink: (sinkOptions = {}) => ({
       async send(events: readonly CloudEvent[]) {
-        for (const event of events) {
-          const tenant = event["partitionkey"];
-          await call("publish_webhook_event", {
-            event_type: stripTypePrefix(event.type, sinkOptions.typePrefix),
-            payload: event.data ?? {},
-            tenant: typeof tenant === "string" ? tenant : null,
-            event_id: event.id,
-            ...(event.subject === undefined ? {} : { subject: event.subject }),
-          });
+        let failure: DbException | undefined;
+
+        for (const chunk of chunksOf(events, MAX_BATCH)) {
+          const results = await publishMany(
+            chunk.map((event): PublishInput => {
+              const tenant = event["partitionkey"];
+
+              return {
+                type: stripTypePrefix(event.type, sinkOptions.typePrefix),
+                data: event.data ?? {},
+                ...(typeof tenant === "string" ? { tenant } : {}),
+                id: event.id,
+                ...(event.subject === undefined
+                  ? {}
+                  : { subject: event.subject }),
+              };
+            }),
+          );
+
+          if (!results.ok) {
+            failure ??= new DbException(results.error);
+            continue;
+          }
+
+          for (const result of results.data) {
+            if (!result.ok) {
+              failure ??= new DbException(result.error);
+            }
+          }
+        }
+
+        if (failure !== undefined) {
+          throw failure;
         }
       },
     }),

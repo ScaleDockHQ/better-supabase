@@ -372,20 +372,23 @@ export type Models = {
     Row: {
       key: string;
       name: string;
-      priceCents: number;
+      priceCents: bigint;
       position: number;
+      currency: string;
     };
     Insert: {
       key: string;
       name: string;
-      priceCents?: number;
+      priceCents?: bigint;
       position?: number;
+      currency?: string;
     };
     Update: {
       key?: string;
       name?: string;
-      priceCents?: number;
+      priceCents?: bigint;
       position?: number;
+      currency?: string;
     };
     Relations: {
       planFeatures: { table: "planFeatures"; kind: "many"; nullable: true };
@@ -393,7 +396,7 @@ export type Models = {
     };
     PrimaryKey: "key";
     UniqueKeys: Record<never, never>;
-    Checks: never;
+    Checks: "plans_currency_check";
     ForeignKeys: never;
     Flags: Record<never, never>;
   };

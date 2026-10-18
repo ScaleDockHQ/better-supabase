@@ -11,10 +11,10 @@ import type {
 import { dbError } from "../../src/core/errors.ts";
 import { IrBuilder } from "../../src/ir/build.ts";
 import {
-  fromPgError,
   postgresExecutor,
   type SqlClient,
 } from "../../src/postgres/executor.ts";
+import { fromPgError } from "../../src/postgres/pg-error.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -93,7 +93,7 @@ describe("postgresExecutor", () => {
 
   it("runs a separate count query when the select asks for a count", async () => {
     const fake = fakeSql([
-      ["count(*)::int as count", [{ count: 42 }]],
+      ["count(*)::bigint as count", [{ count: 42 }]],
       [/ as row from /, rowsOf({ id: "c1", name: "Acme" })],
     ]);
 
@@ -107,10 +107,115 @@ describe("postgresExecutor", () => {
       count: 42,
     });
     expect(fake.calls[1]!.text).toMatch(
-      /^select count\(\*\)::int as count from "public"\."customers"/,
+      /^select count\(\*\)::bigint as count from "public"\."customers"/,
     );
     expect(fake.calls[1]!.values).toEqual(["Acme"]);
     expect(fake.transactions).toBe(1);
+  });
+
+  it("decodes a bigint count that node-postgres returns as text", async () => {
+    const fake = fakeSql([
+      ["count(*)::bigint", [{ count: "9007199254740991" }]],
+    ]);
+
+    const result = await postgresExecutor(fake.sql).execute(
+      select({ head: true, count: "exact" }),
+      context,
+    );
+
+    expect(result.ok && result.data.count).toBe(Number.MAX_SAFE_INTEGER);
+
+    const unsafe = fakeSql([
+      ["count(*)::bigint", [{ count: "9007199254740993" }]],
+    ]);
+
+    const failed = await postgresExecutor(unsafe.sql).execute(
+      select({ head: true, count: "exact" }),
+      context,
+    );
+
+    expect(failed.ok).toBe(false);
+  });
+
+  it("reads a planned count from explain (format json)", async () => {
+    const fake = fakeSql([
+      [
+        /^explain \(format json\)/,
+        [{ "QUERY PLAN": [{ Plan: { "Plan Rows": 1234.4 } }] }],
+      ],
+    ]);
+
+    const result = await postgresExecutor(fake.sql).execute(
+      select({ head: true, count: "planned" }),
+      context,
+    );
+
+    expect(result.ok && result.data).toEqual({ rows: [], count: 1234 });
+    expect(fake.texts()).toEqual([
+      expect.stringMatching(
+        /^explain \(format json\) select 1 from "public"\."customers"/,
+      ),
+    ]);
+
+    const text = fakeSql([
+      [
+        /^explain/,
+        [{ "QUERY PLAN": JSON.stringify([{ Plan: { "Plan Rows": 7 } }]) }],
+      ],
+    ]);
+
+    const parsed = await postgresExecutor(text.sql).execute(
+      select({ head: true, count: "planned" }),
+      context,
+    );
+
+    expect(parsed.ok && parsed.data.count).toBe(7);
+
+    const empty = await postgresExecutor(fakeSql().sql).execute(
+      select({ head: true, count: "planned" }),
+      context,
+    );
+
+    expect(empty.ok).toBe(false);
+  });
+
+  it("counts an estimated count exactly up to the threshold", async () => {
+    const fake = fakeSql([
+      ["count(*)::bigint", [{ count: "3" }]],
+      [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Plan Rows": 900 } }] }]],
+    ]);
+
+    const result = await postgresExecutor(fake.sql, {
+      estimatedCountThreshold: 10,
+    }).execute(select({ head: true, count: "estimated" }), context);
+
+    expect(result.ok && result.data.count).toBe(3);
+    expect(fake.texts()).toHaveLength(1);
+    expect(fake.texts()[0]).toContain("limit 11) as c");
+  });
+
+  it("uses the planned count past the threshold, never below the rows seen", async () => {
+    const above = fakeSql([
+      ["count(*)::bigint", [{ count: "11" }]],
+      [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Plan Rows": 900 } }] }]],
+    ]);
+
+    const result = await postgresExecutor(above.sql, {
+      estimatedCountThreshold: 10,
+    }).execute(select({ head: true, count: "estimated" }), context);
+
+    expect(result.ok && result.data.count).toBe(900);
+
+    const low = fakeSql([
+      ["count(*)::bigint", [{ count: "11" }]],
+      [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Plan Rows": 2 } }] }]],
+    ]);
+
+    const floored = await postgresExecutor(low.sql, {
+      estimatedCountThreshold: 10,
+    }).execute(select({ head: true, count: "estimated" }), context);
+
+    expect(floored.ok && floored.data.count).toBe(11);
   });
 
   it("reads rows without a count outside a transaction", async () => {
@@ -133,7 +238,7 @@ describe("postgresExecutor", () => {
 
     expect(result.ok && result.data).toEqual({ rows: [], count: 0 });
     expect(fake.texts()).toHaveLength(1);
-    expect(fake.texts()[0]).toMatch(/^select count\(\*\)::int as count/);
+    expect(fake.texts()[0]).toMatch(/^select count\(\*\)::bigint as count/);
   });
 
   it("inserts with RETURNING and counts the returned rows", async () => {
@@ -166,7 +271,7 @@ describe("postgresExecutor", () => {
 
     expect(result.ok && result.data).toEqual({ rows: [], count: 1 });
     expect(fake.calls[0]!.text).toMatch(
-      /select count\(\*\)::int as count from m$/,
+      /select count\(\*\)::bigint as count from m$/,
     );
   });
 

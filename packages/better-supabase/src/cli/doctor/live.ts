@@ -383,6 +383,40 @@ export const LIVE_RULES: readonly Rule[] = [
     },
   },
   {
+    code: "BS225",
+    severity: "info",
+    title: "pg_stat_statements is not installed",
+    description:
+      "`pg_stat_statements` records the time and calls of each statement, which `--stats` (BS209), BS208 and the Supabase query performance report read. Without it there is no record of which queries are slow. Needs a database; saved snapshots skip it.",
+    async check(context) {
+      const db = live(context);
+
+      if (!db || "skipped" in db) {
+        return [];
+      }
+
+      // BS209 reports the missing extension itself when --stats runs.
+      if (context.stats && context.codes?.includes("BS209")) {
+        return [];
+      }
+
+      try {
+        if (await statementsView(db)) {
+          return [];
+        }
+      } catch {
+        return [];
+      }
+
+      return [
+        {
+          message: `pg_stat_statements is not installed on the ${db.describe}, so nothing records which statements are slow. Run \`create extension if not exists pg_stat_statements with schema extensions;\` in a migration.`,
+          target: "extension:pg_stat_statements",
+        },
+      ];
+    },
+  },
+  {
     code: "BS212",
     severity: "info",
     title: "RLS plan for a table",

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@7 managed
+-- @bs-module notifications@8 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -62,6 +62,34 @@ create index if not exists notification_events_subject_idx on "better_supabase".
 create index if not exists notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index if not exists notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
 create index if not exists notification_events_created_at_idx on "better_supabase"."notification_events" ("created_at");
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."notification_events"'::regclass and conname = 'notification_events_priority_check'
+  ) then
+    alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+      check ("priority" in ('low', 'normal', 'high', 'urgent')) not valid;
+    begin
+      alter table "better_supabase"."notification_events" validate constraint "notification_events_priority_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."notification_events"', 'notification_events_priority_check', '"better_supabase"."notification_events"', 'notification_events_priority_check';
+    end;
+  end if;
+end;
+$$;
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from anon, authenticated;
 grant select on "better_supabase"."notification_events" to authenticated;
@@ -417,10 +445,56 @@ set search_path = ''
 as $$
   select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "better_supabase"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "better_supabase"."send_notification"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."send_notification"(jsonb) to service_role;
 revoke execute on function "better_supabase"."notify"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."notify"(jsonb) to service_role;
+revoke execute on function "better_supabase"."send_notifications"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."send_notifications"(jsonb) to service_role;
 
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);
@@ -1198,13 +1272,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 7, 'managed')
+values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@7 managed
+-- @bs-module notifications@8 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1266,6 +1340,34 @@ create index if not exists notification_events_subject_idx on "better_supabase".
 create index if not exists notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index if not exists notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
 create index if not exists notification_events_created_at_idx on "better_supabase"."notification_events" ("created_at");
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."notification_events"'::regclass and conname = 'notification_events_priority_check'
+  ) then
+    alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+      check ("priority" in ('low', 'normal', 'high', 'urgent')) not valid;
+    begin
+      alter table "better_supabase"."notification_events" validate constraint "notification_events_priority_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."notification_events"', 'notification_events_priority_check', '"better_supabase"."notification_events"', 'notification_events_priority_check';
+    end;
+  end if;
+end;
+$$;
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from anon, authenticated;
 grant select on "better_supabase"."notification_events" to authenticated;
@@ -1645,10 +1747,56 @@ set search_path = ''
 as $$
   select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "better_supabase"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "better_supabase"."send_notification"(jsonb) from public, anon;
 grant execute on function "better_supabase"."send_notification"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."notify"(jsonb) from public, anon;
 grant execute on function "better_supabase"."notify"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."send_notifications"(jsonb) from public, anon;
+grant execute on function "better_supabase"."send_notifications"(jsonb) to authenticated, service_role;
 
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);
@@ -2475,13 +2623,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 7, 'managed')
+values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@7 managed
+-- @bs-module notifications@8 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2545,6 +2693,34 @@ create index if not exists notification_events_subject_idx on "app_private"."not
 create index if not exists notification_events_actor_idx on "app_private"."notification_events" ("actor_id");
 create index if not exists notification_events_created_by_idx on "app_private"."notification_events" ("created_by");
 create index if not exists notification_events_created_at_idx on "app_private"."notification_events" ("created_at");
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
+    where k.conrelid = '"app_private"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+    alter table "app_private"."notification_events" drop constraint "notification_events_priority_check";
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"app_private"."notification_events"'::regclass and conname = 'notification_events_priority_check'
+  ) then
+    alter table "app_private"."notification_events" add constraint "notification_events_priority_check"
+      check ("priority" in ('low', 'normal', 'high', 'urgent')) not valid;
+    begin
+      alter table "app_private"."notification_events" validate constraint "notification_events_priority_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"app_private"."notification_events"', 'notification_events_priority_check', '"app_private"."notification_events"', 'notification_events_priority_check';
+    end;
+  end if;
+end;
+$$;
 alter table "app_private"."notification_events" enable row level security;
 revoke all on "app_private"."notification_events" from anon, authenticated;
 grant select on "app_private"."notification_events" to authenticated;
@@ -2900,10 +3076,56 @@ set search_path = ''
 as $$
   select ("app_private"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "app_private"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "app_private"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "app_private"."send_notification"(jsonb) from public, anon, authenticated;
 grant execute on function "app_private"."send_notification"(jsonb) to service_role;
 revoke execute on function "app_private"."notify"(jsonb) from public, anon, authenticated;
 grant execute on function "app_private"."notify"(jsonb) to service_role;
+revoke execute on function "app_private"."send_notifications"(jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."send_notifications"(jsonb) to service_role;
 
 drop function if exists "app_private"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "app_private"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);
@@ -3681,13 +3903,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 7, 'managed')
+values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@7 managed
+-- @bs-module notifications@8 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3749,6 +3971,34 @@ create index if not exists notification_events_subject_idx on "better_supabase".
 create index if not exists notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index if not exists notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
 create index if not exists notification_events_created_at_idx on "better_supabase"."notification_events" ("created_at");
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+  end if;
+end;
+$$;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = '"better_supabase"."notification_events"'::regclass and conname = 'notification_events_priority_check'
+  ) then
+    alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+      check ("priority" in ('low', 'normal', 'high', 'urgent')) not valid;
+    begin
+      alter table "better_supabase"."notification_events" validate constraint "notification_events_priority_check";
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        '"better_supabase"."notification_events"', 'notification_events_priority_check', '"better_supabase"."notification_events"', 'notification_events_priority_check';
+    end;
+  end if;
+end;
+$$;
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from anon, authenticated;
 grant select on "better_supabase"."notification_events" to authenticated;
@@ -4104,10 +4354,56 @@ set search_path = ''
 as $$
   select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "better_supabase"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "better_supabase"."send_notification"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."send_notification"(jsonb) to service_role;
 revoke execute on function "better_supabase"."notify"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."notify"(jsonb) to service_role;
+revoke execute on function "better_supabase"."send_notifications"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."send_notifications"(jsonb) to service_role;
 
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);
@@ -4926,6 +5222,15 @@ as $$ select "better_supabase"."notify"($1) $$;
 revoke execute on function "api"."notify"(jsonb) from public, anon, authenticated;
 grant execute on function "api"."notify"(jsonb) to service_role;
 
+create or replace function "api"."send_notifications"(events jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."send_notifications"($1) $$;
+revoke execute on function "api"."send_notifications"(jsonb) from public, anon, authenticated;
+grant execute on function "api"."send_notifications"(jsonb) to service_role;
+
 create or replace function "api"."list_notifications"(tenant uuid default null, status text default 'all', types text[] default null, before timestamptz default null, max_items integer default 50, before_id uuid default null, subject_types text[] default null, search text default null, read boolean default null, resolved boolean default null, dismissed boolean default false)
 returns jsonb
 language sql
@@ -5127,13 +5432,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 7, 'managed')
+values ('notifications', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_24_notifications.sql
 -- better-supabase module: notifications
--- @bs-module notifications@7 adopt
+-- @bs-module notifications@8 adopt
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5352,10 +5657,56 @@ set search_path = ''
 as $$
   select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "better_supabase"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "better_supabase"."send_notification"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."send_notification"(jsonb) to service_role;
 revoke execute on function "better_supabase"."notify"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."notify"(jsonb) to service_role;
+revoke execute on function "better_supabase"."send_notifications"(jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."send_notifications"(jsonb) to service_role;
 
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);
@@ -5931,6 +6282,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('notifications', 7, 'adopt')
+values ('notifications', 8, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

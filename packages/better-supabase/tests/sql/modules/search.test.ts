@@ -89,6 +89,13 @@ describe("search module", () => {
     expect(sql).toContain("coalesce(1.0 / (60 + t.rank), 0)");
     expect(sql).toContain("search_set_embedding");
     expect(sql).toContain(
+      `search_set_embeddings"(subject_types text[], subject_ids text[], content_hashes text[], embeddings text[])`,
+    );
+    expect(sql).toContain(
+      "from unnest(subject_types, subject_ids, content_hashes, embeddings)",
+    );
+    expect(sql).toContain("SEARCH_EMBEDDINGS_TOO_LARGE");
+    expect(sql).toContain(
       `create index if not exists search_documents_pending_idx on "better_supabase"."search_documents" ("updated_at") where "embedding" is null;`,
     );
     expect(sql).toContain("to_tsvector('english'");

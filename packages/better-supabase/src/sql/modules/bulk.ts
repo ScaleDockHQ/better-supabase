@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -230,6 +230,7 @@ function build(ctx: ModuleContext): string {
   ${c("finishedAt")} timestamptz
 );
 create index if not exists bulk_runs_created_by_idx on ${runs} (${c("createdBy")}, ${c("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("runs").name}_tenant_idx`)} on ${runs} (${c("tenant")});
 ${lockTable(runs, { read: true })}
 drop policy if exists bulk_runs_read on ${runs};
 create policy bulk_runs_read on ${runs} for select to authenticated

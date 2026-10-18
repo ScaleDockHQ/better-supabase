@@ -3,7 +3,7 @@
 -- Road Runner Inc (…a001) carries VIP (supabase/seed.sql). Members read and
 -- apply tags; only admins and owners create them.
 begin;
-select plan(7);
+select plan(9);
 
 -- Acme member.
 select set_config(
@@ -43,6 +43,18 @@ select throws_ok(
   '42501',
   'not allowed to read tags',
   'a member of Acme cannot list Globex tags'
+);
+select throws_ok(
+  $$select api.tag('00000000-0000-4000-8000-000000000002', 'customer', '00000000-0000-4000-8000-00000000a003', '00000000-0000-4000-8000-00000000b102')$$,
+  '42501',
+  'not allowed to apply tags',
+  'a member of Acme cannot tag a Globex customer'
+);
+select throws_ok(
+  $$select api.untag('00000000-0000-4000-8000-000000000002', 'customer', '00000000-0000-4000-8000-00000000a003', '00000000-0000-4000-8000-00000000b102')$$,
+  '42501',
+  'not allowed to apply tags',
+  'nor untag one'
 );
 
 -- Acme owner.

@@ -3,7 +3,11 @@ import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  defaultPartition,
+  defaultPartitionName,
+  MONTHLY_PARTITIONS,
   NOTHING,
+  registerPartitions,
   SERVICE_CALLER,
   fail,
   pageSize,
@@ -37,6 +41,14 @@ const tracking = (ctx: ModuleContext): boolean =>
   ctx.hasTable("deliveryEvents") &&
   ctx.has("deliveries", "providerMessageId") &&
   (ctx.manages || ctx.config.tables["deliveryEvents"] !== undefined);
+
+/**
+ * Whether the managed delivery events table is partitioned by month on
+ * `created_at`. Only this leaf is: events, recipients and deliveries are
+ * referenced by id and updated in place (ADR 0038).
+ */
+export const eventsPartitioned = (ctx: ModuleContext): boolean =>
+  ctx.manages && tracking(ctx) && ctx.flag("partitioned", false);
 
 /** Whether `complete_notification_delivery` takes and stores a template key. */
 export const keepsTemplateKey = (ctx: ModuleContext): boolean =>
@@ -76,25 +88,37 @@ export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
   ].filter((line) => line !== "");
 
   const policy = sqlIdent("bs_notification_delivery_events_read");
+  const partitioned = eventsPartitioned(ctx);
 
   return `
 ${columns.join("\n")}
 
 create table if not exists ${t} (
   ${[
-    `${e("id")} uuid primary key default gen_random_uuid()`,
+    partitioned
+      ? `${e("id")} uuid not null default gen_random_uuid()`
+      : `${e("id")} uuid primary key default gen_random_uuid()`,
     `${e("delivery")} uuid not null references ${deliveries} (${d("id")}) on delete cascade`,
     ...(n.has("deliveryEvents", "tenant")
       ? [`${e("tenant")} ${ctx.idType}`]
       : []),
     `${e("kind")} text not null check (${e("kind")} in (${DELIVERY_EVENT_KINDS.map(sqlString).join(", ")}))`,
     ...(n.has("deliveryEvents", "provider") ? [`${e("provider")} text`] : []),
-    `${e("providerEventId")} text unique`,
+    partitioned
+      ? `${e("providerEventId")} text`
+      : `${e("providerEventId")} text unique`,
     `${e("occurredAt")} timestamptz not null default now()`,
     `${e("detail")} jsonb not null default '{}'`,
     `${e("createdAt")} timestamptz not null default now()`,
+    ...(partitioned ? [`primary key (${e("id")}, ${e("createdAt")})`] : []),
   ].join(",\n  ")}
-);
+)${
+    partitioned
+      ? ` partition by range (${e("createdAt")});
+${defaultPartition(t, defaultPartitionName(ctx.tableName("deliveryEvents")))}
+create index if not exists notification_delivery_events_provider_event_idx on ${t} (${e("providerEventId")}) where ${e("providerEventId")} is not null;`
+      : ";"
+  }
 create index if not exists notification_delivery_events_delivery_idx on ${t} (${e("delivery")}, ${e("occurredAt")});
 alter table ${t} enable row level security;
 ${revokeTable(t)}
@@ -108,7 +132,7 @@ create policy ${policy} on ${t} for select to authenticated using (
     where d.${d("id")} = ${t}.${e("delivery")}
       and r.${n.col("recipients", "user")} = (select auth.uid())
   )
-);`;
+);${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}` : ""}`;
 }
 
 /** The SQL for one kind's outbox event, inside `record_delivery_event`. */
@@ -270,10 +294,24 @@ begin
   if v_delivery is null then
     return null;
   end if;
+${
+  eventsPartitioned(ctx)
+    ? `  if nullif(${record}.provider_event_id, '') is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.notification_delivery_events'), pg_catalog.hashtext(${record}.provider_event_id));
+  end if;
   insert into ${n.table("deliveryEvents")} (${insertColumns.join(", ")})
+  select ${insertValues.join(", ")}
+  where nullif(${record}.provider_event_id, '') is null
+    or not exists (
+      select 1 from ${n.table("deliveryEvents")} x
+      where x.${e("providerEventId")} = ${record}.provider_event_id
+    )
+  returning ${e("id")} into v_row;`
+    : `  insert into ${n.table("deliveryEvents")} (${insertColumns.join(", ")})
   values (${insertValues.join(", ")})
   on conflict (${e("providerEventId")}) do nothing
-  returning ${e("id")} into v_row;
+  returning ${e("id")} into v_row;`
+}
   if v_row is not null then${updateStatus}${suppress}${recordKinds(ctx, record)}
   end if;
   return jsonb_build_object(

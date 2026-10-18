@@ -1,6 +1,7 @@
 import type { DisabledRow } from "../config/blocks.ts";
 import type { ExtraColumn, ModuleContext } from "./context.ts";
 
+import { MAX_BATCH } from "../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 
 /** What `record` and the other statement helpers return when there is nothing to do. */
@@ -275,6 +276,35 @@ begin
     exception when foreign_key_violation then
       raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
         ${sqlString(fk.table)}, ${sqlString(fk.table)}, ${sqlString(fk.name)};
+    end;
+  end if;
+end;
+$$;`;
+}
+
+/**
+ * Adds a check constraint to a table a module created earlier, once, for
+ * the same reason as `addForeignKey`. Existing rows that fail it leave the
+ * check unvalidated, with a warning, so an upgrade never stops on old data.
+ */
+export function addCheck(check: {
+  readonly table: string;
+  readonly name: string;
+  readonly expression: string;
+}): string {
+  return `do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = ${sqlString(check.table)}::regclass and conname = ${sqlString(check.name)}
+  ) then
+    alter table ${check.table} add constraint ${sqlIdent(check.name)}
+      check (${check.expression}) not valid;
+    begin
+      alter table ${check.table} validate constraint ${sqlIdent(check.name)};
+    exception when check_violation then
+      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
+        ${sqlString(check.table)}, ${sqlString(check.name)}, ${sqlString(check.table)}, ${sqlString(check.name)};
     end;
   end if;
 end;
@@ -909,6 +939,159 @@ where exists (select 1 from pg_catalog.pg_class c where c.oid = ${sqlString(tabl
 on conflict (parent) do nothing;
 select better_supabase.ensure_partitions(${sqlString(table)}::regclass, ${monthsAhead});`;
 
+/** The quoted name of a table's default partition: `<name>_default` in its schema. */
+export const defaultPartitionName = (table: {
+  readonly schema: string;
+  readonly name: string;
+}): string => `${sqlIdent(table.schema)}.${sqlIdent(`${table.name}_default`)}`;
+
+/**
+ * SQL that gives a partitioned `table` its `fallback` default partition, for
+ * rows outside the monthly ones. A table created unpartitioned is skipped.
+ */
+export const defaultPartition = (table: string, fallback: string): string =>
+  `do $$
+begin
+  if (select c.relkind from pg_catalog.pg_class c where c.oid = ${sqlString(table)}::regclass) = 'p' then
+    create table if not exists ${fallback} partition of ${table} default;
+    alter table ${fallback} enable row level security;
+    revoke all on ${fallback} from anon, authenticated;
+  end if;
+end;
+$$;`;
+
+/** One argument of a batched function: the key in each element and its type. */
+export type BatchArgument = readonly [
+  name: string,
+  type: string,
+  fallback?: string,
+];
+
+/**
+ * A security definer function that runs `call` once per element of a jsonb
+ * array, so a sink sends a whole batch in one round trip. Every element keeps
+ * the single-row function's checks and gets its own savepoint: it returns
+ * `{"<result>": value}` or `{"error": {code, message, hint}}`, in order, and
+ * one bad event never rolls back the others. More than `max` elements fail
+ * with 22023 before any is written. The caller adds the grants.
+ */
+export function batchFunction(options: {
+  readonly name: string;
+  readonly call: string;
+  /** The keys of each element, or the one jsonb parameter that takes it whole. */
+  readonly args: readonly BatchArgument[] | string;
+  readonly returns: string;
+  readonly result: string;
+  readonly hint: string;
+  readonly max?: number;
+}): string {
+  const max = options.max ?? MAX_BATCH;
+
+  const value = ([name, type, fallback]: BatchArgument): string => {
+    const raw =
+      type === "jsonb"
+        ? `nullif(batch_event -> ${sqlString(name)}, 'null'::jsonb)`
+        : type === "text"
+          ? `batch_event ->> ${sqlString(name)}`
+          : `(batch_event ->> ${sqlString(name)})::${type}`;
+
+    return fallback === undefined ? raw : `coalesce(${raw}, ${fallback})`;
+  };
+
+  return `create or replace function ${options.name}(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result ${options.returns};
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '${options.name.replace(/^.*\./, "")} takes a jsonb array of events'
+      using errcode = '22023', hint = ${sqlString(`${options.hint}_NOT_ARRAY`)};
+  end if;
+  if pg_catalog.jsonb_array_length(events) > ${max} then
+    raise exception '${options.name.replace(/^.*\./, "")} got % events, more than ${max}', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = ${sqlString(`${options.hint}_TOO_LARGE`)};
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := ${options.call}(
+${
+  typeof options.args === "string"
+    ? `        ${options.args} => batch_event`
+    : options.args
+        .map((arg) => `        ${arg[0]} => ${value(arg)}`)
+        .join(",\n")
+}
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(${sqlString(options.result)}, batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;`;
+}
+
+/** The PL/pgSQL variables `dropExpiredPartitions` uses, for a `declare` block. */
+export const PARTITION_VARIABLES = `
+  v_part regclass;
+  v_part_rows integer;
+  v_part_busy boolean;`;
+
+/**
+ * PL/pgSQL that drops each monthly partition of `table` wholly before
+ * `cutoff` (null drops none, as `ctx.cutoff` returns under a legal hold) and
+ * adds its rows to `purged`. A partition with a row that matches `busy`
+ * (a condition over `p`, with `$1`.. bound to `using`) stays for the row
+ * deletes, so a purge never drops a row it would keep. Declare
+ * `PARTITION_VARIABLES` first.
+ */
+export function dropExpiredPartitions(options: {
+  readonly table: string;
+  readonly cutoff: string;
+  readonly purged: string;
+  readonly busy?: string;
+  readonly using?: readonly string[];
+  readonly indent?: string;
+}): string {
+  const indent = options.indent ?? "  ";
+  const literal = (sql: string) => sql.replaceAll("'", "''");
+
+  const busy =
+    options.busy === undefined
+      ? ""
+      : `
+${indent}  execute format('select exists (select 1 from %s p where ${literal(options.busy).replaceAll("%", "%%")})', v_part) into v_part_busy${
+          options.using && options.using.length > 0
+            ? ` using ${options.using.join(", ")}`
+            : ""
+        };
+${indent}  continue when v_part_busy;`;
+
+  return `for v_part in
+${indent}  select p from better_supabase.expired_partitions(${sqlString(options.table)}::regclass, ${options.cutoff}) p
+${indent}loop${busy}
+${indent}  execute format('select count(*)::integer from %s', v_part) into v_part_rows;
+${indent}  execute format('drop table %s', v_part);
+${indent}  ${options.purged} := ${options.purged} + v_part_rows;
+${indent}end loop;`;
+}
+
 /** SQL that grants a function to signed-in users and the service role. */
 export const userGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon;
@@ -918,6 +1101,14 @@ grant execute on function ${signature} to authenticated, service_role;`;
 export const serviceGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon, authenticated;
 grant execute on function ${signature} to service_role;`;
+
+/**
+ * SQL that revokes a trigger function from every API role. Postgres checks
+ * `execute` only when the trigger is created, never when it fires, so the
+ * trigger keeps working while the function can't be called through RPC.
+ */
+export const triggerGrant = (signature: string): string =>
+  `revoke execute on function ${signature} from public, anon, authenticated;`;
 
 /**
  * `serviceGrant` for each function in `schema` (as SQL, e.g. `ctx.schema`),

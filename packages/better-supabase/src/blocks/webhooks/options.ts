@@ -6,6 +6,7 @@ export type WebhooksOutSqlOptions = {
   readonly defaultFormat?: string;
   readonly disableAfter?: string;
   readonly eventIdType?: unknown;
+  readonly partitioned?: boolean;
   readonly runIdType?: unknown;
   readonly secretStorage?: string;
   readonly statuses?: unknown;
@@ -17,6 +18,7 @@ export const webhooksOutSqlOptions: BlockOptionsSchema<WebhooksOutSqlOptions> =
     defaultFormat: option.string({ default: "cloudevents", client: true }),
     disableAfter: option.string({ default: "5 days" }),
     eventIdType: option.unknown(),
+    partitioned: option.boolean({ default: false }),
     runIdType: option.unknown(),
     secretStorage: option.string({ default: "vault" }),
     statuses: option.unknown(),

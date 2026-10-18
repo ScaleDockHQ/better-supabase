@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 type Layout = Parameters<typeof renderModules>[1];
 
@@ -95,6 +96,82 @@ describe("time-tracking module", () => {
     expect(approvals).toContain(`in ('access_request', 'timesheet')`);
     const alone = sqlOf(["approvals"], {}, "approvals");
     expect(alone).not.toContain("approve_timesheet");
+  });
+
+  it("stores the rate as minor units per hour with its currency", () => {
+    const sql = sqlOf(BASE);
+    expect(sql).toContain(
+      `"rate" bigint check ("rate" is null or "rate" >= 0),\n  "rate_currency" text,`,
+    );
+    expect(sql).not.toContain("numeric(12, 2)");
+    expect(sql).toContain(
+      `add constraint "time_entries_rate_currency_check"\n      check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$') not valid;`,
+    );
+    expect(sql).toContain(
+      `add constraint "time_entries_rate_pair_check"\n      check (("rate" is null) = ("rate_currency" is null)) not valid;`,
+    );
+    expect(sql).toContain(
+      `'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"`,
+    );
+  });
+
+  it("takes the rate as an amount and a currency", () => {
+    const sql = sqlOf(BASE);
+    expect(sql).toContain(
+      "rate bigint default null, rate_currency text default null, note text default null",
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."start_timer"(uuid, text, text, boolean, numeric, text);`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."log_time"(uuid, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid, jsonb);`,
+    );
+    expect(sql).toContain("TIME_RATE_INVALID");
+    expect(sql).toContain(`v_row."rate" := (v_patch ->> 'rate')::bigint;`);
+    expect(sql).not.toContain("::numeric");
+
+    const [contract] = customContracts(["time-tracking"], {
+      modules: { "time-tracking": { mode: "custom" } },
+    });
+
+    expect(contract?.functions[0]?.args).toEqual([
+      "{id}",
+      "text",
+      "text",
+      "boolean",
+      "bigint",
+      "text",
+      "text",
+    ]);
+  });
+
+  it("totals billable amounts per currency in minor units", () => {
+    const sql = sqlOf(BASE);
+    expect(sql).toContain(
+      `jsonb_build_object('amount', q.amount::text, 'currency', q.currency) order by q.currency`,
+    );
+    expect(sql).toContain(
+      `round(sum(extract(epoch from coalesce(y."ended_at", now()) - y."started_at") * y."rate" / 3600))::bigint as amount`,
+    );
+    expect(sql).toContain(`group by y."rate_currency"`);
+  });
+
+  it("upgrades a numeric rate to minor units", () => {
+    const plan = upgradePlan([
+      { module: "approvals", version: 99 },
+      { module: "time-tracking", version: 1 },
+    ]).find((entry) => entry.module === "time-tracking");
+
+    expect(plan?.to).toBe(2);
+    const sql = plan?.steps[0]?.sql ?? "";
+    expect(sql).toContain(
+      `alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;`,
+    );
+    expect(sql).toContain(
+      `alter column "rate" type bigint using round("rate" * 100)::bigint;`,
+    );
+    expect(sql).toContain("data_type = 'numeric'");
+    expect(sql).toContain("time_entries_rate_pair_check");
   });
 
   it("needs the approvals tables", () => {

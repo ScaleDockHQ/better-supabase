@@ -66,6 +66,7 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
+create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
@@ -122,6 +123,9 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   tag.tenant := null;
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
@@ -261,6 +265,9 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   untag.tenant := null;
+  if not (auth.role() = 'service_role' or ((select auth.uid()) is not null) or ((select auth.uid()) is not null)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
   if not (true) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;

@@ -148,7 +148,7 @@ describe("search block", () => {
 
     const { calls, transport } = recorder({
       search_pending_embeddings: pending,
-      search_set_embedding: true,
+      search_set_embeddings: 2,
     });
 
     const search = createSearch({ transport });
@@ -167,16 +167,10 @@ describe("search block", () => {
     expect(calls.map((call) => call.args)).toEqual([
       { max_results: 10 },
       {
-        subject_type: "note",
-        subject_id: "n1",
-        content_hash: "h1",
-        embedding: "[0,1]",
-      },
-      {
-        subject_type: "note",
-        subject_id: "n2",
-        content_hash: "h2",
-        embedding: "[1,1]",
+        subject_types: ["note", "note"],
+        subject_ids: ["n1", "n2"],
+        content_hashes: ["h1", "h2"],
+        embeddings: ["[0,1]", "[1,1]"],
       },
     ]);
   });

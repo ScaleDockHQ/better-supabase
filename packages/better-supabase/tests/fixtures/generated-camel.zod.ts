@@ -225,18 +225,21 @@ export const plansRow: z.ZodType<RowOf<'plans'>> = z.object({
   name: z.string(),
   priceCents: z.int(),
   position: z.int(),
+  currency: z.string(),
 }).meta({ title: "Plans" });
 export const plansInsert: z.ZodType<InsertOf<'plans'>> = z.object({
   key: z.string(),
   name: z.string(),
   priceCents: z.int().exactOptional(),
   position: z.int().exactOptional(),
+  currency: z.string().exactOptional(),
 }).meta({ title: "Plans insert" });
 export const plansUpdate: z.ZodType<UpdateOf<'plans'>> = z.object({
   key: z.string().exactOptional(),
   name: z.string().exactOptional(),
   priceCents: z.int().exactOptional(),
   position: z.int().exactOptional(),
+  currency: z.string().exactOptional(),
 }).meta({ title: "Plans update" });
 
 export const subscriptionsRow: z.ZodType<RowOf<'subscriptions'>> = z.object({

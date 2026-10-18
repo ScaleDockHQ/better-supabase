@@ -77,6 +77,8 @@ create index if not exists memories_project_idx on "better_supabase"."memories" 
 create index if not exists memories_superseded_idx on "better_supabase"."memories" ("superseded_by") where "superseded_by" is not null;
 create index if not exists memories_embedding_idx on "better_supabase"."memories" using hnsw ("embedding" extensions.vector_cosine_ops);
 create index if not exists memories_tsv_idx on "better_supabase"."memories" using gin ("tsv");
+create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
+  where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
@@ -1017,6 +1019,8 @@ create index if not exists memories_project_idx on "better_supabase"."memories" 
 create index if not exists memories_superseded_idx on "better_supabase"."memories" ("superseded_by") where "superseded_by" is not null;
 create index if not exists memories_embedding_idx on "better_supabase"."memories" using hnsw ("embedding" extensions.vector_cosine_ops);
 create index if not exists memories_tsv_idx on "better_supabase"."memories" using gin ("tsv");
+create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
+  where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
@@ -1962,6 +1966,8 @@ create index if not exists memories_project_idx on "app_private"."memories" ("pr
 create index if not exists memories_superseded_idx on "app_private"."memories" ("superseded_by") where "superseded_by" is not null;
 create index if not exists memories_embedding_idx on "app_private"."memories" using hnsw ("embedding" extensions.vector_cosine_ops);
 create index if not exists memories_tsv_idx on "app_private"."memories" using gin ("tsv");
+create index if not exists memories_pending_embedding_idx on "app_private"."memories" ("updated_at")
+  where "embedding" is null and "superseded_by" is null;
 alter table "app_private"."memories" enable row level security;
 revoke all on "app_private"."memories" from anon, authenticated;
 grant select on "app_private"."memories" to authenticated;
@@ -2902,6 +2908,8 @@ create index if not exists memories_project_idx on "better_supabase"."memories" 
 create index if not exists memories_superseded_idx on "better_supabase"."memories" ("superseded_by") where "superseded_by" is not null;
 create index if not exists memories_embedding_idx on "better_supabase"."memories" using hnsw ("embedding" extensions.vector_cosine_ops);
 create index if not exists memories_tsv_idx on "better_supabase"."memories" using gin ("tsv");
+create index if not exists memories_pending_embedding_idx on "better_supabase"."memories" ("updated_at")
+  where "embedding" is null and "superseded_by" is null;
 alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;

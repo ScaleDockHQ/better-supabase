@@ -1403,6 +1403,82 @@ describe("unpartitioned audit log (BS335)", () => {
   });
 });
 
+describe("unpartitioned block tables (BS335)", () => {
+  const NAMES = [
+    "outbox_events",
+    "usage_history",
+    "webhook_deliveries",
+    "notification_delivery_events",
+  ];
+
+  const withTables = (primaryKey: string[]) =>
+    snapshot((tables) => {
+      const log = tables.find(
+        (entry) =>
+          entry.schema === "better_supabase" && entry.name === "audit_events",
+      )!;
+
+      for (const name of NAMES) {
+        const existing = tables.find(
+          (entry) => entry.schema === "better_supabase" && entry.name === name,
+        );
+
+        if (existing) {
+          existing.primaryKey = primaryKey;
+        } else {
+          tables.push({ ...structuredClone(log), name, primaryKey });
+        }
+      }
+    });
+
+  const partitioned = {
+    blocks: {
+      outbox: { options: { partitioned: true } },
+      usage: { options: { partitioned: true, history: true } },
+      webhooks: { options: { partitioned: true } },
+      notifications: { options: { partitioned: true } },
+    },
+  };
+
+  it("reports each block table whose key is id alone", async () => {
+    const findings = await run(
+      "BS335",
+      context(withTables(["id"]), {}, partitioned),
+    );
+
+    expect(
+      findings
+        .map((finding) => finding.target ?? "")
+        .toSorted((a, b) => a.localeCompare(b)),
+    ).toEqual(
+      NAMES.map((name) => `better_supabase.${name}`).toSorted((a, b) =>
+        a.localeCompare(b),
+      ),
+    );
+  });
+
+  it("passes partitioned tables, and usage without history", async () => {
+    expect(
+      await run(
+        "BS335",
+        context(withTables(["id", "created_at"]), {}, partitioned),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS335",
+        context(
+          withTables(["id"]),
+          {},
+          {
+            blocks: { usage: { options: { partitioned: true } } },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("module event triggers (BS323)", () => {
   const modules = { blocks: ["audit", "ensure-rls", "tenant"] };
 
@@ -2100,11 +2176,11 @@ describe("secret columns in data exports (BS341)", () => {
 
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
-    name: "bs_broadcast_org_notes",
+    name: "bs_broadcast_org",
     timing: "after" as const,
     events: ["insert" as const],
     level: "row" as const,
-    function: "better_supabase.bs_broadcast_org_notes",
+    function: "better_supabase.bs_broadcast_org_public_notes",
     source,
     ...(comment === undefined ? {} : { comment }),
   });
@@ -2128,7 +2204,7 @@ describe("whole-row broadcast triggers (BS337)", () => {
 
     expect(await run("BS337", context(snap))).toMatchObject([
       {
-        target: "public.notes.bs_broadcast_org_notes",
+        target: "public.notes.bs_broadcast_org",
         message: expect.stringContaining('pass `payload: "row"`'),
       },
       { target: "public.tags.bs_broadcast_tags" },

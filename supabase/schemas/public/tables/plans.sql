@@ -6,7 +6,8 @@
 create table public.plans (
   key text primary key,
   name text not null,
-  price_cents integer not null default 0,
+  price_cents bigint not null default 0,
+  currency text not null default 'USD' check (currency ~ '^[A-Z]{3}$'),
   position integer not null default 0
 );
 

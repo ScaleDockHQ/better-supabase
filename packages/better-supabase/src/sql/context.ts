@@ -1090,7 +1090,7 @@ ${indent}end if;`;
       declares("access");
 
       return installed.has("access")
-        ? `(${SERVICE_CALLER} or coalesce(${scope.platform(permission)}, false))`
+        ? `(${SERVICE_CALLER} or ${scope.platform(permission)})`
         : SERVICE_CALLER;
     },
   };

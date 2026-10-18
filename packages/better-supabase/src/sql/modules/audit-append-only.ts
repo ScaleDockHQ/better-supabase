@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { triggerGrant } from "../shared.ts";
 
 /** The triggers that keep audit log entries append-only, or drops them when `appendOnly` is off. */
 export function appendOnly(ctx: ModuleContext): string {
@@ -40,7 +41,7 @@ begin
     using errcode = '42501', hint = 'Delete old entries with better_supabase.purge_audit_log()';
 end;
 $$;
-revoke execute on function better_supabase.audit_append_only() from public, anon, authenticated;
+${triggerGrant("better_supabase.audit_append_only()")}
 drop trigger if exists ${trigger} on ${log};
 create trigger ${trigger} before update or delete on ${log}
   for each row execute function better_supabase.audit_append_only();

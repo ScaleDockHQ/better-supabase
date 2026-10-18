@@ -22,8 +22,8 @@ function recordingPool(
 const settingsSql = (count: number): string =>
   `select ${Array.from({ length: count }, (_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`;
 
-/** statement_timeout, request.jwt.claims and role. */
-const USER_SQL = settingsSql(3);
+/** statement_timeout, request.jwt.claims, role and idle_in_transaction_session_timeout. */
+const USER_SQL = settingsSql(4);
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -84,7 +84,7 @@ describe("createPostgres", () => {
     expect(timeouts).toEqual(["60000", "100", "120000"]);
     expect(fake.log.slice(-4)).toEqual([
       "begin read only",
-      settingsSql(1),
+      settingsSql(2),
       "select 3",
       "commit",
     ]);
@@ -121,6 +121,79 @@ describe("createPostgres", () => {
       "30000",
     ]);
     expect(fake.values[5]!.slice(0, 2)).toEqual(["statement_timeout", "1500"]);
+  });
+
+  it("ends a transaction left idle after 15 s unless told otherwise", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    await pg.transaction((tx) => tx.queryRaw("select 1"));
+
+    expect(fake.values[1]).toEqual([
+      "idle_in_transaction_session_timeout",
+      "15000",
+    ]);
+
+    const off = recordingPool();
+
+    const plain = createPostgres({
+      pool: off.pool,
+      idleInTransactionTimeout: 0,
+    });
+
+    await plain.transaction((tx) => tx.queryRaw("select 1"));
+
+    expect(off.log).toEqual(["begin", "select 1", "commit"]);
+  });
+
+  it("reports idle-connection errors as error events, never throwing", () => {
+    let listener: ((error: Error) => void) | undefined;
+    const fake = fakePgPool();
+
+    const pool = {
+      ...fake.pool,
+      on: (_event: "error", next: (error: Error) => void) => {
+        listener = next;
+      },
+    };
+
+    const betterSupabase = defineSupabase(schema);
+    const seen: unknown[] = [];
+    betterSupabase.on("error", (event) => {
+      seen.push(event.error);
+      throw new Error("a handler that throws");
+    });
+
+    createPostgres({ pool, events: betterSupabase.events });
+
+    const terminated = Object.assign(
+      new Error("terminating connection due to administrator command"),
+      { code: "57P01" },
+    );
+
+    expect(() => listener?.(terminated)).not.toThrow();
+    expect(seen).toEqual([
+      expect.objectContaining({
+        message: "terminating connection due to administrator command",
+      }),
+    ]);
+
+    const logged: unknown[] = [];
+    const quiet = { ...pool };
+    createPostgres({
+      pool: quiet,
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: (message) => {
+          logged.push(message);
+          throw new Error("a logger that throws");
+        },
+      },
+    });
+
+    expect(() => listener?.(new Error("connection reset"))).not.toThrow();
+    expect(logged).toEqual(["an idle Postgres connection failed"]);
   });
 
   it("applies Supabase's role timeouts unless set per role", async () => {
@@ -188,7 +261,7 @@ describe("createPostgres", () => {
       settings: { "app.channel": "api" },
     });
     expect(fake.log[0]).toBe("begin read only");
-    expect(fake.log[1]).toBe(settingsSql(4));
+    expect(fake.log[1]).toBe(settingsSql(5));
     expect(fake.values[1]!.slice(0, 2)).toEqual([
       "better_supabase.tenant",
       "t1",
@@ -214,7 +287,7 @@ describe("createPostgres", () => {
       const values = fake.values[at]!;
       expect(values.slice(0, 2)).toEqual(["statement_timeout", "3000"]);
       expect(JSON.parse(String(values[3]))).toEqual({ role: "anon" });
-      expect(values.slice(4)).toEqual(["role", "anon"]);
+      expect(values.slice(4, 6)).toEqual(["role", "anon"]);
     }
   });
 
@@ -222,7 +295,7 @@ describe("createPostgres", () => {
     const fake = recordingPool();
     const pg = createPostgres({ pool: fake.pool });
     await pg.asUser({ sub: "u1", role: "anon" }).queryRaw("select 1");
-    expect(fake.values[1]!.slice(4)).toEqual(["role", "anon"]);
+    expect(fake.values[1]!.slice(4, 6)).toEqual(["role", "anon"]);
   });
 
   it("refuses roles other than authenticated and anon", () => {
@@ -271,9 +344,11 @@ describe("createPostgres", () => {
     await pg.admin.transaction!((tx) => tx.queryRaw("select 2"));
     expect(fake.log).toEqual([
       "begin",
+      settingsSql(1),
       "select 1",
       "commit",
       "begin",
+      settingsSql(1),
       "select 2",
       "commit",
     ]);
@@ -288,7 +363,12 @@ describe("createPostgres", () => {
         throw new Error("roll back");
       }),
     ).rejects.toThrow("roll back");
-    expect(fake.log).toEqual(["begin", "insert into a values (1)", "rollback"]);
+    expect(fake.log).toEqual([
+      "begin",
+      settingsSql(1),
+      "insert into a values (1)",
+      "rollback",
+    ]);
     expect(fake.released).toBe(1);
   });
 
@@ -313,7 +393,7 @@ describe("createPostgres", () => {
     await expect(pg.transaction((tx) => tx.queryRaw("insert"))).rejects.toBe(
       failure,
     );
-    expect(fake.log).toEqual(["begin", "insert", "rollback"]);
+    expect(fake.log).toEqual(["begin", settingsSql(1), "insert", "rollback"]);
     expect(fake.released).toBe(1);
   });
 

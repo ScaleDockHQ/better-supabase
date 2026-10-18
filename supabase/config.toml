@@ -61,6 +61,17 @@ signing_keys_path = "./signing_keys.json"
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
+minimum_password_length = 8
+password_requirements = "letters_digits"
+
+# The Auth server's defaults, written out so a copy of this file keeps them.
+[auth.rate_limit]
+email_sent = 2
+sms_sent = 30
+anonymous_users = 30
+token_refresh = 150
+sign_in_sign_ups = 30
+token_verifications = 30
 
 # Lets MCP clients sign in through OAuth (apps/examples/mcp).
 [auth.oauth_server]
@@ -77,6 +88,7 @@ entrypoint = "../apps/examples/mcp/supabase/functions/mcp/index.ts"
 [auth.email]
 enable_signup = true
 enable_confirmations = false
+secure_password_change = true
 
 # Two-factor sign-in in the Next.js example (settings, security, and /mfa).
 [auth.mfa.totp]

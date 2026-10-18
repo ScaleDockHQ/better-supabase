@@ -7,7 +7,9 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
+  addCheck,
   addExtraColumns,
   extraFieldsJson,
   fail,
@@ -119,6 +121,7 @@ const NAMES: ModuleNames = {
 
 const STATUSES = "('confirmed', 'tentative', 'cancelled')";
 const RESPONSES = "('needs-action', 'accepted', 'declined', 'tentative')";
+const ROLES = "('chair', 'required', 'optional', 'non-participant')";
 
 /** `jsonb -> column` assignments for an insert, for the optional columns that exist. */
 function eventFields(
@@ -365,6 +368,7 @@ function build(ctx: ModuleContext): string {
   ${k("createdAt")} timestamptz not null default now()
 );
 ${lockTable(calendars, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
 drop policy if exists calendars_read on ${calendars};
 create policy calendars_read on ${calendars} for select to authenticated
 using (${ctx.scope.check(k("tenant"), read)});
@@ -413,6 +417,11 @@ create table if not exists ${attendees} (
   unique (${a("event")}, ${a("email")})
 );
 ${lockTable(attendees, { read: true })}
+${addCheck({
+  table: attendees,
+  name: `${ctx.tableName("attendees").name}_role_check`,
+  expression: `${a("role")} in ${ROLES}`,
+})}
 drop policy if exists calendar_attendees_read on ${attendees};
 create policy calendar_attendees_read on ${attendees} for select to authenticated
 using (${ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
@@ -431,6 +440,9 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
+  if coalesce(set_calendar_attendee.role, 'required') not in ${ROLES} then
+    ${fail("CALENDAR_ROLE_INVALID", "role must be chair, required, optional or non-participant", "22023")}
+  end if;
   select ${e("tenant")} into v_tenant from ${events} where ${e("id")} = set_calendar_attendee.event_id;
   if not found then
     ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}

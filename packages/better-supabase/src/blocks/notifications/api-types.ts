@@ -10,7 +10,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type { NotificationChannel } from "./channel.ts";
@@ -412,6 +412,15 @@ export interface Notifications<
     type: N,
     input: SendInput<StandardSchemaV1.InferInput<K[N]>, F>,
   ): AsyncResult<SentNotification | null>;
+  /**
+   * Sends up to 1000 notifications in one `send_notifications` call, with
+   * `send`'s checks per notification: one `Result` per item, in order, so a
+   * bad one never drops the others. The outer result fails only when the
+   * call does. Hooks on `send` don't run for these; hook `sendMany`.
+   */
+  sendMany(
+    items: readonly SinkNotification<K, F>[],
+  ): AsyncResult<readonly Result<SentNotification | null>[]>;
   get(
     id: string,
     options?: Pick<ListOptions, "locale" | "include">,
@@ -524,9 +533,13 @@ export interface Notifications<
 }
 
 /** A notification for `sink`, with its type next to the `send` input. */
-export type SinkNotification<K extends NotificationTypes> = {
+export type SinkNotification<
+  K extends NotificationTypes,
+  F extends object = Record<never, never>,
+> = {
   [N in TypeName<K>]: { readonly type: N } & SendInput<
-    StandardSchemaV1.InferInput<K[N]>
+    StandardSchemaV1.InferInput<K[N]>,
+    F
   >;
 }[TypeName<K>];
 

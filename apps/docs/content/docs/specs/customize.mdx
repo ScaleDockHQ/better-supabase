@@ -32,7 +32,6 @@ defineApi(betterSupabase, {
   resources: {
     customers: {
       list: customerList,
-      pagination: "cursor",
       operations: ["list", "get", "update"],
       tag: "CRM",
       input: { update: CustomerPatch },
@@ -45,8 +44,8 @@ defineApi(betterSupabase, {
 | Field                     | Default                              | What it does                                                  |
 | ------------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `operations`              | all five, `list` and `get` for views | Which of `list`, `get`, `create`, `update` and `delete` exist |
-| `list`                    | `page` and `size`                    | A `defineListQuery`, whose filters become query parameters    |
-| `pagination`              | `offset`                             | `offset` (`page`, `size`) or `cursor` (`after`, `size`)       |
+| `list`                    | `after` and `size`                   | A `defineListQuery`, whose filters become query parameters    |
+| `pagination`              | `cursor`, `offset` without a key     | `cursor` (`after`, `size`) or `offset` (`page`, `size`)       |
 | `maxPageSize`             | 200                                  | The `maximum` of `size`; its `default` is 50                  |
 | `path`, `tag`             | `/<table>`, the table key            | The collection path under `basePath`, and the operations' tag |
 | `input.create`, `.update` | the `Insert` and `Update` schemas    | Replace the request body schema (any Standard Schema)         |

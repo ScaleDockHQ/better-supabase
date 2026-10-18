@@ -3,7 +3,14 @@ import type { ModuleLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, fail, serviceGrant } from "../shared.ts";
+import {
+  PARTITION_VARIABLES,
+  SERVICE_CALLER,
+  batchFunction,
+  dropExpiredPartitions,
+  fail,
+  serviceGrant,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 export interface HookNames {
@@ -21,6 +28,8 @@ export interface HookNames {
   readonly clientAccess: boolean;
   readonly vault: boolean;
   readonly allowHttp: boolean;
+  /** The managed deliveries table is partitioned by month on `created_at`. */
+  readonly partitioned: boolean;
   readonly eventIdType: string;
   readonly runIdType: string;
   /** A delivery status as the deliveries table stores it, quoted. */
@@ -200,6 +209,7 @@ export function hookNames(
       access && has("endpoints", "tenant") && has("deliveries", "tenant"),
     vault,
     allowHttp: ctx.flag("allowHttp", false),
+    partitioned: ctx.manages && ctx.flag("partitioned", false),
     eventIdType: typeOption(ctx, "eventIdType"),
     runIdType: typeOption(ctx, "runIdType"),
     status: (status) => sqlString(values[status]),
@@ -293,9 +303,25 @@ function publish(ctx: ModuleContext, n: HookNames): string {
     ? `\n    and d.${d("tenant")} is not distinct from publish_webhook_event.tenant`
     : "";
 
-  const conflict = n.has("deliveries", "event")
-    ? `\n  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
+  const event = n.has("deliveries", "event");
+
+  const conflict = event
+    ? n.partitioned
+      ? `
+    and not exists (
+      select 1 from ${n.table("deliveries")} x
+      where x.${v("endpoint")} = d.${d("id")} and x.${v("event")} = publish_webhook_event.event_id::${n.eventIdType}
+    )`
+      : `\n  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
     : "";
+
+  const lock =
+    event && n.partitioned
+      ? `
+  if publish_webhook_event.event_id is not null then
+    ${deliveryLock("publish_webhook_event.event_id")}
+  end if;`
+      : "";
 
   return `
 drop function if exists ${fn}(text, jsonb, ${id}, text);
@@ -334,7 +360,7 @@ begin
     select array_to_string(p[1:i], '.') || '.*'
     from (select string_to_array(v_permission, '.') as p) parts,
       generate_series(1, cardinality(parts.p) - 1) i
-  );
+  );${lock}
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   select ${columns.map(([, value]) => value).join(", ")}
   from ${n.table("endpoints")} d
@@ -345,7 +371,27 @@ begin
   return inserted;
 end;
 $$;
-${grants(fn, `text, jsonb, ${id}, text, text, text`, false)}`;
+${grants(fn, `text, jsonb, ${id}, text, text, text`, false)}
+
+-- publish_webhook_event for a batch of events in one call (the outbox
+-- sink): each element takes its argument names as keys, keeps its checks
+-- and returns {"count"} or {"error"} in order.
+${batchFunction({
+  name: ctx.fn("publish_webhook_events"),
+  call: fn,
+  args: [
+    ["event_type", "text"],
+    ["payload", "jsonb", "'{}'"],
+    ["tenant", id],
+    ["event_id", "text"],
+    ["subject", "text"],
+    ["read_permission", "text"],
+  ],
+  returns: "integer",
+  result: "count",
+  hint: "WEBHOOK_BATCH",
+})}
+${grants(ctx.fn("publish_webhook_events"), "jsonb", false)}`;
 }
 
 /**
@@ -380,6 +426,13 @@ function readable(n: HookNames): string {
     ? `(case when d.${d("createdBy")} is not null then ${user} else ${service} end)`
     : service;
 }
+
+/**
+ * A partitioned deliveries table has no unique (endpoint, event) index, so
+ * publishing and dispatching the same event id take this lock first.
+ */
+const deliveryLock = (eventId: string): string =>
+  `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.webhook_deliveries'), pg_catalog.hashtext(${eventId}));`;
 
 function dispatch(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("dispatch_webhook");
@@ -436,7 +489,12 @@ begin
   end if;${
     event
       ? `
-  if dispatch_webhook.event_id is not null then
+  if dispatch_webhook.event_id is not null then${
+    n.partitioned
+      ? `
+    ${deliveryLock("dispatch_webhook.event_id")}`
+      : ""
+  }
     ${existing}
     if v_id is not null then
       return v_id;
@@ -446,7 +504,7 @@ begin
   }
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   values (${columns.map(([, value]) => value).join(", ")})${
-    event
+    event && !n.partitioned
       ? `
   on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
       : ""
@@ -764,8 +822,29 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_purged integer;
-begin
+  v_purged integer;${
+    n.partitioned
+      ? `
+  v_dropped integer := 0;${PARTITION_VARIABLES}`
+      : ""
+  }
+begin${
+    n.partitioned
+      ? `
+  -- Whole months past retention go at once, unless one still holds a
+  -- delivery the row deletes below would keep.
+  ${dropExpiredPartitions({
+    table: n.table("deliveries"),
+    cutoff: ctx.cutoff(
+      "webhook_deliveries",
+      "purge_webhook_deliveries.older_than",
+    ),
+    purged: "v_dropped",
+    busy: `not (p.${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")}) or ($1 and p.${v("status")} = ${n.status("dead")}))`,
+    using: ["purge_webhook_deliveries.include_dead"],
+  })}`
+      : ""
+  }
   with purged as (
     delete from ${n.table("deliveries")}
     where ${v("id")} in (
@@ -780,7 +859,7 @@ begin
     returning 1
   )
   select count(*)::integer into v_purged from purged;
-  return v_purged;
+  return v_purged${n.partitioned ? " + v_dropped" : ""};
 end;
 $$;
 ${grants(fn, "interval, boolean, integer", false)}`;

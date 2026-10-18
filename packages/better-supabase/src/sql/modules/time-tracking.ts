@@ -9,6 +9,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addCheck,
   addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
@@ -41,6 +42,7 @@ const RECORDED_PAYLOAD = [
   "seconds",
   "billable",
   "rate",
+  "rateCurrency",
 ] as const;
 
 const UPDATED_PAYLOAD = [...RECORDED_PAYLOAD, "previousStartedAt"] as const;
@@ -92,6 +94,7 @@ const NAMES: ModuleNames = {
         endedAt: "ended_at",
         billable: "billable",
         rate: "rate",
+        rateCurrency: "rate_currency",
         note: "note",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -162,6 +165,75 @@ function timesheetPolicy(ctx: ModuleContext): string {
   return policySnapshot(policy);
 }
 
+/**
+ * The rate's currency is an uppercase three-letter code (the client checks
+ * it against ISO 4217) and is set exactly when the rate is. Added once, so
+ * new and upgraded tables carry the same named checks.
+ */
+function rateChecks(ctx: ModuleContext): string {
+  const entries = ctx.table("entries");
+  const name = ctx.tableName("entries").name;
+  const rate = ctx.col("entries", "rate");
+  const currency = ctx.col("entries", "rateCurrency");
+
+  return `${addCheck({
+    table: entries,
+    name: `${name}_rate_currency_check`,
+    expression: `${currency} is null or ${currency} ~ '^[A-Z]{3}$'`,
+  })}
+${addCheck({
+  table: entries,
+  name: `${name}_rate_pair_check`,
+  expression: `(${rate} is null) = (${currency} is null)`,
+})}`;
+}
+
+/** The functions' signatures before the rate became minor units and a currency. */
+const NUMERIC_SIGNATURES = {
+  start_timer: (id: string) => `${id}, text, text, boolean, numeric, text`,
+  log_time: (id: string) =>
+    `${id}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid`,
+};
+
+function dropNumericSignatures(ctx: ModuleContext): string {
+  return Object.entries(NUMERIC_SIGNATURES)
+    .flatMap(([name, types]) => [
+      `drop function if exists ${ctx.fn(name)}(${types(ctx.idType)});`,
+      `drop function if exists ${ctx.fn(name)}(${types(ctx.idType)}, jsonb);`,
+    ])
+    .join("\n");
+}
+
+/**
+ * Version 1 stored the rate as `numeric(12, 2)` with no currency. Its two
+ * decimals become minor units (times 100), and rates stay without a
+ * currency until the app sets one; the pair check then warns.
+ */
+function upgradeRateToMoney(ctx: ModuleContext): string {
+  if (!ctx.manages) {
+    return dropNumericSignatures(ctx);
+  }
+
+  const entries = ctx.table("entries");
+  const { schema, name } = ctx.tableName("entries");
+  const rate = ctx.col("entries", "rate");
+
+  return `${dropNumericSignatures(ctx)}
+alter table ${entries} add column if not exists ${ctx.col("entries", "rateCurrency")} text;
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = ${sqlString(schema)} and table_name = ${sqlString(name)}
+      and column_name = ${sqlString(rate.replaceAll('"', ""))} and data_type = 'numeric'
+  ) then
+    alter table ${entries} alter column ${rate} type bigint using round(${rate} * 100)::bigint;
+  end if;
+end;
+$$;
+${rateChecks(ctx)}`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -225,7 +297,7 @@ function build(ctx: ModuleContext): string {
     `case when ${row}.${e("endedAt")} is null then null else extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})::bigint end`;
 
   const entryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}::text, 'rateCurrency', ${row}.${e("rateCurrency")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const status = (row: string, approval: string): string =>
     `case when ${row}.${t("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} = 'rejected' then 'rejected' else 'open' end`;
@@ -241,7 +313,7 @@ function build(ctx: ModuleContext): string {
   ): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}, 'startedAt', ${row}.${e("startedAt")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}` : ""}${previousStartedAt === undefined ? "" : `, 'previousStartedAt', ${previousStartedAt}`})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${e("tenant")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'id', ${row}.${e("id")}, 'userId', ${row}.${e("user")}, 'startedAt', ${row}.${e("startedAt")}${recorded ? `, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}::text, 'rateCurrency', ${row}.${e("rateCurrency")}` : ""}${previousStartedAt === undefined ? "" : `, 'previousStartedAt', ${previousStartedAt}`})`,
       subject: `'time-entries/' || ${row}.${e("id")}::text`,
       tenant: `${row}.${e("tenant")}`,
       audit: false,
@@ -276,6 +348,16 @@ function build(ctx: ModuleContext): string {
     ${forbidden("not allowed to track time on this record")}
   end if;`;
 
+  const rateCheck = (
+    rate: string,
+    currency: string,
+  ): string => `if (${rate} is null) <> (${currency} is null) then
+    ${fail("TIME_RATE_INVALID", "name both rate and rate_currency, or neither", "22023")}
+  end if;
+  if ${currency} !~ '^[A-Z]{3}$' then
+    ${fail("TIME_RATE_INVALID", "rate_currency must be a three-letter currency code", "22023")}
+  end if;`;
+
   const overlap = (row: string): string => `if exists (
     select 1 from ${entries} x
     where x.${e("tenant")} = ${row}.${e("tenant")} and x.${e("user")} = ${row}.${e("user")} and x.${e("id")} <> ${row}.${e("id")}
@@ -306,7 +388,9 @@ create table if not exists ${entries} (
   ${e("startedAt")} timestamptz not null,
   ${e("endedAt")} timestamptz,
   ${e("billable")} boolean not null default false,
-  ${e("rate")} numeric(12, 2) check (${e("rate")} is null or ${e("rate")} >= 0),
+  -- Minor units of rate_currency per hour (ADR 0037).
+  ${e("rate")} bigint check (${e("rate")} is null or ${e("rate")} >= 0),
+  ${e("rateCurrency")} text,
   ${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 2000),
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now(),
@@ -321,6 +405,8 @@ create table if not exists ${entries} (
     tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
   )
 );${addExtraColumns(entries, extras)}
+alter table ${entries} add column if not exists ${e("rateCurrency")} text;
+${rateChecks(ctx)}
 create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)} on ${entries} (${e("tenant")}, ${e("user")}) where ${e("endedAt")} is null;
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_user_idx`)} on ${entries} (${e("tenant")}, ${e("user")}, ${e("startedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_idx`)} on ${entries} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")}) where ${e("subjectType")} is not null;
@@ -408,8 +494,9 @@ create trigger bs_time_entry_guard
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
 -- extra columns (blocks.time-tracking.options.extraColumns) to set.
-${extra.drop(fn("start_timer"), `${ctx.idType}, text, text, boolean, numeric, text`)}
-create or replace function ${fn("start_timer")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null${extra.param})
+${dropNumericSignatures(ctx)}
+${extra.drop(fn("start_timer"), `${ctx.idType}, text, text, boolean, bigint, text, text`)}
+create or replace function ${fn("start_timer")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -425,6 +512,7 @@ begin
     ${forbidden("not allowed to track time here")}
   end if;
   ${subjectCheck("start_timer.tenant", "start_timer.subject_type", "start_timer.subject_id")}
+  ${rateCheck("start_timer.rate", "start_timer.rate_currency")}
   perform pg_advisory_xact_lock(hashtextextended('time_entry:' || start_timer.tenant::text || ':' || v_me::text, 0));
   update ${entries} x set ${e("endedAt")} = v_at, ${e("updatedAt")} = v_at
     where x.${e("tenant")} = start_timer.tenant and x.${e("user")} = v_me and x.${e("endedAt")} is null
@@ -441,18 +529,19 @@ begin
   v_row.${e("startedAt")} := v_at;
   v_row.${e("billable")} := coalesce(start_timer.billable, false);
   v_row.${e("rate")} := start_timer.rate;
+  v_row.${e("rateCurrency")} := start_timer.rate_currency;
   v_row.${e("note")} := start_timer.note;
   ${overlap("v_row")}
   ${save("v_row")}
-  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("billable")}, ${e("rate")}, ${e("note")})
-  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("note")})
+  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")})
+  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")})
   returning * into v_row;${setExtras("start_timer.fields")}
   ${entryRecord("time_entry.started", "v_row", false)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("start_timer")}(${ctx.idType}, text, text, boolean, numeric, text${extra.type})`)}
+${userGrant(`${fn("start_timer")}(${ctx.idType}, text, text, boolean, bigint, text, text${extra.type})`)}
 
 create or replace function ${fn("stop_timer")}(tenant ${ctx.idType})
 returns jsonb
@@ -496,8 +585,8 @@ $$;
 ${userGrant(`${fn("running_timer")}(${ctx.idType})`)}
 
 -- Records finished time. Logging for another member needs the manage permission.
-${extra.drop(fn("log_time"), `${ctx.idType}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid`)}
-create or replace function ${fn("log_time")}(tenant ${ctx.idType}, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate numeric default null, note text default null, user_id uuid default null${extra.param})
+${extra.drop(fn("log_time"), `${ctx.idType}, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid`)}
+create or replace function ${fn("log_time")}(tenant ${ctx.idType}, started_at timestamptz, ended_at timestamptz, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, user_id uuid default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -525,6 +614,7 @@ begin
     ${fail("TIME_ENTRY_INVALID", "ended_at must be after started_at", "22023")}
   end if;
   ${subjectCheck("log_time.tenant", "log_time.subject_type", "log_time.subject_id")}
+  ${rateCheck("log_time.rate", "log_time.rate_currency")}
   perform pg_advisory_xact_lock(hashtextextended('time_entry:' || log_time.tenant::text || ':' || v_user::text, 0));
   v_row.${e("id")} := gen_random_uuid();
   v_row.${e("tenant")} := log_time.tenant;
@@ -535,21 +625,23 @@ begin
   v_row.${e("endedAt")} := log_time.ended_at;
   v_row.${e("billable")} := coalesce(log_time.billable, false);
   v_row.${e("rate")} := log_time.rate;
+  v_row.${e("rateCurrency")} := log_time.rate_currency;
   v_row.${e("note")} := log_time.note;
   ${overlap("v_row")}
   ${save("v_row")}
-  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("endedAt")}, ${e("billable")}, ${e("rate")}, ${e("note")})
-  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("endedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("note")})
+  insert into ${entries} (${e("id")}, ${e("tenant")}, ${e("user")}, ${e("subjectType")}, ${e("subjectId")}, ${e("startedAt")}, ${e("endedAt")}, ${e("billable")}, ${e("rate")}, ${e("rateCurrency")}, ${e("note")})
+  values (v_row.${e("id")}, v_row.${e("tenant")}, v_row.${e("user")}, v_row.${e("subjectType")}, v_row.${e("subjectId")}, v_row.${e("startedAt")}, v_row.${e("endedAt")}, v_row.${e("billable")}, v_row.${e("rate")}, v_row.${e("rateCurrency")}, v_row.${e("note")})
   returning * into v_row;${setExtras("log_time.fields")}
   ${entryRecord("time_entry.recorded", "v_row", true)}
   ${saved("v_row")}
   return ${entryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("log_time")}(${ctx.idType}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid${extra.type})`)}
+${userGrant(`${fn("log_time")}(${ctx.idType}, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid${extra.type})`)}
 
 -- Changes the keys in patch: startedAt, endedAt, subjectType and subjectId
--- together, billable, rate, note and fields (the extra columns).
+-- together, billable, rate and rateCurrency together (minor units per
+-- hour as text), note and fields (the extra columns).
 create or replace function ${fn("update_time_entry")}(entry_id uuid, patch jsonb)
 returns jsonb
 language plpgsql
@@ -590,8 +682,10 @@ begin
   if v_patch ? 'billable' then
     v_row.${e("billable")} := coalesce((v_patch ->> 'billable')::boolean, false);
   end if;
-  if v_patch ? 'rate' then
-    v_row.${e("rate")} := (v_patch ->> 'rate')::numeric;
+  if v_patch ? 'rate' or v_patch ? 'rateCurrency' then
+    v_row.${e("rate")} := (v_patch ->> 'rate')::bigint;
+    v_row.${e("rateCurrency")} := v_patch ->> 'rateCurrency';
+    ${rateCheck(`v_row.${e("rate")}`, `v_row.${e("rateCurrency")}`)}
   end if;
   if v_patch ? 'note' then
     v_row.${e("note")} := v_patch ->> 'note';
@@ -605,6 +699,7 @@ begin
       ${e("subjectId")} = v_row.${e("subjectId")},
       ${e("billable")} = v_row.${e("billable")},
       ${e("rate")} = v_row.${e("rate")},
+      ${e("rateCurrency")} = v_row.${e("rateCurrency")},
       ${e("note")} = v_row.${e("note")},
       ${e("updatedAt")} = now()
   where x.${e("id")} = v_row.${e("id")}
@@ -706,7 +801,19 @@ begin
     jsonb_build_object(
       'seconds', coalesce(sum(extract(epoch from coalesce(x.${e("endedAt")}, now()) - x.${e("startedAt")})), 0)::bigint,
       'billableSeconds', coalesce(sum(extract(epoch from coalesce(x.${e("endedAt")}, now()) - x.${e("startedAt")})) filter (where x.${e("billable")}), 0)::bigint,
-      'amount', round(coalesce(sum(extract(epoch from coalesce(x.${e("endedAt")}, now()) - x.${e("startedAt")}) / 3600 * x.${e("rate")}) filter (where x.${e("billable")}), 0), 2)
+      -- Billable hours times the rate, per currency, rounded to minor units.
+      'amounts', (
+        select coalesce(jsonb_agg(jsonb_build_object('amount', q.amount::text, 'currency', q.currency) order by q.currency), '[]'::jsonb)
+        from (
+          select y.${e("rateCurrency")} as currency,
+            round(sum(extract(epoch from coalesce(y.${e("endedAt")}, now()) - y.${e("startedAt")}) * y.${e("rate")} / 3600))::bigint as amount
+          from ${entries} y
+          where y.${e("tenant")} = get_timesheet.tenant and y.${e("user")} = v_user
+            and ${fn("time_week")}(y.${e("startedAt")}) = v_week
+            and y.${e("billable")} and y.${e("rate")} is not null
+          group by y.${e("rateCurrency")}
+        ) q
+      )
     )
     into v_entries, v_totals
   from ${entries} x
@@ -877,7 +984,16 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "start_timer",
-      args: ["{id}", "text", "text", "boolean", "numeric", "text", ...extra],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "boolean",
+        "bigint",
+        "text",
+        "text",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "stop_timer", args: ["{id}"], returns: "jsonb" },
@@ -890,7 +1006,8 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "text",
         "boolean",
-        "numeric",
+        "bigint",
+        "text",
         "text",
         "uuid",
         ...extra,
@@ -920,7 +1037,15 @@ export const TIME_TRACKING: ModuleDefinition = {
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "The rate is bigint minor units per hour with a rate_currency (ADR 0037); start_timer and log_time take rate_currency.",
+      sql: upgradeRateToMoney,
+    },
+  ],
   names: NAMES,
   adoptOptional: () => ({ entries: ["seconds"] }),
   contract,

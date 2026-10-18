@@ -112,3 +112,29 @@ describe("usage module under the provider access model", () => {
     expect(sql).not.toContain("has_organization_role(tenant)");
   });
 });
+
+describe("usage partitioned history", () => {
+  it("partitions usage_history by month and drops expired months", () => {
+    const sql = usage({ history: true, partitioned: true });
+    expect(sql).toContain('primary key ("id", "recorded_at")');
+    expect(sql).toContain(') partition by range ("recorded_at");');
+    expect(sql).toContain(
+      `"id" bigint not null default nextval('"better_supabase".usage_history_id_seq')`,
+    );
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."usage_history_default" partition of "better_supabase"."usage_history" default;',
+    );
+    expect(sql).toContain(
+      `better_supabase.expired_partitions('"better_supabase"."usage_history"'::regclass, now() - older_than)`,
+    );
+    expect(sql).toContain("return purged + v_dropped;");
+  });
+
+  it("needs options.history and stays unpartitioned by default", () => {
+    expect(usage({ partitioned: true })).not.toContain("partition by range");
+    expect(usage({ history: true })).not.toContain("partition by range");
+    expect(usage({ history: true })).toContain(
+      '"id" bigint generated always as identity primary key',
+    );
+  });
+});

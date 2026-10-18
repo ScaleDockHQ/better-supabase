@@ -14,6 +14,7 @@ import { err, ok } from "../../src/core/result.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { defineAction } from "../../src/server/resource-execute.ts";
 import { defineResource } from "../../src/server/resource.ts";
+import { planResource } from "../../src/spec/resource.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -50,6 +51,7 @@ describe("defineResource", () => {
 
     const customers = defineResource(betterSupabase, "customers", {
       select: ["id", "name"],
+      pagination: "offset",
     });
 
     expect(customers.keyParam).toBe("id");
@@ -223,11 +225,10 @@ describe("defineResource", () => {
     ).toThrow('not "tags"');
   });
 
-  it("pages the default list by cursor", async () => {
+  it("pages the default list by cursor unless told otherwise", async () => {
     const { db, queries } = fakeDb();
 
     const customers = defineResource(betterSupabase, "customers", {
-      pagination: "cursor",
       maxPageSize: 5,
     });
 
@@ -257,7 +258,11 @@ describe("defineResource", () => {
         { message: "Must be text", path: ["after"] },
       ],
     });
-    const offset = defineResource(betterSupabase, "customers");
+
+    const offset = defineResource(betterSupabase, "customers", {
+      pagination: "offset",
+    });
+
     expect(offset.pagination).toBe("offset");
 
     const mixed = await offset.execute(db, "list", {
@@ -274,12 +279,26 @@ describe("defineResource", () => {
     const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
-      pagination: "cursor",
     });
 
     expect(
       defineResource(betterSupabase, "customers", { list }).pagination,
     ).toBe("cursor");
+  });
+
+  it("pages a table without a primary key by offset", () => {
+    const customers = betterSupabase.meta.tables["customers"]!;
+
+    const plan = planResource(
+      {
+        ...betterSupabase.meta,
+        tables: { log: { ...customers, primaryKey: [] } },
+      },
+      "log",
+    );
+
+    expect(plan.pagination).toBe("offset");
+    expect(plan.keyParam).toBeUndefined();
   });
 });
 

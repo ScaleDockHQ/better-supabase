@@ -12,6 +12,7 @@ import {
   timeTrackingMetrics,
   toWeeklyGrid,
 } from "../../src/blocks/time-tracking/index.ts";
+import { money } from "../../src/commerce/money.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -52,7 +53,7 @@ describe.skipIf(!live)("time-tracking", () => {
           subjectType: "project",
           subjectId: "apollo",
           billable: true,
-          rate: 80,
+          rate: money(8000n, "EUR"),
         })
         .orThrow();
 
@@ -60,7 +61,10 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(running?.id).toBe(second.id);
       const stopped = await time.stop(tenant).orThrow();
       expect(stopped.seconds).toBeGreaterThanOrEqual(0);
-      expect(stopped).toMatchObject({ billable: true, rate: 80 });
+      expect(stopped).toMatchObject({
+        billable: true,
+        rate: money(8000n, "EUR"),
+      });
       expect(await time.stop(tenant).then(hint)).toBe("TIME_NO_TIMER");
       expect(
         await time.start(tenant, { subjectType: "project" }).then(hint),
@@ -73,7 +77,7 @@ describe.skipIf(!live)("time-tracking", () => {
           subjectType: "project",
           subjectId: "apollo",
           billable: true,
-          rate: 100,
+          rate: money(10_000n, "EUR"),
         })
         .orThrow();
 
@@ -113,10 +117,17 @@ describe.skipIf(!live)("time-tracking", () => {
         .orThrow();
 
       const edited = await time
-        .update(internal.id, { note: null, billable: true, rate: 50 })
+        .update(internal.id, {
+          note: null,
+          billable: true,
+          rate: money(5000n, "EUR"),
+        })
         .orThrow();
 
-      expect(edited).toMatchObject({ billable: true, rate: 50 });
+      expect(edited).toMatchObject({
+        billable: true,
+        rate: money(5000n, "EUR"),
+      });
       expect(edited.note).toBeUndefined();
       expect(
         await time
@@ -137,7 +148,7 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(sheet.totals).toEqual({
         seconds: 14_400,
         billableSeconds: 14_400,
-        amount: 300,
+        amounts: [money(30_000n, "EUR")],
       });
 
       const grid = toWeeklyGrid(sheet.entries, {

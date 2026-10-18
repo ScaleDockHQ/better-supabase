@@ -3,7 +3,7 @@
 -- checks bypass RLS, so only the tenant column in the key stops a member from
 -- attaching a row to another organization's customer.
 begin;
-select plan(15);
+select plan(17);
 
 select table_privs_are('public', t, 'anon', '{}'::text[], format('anon has no privileges on public.%s', t))
 from unnest(array[
@@ -18,6 +18,9 @@ from unnest(array['customers', 'notes']) as t;
 
 select function_privs_are('rbac', 'authorize', array['rbac.app_permission'], 'anon', '{}'::text[],
   'anon cannot call rbac.authorize');
+select function_privs_are('better_supabase', 'broadcast_changes', '{}'::text[], r, '{}'::text[],
+  format('%s cannot call the broadcast_changes() trigger function', r))
+from unnest(array['anon', 'authenticated']) as r;
 
 -- An Acme member (tenant …0001) aims at Initech (…a003), a Globex customer.
 select set_config(

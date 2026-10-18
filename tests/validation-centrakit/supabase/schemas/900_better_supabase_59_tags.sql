@@ -83,6 +83,9 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', tag.tenant, 'tags.manage'), false) or coalesce(better_supabase.can('tenant', tag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
+  end if;
   if not (case tag.subject_type
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id"::text = tag.subject_id and s."organization_id" = tag.tenant)
     else false
@@ -194,6 +197,9 @@ as $$
 begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', untag.tenant, 'tags.manage'), false) or coalesce(better_supabase.can('tenant', untag.tenant, 'tags.manage'), false)) then
+    raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (case untag.subject_type
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id"::text = untag.subject_id and s."organization_id" = untag.tenant)

@@ -149,6 +149,7 @@ describe("webhooks-out module", () => {
     const [contract] = customContracts(["webhooks-out"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "publish_webhook_event",
+      "publish_webhook_events",
       "dispatch_webhook",
       "claim_webhook_deliveries",
       "complete_webhook_delivery",
@@ -308,5 +309,36 @@ describe("webhooks-out module", () => {
         body({ "webhooks-out": { options: { defaultFormat: "x'; drop" } } }),
       ).toThrow(/defaultFormat "x'; drop" must match/);
     });
+  });
+});
+
+describe("webhooks-out batches and partitions", () => {
+  it("publishes a batch of events for the service role", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."publish_webhook_events"(events jsonb)',
+    );
+    expect(sql).toContain("hint = 'WEBHOOK_BATCH_TOO_LARGE'");
+    expect(sql).toContain("jsonb_array_length(events) > 1000");
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."publish_webhook_events"(jsonb) to service_role;',
+    );
+  });
+
+  it("partitions deliveries by month with an advisory lock per event", () => {
+    const sql = body({ "webhooks-out": { options: { partitioned: true } } });
+    expect(sql).toContain('primary key ("id", "created_at")');
+    expect(sql).toContain(') partition by range ("created_at");');
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."webhook_deliveries_default" partition of "better_supabase"."webhook_deliveries" default;',
+    );
+    expect(sql).toContain(
+      "pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.webhook_deliveries')",
+    );
+    expect(sql).not.toContain('where "event" is not null do nothing');
+    expect(sql).toContain(
+      `better_supabase.expired_partitions('"better_supabase"."webhook_deliveries"'::regclass`,
+    );
+    expect(body()).not.toContain("partition by range");
   });
 });

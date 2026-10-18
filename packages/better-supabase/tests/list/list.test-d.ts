@@ -61,15 +61,30 @@ describe("list types", () => {
       .orThrow();
 
     expectTypeOf(page).toEqualTypeOf<
-      OffsetPage<{ id: string; name: string }>
+      CursorPage<{ id: string; name: string }>
     >();
   });
 
-  it("returns a cursor page with cursor pagination", async () => {
+  it("returns an offset page with offset pagination", async () => {
     const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
-      pagination: "cursor",
+      pagination: "offset",
+    });
+
+    expectTypeOf(list.pagination).toEqualTypeOf<"offset">();
+
+    const page = await list
+      .run(db, list.defaults, { select: ["id"] })
+      .orThrow();
+
+    expectTypeOf(page).toEqualTypeOf<OffsetPage<{ id: string }>>();
+  });
+
+  it("returns a cursor page by default", async () => {
+    const list = defineListQuery(betterSupabase, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
     });
 
     expectTypeOf(list.pagination).toEqualTypeOf<"cursor">();

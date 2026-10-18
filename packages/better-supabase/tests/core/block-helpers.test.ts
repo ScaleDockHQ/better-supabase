@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import {
+  batchResultsOf,
   blockCall,
   budget,
+  chunksOf,
   credentialRefOf,
   eachLimit,
   enumOrThrow,
@@ -184,6 +186,40 @@ describe("pageOf", () => {
       cursor: "c",
     });
     expect(pageOf()).toEqual({ limit: undefined, cursor: undefined });
+  });
+});
+
+describe("batchResultsOf", () => {
+  it("maps each reply row to one result in order", () => {
+    const results = batchResultsOf(
+      [{ id: "1" }, { error: { code: "23505", message: "dup" } }],
+      3,
+      "id",
+      Number,
+    );
+
+    expect(results[0]).toMatchObject({ ok: true, data: 1 });
+    expect(results[1]?.ok).toBe(false);
+    expect(results[2]).toMatchObject({
+      ok: false,
+      error: {
+        kind: "unexpected",
+        message: "The batch reply has no result for event 2",
+      },
+    });
+  });
+
+  it("treats a reply that is not an array as missing every row", () => {
+    const results = batchResultsOf(null, 1, "id", String);
+
+    expect(results[0]?.ok).toBe(false);
+  });
+});
+
+describe("chunksOf", () => {
+  it("splits items into chunks of at most the size", () => {
+    expect(chunksOf([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(chunksOf([], 2)).toEqual([]);
   });
 });
 

@@ -30,6 +30,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
 drop trigger if exists "bs_profile_guard" on "centrakit"."profiles";
 create trigger "bs_profile_guard" before update on "centrakit"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
@@ -203,6 +204,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
 drop trigger if exists "bs_profile_email" on auth.users;
 create trigger "bs_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();

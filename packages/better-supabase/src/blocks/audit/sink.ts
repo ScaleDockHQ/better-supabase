@@ -1,10 +1,11 @@
-import type { AsyncResult } from "../../core/result.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { AuditCategory } from "../../sql/context.ts";
 import type { AuditEventInput } from "./audit-log.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { DbException } from "../../core/errors.ts";
-import { isRecord } from "../shared.ts";
+import { chunksOf, isRecord } from "../shared.ts";
 
 export interface AuditSinkOptions {
   /** The type prefix stripped from each event's `type`. Defaults to `dev.better-supabase`. */
@@ -92,23 +93,36 @@ export function auditEventOf(
 }
 
 /**
- * An `EventSink` that records each CloudEvent in the audit log. `send`
- * throws when an entry fails, so an outbox relay retries the batch; the
- * idempotency key keeps the entries already written from repeating.
+ * An `EventSink` that records CloudEvents in the audit log, one
+ * `recordMany` call per chunk of at most `MAX_BATCH` events. `send` throws
+ * the first failure once every chunk ran, so an outbox relay retries the
+ * batch; the idempotency key keeps the entries already written from
+ * repeating.
  */
 export function auditSink(
-  record: (event: AuditEventInput) => AsyncResult<string>,
+  recordMany: (
+    events: readonly AuditEventInput[],
+  ) => AsyncResult<readonly Result<string>[]>,
   options: AuditSinkOptions = {},
 ): EventSink {
   return {
     async send(events) {
       let failure: DbException | undefined;
 
-      for (const event of events) {
-        const result = await record(auditEventOf(event, options));
+      for (const chunk of chunksOf(events, MAX_BATCH)) {
+        const results = await recordMany(
+          chunk.map((event) => auditEventOf(event, options)),
+        );
 
-        if (!result.ok) {
-          failure ??= new DbException(result.error);
+        if (!results.ok) {
+          failure ??= new DbException(results.error);
+          continue;
+        }
+
+        for (const result of results.data) {
+          if (!result.ok) {
+            failure ??= new DbException(result.error);
+          }
         }
       }
 

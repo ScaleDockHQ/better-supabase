@@ -88,7 +88,7 @@ describe("settings module", () => {
       "better_supabase.is_platform(case \"key\" when 'fee' then 'billing.platform' when 'banner' then 'platform.settings' else 'platform.settings' end)",
     );
     expect(sql).toContain(
-      "case \"key\" when 'fee' then true when 'banner' then true else coalesce(better_supabase.is_platform('platform.settings'), false) end",
+      "case \"key\" when 'fee' then true when 'banner' then true else (select coalesce(better_supabase.is_platform('platform.settings'), false)) end",
     );
     expect(sql).toContain(`for select to anon\n  using ("key" in ('fee'))`);
     expect(sqlOf(["settings"])).toContain(

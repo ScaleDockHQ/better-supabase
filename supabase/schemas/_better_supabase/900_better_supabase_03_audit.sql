@@ -1,5 +1,5 @@
 -- better-supabase module: audit (0.8.0)
--- @bs-module audit@8 managed
+-- @bs-module audit@9 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,6 +263,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function better_supabase.audit_row_change() from public, anon, authenticated;
 
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
@@ -620,6 +621,76 @@ $$;
 revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "authenticated", "service_role";
 
+-- audit_event for a batch of events in one call (the outbox sink): each
+-- element takes audit_event's argument names as keys, keeps its checks and
+-- returns {"id"} or {"error"} in order.
+create or replace function better_supabase.audit_event_many(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result text;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception 'audit_event_many takes a jsonb array of events'
+      using errcode = '22023', hint = 'AUDIT_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception 'audit_event_many got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'AUDIT_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := better_supabase.audit_event(
+        event_type => batch_event ->> 'event_type',
+        category => batch_event ->> 'category',
+        outcome => coalesce(batch_event ->> 'outcome', 'success'),
+        source => batch_event ->> 'source',
+        target_type => batch_event ->> 'target_type',
+        record_id => batch_event ->> 'record_id',
+        tenant => (batch_event ->> 'tenant')::uuid,
+        metadata => coalesce(nullif(batch_event -> 'metadata', 'null'::jsonb), '{}'),
+        idempotency_key => batch_event ->> 'idempotency_key',
+        restricted => nullif(batch_event -> 'restricted', 'null'::jsonb),
+        actor_id => (batch_event ->> 'actor_id')::uuid,
+        summary => batch_event ->> 'summary',
+        target_label => batch_event ->> 'target_label',
+        correlation_id => batch_event ->> 'correlation_id',
+        actor_kind => batch_event ->> 'actor_kind',
+        actor_label => batch_event ->> 'actor_label',
+        ip => (batch_event ->> 'ip')::inet,
+        user_agent => batch_event ->> 'user_agent',
+        session_id => batch_event ->> 'session_id',
+        request_id => batch_event ->> 'request_id',
+        scope => batch_event ->> 'scope',
+        support_session => (batch_event ->> 'support_session')::uuid,
+        impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
+        impersonation_reason => batch_event ->> 'impersonation_reason'
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
+revoke execute on function better_supabase.audit_event_many(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_many(jsonb) to "authenticated", "service_role";
+
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
 -- caller, so only the owner, the service role and
@@ -772,7 +843,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return better_supabase.is_platform('audit.read');
+  return (select coalesce(better_supabase.is_platform('audit.read'), false));
 end;
 $$;
 revoke execute on function "better_supabase"."audit_read_tenants"() from public, anon;
@@ -899,6 +970,7 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 -- values; search matches the event type, summary, labels, record and table.
 -- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
 -- or open page N with skip (an offset) and count_audit_events for the total.
+-- skip is ignored with a cursor, so keyset pages never scan skipped rows.
 drop function if exists "better_supabase"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
 create or replace function "better_supabase"."list_audit_events"(
@@ -930,6 +1002,7 @@ as $$
 declare
   v_where text := 'true';
   v_order text := case when ascending then 'asc' else 'desc' end;
+  v_skip text := '';
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
@@ -976,6 +1049,8 @@ begin
       then $q$ and (l."occurred_at", l."id") > ($14, $15::bigint)$q$
       else $q$ and (l."occurred_at", l."id") < ($14, $15::bigint)$q$
     end;
+  elsif coalesce(skip, 0) > 0 then
+    v_skip := ' offset $17';
   end if;
   -- Only the filters passed reach the query, so the planner sees no
   -- "is null or" branches and can use the (tenant, occurred_at) index.
@@ -985,8 +1060,7 @@ begin
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
-    limit $16
-    offset $17
+    limit $16$q$ || v_skip || $q$
   ) x$q$
   into result
   using for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until, cursor_at, cursor_id, least(greatest(coalesce(max_items, 50), 1), 1000), greatest(coalesce(skip, 0), 0);
@@ -1271,6 +1345,15 @@ set search_path = ''
 as $$ select "better_supabase"."audit_event"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) $$;
 revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon;
 grant execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."audit_event_many"(events jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."audit_event_many"($1) $$;
+revoke execute on function "api"."audit_event_many"(jsonb) from public, anon;
+grant execute on function "api"."audit_event_many"(jsonb) to authenticated, service_role;
 
 create or replace function "api"."audit_event_trusted"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
 returns text

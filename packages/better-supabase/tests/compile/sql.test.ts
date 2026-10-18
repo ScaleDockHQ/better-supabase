@@ -705,7 +705,7 @@ describe("compileSql reads", () => {
     ).toEqual({
       rows: { text: `${BASE} where t0."name" = $1 limit 1`, params: ["Acme"] },
       count: {
-        text: `select count(*)::int as count from "public"."customers" as t0 where t0."name" = $1`,
+        text: `select count(*)::bigint as count from "public"."customers" as t0 where t0."name" = $1`,
         params: ["Acme"],
       },
       never: false,
@@ -722,13 +722,51 @@ describe("compileSql reads", () => {
       ).toEqual({
         rows: undefined,
         count: {
-          text: `select count(*)::int as count from "public"."customers" as t0 where t0."name" = $1`,
+          text: `select count(*)::bigint as count from "public"."customers" as t0 where t0."name" = $1`,
           params: ["Acme"],
         },
         never: false,
       });
     },
   );
+
+  it("asks the planner for a planned count", () => {
+    const plan = compileSql(
+      select({ count: "planned", where: col("name", "eq", "Acme") }),
+    );
+
+    expect(plan.count).toBeUndefined();
+    expect(plan.plannedCount).toEqual({
+      text: `explain (format json) select 1 from "public"."customers" as t0 where t0."name" = $1`,
+      params: ["Acme"],
+    });
+  });
+
+  it("caps an estimated count at the threshold and keeps the plan for past it", () => {
+    const plan = compileSql(
+      select({ head: true, count: "estimated", where: col("name", "eq", "A") }),
+      { estimatedCountThreshold: 50 },
+    );
+
+    expect(plan.count).toEqual({
+      text: `select count(*)::bigint as count from (select 1 from "public"."customers" as t0 where t0."name" = $1 limit 51) as c`,
+      params: ["A"],
+    });
+    expect(plan.plannedCount?.text).toBe(
+      `explain (format json) select 1 from "public"."customers" as t0 where t0."name" = $1`,
+    );
+    expect(plan.countThreshold).toBe(50);
+    expect(compileSql(select({ count: "estimated" })).countThreshold).toBe(
+      1000,
+    );
+    expect(
+      invalid(() =>
+        compileSql(select({ count: "estimated" }), {
+          estimatedCountThreshold: -1,
+        }),
+      ),
+    ).toBe('"estimatedCountThreshold" must be a non-negative integer, got -1');
+  });
 
   it("reads from a set-returning function with named arguments", () => {
     expect(
@@ -769,7 +807,7 @@ describe("compileSql inserts", () => {
   const into = `insert into "public"."customers" as t0`;
 
   const counted = (statement: string) =>
-    `with m as (${statement}) select count(*)::int as count from m`;
+    `with m as (${statement}) select count(*)::bigint as count from m`;
 
   it("counts affected rows without a returning selection", () => {
     expect(insert()).toEqual({
@@ -875,7 +913,7 @@ describe("compileSql inserts", () => {
 
 describe("compileSql updates and deletes", () => {
   const counted = (statement: string) =>
-    `with m as (${statement}) select count(*)::int as count from m`;
+    `with m as (${statement}) select count(*)::bigint as count from m`;
 
   it("updates the matching rows", () => {
     expect(
@@ -986,7 +1024,7 @@ describe("compileSql updates and deletes", () => {
 
 describe("compileSql maxAffected", () => {
   const guard = (max: number) =>
-    `case when count(*) > ${max} then ('better_supabase:max_affected:' || count(*))::int else count(*)::int end`;
+    `case when count(*) > ${max} then ('better_supabase:max_affected:' || count(*))::bigint else count(*)::bigint end`;
 
   it("guards the count of an update", () => {
     expect(

@@ -102,10 +102,13 @@ const codes = async (ctx: DoctorContext, only?: string): Promise<string[]> =>
         (rule) =>
           rule.code !== "BS303" &&
           // BS211 reports the role timeouts of every snapshot that has them,
-          // and BS222 the fixture's int8 identity ids.
+          // BS222 the fixture's int8 identity ids, and BS224 the fixture
+          // roles' unset idle_in_transaction_session_timeout.
           (only
             ? rule.code === only
-            : rule.code !== "BS211" && rule.code !== "BS222"),
+            : rule.code !== "BS211" &&
+              rule.code !== "BS222" &&
+              rule.code !== "BS224"),
       ),
     )
   ).map((finding) => finding.code);
@@ -1044,6 +1047,91 @@ describe("doctor rules", () => {
       expect(
         await codes(context(withFunctions(base, [slow], hoisted)), "BS211"),
       ).toEqual(["BS211"]);
+    });
+
+    it("flags Data API roles without a timeout (BS224)", async () => {
+      const targets = async (
+        roles: Record<string, Record<string, string>>,
+      ): Promise<(string | undefined)[]> =>
+        (
+          await runRules(
+            context(withFunctions(base, [], roles)),
+            RULES.filter((rule) => rule.code === "BS224"),
+          )
+        ).map((finding) => finding.target);
+
+      expect(
+        await targets({
+          anon: { statement_timeout: "0" },
+          authenticated: {
+            statement_timeout: "8s",
+            idle_in_transaction_session_timeout: "60s",
+          },
+        }),
+      ).toEqual([
+        "anon:statement_timeout",
+        "anon:idle_in_transaction_session_timeout",
+      ]);
+
+      expect(
+        await targets({
+          anon: { statement_timeout: "3s" },
+          authenticated: { statement_timeout: "8s" },
+          authenticator: { idle_in_transaction_session_timeout: "60s" },
+        }),
+      ).toEqual([]);
+
+      const [finding] = await runRules(
+        context(withFunctions(base, [], { anon: { statement_timeout: "3s" } })),
+        RULES.filter((rule) => rule.code === "BS224"),
+      );
+
+      expect(finding).toMatchObject({
+        severity: "warning",
+        target: "anon:idle_in_transaction_session_timeout",
+        message: expect.stringContaining(
+          "alter role anon set idle_in_transaction_session_timeout = '60s';",
+        ),
+      });
+    });
+
+    it("reports a missing pg_stat_statements on a live database (BS225)", async () => {
+      const database = (installed: boolean): LiveDatabase => ({
+        describe: "database",
+        session: true,
+        query: <R>(sql: string) =>
+          Promise.resolve(
+            (sql.includes("pg_extension") && installed
+              ? [{ schema: "extensions" }]
+              : []) as R[],
+          ),
+      });
+
+      const only = RULES.filter((rule) => rule.code === "BS225");
+
+      expect(
+        await runRules(context(base, { database: database(false) }), only),
+      ).toMatchObject([
+        {
+          severity: "info",
+          target: "extension:pg_stat_statements",
+          message: expect.stringContaining(
+            "create extension if not exists pg_stat_statements with schema extensions;",
+          ),
+        },
+      ]);
+      expect(
+        await runRules(context(base, { database: database(true) }), only),
+      ).toEqual([]);
+      expect(
+        await runRules(
+          context(base, { database: database(false), stats: true }),
+          RULES.filter((rule) => ["BS209", "BS225"].includes(rule.code)),
+        ),
+      ).toMatchObject([{ code: "BS209", severity: "info" }]);
+      expect(
+        await runRules(context(base, { database: { skipped: "x" } }), only),
+      ).toEqual([]);
     });
 
     it("reads temp spills and slow statements from a live database (BS208, BS209)", async () => {

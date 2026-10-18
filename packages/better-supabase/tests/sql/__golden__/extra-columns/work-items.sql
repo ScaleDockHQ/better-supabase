@@ -199,6 +199,7 @@ begin
   return new;
 end;
 $$;
+revoke execute on function better_supabase.bs_work_item_guard() from public, anon, authenticated;
 drop trigger if exists bs_work_item_guard on "better_supabase"."work_items";
 create trigger bs_work_item_guard before insert or update on "better_supabase"."work_items"
 for each row execute function better_supabase.bs_work_item_guard();

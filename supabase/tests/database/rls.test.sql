@@ -1,12 +1,19 @@
 -- RLS for the fixture schema, against the rows in supabase/seed.sql: Acme
 -- (…0001) has two customers, Globex (…0002) has one. Run with `supabase test db`.
 begin;
-select plan(14);
+select plan(15);
 
 select is(
   (select count(*) from pg_catalog.pg_tables where schemaname in ('public', 'rbac') and not rowsecurity),
   0::bigint,
   'every table in public and rbac has RLS enabled'
+);
+
+-- pg_tables lists partitions too, so a monthly partition without RLS fails here.
+select is_empty(
+  $$select schemaname || '.' || tablename from pg_catalog.pg_tables
+    where schemaname in ('better_supabase', 'workflow', 'api') and not rowsecurity$$,
+  'every table in better_supabase, workflow and api has RLS enabled'
 );
 
 set local role anon;

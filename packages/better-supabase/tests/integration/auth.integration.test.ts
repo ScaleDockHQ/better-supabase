@@ -70,7 +70,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   const email = `auth-${crypto.randomUUID()}@example.com`;
-  const password = "correct horse battery staple";
+  const password = "correct horse battery staple 42";
   let userId: string;
   let postgres: ReturnType<typeof createPostgres>;
 

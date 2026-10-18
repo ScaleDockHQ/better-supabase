@@ -349,6 +349,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          currency: string
           key: string
           name: string
           position: number
@@ -356,12 +357,14 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          currency?: string
           key: string
           name: string
           position?: number
           price_cents?: number
         }
         Update: {
+          currency?: string
           key?: string
           name?: string
           position?: number

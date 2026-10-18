@@ -230,6 +230,8 @@ create index if not exists memories_project_idx on ${memories} (${m.project}) wh
 create index if not exists memories_superseded_idx on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
 create index if not exists memories_embedding_idx on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
 create index if not exists memories_tsv_idx on ${memories} using gin (${m.tsv});
+create index if not exists memories_pending_embedding_idx on ${memories} (${m.updatedAt})
+  where ${m.embedding} is null and ${m.supersededBy} is null;
 alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;

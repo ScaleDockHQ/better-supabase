@@ -29,6 +29,8 @@ export interface Codemod {
   readonly props?: readonly PropRename[];
   /** Keys of the options object a named call takes, at its top level. */
   readonly options?: readonly OptionRename[];
+  /** Option keys added where a default changed, to keep the old behavior. */
+  readonly pins?: readonly OptionPin[];
   /** Whole string literals, such as event types, renamed in strings, templates and comments. */
   readonly strings?: Readonly<Record<string, string>>;
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
@@ -56,10 +58,39 @@ export interface OptionRename {
   readonly to: string;
 }
 
+export interface OptionPin {
+  readonly call: string;
+  /** 0-based position of the options object among the call's arguments. */
+  readonly argument: number;
+  readonly key: string;
+  /** The code written as the key's value. */
+  readonly value: string;
+  /** Keys whose presence means the call needs no pin. */
+  readonly unless?: readonly string[];
+  /** Pins only in files this matches; other calls without the key are listed for review. */
+  readonly when: RegExp;
+  readonly message: string;
+}
+
 export interface ReviewHint {
   readonly pattern: RegExp;
   readonly message: string;
 }
+
+/**
+ * Offset pages show up as `.page` (the envelope or the parsed query),
+ * `pageCount`, `totalPages`, a `page` key, or a `page` URL param.
+ */
+const PAGE_UI =
+  /\.page\b(?!\s*\()|\bpageCount\b|\btotalPages\b|\bpage\s*:|[?&]page=|["']page["']/;
+
+const OFFSET_PIN = {
+  key: "pagination",
+  value: '"offset"',
+  when: PAGE_UI,
+  message:
+    'Lists and resources page by cursor (`after`, `nextCursor`, no total) unless `pagination: "offset"` is set. This file shows no page numbers, so the codemod left it: add `pagination: "offset"` if a UI elsewhere reads `page` or the total, or the list sorts by a relation',
+} as const;
 
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.4": {
@@ -203,7 +234,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.9": {
     name: "0.9",
     description:
-      "Moves sql.modules to the top-level blocks key in better-supabase.config.*, renames the config types (ModulesConfig to BlocksConfig, ModuleConfig to BlockConfig, AccessModuleConfig to AccessBlockConfig, ModuleMode to BlockMode), and lists behaviour changes for review: support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects",
+      "Moves sql.modules to the top-level blocks key in better-supabase.config.*, renames the config types (ModulesConfig to BlocksConfig, ModuleConfig to BlockConfig, AccessModuleConfig to AccessBlockConfig, ModuleMode to BlockMode), pins pagination: 'offset' on lists and resources in files that read page numbers, and lists behaviour changes for review: support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects",
     imports: {
       ModulesConfig: "BlocksConfig",
       ModuleConfig: "BlockConfig",
@@ -214,7 +245,21 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       json
         ? moveSqlModulesToBlocksJson(source)
         : moveSqlModulesToBlocks(source),
+    pins: [
+      { call: "defineListQuery", argument: 2, ...OFFSET_PIN },
+      {
+        call: "defineResource",
+        argument: 2,
+        unless: ["list"],
+        ...OFFSET_PIN,
+      },
+    ],
     review: [
+      {
+        pattern: /\bresources\s*:\s*\{/,
+        message:
+          'The default list of each `defineApi` resource pages by cursor (`after`, `nextCursor`) unless the table has no primary key; set `pagination: "offset"` on a resource whose clients send `page` or read the total',
+      },
       {
         pattern: /\bsupportSessions\s*\(/,
         message:
@@ -646,6 +691,153 @@ function renameOptions(text: string, options: readonly OptionRename[]): string {
   return applyEdits(text, edits);
 }
 
+interface PinTarget {
+  /** Where the call starts, for the review line. */
+  readonly call: number;
+  /** The edit that adds the key, or `undefined` when only a review fits. */
+  readonly edit: Edit | undefined;
+}
+
+/** The arguments of the call whose `(` is at `open`: start and end of each. */
+function callArguments(
+  text: string,
+  open: number,
+  ranges: readonly [number, number][],
+): { start: number; end: number }[] {
+  const args: { start: number; end: number }[] = [];
+  let start = open + 1;
+  const end = closing(text, open, ranges) - 1;
+
+  walkBrackets(text, open, ranges, (index, depth, char) => {
+    if (depth === 1 && char === ",") {
+      args.push({ start, end: index });
+      start = index + 1;
+    }
+  });
+
+  if (text.slice(start, end).trim() !== "") {
+    args.push({ start, end });
+  }
+
+  return args;
+}
+
+/** Calls of `pin.call` whose options object lacks `pin.key`, with the insertion when one is safe. */
+function pinTargets(text: string, pin: OptionPin): PinTarget[] {
+  const ranges = codeRanges(text);
+
+  const call = new RegExp(
+    `(?<![\\w$.])${escapeRegExp(pin.call)}\\s*(?:<[^>]*>)?\\s*\\(`,
+    "g",
+  );
+
+  const targets: PinTarget[] = [];
+  const entry = `${pin.key}: ${pin.value}`;
+
+  for (const match of codeMatches(text, call, ranges)) {
+    const open = match.index + match[0].length - 1;
+    const args = callArguments(text, open, ranges);
+    const arg = args[pin.argument];
+
+    if (arg === undefined) {
+      if (args.length !== pin.argument) {
+        targets.push({ call: match.index, edit: undefined });
+        continue;
+      }
+
+      const last = args.at(-1);
+      const at = last === undefined ? open + 1 : last.end;
+      const trailing = text[at] === ",";
+
+      targets.push({
+        call: match.index,
+        edit: trailing
+          ? { start: at + 1, end: at + 1, text: ` { ${entry} }` }
+          : { start: at, end: at, text: `, { ${entry} }` },
+      });
+      continue;
+    }
+
+    const offset = text.slice(arg.start, arg.end).search(/\S/);
+    const object = arg.start + offset;
+
+    if (text[object] !== "{") {
+      targets.push({ call: match.index, edit: undefined });
+      continue;
+    }
+
+    const keys = [pin.key, ...(pin.unless ?? [])];
+
+    if (
+      keys.some((key) => topLevelKeys(text, object, key, ranges).length > 0)
+    ) {
+      continue;
+    }
+
+    const spreads: number[] = [];
+    walkBrackets(text, object, ranges, (index, depth) => {
+      if (depth === 1 && text.startsWith("...", index)) {
+        spreads.push(index);
+      }
+    });
+
+    if (spreads.length > 0) {
+      targets.push({ call: match.index, edit: undefined });
+      continue;
+    }
+
+    const body = text.slice(object + 1, closing(text, object, ranges) - 1);
+    const first = /^[ \t]*\n([ \t]*)\S/.exec(body);
+
+    targets.push({
+      call: match.index,
+      edit:
+        body.trim() === ""
+          ? {
+              start: object,
+              end: object + body.length + 2,
+              text: `{ ${entry} }`,
+            }
+          : first
+            ? {
+                start: object + 1,
+                end: object + 1,
+                text: `\n${first[1]!}${entry},`,
+              }
+            : { start: object + 1, end: object + 1, text: ` ${entry},` },
+    });
+  }
+
+  return targets;
+}
+
+function pinOptions(
+  text: string,
+  pins: readonly OptionPin[],
+): { text: string; review: { line: number; message: string }[] } {
+  let out = text;
+
+  for (const pin of pins) {
+    if (pin.when.test(out)) {
+      out = applyEdits(
+        out,
+        pinTargets(out, pin).flatMap((target) =>
+          target.edit === undefined ? [] : [target.edit],
+        ),
+      );
+    }
+  }
+
+  const review = pins.flatMap((pin) =>
+    pinTargets(out, pin).map((target) => ({
+      line: out.slice(0, target.call).split("\n").length,
+      message: pin.message,
+    })),
+  );
+
+  return { text: out, review };
+}
+
 export interface CodemodResult {
   readonly text: string;
   /** 1-based lines that need a manual change, with the reason. */
@@ -721,6 +913,12 @@ export function applyCodemod(
 
   if (codemod.strings) {
     text = renameStrings(text, codemod.strings);
+  }
+
+  if (codemod.pins) {
+    const pinned = pinOptions(text, codemod.pins);
+    text = pinned.text;
+    refused.push(...pinned.review);
   }
 
   const review = [

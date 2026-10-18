@@ -9,7 +9,7 @@ import {
   sqlTransport,
 } from "../../src/blocks/settings/index.ts";
 import { mapDbError } from "../../src/core/errors.ts";
-import { fromPgError } from "../../src/postgres/executor.ts";
+import { fromPgError } from "../../src/postgres/pg-error.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();

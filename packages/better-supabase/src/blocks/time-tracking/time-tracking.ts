@@ -1,9 +1,11 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 
+import { isCurrency } from "../../commerce/money.ts";
 import {
   type BlockFields,
   blockFields,
@@ -13,6 +15,12 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import {
+  amountText,
+  moneyOf,
+  optionalMoneyOf,
+  unknownCurrency,
+} from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -61,8 +69,8 @@ export interface TimeEntry<F extends object = Record<never, never>> {
   /** Missing while the timer runs. */
   readonly seconds?: number;
   readonly billable: boolean;
-  /** The hourly rate, in the organization's currency. */
-  readonly rate?: number;
+  /** The hourly rate, in minor units of its currency. */
+  readonly rate?: Money;
   readonly note?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -75,7 +83,8 @@ export interface TimeEntryFields<F extends object = Record<never, never>> {
   readonly subjectType?: string;
   readonly subjectId?: string;
   readonly billable?: boolean;
-  readonly rate?: number;
+  /** The hourly rate, in minor units of its currency. */
+  readonly rate?: Money;
   readonly note?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
@@ -99,7 +108,7 @@ export interface TimeEntryPatch<F extends object = Record<never, never>> {
     readonly subjectId: string;
   } | null;
   readonly billable?: boolean;
-  readonly rate?: number | null;
+  readonly rate?: Money | null;
   readonly note?: string | null;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
@@ -139,8 +148,11 @@ export interface TimesheetTotals {
   /** Every entry, running ones up to now. */
   readonly seconds: number;
   readonly billableSeconds: number;
-  /** Billable hours times their rate, rounded to cents. */
-  readonly amount: number;
+  /**
+   * Billable hours times their rate, rounded to minor units: one amount per
+   * currency, ordered by currency code.
+   */
+  readonly amounts: readonly Money[];
 }
 
 export interface TimesheetDetail<
@@ -236,7 +248,10 @@ function entryOf(value: unknown, fn: string): TimeEntry {
     ...optional("subjectId", optionalText(row["subjectId"])),
     ...optional("endedAt", optionalInstant(row["endedAt"])),
     ...optional("seconds", numberOf(row["seconds"])),
-    ...optional("rate", numberOf(row["rate"])),
+    ...optional(
+      "rate",
+      optionalMoneyOf(row["rate"], row["rateCurrency"], "rate"),
+    ),
     ...optional("note", optionalText(row["note"])),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
@@ -264,9 +279,21 @@ function totalsOf(value: unknown): TimesheetTotals {
   return {
     seconds: numberOf(row["seconds"]) ?? 0,
     billableSeconds: numberOf(row["billableSeconds"]) ?? 0,
-    amount: numberOf(row["amount"]) ?? 0,
+    amounts: (Array.isArray(row["amounts"]) ? row["amounts"] : []).map(
+      (item: unknown) => {
+        const entry = isRecord(item) ? item : {};
+
+        return moneyOf(entry["amount"], entry["currency"], "totals.amounts");
+      },
+    ),
   };
 }
+
+/** Why a rate can't be sent, or `undefined` when it can. */
+const rateError = (rate: Money | null | undefined): DbError | undefined =>
+  rate === undefined || rate === null || isCurrency(rate.currency)
+    ? undefined
+    : unknownCurrency(rate.currency);
 
 function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -289,7 +316,8 @@ function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   }
 
   if (patch.rate !== undefined) {
-    out["rate"] = patch.rate;
+    out["rate"] = patch.rate === null ? null : amountText(patch.rate);
+    out["rateCurrency"] = patch.rate?.currency ?? null;
   }
 
   if (patch.note !== undefined) {
@@ -314,8 +342,14 @@ export function createTimeTracking<
   );
 
   const client: TimeTracking<F> = {
-    start: (organizationId, entry = {}) =>
-      fields.args(entry.fields).andThen((checked) =>
+    start: (organizationId, entry = {}) => {
+      const invalid = rateError(entry.rate);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      return fields.args(entry.fields).andThen((checked) =>
         call(
           "start_timer",
           {
@@ -323,13 +357,15 @@ export function createTimeTracking<
             subject_type: entry.subjectType ?? null,
             subject_id: entry.subjectId ?? null,
             billable: entry.billable ?? false,
-            rate: entry.rate ?? null,
+            rate: entry.rate === undefined ? null : amountText(entry.rate),
+            rate_currency: entry.rate?.currency ?? null,
             note: entry.note ?? null,
             fields: checked,
           },
           (value) => entryOf(value, "start_timer"),
         ).andThen(fields.row),
-      ),
+      );
+    },
     stop: (organizationId) =>
       call("stop_timer", { tenant: organizationId }, (value) =>
         entryOf(value, "stop_timer"),
@@ -342,8 +378,14 @@ export function createTimeTracking<
       ).andThen((entry) =>
         entry === undefined ? AsyncResult.ok(undefined) : fields.row(entry),
       ),
-    log: (organizationId, input) =>
-      fields.args(input.fields).andThen((checked) =>
+    log: (organizationId, input) => {
+      const invalid = rateError(input.rate);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      return fields.args(input.fields).andThen((checked) =>
         call(
           "log_time",
           {
@@ -353,16 +395,24 @@ export function createTimeTracking<
             subject_type: input.subjectType ?? null,
             subject_id: input.subjectId ?? null,
             billable: input.billable ?? false,
-            rate: input.rate ?? null,
+            rate: input.rate === undefined ? null : amountText(input.rate),
+            rate_currency: input.rate?.currency ?? null,
             note: input.note ?? null,
             user_id: input.userId ?? null,
             fields: checked,
           },
           (value) => entryOf(value, "log_time"),
         ).andThen(fields.row),
-      ),
-    update: (entryId, patch) =>
-      fields.args(patch.fields).andThen((checked) =>
+      );
+    },
+    update: (entryId, patch) => {
+      const invalid = rateError(patch.rate);
+
+      if (invalid !== undefined) {
+        return AsyncResult.err(invalid);
+      }
+
+      return fields.args(patch.fields).andThen((checked) =>
         call(
           "update_time_entry",
           {
@@ -374,7 +424,8 @@ export function createTimeTracking<
           },
           (value) => entryOf(value, "update_time_entry"),
         ).andThen(fields.row),
-      ),
+      );
+    },
     remove: (entryId) =>
       call("delete_time_entry", { entry_id: entryId }, (value) =>
         entryOf(value, "delete_time_entry"),

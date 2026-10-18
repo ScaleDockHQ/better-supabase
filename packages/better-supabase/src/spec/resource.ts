@@ -54,7 +54,10 @@ export interface ResourceDescription<Ref = string> {
     readonly openapi: readonly unknown[];
     readonly pagination?: ResourcePagination;
   };
-  /** Paging of the default list. Defaults to `offset`. */
+  /**
+   * Paging of the default list. Defaults to `cursor`, or `offset` for a table
+   * or view without a primary key; `offset` adds `page` and the total.
+   */
   readonly pagination?: ResourcePagination;
   /** Largest page of the default list. Defaults to 200. */
   readonly maxPageSize?: number;
@@ -185,9 +188,12 @@ export function planResource<Ref = string>(
   const keyParam =
     meta.primaryKey.length === 1 ? meta.primaryKey[0] : undefined;
 
+  // A cursor needs a unique sort key; without a primary key the default list
+  // has none to break ties with.
   const pagination = description.list
-    ? (description.list.pagination ?? "offset")
-    : (description.pagination ?? "offset");
+    ? (description.list.pagination ?? "cursor")
+    : (description.pagination ??
+      (meta.primaryKey.length > 0 ? "cursor" : "offset"));
 
   const actions = Object.entries(description.actions ?? {}).map(
     ([name, action]) => planAction(table, name, action, keyParam),

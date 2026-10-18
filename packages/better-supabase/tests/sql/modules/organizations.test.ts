@@ -83,10 +83,10 @@ describe("organizations module", () => {
     });
 
     expect(sql).toContain(
-      "and not coalesce(better_supabase.is_platform('platform.members.update_role'), false) then\n    raise exception 'Not allowed to change roles'",
+      "and not (select coalesce(better_supabase.is_platform('platform.members.update_role'), false)) then\n    raise exception 'Not allowed to change roles'",
     );
     expect(sql).toContain(
-      "and not coalesce(better_supabase.is_platform('platform.members.remove'), false) then\n    raise exception 'Not allowed to remove members'",
+      "and not (select coalesce(better_supabase.is_platform('platform.members.remove'), false)) then\n    raise exception 'Not allowed to remove members'",
     );
   });
 
@@ -326,10 +326,10 @@ describe("organizations module", () => {
     });
 
     expect(sql).toContain(
-      "and not coalesce(better_supabase.is_platform('platform.organization.update'), false)",
+      "and not (select coalesce(better_supabase.is_platform('platform.organization.update'), false))",
     );
     expect(sql).toContain(
-      "and not coalesce(better_supabase.is_platform('platform.organization.delete'), false)",
+      "and not (select coalesce(better_supabase.is_platform('platform.organization.delete'), false))",
     );
     expect(body({})).not.toContain("platform.organization");
   });

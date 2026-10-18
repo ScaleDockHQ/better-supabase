@@ -14,6 +14,7 @@ better-supabase sql add time-tracking
 The module needs `tenant`, `access` and `approvals`, and creates the `btree_gist` extension for its exclusion constraint.
 
 ```ts
+import { money } from "better-supabase/commerce";
 import { createTimeTracking } from "better-supabase/blocks/time-tracking";
 
 const time = createTimeTracking({ transport });
@@ -22,14 +23,14 @@ await time
     subjectType: "project",
     subjectId: projectId,
     billable: true,
-    rate: 120,
+    rate: money(12_000n, "EUR"),
   })
   .orThrow();
 const entry = await time.stop(organizationId).orThrow();
 
 const week = Temporal.PlainDate.from("2026-10-05");
 const sheet = await time.timesheet(organizationId, week).orThrow();
-// sheet.totals: { seconds, billableSeconds, amount }
+// sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
 await time.submit(organizationId, week, "Week 41").orThrow();
 ```
 
@@ -39,13 +40,15 @@ await time.submit(organizationId, week, "Week 41").orThrow();
 
 `log` records a finished entry with `startedAt` and `endedAt`. Its end must come after its start (`TIME_ENTRY_INVALID`), and it can't overlap another of the member's entries (`TIME_ENTRY_OVERLAP`). Passing `userId` logs time for another member of the organization, which needs `time_tracking.manage` (`TIME_USER_INVALID` when they aren't a member). `update(entryId, patch)` changes the times, the subject, `billable`, `rate` or `note`; `null` clears the subject, rate or note. `remove` deletes an entry. A member edits their own entries; anyone else's needs `time_tracking.manage`.
 
+A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and the table keeps `rate` and `rate_currency` set together (`TIME_RATE_INVALID`). The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
+
 An entry names both `subjectType` and `subjectId` or neither (`TIME_SUBJECT_INVALID`). With a subject, the caller must be able to read the record, through its registration in [`config.subjects`](/docs/blocks/sql#subject-registry) or the module's `subjects` option. Entries stay when their record is deleted, so billed time keeps its history.
 
 `list` returns the caller's entries, newest first. `from` and `to` select the entries that overlap that range, `subjectType` and `subjectId` select one record's time, and `userId` or `everyone: true` read other members' entries with `time_tracking.read`.
 
 ## Timesheets and approvals
 
-A week starts on Monday in the module's `timeZone`. `timesheet(organizationId, week)` returns the caller's week (or another member's with `userId` and `time_tracking.read`) with the entries that start in it and its totals: `seconds` counts every entry and running ones up to now, `billableSeconds` the billable ones, and `amount` adds billable hours times their rate, rounded to cents. A week passed as any day is read as the week that contains it.
+A week starts on Monday in the module's `timeZone`. `timesheet(organizationId, week)` returns the caller's week (or another member's with `userId` and `time_tracking.read`) with the entries that start in it and its totals: `seconds` counts every entry and running ones up to now, `billableSeconds` the billable ones, and `amounts` adds billable hours times their rate, rounded to minor units, with one `Money` per currency ordered by code. A week passed as any day is read as the week that contains it.
 
 | Status      | Meaning                                                                 |
 | ----------- | ----------------------------------------------------------------------- |
@@ -88,7 +91,7 @@ Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_
 
 ## Events and hooks
 
-The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable` and `rate`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
+The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable`, `rate` as text and `rateCurrency`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
 
 ## Metrics
 

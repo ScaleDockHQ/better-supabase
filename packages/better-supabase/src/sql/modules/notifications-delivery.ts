@@ -1,10 +1,13 @@
 import type { ModuleContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
-import { fail } from "../shared.ts";
+import { PARTITION_VARIABLES, dropExpiredPartitions, fail } from "../shared.ts";
 import { itemJson } from "./notifications-items.ts";
 import { claimSuppression } from "./notifications-suppressions.ts";
-import { keepsTemplateKey } from "./notifications-tracking.ts";
+import {
+  eventsPartitioned,
+  keepsTemplateKey,
+} from "./notifications-tracking.ts";
 
 /** The worker side: claim pending deliveries of a channel, then complete them. */
 export function delivery(ctx: ModuleContext, n: NotifyNames): string {
@@ -169,6 +172,7 @@ grant execute on function ${ctx.fn("complete_notification_delivery")}(${complete
 export function purge(ctx: ModuleContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");
+  const partitioned = eventsPartitioned(ctx);
 
   return `
 -- Deletes up to batch notifications past their retention, with their recipients
@@ -179,8 +183,24 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare v_purged integer;
-begin
+declare v_purged integer;${
+    partitioned
+      ? `
+  v_dropped integer := 0;${PARTITION_VARIABLES}`
+      : ""
+  }
+begin${
+    partitioned
+      ? `
+  -- A delivery event comes after its notification, so a month of them
+  -- past every tenant's retention belongs to notifications this deletes.
+  ${dropExpiredPartitions({
+    table: n.table("deliveryEvents"),
+    cutoff: ctx.cutoff("notifications", "coalesce(older_than, '90 days')"),
+    purged: "v_dropped",
+  })}`
+      : ""
+  }
   delete from ${n.table("events")}
   where ${e("id")} in (
     select ev.${e("id")} from ${n.table("events")} ev

@@ -1,7 +1,7 @@
 import type { CredentialRef } from "../credentials/provider.ts";
 import type { BlockTransport } from "./block-transport.ts";
 
-import { fromPgError } from "../postgres/executor.ts";
+import { fromPgError } from "../postgres/pg-error.ts";
 import { rawError } from "./block-transport.ts";
 import {
   type DbError,
@@ -11,7 +11,7 @@ import {
   mapDbError,
 } from "./errors.ts";
 import { isRecord } from "./guards.ts";
-import { AsyncResult, err, ok, toDbError } from "./result.ts";
+import { AsyncResult, err, ok, type Result, toDbError } from "./result.ts";
 import { temporal } from "./temporal-required.ts";
 import { provideTemporal } from "./temporal.ts";
 
@@ -518,4 +518,51 @@ export function pageOf<Cursor>(
   } = {},
 ): { readonly limit: number | undefined; readonly cursor: Cursor | undefined } {
   return { limit: options.limit, cursor: options.cursor };
+}
+
+/**
+ * The per-event results of a batched block function (`audit_event_many`,
+ * `publish_webhook_events`, `send_notifications`), in the order of the
+ * events: `{ [key]: value }` becomes `ok(then(value))` and `{ error }` a
+ * `DbError` through the app's mappers. An event the reply leaves out is
+ * `unexpected`.
+ */
+export function batchResultsOf<T>(
+  value: unknown,
+  count: number,
+  key: string,
+  then: (value: unknown) => T,
+  mappers: readonly ErrorMapper[] = [],
+): readonly Result<T>[] {
+  const rows = Array.isArray(value) ? value : [];
+
+  return Array.from({ length: count }, (_, index): Result<T> => {
+    const row: unknown = rows[index];
+
+    if (isRecord(row) && isRecord(row["error"])) {
+      return err(toBlockError(row["error"], mappers));
+    }
+
+    if (isRecord(row) && key in row) {
+      return ok(then(row[key]));
+    }
+
+    return err(
+      dbError("unexpected", `The batch reply has no result for event ${index}`),
+    );
+  });
+}
+
+/** `items` in consecutive chunks of at most `size`. */
+export function chunksOf<T>(
+  items: readonly T[],
+  size: number,
+): readonly (readonly T[])[] {
+  const chunks: T[][] = [];
+
+  for (let start = 0; start < items.length; start += size) {
+    chunks.push(items.slice(start, start + size));
+  }
+
+  return chunks;
 }

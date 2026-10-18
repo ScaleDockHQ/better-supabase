@@ -147,6 +147,11 @@ export interface ActivityHistoryOptions extends CursorPageOptions<Temporal.Insta
 export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant> {
   /** Comments created after this instant, for polling a thread. */
   readonly cursor?: Temporal.Instant;
+  /**
+   * The id of the last comment you have, next to `cursor`, so comments
+   * created in the same instant as it aren't skipped.
+   */
+  readonly cursorId?: string;
   /** Default 100, at most 500. */
   readonly limit?: number;
   /** Comments to skip, for page-number paging. */
@@ -323,6 +328,7 @@ export function createComments<
           after: instantArg(pageOf(list).cursor),
           max_rows: list.limit,
           skip: list.offset,
+          after_id: list.cursorId,
         },
         (value) => recordsOf(value, "list_comments").map(commentOf),
       ).andThen(fields.rows),
@@ -533,7 +539,7 @@ export function activityListQuery<
   betterSupabase: BetterSupabase<M, D, Fn, E>,
   table: T,
   options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
-): ListDefinition<M, T, E, ActivitySort, ActivityFacet, false, "cursor"> {
+): ListDefinition<M, T, E, ActivitySort, ActivityFacet> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
 
   if (!meta) {

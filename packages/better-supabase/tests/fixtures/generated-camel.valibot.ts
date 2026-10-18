@@ -229,18 +229,21 @@ export const plansRow: v.GenericSchema<RowOf<'plans'>> = v.pipe(v.object({
   name: v.string(),
   priceCents: v.pipe(v.number(), v.integer()),
   position: v.pipe(v.number(), v.integer()),
+  currency: v.string(),
 }), v.title("Plans"));
 export const plansInsert: v.GenericSchema<InsertOf<'plans'>> = v.pipe(v.object({
   key: v.string(),
   name: v.string(),
   priceCents: v.exactOptional(v.pipe(v.number(), v.integer())),
   position: v.exactOptional(v.pipe(v.number(), v.integer())),
+  currency: v.exactOptional(v.string()),
 }), v.title("Plans insert"));
 export const plansUpdate: v.GenericSchema<UpdateOf<'plans'>> = v.pipe(v.object({
   key: v.exactOptional(v.string()),
   name: v.exactOptional(v.string()),
   priceCents: v.exactOptional(v.pipe(v.number(), v.integer())),
   position: v.exactOptional(v.pipe(v.number(), v.integer())),
+  currency: v.exactOptional(v.string()),
 }), v.title("Plans update"));
 
 export const subscriptionsRow: v.GenericSchema<RowOf<'subscriptions'>> = v.pipe(v.object({

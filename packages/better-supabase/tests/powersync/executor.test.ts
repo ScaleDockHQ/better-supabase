@@ -481,6 +481,7 @@ describe("lists on SQLite", () => {
     defaultSort: "name",
     facetCounts: true,
     pageSize: 2,
+    pagination: "offset",
   });
 
   it("pages, searches and counts facets", async () => {
@@ -528,6 +529,7 @@ describe("lists on SQLite", () => {
       search: { fts: "name" },
       sorts: { organization: { organization: { name: "asc" } } },
       defaultSort: "organization",
+      pagination: "offset",
     });
 
     const first = await checkSqlite(betterSupabase, serverOnly);

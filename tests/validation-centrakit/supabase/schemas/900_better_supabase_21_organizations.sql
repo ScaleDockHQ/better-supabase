@@ -240,6 +240,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
 drop trigger if exists "bs_organization_owner" on "centrakit"."organization_users";
 create constraint trigger "bs_organization_owner" after update of "role_id", "organization_id" or delete on "centrakit"."organization_users"
   deferrable initially deferred

@@ -4,6 +4,7 @@ import type { ModuleLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   SERVICE_CALLER,
+  batchFunction,
   pageSize,
   fail,
   writeExtraColumns,
@@ -433,7 +434,18 @@ set search_path = ''
 as $$
   select (${ctx.fn("send_notification")}(notification) ->> 'id')::uuid
 $$;
-${["send_notification", "notify"]
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+${batchFunction({
+  name: ctx.fn("send_notifications"),
+  call: ctx.fn("send_notification"),
+  args: "notification",
+  returns: "jsonb",
+  result: "notification",
+  hint: "NOTIFICATION_BATCH",
+})}
+${["send_notification", "notify", "send_notifications"]
   .map(
     (
       name,

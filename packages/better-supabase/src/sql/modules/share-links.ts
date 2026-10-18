@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -172,6 +173,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
 );${addExtraColumns(links, extras)}
 ${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${lockTable(links, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("links").name}_subject_idx`)} on ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")});
 ${
   ctx.hasTable("views")
     ? `create table if not exists ${views} (

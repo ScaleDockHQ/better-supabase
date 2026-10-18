@@ -665,6 +665,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       facetCounts: true,
+      pagination: "offset",
     });
 
     const acme = await asOrganizationMember(ACME);

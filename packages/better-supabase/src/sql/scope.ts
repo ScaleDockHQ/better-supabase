@@ -65,9 +65,11 @@ const SIGNED_IN = `(${CALLER} is not null)`;
 export function moduleScope(source: ModuleScopeSource): ModuleScope {
   const { kind, idType } = source;
 
+  // The sub-select lets Postgres run the call once per statement (an
+  // initPlan) when a policy uses it, instead of once per row.
   const platform = (permission: string): string =>
     kind === "tenant" || source.access
-      ? `better_supabase.is_platform(${permission})`
+      ? `(select coalesce(better_supabase.is_platform(${permission}), false))`
       : "false";
 
   switch (kind) {

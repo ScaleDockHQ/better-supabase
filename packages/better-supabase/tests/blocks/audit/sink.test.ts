@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuditEventInput } from "../../../src/blocks/audit/index.ts";
+import type { Result } from "../../../src/core/result.ts";
 
 import { auditEventOf, auditSink } from "../../../src/blocks/audit/index.ts";
+import { MAX_BATCH } from "../../../src/core/batch-limit.ts";
 import { dbError, DbException } from "../../../src/core/errors.ts";
-import { AsyncResult } from "../../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 
 const base = {
   specversion: "1.0",
@@ -123,13 +125,19 @@ describe("auditEventOf for support events", () => {
 });
 
 describe("auditSink", () => {
-  it("records every event, then throws the first failure", async () => {
-    const record = vi.fn((event: AuditEventInput) =>
-      event.eventType === "bad"
-        ? AsyncResult.err<string>(dbError("network", "down"))
-        : AsyncResult.ok("entry"),
+  const recordMany = () =>
+    vi.fn((events: readonly AuditEventInput[]) =>
+      AsyncResult.ok<readonly Result<string>[]>(
+        events.map((event) =>
+          event.eventType === "bad"
+            ? err(dbError("network", "down"))
+            : ok("entry"),
+        ),
+      ),
     );
 
+  it("records every event, then throws the first failure", async () => {
+    const record = recordMany();
     const sink = auditSink(record);
     await sink.send([{ ...base, type: "good" }]);
     await expect(
@@ -138,6 +146,48 @@ describe("auditSink", () => {
         { ...base, id: "e2", type: "good" },
       ]),
     ).rejects.toBeInstanceOf(DbException);
-    expect(record).toHaveBeenCalledTimes(3);
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(record.mock.calls[1]?.[0]).toHaveLength(2);
+  });
+
+  it("sends one call per batch of MAX_BATCH events", async () => {
+    const record = recordMany();
+    const sink = auditSink(record);
+
+    const events = Array.from({ length: MAX_BATCH + 1 }, (_, index) => ({
+      ...base,
+      id: `e${index}`,
+      type: "good",
+    }));
+
+    await sink.send(events);
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(record.mock.calls[0]?.[0]).toHaveLength(MAX_BATCH);
+    expect(record.mock.calls[1]?.[0]).toHaveLength(1);
+  });
+
+  it("throws when a whole batch fails, after the other batches run", async () => {
+    let calls = 0;
+
+    const record = vi.fn((events: readonly AuditEventInput[]) => {
+      calls += 1;
+
+      return calls === 1
+        ? AsyncResult.err<readonly Result<string>[]>(dbError("network", "down"))
+        : AsyncResult.ok<readonly Result<string>[]>(
+            events.map(() => ok("entry")),
+          );
+    });
+
+    const events = Array.from({ length: MAX_BATCH + 1 }, (_, index) => ({
+      ...base,
+      id: `e${index}`,
+      type: "good",
+    }));
+
+    await expect(auditSink(record).send(events)).rejects.toBeInstanceOf(
+      DbException,
+    );
+    expect(record).toHaveBeenCalledTimes(2);
   });
 });

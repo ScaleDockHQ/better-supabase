@@ -384,18 +384,21 @@ export type Models = {
       name: string;
       priceCents: number;
       position: number;
+      currency: string;
     };
     Insert: {
       key: string;
       name: string;
       priceCents?: number;
       position?: number;
+      currency?: string;
     };
     Update: {
       key?: string;
       name?: string;
       priceCents?: number;
       position?: number;
+      currency?: string;
     };
     Relations: {
       planFeatures: { table: "planFeatures"; kind: "many"; nullable: true };
@@ -403,7 +406,7 @@ export type Models = {
     };
     PrimaryKey: "key";
     UniqueKeys: Record<never, never>;
-    Checks: never;
+    Checks: "plans_currency_check";
     ForeignKeys: never;
     Flags: Record<never, never>;
   };

@@ -35,6 +35,15 @@ function recording() {
         sent.push({ ...(args["notification"] as Record<string, unknown>) });
       }
 
+      if (fn === "send_notifications" && Array.isArray(args["events"])) {
+        const batch = args["events"] as Record<string, unknown>[];
+        sent.push(...batch.map((item) => ({ ...item })));
+
+        return batch.map(() => ({
+          notification: { id: "n1", recipients: [] },
+        }));
+      }
+
       return { id: "n1", recipients: [] };
     },
   };

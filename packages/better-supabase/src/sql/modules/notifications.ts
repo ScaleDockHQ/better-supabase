@@ -10,6 +10,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addCheck,
   addExtraColumns,
   ownRowPolicies,
   schemaPreamble,
@@ -74,6 +75,7 @@ const NAMES: ModuleNames = {
     "channels",
     "createdEvent",
     "maxRecipients",
+    "partitioned",
     "priorities",
     "realtime",
     "topic",
@@ -242,6 +244,38 @@ function own(n: NotifyNames, table: string, user: string): string {
   return `${n.col(table, user)} = (select auth.uid())`;
 }
 
+/**
+ * The configured priorities as a CHECK. The constraint is replaced when it
+ * lacks a configured priority, because `addCheck` skips an existing name.
+ */
+function priorityCheck(ctx: ModuleContext, n: NotifyNames): string {
+  if (!n.has("events", "priority")) {
+    return "";
+  }
+
+  const table = n.table("events");
+  const name = `${ctx.tableName("events").name}_priority_check`;
+
+  const values = ctx
+    .list("priorities", ["low", "normal", "high", "urgent"])
+    .map(sqlString)
+    .join(", ");
+
+  return `
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint k, unnest(array[${values}]::text[]) p
+    where k.conrelid = ${sqlString(table)}::regclass and k.conname = ${sqlString(name)}
+      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
+  ) then
+    alter table ${table} drop constraint ${sqlIdent(name)};
+  end if;
+end;
+$$;
+${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
+}
+
 function tables(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.manages) {
     return "";
@@ -294,7 +328,7 @@ create table if not exists ${n.table("events")} (
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
-create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${addExtraColumns(n.table("events"), n.extras)}
+create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${priorityCheck(ctx, n)}${addExtraColumns(n.table("events"), n.extras)}
 alter table ${n.table("events")} enable row level security;
 ${revokeTable(n.table("events"))}
 grant select on ${n.table("events")} to authenticated;
@@ -626,6 +660,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const fns: ModuleContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
     { name: "send_notification", args: ["jsonb"], returns: "jsonb" },
+    { name: "send_notifications", args: ["jsonb"], returns: "jsonb" },
     { name: "get_notification", args: ["uuid"], returns: "jsonb" },
     {
       name: "notification_enabled",
@@ -764,7 +799,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 7,
+  version: 8,
   names: NAMES,
   contract,
   upgrades: [
@@ -808,6 +843,12 @@ export const NOTIFICATIONS: ModuleDefinition = {
       from: 6,
       description:
         "purge_notifications keeps notifications for the data-lifecycle retention policy and skips those under a legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "send_notifications(events) sends a batch in one call, with send_notification's checks per notification and a {notification} or {error} result each. options.partitioned partitions a new notification_delivery_events table by month on created_at and applies to new tables only.",
       sql: () => "",
     },
   ],

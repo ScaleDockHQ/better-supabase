@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@4 managed
+-- @bs-module outbox@5 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,6 +465,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."outbox_row_event"() from public, anon, authenticated;
 
 create or replace function "better_supabase"."track_events"(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -508,13 +509,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 4, 'managed')
+values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@4 managed
+-- @bs-module outbox@5 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -983,6 +984,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."outbox_row_event"() from public, anon, authenticated;
 
 create or replace function "better_supabase"."track_events"(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -1026,13 +1028,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 4, 'managed')
+values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@4 managed
+-- @bs-module outbox@5 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1499,6 +1501,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "app_private"."outbox_row_event"() from public, anon, authenticated;
 
 create or replace function "app_private"."track_events"(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -1542,13 +1545,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 4, 'managed')
+values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@4 managed
+-- @bs-module outbox@5 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2013,6 +2016,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."outbox_row_event"() from public, anon, authenticated;
 
 create or replace function "better_supabase"."track_events"(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -2145,13 +2149,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 4, 'managed')
+values ('outbox', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_23_outbox.sql
 -- better-supabase module: outbox
--- @bs-module outbox@4 adopt
+-- @bs-module outbox@5 adopt
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2596,6 +2600,7 @@ begin
   return null;
 end;
 $$;
+revoke execute on function "better_supabase"."outbox_row_event"() from public, anon, authenticated;
 
 create or replace function "better_supabase"."track_events"(target regclass, type_prefix text default null, tenant_column text default null)
 returns void
@@ -2639,6 +2644,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('outbox', 4, 'adopt')
+values ('outbox', 5, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

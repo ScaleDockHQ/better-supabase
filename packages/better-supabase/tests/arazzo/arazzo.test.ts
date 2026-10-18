@@ -57,8 +57,8 @@ const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
 const api = defineApi(betterSupabase, {
   info: { ...info, summary: "Workflows", description: "CRM workflows" },
   resources: {
-    customers: { pagination: "cursor" },
-    notes: { operations: ["list", "get"] },
+    customers: {},
+    notes: { operations: ["list", "get"], pagination: "offset" },
   },
   routes: [
     {

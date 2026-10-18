@@ -1,5 +1,5 @@
 -- better-supabase module: notifications (0.8.0)
--- @bs-module notifications@7 adopt
+-- @bs-module notifications@8 adopt
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -234,10 +234,56 @@ set search_path = ''
 as $$
   select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid
 $$;
+-- send_notification for a batch in one call (the outbox sink): each
+-- element is one notification, keeps its checks and returns
+-- {"notification"} (null when nobody was left) or {"error"} in order.
+create or replace function "better_supabase"."send_notifications"(events jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  batch_event jsonb;
+  results jsonb := '[]';
+  batch_result jsonb;
+  failed_state text;
+  failed_message text;
+  failed_hint text;
+begin
+  if pg_catalog.jsonb_typeof(events) is distinct from 'array' then
+    raise exception '"send_notifications" takes a jsonb array of events'
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_NOT_ARRAY';
+  end if;
+  if pg_catalog.jsonb_array_length(events) > 1000 then
+    raise exception '"send_notifications" got % events, more than 1000', pg_catalog.jsonb_array_length(events)
+      using errcode = '22023', hint = 'NOTIFICATION_BATCH_TOO_LARGE';
+  end if;
+  for batch_event in select e from pg_catalog.jsonb_array_elements(events) e loop
+    begin
+      batch_result := "better_supabase"."send_notification"(
+        notification => batch_event
+      );
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('notification', batch_result));
+    exception when others then
+      get stacked diagnostics
+        failed_state = returned_sqlstate,
+        failed_message = message_text,
+        failed_hint = pg_exception_hint;
+      results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+        'error', pg_catalog.jsonb_build_object('code', failed_state, 'message', failed_message, 'hint', nullif(failed_hint, ''))
+      ));
+    end;
+  end loop;
+  return results;
+end;
+$$;
 revoke execute on function "better_supabase"."send_notification"(jsonb) from public, anon;
 grant execute on function "better_supabase"."send_notification"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."notify"(jsonb) from public, anon;
 grant execute on function "better_supabase"."notify"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."send_notifications"(jsonb) from public, anon;
+grant execute on function "better_supabase"."send_notifications"(jsonb) to authenticated, service_role;
 
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer);
 drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);

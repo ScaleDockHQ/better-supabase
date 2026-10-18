@@ -78,4 +78,10 @@ export const AUDIT_UPGRADES: readonly ModuleUpgrade[] = [
       "purge_audit_log keeps entries for the data-lifecycle retention policies and skips entries under a legal hold; with options.chain the log gains chain_seq, prev_hash and row_hash (new entries only), verify_audit_chain and audit_checkpoints. options.partitioned applies to new logs only.",
     sql: () => "",
   },
+  {
+    from: 8,
+    description:
+      "audit_event_many(events) records a batch of semantic events in one call, with audit_event's checks per event and an {id} or {error} result each; audit_row_change() is no longer executable by API roles.",
+    sql: () => "",
+  },
 ];

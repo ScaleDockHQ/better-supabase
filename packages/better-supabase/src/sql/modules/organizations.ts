@@ -14,6 +14,7 @@ import {
   revokeTable,
   fail,
   raise,
+  triggerGrant,
 } from "../shared.ts";
 import { accessModel, OPERATIONS, moduleOperations } from "./access-model.ts";
 import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
@@ -428,7 +429,7 @@ function platformOverride(
 
   return key === ""
     ? ""
-    : `\n    and not coalesce(${ctx.scope.platform(sqlString(key))}, false)`;
+    : `\n    and not ${ctx.scope.platform(sqlString(key))}`;
 }
 
 /**
@@ -522,6 +523,7 @@ begin
   return null;
 end;
 $$;
+${triggerGrant(`${ctx.fn("ensure_organization_owner")}()`)}
 drop trigger if exists ${ctx.trigger("organization_owner")} on ${n.m};
 create constraint trigger ${ctx.trigger("organization_owner")} after update of ${n.role}, ${n.tenant}${disabledAt === undefined ? "" : `, ${disabledAt}`} or delete on ${n.m}
   deferrable initially deferred

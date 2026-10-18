@@ -224,7 +224,10 @@ function build(ctx: ModuleContext): string {
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", scope, ctx.permission(action, permissions[action]))})`;
 
-  const viewAll = `coalesce(${ctx.scope.platform(modulePermission(ctx, "viewAll", permissions.viewAll))}, false)`;
+  const viewAll = ctx.scope.platform(
+    modulePermission(ctx, "viewAll", permissions.viewAll),
+  );
+
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
 
