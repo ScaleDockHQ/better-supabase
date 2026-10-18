@@ -445,6 +445,27 @@ export const POLICY_RULES: readonly Rule[] = [
     },
   },
   {
+    code: "BS117",
+    severity: "warning",
+    title: "Policy without a role",
+    description:
+      "A policy without `to`, or with `to public`, applies to `public`, which is every role, `anon` included. Postgres then evaluates it for requests it was never meant for, and a later change to its expression can open the table to signed-out users. Name the roles with `to authenticated` (or `to anon, authenticated`). Restrictive policies only narrow access, so they are skipped.",
+    check: (context) =>
+      catalogOf(context).tables.flatMap((table) =>
+        table.policies
+          .filter(
+            (policy) =>
+              policy.permissive &&
+              (policy.roles.length === 0 || policy.roles.includes("public")),
+          )
+          .map((policy): FindingInput => ({
+            message: `Policy "${policy.name}" on ${qualified(table)} applies to public (no \`to\` role, or \`to public\`), which is every role, anon included. Recreate it with \`to authenticated\`, or list the roles that need it.`,
+            target: `${qualified(table)}.${policy.name}`,
+            object: policyObject(table, policy),
+          })),
+      ),
+  },
+  {
     code: "BS215",
     severity: "warning",
     title: "Policy calls a helper per row that could run once",

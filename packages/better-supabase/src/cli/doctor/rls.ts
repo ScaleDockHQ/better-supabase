@@ -861,4 +861,44 @@ export const RLS_RULES: readonly Rule[] = [
       return findings;
     },
   },
+  {
+    code: "BS224",
+    severity: "warning",
+    title: "Data API role without a timeout",
+    description:
+      "Without `statement_timeout`, one slow Data API query holds a connection until it finishes; without `idle_in_transaction_session_timeout`, a client that leaves a transaction open holds its locks. PostgREST applies the settings of `anon` and `authenticated` to each request, and the login role's (`authenticator`) apply when the request role sets none, so doctor accepts either. A value of 0 turns the timeout off and counts as unset.",
+    check: (context) => {
+      const settings = context.snapshot.extras.roleSettings;
+
+      if (!settings) {
+        return [];
+      }
+
+      const value = (role: string, setting: string): string | undefined => {
+        const set = settings[role]?.[setting];
+
+        return set === undefined || /^0(?:\s*m?s)?$/i.test(set.trim())
+          ? undefined
+          : set;
+      };
+
+      const example: Readonly<Record<string, string>> = {
+        statement_timeout: "'8s'",
+        idle_in_transaction_session_timeout: "'60s'",
+      };
+
+      return (["anon", "authenticated"] as const).flatMap((role) =>
+        Object.keys(example)
+          .filter(
+            (setting) =>
+              value(role, setting) === undefined &&
+              value("authenticator", setting) === undefined,
+          )
+          .map((setting): FindingInput => ({
+            message: `${role} has no ${setting}, and authenticator sets none either, so a Data API request as ${role} has no limit. Run \`alter role ${role} set ${setting} = ${example[setting]!};\` in a migration, then \`notify pgrst, 'reload config';\`.`,
+            target: `${role}:${setting}`,
+          })),
+      );
+    },
+  },
 ];

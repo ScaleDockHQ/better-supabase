@@ -974,39 +974,56 @@ export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS335",
     severity: "warning",
-    title: "Audit log not partitioned",
+    title: "Partitioned table created unpartitioned",
     description:
-      "`blocks.audit.options.partitioned` is on, but `better_supabase.audit_events` was created before it: its primary key is `id` alone, so the table isn't partitioned by month and `purge_audit_log` deletes row by row. Postgres can't convert a table in place. Create a partitioned table, copy the entries over and swap the names in a maintenance window, or turn the option off.",
-    check: unpartitionedAuditLog,
+      "A block's `options.partitioned` is on (`audit`, `outbox`, `usage` with `history`, `webhooks` or `notifications`), but its table was created before it: the primary key is `id` alone, so the table isn't partitioned by month and its purge deletes row by row. The tables are `better_supabase.audit_events`, `outbox_events`, `usage_history`, `webhook_deliveries` and `notification_delivery_events`. Postgres can't convert a table in place. Create a partitioned table, copy the rows over and swap the names in a maintenance window, or turn the option off.",
+    check: unpartitionedTables,
   },
 ];
 
-function unpartitionedAuditLog(context: DoctorContext): FindingInput[] {
-  if (!context.config.blockNames.includes("audit")) {
-    return [];
-  }
+/** The table each block's `options.partitioned` partitions, and the option it also needs. */
+const PARTITIONED_TABLES: readonly {
+  readonly block: string;
+  readonly table: string;
+  readonly requires?: string;
+}[] = [
+  { block: "audit", table: "audit_events" },
+  { block: "outbox", table: "outbox_events" },
+  { block: "usage", table: "usage_history", requires: "history" },
+  { block: "webhooks", table: "webhook_deliveries" },
+  { block: "notifications", table: "notification_delivery_events" },
+];
 
-  if (context.config.blocks["audit"]?.options?.["partitioned"] !== true) {
-    return [];
-  }
+function unpartitionedTables(context: DoctorContext): FindingInput[] {
+  const { tables } = catalogOf(context);
 
-  const table = catalogOf(context).tables.find(
-    (candidate) =>
-      candidate.schema === "better_supabase" &&
-      candidate.name === "audit_events",
-  );
+  return PARTITIONED_TABLES.flatMap(({ block, table, requires }) => {
+    const options = context.config.blocks[block]?.options ?? {};
 
-  if (table?.primaryKey.length !== 1) {
-    return [];
-  }
+    if (
+      !context.config.blockNames.includes(block) ||
+      options["partitioned"] !== true ||
+      (requires !== undefined && options[requires] !== true)
+    ) {
+      return [];
+    }
 
-  return [
-    {
-      message:
-        "better_supabase.audit_events isn't partitioned, so options.partitioned has no effect on it. Postgres can't convert it in place: copy the entries into a partitioned table in a maintenance window, or turn the option off.",
-      target: "better_supabase.audit_events",
-    },
-  ];
+    const found = tables.find(
+      (candidate) =>
+        candidate.schema === "better_supabase" && candidate.name === table,
+    );
+
+    if (found?.primaryKey.length !== 1) {
+      return [];
+    }
+
+    return [
+      {
+        message: `better_supabase.${table} isn't partitioned, so blocks.${block}.options.partitioned has no effect on it. Postgres can't convert it in place: copy the rows into a partitioned table in a maintenance window, or turn the option off.`,
+        target: `better_supabase.${table}`,
+      },
+    ];
+  });
 }
 
 function subjectTables(context: DoctorContext) {

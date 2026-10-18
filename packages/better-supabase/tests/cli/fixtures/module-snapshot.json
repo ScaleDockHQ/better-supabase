@@ -4944,7 +4944,7 @@
           {
             "name": "bs_reserved_slugs_read",
             "command": "select",
-            "roles": ["public"],
+            "roles": ["anon", "authenticated", "service_role"],
             "permissive": true,
             "using": "true",
             "check": null,

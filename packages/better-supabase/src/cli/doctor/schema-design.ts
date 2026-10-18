@@ -12,13 +12,39 @@ import {
   catalogOf,
   exposed,
   exposedSchemas,
+  lineOf,
   qualified,
   tableObject,
 } from "./shared.ts";
 
-/** Whether the first `columns.length` columns of a non-partial index are exactly `columns`, in any order. */
+/**
+ * Whether a partial index's predicate only skips rows where a key column is
+ * null, like `(customer_id IS NOT NULL)`: those rows reference nothing, so the
+ * index still serves the key.
+ */
+const skipsNullKeys = (
+  predicate: string | null | undefined,
+  columns: readonly string[],
+): boolean => {
+  if (!predicate) {
+    return false;
+  }
+
+  return predicate
+    .split(/\s+AND\s+/i)
+    .every((part) =>
+      columns.some((column) =>
+        new RegExp(
+          `^\\(*\\s*"?${escape(column)}"?\\s+IS\\s+NOT\\s+NULL\\s*\\)*$`,
+          "i",
+        ).test(part.trim()),
+      ),
+    );
+};
+
+/** Whether the first `columns.length` columns of an index are exactly `columns`, in any order, and it holds every row that references something. */
 const covers = (index: CatalogIndex, columns: readonly string[]): boolean =>
-  !index.partial &&
+  (!index.partial || skipsNullKeys(index.predicate, columns)) &&
   index.columns.length >= columns.length &&
   index.columns
     .slice(0, columns.length)
@@ -56,6 +82,21 @@ const DIRECT_URL =
 const SERVERLESS =
   /\bexport\s+(?:const\s+runtime|async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)|default\s+\{\s*(?:async\s+)?fetch)\b|\bDeno\.serve\(/;
 
+/** A connection string through Supavisor's transaction pooler (port 6543). */
+const TRANSACTION_POOLER = /postgres(?:ql)?:\/\/[^\s"'`]*:6543\b/i;
+
+/** `import postgres from "postgres"` or `require("postgres")`: postgres.js. */
+const POSTGRES_JS =
+  /\bfrom\s+["']postgres["']|\brequire\(\s*["']postgres["']\s*\)/;
+
+const PREPARE_OFF = /\bprepare\s*:\s*false\b/;
+
+const PRISMA = /["']@prisma\/client["']|\bnew\s+PrismaClient\b/;
+
+const OFFSET_PAGINATION = /\bpagination\s*:\s*["'`]offset["'`]/;
+
+const EXACT_COUNT = /\bcount\s*:\s*["'`]exact["'`]/;
+
 /** `format_type` names of scalar results that a JSON number can't hold exactly. */
 const WIDE_RESULT = /^(?:bigint|numeric)(?:\[\])?$/;
 
@@ -71,7 +112,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "info",
     title: "Foreign key without an index",
     description:
-      "Deletes and updates on the referenced table scan the referencing table for each row, and joins on the key can't use an index. Add an index that starts with the key's columns. When the performance advisor (BS200) runs, splinter's `unindexed_foreign_keys` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
+      "Deletes and updates on the referenced table scan the referencing table for each row, and joins on the key can't use an index. Add an index that starts with the key's columns; a partial index counts when its `where` only skips rows whose key is null (`where customer_id is not null`). When the performance advisor (BS200) runs, splinter's `unindexed_foreign_keys` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
     check: async (context) => {
       const splinter = await splinterTables(context, "unindexed_foreign_keys");
 
@@ -383,5 +424,99 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
           object: { kind: "function", schema: fn.schema, name: fn.name },
         }));
     },
+  },
+  {
+    code: "BS226",
+    severity: "warning",
+    title: "Prepared statements through the transaction pooler",
+    description:
+      "The transaction pooler on port 6543 hands each transaction to any server connection, so a named prepared statement from one transaction is missing in the next and the query fails with `prepared statement does not exist`. postgres.js prepares statements unless `prepare: false`, and Prisma does unless the URL has `pgbouncer=true`. `pg` (and `better-supabase/postgres`) sends unnamed statements, which are safe. Doctor looks for a `:6543` URL in the env files and `doctor.sources`.",
+    check: (context) => {
+      const urls = [...context.envFiles, ...context.sources].flatMap((file) =>
+        lines(file)
+          .filter(
+            ({ text }) =>
+              !/^\s*(?:#|\/\/)/.test(text) && TRANSACTION_POOLER.test(text),
+          )
+          .map(({ line, text }) => ({ file, line, text })),
+      );
+
+      if (urls.length === 0) {
+        return [];
+      }
+
+      const findings: FindingInput[] = [];
+
+      for (const file of context.sources) {
+        if (!POSTGRES_JS.test(file.text) || PREPARE_OFF.test(file.text)) {
+          continue;
+        }
+
+        findings.push({
+          message: `${file.path} creates a postgres.js client without \`prepare: false\`, and the project connects through the transaction pooler on port 6543, so its prepared statements fail on the next transaction. Pass \`postgres(url, { prepare: false })\`.`,
+          target: `${file.path}:postgres`,
+          location: {
+            file: file.path,
+            line: lineOf(file.text, POSTGRES_JS) ?? 1,
+          },
+        });
+      }
+
+      if (!context.sources.some((file) => PRISMA.test(file.text))) {
+        return findings;
+      }
+
+      for (const { file, line, text } of urls) {
+        if (/[?&]pgbouncer=true\b/.test(text)) {
+          continue;
+        }
+
+        const key = /^\s*(?:export\s+)?(\w+)\s*=/.exec(text)?.[1];
+        const target = `${file.path}${key ? `:${key}` : `:${line}`}`;
+
+        findings.push({
+          message: `${target} connects Prisma through the transaction pooler on port 6543 without \`pgbouncer=true\`, so Prisma's prepared statements fail on the next transaction. Add \`?pgbouncer=true\` to the URL, and use the session pooler or direct URL as \`directUrl\` for migrations.`,
+          target,
+          location: { file: file.path, line },
+        });
+      }
+
+      return findings;
+    },
+  },
+  {
+    code: "BS227",
+    severity: "info",
+    title: "Offset pagination or exact counts",
+    description:
+      '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` counts every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `doctor.sources`.',
+    check: (context) =>
+      context.sources.flatMap((file): FindingInput[] =>
+        lines(file).flatMap(({ line, text }): FindingInput[] => {
+          if (/^\s*(?:\/\/|\*)/.test(text)) {
+            return [];
+          }
+
+          const found: FindingInput[] = [];
+
+          if (OFFSET_PAGINATION.test(text)) {
+            found.push({
+              message: `${file.path}:${line} uses \`pagination: "offset"\`, so each page reads and skips every earlier row. Use \`pagination: "cursor"\` unless the UI needs page numbers, and keep \`[api] max_rows\` set so no request reads the whole table.`,
+              target: `${file.path}:${line}:pagination`,
+              location: { file: file.path, line },
+            });
+          }
+
+          if (EXACT_COUNT.test(text)) {
+            found.push({
+              message: `${file.path}:${line} uses \`count: "exact"\`, which counts every matching row on each request. Use \`count: "planned"\` or \`"estimated"\` when the table can grow large.`,
+              target: `${file.path}:${line}:count`,
+              location: { file: file.path, line },
+            });
+          }
+
+          return found;
+        }),
+      ),
   },
 ];
