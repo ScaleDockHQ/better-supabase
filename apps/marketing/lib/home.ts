@@ -47,48 +47,6 @@ export const features: readonly Feature[] = [
   },
 ];
 
-export const frameworks: readonly Feature[] = [
-  {
-    title: "Next.js",
-    body: "Proxy, Server Components, route handlers, server actions and cache tags.",
-    href: "/docs/frameworks/next",
-  },
-  {
-    title: "Hono",
-    body: "Middleware, Result-aware handlers and REST resources that match your OpenAPI document.",
-    href: "/docs/frameworks/hono",
-  },
-  {
-    title: "oRPC",
-    body: "A middleware that adds the caller’s repositories to the oRPC context.",
-    href: "/docs/frameworks/orpc",
-  },
-  {
-    title: "Edge Functions",
-    body: "Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers.",
-    href: "/docs/frameworks/edge",
-  },
-  {
-    title: "MCP",
-    body: "Tools from your tables and your own code, running as the signed-in user.",
-    href: "/docs/frameworks/mcp",
-  },
-  {
-    title: "React and TanStack Query",
-    body: "Typed query and mutation options for every table, with table-based invalidation.",
-    href: "/docs/frontend/query",
-  },
-];
-
-export const runtimes: readonly string[] = [
-  "Node.js",
-  "Deno",
-  "Bun",
-  "Cloudflare Workers",
-  "Vercel Functions",
-  "Supabase Edge Functions",
-];
-
 export const getStartedSteps: readonly {
   readonly title: string;
   readonly body: string;

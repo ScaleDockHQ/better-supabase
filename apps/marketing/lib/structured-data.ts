@@ -36,6 +36,10 @@ export interface SiteFacts {
   readonly github: string;
   readonly npm: string;
   readonly company: { readonly name: string; readonly url: string };
+  /** The runtimes the package runs on. */
+  readonly runtimes: readonly string[];
+  /** The frameworks and SDKs it has adapters for. */
+  readonly frameworks: readonly string[];
 }
 
 /** The home page graph: the publisher, the site and the package. */
@@ -66,7 +70,8 @@ export function homeGraph(site: SiteFacts) {
         url: site.url,
         codeRepository: site.github,
         programmingLanguage: ["TypeScript", "SQL"],
-        runtimePlatform: "Node.js",
+        runtimePlatform: site.runtimes,
+        keywords: site.frameworks.join(", "),
         license: "https://opensource.org/licenses/MIT",
         sameAs: [site.github, site.npm],
         author: { "@id": organizationId },

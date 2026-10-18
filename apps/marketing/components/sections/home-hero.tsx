@@ -1,7 +1,6 @@
 import { ArrowRightIcon } from "lucide-react";
 
 import { CodeBlock } from "@/components/code-block";
-import { Badge } from "@/components/reui/badge";
 import { CopyCommand } from "@/components/site/copy-command";
 import { LinkButton } from "@/components/site/link-button";
 import { categoryStyle } from "@/features/blocks/categories";
@@ -19,16 +18,6 @@ export function HomeHero() {
       className="flex w-full items-center justify-center bg-background px-4 py-16 sm:px-6 lg:px-20"
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-8">
-        <Badge variant="outline" size="xl" radius="full" className="h-7">
-          <span
-            aria-hidden="true"
-            className="size-1.5 shrink-0 rounded-full bg-brand"
-          />
-          Open source. MIT.
-          <span className="hidden sm:inline">
-            Built on the official Supabase packages.
-          </span>
-        </Badge>
         <h1 className="max-w-3xl text-center text-4xl font-semibold text-balance text-foreground sm:text-5xl lg:text-6xl">
           The typed layer for Supabase{" "}
           <span className="text-muted-foreground">
@@ -53,7 +42,7 @@ export function HomeHero() {
           <CopyCommand command={site.install} />
           <a
             href={site.npm}
-            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             npm
           </a>

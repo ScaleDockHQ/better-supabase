@@ -23,7 +23,7 @@ export function SiteFooter() {
                 <li key={`${column.title}-${link.href}`}>
                   <SiteLink
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground"
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {link.label}
                   </SiteLink>
@@ -33,13 +33,20 @@ export function SiteFooter() {
           </div>
         ))}
       </div>
-      <div className="mx-auto flex w-full max-w-7xl justify-between border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap justify-between gap-2 border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-8">
         <span>MIT License</span>
+        <span>
+          Press{" "}
+          <kbd className="rounded border border-border bg-muted px-1 font-mono text-foreground">
+            D
+          </kbd>{" "}
+          to switch the theme
+        </span>
         <span>
           Not affiliated with Supabase, Inc. Built by{" "}
           <SiteLink
             href={site.company.url}
-            className="underline-offset-4 hover:text-foreground hover:underline"
+            className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {site.company.name}
           </SiteLink>

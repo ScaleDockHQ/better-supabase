@@ -43,6 +43,8 @@ describe("structured data", () => {
       github: "https://github.com/acme/x",
       npm: "https://npmjs.com/package/x",
       company: { name: "Acme", url: "https://acme.dev" },
+      runtimes: ["Node.js", "Deno"],
+      frameworks: ["Next.js", "Hono"],
     });
 
     const publisher = { "@id": "https://acme.dev#organization" };
@@ -51,7 +53,12 @@ describe("structured data", () => {
       "@graph": [
         { "@type": "Organization", ...publisher },
         { "@type": "WebSite", publisher },
-        { "@type": "SoftwareSourceCode", author: publisher },
+        {
+          "@type": "SoftwareSourceCode",
+          author: publisher,
+          runtimePlatform: ["Node.js", "Deno"],
+          keywords: "Next.js, Hono",
+        },
       ],
     });
   });
