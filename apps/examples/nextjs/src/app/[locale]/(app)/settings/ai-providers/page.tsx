@@ -7,10 +7,8 @@ export const instant = true;
 
 export default function AiProvidersSettingsPage() {
   return (
-    <div data-recipe="ai-provider-settings">
-      <Suspense fallback={<AiProviderSettingsSkeleton />}>
-        <AiProviderSection />
-      </Suspense>
-    </div>
+    <Suspense fallback={<AiProviderSettingsSkeleton />}>
+      <AiProviderSection />
+    </Suspense>
   );
 }
