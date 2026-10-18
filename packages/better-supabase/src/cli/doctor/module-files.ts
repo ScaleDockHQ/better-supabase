@@ -34,7 +34,10 @@ export interface ModuleFileState {
 export async function moduleFiles(
   context: DoctorContext,
 ): Promise<ModuleFileState[]> {
-  if (context.config.blockNames.length === 0) {
+  if (
+    context.config.blockNames.length === 0 &&
+    Object.keys(context.config.appTables).length === 0
+  ) {
     return [];
   }
 

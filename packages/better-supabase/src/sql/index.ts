@@ -23,6 +23,12 @@ export { moduleVersion } from "./module-types.ts";
 
 export { resolveModules, SQL_MODULES } from "./registry.ts";
 
+export {
+  APP_TABLES_MARKER,
+  APP_TABLES_MODULE,
+  appTablesFiles,
+} from "./modules/app-tables.ts";
+
 export { resolveModule } from "../config/blocks.ts";
 
 export { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";

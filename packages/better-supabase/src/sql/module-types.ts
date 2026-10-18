@@ -11,6 +11,7 @@ import type {
   BlockMode,
   SqlNaming,
 } from "../config/blocks.ts";
+import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
@@ -239,6 +240,8 @@ export interface ModuleLayout {
   readonly naming?: SqlNaming;
   /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
+  /** `config.appTables`: the tables the app owns, rendered after the blocks (ADR 0040). */
+  readonly appTables?: AppTablesConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
   /** `authorization.delegation.scopes`: the access module's `scope_permissions` (with `blocks.access.scopes` merged over it). */

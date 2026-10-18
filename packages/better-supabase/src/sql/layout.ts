@@ -38,6 +38,7 @@ export function moduleLayout(
     ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
     ...(config.sql.naming === undefined ? {} : { naming: config.sql.naming }),
     subjects: config.subjects,
+    appTables: config.appTables,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: "anon" as const, privileges: roles.anon },

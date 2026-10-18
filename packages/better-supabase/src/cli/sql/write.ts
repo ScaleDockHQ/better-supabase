@@ -6,6 +6,8 @@ import type { SqlFlags } from "./args.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
+  APP_TABLES_MARKER,
+  APP_TABLES_MODULE,
   type ModuleFile,
   type ModuleLayout,
   moduleTopics,
@@ -33,13 +35,15 @@ const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 
 /**
  * Test files a SQL module wrote for an earlier layout (a table that is no
- * longer audited), for the modules in `names`.
+ * longer audited), for the modules in `names`. With `appTables`, also the
+ * app tables files once `appTables` is empty.
  */
 export async function staleModuleTests(
   config: ResolvedConfig,
   names: readonly string[],
   sqlLayout: ModuleLayout,
   files: readonly ModuleFile[],
+  appTables = true,
 ): Promise<string[]> {
   const dir = (sqlLayout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
     /\/$/,
@@ -52,11 +56,14 @@ export async function staleModuleTests(
 
   const current = new Set(files.map((file) => file.path));
 
-  const modules = new Set(
-    resolveModules(names, sqlLayout).map((module) => module.name),
-  );
+  const modules = new Set([
+    ...resolveModules(names, sqlLayout).map((module) => module.name),
+    ...(appTables ? [APP_TABLES_MODULE] : []),
+  ]);
 
-  const stale: string[] = [];
+  const stale: string[] = appTables
+    ? await staleAppTablesSchema(config, sqlLayout, current)
+    : [];
 
   for (const name of entries.toSorted()) {
     const path = `${dir}/${name}`;
@@ -74,6 +81,26 @@ export async function staleModuleTests(
   }
 
   return stale;
+}
+
+/** The app tables schema file, when `appTables` no longer renders it. */
+async function staleAppTablesSchema(
+  config: ResolvedConfig,
+  sqlLayout: ModuleLayout,
+  current: ReadonlySet<string>,
+): Promise<string[]> {
+  const dir = (sqlLayout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
+  const path = `${dir}/${sqlLayout.prefix ?? CONFIG_DEFAULTS.sql.prefix}_app_tables.sql`;
+
+  if (current.has(path)) {
+    return [];
+  }
+
+  const text = await readFile(resolve(config.root, path), "utf-8").catch(
+    () => "",
+  );
+
+  return text.split("\n").includes(APP_TABLES_MARKER) ? [path] : [];
 }
 
 export async function write(
@@ -101,6 +128,7 @@ export async function write(
     only ?? names,
     sqlLayout,
     files,
+    only === undefined,
   )) {
     const shown = display(config.root, path);
 
