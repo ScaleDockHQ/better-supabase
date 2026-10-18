@@ -19,4 +19,5 @@ export const aiTasksBlock: BlockOf<
   consumes: { notifier: "optional" },
   create: createAiTasks,
   category: "ai",
+  recipes: ["ai-task-queue"],
 });

@@ -582,5 +582,52 @@ export const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "ai-task-queue",
+    title: "AI task queue",
+    blocks: ["ai-tasks"],
+    kind: "component",
+    description:
+      "A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume.",
+    web: {
+      file: `${WEB_APP}/src/features/ai-tasks/components/ai-task-queue.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "ai-provider-settings",
+    title: "AI provider settings",
+    blocks: ["ai-providers"],
+    kind: "component",
+    description:
+      "A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one.",
+    web: {
+      file: `${WEB_APP}/src/features/ai-providers/components/ai-provider-settings.tsx`,
+      components: [
+        "alert",
+        "alert-dialog",
+        "badge",
+        "button",
+        "card",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "select",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
   ...PLANNED,
 ];

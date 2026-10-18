@@ -1,3 +1,4 @@
+// #region recipe:ai-provider-settings
 "use client";
 
 import { useAction } from "better-supabase/react";
@@ -443,3 +444,4 @@ export function AiProviderSettingsSkeleton() {
     </Card>
   );
 }
+// #endregion recipe:ai-provider-settings

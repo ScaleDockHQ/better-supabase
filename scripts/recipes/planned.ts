@@ -441,4 +441,14 @@ export const PLANNED: readonly RecipeSource[] = [
     missing:
       "the data-lifecycle block in the example app's database, and a page that uses it",
   },
+  {
+    slug: "job-runs-table",
+    title: "Job runs table",
+    blocks: ["jobs"],
+    kind: "component",
+    description:
+      "The latest background job runs with their status, attempts and error, and a button to retry a failed run.",
+    missing:
+      "a jobs read that the app can call: the block's run queries are granted to service_role only",
+  },
 ];

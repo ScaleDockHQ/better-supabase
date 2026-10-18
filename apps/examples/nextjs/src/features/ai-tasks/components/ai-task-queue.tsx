@@ -1,3 +1,4 @@
+// #region recipe:ai-task-queue
 "use client";
 
 import type { AiTaskRunStatus } from "better-supabase/blocks/ai-tasks";
@@ -296,3 +297,4 @@ export function AiTaskQueueSkeleton() {
     </Card>
   );
 }
+// #endregion recipe:ai-task-queue

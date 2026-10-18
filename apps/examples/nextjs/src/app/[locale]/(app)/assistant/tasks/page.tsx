@@ -18,9 +18,11 @@ export default function AiTasksPage() {
           "Prompts on the ai-tasks block that the assistant runs on a schedule.",
         )}
       />
-      <Suspense fallback={<AiTaskQueueSkeleton />}>
-        <AiTaskSection />
-      </Suspense>
+      <div data-recipe="ai-task-queue">
+        <Suspense fallback={<AiTaskQueueSkeleton />}>
+          <AiTaskSection />
+        </Suspense>
+      </div>
     </>
   );
 }
