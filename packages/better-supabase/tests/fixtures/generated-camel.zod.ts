@@ -351,6 +351,46 @@ export const tagsUpdate: z.ZodType<UpdateOf<'tags'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Tags update" });
 
+export const tasksRow: z.ZodType<RowOf<'tasks'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  title: z.string().max(200),
+  status: z.enum(["todo", "doing", "done"]),
+  startsOn: z.iso.date().nullable(),
+  dueOn: z.iso.date().nullable(),
+  assigneeId: z.guid().nullable(),
+  projectId: z.guid(),
+  rank: z.string(),
+}).meta({ title: "Tasks" });
+export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  title: z.string().max(200),
+  status: z.enum(["todo", "doing", "done"]).exactOptional(),
+  startsOn: z.iso.date().nullable().exactOptional(),
+  dueOn: z.iso.date().nullable().exactOptional(),
+  assigneeId: z.guid().nullable().exactOptional(),
+  projectId: z.guid(),
+  rank: z.string().exactOptional(),
+}).meta({ title: "Tasks insert" });
+export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  title: z.string().max(200).exactOptional(),
+  status: z.enum(["todo", "doing", "done"]).exactOptional(),
+  startsOn: z.iso.date().nullable().exactOptional(),
+  dueOn: z.iso.date().nullable().exactOptional(),
+  assigneeId: z.guid().nullable().exactOptional(),
+  projectId: z.guid().exactOptional(),
+  rank: z.string().exactOptional(),
+}).meta({ title: "Tasks update" });
+
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
@@ -366,6 +406,7 @@ export const validators: {
   readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
+  readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
@@ -380,4 +421,5 @@ export const validators: {
   savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
+  tasks: { insert: tasksInsert, update: tasksUpdate },
 };

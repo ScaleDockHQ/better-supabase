@@ -143,6 +143,35 @@ export default defineConfig({
         softDelete: true,
       },
     },
+    tasks: {
+      columns: {
+        title: { type: "text", nullable: false, max: 200 },
+        status: {
+          type: "text",
+          nullable: false,
+          default: "'todo'",
+          options: ["todo", "doing", "done"],
+        },
+        starts_on: { type: "date" },
+        due_on: { type: "date" },
+        assignee_id: {
+          type: "uuid",
+          references: { table: "auth.users", onDelete: "set null" },
+        },
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+      },
+      // The board orders tasks within each status column.
+      subject: {
+        type: "task",
+        title: "title",
+        url: "/projects/{project_id}",
+        rank: { group: "status" },
+      },
+    },
     saved_views: {
       scope: "user",
       columns: {

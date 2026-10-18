@@ -50,6 +50,7 @@ interface Recipe {
   /** The primary block, `blocks[0]`. */
   readonly block: string;
   readonly blocks: readonly string[];
+  readonly category: string | null;
   readonly kind: RecipeKind;
   readonly description: string;
   readonly status: "available" | "planned";
@@ -193,6 +194,7 @@ function buildRecipes(): readonly Recipe[] {
       title: recipe.title,
       block: recipe.blocks[0],
       blocks: recipe.blocks,
+      category: recipe.category ?? null,
       kind: recipe.kind,
       description: recipe.description,
       status: available ? "available" : "planned",

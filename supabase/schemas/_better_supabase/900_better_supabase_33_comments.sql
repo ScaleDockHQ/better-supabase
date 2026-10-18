@@ -91,6 +91,7 @@ as $$
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'drive.read'), false)
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'hiring.read'), false)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     else false
   end
 $$;
@@ -418,7 +419,7 @@ drop policy if exists "activity_entries_read" on "better_supabase"."activity_ent
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project}'::text[]))
+      or not ("subject_type" = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
@@ -472,7 +473,7 @@ declare
   v_rows jsonb;
   v_table text;
 begin
-  if list_activity.subject_id is not null and list_activity.subject_type = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project}'::text[])
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project,task}'::text[])
     and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
     return '[]'::jsonb;
   end if;
@@ -489,6 +490,7 @@ begin
       when 'drive_node' then 'better_supabase.drive_nodes'
       when 'application' then 'better_supabase.applications'
       when 'project' then 'public.projects'
+      when 'task' then 'public.tasks'
     end;
   end if;
   select coalesce(jsonb_agg(x.entry order by x.at desc, x.id desc), '[]'::jsonb)

@@ -20,5 +20,5 @@ export const commentsBlock: BlockOf<
   events: commentsEvents,
   create: createComments,
   category: "collaboration",
-  recipes: ["comment-thread"],
+  recipes: ["comment-thread", "record-page"],
 });

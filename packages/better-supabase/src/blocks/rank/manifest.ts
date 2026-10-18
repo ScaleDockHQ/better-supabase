@@ -9,5 +9,5 @@ export const rankBlock: BlockOf<"rank", typeof createRank> = defineBlock({
   sql: ["rank"],
   create: createRank,
   category: "database",
-  recipes: ["work-item-board"],
+  recipes: ["record-board", "work-item-board"],
 });

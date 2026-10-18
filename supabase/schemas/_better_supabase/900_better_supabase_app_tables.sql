@@ -11,6 +11,13 @@ create table if not exists "public"."projects" (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists "public"."tasks" (
+  id uuid primary key default gen_random_uuid(),
+  "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists "public"."saved_views" (
   id uuid primary key default gen_random_uuid(),
   "user_id" uuid default auth.uid() references auth.users (id) on delete cascade,
@@ -24,6 +31,14 @@ alter table "public"."projects" add column if not exists "currency" text not nul
 alter table "public"."projects" add column if not exists "lead_id" uuid references auth.users (id) on delete set null;
 alter table "public"."projects" add column if not exists "label_id" uuid references "better_supabase"."tags" ("id") on delete set null;
 alter table "public"."projects" add column if not exists "deleted_at" timestamptz;
+
+alter table "public"."tasks" add column if not exists "title" text not null;
+alter table "public"."tasks" add column if not exists "status" text not null default 'todo';
+alter table "public"."tasks" add column if not exists "starts_on" date;
+alter table "public"."tasks" add column if not exists "due_on" date;
+alter table "public"."tasks" add column if not exists "assignee_id" uuid references auth.users (id) on delete set null;
+alter table "public"."tasks" add column if not exists "project_id" uuid not null;
+alter table "public"."tasks" add column if not exists "rank" text collate "C" not null default 'V';
 
 alter table "public"."saved_views" add column if not exists "name" text not null;
 alter table "public"."saved_views" add column if not exists "filters" jsonb not null default '{}';
@@ -47,6 +62,30 @@ drop trigger if exists "bs_updated_at" on "public"."projects";
 create trigger "bs_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
+alter table "public"."tasks" enable row level security;
+revoke all on "public"."tasks" from anon, authenticated;
+grant select, insert, update, delete on "public"."tasks" to authenticated;
+grant all on "public"."tasks" to service_role;
+drop policy if exists "tasks_select" on "public"."tasks";
+create policy "tasks_select" on "public"."tasks" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "tasks_insert" on "public"."tasks";
+create policy "tasks_insert" on "public"."tasks" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "tasks_update" on "public"."tasks";
+create policy "tasks_update" on "public"."tasks" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "tasks_delete" on "public"."tasks";
+create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+alter table "public"."tasks" drop constraint if exists "tasks_title_check";
+alter table "public"."tasks" add constraint "tasks_title_check" check (char_length("title") <= 200);
+alter table "public"."tasks" drop constraint if exists "tasks_status_check";
+alter table "public"."tasks" add constraint "tasks_status_check" check ("status" in ('todo', 'doing', 'done'));
+create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
+create index if not exists "tasks_assignee_id_idx" on "public"."tasks" ("assignee_id");
+create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
+create index if not exists "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
+drop trigger if exists "bs_updated_at" on "public"."tasks";
+create trigger "bs_updated_at" before update on "public"."tasks"
+  for each row execute function better_supabase.set_updated_at();
+
 alter table "public"."saved_views" enable row level security;
 revoke all on "public"."saved_views" from anon, authenticated;
 grant select, insert, update, delete on "public"."saved_views" to authenticated;
@@ -63,6 +102,10 @@ create index if not exists "saved_views_user_id_idx" on "public"."saved_views" (
 drop trigger if exists "bs_updated_at" on "public"."saved_views";
 create trigger "bs_updated_at" before update on "public"."saved_views"
   for each row execute function better_supabase.set_updated_at();
+
+create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
+alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
+alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;
 
 drop trigger if exists "bs_search_project_index" on "public"."projects";
 create trigger "bs_search_project_index"

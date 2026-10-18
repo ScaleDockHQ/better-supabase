@@ -3,6 +3,7 @@
  * is available; the planned ones in `planned.ts` name what they wait for.
  */
 import { PLANNED } from "./planned.ts";
+import { RECORD_RECIPES } from "./records.ts";
 import { SAAS_RECIPES } from "./saas.ts";
 import { NATIVE_APP, type RecipeSource, WEB_APP } from "./types.ts";
 
@@ -640,5 +641,6 @@ export const RECIPES: readonly RecipeSource[] = [
     },
   },
   ...SAAS_RECIPES,
+  ...RECORD_RECIPES,
   ...PLANNED,
 ];
