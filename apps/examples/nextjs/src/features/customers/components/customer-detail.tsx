@@ -223,7 +223,7 @@ export async function CustomerDetail({
           <CardContent>
             <CommentThread
               organizationId={organizationId}
-              customerId={customer.id}
+              subject={{ type: "customer", id: customer.id }}
               authors={authors}
               canComment={can(session, "comments.create")}
             />
@@ -285,7 +285,7 @@ export async function CustomerDetail({
           <CardContent>
             <TagInput
               organizationId={organizationId}
-              customerId={customer.id}
+              subject={{ type: "customer", id: customer.id }}
             />
           </CardContent>
         </Card>

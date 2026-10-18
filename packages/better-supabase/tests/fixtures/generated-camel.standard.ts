@@ -497,6 +497,57 @@ export const tagsUpdate: TableSchema<UpdateOf<'tags'>> = tableSchema({
   },
 });
 
+export const tasksRow: TableSchema<RowOf<'tasks'>> = tableSchema({
+  title: "Tasks",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    title: { kind: "string", maxLength: 200 },
+    status: { kind: "enum", values: ["todo","doing","done"] },
+    startsOn: { kind: "date", nullable: true },
+    dueOn: { kind: "date", nullable: true },
+    assigneeId: { kind: "uuid", nullable: true },
+    projectId: { kind: "uuid" },
+    rank: { kind: "string" },
+  },
+});
+
+export const tasksInsert: TableSchema<InsertOf<'tasks'>> = tableSchema({
+  title: "Tasks insert",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    title: { kind: "string", maxLength: 200 },
+    status: { kind: "enum", values: ["todo","doing","done"], optional: true },
+    startsOn: { kind: "date", nullable: true, optional: true },
+    dueOn: { kind: "date", nullable: true, optional: true },
+    assigneeId: { kind: "uuid", nullable: true, optional: true },
+    projectId: { kind: "uuid" },
+    rank: { kind: "string", optional: true },
+  },
+});
+
+export const tasksUpdate: TableSchema<UpdateOf<'tasks'>> = tableSchema({
+  title: "Tasks update",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid", optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    title: { kind: "string", optional: true, maxLength: 200 },
+    status: { kind: "enum", values: ["todo","doing","done"], optional: true },
+    startsOn: { kind: "date", nullable: true, optional: true },
+    dueOn: { kind: "date", nullable: true, optional: true },
+    assigneeId: { kind: "uuid", nullable: true, optional: true },
+    projectId: { kind: "uuid", optional: true },
+    rank: { kind: "string", optional: true },
+  },
+});
+
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
@@ -512,6 +563,7 @@ export const validators: {
   readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
+  readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
@@ -526,4 +578,5 @@ export const validators: {
   savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
+  tasks: { insert: tasksInsert, update: tasksUpdate },
 };

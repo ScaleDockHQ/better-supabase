@@ -524,6 +524,64 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          due_on: string | null
+          id: string
+          organization_id: string
+          project_id: string
+          rank: string
+          starts_on: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          due_on?: string | null
+          id?: string
+          organization_id: string
+          project_id: string
+          rank?: string
+          starts_on?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          due_on?: string | null
+          id?: string
+          organization_id?: string
+          project_id?: string
+          rank?: string
+          starts_on?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["organization_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

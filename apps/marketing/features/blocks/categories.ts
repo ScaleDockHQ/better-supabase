@@ -14,9 +14,12 @@ import {
   RocketIcon,
   ScaleIcon,
   ShieldCheckIcon,
+  TableIcon,
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react";
+
+import { RECIPE_CATEGORY_NAMES } from "../../lib/recipe-filter";
 
 /** The catalog categories, in the order `catalog.json` lists them. */
 export const CATEGORY_NAMES = [
@@ -40,13 +43,17 @@ export const CATEGORY_NAMES = [
 
 export type CategoryName = (typeof CATEGORY_NAMES)[number];
 
+export type StyledCategoryName =
+  | CategoryName
+  | (typeof RECIPE_CATEGORY_NAMES)[number];
+
 /**
  * How a category looks wherever it appears. The hue marks categorical
  * identity only; every class is a literal so Tailwind finds it, and each
  * light class has its `dark:` pair.
  */
 export interface CategoryStyle {
-  readonly name: CategoryName;
+  readonly name: StyledCategoryName;
   readonly slug: string;
   readonly icon: LucideIcon;
   /** One sentence for the category heading and the front page tile. */
@@ -235,10 +242,23 @@ const STYLES = {
     soft: "bg-slate-500/15 dark:bg-slate-400/20",
     ring: "border-slate-200 dark:border-slate-900",
   },
-} satisfies Record<CategoryName, Omit<CategoryStyle, "name">>;
+  "App tables": {
+    slug: "app-tables",
+    icon: TableIcon,
+    summary:
+      "Grids, forms, record pages, boards, calendars and timelines over your own tables.",
+    text: "text-stone-700 dark:text-stone-300",
+    tint: "bg-stone-50 dark:bg-stone-950/40",
+    solid: "bg-stone-500 dark:bg-stone-400",
+    soft: "bg-stone-500/15 dark:bg-stone-400/20",
+    ring: "border-stone-200 dark:border-stone-900",
+  },
+} satisfies Record<StyledCategoryName, Omit<CategoryStyle, "name">>;
 
-function isCategoryName(name: string): name is CategoryName {
-  return CATEGORY_NAMES.some((each) => each === name);
+function isCategoryName(name: string): name is StyledCategoryName {
+  return [...CATEGORY_NAMES, ...RECIPE_CATEGORY_NAMES].some(
+    (each) => each === name,
+  );
 }
 
 /**

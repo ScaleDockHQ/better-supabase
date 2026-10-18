@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 
 import { blockCategories, getBlock } from "../../lib/blocks";
+import { RECIPE_CATEGORY_NAMES } from "../../lib/recipe-filter";
 import {
   availableRecipes,
   getRecipe,
@@ -80,7 +81,7 @@ describe("recipes", () => {
     },
   );
 
-  test("recipeGroups puts every recipe once under its block's category, in catalog order", () => {
+  test("recipeGroups puts every recipe once under its category, in catalog order", () => {
     const groups = recipeGroups();
 
     const slugs = groups.flatMap((group) => [
@@ -92,7 +93,7 @@ describe("recipes", () => {
       recipes.map((recipe) => recipe.slug).toSorted(),
     );
     expect(groups.map((group) => group.category)).toEqual(
-      blockCategories.filter((category) =>
+      [...blockCategories, ...RECIPE_CATEGORY_NAMES].filter((category) =>
         groups.some((group) => group.category === category),
       ),
     );
@@ -102,7 +103,9 @@ describe("recipes", () => {
 
       for (const recipe of [...group.available, ...group.planned]) {
         expect(recipeCategory(recipe)).toBe(group.category);
-        expect(getBlock(recipe.block)?.category).toBe(group.category);
+        expect(recipe.category ?? getBlock(recipe.block)?.category).toBe(
+          group.category,
+        );
       }
 
       for (const recipe of group.available) {

@@ -12,15 +12,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-/** A customer's comments, oldest first, through the browser client. */
+/**
+ * A record's comments, oldest first, through the browser client. `subject`
+ * is any type in `config.subjects`, such as a customer or a project.
+ */
 export function CommentThread({
   organizationId,
-  customerId,
+  subject,
   authors,
   canComment,
 }: {
   organizationId: string;
-  customerId: string;
+  subject: { readonly type: string; readonly id: string };
   /** Display names by user id. */
   authors: Readonly<Record<string, string>>;
   canComment: boolean;
@@ -34,8 +37,8 @@ export function CommentThread({
 
   const { comments, error, add } = useComments({
     organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
+    subjectType: subject.type,
+    subjectId: subject.id,
     schema: blockConfig.comments.api,
   });
 

@@ -784,15 +784,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-/** A customer's comments, oldest first, through the browser client. */
+/**
+ * A record's comments, oldest first, through the browser client. `subject`
+ * is any type in `config.subjects`, such as a customer or a project.
+ */
 export function CommentThread({
   organizationId,
-  customerId,
+  subject,
   authors,
   canComment,
 }: {
   organizationId: string;
-  customerId: string;
+  subject: { readonly type: string; readonly id: string };
   /** Display names by user id. */
   authors: Readonly<Record<string, string>>;
   canComment: boolean;
@@ -806,8 +809,8 @@ export function CommentThread({
 
   const { comments, error, add } = useComments({
     organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
+    subjectType: subject.type,
+    subjectId: subject.id,
     schema: blockConfig.comments.api,
   });
 
@@ -3367,15 +3370,16 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
- * A customer's tags. Typing a name adds the organization's tag with that
- * name, or creates it for callers with `tags.manage`.
+ * A record's tags. Typing a name adds the organization's tag of the
+ * subject's kind with that name, or creates it for callers with
+ * `tags.manage`.
  */
 export function TagInput({
   organizationId,
-  customerId,
+  subject,
 }: {
   organizationId: string;
-  customerId: string;
+  subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("customers");
   const listId = useId();
@@ -3384,9 +3388,9 @@ export function TagInput({
 
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
-    kind: "customer",
+    subjectType: subject.type,
+    subjectId: subject.id,
+    kind: subject.type,
     schema: blockConfig.tags.api,
   });
 
@@ -16259,6 +16263,1392 @@ export function TeamPicker({
         </SelectContent>
       </Select>
     </div>
+  );
+}
+```
+
+## Record grid
+
+An app table as a data grid with search, filters, saved views and bulk actions on the selected rows. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button dialog input select @reui/data-grid @reui/filters
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-grid.tsx"
+const STATUS_FIELD = "status";
+const PROJECT_FIELD = "project";
+const ONLY_IS = [{ value: "is", label: "is" }];
+
+/** The URL's status and project filters as a ReUI filter query. */
+function toFilterQuery(query: TaskQuery): FilterQuery<string> {
+  return createFilterQuery([
+    ...(query.status === null
+      ? []
+      : [
+          createFilterRule({
+            id: STATUS_FIELD,
+            path: [STATUS_FIELD],
+            operator: "is",
+            value: query.status,
+          }),
+        ]),
+    ...(query.projectId === null
+      ? []
+      : [
+          createFilterRule({
+            id: PROJECT_FIELD,
+            path: [PROJECT_FIELD],
+            operator: "is",
+            value: query.projectId,
+          }),
+        ]),
+  ]);
+}
+
+/** The one value a filter rule holds, or null once it is cleared. */
+function valueOf(query: FilterQuery<string>, field: string): string | null {
+  const condition = flattenFilterConditions(query).find(
+    (each) => each.field === field,
+  );
+
+  const value = v.safeParse(v.string(), condition?.values[0]);
+
+  return value.success ? value.output : null;
+}
+
+/**
+ * The search, the filters and the saved views every task screen shares. They
+ * live in the URL, so a saved view is the screen plus its search string.
+ */
+export function TaskToolbar({
+  query,
+  projects,
+  views,
+  canSaveViews,
+}: {
+  query: TaskQuery;
+  projects: readonly ProjectOption[];
+  views: readonly TaskViewOption[];
+  canSaveViews: boolean;
+}) {
+  const t = useExtracted("projects");
+  const router = useRouter();
+  const pathname = usePathname();
+  const statusLabel = useStatusLabel();
+  const errorMessage = useErrorMessage();
+  const [navigating, startTransition] = useTransition();
+  const [search, setSearch] = useState(query.q);
+
+  const removeView = useAction(deleteTaskView, {
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const go = (next: TaskQuery) => {
+    startTransition(() => {
+      router.replace(`${pathname}${taskSearch(next)}`);
+    });
+  };
+
+  const fields: FilterField<string>[] = [
+    {
+      id: STATUS_FIELD,
+      label: t("Status"),
+      type: "select",
+      operators: ONLY_IS,
+      options: TASK_STATUSES.map((status) => ({
+        value: status,
+        label: statusLabel(status),
+      })),
+    },
+    {
+      id: PROJECT_FIELD,
+      label: t("Project"),
+      type: "select",
+      operators: ONLY_IS,
+      options: projects.map((project) => ({
+        value: project.id,
+        label: project.name,
+      })),
+    },
+  ];
+
+  const activeView = views.find(
+    (view) => taskSearch(view.query) === taskSearch(query),
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          go({ ...query, q: search.trim() });
+        }}
+      >
+        <Input
+          type="search"
+          className="w-56"
+          value={search}
+          placeholder={t("Search tasks")}
+          aria-label={t("Search tasks")}
+          onChange={(event) => {
+            setSearch(event.target.value);
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon-sm"
+          variant="outline"
+          aria-label={t("Search")}
+          disabled={navigating}
+        >
+          <SearchIcon />
+        </Button>
+      </form>
+      <Filters
+        size="sm"
+        fields={fields}
+        query={toFilterQuery(query)}
+        showClear
+        onQueryChange={(next) => {
+          const status = TASK_STATUSES.find(
+            (each) => each === valueOf(next, STATUS_FIELD),
+          );
+
+          go({
+            ...query,
+            status: status ?? null,
+            projectId: valueOf(next, PROJECT_FIELD),
+          });
+        }}
+      />
+      <div className="ml-auto flex items-center gap-2">
+        {views.length === 0 ? null : (
+          <Select
+            value={activeView?.id ?? null}
+            items={views.map((view) => ({ value: view.id, label: view.name }))}
+            onValueChange={(value) => {
+              const view = views.find((each) => each.id === value);
+
+              if (view) {
+                setSearch(view.query.q);
+                go(view.query);
+              }
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-44"
+              aria-label={t("Saved views")}
+            >
+              <SelectValue placeholder={t("Saved views")} />
+            </SelectTrigger>
+            <SelectContent>
+              {views.map((view) => (
+                <SelectItem key={view.id} value={view.id}>
+                  {view.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {activeView ? (
+          <Button
+            size="icon-sm"
+            variant="outline"
+            aria-label={t("Delete view {name}", { name: activeView.name })}
+            disabled={removeView.pending}
+            onClick={() => {
+              void removeView.run({ id: activeView.id });
+            }}
+          >
+            <Trash2Icon />
+          </Button>
+        ) : null}
+        {canSaveViews ? <SaveTaskViewDialog query={query} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
+  const t = useExtracted("projects");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const save = useAction(saveTaskView);
+  const error = save.error === undefined ? null : errorMessage(save.error);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
+        <BookmarkIcon />
+        {t("Save view")}
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="grid gap-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save.run({ name, ...query }).then((result) => {
+              if (result.ok) {
+                toast.success(t("View saved"));
+                setName("");
+                setOpen(false);
+              }
+            });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("Save view")}</DialogTitle>
+            <DialogDescription>
+              {t("Keeps the screen, the search and the filters.")}
+            </DialogDescription>
+          </DialogHeader>
+          <Field data-invalid={error ? true : undefined}>
+            <FieldLabel htmlFor={`${fieldId}-name`}>{t("Name")}</FieldLabel>
+            <Input
+              id={`${fieldId}-name`}
+              value={name}
+              required
+              maxLength={80}
+              autoComplete="off"
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
+            />
+            {error ? <FieldError>{error}</FieldError> : null}
+          </Field>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              {t("Cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={save.pending}>
+              {t("Save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type GridRow = TaskRow & {
+  readonly projectName: string;
+  readonly assigneeName: string;
+};
+
+type GridCell = CellContext<DataGridFeatures, GridRow>;
+
+const SELECT_COLUMN = {
+  id: "select",
+  header: () => <DataGridTableRowSelectAll />,
+  cell: ({ row }) => <DataGridTableRowSelect row={row} />,
+  size: 40,
+} satisfies ColumnDef<DataGridFeatures, GridRow>;
+
+function TitleCell({ row }: GridCell) {
+  return (
+    <Link
+      href={`/projects/${row.original.projectId}`}
+      className="font-medium hover:underline"
+    >
+      {row.original.title}
+    </Link>
+  );
+}
+
+function StatusCell({ row }: GridCell) {
+  return <TaskStatusBadge status={row.original.status} />;
+}
+
+/**
+ * Tasks in a ReUI data grid. The checkboxes feed a bulk bar that sets the
+ * status of the selected rows or deletes them in one statement.
+ */
+export function TaskGrid({
+  rows,
+  projects,
+  members,
+  canWrite,
+}: {
+  rows: readonly TaskRow[];
+  projects: readonly ProjectOption[];
+  members: readonly MemberOption[];
+  canWrite: boolean;
+}) {
+  const t = useExtracted("projects");
+  const statusLabel = useStatusLabel();
+  const errorMessage = useErrorMessage();
+  const [selection, setSelection] = useState<RowSelectionState>({});
+  const projectName = new Map(projects.map((each) => [each.id, each.name]));
+  const memberName = new Map(members.map((each) => [each.userId, each.name]));
+
+  const bulk = useAction(runTaskBulkAction, {
+    onSuccess: ({ count }) => {
+      toast.success(
+        t("{count, plural, one {# task} other {# tasks}} changed", { count }),
+      );
+      setSelection({});
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const columns: ColumnDef<DataGridFeatures, GridRow>[] = [
+    ...(canWrite ? [SELECT_COLUMN] : []),
+    { accessorKey: "title", header: t("Title"), cell: TitleCell, size: 280 },
+    { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
+    { accessorKey: "projectName", header: t("Project"), size: 180 },
+    { accessorKey: "assigneeName", header: t("Assignee"), size: 160 },
+    { accessorKey: "dueOn", header: t("Due"), size: 120 },
+  ];
+
+  const data = rows.map((row) => ({
+    ...row,
+    projectName: projectName.get(row.projectId) ?? "",
+    assigneeName:
+      row.assigneeId === null
+        ? t("Unassigned")
+        : (memberName.get(row.assigneeId) ?? ""),
+  }));
+
+  const table = useTable({
+    features: dataGridFeatures,
+    columns,
+    data,
+    getRowId: (row) => row.id,
+    state: { rowSelection: selection },
+    enableRowSelection: canWrite,
+    onRowSelectionChange: setSelection,
+  });
+
+  const ids = rows.filter((row) => selection[row.id]).map((row) => row.id);
+
+  return (
+    <div className="flex flex-col gap-3" data-recipe="record-grid">
+      {ids.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 p-2">
+          <span className="text-sm">
+            {t("{count, plural, one {# selected} other {# selected}}", {
+              count: ids.length,
+            })}
+          </span>
+          {TASK_STATUSES.map((status) => (
+            <Button
+              key={status}
+              size="sm"
+              variant="outline"
+              disabled={bulk.pending}
+              onClick={() => {
+                void bulk.run({ kind: "status", ids, status });
+              }}
+            >
+              {t("Mark {status}", { status: statusLabel(status) })}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            variant="destructive"
+            className="ml-auto"
+            disabled={bulk.pending}
+            onClick={() => {
+              void bulk.run({ kind: "delete", ids });
+            }}
+          >
+            <Trash2Icon />
+            {t("Delete")}
+          </Button>
+        </div>
+      ) : null}
+      <DataGrid table={table} recordCount={rows.length}>
+        <DataGridContainer>
+          <DataGridScrollArea>
+            <DataGridTable />
+          </DataGridScrollArea>
+        </DataGridContainer>
+      </DataGrid>
+    </div>
+  );
+}
+```
+
+## Record form
+
+A create form whose inputs follow each column: a length limit for text, a select for options, a date input and a searchable picker for references. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-form.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button combobox dialog field input select
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-form-dialog.tsx"
+interface ReferenceOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/**
+ * A searchable picker for a foreign key, such as `tasks.project_id`. It posts
+ * the id in a hidden input, so the form stays a plain server action form.
+ */
+function ReferenceCombobox({
+  id,
+  name,
+  options,
+  defaultValue,
+  placeholder,
+  empty,
+}: {
+  id: string;
+  name: string;
+  options: readonly ReferenceOption[];
+  defaultValue: string | null;
+  placeholder: string;
+  empty: string;
+}) {
+  const [value, setValue] = useState<ReferenceOption | null>(
+    () => options.find((option) => option.value === defaultValue) ?? null,
+  );
+
+  return (
+    <>
+      <input type="hidden" name={name} value={value?.value ?? ""} />
+      <Combobox
+        items={options}
+        value={value}
+        onValueChange={setValue}
+        itemToStringLabel={(option: ReferenceOption) => option.label}
+        isItemEqualToValue={(a: ReferenceOption, b: ReferenceOption) =>
+          a.value === b.value
+        }
+      >
+        <ComboboxInput id={id} placeholder={placeholder} showClear />
+        <ComboboxContent>
+          <ComboboxEmpty>{empty}</ComboboxEmpty>
+          <ComboboxList>
+            {(option: ReferenceOption) => (
+              <ComboboxItem key={option.value} value={option}>
+                {option.label}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </>
+  );
+}
+
+/**
+ * The create form for a task. Each column gets the input its type and format
+ * call for: text with its `max`, a select for `options`, a date input for
+ * `date`, and a combobox for each reference.
+ */
+export function TaskFormDialog({
+  projects,
+  members,
+  defaultProjectId,
+}: {
+  projects: readonly ProjectOption[];
+  members: readonly MemberOption[];
+  defaultProjectId: string | null;
+}) {
+  const t = useExtracted("projects");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+  const statusLabel = useStatusLabel();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<TaskStatus>("todo");
+
+  const form = useActionForm(createTask, {
+    onSuccess: () => {
+      toast.success(t("Task created"));
+      setOpen(false);
+    },
+  });
+
+  const error = form.error === undefined ? null : errorMessage(form.error);
+
+  const statusItems = TASK_STATUSES.map((value) => ({
+    value,
+    label: statusLabel(value),
+  }));
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+
+        if (!next) {
+          form.reset();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button size="sm" />}>
+        <PlusIcon />
+        {t("New task")}
+      </DialogTrigger>
+      <DialogContent>
+        <form {...form.formProps} className="grid gap-6">
+          <DialogHeader>
+            <DialogTitle>{t("New task")}</DialogTitle>
+            <DialogDescription>
+              {t("It goes to the end of its status column.")}
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor={`${fieldId}-title`}>{t("Title")}</FieldLabel>
+              <Input
+                id={`${fieldId}-title`}
+                name="title"
+                required
+                maxLength={200}
+                autoComplete="off"
+              />
+              {error ? <FieldError>{error}</FieldError> : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-project`}>
+                {t("Project")}
+              </FieldLabel>
+              <ReferenceCombobox
+                id={`${fieldId}-project`}
+                name="projectId"
+                options={projects.map((project) => ({
+                  value: project.id,
+                  label: project.name,
+                }))}
+                defaultValue={defaultProjectId}
+                placeholder={t("Pick a project")}
+                empty={t("No projects match.")}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-status`}>
+                {t("Status")}
+              </FieldLabel>
+              <input type="hidden" name="status" value={status} />
+              <Select
+                value={status}
+                items={statusItems}
+                onValueChange={(value) => {
+                  setStatus(
+                    TASK_STATUSES.find((each) => each === value) ?? "todo",
+                  );
+                }}
+              >
+                <SelectTrigger id={`${fieldId}-status`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-assignee`}>
+                {t("Assignee")}
+              </FieldLabel>
+              <ReferenceCombobox
+                id={`${fieldId}-assignee`}
+                name="assigneeId"
+                options={members.map((member) => ({
+                  value: member.userId,
+                  label: member.name,
+                }))}
+                defaultValue={null}
+                placeholder={t("Unassigned")}
+                empty={t("No members match.")}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-starts`}>
+                  {t("Starts on")}
+                </FieldLabel>
+                <Input id={`${fieldId}-starts`} name="startsOn" type="date" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-due`}>
+                  {t("Due on")}
+                </FieldLabel>
+                <Input id={`${fieldId}-due`} name="dueOn" type="date" />
+              </Field>
+            </div>
+          </FieldGroup>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              {t("Cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={form.pending}>
+              {t("Create task")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+## Record page
+
+One row as a page: its fields, the rows that reference it, and comments and tags once the table is a subject. It loads its data on the server through the block's client; the [comments](https://bettersupabase.com/blocks/comments), [tags](https://bettersupabase.com/blocks/tags) blocks must be installed (`npx better-supabase add comments tags`). Page: https://bettersupabase.com/recipes/record-page.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge card skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/project-page.tsx"
+/**
+ * Render inside `<Suspense>`: one project as a record page. Its fields, its
+ * tasks through the `project_id` reference, and the comments and tags that
+ * reach it because `projects` is a subject.
+ */
+export async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const [{ id }, session] = await Promise.all([params, getSession()]);
+  const organizationId = tenantOf(session);
+
+  if (!organizationId) {
+    notFound();
+  }
+
+  const [project, tasks, members, t, format, locale] = await Promise.all([
+    settle(() => getProject(id)),
+    settle(() => getTasks({ q: "", status: null, projectId: id })),
+    settle(() => getMemberOptions(organizationId)),
+    getExtracted("projects"),
+    getFormatter(),
+    getLocale(),
+  ]);
+
+  if (project.kind !== "ok" || tasks.kind !== "ok" || members.kind !== "ok") {
+    return <ProjectLoadError title={t("The project didn't load")} />;
+  }
+
+  const record = project.data;
+
+  if (record === undefined) {
+    notFound();
+  }
+
+  const nameOf = (userId: string | null) =>
+    userId === null
+      ? t("Unassigned")
+      : (members.data.find((member) => member.userId === userId)?.name ??
+        userId);
+
+  const subject = { type: PROJECT_SUBJECT, id: record.id };
+
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-3">
+      <div className="flex flex-col gap-6 lg:col-span-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {record.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("Created {date}", {
+              date: format.dateTime(new Date(record.createdAt), {
+                dateStyle: "long",
+              }),
+            })}
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("Tasks")}</CardTitle>
+            <CardDescription>
+              {t("{count, plural, one {# task} other {# tasks}}", {
+                count: tasks.data.length,
+              })}
+            </CardDescription>
+            <CardAction>
+              <TaskFormDialog
+                projects={[{ id: record.id, name: record.name }]}
+                members={members.data}
+                defaultProjectId={record.id}
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            {tasks.data.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("No tasks yet. Add the first one with New task.")}
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y">
+                {tasks.data.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-medium">
+                        {task.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {nameOf(task.assigneeId)}
+                        {task.dueOn
+                          ? ` · ${t("due {date}", {
+                              date: format.dateTime(
+                                new Date(`${task.dueOn}T00:00:00Z`),
+                                { dateStyle: "medium", timeZone: "UTC" },
+                              ),
+                            })}`
+                          : null}
+                      </span>
+                    </div>
+                    <TaskStatusBadge status={task.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-recipe="comment-thread">
+          <CardHeader>
+            <CardTitle>{t("Comments")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CommentThread
+              organizationId={organizationId}
+              subject={subject}
+              authors={Object.fromEntries(
+                members.data.map((member) => [member.userId, member.name]),
+              )}
+              canComment={can(session, "comments.create")}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-6">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>{t("Details")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">{t("Budget")}</dt>
+              <dd>
+                {formatMoney(
+                  money(record.budgetMinor, record.currency),
+                  locale,
+                )}
+              </dd>
+              <dt className="text-muted-foreground">{t("Lead")}</dt>
+              <dd>{nameOf(record.leadId)}</dd>
+              <dt className="text-muted-foreground">{t("Open tasks")}</dt>
+              <dd>
+                <Badge variant="outline">
+                  {tasks.data.filter((task) => task.status !== "done").length}
+                </Badge>
+              </dd>
+            </dl>
+          </CardContent>
+        </Card>
+        <Card size="sm" data-recipe="tag-input">
+          <CardHeader>
+            <CardTitle>{t("Tags")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TagInput organizationId={organizationId} subject={subject} />
+          </CardContent>
+        </Card>
+        <Link
+          href={`/projects?view=board&project=${record.id}`}
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {t("Open this project's board")}
+        </Link>
+      </div>
+    </div>
+  );
+}
+```
+
+## Record board
+
+An app table as a board with a column per option value, where dragging a card writes the value and its rank. It loads its data on the server through the block's client; the [rank block](https://bettersupabase.com/blocks/rank) must be installed (`npx better-supabase add rank`). Page: https://bettersupabase.com/recipes/record-board.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge @reui/kanban
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-board.tsx"
+type Columns = Record<string, TaskRow[]>;
+
+/** One column per option of the select column; rows arrive in rank order. */
+function columnsOf(rows: readonly TaskRow[]): Columns {
+  const columns: Columns = Object.fromEntries(
+    TASK_STATUSES.map((status) => [status, []]),
+  );
+
+  for (const row of rows) {
+    columns[row.status]?.push(row);
+  }
+
+  return columns;
+}
+
+function TaskCard({
+  task,
+  assignee,
+}: {
+  task: TaskRow;
+  assignee: string | null;
+}) {
+  return (
+    <Card size="sm">
+      <CardContent className="flex flex-col gap-2">
+        <span className="text-sm font-medium">{task.title}</span>
+        <div className="flex flex-wrap items-center gap-1">
+          {task.dueOn === null ? null : (
+            <Badge variant="outline">{task.dueOn}</Badge>
+          )}
+          {assignee === null ? null : (
+            <Badge variant="secondary">{assignee}</Badge>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Tasks in a column per status. A drop calls `rank.move` with the cards on
+ * either side and the column, so the status and the order save together. A
+ * refused move puts the card back.
+ */
+export function TaskBoard({
+  rows,
+  members,
+  canMove,
+}: {
+  rows: readonly TaskRow[];
+  members: readonly MemberOption[];
+  canMove: boolean;
+}) {
+  const t = useExtracted("projects");
+  const errorMessage = useErrorMessage();
+  const statusLabel = useStatusLabel();
+  const [columns, setColumns] = useState(() => columnsOf(rows));
+  const move = useAction(moveTask);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const memberName = new Map(members.map((each) => [each.userId, each.name]));
+
+  const assigneeOf = (task: TaskRow) =>
+    task.assigneeId === null ? null : (memberName.get(task.assigneeId) ?? null);
+
+  return (
+    <div data-recipe="record-board">
+      <Kanban
+        value={columns}
+        onValueChange={setColumns}
+        getItemValue={(item) => item.id}
+        onValueCommit={(value, meta) => {
+          const status = TASK_STATUSES.find(
+            (each) => each === meta.overContainer,
+          );
+
+          if (meta.kind !== "item" || status === undefined) {
+            return;
+          }
+
+          const column = value[status] ?? [];
+
+          void move
+            .run({
+              id: String(meta.event.active.id),
+              status,
+              previousId: column[meta.overIndex - 1]?.id ?? null,
+              nextId: column[meta.overIndex + 1]?.id ?? null,
+            })
+            .then((result) => {
+              if (!result.ok) {
+                setColumns(meta.previousValue);
+                toast.error(errorMessage(result.error));
+              }
+            });
+        }}
+      >
+        <KanbanBoard className="flex overflow-x-auto">
+          {TASK_STATUSES.map((status) => {
+            const tasks = columns[status] ?? [];
+
+            return (
+              <KanbanColumn
+                key={status}
+                value={status}
+                className="w-72 shrink-0 gap-3 rounded-lg bg-muted/50 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant={statusBadgeVariant(status)}>
+                    {statusLabel(status)}
+                  </Badge>
+                  <Badge variant="outline">{tasks.length}</Badge>
+                </div>
+                <KanbanColumnContent value={status} className="min-h-16">
+                  {tasks.map((task) => (
+                    <KanbanItem
+                      key={task.id}
+                      value={task.id}
+                      disabled={!canMove || move.pending}
+                    >
+                      <KanbanItemHandle cursor={canMove}>
+                        <TaskCard task={task} assignee={assigneeOf(task)} />
+                      </KanbanItemHandle>
+                    </KanbanItem>
+                  ))}
+                  {tasks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("Drop a task here.")}
+                    </p>
+                  ) : null}
+                </KanbanColumnContent>
+              </KanbanColumn>
+            );
+          })}
+        </KanbanBoard>
+        <KanbanOverlay>
+          {({ value, variant }) => {
+            const task =
+              variant === "item" ? byId.get(String(value)) : undefined;
+
+            return task ? (
+              <TaskCard task={task} assignee={assigneeOf(task)} />
+            ) : null;
+          }}
+        </KanbanOverlay>
+      </Kanban>
+    </div>
+  );
+}
+```
+
+## Record calendar
+
+Rows on a month grid by a date column, with the month in the URL and a count of rows without a date. It loads its data on the server through the block's client; the [calendar block](https://bettersupabase.com/blocks/calendar) must be installed (`npx better-supabase add calendar`). Page: https://bettersupabase.com/recipes/record-calendar.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button card
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-calendar.tsx"
+const SHOWN_PER_DAY = 3;
+
+/**
+ * Tasks on a month grid by their due date. The month lives in the URL
+ * (`?month=YYYY-MM`), so the arrows are links and the page stays a server
+ * component.
+ */
+export async function TaskCalendar({
+  rows,
+  first,
+  today,
+  monthHref,
+}: {
+  rows: readonly TaskRow[];
+  first: Temporal.PlainDate;
+  today: Temporal.PlainDate;
+  monthHref: (month: string) => string;
+}) {
+  const [t, format] = await Promise.all([
+    getExtracted("projects"),
+    getFormatter(),
+  ]);
+
+  const weeks = weeksOf(first);
+  const byDay = new Map<string, TaskRow[]>();
+
+  for (const row of rows) {
+    if (row.dueOn !== null) {
+      byDay.set(row.dueOn, [...(byDay.get(row.dueOn) ?? []), row]);
+    }
+  }
+
+  const label = (date: Temporal.PlainDate, options: DateTimeFormatOptions) =>
+    format.dateTime(new Date(`${date.toString()}T12:00:00Z`), {
+      ...options,
+      timeZone: "UTC",
+    });
+
+  const unscheduled = rows.filter((row) => row.dueOn === null).length;
+
+  const monthOf = (date: Temporal.PlainDate) =>
+    date.toPlainYearMonth().toString();
+
+  return (
+    <Card data-recipe="record-calendar">
+      <CardHeader>
+        <CardTitle>
+          {label(first, { month: "long", year: "numeric" })}
+        </CardTitle>
+        <CardDescription>
+          {t(
+            "{count, plural, =0 {Every task has a due date.} one {# task has no due date.} other {# tasks have no due date.}}",
+            { count: unscheduled },
+          )}
+        </CardDescription>
+        <CardAction className="flex items-center gap-2">
+          <Link
+            href={monthHref(monthOf(first.subtract({ months: 1 })))}
+            aria-label={t("Previous month")}
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+          >
+            <ChevronLeftIcon />
+          </Link>
+          <Link
+            href={monthHref(monthOf(today))}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("Today")}
+          </Link>
+          <Link
+            href={monthHref(monthOf(first.add({ months: 1 })))}
+            aria-label={t("Next month")}
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+          >
+            <ChevronRightIcon />
+          </Link>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <div className="min-w-[42rem] overflow-hidden rounded-lg border">
+            <div
+              aria-hidden="true"
+              className="grid grid-cols-7 border-b bg-muted/50"
+            >
+              {weeks[0]?.map((day) => (
+                <span
+                  key={day.toString()}
+                  className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
+                >
+                  {label(day, { weekday: "short" })}
+                </span>
+              ))}
+            </div>
+            <ol
+              aria-label={label(first, { month: "long", year: "numeric" })}
+              className="grid grid-cols-7"
+            >
+              {weeks.flat().map((day) => {
+                const key = day.toString();
+                const tasks = byDay.get(key) ?? [];
+                const outside = day.month !== first.month;
+
+                return (
+                  <li
+                    key={key}
+                    className={cn(
+                      "flex min-h-24 flex-col gap-1 border-e border-b p-1.5 [&:nth-child(7n)]:border-e-0",
+                      outside && "bg-muted/30",
+                    )}
+                  >
+                    <span className="sr-only">
+                      {label(day, { dateStyle: "full" })}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "text-xs",
+                        outside ? "text-muted-foreground" : "font-medium",
+                      )}
+                    >
+                      {day.equals(today) ? (
+                        <Badge variant="default">{day.day}</Badge>
+                      ) : (
+                        day.day
+                      )}
+                    </span>
+                    {tasks.slice(0, SHOWN_PER_DAY).map((task) => (
+                      <Link
+                        key={task.id}
+                        href={`/projects/${task.projectId}`}
+                        title={task.title}
+                        className={cn(
+                          "truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-primary/20",
+                          task.status === "done" &&
+                            "text-muted-foreground line-through",
+                        )}
+                      >
+                        {task.title}
+                      </Link>
+                    ))}
+                    {tasks.length > SHOWN_PER_DAY ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t("{count} more", {
+                          count: String(tasks.length - SHOWN_PER_DAY),
+                        })}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Record timeline
+
+Rows as bars from a start date to an end date over four weeks, with a lane per assignee. It loads its data on the server through the block's client; the [calendar block](https://bettersupabase.com/blocks/calendar) must be installed (`npx better-supabase add calendar`). Page: https://bettersupabase.com/recipes/record-timeline.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button card
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-timeline.tsx"
+const UNASSIGNED = "";
+
+/**
+ * Tasks as bars from `startsOn` to `dueOn`, one lane per assignee, over a
+ * four-week window that lives in the URL (`?from=YYYY-MM-DD`).
+ */
+export async function TaskTimeline({
+  rows,
+  members,
+  from,
+  today,
+  windowHref,
+}: {
+  rows: readonly TaskRow[];
+  members: readonly MemberOption[];
+  from: Temporal.PlainDate;
+  today: Temporal.PlainDate;
+  windowHref: (from: string) => string;
+}) {
+  const t = await getExtracted("projects");
+  const lanes = new Map<string, TaskRow[]>();
+
+  for (const row of rows) {
+    if (spanOf(row, from) !== null) {
+      const lane = row.assigneeId ?? UNASSIGNED;
+
+      lanes.set(lane, [...(lanes.get(lane) ?? []), row]);
+    }
+  }
+
+  const laneName = (id: string) =>
+    id === UNASSIGNED
+      ? t("Unassigned")
+      : (members.find((member) => member.userId === id)?.name ?? id);
+
+  return (
+    <Card data-recipe="record-timeline">
+      <CardHeader>
+        <CardTitle>{t("Timeline")}</CardTitle>
+        <CardDescription>
+          {t(
+            "Tasks with a start or due date in these four weeks, by assignee.",
+          )}
+        </CardDescription>
+        <CardAction>
+          <WindowNav from={from} today={today} windowHref={windowHref} />
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <div className="min-w-[56rem] overflow-hidden rounded-lg border">
+            <div className="grid grid-cols-[10rem_1fr]">
+              <span className="border-e border-b bg-muted/50" />
+              <WindowDays from={from} today={today} />
+              {lanes.size === 0 ? (
+                <p className="col-span-2 p-4 text-sm text-muted-foreground">
+                  {t("No tasks fall in these weeks.")}
+                </p>
+              ) : null}
+              {[...lanes].map(([lane, tasks]) => (
+                <div key={lane} className="contents">
+                  <span className="truncate border-e border-b p-2 text-sm font-medium">
+                    {laneName(lane)}
+                  </span>
+                  <ol className="grid grid-cols-28 gap-y-1 border-b py-1.5">
+                    {tasks.map((task) => {
+                      const span = spanOf(task, from);
+
+                      return span === null ? null : (
+                        <li
+                          key={task.id}
+                          className="[grid-column:var(--span-start)/span_var(--span-length)]"
+                          // SAFETY: React's CSSProperties has no custom properties; both are numbers.
+                          style={
+                            {
+                              "--span-start": span.start + 1,
+                              "--span-length": span.length,
+                            } as CSSProperties
+                          }
+                        >
+                          <Link
+                            href={`/projects/${task.projectId}`}
+                            title={task.title}
+                            className={cn(
+                              "block truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs transition-colors hover:bg-primary/20",
+                              task.status === "done" &&
+                                "text-muted-foreground line-through",
+                            )}
+                          >
+                            {task.title}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Record Gantt chart
+
+A row per record grouped by its parent, with a bar for its planned dates and a marker for rows without dates. It loads its data on the server through the block's client; the [calendar block](https://bettersupabase.com/blocks/calendar) must be installed (`npx better-supabase add calendar`). Page: https://bettersupabase.com/recipes/record-gantt.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button card
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-gantt.tsx"
+const BAR = {
+  todo: "bg-muted-foreground/30",
+  doing: "bg-primary/60",
+  done: "bg-primary/25",
+} as const satisfies Record<TaskStatus, string>;
+
+/**
+ * One row per task under its project, with a bar from `startsOn` to `dueOn`.
+ * Tasks without dates stay in the list with an empty track, so the plan
+ * shows what still needs scheduling.
+ */
+export async function TaskGantt({
+  rows,
+  projects,
+  from,
+  today,
+  windowHref,
+}: {
+  rows: readonly TaskRow[];
+  projects: readonly ProjectOption[];
+  from: Temporal.PlainDate;
+  today: Temporal.PlainDate;
+  windowHref: (from: string) => string;
+}) {
+  const t = await getExtracted("projects");
+
+  const groups = projects
+    .map((project) => ({
+      project,
+      tasks: rows.filter((row) => row.projectId === project.id),
+    }))
+    .filter((group) => group.tasks.length > 0);
+
+  return (
+    <Card data-recipe="record-gantt">
+      <CardHeader>
+        <CardTitle>{t("Gantt")}</CardTitle>
+        <CardDescription>
+          {t("Every task by project, with its planned dates.")}
+        </CardDescription>
+        <CardAction>
+          <WindowNav from={from} today={today} windowHref={windowHref} />
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <div className="min-w-[60rem] overflow-hidden rounded-lg border">
+            <div className="grid grid-cols-[14rem_1fr]">
+              <span className="border-e border-b bg-muted/50" />
+              <WindowDays from={from} today={today} />
+              {groups.map(({ project, tasks }) => (
+                <div key={project.id} className="contents">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="col-span-2 border-b bg-muted/30 px-2 py-1.5 text-sm font-medium hover:underline"
+                  >
+                    {project.name}
+                  </Link>
+                  {tasks.map((task) => {
+                    const span = spanOf(task, from);
+
+                    return (
+                      <div key={task.id} className="contents">
+                        <span className="flex items-center justify-between gap-2 border-e border-b px-2 py-1.5 ps-4">
+                          <span className="truncate text-sm">{task.title}</span>
+                          {span === null &&
+                          task.startsOn === null &&
+                          task.dueOn === null ? (
+                            <Badge variant="outline">{t("No dates")}</Badge>
+                          ) : null}
+                        </span>
+                        <div className="grid grid-cols-28 items-center border-b">
+                          {span === null ? null : (
+                            <span
+                              title={t("{start} to {end}", {
+                                start: task.startsOn ?? task.dueOn ?? "",
+                                end: task.dueOn ?? task.startsOn ?? "",
+                              })}
+                              className={`[grid-column:var(--span-start)/span_var(--span-length)] h-4 rounded-sm ${BAR[task.status]}`}
+                              // SAFETY: React's CSSProperties has no custom properties; both are numbers.
+                              style={
+                                {
+                                  "--span-start": span.start + 1,
+                                  "--span-length": span.length,
+                                } as CSSProperties
+                              }
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 ```

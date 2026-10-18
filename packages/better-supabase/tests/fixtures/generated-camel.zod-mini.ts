@@ -351,6 +351,46 @@ export const tagsUpdate: z.ZodMiniType<UpdateOf<'tags'>> = z.object({
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
 }).check(z.meta({ title: "Tags update" }));
 
+export const tasksRow: z.ZodMiniType<RowOf<'tasks'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  title: z.string().check(z.maxLength(200)),
+  status: z.enum(["todo", "doing", "done"]),
+  startsOn: z.nullable(z.iso.date()),
+  dueOn: z.nullable(z.iso.date()),
+  assigneeId: z.nullable(z.guid()),
+  projectId: z.guid(),
+  rank: z.string(),
+}).check(z.meta({ title: "Tasks" }));
+export const tasksInsert: z.ZodMiniType<InsertOf<'tasks'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.guid(),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  title: z.string().check(z.maxLength(200)),
+  status: z.exactOptional(z.enum(["todo", "doing", "done"])),
+  startsOn: z.exactOptional(z.nullable(z.iso.date())),
+  dueOn: z.exactOptional(z.nullable(z.iso.date())),
+  assigneeId: z.exactOptional(z.nullable(z.guid())),
+  projectId: z.guid(),
+  rank: z.exactOptional(z.string()),
+}).check(z.meta({ title: "Tasks insert" }));
+export const tasksUpdate: z.ZodMiniType<UpdateOf<'tasks'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.exactOptional(z.guid()),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  title: z.exactOptional(z.string().check(z.maxLength(200))),
+  status: z.exactOptional(z.enum(["todo", "doing", "done"])),
+  startsOn: z.exactOptional(z.nullable(z.iso.date())),
+  dueOn: z.exactOptional(z.nullable(z.iso.date())),
+  assigneeId: z.exactOptional(z.nullable(z.guid())),
+  projectId: z.exactOptional(z.guid()),
+  rank: z.exactOptional(z.string()),
+}).check(z.meta({ title: "Tasks update" }));
+
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
@@ -366,6 +406,7 @@ export const validators: {
   readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
+  readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
@@ -380,4 +421,5 @@ export const validators: {
   savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
+  tasks: { insert: tasksInsert, update: tasksUpdate },
 };

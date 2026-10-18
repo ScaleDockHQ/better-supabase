@@ -3,7 +3,11 @@ import * as v from "valibot";
 import type { RecipePlatform } from "./recipe-platform";
 
 import { blockCategories, getBlock } from "./blocks";
-import { type RecipeSummary, recipeKinds } from "./recipe-filter";
+import {
+  RECIPE_CATEGORY_NAMES,
+  type RecipeSummary,
+  recipeKinds,
+} from "./recipe-filter";
 // Written by scripts/build-recipes.ts from the example apps' region markers
 // before every build, dev, typecheck, lint and test run (Turbo `//#recipes`).
 import recipesJson from "./recipes.json";
@@ -25,6 +29,7 @@ const recipesSchema = v.array(
     title: v.string(),
     block: v.string(),
     blocks: v.array(v.string()),
+    category: v.nullable(v.string()),
     kind: v.picklist(recipeKinds),
     description: v.string(),
     status: v.picklist(["available", "planned"]),
@@ -112,8 +117,12 @@ export function recipeInstall(recipe: Recipe): string {
   return `npx better-supabase add ${recipe.blocks.join(" ")}`;
 }
 
-/** A recipe's category is its primary block's. */
+/** A recipe's category is its own, or else its primary block's. */
 export function recipeCategory(recipe: Recipe): string {
+  if (recipe.category !== null) {
+    return recipe.category;
+  }
+
   const block = getBlock(recipe.block);
 
   if (!block) {
@@ -131,9 +140,12 @@ export interface RecipeGroup {
   readonly planned: readonly Recipe[];
 }
 
-/** The recipes per block category, in catalog order, without empty categories. */
+/**
+ * The recipes per category, in catalog order and then the recipe-only
+ * categories, without empty categories.
+ */
 export function recipeGroups(): RecipeGroup[] {
-  return blockCategories
+  return [...blockCategories, ...RECIPE_CATEGORY_NAMES]
     .map((category) => ({
       category,
       available: availableRecipes.filter(

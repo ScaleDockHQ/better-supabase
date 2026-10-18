@@ -17,6 +17,7 @@ import {
   BoxesIcon,
   ReceiptIcon,
   FolderIcon,
+  FolderKanbanIcon,
   NotebookTextIcon,
   ClipboardListIcon,
   LayoutTemplateIcon,
@@ -66,6 +67,7 @@ const ICONS = {
   availability: CalendarCheckIcon,
   work: SquareKanbanIcon,
   workGrid: TableIcon,
+  projects: FolderKanbanIcon,
   approvals: ShieldCheckIcon,
   contacts: ContactRoundIcon,
   deals: KanbanIcon,
@@ -116,6 +118,10 @@ function useNavLabel() {
 
       case "workGrid": {
         return t("Work grid");
+      }
+
+      case "projects": {
+        return t("Projects");
       }
 
       case "approvals": {
