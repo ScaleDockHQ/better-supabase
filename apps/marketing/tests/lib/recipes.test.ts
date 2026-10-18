@@ -2,18 +2,20 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 
-import { getBlock } from "../../lib/blocks";
+import { blockCategories, getBlock } from "../../lib/blocks";
 import {
   availableRecipes,
   getRecipe,
   plannedRecipes,
+  recipeCategory,
+  recipeGroups,
   recipes,
   recipeStaticParams,
 } from "../../lib/recipes";
 
 const PAGE = join(
   import.meta.dirname,
-  "../../app/(catalog)/recipes/[slug]/page.tsx",
+  "../../app/(recipes)/recipes/[slug]/page.tsx",
 );
 
 const REGISTRY = join(
@@ -51,6 +53,37 @@ describe("recipes", () => {
       expect(recipe.native.snippet.code).toContain('from "react-native"');
     },
   );
+
+  test("recipeGroups puts every recipe once under its block's category, in catalog order", () => {
+    const groups = recipeGroups();
+
+    const slugs = groups.flatMap((group) => [
+      ...group.available.map((recipe) => recipe.slug),
+      ...group.planned.map((recipe) => recipe.slug),
+    ]);
+
+    expect(slugs.toSorted()).toEqual(
+      recipes.map((recipe) => recipe.slug).toSorted(),
+    );
+    expect(groups.map((group) => group.category)).toEqual(
+      blockCategories.filter((category) =>
+        groups.some((group) => group.category === category),
+      ),
+    );
+
+    for (const group of groups) {
+      expect(group.available.length + group.planned.length).toBeGreaterThan(0);
+
+      for (const recipe of [...group.available, ...group.planned]) {
+        expect(recipeCategory(recipe)).toBe(group.category);
+        expect(getBlock(recipe.block)?.category).toBe(group.category);
+      }
+
+      for (const recipe of group.available) {
+        expect(recipe.status).toBe("available");
+      }
+    }
+  });
 
   test("every recipe names a catalog block, and its glue is a registry item", () => {
     const items = new Set(

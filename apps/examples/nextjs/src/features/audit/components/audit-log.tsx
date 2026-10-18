@@ -64,8 +64,8 @@ export async function AuditLog() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card data-recipe="audit-log-table">
+      <CardHeader data-recipe="feature-gate">
         <CardTitle>{t("Audit log")}</CardTitle>
         <CardDescription>
           {t("Database changes and app events, recorded by the audit module.")}

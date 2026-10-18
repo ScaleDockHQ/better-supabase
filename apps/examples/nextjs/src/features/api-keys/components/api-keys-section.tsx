@@ -30,7 +30,7 @@ export async function ApiKeysSection() {
   const manage = can(session, "api_keys.manage");
 
   return (
-    <Card>
+    <Card data-recipe="api-keys-table">
       <CardHeader>
         <CardTitle>{t("API keys")}</CardTitle>
         <CardDescription>

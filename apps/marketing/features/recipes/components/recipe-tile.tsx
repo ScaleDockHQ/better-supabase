@@ -2,7 +2,8 @@ import type { Recipe } from "@/lib/recipes";
 
 import { Badge } from "@/components/reui/badge";
 import { SiteLink } from "@/components/site/site-link";
-import { recipePath } from "@/lib/recipes";
+import { BlockIcon } from "@/features/blocks/components/block-icon";
+import { recipeCategory, recipePath } from "@/lib/recipes";
 
 import { RecipeCover } from "./recipe-cover";
 
@@ -15,7 +16,14 @@ export function RecipeTile({ recipe }: { recipe: Recipe }) {
     >
       <RecipeCover recipe={recipe} className="border-b border-border" />
       <span className="flex flex-1 flex-col gap-2 p-4">
-        <span className="text-sm font-medium">{recipe.title}</span>
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <BlockIcon
+            name={recipe.block}
+            category={recipeCategory(recipe)}
+            size="sm"
+          />
+          {recipe.title}
+        </span>
         <span className="line-clamp-2 text-sm leading-6 text-muted-foreground">
           {recipe.description}
         </span>

@@ -136,3 +136,12 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
 - Load agent Markdown through the `"use cache"` functions in `lib/source.ts`
   (`getLLMIndex`, `getFullMarkdown`, `getPageMarkdown`), so the build
   prerenders the routes and `/mcp` and Ask AI reuse the rendered pages.
+
+## Images under Vercel Services
+
+The marketing app sets `images: { unoptimized: true }`. In production,
+Vercel Services rewrites `/_next/(.*)` to the marketing service, and the
+image optimizer doesn't answer through that rewrite: `/_next/image?url=...`
+returns 404 while the file under `public/` returns 200. Serve images from
+`public/` at the size they are shown, and check a new image with `curl -I`
+against production after the deploy.

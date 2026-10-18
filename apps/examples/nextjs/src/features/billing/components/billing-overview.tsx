@@ -93,10 +93,12 @@ export async function PlanGrid() {
 
   return (
     <>
-      <PlanPicker
-        initial={{ plans, current: subscription?.planKey }}
-        canManage={can(session, "billing.manage")}
-      />
+      <div data-recipe="plan-picker">
+        <PlanPicker
+          initial={{ plans, current: subscription?.planKey }}
+          canManage={can(session, "billing.manage")}
+        />
+      </div>
       <p className="text-sm text-muted-foreground">
         {t(
           "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install.",

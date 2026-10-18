@@ -87,7 +87,7 @@ export async function CustomerDetail({
           <CustomerStatus status={customer.status} />
         </div>
 
-        <Card>
+        <Card data-recipe="comment-thread">
           <CardHeader>
             <CardTitle>{t("Comments")}</CardTitle>
             <CardDescription>
@@ -106,7 +106,7 @@ export async function CustomerDetail({
       </div>
 
       <div className="space-y-6">
-        <Card size="sm">
+        <Card size="sm" data-recipe="tag-input">
           <CardHeader>
             <CardTitle>{t("Tags")}</CardTitle>
           </CardHeader>
