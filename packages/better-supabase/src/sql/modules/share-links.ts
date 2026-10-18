@@ -437,6 +437,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   ${
     ctx.hasTable("state")

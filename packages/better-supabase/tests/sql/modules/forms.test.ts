@@ -62,7 +62,9 @@ describe("forms module", () => {
     );
     const fields = sqlOf(["custom-fields", "forms"]);
     expect(fields).toContain(`from "better_supabase"."field_definitions" d`);
-    expect(fields).toContain(`from "better_supabase"."field_options" o`);
+    expect(fields).toContain(
+      `to_regclass('"better_supabase"."field_options"')`,
+    );
   });
 
   it("skips the options lookup when adopted custom fields have no options table", () => {

@@ -29,10 +29,11 @@ function customFieldResolve(ctx: ModuleContext): string {
   const o = (column: string): string => cf.col("options", column);
 
   // Managed custom-fields stores only option ids; an adopted options table may exist.
+  // A constant query would make plpgsql_check resolve the table when it is missing.
   const options = cf.hasTable("options")
     ? `
         if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass(${sqlString(cf.table("options"))}) is not null then
-          execute ${sqlString(`select jsonb_agg(jsonb_build_object('value', o.${o("value")}, 'label', o.${o("label")}) order by o.${o("value")}) from ${cf.table("options")} o where o.${o("definition")} = $1`)}
+          execute format(${sqlString(`select jsonb_agg(jsonb_build_object('value', o.${o("value")}, 'label', o.${o("label")}) order by o.${o("value")}) from %s o where o.${o("definition")} = $1`)}, to_regclass(${sqlString(cf.table("options"))}))
             into v_options using (v_field ->> 'customField')::uuid;
           v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));
         end if;`

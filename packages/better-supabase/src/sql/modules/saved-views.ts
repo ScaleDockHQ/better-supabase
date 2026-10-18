@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   addExtraColumns,
@@ -134,6 +135,9 @@ function build(ctx: ModuleContext): string {
 
   const slot = `coalesce(case ${scope} when 'user' then ${owner}::text when 'team' then ${team} end, '')`;
 
+  const index = (suffix: string): string =>
+    sqlIdent(`${ctx.tableName("views").name}_${suffix}_idx`);
+
   const tables = ctx.manages
     ? `create table if not exists ${views} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -152,9 +156,9 @@ function build(ctx: ModuleContext): string {
   check (${scope} <> 'user' or ${owner} is not null),
   check (${scope} <> 'team' or ${team} is not null)
 );
-create index if not exists saved_views_list_idx on ${views} (${tenant}, ${list});
-create index if not exists saved_views_owner_idx on ${views} (${owner}) where ${owner} is not null;
-create unique index if not exists saved_views_default_idx on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};${addExtraColumns(views, extras)}
+create index if not exists ${index("list")} on ${views} (${tenant}, ${list});
+create index if not exists ${index("owner")} on ${views} (${owner}) where ${owner} is not null;
+create unique index if not exists ${index("default")} on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};${addExtraColumns(views, extras)}
 ${lockTable(views, { read: true })}
 `
     : "";
@@ -204,6 +208,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row ${views};
@@ -500,7 +505,7 @@ function preferenceParts(
   ${updatedAt} timestamptz not null default now(),
   primary key (${view}, ${user})
 );
-create index if not exists saved_view_preferences_user_idx on ${prefs} (${user}, ${tenant});
+create index if not exists ${sqlIdent(`${ctx.tableName("preferences").name}_user_idx`)} on ${prefs} (${user}, ${tenant});
 ${lockTable(prefs, { read: true })}
 `
     : "";
