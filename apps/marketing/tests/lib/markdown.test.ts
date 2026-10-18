@@ -37,7 +37,7 @@ describe("markdown mirrors", () => {
     });
 
     expect(markdown).toMatch(new RegExp(`^# ${block.title}\\n`));
-    expect(markdown).toContain(`npx better-supabase sql add ${block.name}`);
+    expect(markdown).toContain(`npx better-supabase add ${block.name}`);
     expect(markdown).toContain(
       `(https://example.com/blocks/${block.requires[0]}.md)`,
     );

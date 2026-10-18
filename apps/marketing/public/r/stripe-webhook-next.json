@@ -48,7 +48,7 @@
       "next"
     ]
   },
-  "docs": "Needs the billing block and the webhook inbox: `npx better-supabase sql add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
+  "docs": "Needs the billing block and the webhook inbox: `npx better-supabase add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
   "categories": [
     "route"
   ],

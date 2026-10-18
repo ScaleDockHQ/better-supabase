@@ -36,7 +36,7 @@
     ],
     "preset": "saas"
   },
-  "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+  "docs": "Install the blocks first: `npx better-supabase add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
   "categories": [
     "preset"
   ],

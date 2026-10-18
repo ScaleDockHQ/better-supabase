@@ -138,7 +138,7 @@ export async function BlockDetail({
           description={
             others.length === 0
               ? "It needs no other module."
-              : `sql add also installs ${others.join(", ")}, the modules it needs.`
+              : `The command also installs ${others.join(", ")}, the modules it needs.`
           }
         >
           <CodeBlock

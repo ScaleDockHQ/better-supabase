@@ -225,7 +225,7 @@ function recipeUses(recipe: Recipe): string {
       ? `the [${recipe.block} block](${SITE}/blocks/${recipe.block}) must be installed`
       : `the ${blockLinks(recipe.blocks)} blocks must be installed`;
 
-  return `${call}; ${install} (\`npx better-supabase sql add ${recipe.blocks.join(" ")}\`).`;
+  return `${call}; ${install} (\`npx better-supabase add ${recipe.blocks.join(" ")}\`).`;
 }
 
 /** One recipe as Markdown, shared by the docs page and the skill. */

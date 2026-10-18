@@ -245,7 +245,7 @@ export function Dependencies({ block }: { block: CatalogBlock }) {
     <Frame spacing="sm">
       <FrameHeader>
         <DependencyLegend
-          requires="Requires: sql add installs it too"
+          requires="Required: the install command adds it too"
           integrates="Works with: optional"
         />
       </FrameHeader>

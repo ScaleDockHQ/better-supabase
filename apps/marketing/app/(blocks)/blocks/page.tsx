@@ -25,7 +25,7 @@ export default function BlocksPage() {
           Each block is a SQL module in your schema, with a TypeScript side for
           most of them. Install one with{" "}
           <code className="font-mono text-code text-foreground">
-            npx better-supabase sql add
+            npx better-supabase add
           </code>
           , and the modules it needs come with it. This list is built from the
           module registry, so it matches the package: {blocks.length} blocks in{" "}

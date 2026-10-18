@@ -27,7 +27,7 @@
       "next"
     ]
   },
-  "docs": "Needs the notifications block (`npx better-supabase sql add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
+  "docs": "Needs the notifications block (`npx better-supabase add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
   "categories": [
     "server-actions"
   ],

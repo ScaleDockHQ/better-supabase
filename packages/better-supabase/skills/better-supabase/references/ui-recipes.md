@@ -8,7 +8,7 @@ Build the UI this way: add the shadcn components the recipe lists, install the g
 
 ## Notification bell
 
-A header button with the unread count, which updates when a notification arrives or is read. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase sql add notifications`). Page: https://bettersupabase.com/recipes/notification-bell.
+A header button with the unread count, which updates when a notification arrives or is read. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-bell.
 
 Web, with shadcn components:
 
@@ -163,7 +163,7 @@ export function NotificationBell({
 
 ## Notification list
 
-The caller's latest notifications with an unread marker, loaded again on every change. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase sql add notifications`). Page: https://bettersupabase.com/recipes/notification-list.
+The caller's latest notifications with an unread marker, loaded again on every change. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-list.
 
 Web, with shadcn components:
 
@@ -337,7 +337,7 @@ export function NotificationList() {
 
 ## Command search
 
-A search dialog over the search index, with favorites and recents before the user types. Both sides call `useCommandSearch` from `better-supabase/blocks/search/react`; the [search block](https://bettersupabase.com/blocks/search) must be installed (`npx better-supabase sql add search`). Page: https://bettersupabase.com/recipes/command-search.
+A search dialog over the search index, with favorites and recents before the user types. Both sides call `useCommandSearch` from `better-supabase/blocks/search/react`; the [search block](https://bettersupabase.com/blocks/search) must be installed (`npx better-supabase add search`). Page: https://bettersupabase.com/recipes/command-search.
 
 Web, with shadcn components:
 
@@ -574,7 +574,7 @@ export function CommandSearch() {
 
 ## Onboarding checklist
 
-The organization's getting-started steps with progress, hidden once every step is done. Both sides call `useOnboarding` from `better-supabase/blocks/onboarding/react`; the [onboarding block](https://bettersupabase.com/blocks/onboarding) must be installed (`npx better-supabase sql add onboarding`). Page: https://bettersupabase.com/recipes/onboarding-checklist.
+The organization's getting-started steps with progress, hidden once every step is done. Both sides call `useOnboarding` from `better-supabase/blocks/onboarding/react`; the [onboarding block](https://bettersupabase.com/blocks/onboarding) must be installed (`npx better-supabase add onboarding`). Page: https://bettersupabase.com/recipes/onboarding-checklist.
 
 Web, with shadcn components:
 
@@ -762,7 +762,7 @@ export function OnboardingChecklist() {
 
 ## Comment thread
 
-A record's comments with their authors and a form to add one, kept current after each write. Both sides call `useComments` from `better-supabase/blocks/comments/react`; the [comments block](https://bettersupabase.com/blocks/comments) must be installed (`npx better-supabase sql add comments`). Page: https://bettersupabase.com/recipes/comment-thread.
+A record's comments with their authors and a form to add one, kept current after each write. Both sides call `useComments` from `better-supabase/blocks/comments/react`; the [comments block](https://bettersupabase.com/blocks/comments) must be installed (`npx better-supabase add comments`). Page: https://bettersupabase.com/recipes/comment-thread.
 
 Web, with shadcn components:
 
@@ -972,7 +972,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
 ## Organization switcher
 
-A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim. Both sides call `useOrganizations` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase sql add organizations`). Page: https://bettersupabase.com/recipes/org-switcher.
+A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim. Both sides call `useOrganizations` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/org-switcher.
 
 Web, with shadcn components:
 
@@ -1187,7 +1187,7 @@ export function OrganizationSwitcher() {
 
 ## Plan picker
 
-The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns. Both sides call `usePlanPicker` from `better-supabase/blocks/billing/react`; the [billing block](https://bettersupabase.com/blocks/billing) must be installed (`npx better-supabase sql add billing`). Page: https://bettersupabase.com/recipes/plan-picker.
+The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns. Both sides call `usePlanPicker` from `better-supabase/blocks/billing/react`; the [billing block](https://bettersupabase.com/blocks/billing) must be installed (`npx better-supabase add billing`). Page: https://bettersupabase.com/recipes/plan-picker.
 
 Web, with shadcn components:
 
@@ -1410,7 +1410,7 @@ export function PlanPicker() {
 
 ## Usage meter
 
-This period's usage per meter against the plan's quota, with the reset date. Both sides call `useUsageMeter` from `better-supabase/blocks/usage/react`; the [usage block](https://bettersupabase.com/blocks/usage) must be installed (`npx better-supabase sql add usage`). Page: https://bettersupabase.com/recipes/usage-meter.
+This period's usage per meter against the plan's quota, with the reset date. Both sides call `useUsageMeter` from `better-supabase/blocks/usage/react`; the [usage block](https://bettersupabase.com/blocks/usage) must be installed (`npx better-supabase add usage`). Page: https://bettersupabase.com/recipes/usage-meter.
 
 Web, with shadcn components:
 
@@ -1590,7 +1590,7 @@ export function UsageMeter() {
 
 ## Feature gate
 
-Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes. Both sides call `useFeatureGate` from `better-supabase/blocks/entitlements/react`; the [entitlements block](https://bettersupabase.com/blocks/entitlements) must be installed (`npx better-supabase sql add entitlements`). Page: https://bettersupabase.com/recipes/feature-gate.
+Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes. Both sides call `useFeatureGate` from `better-supabase/blocks/entitlements/react`; the [entitlements block](https://bettersupabase.com/blocks/entitlements) must be installed (`npx better-supabase add entitlements`). Page: https://bettersupabase.com/recipes/feature-gate.
 
 Web, with shadcn components:
 
@@ -1692,7 +1692,7 @@ export function FeatureGate({
 
 ## Settings layout
 
-Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares. Both sides call `useSettings` from `better-supabase/blocks/settings/react`; the [settings block](https://bettersupabase.com/blocks/settings) must be installed (`npx better-supabase sql add settings`). Page: https://bettersupabase.com/recipes/settings-layout.
+Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares. Both sides call `useSettings` from `better-supabase/blocks/settings/react`; the [settings block](https://bettersupabase.com/blocks/settings) must be installed (`npx better-supabase add settings`). Page: https://bettersupabase.com/recipes/settings-layout.
 
 Web, with shadcn components:
 
@@ -2110,7 +2110,7 @@ export function SettingsLayout() {
 
 ## Members table
 
-An organization's members with their roles, where a role change shows at once and a member can be removed. Both sides call `useMembers` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase sql add organizations`). Page: https://bettersupabase.com/recipes/members-table.
+An organization's members with their roles, where a role change shows at once and a member can be removed. Both sides call `useMembers` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/members-table.
 
 Web, with shadcn components:
 
@@ -2424,7 +2424,7 @@ export function MembersTable() {
 
 ## Invite dialog
 
-A form that invites a teammate by email with a role, then shows the token for the accept link. Both sides call `useInvitations` from `better-supabase/blocks/organizations/react`; the [invitations block](https://bettersupabase.com/blocks/invitations) must be installed (`npx better-supabase sql add invitations`). Page: https://bettersupabase.com/recipes/invite-dialog.
+A form that invites a teammate by email with a role, then shows the token for the accept link. Both sides call `useInvitations` from `better-supabase/blocks/organizations/react`; the [invitations block](https://bettersupabase.com/blocks/invitations) must be installed (`npx better-supabase add invitations`). Page: https://bettersupabase.com/recipes/invite-dialog.
 
 Web, with shadcn components:
 
@@ -2762,7 +2762,7 @@ export function InviteDialog() {
 
 ## API keys table
 
-The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key. Both sides call `useApiKeys` from `better-supabase/blocks/api-keys/react`; the [api-keys block](https://bettersupabase.com/blocks/api-keys) must be installed (`npx better-supabase sql add api-keys`). Page: https://bettersupabase.com/recipes/api-keys-table.
+The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key. Both sides call `useApiKeys` from `better-supabase/blocks/api-keys/react`; the [api-keys block](https://bettersupabase.com/blocks/api-keys) must be installed (`npx better-supabase add api-keys`). Page: https://bettersupabase.com/recipes/api-keys-table.
 
 Web, with shadcn components:
 
@@ -3043,7 +3043,7 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
 
 ## Audit log table
 
-The audit trail, newest first, with filters by actor and action and older pages on demand. Both sides call `useAuditLog` from `better-supabase/blocks/audit/react`; the [audit block](https://bettersupabase.com/blocks/audit) must be installed (`npx better-supabase sql add audit`). Page: https://bettersupabase.com/recipes/audit-log-table.
+The audit trail, newest first, with filters by actor and action and older pages on demand. Both sides call `useAuditLog` from `better-supabase/blocks/audit/react`; the [audit block](https://bettersupabase.com/blocks/audit) must be installed (`npx better-supabase add audit`). Page: https://bettersupabase.com/recipes/audit-log-table.
 
 Web, with shadcn components:
 
@@ -3343,7 +3343,7 @@ export function AuditLogTable() {
 
 ## Tag input
 
-A record's tags with suggestions, where typing a name adds a tag or creates it. Both sides call `useTagInput` from `better-supabase/blocks/tags/react`; the [tags block](https://bettersupabase.com/blocks/tags) must be installed (`npx better-supabase sql add tags`). Page: https://bettersupabase.com/recipes/tag-input.
+A record's tags with suggestions, where typing a name adds a tag or creates it. Both sides call `useTagInput` from `better-supabase/blocks/tags/react`; the [tags block](https://bettersupabase.com/blocks/tags) must be installed (`npx better-supabase add tags`). Page: https://bettersupabase.com/recipes/tag-input.
 
 Web, with shadcn components:
 
@@ -3567,7 +3567,7 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
 
 ## Announcement banner
 
-The newest live announcement for the user and organization, with a dismiss button. It calls `useAnnouncements` from `better-supabase/blocks/announcements/react`; the [announcements block](https://bettersupabase.com/blocks/announcements) must be installed (`npx better-supabase sql add announcements`). Page: https://bettersupabase.com/recipes/announcement-banner.
+The newest live announcement for the user and organization, with a dismiss button. It calls `useAnnouncements` from `better-supabase/blocks/announcements/react`; the [announcements block](https://bettersupabase.com/blocks/announcements) must be installed (`npx better-supabase add announcements`). Page: https://bettersupabase.com/recipes/announcement-banner.
 
 Web, with shadcn components:
 
@@ -3642,7 +3642,7 @@ export function AnnouncementBanner({
 
 ## Profile form
 
-A form that updates the caller's display name through a server action and shows field errors. It loads its data on the server through the block's client; the [profiles block](https://bettersupabase.com/blocks/profiles) must be installed (`npx better-supabase sql add profiles`). Page: https://bettersupabase.com/recipes/profile-form.
+A form that updates the caller's display name through a server action and shows field errors. It loads its data on the server through the block's client; the [profiles block](https://bettersupabase.com/blocks/profiles) must be installed (`npx better-supabase add profiles`). Page: https://bettersupabase.com/recipes/profile-form.
 
 Web, with shadcn components:
 
@@ -3733,7 +3733,7 @@ export function ProfileForm({
 
 ## Two-factor setup
 
-A card that enrolls an authenticator app with a QR code, verifies the first code and removes the factor. It loads its data on the server through the block's client; the [mfa block](https://bettersupabase.com/blocks/mfa) must be installed (`npx better-supabase sql add mfa`). Page: https://bettersupabase.com/recipes/mfa-setup.
+A card that enrolls an authenticator app with a QR code, verifies the first code and removes the factor. It loads its data on the server through the block's client; the [mfa block](https://bettersupabase.com/blocks/mfa) must be installed (`npx better-supabase add mfa`). Page: https://bettersupabase.com/recipes/mfa-setup.
 
 Web, with shadcn components:
 
@@ -3981,7 +3981,7 @@ export function TwoFactorCard({
 
 ## Inbox with threads
 
-A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `better-supabase/blocks/inbox/react`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase sql add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
+A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `better-supabase/blocks/inbox/react`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
 
 Web, with shadcn components:
 
@@ -4220,7 +4220,7 @@ function ConversationList({
 
 ## Workspace URL field
 
-An organization form with a name and a URL slug, where reserved and taken slugs come back as field errors. It loads its data on the server through the block's client; the [organizations](https://bettersupabase.com/blocks/organizations), [reserved-slugs](https://bettersupabase.com/blocks/reserved-slugs) blocks must be installed (`npx better-supabase sql add organizations reserved-slugs`). Page: https://bettersupabase.com/recipes/workspace-url-field.
+An organization form with a name and a URL slug, where reserved and taken slugs come back as field errors. It loads its data on the server through the block's client; the [organizations](https://bettersupabase.com/blocks/organizations), [reserved-slugs](https://bettersupabase.com/blocks/reserved-slugs) blocks must be installed (`npx better-supabase add organizations reserved-slugs`). Page: https://bettersupabase.com/recipes/workspace-url-field.
 
 Web, with shadcn components:
 
@@ -4329,7 +4329,7 @@ export function OrganizationForm({
 
 ## Chat with history
 
-An AI chat that stores every message, resumes a stored conversation and streams the reply. It calls `useAssistant` from `better-supabase/ai-sdk/react`; the [ai-chat block](https://bettersupabase.com/blocks/ai-chat) must be installed (`npx better-supabase sql add ai-chat`). Page: https://bettersupabase.com/recipes/chat-with-history.
+An AI chat that stores every message, resumes a stored conversation and streams the reply. It calls `useAssistant` from `better-supabase/ai-sdk/react`; the [ai-chat block](https://bettersupabase.com/blocks/ai-chat) must be installed (`npx better-supabase add ai-chat`). Page: https://bettersupabase.com/recipes/chat-with-history.
 
 Web, with shadcn components:
 
@@ -4469,7 +4469,7 @@ export function AssistantChat({
 
 ## Knowledge base upload
 
-A form that adds a document to the knowledge base, which chunks and embeds it for search. It loads its data on the server through the block's client; the [knowledge block](https://bettersupabase.com/blocks/knowledge) must be installed (`npx better-supabase sql add knowledge`). Page: https://bettersupabase.com/recipes/knowledge-upload.
+A form that adds a document to the knowledge base, which chunks and embeds it for search. It loads its data on the server through the block's client; the [knowledge block](https://bettersupabase.com/blocks/knowledge) must be installed (`npx better-supabase add knowledge`). Page: https://bettersupabase.com/recipes/knowledge-upload.
 
 Web, with shadcn components:
 
@@ -4527,7 +4527,7 @@ export function AddDocumentForm() {
 
 ## Agent activity
 
-The agent runs for the organization with their steps and the approvals that wait for a person. It loads its data on the server through the block's client; the [agents block](https://bettersupabase.com/blocks/agents) must be installed (`npx better-supabase sql add agents`). Page: https://bettersupabase.com/recipes/agent-run-trace.
+The agent runs for the organization with their steps and the approvals that wait for a person. It loads its data on the server through the block's client; the [agents block](https://bettersupabase.com/blocks/agents) must be installed (`npx better-supabase add agents`). Page: https://bettersupabase.com/recipes/agent-run-trace.
 
 Web, with shadcn components:
 
@@ -4679,7 +4679,7 @@ export function AgentActivitySkeleton() {
 
 ## Workflow canvas
 
-A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-builder/react`; the [workflow-builder](https://bettersupabase.com/blocks/workflow-builder), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase sql add workflow-builder workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
+A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-builder/react`; the [workflow-builder](https://bettersupabase.com/blocks/workflow-builder), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase add workflow-builder workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
 
 Web, with shadcn components:
 
@@ -5047,7 +5047,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
 
 ## Workflow runs
 
-The latest workflow runs with their status, which update while a run is in progress. It calls `useWorkflowRuns` from `better-supabase/blocks/workflows/react`; the [workflows block](https://bettersupabase.com/blocks/workflows) must be installed (`npx better-supabase sql add workflows`). Page: https://bettersupabase.com/recipes/workflow-runs.
+The latest workflow runs with their status, which update while a run is in progress. It calls `useWorkflowRuns` from `better-supabase/blocks/workflows/react`; the [workflows block](https://bettersupabase.com/blocks/workflows) must be installed (`npx better-supabase add workflows`). Page: https://bettersupabase.com/recipes/workflow-runs.
 
 Web, with shadcn components:
 
@@ -5169,7 +5169,7 @@ export function WorkflowRunsSkeleton() {
 
 ## Connector credentials
 
-A sheet that stores a connector credential encrypted and revokes it, without reading the secret back. It loads its data on the server through the block's client; the [connectors](https://bettersupabase.com/blocks/connectors), [credentials](https://bettersupabase.com/blocks/credentials) blocks must be installed (`npx better-supabase sql add connectors credentials`). Page: https://bettersupabase.com/recipes/connector-setup.
+A sheet that stores a connector credential encrypted and revokes it, without reading the secret back. It loads its data on the server through the block's client; the [connectors](https://bettersupabase.com/blocks/connectors), [credentials](https://bettersupabase.com/blocks/credentials) blocks must be installed (`npx better-supabase add connectors credentials`). Page: https://bettersupabase.com/recipes/connector-setup.
 
 Web, with shadcn components:
 
@@ -5298,7 +5298,7 @@ export function CredentialSheet({
 
 ## Support session banner
 
-A banner that tells the user a support agent is viewing the app as them, rendered on the server. It loads its data on the server through the block's client; the [support-sessions block](https://bettersupabase.com/blocks/support-sessions) must be installed (`npx better-supabase sql add support-sessions`). Page: https://bettersupabase.com/recipes/support-session-banner.
+A banner that tells the user a support agent is viewing the app as them, rendered on the server. It loads its data on the server through the block's client; the [support-sessions block](https://bettersupabase.com/blocks/support-sessions) must be installed (`npx better-supabase add support-sessions`). Page: https://bettersupabase.com/recipes/support-session-banner.
 
 Web, with shadcn components:
 
@@ -5343,7 +5343,7 @@ export async function ImpersonationBanner() {
 
 ## AI task queue
 
-A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume. It loads its data on the server through the block's client; the [ai-tasks block](https://bettersupabase.com/blocks/ai-tasks) must be installed (`npx better-supabase sql add ai-tasks`). Page: https://bettersupabase.com/recipes/ai-task-queue.
+A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume. It loads its data on the server through the block's client; the [ai-tasks block](https://bettersupabase.com/blocks/ai-tasks) must be installed (`npx better-supabase add ai-tasks`). Page: https://bettersupabase.com/recipes/ai-task-queue.
 
 Web, with shadcn components:
 
@@ -5654,7 +5654,7 @@ export function AiTaskQueueSkeleton() {
 
 ## AI provider settings
 
-A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one. It loads its data on the server through the block's client; the [ai-providers block](https://bettersupabase.com/blocks/ai-providers) must be installed (`npx better-supabase sql add ai-providers`). Page: https://bettersupabase.com/recipes/ai-provider-settings.
+A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one. It loads its data on the server through the block's client; the [ai-providers block](https://bettersupabase.com/blocks/ai-providers) must be installed (`npx better-supabase add ai-providers`). Page: https://bettersupabase.com/recipes/ai-provider-settings.
 
 Web, with shadcn components:
 
@@ -6112,7 +6112,7 @@ export function AiProviderSettingsSkeleton() {
 
 ## Push opt-in
 
-A card that registers this browser for web push and removes it again. It loads its data on the server through the block's client; the [push block](https://bettersupabase.com/blocks/push) must be installed (`npx better-supabase sql add push`). Page: https://bettersupabase.com/recipes/push-opt-in.
+A card that registers this browser for web push and removes it again. It loads its data on the server through the block's client; the [push block](https://bettersupabase.com/blocks/push) must be installed (`npx better-supabase add push`). Page: https://bettersupabase.com/recipes/push-opt-in.
 
 Web, with shadcn components:
 
@@ -6462,7 +6462,7 @@ function PushStateBody({
 
 ## Metrics dashboard
 
-A card per metric: the 30-day total against the 30 days before, with daily bars. It loads its data on the server through the block's client; the [metrics block](https://bettersupabase.com/blocks/metrics) must be installed (`npx better-supabase sql add metrics`). Page: https://bettersupabase.com/recipes/metrics-dashboard.
+A card per metric: the 30-day total against the 30 days before, with daily bars. It loads its data on the server through the block's client; the [metrics block](https://bettersupabase.com/blocks/metrics) must be installed (`npx better-supabase add metrics`). Page: https://bettersupabase.com/recipes/metrics-dashboard.
 
 Web, with shadcn components:
 
@@ -6703,7 +6703,7 @@ export function MetricsDashboardSkeleton() {
 
 ## Feature flags
 
-Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [flags block](https://bettersupabase.com/blocks/flags) must be installed (`npx better-supabase sql add flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
+Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [flags block](https://bettersupabase.com/blocks/flags) must be installed (`npx better-supabase add flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
 
 Web, with shadcn components:
 

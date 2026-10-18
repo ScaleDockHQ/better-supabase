@@ -30,7 +30,7 @@
       "next"
     ]
   },
-  "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
+  "docs": "Needs the outbox block: `npx better-supabase add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
   "categories": [
     "route"
   ],

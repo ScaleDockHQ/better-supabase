@@ -57,7 +57,7 @@ test("the copy button puts the prompt on the clipboard", async ({
   const copied = await page.evaluate(() => navigator.clipboard.readText());
 
   expect(copied.trim()).toBe(prompt?.trim());
-  expect(copied).toContain("npx better-supabase sql add notifications");
+  expect(copied).toContain("npx better-supabase add notifications");
   expect(copied).toContain("/recipes/notification-bell.md");
 });
 

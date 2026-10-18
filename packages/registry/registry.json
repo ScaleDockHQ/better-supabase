@@ -22,7 +22,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the blocks it wires: `npx better-supabase sql add organizations notifications search audit`, then `npx better-supabase gen` for `lib/supabase/blocks.generated.ts`. Add a block to `blockSet` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
+      "docs": "Needs the blocks it wires: `npx better-supabase add organizations notifications search audit`, then `npx better-supabase gen` for `lib/supabase/blocks.generated.ts`. Add a block to `blockSet` after you install it. See https://bettersupabase.com/docs/blocks/create-blocks.",
       "categories": ["wiring"],
       "meta": {
         "block": ["organizations", "notifications", "search", "audit"],
@@ -69,7 +69,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the notifications block (`npx better-supabase sql add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
+      "docs": "Needs the notifications block (`npx better-supabase add notifications`) and the `src/lib/supabase/server.ts` that `npx better-supabase init` writes for Next.js. See https://bettersupabase.com/recipes/notification-bell.",
       "categories": ["server-actions"],
       "meta": {
         "block": "notifications",
@@ -91,7 +91,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the onboarding block: `npx better-supabase sql add onboarding`, with the checklist in its `checklists` option. See https://bettersupabase.com/recipes/onboarding-checklist.",
+      "docs": "Needs the onboarding block: `npx better-supabase add onboarding`, with the checklist in its `checklists` option. See https://bettersupabase.com/recipes/onboarding-checklist.",
       "categories": ["wiring"],
       "meta": {
         "block": "onboarding",
@@ -116,7 +116,7 @@
       "envVars": {
         "APP_URL": "http://localhost:3000"
       },
-      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. `APP_URL` becomes each CloudEvent's `source`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "docs": "Needs the outbox block: `npx better-supabase add outbox`. `APP_URL` becomes each CloudEvent's `source`. See https://bettersupabase.com/docs/blocks/outbox.",
       "categories": ["server"],
       "meta": {
         "block": "outbox",
@@ -141,7 +141,7 @@
       "envVars": {
         "CRON_SECRET": "development-cron-secret"
       },
-      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "docs": "Needs the outbox block: `npx better-supabase add outbox`. Schedule it with `{ \"crons\": [{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`, and set a random `CRON_SECRET` in production. With a `src/` folder, move the file to `src/app/api/outbox/route.ts`. See https://bettersupabase.com/docs/blocks/outbox.",
       "categories": ["route"],
       "meta": {
         "block": "outbox",
@@ -166,7 +166,7 @@
       "envVars": {
         "CRON_SECRET": "development-cron-secret"
       },
-      "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Mount it with `app.route(\"/outbox\", outboxRoutes)` and call it from a cron that sends `Authorization: Bearer <CRON_SECRET>`. See https://bettersupabase.com/docs/blocks/outbox.",
+      "docs": "Needs the outbox block: `npx better-supabase add outbox`. Mount it with `app.route(\"/outbox\", outboxRoutes)` and call it from a cron that sends `Authorization: Bearer <CRON_SECRET>`. See https://bettersupabase.com/docs/blocks/outbox.",
       "categories": ["route"],
       "meta": {
         "block": "outbox",
@@ -203,7 +203,7 @@
         "STRIPE_WEBHOOK_SECRET": "whsec_replace_me",
         "CRON_SECRET": "development-cron-secret"
       },
-      "docs": "Needs the billing block and the webhook inbox: `npx better-supabase sql add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
+      "docs": "Needs the billing block and the webhook inbox: `npx better-supabase add billing webhook-inbox`. Point a Stripe test-mode webhook (or `stripe listen --forward-to localhost:3000/api/stripe`) at the first route, and schedule `/api/stripe/process`. See https://bettersupabase.com/docs/blocks/billing.",
       "categories": ["route"],
       "meta": {
         "block": ["billing", "webhook-inbox"],
@@ -233,7 +233,7 @@
       "envVars": {
         "CRON_SECRET": "development-cron-secret"
       },
-      "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase sql add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+      "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
       "categories": ["route"],
       "meta": {
         "block": "jobs",
@@ -255,7 +255,7 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the organizations block (`npx better-supabase sql add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
+      "docs": "Needs the organizations block (`npx better-supabase add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
       "categories": ["hook"],
       "meta": {
         "block": "organizations",
@@ -280,7 +280,7 @@
       "envVars": {
         "EXPO_PUBLIC_EAS_PROJECT_ID": ""
       },
-      "docs": "Needs the push block (`npx better-supabase sql add push`) and the `src/lib/supabase/client.native.ts` that `npx better-supabase init` writes for Expo. Push tokens need the EAS project id outside Expo Go. See https://bettersupabase.com/docs/blocks/push.",
+      "docs": "Needs the push block (`npx better-supabase add push`) and the `src/lib/supabase/client.native.ts` that `npx better-supabase init` writes for Expo. Push tokens need the EAS project id outside Expo Go. See https://bettersupabase.com/docs/blocks/push.",
       "categories": ["hook", "native"],
       "meta": {
         "block": "push",
@@ -332,7 +332,7 @@
         "@better-supabase/stripe-webhook-next"
       ],
       "envVars": {},
-      "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+      "docs": "Install the blocks first: `npx better-supabase add organizations invitations notifications search audit onboarding outbox jobs billing webhook-inbox`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
       "categories": ["preset"],
       "meta": {
         "block": [
@@ -365,7 +365,7 @@
         "@better-supabase/expo-config-native"
       ],
       "envVars": {},
-      "docs": "Install the blocks first: `npx better-supabase sql add organizations invitations notifications search audit onboarding push`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
+      "docs": "Install the blocks first: `npx better-supabase add organizations invitations notifications search audit onboarding push`. The UI comes from the recipes at https://bettersupabase.com/recipes.",
       "categories": ["preset", "native"],
       "meta": {
         "block": [
