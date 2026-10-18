@@ -366,6 +366,9 @@ test("a table drawn on the canvas travels in the design code", async ({
     /^pnpm dlx better-supabase init --preset "https:\/\/bettersupabase\.com\/create\?preset=\w+&design=0[\w-]+"$/u,
   );
   await expect(dialog.getByText("appTables").first()).toBeVisible();
+  await expect(dialog.getByTestId("screens-command")).toHaveText(
+    "pnpm dlx better-supabase scaffold screens items",
+  );
   await dialog.getByRole("tab", { name: "AI instructions" }).click();
   await expect(dialog.getByTestId("create-prompt-text")).toContainText(
     "&design=0",

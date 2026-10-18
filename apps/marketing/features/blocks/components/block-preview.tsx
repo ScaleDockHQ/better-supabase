@@ -361,7 +361,8 @@ function Scene({ tone }: { tone: CategoryStyle }) {
 
     case "Automation":
     case "Developer platform":
-    case "Database primitives": {
+    case "Database primitives":
+    case "App tables": {
       return <PlatformScene tone={tone} />;
     }
 
