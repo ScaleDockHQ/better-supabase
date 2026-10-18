@@ -24,7 +24,14 @@ color.
 
 The neutrals are grayscale (`oklch` with zero chroma). `brand` is the only
 hue in the chrome; in light mode it is dark enough (4.5:1 on `background`) to
-carry text. Radius comes from `--radius` (0.625rem), and the scale runs
+carry text.
+
+The ten catalog categories each have a Tailwind palette hue in
+`features/blocks/categories.ts` (`text`, `tint`, `solid`, `soft`, `ring`,
+every light class with its `dark:` pair). The hue marks which category a
+block belongs to and appears only in catalog visuals: previews, category
+icons and counts. Status still uses the status tokens. Preview surfaces sit on
+the `bg-dots` utility from `app/globals.css`. Radius comes from `--radius` (0.625rem), and the scale runs
 from `rounded-sm` to `rounded-4xl`.
 
 ## Type roles
@@ -48,18 +55,26 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   Add new ones with the shadcn CLI, then adjust them in place; the registry's
   `base-vega` items import `cn` from a `cn` package, so point the import at
   `@/lib/utils` instead of installing it.
-- `components/create`: the `/create` builder. It resolves the selection in
-  the browser with `better-supabase/preset` (helpers in `lib/create.ts`),
-  fetches rendered migrations from `app/create/migrations/route.ts`, and
-  draws the dependency graph as inline SVG with token classes
-  (`fill-card`, `stroke-border`). Form controls are native `select`,
-  radio and checkbox elements styled with the input tokens and
-  `accent-primary`.
-- `components/blocks`: the `/blocks` overview's client filter. The pages read
-  `lib/blocks.ts`, which parses `lib/catalog.json`; `scripts/build-catalog.ts`
-  writes that file from the SQL module registry before every marketing task.
-- `components/reui`: ReUI components from the `@reui` registry (`badge`).
-  The registry needs `REUI_LICENSE_KEY`.
+- `components/reui`: ReUI components from the `@reui` registry (`alert`,
+  `badge`, `frame`). The registry needs `REUI_LICENSE_KEY`.
+- `features/`: one folder per area, each with its `components/` and helpers.
+  - `features/catalog`: the shell that `app/(catalog)/layout.tsx` shares
+    across `/blocks`, `/recipes` and `/create`: the category sidebar
+    (`CatalogNav`, in a `Sheet` below `lg`), `PageHeader`, `Breadcrumbs`,
+    `OnThisPage` and the `DetailSkeleton` that detail pages show while they
+    read their params.
+  - `features/blocks`: `categories.ts` (each category's icon, slug, summary
+    and color classes), the coded mini-UI previews (`BlockPreview`), tiles,
+    the search and the detail sections. The pages read `lib/blocks.ts`, which
+    parses `lib/catalog.json`; `scripts/build-catalog.ts` writes that file
+    from the SQL module registry before every marketing task.
+  - `features/recipes`: tiles, the screenshot cover and the step list.
+  - `features/create`: the `/create` builder. It resolves the selection in the
+    browser with `better-supabase/preset` (helpers in `lib/create.ts`),
+    fetches rendered migrations from `app/(catalog)/create/migrations/route.ts`
+    and draws the dependency graph as inline SVG with token classes. Presets
+    and blocks are native radio and checkbox inputs inside styled labels;
+    selects and toggles are the shadcn `Select` and `ToggleGroup`.
 - `components/sections`: page sections. Every section renders through
   `Section`, which sets the width, padding, eyebrow, heading and description.
 - `components/site`: the navbar, footer, logo, theme toggle, `SiteLink`,
@@ -81,7 +96,7 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
 ## Responsive rules
 
 - Design for 360px first, then add `sm:`, `md:` and `lg:` steps.
-- Content width is `max-w-6xl` with `px-6 md:px-8`. Text blocks stay at
+- Content width is `max-w-7xl` with `px-6 md:px-8` (`max-w-6xl` for the hero). Text blocks stay at
   `max-w-2xl` or narrower.
 - Grids collapse to one column on small screens. Nothing scrolls sideways
   except code blocks.
@@ -102,14 +117,20 @@ looping animation.
 - The theme follows the system setting (`next-themes`, `defaultTheme="system"`),
   and the toggle overrides it.
 - Headings go in order: one `h1` per page, `h2` per section.
-- `jsx-a11y` runs in lint with no rules turned off.
+- `jsx-a11y` runs in lint with no rules turned off, and `e2e/a11y.spec.ts`
+  runs axe (WCAG 2.2 AA) on the main pages in both themes.
+- The first tab stop is the "Skip to content" link to `main#main`.
+- A region that scrolls on its own (a long code panel) is focusable and named.
+- Every data region has a loading skeleton, an empty state with an action and
+  an inline error with Retry.
 
 ## Reject these
 
 - Raw colors, hex values or inline `style` (lint rejects inline styles outside
   the OG image and icon routes).
 - Gradients, glows, glass effects and drop shadows used as decoration.
-- A second accent hue, or `brand` on more than one element per section.
+- A second accent hue in the chrome, a category hue outside catalog visuals,
+  or `brand` on more than one element per section.
 - Stock illustrations, emojis and icon-only buttons without a label.
 - Components from Radix or vaul; the repo uses Base UI (lint rejects the imports).
 - Copy that praises the product instead of saying what it does (`.agents/rules/writing.mdc`).
