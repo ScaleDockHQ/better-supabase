@@ -44,3 +44,4 @@ add one, and link it from the code or config it explains.
 | [0036](0036-optional-peers-for-every-integration.md)  | Every SDK integration is an optional peer with a tested range                                               |
 | [0037](0037-money-on-the-wire.md)                     | Every amount with a currency is `Money`; block SQL functions return int8 as text, decoded strictly          |
 | [0038](0038-monthly-partitions-for-event-tables.md)   | Partition the outbox, usage history, webhook deliveries and notification delivery events by month on opt-in |
+| [0039](0039-name-permdock-on-create.md)               | The Create page names PermDock as one optional auth choice                                                  |

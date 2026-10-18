@@ -61,7 +61,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 12. Imports stay at the top; lazy loads are listed in `.agents/rules/lazy-imports.mdc`.
 13. Splinter lints are fetched at a pinned commit and hash, never vendored.
 14. Never bypass `minimumReleaseAge`.
-15. better-supabase never depends on or names an authorization library.
+15. better-supabase never depends on an authorization library; only the Create page names PermDock, as one optional choice.
 
 ## Conventions
 
@@ -155,6 +155,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0036: every SDK integration is an optional peer with a tested range.
 - 0037: every amount is `Money`; block SQL returns int8 as text, decoded strictly.
 - 0038: outbox, usage history, webhook deliveries and notification delivery events partition by month on opt-in.
+- 0039: the Create page names PermDock as one optional auth choice.
 
 ## Pre-release pins
 

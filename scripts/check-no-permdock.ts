@@ -1,7 +1,10 @@
 // Fails when the library, its skills, tests, READMEs, manifests, the docs, the
 // marketing site, the examples or the fixture name PermDock or use its shapes
-// (the `pdk_` key prefix, `permitted_<scope>_ids` helpers, its catalog file). Authorization libraries plug in through the
-// `AuthorizationProvider` interface, so better-supabase never depends on one.
+// (the `pdk_` key prefix, `permitted_<scope>_ids` helpers, its catalog file).
+// Authorization libraries plug in through the `AuthorizationProvider`
+// interface, so better-supabase never depends on one. The Create page may name
+// PermDock as one optional auth choice (ADR 0039): only its option module, that
+// module's test, the dialog that renders the setup and the create e2e spec.
 // Run with `node scripts/check-no-permdock.ts`.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -32,6 +35,10 @@ const pattern = /permdock|\bpdk_|permitted_|permissions\.catalog/iu;
 const allowed = new Set([
   "apps/docs/content/docs/extending/authorization-providers.mdx",
   "apps/docs/content/docs/migration/0.5-to-0.6.mdx",
+  "apps/marketing/e2e/create.spec.ts",
+  "apps/marketing/features/create/components/get-code-dialog.tsx",
+  "apps/marketing/lib/create-options.ts",
+  "apps/marketing/tests/lib/create-options.test.ts",
 ]);
 
 // Tracked and new files only, so build output such as `tsbuildinfo` is skipped.

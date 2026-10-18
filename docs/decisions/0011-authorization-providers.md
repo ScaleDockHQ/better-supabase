@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-09
+- Amended by [0039](0039-name-permdock-on-create.md): the Create page may name PermDock as one optional choice.
 
 ## Context
 
