@@ -412,6 +412,7 @@ export type Models = {
       currency: string;
       leadId: string | null;
       labelId: string | null;
+      deletedAt: string | null;
     };
     Insert: {
       id?: string;
@@ -423,6 +424,7 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Update: {
       id?: string;
@@ -434,6 +436,7 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -443,6 +446,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: {
+      softDelete: "deletedAt";
       tenant: "organizationId";
     };
   };
@@ -668,7 +672,7 @@ export const buckets = {
 } as const;
 
 /** The app's subject types, from `config.subjects`. */
-export const subjectTypes = ["customer", "company", "person", "deal", "work_item", "employee", "product", "product_variant", "drive_node", "application"] as const;
+export const subjectTypes = ["customer", "company", "person", "deal", "work_item", "employee", "product", "product_variant", "drive_node", "application", "project"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

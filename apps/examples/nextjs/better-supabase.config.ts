@@ -134,6 +134,14 @@ export default defineConfig({
           references: { block: "tags", table: "tags", onDelete: "set null" },
         },
       },
+      // Comments, attachments, tags, versions and search reach projects.
+      subject: {
+        type: "project",
+        title: "name",
+        url: "/projects/{id}",
+        search: {},
+        softDelete: true,
+      },
     },
     saved_views: {
       scope: "user",

@@ -102,6 +102,12 @@ begin
           and s."tenant_id" = trash_cascade.tenant
           and s."deleted_at" is null
         returning s."name"::text into v_title;
+    when 'project' then
+      update "public"."projects" s set "deleted_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."organization_id" = trash_cascade.tenant
+          and s."deleted_at" is null
+        returning s."name"::text into v_title;
     else
       raise exception 'this subject type has no deletedAt column' using errcode = '22023', hint = 'TRASH_UNSUPPORTED';
   end case;
@@ -147,6 +153,7 @@ begin
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'drive.read'), false)
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant)
     else false
   end and case trash.subject_type
     when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
@@ -210,6 +217,9 @@ begin
         where s."id" = (v_item.subject_id)::uuid;
     when 'drive_node' then
       update "better_supabase"."drive_nodes" s set "deleted_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'project' then
+      update "public"."projects" s set "deleted_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;
@@ -308,6 +318,7 @@ begin
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false)
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
     else false
   end)
     order by x."trashed_at" desc, x."id"
@@ -343,6 +354,9 @@ begin
         where s."id" = (v_item.subject_id)::uuid;
     when 'drive_node' then
       delete from "better_supabase"."drive_nodes" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'project' then
+      delete from "public"."projects" s
         where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;

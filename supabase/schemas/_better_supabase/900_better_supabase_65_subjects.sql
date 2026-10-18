@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application}'::text[]
+  select '{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -46,6 +46,8 @@ begin
       return (select s."sku"::text from "better_supabase"."product_variants" s where s."id" = (subject_title.subject_id)::uuid);
     when 'drive_node' then
       return (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'project' then
+      return (select s."name"::text from "public"."projects" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     else
       return null;
   end case;
@@ -80,6 +82,8 @@ begin
       return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
     when 'application' then
       return (select '/people/hiring' from "better_supabase"."applications" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'project' then
+      return (select '/projects/' || s."id"::text from "public"."projects" s where s."id" = (subject_url.subject_id)::uuid and s."deleted_at" is null);
     else
       return null;
   end case;
@@ -200,6 +204,12 @@ begin
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'hiring.write'), false)
           else true
         end)
+      );
+    when 'project' then
+      return exists (
+        select 1 from "public"."projects" s
+        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+          and true
       );
     else
       return false;
@@ -323,6 +333,12 @@ begin
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'hiring.write'), false)
           else false
         end
+      );
+    when 'project' then
+      return exists (
+        select 1 from "public"."projects" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and false
       );
     else
       return false;
