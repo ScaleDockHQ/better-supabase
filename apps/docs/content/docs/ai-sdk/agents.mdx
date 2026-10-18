@@ -101,6 +101,12 @@ same refusal, a `forbidden` `DbException` with the code
 delegates every tool, and `tools: []` delegates none. A read-only agent makes
 the run's `act` read-only too, so its tools can't write either.
 
+Only the runtime and `assertToolDelegated` read `tools`. Route guards and row
+level security don't, so code that runs a tool outside the runtime must call
+`assertToolDelegated` itself. Other libraries that read the same `act` claim
+may deny any tool the list doesn't name, so set `tools` when you mint a token
+another service checks.
+
 ```ts
 const runtime = createAgentRuntime({
   agent,

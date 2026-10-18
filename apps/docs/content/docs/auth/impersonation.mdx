@@ -478,28 +478,66 @@ the others (see [Delegated tools](/docs/ai-sdk/agents#delegated-tools)).
 `readOnly: true` writes `read_only: true`.
 An agent run's context carries the level as `run.act`, so a tool passes
 `agentClaims(claims, run.act)` to `asUser` or `forContext` and the audit
-log records the agent as the actor. A support token
-from 0.5.0, with `session_id` but no `kind`, counts as a support session
-until 0.6. An `act` claim that is not a chain of objects each with a `sub`,
-that has another `kind`, a support level without `session_id`, an agent
-level whose `tools` is not a list of names, or a support or agent level whose
-`read_only` is not a boolean makes the
-session `{ kind: 'invalid', reason: 'actor' }`.
+log records the agent as the actor.
+
+`tools` is enforced by the agent runtime only: `createAgentRuntime({ actor })`
+drops and refuses the tools the list doesn't name. The route guards, the
+`scopes` option and row level security don't read it, so a tool that runs
+outside the runtime is limited by the user's rights and the token's `scope`,
+not by `tools`. Other libraries that read the same claim may deny every tool
+the list doesn't name, so pass `tools` explicitly when you mint a token for
+them.
+
+An invalid `act` claim makes the session
+`{ kind: 'invalid', reason: 'actor' }` (code `ACTOR_INVALID`), never the user
+without an actor. `resolveAuth` answers 401, and `toSession` returns the same
+verdict for a hand-built state. The claim is invalid when it is not a chain
+of objects each with a `sub`, has a `kind` other than `support`,
+`impersonation` or `agent`, has a support level without `session_id`, an
+agent level with a `session_id`, an empty tool name or `tools` that is not a
+list, or a support or agent level whose `read_only` is not a boolean.
+
+A support token from 0.5.0, with `session_id` but no `kind`, is invalid too,
+in TypeScript and in `actor_may_write()`. better-supabase refuses it instead
+of reading it as a read-only support session, so an old token can't keep
+working with a guess at its rights. Start a new support session to mint a
+token with `kind: "support"`.
+
+`session.delegation.scopes` leaves out the OpenID Connect identity scopes
+(`openid`, `email`, `profile`, `phone`, `address` and `offline_access`,
+exported as `IDENTITY_SCOPES`), which grant no permission. A token whose
+`scope` names only identity scopes still has a delegation with
+`scopes: []`, so an agent on it passes no `scopes` check instead of getting
+the user's full rights.
 
 `better_supabase.actor_may_write()` decides by the outermost `kind`: a
 support session writes only with `read_only: false`, an agent unless
 `read_only` is `true`, and impersonation or any other `kind` never.
 `read_only` is compared as a JSON boolean, so a string fails closed.
 
-`impersonatorOf(claims)` from `better-supabase/server` reads the same claim
-anywhere else, and `supabaseClaimFixtures` from `better-supabase/testing`
-holds a token of each kind, for tests:
+`actorOf(claims)`, `delegationOf(claims)` and `impersonatorOf(claims)` from
+`better-supabase/server` read the same claims anywhere else, without a
+request. `actorOf` returns `{ ok: true, actor }` or
+`{ ok: false, reason: "invalid-chain" }`.
+
+`supabaseClaimFixtures` from `better-supabase/testing` holds a token of each
+kind, with what `toSession` reads from it. `supabaseInvalidClaimFixtures`
+holds the tokens it refuses, each expecting
+`{ kind: "invalid", reason: "actor", code: "ACTOR_INVALID" }`: the 0.5.0
+support token and the malformed levels listed above. Both are plain data, so
+another library can sign and check the same cases:
 
 ```ts title="tests/support-banner.test.ts"
-import { supabaseClaimFixtures } from "better-supabase/testing";
+import {
+  supabaseClaimFixtures,
+  supabaseInvalidClaimFixtures,
+} from "better-supabase/testing";
 
 const { claims, expect: read } = supabaseClaimFixtures.supportSessionReadOnly;
 // read.actor: { kind: "support", id, sessionId, readOnly: true, reason }
+
+const legacy = supabaseInvalidClaimFixtures.legacySupportSession;
+// legacy.expect: { kind: "invalid", reason: "actor", code: "ACTOR_INVALID" }
 ```
 
 `better-supabase/testing/act-cases.json` (also `actCases` from
