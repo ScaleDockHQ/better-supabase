@@ -17,6 +17,8 @@ export interface PresetCatalogBlock {
   readonly scopes?: readonly PresetScope[];
   /** Tenant names that would rename a table or column to a name it already uses. */
   readonly tenantNameClashes?: readonly PresetTenantName[];
+  /** The logical table `options.extraColumns` adds columns to, when it takes them. */
+  readonly extraColumns?: string;
   /** Modules it works with when installed; `*` is every module. */
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */

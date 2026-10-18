@@ -26,6 +26,8 @@ import type {
   PresetGlueItem,
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
+import type { ModuleContext } from "../packages/better-supabase/src/sql/context.ts";
+import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
@@ -34,6 +36,8 @@ import {
   SQL_MODULES,
   type SqlModule,
 } from "../packages/better-supabase/src/sql/index.ts";
+import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
+import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
 import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-clashes.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -357,6 +361,51 @@ const PORT_NAMES: readonly PortName[] = [
 const isPortName = (name: string): name is PortName =>
   PORT_NAMES.some((port) => port === name);
 
+/**
+ * The logical table `blocks.<name>.options.extraColumns` adds columns to,
+ * read by rendering the module with a copy of its context (plain closures,
+ * no getters) that records the table it passes to `ctx.extraColumns`.
+ */
+function extraColumnsTable(module: SqlModule): string | undefined {
+  if (module.names?.options?.includes("extraColumns") !== true) {
+    return undefined;
+  }
+
+  const layout: ModuleLayout = {
+    modules: {
+      [module.name]: { options: { extraColumns: { bs_probe: "text" } } },
+    },
+  };
+
+  const ctx = moduleContext(
+    module.name,
+    layout,
+    resolveModules([module.name], layout).map((each) => each.name),
+  );
+
+  const tables = new Set<string>();
+
+  const probe: ModuleContext = {
+    ...ctx,
+    extraColumns: (table, reserved) => {
+      tables.add(table);
+
+      return ctx.extraColumns(table, reserved);
+    },
+  };
+
+  module.build(probe, layout);
+  module.data?.(probe, layout);
+
+  if (tables.size !== 1) {
+    throw new Error(
+      `build-catalog: the "${module.name}" module declares options.extraColumns but adds them to ${String(tables.size)} tables (${[...tables].join(", ")}); the catalog expects one.`,
+    );
+  }
+
+  return [...tables][0];
+}
+
 function presetBlock(module: SqlModule): PresetCatalogBlock {
   const manifest = BLOCK_MANIFESTS.find((each) =>
     each.sql.includes(module.name),
@@ -401,6 +450,12 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
 
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
+  }
+
+  const extraColumns = extraColumnsTable(module);
+
+  if (extraColumns !== undefined) {
+    block = { ...block, extraColumns };
   }
 
   return Object.keys(byAccess).length === 0
