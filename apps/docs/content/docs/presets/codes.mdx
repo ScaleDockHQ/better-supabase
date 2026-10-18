@@ -58,6 +58,54 @@ must decode to the same selection forever.
 `presetOf` takes a named preset, a code or a `/create?preset=` URL, which
 is what the `preset` config key accepts.
 
+## Designs
+
+A preset code holds blocks and conventions. What you add on the Create
+canvas, the [app tables](/docs/blocks/app-tables), extra columns on block
+tables and where each table sits, goes in a second code that rides on the
+URL as `&design=`:
+
+```ts
+import {
+  designConfigSource,
+  designInstallCommand,
+  designOf,
+  encodeDesign,
+  namedPreset,
+  resolvePreset,
+} from "better-supabase/preset";
+
+const resolved = resolvePreset(namedPreset("crm"));
+
+const code = await encodeDesign({
+  appTables: { projects: { columns: { name: { type: "text" } } } },
+  extraColumns: { organizations: { tier: "text" } },
+  positions: { "public.projects": [120, 40] },
+});
+
+console.log(designConfigSource(resolved, (await designOf(code))!, code));
+console.log(designInstallCommand(resolved, code));
+// npx better-supabase init --preset "https://bettersupabase.com/create?preset=...&design=0..."
+```
+
+A design code starts with `0`, the format version, which no preset name or
+code starts with, followed by base64url of the design's JSON compressed
+with `deflate-raw`. It uses `CompressionStream`, so encoding and decoding
+are async and run on every runtime.
+
+`decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
+table that `appTables` wouldn't accept, a column type outside a plain SQL
+type, a block with no table for extra columns, or a code that inflates past
+256 KB. `encodeDesign` throws when the code would pass
+`MAX_DESIGN_CODE_LENGTH` (6000 characters); download the config then.
+
+| Function               | What it does                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- |
+| `designConfig`         | the preset's config with the design merged in; throws for extra columns on a block it doesn't install |
+| `designConfigSource`   | `better-supabase.config.ts` with the design, and the `/create` URL with both codes in its comment     |
+| `designInstallCommand` | `init --preset` with the quoted URL; the preset command when the code is empty                        |
+| `designApplyCommand`   | `apply --preset` with the quoted URL                                                                  |
+
 ## Resolving
 
 `resolvePreset(preset)` returns:

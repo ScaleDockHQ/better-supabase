@@ -156,7 +156,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0037: every amount is `Money`; block SQL returns int8 as text, decoded strictly.
 - 0038: outbox, usage history, webhook deliveries and notification delivery events partition by month on opt-in.
 - 0039: the Create page names PermDock as one optional auth choice.
-- 0040: app tables are a config key; Create designs travel in a second code.
+- 0040: `appTables` renders the app's own tables; a Create design rides on the URL as `&design=`.
 
 ## Pre-release pins
 
