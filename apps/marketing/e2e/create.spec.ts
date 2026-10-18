@@ -372,6 +372,50 @@ test("a table drawn on the canvas travels in the design code", async ({
   );
 });
 
+test("a column picked from the grouped type list keeps its kind", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  const inspector = page.getByRole("dialog", { name: "items" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("textbox", { name: "Add a column" }).fill("status");
+  await inspector.getByRole("combobox", { name: "Column type" }).click();
+  await expect(page.getByRole("group", { name: "Choice" })).toBeVisible();
+  await page.getByRole("option", { name: "Single select" }).click();
+  await inspector.getByRole("button", { name: "Add", exact: true }).click();
+
+  await expect(
+    inspector.getByRole("button", { name: "Remove option Option A" }),
+  ).toBeVisible();
+  await inspector.getByRole("textbox", { name: "Options" }).fill("Done");
+  await inspector.getByRole("textbox", { name: "Options" }).press("Enter");
+  await expect(
+    inspector.getByRole("button", { name: "Remove option Done" }),
+  ).toBeVisible();
+
+  const node = page.locator(".react-flow__node-table", { hasText: "items" });
+  await expect(node.getByText("select?", { exact: true })).toBeVisible();
+
+  await inspector.getByRole("tab", { name: "Options" }).click();
+  await inspector.getByRole("button", { name: "Add unique key" }).click();
+  await expect(
+    inspector.getByRole("combobox", { name: "Unique key 1" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page
+      .locator(".react-flow__node-table", { hasText: "items" })
+      .getByText("select?", { exact: true }),
+  ).toBeVisible();
+});
+
 test("a click on a table opens the inspector, and a drag doesn't", async ({
   page,
 }) => {

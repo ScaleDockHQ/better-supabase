@@ -26,6 +26,8 @@ export interface SchemaColumn {
   /** The default expression as the SQL writes it, or `null` without one. */
   readonly default: string | null;
   readonly unique: boolean;
+  /** What the column is beyond its type (`email`, `select`), when it is more. */
+  readonly label?: string;
 }
 
 export interface SchemaTable {

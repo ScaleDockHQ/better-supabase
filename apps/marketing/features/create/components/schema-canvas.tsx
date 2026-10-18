@@ -540,10 +540,13 @@ function CanvasInner({
         y: Math.round(center.y - 60),
       };
 
-      const added = addPrimitive(design, taken, kind, [
-        Math.round(at.x),
-        Math.round(at.y),
-      ]);
+      const added = addPrimitive(
+        design,
+        taken,
+        kind,
+        [Math.round(at.x), Math.round(at.y)],
+        preset.idType,
+      );
 
       const linked =
         references === undefined
