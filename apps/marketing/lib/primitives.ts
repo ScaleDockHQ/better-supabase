@@ -47,12 +47,16 @@ export interface AddedPrimitive {
   readonly name: string;
 }
 
-/** Adds an app table of one kind at a top-left corner, under the first free name. */
+/**
+ * Adds an app table of one kind at a top-left corner, under the first free
+ * name. A preset with bigint ids gives the table a bigint id.
+ */
 export function addPrimitive(
   design: Design,
   taken: ReadonlySet<string>,
   kind: PrimitiveKind,
   position: readonly [number, number],
+  idType = "uuid",
 ): AddedPrimitive {
   const primitive =
     PRIMITIVES.find((each) => each.kind === kind) ?? PRIMITIVES[0];
@@ -64,7 +68,14 @@ export function addPrimitive(
   const name = freeTableName(design, taken, primitive.base);
 
   return {
-    design: addTable(design, name, primitive.table, position),
+    design: addTable(
+      design,
+      name,
+      idType === "bigint"
+        ? { ...primitive.table, id: "bigint" }
+        : primitive.table,
+      position,
+    ),
     name,
   };
 }

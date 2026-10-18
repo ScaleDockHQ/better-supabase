@@ -276,8 +276,11 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
               <span className="min-w-0 flex-1 truncate font-mono text-xs">
                 {column.name}
               </span>
-              <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">
-                {column.type}
+              <span
+                className="max-w-24 truncate font-mono text-xs text-muted-foreground"
+                title={column.label === undefined ? undefined : column.type}
+              >
+                {column.label ?? column.type}
                 {column.nullable ? "?" : ""}
               </span>
               <Handle

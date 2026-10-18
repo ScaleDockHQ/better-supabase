@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
 
+import { boundError, fitted, optionError } from "../../lib/column-keys";
 import {
   addTable,
   appTableId,
   columnError,
   connect,
+  deleteColumn,
   deleteExtraColumn,
   deleteTable,
   type Design,
@@ -20,8 +22,10 @@ import {
   renameTable,
   setColumn,
   setExtraColumn,
+  setTableId,
   singular,
   tidy,
+  updateTable,
   userConnection,
   withDesign,
 } from "../../lib/design";
@@ -343,7 +347,7 @@ describe("withDesign", () => {
 
 describe("designIssues", () => {
   test("is empty for a valid design", () => {
-    expect(designIssues(projects, data)).toEqual([]);
+    expect(designIssues(projects, data, preset)).toEqual([]);
   });
 
   test("flags clashes, missing references, set null on required columns and orphan extra columns", () => {
@@ -360,11 +364,121 @@ describe("designIssues", () => {
       "text",
     );
 
-    expect(designIssues(design, data).map((issue) => issue.table)).toEqual([
+    expect(
+      designIssues(design, data, preset).map((issue) => issue.table),
+    ).toEqual(["projects", "projects", blockName, "not-a-block"]);
+  });
+});
+
+describe("column keys", () => {
+  test("fitted drops the keys a type can't take", () => {
+    expect(
+      fitted({
+        type: "integer",
+        format: "email",
+        options: ["a"],
+        min: 1.5,
+        max: 5,
+        identity: true,
+        default: "0",
+        nullable: true,
+      }),
+    ).toEqual({ type: "integer", max: 5, identity: true });
+
+    expect(
+      fitted({ type: "text", format: "email", min: -1, max: 200 }),
+    ).toEqual({ type: "text", format: "email", max: 200 });
+  });
+
+  test("checks options and bounds", () => {
+    expect(optionError(["a"], "a")).toMatch(/already/u);
+    expect(optionError([], "")).toMatch(/Enter/u);
+    expect(optionError([], "b\tc")).toMatch(/tabs/u);
+    expect(optionError([], "b")).toBeUndefined();
+
+    expect(boundError({ type: "integer" }, "min", "1.5")).toMatch(/whole/u);
+    expect(boundError({ type: "text" }, "max", "-1")).toMatch(/length/u);
+    expect(boundError({ type: "numeric", max: 1 }, "min", "2")).toMatch(
+      /at or below/u,
+    );
+    expect(boundError({ type: "numeric" }, "min", "")).toBeUndefined();
+  });
+
+  test("renaming and deleting a column updates the composite keys", () => {
+    const keyed = updateTable(
+      setColumn(projects, "projects", "code", { type: "text" }),
       "projects",
-      "projects",
-      blockName,
-      "not-a-block",
+      { unique: [["title", "code"]], indexes: [["code"]] },
+    );
+
+    const renamed = renameColumn(keyed, "projects", "code", "slug");
+
+    expect(renamed.appTables?.["projects"]?.unique).toEqual([
+      ["title", "slug"],
+    ]);
+    expect(renamed.appTables?.["projects"]?.indexes).toEqual([["slug"]]);
+
+    const deleted = deleteColumn(renamed, "projects", "slug");
+
+    expect(deleted.appTables?.["projects"]?.unique).toEqual([["title"]]);
+    expect(deleted.appTables?.["projects"]?.indexes).toBeUndefined();
+  });
+
+  test("updateTable removes a key set to undefined", () => {
+    const commented = updateTable(projects, "projects", {
+      comment: "A project",
+    });
+
+    expect(commented.appTables?.["projects"]?.comment).toBe("A project");
+    expect(
+      updateTable(commented, "projects", { comment: undefined }).appTables?.[
+        "projects"
+      ],
+    ).not.toHaveProperty("comment");
+  });
+
+  test("a bigint id retypes the columns that reference the table", () => {
+    const linked = setColumn(
+      addTable(projects, "tasks"),
+      "tasks",
+      "project_id",
+      {
+        type: "uuid",
+        default: "gen_random_uuid()",
+        references: { table: "projects" },
+      },
+    );
+
+    const next = setTableId(linked, "projects", "bigint");
+
+    expect(next.appTables?.["projects"]?.id).toBe("bigint");
+    expect(next.appTables?.["tasks"]?.columns?.["project_id"]).toEqual({
+      type: "bigint",
+      references: { table: "projects" },
+    });
+
+    const merged = withDesign(data, next, preset);
+
+    const id = merged.tables
+      .find((table) => table.id === appTableId("projects"))
+      ?.columns.find((column) => column.name === "id");
+
+    expect(id).toMatchObject({ type: "bigint", default: "identity" });
+    expect(
+      setTableId(next, "projects", "uuid").appTables?.["projects"],
+    ).not.toHaveProperty("id");
+  });
+
+  test("designIssues flags a composite key on a missing column", () => {
+    const design = updateTable(projects, "projects", {
+      unique: [["title", "missing"]],
+    });
+
+    expect(designIssues(design, data, preset)).toEqual([
+      {
+        table: "projects",
+        message: expect.stringMatching(/missing/u),
+      },
     ]);
   });
 });

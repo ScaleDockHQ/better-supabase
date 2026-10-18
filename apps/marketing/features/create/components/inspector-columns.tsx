@@ -23,18 +23,17 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { takesBounds } from "@/lib/column-keys";
+import {
+  COLUMN_KINDS,
+  type ColumnKind,
+  kindById,
+  kindOf,
+  setColumnKind,
+} from "@/lib/column-kinds";
 import {
   type AppColumn,
-  type AppColumnType,
-  APP_COLUMN_TYPES,
   appTableId,
   columnError,
   defaultError,
@@ -44,118 +43,23 @@ import {
   isAppTable,
   renameColumn,
   renameTable,
-  retyped,
   setColumn,
   setExtraColumn,
 } from "@/lib/design";
 
 import type { InspectorTab } from "./schema-nodes";
 
+import { BoundsFields, KindSelect, OptionsEditor } from "./column-fields";
+import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
+
+/** The kinds a block table's extra column can take: plain Postgres types. */
+const PLAIN_KINDS = COLUMN_KINDS.filter(
+  (kind) => Object.keys(kind.column).length === 1,
+);
 
 /** The preset fields the inspector reads. */
 export type InspectorPreset = Pick<Preset, "scope" | "tenantName" | "idType">;
-
-function isColumnType(value: unknown): value is AppColumnType {
-  return APP_COLUMN_TYPES.some((type) => type === value);
-}
-
-function TypeSelect({
-  id,
-  value,
-  onChange,
-}: {
-  id?: string;
-  value: AppColumnType;
-  onChange: (type: AppColumnType) => void;
-}): ReactElement {
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        if (isColumnType(next)) {
-          onChange(next);
-        }
-      }}
-    >
-      <SelectTrigger
-        id={id}
-        size="sm"
-        className="w-full"
-        aria-label="Column type"
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {APP_COLUMN_TYPES.map((type) => (
-          <SelectItem key={type} value={type} className="font-mono">
-            {type}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-/** A text field that commits on blur and Enter, and shows why a value is refused. */
-function CommitInput({
-  id,
-  value,
-  label,
-  validate,
-  onCommit,
-  placeholder,
-  mono = true,
-}: {
-  id: string;
-  value: string;
-  label: string;
-  validate?: (next: string) => string | undefined;
-  onCommit: (next: string) => void;
-  placeholder?: string;
-  mono?: boolean;
-}): ReactElement {
-  const [draft, setDraft] = useState(value);
-  const [source, setSource] = useState(value);
-
-  if (source !== value) {
-    setSource(value);
-    setDraft(value);
-  }
-
-  const error = draft === value ? undefined : validate?.(draft);
-
-  const commit = (): void => {
-    if (draft !== value && error === undefined) {
-      onCommit(draft);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      <Input
-        id={id}
-        aria-label={label}
-        aria-invalid={error === undefined ? undefined : true}
-        className={mono ? "font-mono" : ""}
-        value={draft}
-        placeholder={placeholder}
-        onChange={(event) => {
-          setDraft(event.target.value);
-        }}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            commit();
-          } else if (event.key === "Escape") {
-            setDraft(value);
-          }
-        }}
-      />
-      {error === undefined ? null : <FieldError>{error}</FieldError>}
-    </div>
-  );
-}
 
 export function OverviewTab({
   table,
@@ -259,6 +163,12 @@ function AppColumnRow({
     );
   };
 
+  const replace = (next: AppColumn): void => {
+    actions.apply(setColumn(state.design, table, name, next));
+  };
+
+  const kind = kindOf(column);
+
   return (
     <li className="flex flex-col gap-3 rounded-lg border border-border p-3">
       <div className="flex items-start gap-2">
@@ -273,12 +183,14 @@ function AppColumnRow({
             }}
           />
         </div>
-        <div className="w-32">
-          <TypeSelect
-            value={column.type}
-            onChange={(type) => {
+        <div className="w-40">
+          <KindSelect
+            kinds={COLUMN_KINDS}
+            value={kind.id}
+            disabled={kind.drawn === true}
+            onChange={(next) => {
               actions.apply(
-                setColumn(state.design, table, name, retyped(column, type)),
+                setColumnKind(state.design, table, name, next).design,
               );
             }}
           />
@@ -295,10 +207,17 @@ function AppColumnRow({
           <Trash2Icon aria-hidden="true" />
         </Button>
       </div>
+      {kind.drawn === true ? (
+        <p className="text-xs text-muted-foreground">
+          A link to {column.references?.table}. Delete it on the canvas to
+          change its type.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-4">
         <Field orientation="horizontal" className="w-auto">
           <Switch
             id={`${id}-required`}
+            disabled={column.identity === true}
             size="sm"
             checked={column.nullable === false}
             onCheckedChange={(checked) => {
@@ -319,23 +238,52 @@ function AppColumnRow({
           <FieldLabel htmlFor={`${id}-unique`}>Unique</FieldLabel>
         </Field>
       </div>
-      <Field>
-        <FieldLabel htmlFor={`${id}-default`}>Default</FieldLabel>
-        <CommitInput
-          id={`${id}-default`}
-          label="Default"
-          value={column.default ?? ""}
-          placeholder="now(), 0, 'draft'"
-          validate={(next) => defaultError(column.type, next)}
-          onCommit={(next) => {
-            const { default: _drop, ...rest } = column;
-            actions.apply(
-              setColumn(
-                state.design,
-                table,
-                name,
+      {column.options === undefined ? null : (
+        <OptionsEditor
+          options={column.options}
+          onChange={(options) => {
+            update({ options });
+          }}
+        />
+      )}
+      {column.identity === true ? null : (
+        <Field>
+          <FieldLabel htmlFor={`${id}-default`}>Default</FieldLabel>
+          <CommitInput
+            id={`${id}-default`}
+            label="Default"
+            value={column.default ?? ""}
+            placeholder="now(), 0, 'draft'"
+            validate={(next) => defaultError(column.type, next)}
+            onCommit={(next) => {
+              const { default: _drop, ...rest } = column;
+              replace(
                 next.trim() === "" ? rest : { ...rest, default: next.trim() },
-              ),
+              );
+            }}
+          />
+        </Field>
+      )}
+      {takesBounds(column.type) &&
+      column.options === undefined &&
+      column.identity !== true ? (
+        <BoundsFields column={column} onChange={replace} />
+      ) : null}
+      <Field>
+        <FieldLabel htmlFor={`${id}-comment`}>Description</FieldLabel>
+        <CommitInput
+          id={`${id}-comment`}
+          label="Description"
+          mono={false}
+          value={column.comment ?? ""}
+          placeholder="What the column holds, for the database comment"
+          validate={(next) =>
+            next.length > 1000 ? "Use at most 1000 characters." : undefined
+          }
+          onCommit={(next) => {
+            const { comment: _drop, ...rest } = column;
+            replace(
+              next.trim() === "" ? rest : { ...rest, comment: next.trim() },
             );
           }}
         />
@@ -345,15 +293,17 @@ function AppColumnRow({
 }
 
 function AddColumnForm({
+  kinds,
   validate,
   onAdd,
 }: {
+  kinds: readonly ColumnKind[];
   validate: (name: string) => string | undefined;
-  onAdd: (name: string, type: AppColumnType) => void;
+  onAdd: (name: string, kind: ColumnKind) => void;
 }): ReactElement {
   const id = useId();
   const [name, setName] = useState("");
-  const [type, setType] = useState<AppColumnType>("text");
+  const [kind, setKind] = useState("text");
   const error = name === "" ? undefined : validate(name);
 
   return (
@@ -362,8 +312,10 @@ function AddColumnForm({
       onSubmit={(event) => {
         event.preventDefault();
 
-        if (name !== "" && error === undefined) {
-          onAdd(name, type);
+        const picked = kindById(kind);
+
+        if (name !== "" && error === undefined && picked !== undefined) {
+          onAdd(name, picked);
           setName("");
         }
       }}
@@ -383,8 +335,14 @@ function AddColumnForm({
           />
           {error === undefined ? null : <FieldError>{error}</FieldError>}
         </div>
-        <div className="w-32">
-          <TypeSelect value={type} onChange={setType} />
+        <div className="w-40">
+          <KindSelect
+            kinds={kinds}
+            value={kind}
+            onChange={(next) => {
+              setKind(next.id);
+            }}
+          />
         </div>
         <Button
           type="submit"
@@ -447,9 +405,19 @@ export function ColumnsTab({
     return (
       <div className="flex flex-col gap-6">
         <AddColumnForm
+          kinds={COLUMN_KINDS}
           validate={(name) => columnError(config, name, preset)}
-          onAdd={(name, type) => {
-            actions.apply(setColumn(state.design, table.name, name, { type }));
+          onAdd={(name, kind) => {
+            actions.apply(
+              setColumnKind(
+                setColumn(state.design, table.name, name, {
+                  type: kind.column.type,
+                }),
+                table.name,
+                name,
+                kind,
+              ).design,
+            );
           }}
         />
         {own.length === 0 ? (
@@ -494,15 +462,21 @@ export function ColumnsTab({
       {extra === undefined ? null : (
         <section className="flex flex-col gap-3">
           <AddColumnForm
+            kinds={PLAIN_KINDS}
             validate={(name) =>
               identifierError(name) ??
               (names.has(name)
                 ? `The table already has a ${name} column.`
                 : undefined)
             }
-            onAdd={(name, type) => {
+            onAdd={(name, kind) => {
               actions.apply(
-                setExtraColumn(state.design, table.module, name, type),
+                setExtraColumn(
+                  state.design,
+                  table.module,
+                  name,
+                  kind.column.type,
+                ),
               );
             }}
           />

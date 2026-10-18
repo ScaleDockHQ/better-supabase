@@ -69,6 +69,7 @@ import {
   migrationsFor,
   MigrationsSkeleton,
 } from "./migrations-panel";
+import { TableKeyFields } from "./table-keys";
 
 const TABS: readonly {
   readonly value: InspectorTab;
@@ -394,6 +395,7 @@ function OptionsTab({
           created_at and updated_at
         </FieldLabel>
       </Field>
+      <TableKeyFields table={table} />
     </div>
   );
 }
