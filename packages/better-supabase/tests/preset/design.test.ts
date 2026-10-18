@@ -92,7 +92,7 @@ describe("design codes", () => {
     };
 
     expect(designFormat(DESIGN)).toBe(0);
-    expect(designFormat(formatted)).toBe(DESIGN_FORMAT);
+    expect(designFormat(formatted)).toBe(1);
     expect(await decodeDesign(await encodeDesign(formatted))).toEqual(
       formatted,
     );
@@ -107,8 +107,22 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 1; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 2; update better-supabase",
     );
+  });
+
+  it("writes format 2 for a table that is a subject", async () => {
+    const subject: CreateDesign = {
+      appTables: {
+        projects: {
+          columns: { name: { type: "text" } },
+          subject: { type: "project", title: "name", rank: true },
+        },
+      },
+    };
+
+    expect(designFormat(subject)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(subject))).toEqual(subject);
   });
 
   it("encodes an empty design to an empty code", async () => {

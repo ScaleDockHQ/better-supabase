@@ -540,6 +540,27 @@ const ENTRIES = {
         unique: v.optional(v.array(v.array(v.string()))),
         indexes: v.optional(v.array(v.array(v.string()))),
         comment: v.optional(v.string()),
+        subject: v.optional(
+          v.strictObject({
+            type: v.string(),
+            title: v.optional(v.string()),
+            url: v.optional(v.string()),
+            search: v.optional(
+              v.strictObject({
+                title: v.optional(v.string()),
+                body: v.optional(v.array(v.string())),
+              }),
+            ),
+            permissions: v.optional(v.record(v.string(), v.string())),
+            rank: v.optional(
+              v.union([
+                v.literal(true),
+                v.strictObject({ group: v.optional(v.string()) }),
+              ]),
+            ),
+            softDelete: v.optional(v.boolean()),
+          }),
+        ),
       }),
     ),
   ),

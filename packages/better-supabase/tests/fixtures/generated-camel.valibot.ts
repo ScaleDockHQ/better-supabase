@@ -256,6 +256,7 @@ export const projectsRow: v.GenericSchema<RowOf<'projects'>> = v.pipe(v.object({
   currency: v.string(),
   leadId: v.nullable(v.pipe(v.string(), v.uuid())),
   labelId: v.nullable(v.pipe(v.string(), v.uuid())),
+  deletedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Projects"));
 export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -267,6 +268,7 @@ export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.ob
   currency: v.exactOptional(v.string()),
   leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
 }), v.title("Projects insert"));
 export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -278,6 +280,7 @@ export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.ob
   currency: v.exactOptional(v.string()),
   leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
 }), v.title("Projects update"));
 
 export const savedViewsRow: v.GenericSchema<RowOf<'savedViews'>> = v.pipe(v.object({

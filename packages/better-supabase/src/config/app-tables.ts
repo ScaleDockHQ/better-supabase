@@ -1,3 +1,6 @@
+import type { BlockScope } from "./blocks.ts";
+import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
+
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
@@ -6,6 +9,7 @@ import {
   type AppColumnType,
   type AppReference,
   type AppTableConfig,
+  type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
 
@@ -34,7 +38,24 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "unique",
   "indexes",
   "comment",
+  "subject",
 ]);
+
+const SUBJECT_KEYS: ReadonlySet<string> = new Set([
+  "type",
+  "title",
+  "url",
+  "search",
+  "permissions",
+  "rank",
+  "softDelete",
+]);
+
+/** The columns `subject.rank` and `subject.softDelete` add. */
+export const APP_RANK_COLUMN = "rank";
+export const APP_DELETED_AT_COLUMN = "deleted_at";
+
+const PLACEHOLDER = /\{([^}]*)\}/gu;
 
 const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "type",
@@ -556,6 +577,169 @@ function columnOf(
   };
 }
 
+function namedColumn(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): string {
+  if (typeof value !== "string" || !columns.has(value)) {
+    throw new TypeError(
+      `${where} must name a column of the table (${[...columns].join(", ")})`,
+    );
+  }
+
+  return value;
+}
+
+function searchOf(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): AppTableSubject["search"] {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
+
+  checkKeys(where, value, new Set(["title", "body"]));
+  const { title, body } = value;
+
+  if (body !== undefined && !Array.isArray(body)) {
+    throw new TypeError(`${where}.body must be a list of columns`);
+  }
+
+  return {
+    ...(title === undefined
+      ? {}
+      : { title: namedColumn(`${where}.title`, title, columns) }),
+    ...(body === undefined
+      ? {}
+      : {
+          body: body.map((each: unknown) =>
+            namedColumn(`${where}.body`, each, columns),
+          ),
+        }),
+  };
+}
+
+function permissionsOf(
+  where: string,
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    !isObject(value) ||
+    Object.values(value).some((key) => typeof key !== "string" || key === "")
+  ) {
+    throw new TypeError(`${where} must map each action to a permission key`);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([action, key]) => [action, String(key)]),
+  );
+}
+
+function rankOf(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): AppTableSubject["rank"] {
+  if (value === undefined || value === true) {
+    return value;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be true or { group }`);
+  }
+
+  checkKeys(where, value, new Set(["group"]));
+
+  return value["group"] === undefined
+    ? {}
+    : { group: namedColumn(`${where}.group`, value["group"], columns) };
+}
+
+/**
+ * `subject` checked against the table's columns. `columns` holds every
+ * column the table has, the ones `rank` and `softDelete` add included.
+ */
+function subjectOf(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): AppTableSubject | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
+
+  checkKeys(where, value, SUBJECT_KEYS);
+  const { type, title, url } = value;
+
+  if (typeof type !== "string" || !IDENT.test(type)) {
+    throw new TypeError(
+      `${where}.type must be lowercase letters, digits and underscores, starting with a letter`,
+    );
+  }
+
+  if (url !== undefined) {
+    if (typeof url !== "string" || !url.startsWith("/")) {
+      throw new TypeError(`${where}.url must be a path starting with /`);
+    }
+
+    for (const [, name] of url.matchAll(PLACEHOLDER)) {
+      namedColumn(`${where}.url {${name ?? ""}}`, name, columns);
+    }
+  }
+
+  const search = searchOf(`${where}.search`, value["search"], columns);
+
+  const permissions = permissionsOf(
+    `${where}.permissions`,
+    value["permissions"],
+  );
+
+  const rank = rankOf(`${where}.rank`, value["rank"], columns);
+
+  const softDelete = optionalBoolean(
+    `${where}.softDelete`,
+    value["softDelete"],
+  );
+
+  return {
+    type,
+    ...(title === undefined
+      ? {}
+      : { title: namedColumn(`${where}.title`, title, columns) }),
+    ...(url === undefined ? {} : { url }),
+    ...(search === undefined ? {} : { search }),
+    ...(permissions === undefined ? {} : { permissions }),
+    ...(rank === undefined ? {} : { rank }),
+    ...(softDelete === undefined ? {} : { softDelete }),
+  };
+}
+
+/** The columns the subject adds, which `columns` may not name. */
+function subjectColumnsOf(value: unknown): readonly string[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  return [
+    ...(value["rank"] === undefined ? [] : [APP_RANK_COLUMN]),
+    ...(value["softDelete"] === true ? [APP_DELETED_AT_COLUMN] : []),
+  ];
+}
+
 function tableOf(
   where: string,
   value: unknown,
@@ -590,6 +774,8 @@ function tableOf(
     throw new TypeError(`${where}.columns must be an object keyed by column`);
   }
 
+  const added = subjectColumnsOf(value["subject"]);
+
   const resolved = Object.entries(columns ?? {}).map(([name, column]) => {
     const at = `${where}.columns.${name}`;
 
@@ -605,8 +791,20 @@ function tableOf(
       );
     }
 
+    if (added.includes(name)) {
+      throw new TypeError(
+        `${at}: "${name}" is the column ${where}.subject adds; remove it from columns`,
+      );
+    }
+
     return [name, columnOf(at, column, tables)] as const;
   });
+
+  const subject = subjectOf(
+    `${where}.subject`,
+    value["subject"],
+    new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
+  );
 
   return {
     ...(columns === undefined ? {} : { columns: Object.fromEntries(resolved) }),
@@ -616,6 +814,7 @@ function tableOf(
     ...(unique === undefined ? {} : { unique }),
     ...(indexes === undefined ? {} : { indexes }),
     ...(comment === undefined ? {} : { comment }),
+    ...(subject === undefined ? {} : { subject }),
   };
 }
 
@@ -656,4 +855,67 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
       return [name, tableOf(`appTables.${name}`, table, tables, reserved)];
     }),
   );
+}
+
+/**
+ * `subjects` with the subject of every app table that sets one (ADR 0043):
+ * the table in `public`, its id type, and its tenant column, or `false`
+ * for a table kept per user or shared. `scope` is `sql.scope` and `tenant`
+ * is `sql.naming.tenant`. Throws when a type is taken twice.
+ */
+export function withAppTableSubjects(
+  subjects: SubjectsConfig,
+  appTables: AppTablesConfig,
+  scope: BlockScope | undefined,
+  tenant = "organization",
+): SubjectsConfig {
+  const merged: Record<string, SubjectConfig> = { ...subjects };
+
+  for (const [name, table] of Object.entries(appTables)) {
+    const subject = table.subject;
+
+    if (subject === undefined) {
+      continue;
+    }
+
+    const where = `appTables.${name}.subject`;
+
+    if (Object.hasOwn(merged, subject.type)) {
+      throw new TypeError(
+        `${where}.type: "${subject.type}" is already a subject type; choose another type or remove subjects.${subject.type}`,
+      );
+    }
+
+    const kept =
+      table.scope === undefined || table.scope === "inherit"
+        ? (scope ?? "tenant")
+        : table.scope;
+
+    merged[subject.type] = {
+      table: `public.${name}`,
+      idType: table.id ?? "uuid",
+      tenant: kept === "tenant" ? `${tenant}_id` : false,
+      ...(subject.title === undefined ? {} : { title: subject.title }),
+      ...(subject.url === undefined ? {} : { url: subject.url }),
+      ...(subject.search === undefined ? {} : { search: subject.search }),
+      ...(subject.permissions === undefined
+        ? {}
+        : { permissions: subject.permissions }),
+      ...(subject.softDelete === true
+        ? { deletedAt: APP_DELETED_AT_COLUMN }
+        : {}),
+      ...(subject.rank === undefined
+        ? {}
+        : {
+            rank: {
+              column: APP_RANK_COLUMN,
+              ...(subject.rank === true || subject.rank.group === undefined
+                ? {}
+                : { group: subject.rank.group }),
+            },
+          }),
+    };
+  }
+
+  return merged;
 }

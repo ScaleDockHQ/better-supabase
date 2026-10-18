@@ -252,6 +252,7 @@ export const projectsRow: z.ZodMiniType<RowOf<'projects'>> = z.object({
   currency: z.string(),
   leadId: z.nullable(z.guid()),
   labelId: z.nullable(z.guid()),
+  deletedAt: z.nullable(z.iso.datetime({ offset: true })),
 }).check(z.meta({ title: "Projects" }));
 export const projectsInsert: z.ZodMiniType<InsertOf<'projects'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -263,6 +264,7 @@ export const projectsInsert: z.ZodMiniType<InsertOf<'projects'>> = z.object({
   currency: z.exactOptional(z.string()),
   leadId: z.exactOptional(z.nullable(z.guid())),
   labelId: z.exactOptional(z.nullable(z.guid())),
+  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
 }).check(z.meta({ title: "Projects insert" }));
 export const projectsUpdate: z.ZodMiniType<UpdateOf<'projects'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -274,6 +276,7 @@ export const projectsUpdate: z.ZodMiniType<UpdateOf<'projects'>> = z.object({
   currency: z.exactOptional(z.string()),
   leadId: z.exactOptional(z.nullable(z.guid())),
   labelId: z.exactOptional(z.nullable(z.guid())),
+  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
 }).check(z.meta({ title: "Projects update" }));
 
 export const savedViewsRow: z.ZodMiniType<RowOf<'savedViews'>> = z.object({

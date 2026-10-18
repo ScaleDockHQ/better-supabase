@@ -51,6 +51,7 @@ export function moduleContext(
       ...(modules ? { modules } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
+      ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(installed ? { installed } : {}),
       ...(layout.scope ? { scope: layout.scope } : {}),
       ...(layout.naming?.tenant ? { tenantName: layout.naming.tenant } : {}),

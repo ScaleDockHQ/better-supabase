@@ -1823,6 +1823,47 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
+          },
+          "subject": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "description": "Registers the table as a subject, so comments, attachments, tags, versions, search and other blocks reach its rows (ADR 0043).",
+            "properties": {
+              "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+              "title": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,62}$"
+              },
+              "url": { "type": "string", "pattern": "^/" },
+              "search": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "title": { "type": "string" },
+                  "body": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "permissions": {
+                "type": "object",
+                "additionalProperties": { "type": "string", "minLength": 1 }
+              },
+              "rank": {
+                "description": "Adds a rank text column for move(), ordered within group when set.",
+                "oneOf": [
+                  { "const": true },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": { "group": { "type": "string" } }
+                  }
+                ]
+              },
+              "softDelete": {
+                "type": "boolean",
+                "description": "Adds a deleted_at column that blocks treat as the soft-delete time."
+              }
+            }
           }
         }
       }

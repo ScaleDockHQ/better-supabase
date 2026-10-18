@@ -119,6 +119,50 @@ describe("appTables SQL", () => {
     ).toMatchFileSnapshot("__golden__/app-tables/none.sql");
   });
 
+  it("renders a subject's rank and soft-delete columns and its search trigger", async () => {
+    const appTables: AppTablesConfig = {
+      projects: {
+        columns: {
+          name: { type: "text", nullable: false },
+          stage: { type: "text" },
+        },
+        subject: {
+          type: "project",
+          title: "name",
+          search: {},
+          rank: { group: "stage" },
+          softDelete: true,
+        },
+      },
+    };
+
+    const files = render([...BLOCKS, "subjects", "search"], {
+      appTables,
+      subjects: {
+        project: {
+          table: "public.projects",
+          idType: "uuid",
+          title: "name",
+          search: {},
+          deletedAt: "deleted_at",
+          rank: { column: "rank", group: "stage" },
+        },
+      },
+    });
+
+    const search = renderModules([...BLOCKS, "subjects", "search"], {
+      appTables,
+      subjects: {
+        project: { table: "public.projects", title: "name", search: {} },
+      },
+    }).find((file) => file.module === "search" && file.kind === "schema");
+
+    expect(search?.contents).not.toContain("bs_search_project_index");
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/subject.sql",
+    );
+  });
+
   it("renders the golden SQL with the tenant renamed", async () => {
     await expect(
       golden(

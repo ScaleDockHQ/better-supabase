@@ -51,6 +51,7 @@ export {
   type AppReference,
   type AppReferenceTarget,
   type AppTableConfig,
+  type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
 

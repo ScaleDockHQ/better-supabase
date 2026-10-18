@@ -1166,6 +1166,13 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
       "required": [
@@ -1177,7 +1184,8 @@
         "budgetMinor",
         "currency",
         "leadId",
-        "labelId"
+        "labelId",
+        "deletedAt"
       ],
       "additionalProperties": false
     },
@@ -1225,6 +1233,13 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
       "required": [
@@ -1277,6 +1292,13 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
       "additionalProperties": false
