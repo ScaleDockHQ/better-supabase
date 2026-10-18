@@ -7,11 +7,16 @@ import type {
 import type { ModuleContext, ModuleIdType } from "../context.ts";
 import type { ModuleFile, ModuleLayout } from "../module-types.ts";
 
-import { AUTH_USERS } from "../../config/app-tables.ts";
+import {
+  APP_DELETED_AT_COLUMN,
+  APP_RANK_COLUMN,
+  AUTH_USERS,
+} from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
 
 /**
@@ -298,13 +303,47 @@ function createSql(table: AppTable): string {
 );`;
 }
 
+/** The columns `subject.rank` and `subject.softDelete` add. */
+function subjectColumnsSql(table: AppTable): readonly string[] {
+  const subject = table.config.subject;
+
+  return [
+    ...(subject?.rank === undefined
+      ? []
+      : [`${sqlIdent(APP_RANK_COLUMN)} text collate "C" not null default 'V'`]),
+    ...(subject?.softDelete === true
+      ? [`${sqlIdent(APP_DELETED_AT_COLUMN)} timestamptz`]
+      : []),
+  ];
+}
+
 function columnsSql(table: AppTable): string {
-  return Object.entries(table.config.columns ?? {})
+  return [
+    ...Object.entries(table.config.columns ?? {}).map(([name, column]) =>
+      columnSql(table, name, column),
+    ),
+    ...subjectColumnsSql(table),
+  ]
     .map(
-      ([name, column]) =>
-        `alter table ${qualified(table.name)} add column if not exists ${columnSql(table, name, column)};`,
+      (column) =>
+        `alter table ${qualified(table.name)} add column if not exists ${column};`,
     )
     .join("\n");
+}
+
+/** The rank key's index, within its group when the subject sets one. */
+function rankIndex(table: AppTable): readonly (readonly string[])[] {
+  const rank = table.config.subject?.rank;
+
+  if (rank === undefined) {
+    return [];
+  }
+
+  return [
+    rank === true || rank.group === undefined
+      ? [APP_RANK_COLUMN]
+      : [rank.group, APP_RANK_COLUMN],
+  ];
 }
 
 function indexesSql(table: AppTable): string {
@@ -318,7 +357,11 @@ function indexesSql(table: AppTable): string {
       .map(([name]) => name),
   ];
 
-  return [...indexed.map((column) => [column]), ...(table.config.indexes ?? [])]
+  return [
+    ...indexed.map((column) => [column]),
+    ...rankIndex(table),
+    ...(table.config.indexes ?? []),
+  ]
     .map(
       (columns) =>
         `create index if not exists ${sqlIdent(`${table.name}_${columns.join("_")}_idx`)} on ${qualified(table.name)} (${columns.map((column) => sqlIdent(column)).join(", ")});`,
@@ -333,6 +376,10 @@ function columnNames(table: AppTable): readonly string[] {
     ...(table.scope ? [table.scope.name] : []),
     ...(table.config.timestamps === false ? [] : ["created_at", "updated_at"]),
     ...Object.keys(table.config.columns ?? {}),
+    ...(table.config.subject?.rank === undefined ? [] : [APP_RANK_COLUMN]),
+    ...(table.config.subject?.softDelete === true
+      ? [APP_DELETED_AT_COLUMN]
+      : []),
   ];
 }
 
@@ -756,6 +803,9 @@ export function appTablesFiles(
       .join("\n\n"),
     ...tables.map((table) => tableSql(table)),
     tenantKeysSql(tables),
+    installed.includes("search")
+      ? appTableSearchTriggers(moduleContext("search", layout, installed))
+      : "",
   ]
     .filter((part) => part !== "")
     .join("\n\n");

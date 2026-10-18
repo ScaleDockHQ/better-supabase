@@ -235,6 +235,11 @@ export interface ModuleContext {
   /** The app-wide subject registry (`config.subjects`). */
   readonly subjects: SubjectsConfig;
   /**
+   * The names of `config.appTables`, created in `public` after every block
+   * file, so a block can't put a trigger on one (ADR 0043).
+   */
+  readonly appTables: ReadonlySet<string>;
+  /**
    * Who the module's rows belong to, and the checks for it: the port every
    * tenant, user or shared-space check goes through.
    */
@@ -401,6 +406,8 @@ export interface ModuleContextSource {
   readonly modules?: AnyBlocksConfig;
   /** `config.subjects`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
+  /** The names of `config.appTables`. */
+  readonly appTables?: readonly string[];
   readonly claims?: ClaimsMeta;
   /** The modules being installed together. */
   readonly installed?: readonly string[];
@@ -883,6 +890,7 @@ export function createModuleContext(
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
     subjects: source.subjects ?? {},
+    appTables: new Set(source.appTables),
     scope,
     naming,
     modules,

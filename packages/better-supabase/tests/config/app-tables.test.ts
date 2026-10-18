@@ -345,4 +345,87 @@ describe("isAppDefault", () => {
   ] as const)("%s accepts %s: %s", (type, value, expected) => {
     expect(isAppDefault(type, value)).toBe(expected);
   });
+
+  it("merges a table's subject into subjects", () => {
+    const config = resolveConfig(
+      {
+        sql: { naming: { tenant: "workspace" } },
+        subjects: { customer: { table: "public.customers" } },
+        appTables: {
+          projects: {
+            id: "bigint",
+            columns: {
+              name: { type: "text", nullable: false },
+              stage: { type: "text" },
+            },
+            subject: {
+              type: "project",
+              title: "name",
+              url: "/projects/{id}",
+              search: { body: ["stage"] },
+              permissions: { read: "projects.read" },
+              rank: { group: "stage" },
+              softDelete: true,
+            },
+          },
+          notes: { scope: "user", subject: { type: "note", rank: true } },
+        },
+      },
+      "/app",
+    );
+
+    expect(config.subjects).toEqual({
+      customer: { table: "public.customers" },
+      project: {
+        table: "public.projects",
+        idType: "bigint",
+        tenant: "workspace_id",
+        title: "name",
+        url: "/projects/{id}",
+        search: { body: ["stage"] },
+        permissions: { read: "projects.read" },
+        deletedAt: "deleted_at",
+        rank: { column: "rank", group: "stage" },
+      },
+      note: {
+        table: "public.notes",
+        idType: "uuid",
+        tenant: false,
+        rank: { column: "rank" },
+      },
+    });
+  });
+
+  it("refuses a subject type that is taken or a column the table lacks", () => {
+    expect(() =>
+      resolveConfig(
+        {
+          subjects: { project: { table: "public.other" } },
+          appTables: { projects: { subject: { type: "project" } } },
+        },
+        "/app",
+      ),
+    ).toThrow(/appTables.projects.subject.type: "project" is already/u);
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", title: "name" } },
+      }),
+    ).toThrow(/subject.title must name a column/u);
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", url: "/p/{slug}" } },
+      }),
+    ).toThrow(/subject.url \{slug\} must name a column/u);
+    expect(() =>
+      appTablesOf({
+        projects: {
+          columns: { rank: { type: "text" } },
+          subject: { type: "project", rank: true },
+        },
+      }),
+    ).toThrow(/"rank" is the column appTables.projects.subject adds/u);
+    expect(() =>
+      appTablesOf({ projects: { subject: { type: "Project" } } }),
+    ).toThrow(/subject.type must be lowercase/u);
+  });
 });

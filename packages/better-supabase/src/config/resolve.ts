@@ -7,7 +7,7 @@ import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { expandPreset } from "../preset/config.ts";
-import { appTablesOf } from "./app-tables.ts";
+import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
@@ -205,6 +205,7 @@ export function resolveConfig(
   const output = config.output ?? CONFIG_DEFAULTS.output;
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
   const legacyOpenApi = config.openapi;
+  const appTables = appTablesOf(config.appTables, config.sql?.naming?.tenant);
 
   return {
     root,
@@ -274,7 +275,12 @@ export function resolveConfig(
       ? {}
       : { authorization: authorizationOf(config.authorization) }),
     vectorSearch: vectorSearchOf(config.vectorSearch),
-    subjects: config.subjects ?? {},
+    subjects: withAppTableSubjects(
+      config.subjects ?? {},
+      appTables,
+      config.sql?.scope,
+      config.sql?.naming?.tenant,
+    ),
     sql: {
       ...(config.sql?.workflow === undefined
         ? {}
@@ -289,7 +295,7 @@ export function resolveConfig(
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),
-    appTables: appTablesOf(config.appTables, config.sql?.naming?.tenant),
+    appTables,
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
       output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,

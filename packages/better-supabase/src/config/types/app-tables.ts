@@ -108,6 +108,39 @@ export interface AppTableConfig {
   readonly indexes?: readonly (readonly string[])[];
   /** Rendered as `comment on table`. */
   readonly comment?: string;
+  /**
+   * Registers the table as a subject (ADR 0043), so blocks that attach rows
+   * to subjects (comments, attachments, tags, versions, search and others)
+   * reach its rows without a `subjects` entry.
+   */
+  readonly subject?: AppTableSubject;
+}
+
+/**
+ * The subject an app table registers. The table, id type and tenant column
+ * come from the table itself.
+ */
+export interface AppTableSubject {
+  /** The subject type, lowercase letters, digits and underscores. */
+  readonly type: string;
+  /** The column `subject_title` returns. */
+  readonly title?: string;
+  /** The path `subject_url` returns, with `{column}` placeholders: `/projects/{id}`. */
+  readonly url?: string;
+  /** The columns a search index reads. */
+  readonly search?: {
+    readonly title?: string;
+    readonly body?: readonly string[];
+  };
+  /** A permission key per action that `can_subject` checks; see `SubjectConfig.permissions`. */
+  readonly permissions?: Readonly<Record<string, string>>;
+  /**
+   * Adds a `rank text collate "C"` column for `move()` (ADR 0021), ordered
+   * within `group` when set.
+   */
+  readonly rank?: true | { readonly group?: string };
+  /** Adds a `deleted_at timestamptz` column that blocks treat as the soft-delete time. */
+  readonly softDelete?: boolean;
 }
 
 export type AppTablesConfig = Readonly<Record<string, AppTableConfig>>;

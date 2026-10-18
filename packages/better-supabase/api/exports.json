@@ -241,6 +241,7 @@
       "AppReferenceTarget",
       "AppTableConfig",
       "AppTablesConfig",
+      "AppTableSubject",
       "AuthorizationFunctions",
       "AuthorizationMembership",
       "AuthorizationOperation",
