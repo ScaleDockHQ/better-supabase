@@ -18,7 +18,7 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
  * The blocks the app uses. Each one's schema (the API schema when `sql.api`
  * is set) and the options its SQL half shares come from
  * `blocks.generated.ts`, which `better-supabase gen` writes from the config.
- * Add a block here after `npx better-supabase sql add <block>`.
+ * Add a block here after `npx better-supabase add <block>`.
  */
 export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,

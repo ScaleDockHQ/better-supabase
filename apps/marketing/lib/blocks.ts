@@ -289,7 +289,7 @@ export function blockGraphSummary(block: CatalogBlock): string {
 
 /** The command that installs the block's SQL today. */
 export function installCommand(name: string): string {
-  return `npx better-supabase sql add ${name}`;
+  return `npx better-supabase add ${name}`;
 }
 
 const configKey = (name: string): string =>
@@ -313,7 +313,7 @@ export function configSnippet(
   ];
 
   if (dependencies.length > 0) {
-    lines.push(`    // Required by ${block.name}; sql add installs them too.`);
+    lines.push(`    // Required by ${block.name}; add installs them too.`);
 
     for (const name of dependencies) {
       lines.push(`    ${configKey(name)}: {},`);

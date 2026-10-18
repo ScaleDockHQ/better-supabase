@@ -27,7 +27,7 @@ describe("recipePrompt", () => {
       expect(prompt).toContain(`"${recipe.title}"`);
       expect(prompt).toContain(recipe.description);
       expect(prompt).toContain(
-        `npx better-supabase sql add ${recipe.blocks.join(" ")}`,
+        `npx better-supabase add ${recipe.blocks.join(" ")}`,
       );
 
       for (const text of recipe.hook

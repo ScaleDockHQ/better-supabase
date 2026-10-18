@@ -36,7 +36,7 @@
       "next"
     ]
   },
-  "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase sql add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+  "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
   "categories": [
     "route"
   ],

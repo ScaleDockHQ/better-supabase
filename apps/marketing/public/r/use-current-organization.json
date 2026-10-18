@@ -29,7 +29,7 @@
       "expo"
     ]
   },
-  "docs": "Needs the organizations block (`npx better-supabase sql add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
+  "docs": "Needs the organizations block (`npx better-supabase add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations#switching-organizations.",
   "categories": [
     "hook"
   ],

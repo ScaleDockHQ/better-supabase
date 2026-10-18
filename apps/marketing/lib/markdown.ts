@@ -212,7 +212,7 @@ export function blocksIndexMarkdown(
 
   const sections = [
     "# better-supabase blocks",
-    `> ${total} SQL modules with typed clients. Install one with \`npx better-supabase sql add <name>\`.`,
+    `> ${total} SQL modules with typed clients. Install one with \`npx better-supabase add <name>\`.`,
   ];
 
   for (const group of groups) {

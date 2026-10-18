@@ -29,7 +29,7 @@
       "expo"
     ]
   },
-  "docs": "Needs the onboarding block: `npx better-supabase sql add onboarding`, with the checklist in its `checklists` option. See https://bettersupabase.com/recipes/onboarding-checklist.",
+  "docs": "Needs the onboarding block: `npx better-supabase add onboarding`, with the checklist in its `checklists` option. See https://bettersupabase.com/recipes/onboarding-checklist.",
   "categories": [
     "wiring"
   ],

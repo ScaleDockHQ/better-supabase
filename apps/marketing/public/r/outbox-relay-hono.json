@@ -30,7 +30,7 @@
       "hono"
     ]
   },
-  "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. Mount it with `app.route(\"/outbox\", outboxRoutes)` and call it from a cron that sends `Authorization: Bearer <CRON_SECRET>`. See https://bettersupabase.com/docs/blocks/outbox.",
+  "docs": "Needs the outbox block: `npx better-supabase add outbox`. Mount it with `app.route(\"/outbox\", outboxRoutes)` and call it from a cron that sends `Authorization: Bearer <CRON_SECRET>`. See https://bettersupabase.com/docs/blocks/outbox.",
   "categories": [
     "route"
   ],

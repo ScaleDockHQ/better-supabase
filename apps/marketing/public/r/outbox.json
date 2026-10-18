@@ -32,7 +32,7 @@
       "react-router"
     ]
   },
-  "docs": "Needs the outbox block: `npx better-supabase sql add outbox`. `APP_URL` becomes each CloudEvent's `source`. See https://bettersupabase.com/docs/blocks/outbox.",
+  "docs": "Needs the outbox block: `npx better-supabase add outbox`. `APP_URL` becomes each CloudEvent's `source`. See https://bettersupabase.com/docs/blocks/outbox.",
   "categories": [
     "server"
   ],

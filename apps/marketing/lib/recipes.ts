@@ -107,9 +107,9 @@ export function recipeSummary(recipe: Recipe): RecipeSummary {
   };
 }
 
-/** `npx better-supabase sql add` for every block the recipe uses. */
+/** `npx better-supabase add` for every block the recipe uses. */
 export function recipeInstall(recipe: Recipe): string {
-  return `npx better-supabase sql add ${recipe.blocks.join(" ")}`;
+  return `npx better-supabase add ${recipe.blocks.join(" ")}`;
 }
 
 /** A recipe's category is its primary block's. */
