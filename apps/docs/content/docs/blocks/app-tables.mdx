@@ -194,6 +194,46 @@ A set can name any column the table has, including `id`, the scope column
 and the timestamps. A column a set names that the table doesn't have fails
 `sql sync` with the table and the column.
 
+## Record features
+
+Give a table a `subject` and it becomes a subject type, the same as an entry
+in `subjects` (see [Subject registry](/docs/blocks/sql#subject-registry)). Comments, attachments, tags,
+versions, watchers, activity and search then reach its rows, because those
+blocks attach to any registered subject. On [Create](/create), the Features
+tab of a table turns each one on, adds its block and shows it on the table.
+
+```ts title="better-supabase.config.ts"
+appTables: {
+  projects: {
+    columns: { name: { type: "text", nullable: false } },
+    subject: {
+      type: "project",
+      title: "name",
+      url: "/projects/{id}",
+      search: {},
+      rank: true,
+      softDelete: true,
+    },
+  },
+},
+```
+
+| Key           | What it does                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `type`        | the subject type, which must not clash with an entry in `subjects`                                 |
+| `title`       | the column `subject_title` returns                                                                 |
+| `url`         | the path `subject_url` returns, with `{id}` replaced                                               |
+| `search`      | indexes rows in the `search` block; `title` and `body` name the columns, `{}` uses the title       |
+| `permissions` | the permission per action, as in `subjects`                                                        |
+| `rank`        | adds a `rank` column for manual order (`text collate "C"`, ADR 0021); `{ group }` ranks per column |
+| `softDelete`  | adds a `deleted_at` column, which hides the row from subject readers and search                    |
+
+The subject's tenant column is the table's tenant column when the table is
+scoped to the tenant, and none otherwise. A user column named `rank` or
+`deleted_at` fails `sql sync` when the subject adds that column. Search
+triggers for app tables are written into the app tables file, which runs
+after the `search` block.
+
 ## The files
 
 | File                                                     | What it holds                                                                                                                             |
