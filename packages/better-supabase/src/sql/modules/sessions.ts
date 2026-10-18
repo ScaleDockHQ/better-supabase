@@ -107,6 +107,52 @@ $$;
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
 
+-- The caller's own unexpired sessions, most recently active first, with the
+-- one behind the current token marked.
+create or replace function better_supabase.list_my_sessions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'createdAt', s.created_at,
+    'lastActiveAt', coalesce(s.updated_at, s.created_at),
+    'userAgent', s.user_agent,
+    'ip', host(s.ip),
+    'aal', s.aal,
+    'current', s.id::text = auth.jwt() ->> 'session_id'
+  ) order by coalesce(s.updated_at, s.created_at) desc), '[]'::jsonb)
+  from auth.sessions s
+  where s.user_id = (select auth.uid())
+    and (s.not_after is null or s.not_after > now())
+$$;
+
+revoke execute on function better_supabase.list_my_sessions() from public, anon;
+grant execute on function better_supabase.list_my_sessions() to authenticated;
+
+-- Ends one of the caller's sessions: its refresh tokens go with it, and
+-- session_active() turns false for its access tokens.
+create or replace function better_supabase.end_my_session(session uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  delete from auth.sessions s
+  where s.id = end_my_session.session
+    and s.user_id = (select auth.uid());
+  return found;
+end;
+$$;
+
+revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
+grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
 -- create policy session_required on public.invoices as restrictive

@@ -540,7 +540,8 @@ begin
 end;
 $$;
 create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare
   v_tenant uuid;
   v_owner uuid;
@@ -566,17 +567,20 @@ $$;
 revoke execute on function "better_supabase"."share_ai_chat"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."share_ai_chat"(uuid, text) to authenticated, service_role;
 create or replace function "better_supabase"."revoke_ai_chat_share"(id uuid)
-returns boolean language plpgsql security definer set search_path = '' as $$
+returns boolean
+language plpgsql security definer set search_path = '' as $$
 begin
   return "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
 end;
 $$;
 create or replace function "better_supabase"."list_ai_chat_shares"(chat uuid)
-returns jsonb language sql stable security definer set search_path = '' as $$
+returns jsonb
+language sql stable security definer set search_path = '' as $$
   select "better_supabase"."list_share_links"('ai-chat', list_ai_chat_shares.chat::text)
 $$;
 create or replace function "better_supabase"."get_shared_ai_chat"(token text)
-returns jsonb language plpgsql stable security definer set search_path = '' as $$
+returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
 declare
   v_subject text;
   v_leaf text;

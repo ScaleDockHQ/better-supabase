@@ -7,7 +7,13 @@ import type { RankNeighbors } from "../../core/rank-result.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { blockCall, recordOf, textOf } from "../shared.ts";
+import {
+  blockCall,
+  optionalText,
+  recordOf,
+  recordsOf,
+  textOf,
+} from "../shared.ts";
 
 export interface CustomFieldsOptions {
   /** `withBlockHooks` hooks around the client's methods. */
@@ -23,7 +29,23 @@ export interface FieldDefinition {
   readonly id: string;
 }
 
+export interface FieldDefinitionDetail extends FieldDefinition {
+  readonly entity: string;
+  readonly key: string;
+  readonly label: string;
+  readonly type: string;
+  readonly required: boolean;
+  readonly sensitive: boolean;
+  /** The rank key, for `reorderDefinition`; absent when definitions aren't ranked. */
+  readonly rank?: string;
+}
+
 export interface CustomFields {
+  /** One entity's definitions in display order. Needs `custom_fields.read`. */
+  listDefinitions(
+    organizationId: string,
+    entity: string,
+  ): AsyncResult<FieldDefinitionDetail[]>;
   saveDefinition(
     organizationId: string,
     entity: string,
@@ -60,6 +82,26 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   });
 
   const client: CustomFields = {
+    listDefinitions: (organizationId, entity) =>
+      call(
+        "list_field_definitions",
+        { tenant: organizationId, entity },
+        (value) =>
+          recordsOf(value, "list_field_definitions").map((row) => {
+            const rank = optionalText(row["rank"]);
+
+            return {
+              id: textOf(row["id"]),
+              entity: textOf(row["entity"]),
+              key: textOf(row["key"]),
+              label: textOf(row["label"]),
+              type: textOf(row["type"]),
+              required: row["required"] === true,
+              sensitive: row["sensitive"] === true,
+              ...(rank === undefined ? {} : { rank }),
+            };
+          }),
+      ),
     saveDefinition: (organizationId, entity, key, label, type, sensitive) =>
       call(
         "save_field_definition",

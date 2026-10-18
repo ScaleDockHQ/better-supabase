@@ -5,6 +5,40 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
@@ -62,6 +96,55 @@ $$;
 
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
+
+-- The caller's own unexpired sessions, most recently active first, with the
+-- one behind the current token marked.
+create or replace function better_supabase.list_my_sessions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'createdAt', s.created_at,
+    'lastActiveAt', coalesce(s.updated_at, s.created_at),
+    'userAgent', s.user_agent,
+    'ip', host(s.ip),
+    'aal', s.aal,
+    'current', s.id::text = auth.jwt() ->> 'session_id'
+  ) order by coalesce(s.updated_at, s.created_at) desc), '[]'::jsonb)
+  from auth.sessions s
+  where s.user_id = (select auth.uid())
+    and (s.not_after is null or s.not_after > now())
+$$;
+
+revoke execute on function better_supabase.list_my_sessions() from public, anon;
+grant execute on function better_supabase.list_my_sessions() to authenticated;
+
+-- Ends one of the caller's sessions: its refresh tokens go with it, and
+-- session_active() turns false for its access tokens.
+create or replace function better_supabase.end_my_session(session uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from auth.sessions s
+  where s.id = end_my_session.session
+    and s.user_id = (select auth.uid());
+  return found;
+end;
+$$;
+
+revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
+grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -102,6 +185,40 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
@@ -159,6 +276,55 @@ $$;
 
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
+
+-- The caller's own unexpired sessions, most recently active first, with the
+-- one behind the current token marked.
+create or replace function better_supabase.list_my_sessions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'createdAt', s.created_at,
+    'lastActiveAt', coalesce(s.updated_at, s.created_at),
+    'userAgent', s.user_agent,
+    'ip', host(s.ip),
+    'aal', s.aal,
+    'current', s.id::text = auth.jwt() ->> 'session_id'
+  ) order by coalesce(s.updated_at, s.created_at) desc), '[]'::jsonb)
+  from auth.sessions s
+  where s.user_id = (select auth.uid())
+    and (s.not_after is null or s.not_after > now())
+$$;
+
+revoke execute on function better_supabase.list_my_sessions() from public, anon;
+grant execute on function better_supabase.list_my_sessions() to authenticated;
+
+-- Ends one of the caller's sessions: its refresh tokens go with it, and
+-- session_active() turns false for its access tokens.
+create or replace function better_supabase.end_my_session(session uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from auth.sessions s
+  where s.id = end_my_session.session
+    and s.user_id = (select auth.uid());
+  return found;
+end;
+$$;
+
+revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
+grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -199,6 +365,40 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
@@ -256,6 +456,55 @@ $$;
 
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
+
+-- The caller's own unexpired sessions, most recently active first, with the
+-- one behind the current token marked.
+create or replace function better_supabase.list_my_sessions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'createdAt', s.created_at,
+    'lastActiveAt', coalesce(s.updated_at, s.created_at),
+    'userAgent', s.user_agent,
+    'ip', host(s.ip),
+    'aal', s.aal,
+    'current', s.id::text = auth.jwt() ->> 'session_id'
+  ) order by coalesce(s.updated_at, s.created_at) desc), '[]'::jsonb)
+  from auth.sessions s
+  where s.user_id = (select auth.uid())
+    and (s.not_after is null or s.not_after > now())
+$$;
+
+revoke execute on function better_supabase.list_my_sessions() from public, anon;
+grant execute on function better_supabase.list_my_sessions() to authenticated;
+
+-- Ends one of the caller's sessions: its refresh tokens go with it, and
+-- session_active() turns false for its access tokens.
+create or replace function better_supabase.end_my_session(session uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from auth.sessions s
+  where s.id = end_my_session.session
+    and s.user_id = (select auth.uid());
+  return found;
+end;
+$$;
+
+revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
+grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
@@ -296,6 +545,40 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
@@ -354,6 +637,55 @@ $$;
 revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
 grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
 
+-- The caller's own unexpired sessions, most recently active first, with the
+-- one behind the current token marked.
+create or replace function better_supabase.list_my_sessions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', s.id,
+    'createdAt', s.created_at,
+    'lastActiveAt', coalesce(s.updated_at, s.created_at),
+    'userAgent', s.user_agent,
+    'ip', host(s.ip),
+    'aal', s.aal,
+    'current', s.id::text = auth.jwt() ->> 'session_id'
+  ) order by coalesce(s.updated_at, s.created_at) desc), '[]'::jsonb)
+  from auth.sessions s
+  where s.user_id = (select auth.uid())
+    and (s.not_after is null or s.not_after > now())
+$$;
+
+revoke execute on function better_supabase.list_my_sessions() from public, anon;
+grant execute on function better_supabase.list_my_sessions() to authenticated;
+
+-- Ends one of the caller's sessions: its refresh tokens go with it, and
+-- session_active() turns false for its access tokens.
+create or replace function better_supabase.end_my_session(session uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from auth.sessions s
+  where s.id = end_my_session.session
+    and s.user_id = (select auth.uid());
+  return found;
+end;
+$$;
+
+revoke execute on function better_supabase.end_my_session(uuid) from public, anon;
+grant execute on function better_supabase.end_my_session(uuid) to authenticated;
+
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
 -- create policy session_required on public.invoices as restrictive
@@ -368,6 +700,24 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."session_active"();
 
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
 create or replace function "api"."last_sign_ins"(p_users uuid[])
 returns table (user_id uuid, last_sign_in_at timestamptz)
 language sql
@@ -376,6 +726,24 @@ set search_path = ''
 as $$ select * from "better_supabase"."last_sign_ins"($1) $$;
 revoke execute on function "api"."last_sign_ins"(uuid[]) from public, anon, authenticated;
 grant execute on function "api"."last_sign_ins"(uuid[]) to service_role;
+
+create or replace function "api"."list_my_sessions"()
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_my_sessions"() $$;
+revoke execute on function "api"."list_my_sessions"() from public, anon, service_role;
+grant execute on function "api"."list_my_sessions"() to authenticated;
+
+create or replace function "api"."end_my_session"(session uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."end_my_session"($1) $$;
+revoke execute on function "api"."end_my_session"(uuid) from public, anon, service_role;
+grant execute on function "api"."end_my_session"(uuid) to authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

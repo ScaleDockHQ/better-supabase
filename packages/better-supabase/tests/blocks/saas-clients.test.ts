@@ -300,6 +300,57 @@ describe("saas block clients", () => {
     ).toBe("v1");
   });
 
+  it("lists an entity's field definitions", async () => {
+    const fields = createCustomFields(
+      options({
+        list_field_definitions: [
+          {
+            id: "d1",
+            entity: "customer",
+            key: "tier",
+            label: "Tier",
+            type: "option",
+            required: false,
+            sensitive: true,
+            rank: "V",
+          },
+          {
+            id: "d2",
+            entity: "customer",
+            key: "notes",
+            label: "Notes",
+            type: "text",
+            required: true,
+            sensitive: false,
+            rank: null,
+          },
+        ],
+      }),
+    );
+
+    expect(await fields.listDefinitions("org", "customer").orThrow()).toEqual([
+      {
+        id: "d1",
+        entity: "customer",
+        key: "tier",
+        label: "Tier",
+        type: "option",
+        required: false,
+        sensitive: true,
+        rank: "V",
+      },
+      {
+        id: "d2",
+        entity: "customer",
+        key: "notes",
+        label: "Notes",
+        type: "text",
+        required: true,
+        sensitive: false,
+      },
+    ]);
+  });
+
   it("reorders tags and field definitions with a key between the neighbours", async () => {
     const calls: { fn: string; args: unknown }[] = [];
 

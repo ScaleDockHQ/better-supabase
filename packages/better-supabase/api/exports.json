@@ -4728,7 +4728,8 @@
       "CustomFields",
       "CustomFieldsEvents",
       "CustomFieldsOptions",
-      "FieldDefinition"
+      "FieldDefinition",
+      "FieldDefinitionDetail"
     ]
   },
   "./blocks/share-links": {
@@ -4898,6 +4899,7 @@
       "DeliveryPayload",
       "ExpandInput",
       "PlannedDelivery",
+      "ReminderEntry",
       "ReminderPlanInput",
       "Reminders",
       "RemindersEvents",
