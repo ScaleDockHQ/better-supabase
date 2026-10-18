@@ -98,7 +98,7 @@ function optionalBoolean(where: string, value: unknown): boolean | undefined {
  * (`organization_id`, or `<sql.naming.tenant>_id`), whatever the table's
  * scope, so changing the scope never collides with a column.
  */
-export function appReservedColumns(tenant = "organization"): readonly string[] {
+function appReservedColumns(tenant = "organization"): readonly string[] {
   return ["id", "created_at", "updated_at", "user_id", `${tenant}_id`];
 }
 

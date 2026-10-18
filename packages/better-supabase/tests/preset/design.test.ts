@@ -182,6 +182,51 @@ describe("design codes", () => {
     ).rejects.toThrow("must be [x, y]");
   });
 
+  it.each([
+    [{ extraColumns: [] }, "design.extraColumns must be an object"],
+    [
+      { extraColumns: { tags: "text" } },
+      "design.extraColumns.tags must be an object of column name to SQL type",
+    ],
+    [
+      {
+        extraColumns: {
+          tags: Object.fromEntries(
+            Array.from({ length: 65 }, (_, index) => [
+              `c${String(index)}`,
+              "text",
+            ]),
+          ),
+        },
+      },
+      "design.extraColumns.tags has 65 columns; the most is 64",
+    ],
+    [{ positions: [] }, "design.positions must be an object"],
+    [
+      {
+        positions: Object.fromEntries(
+          Array.from({ length: 1001 }, (_, index) => [
+            `public.t${String(index)}`,
+            [0, 0],
+          ]),
+        ),
+      },
+      "design.positions has 1001 entries; the most is 1000",
+    ],
+    [
+      {
+        appTables: Object.fromEntries(
+          Array.from({ length: 101 }, (_, index) => [`t${String(index)}`, {}]),
+        ),
+      },
+      "design.appTables has 101 tables; the most is 100",
+    ],
+  ])("refuses a malformed design part (%#)", async (design, message) => {
+    await expect(
+      decodeDesign(await deflated(JSON.stringify(design))),
+    ).rejects.toThrow(message);
+  });
+
   it("refuses a design too large for a URL", async () => {
     const appTables = Object.fromEntries(
       Array.from({ length: 100 }, (_, index) => [

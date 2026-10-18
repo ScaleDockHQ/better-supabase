@@ -170,6 +170,37 @@ describe("appTablesOf", () => {
       "references.block must be a block name",
     );
   });
+
+  const column = (config: unknown): unknown => ({
+    t: { columns: { c: config } },
+  });
+
+  it.each([
+    [[], "appTables must be an object keyed by table name"],
+    [{ t: 1 }, "appTables.t must be an object"],
+    [{ t: { columns: [] } }, "columns must be an object keyed by column"],
+    [{ t: { columns: { Bad: { type: "text" } } } }, "Bad"],
+    [{ t: { timestamps: "yes" } }, "must be true or false"],
+    [column(1), "appTables.t.columns.c must be an object"],
+    [column({ type: "uuid", references: 1 }), "references must be an object"],
+    [
+      column({ type: "uuid", references: { table: 1 } }),
+      "references.table must be a string",
+    ],
+    [
+      column({ type: "uuid", references: { table: "t", onDelete: "drop" } }),
+      "onDelete",
+    ],
+    [
+      column({
+        type: "uuid",
+        references: { block: "organizations", table: "Bad Name" },
+      }),
+      "is not a logical table name of the organizations block",
+    ],
+  ] as const)("refuses %j", (value, message) => {
+    fails(value, message);
+  });
 });
 
 describe("isAppDefault", () => {
