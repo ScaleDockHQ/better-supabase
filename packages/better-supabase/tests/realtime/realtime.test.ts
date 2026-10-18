@@ -254,7 +254,7 @@ describe("defineTopic", () => {
 
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_organization_customers_customers"()',
+      'create or replace function "better_supabase"."bs_broadcast_organization_customers_public_customers"()',
     );
     expect(sql).toContain(
       `vals := jsonb_build_object('organizationId', (rec."organization_id")::text);`,
@@ -937,7 +937,7 @@ describe("trigger with betterSupabase", () => {
       "jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema)",
     );
     expect(sql).toContain(
-      `comment on function "better_supabase"."bs_broadcast_organization_customers_customers"() is 'better-supabase: payload row';`,
+      `comment on function "better_supabase"."bs_broadcast_organization_customers_public_customers"() is 'better-supabase: payload row';`,
     );
   });
 
@@ -1085,7 +1085,7 @@ describe("trigger with betterSupabase", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "private"."bs_broadcast_organization_customers_customers"()',
+      'create or replace function "private"."bs_broadcast_organization_customers_public_customers"()',
     );
     expect(sql).toContain(
       'create trigger "bs_broadcast_organization_customers" after insert on "public"."customers"',
@@ -1256,7 +1256,7 @@ describe("trigger", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_board_cards"()',
+      'create or replace function "better_supabase"."bs_broadcast_board_public_cards"()',
     );
     expect(sql).toContain(
       `vals := jsonb_build_object('boardId', (rec."board_id")::text);`,
@@ -1272,6 +1272,27 @@ describe("trigger", () => {
         topics: [{ topic: owner }],
       }),
     ).toThrow("a lookup for {boardId} needs betterSupabase");
+  });
+
+  it("names the function after the schema, so tables in two schemas don't collide", () => {
+    const board = defineTopic("board:{boardId}");
+    const owner = defineTopic("user:{userId}");
+
+    const options = {
+      topics: [{ topic: owner, values: { userId: "owner_id" } }],
+    };
+
+    const publicSql = board.trigger("public.items", options);
+    const crmSql = board.trigger("crm.items", options);
+
+    expect(publicSql).toContain(
+      '"better_supabase"."bs_broadcast_board_public_items"()',
+    );
+    expect(crmSql).toContain(
+      '"better_supabase"."bs_broadcast_board_crm_items"()',
+    );
+    expect(publicSql).toContain('create trigger "bs_broadcast_board"');
+    expect(crmSql).toContain('create trigger "bs_broadcast_board"');
   });
 
   it("rejects a value for no placeholder and a column with braces", () => {

@@ -853,7 +853,7 @@ export function defineTopic<
     return triggerFunctionSql({
       subject: meta ? meta.name : `${schema}.${relation}`,
       functionSchema: trigger.functionSchema ?? "better_supabase",
-      functionName: `bs_broadcast_${name}_${slug(relation)}`,
+      functionName: `bs_broadcast_${name}_${slug(schema)}_${slug(relation)}`,
       triggerName,
       target,
       events,
