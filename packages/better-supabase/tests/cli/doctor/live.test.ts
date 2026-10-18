@@ -121,6 +121,60 @@ describe("BS208 temporary files", () => {
     expect(none!.message).not.toContain("Top statements");
   });
 
+  it("passes when only Supabase's service roles spilled", async () => {
+    const extension = [/pg_extension/, [{ schema: "extensions" }]] as const;
+
+    expect(
+      await check("BS208", {
+        database: database([
+          stats(1),
+          extension,
+          [
+            /temp_blks_written > 0/,
+            [
+              {
+                query: "with pgrst_source as (select 1) select 1",
+                temp_blks_written: 26,
+                role: "authenticator",
+              },
+            ],
+          ],
+        ]),
+      }),
+    ).toEqual([]);
+  });
+
+  it("names only the app's statements", async () => {
+    const extension = [/pg_extension/, [{ schema: "extensions" }]] as const;
+
+    const [finding] = await check("BS208", {
+      database: database([
+        stats(1),
+        extension,
+        [
+          /temp_blks_written > 0/,
+          [
+            {
+              query: "schema cache",
+              temp_blks_written: 90,
+              role: "authenticator",
+            },
+            {
+              query: "select * from notes order by body",
+              temp_blks_written: 12,
+              role: "authenticated",
+            },
+          ],
+        ],
+      ]),
+    });
+
+    expect(finding!.message).toContain(
+      "Top statements by temporary blocks written: select * from notes order by body (12 blocks).",
+    );
+    expect(finding!.message).not.toContain("schema cache");
+  });
+
   it("reports a statistics view it can't read as info", async () => {
     expect(
       await check("BS208", {

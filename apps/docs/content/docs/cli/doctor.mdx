@@ -343,9 +343,11 @@ advisor can't run, this check reports every table.
 **Warning: queries spill to temporary files.** Reads `temp_files` and
 `temp_bytes` from `pg_stat_database` since the statistics were last reset,
 with the current `work_mem`. When `pg_stat_statements` is installed, the
-message lists the five statements that wrote the most temporary blocks. Add
-indexes so large sorts go away, or raise `work_mem` for the role that runs
-them. Needs a database; saved snapshots skip it.
+message lists the five statements that wrote the most temporary blocks.
+Statements run by Supabase's service roles (PostgREST's schema cache query as
+`authenticator`, Auth and Storage) are left out, and when only those spilled
+there is no finding. Add indexes so large sorts go away, or raise `work_mem`
+for the role that runs them. Needs a database; saved snapshots skip it.
 
 ### BS209
 
