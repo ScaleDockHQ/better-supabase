@@ -668,6 +668,7 @@
   "./server": {
     "values": [
       "aalOf",
+      "accessTokenResolver",
       "actorOf",
       "agentClaims",
       "amrOf",
@@ -759,6 +760,8 @@
     ],
     "types": [
       "Aal",
+      "AccessTokenResolverOptions",
+      "AccessTokenRevocation",
       "AccountEventType",
       "ActClaim",
       "ActionResult",
@@ -4779,6 +4782,38 @@
       "SigningKeysOptions",
       "VerifiedJws",
       "VerifyCompactOptions"
+    ]
+  },
+  "./blocks/oauth-server": {
+    "values": [
+      "createOAuthServer",
+      "oauthServerBlock",
+      "oauthServerEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "AuthorizationCodeRedemption",
+      "AuthorizationCodeRequest",
+      "BlockTransport",
+      "DeviceCodePoll",
+      "DeviceRequest",
+      "IssuedAuthorizationCode",
+      "IssuedDeviceCode",
+      "ListGrantsOptions",
+      "OAuthAuthorization",
+      "OAuthClient",
+      "OAuthClientAuthMethod",
+      "OAuthClientEventData",
+      "OAuthClientMetadata",
+      "OAuthGrant",
+      "OAuthGrantEventData",
+      "OAuthGrantType",
+      "OAuthServer",
+      "OAuthServerEvents",
+      "OAuthServerOptions",
+      "RegisterClientOptions",
+      "RegisteredOAuthClient",
+      "RevokeTokenOptions"
     ]
   },
   "./blocks/shared-signals": {

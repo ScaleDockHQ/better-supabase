@@ -49,6 +49,7 @@ import { memoryBlock } from "better-supabase/blocks/memory";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
+import { oauthServerBlock } from "better-supabase/blocks/oauth-server";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -138,6 +139,7 @@ export const blockSet = defineBlocks(blockConfig, {
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,
+  oauthServer: oauthServerBlock,
   onboarding: onboardingBlock,
   orders: ordersBlock,
   organizations: organizationsBlock,

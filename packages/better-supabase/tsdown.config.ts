@@ -87,6 +87,7 @@ const entries = [
   "blocks/custom-fields/index",
   "blocks/share-links/index",
   "blocks/signing-keys/index",
+  "blocks/oauth-server/index",
   "blocks/shared-signals/index",
   "blocks/identities/index",
   "blocks/service-principals/index",

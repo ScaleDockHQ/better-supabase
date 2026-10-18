@@ -20,7 +20,10 @@ const SRC_DIR = join(import.meta.dirname, "../../src");
 const RECIPES_DIR = join(import.meta.dirname, "../../../../scripts/recipes");
 
 /** Blocks whose creator is not `create<Name>(options)`. */
-const CREATOR_NAME: readonly string[] = [];
+const CREATOR_NAME: readonly string[] = [
+  // createOAuthServer keeps the OAuth casing every other export uses.
+  "oauth-server",
+];
 
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
@@ -71,6 +74,8 @@ const NO_FIELDS: readonly string[] = [
   "metrics",
   // Gapless counters the module owns; an app reads numbers, not these rows.
   "number-sequences",
+  // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.
+  "oauth-server",
   // Progress rows per checklist step; the steps live in `defineChecklist`.
   "onboarding",
   // An event log; the app's data goes in each event's payload.

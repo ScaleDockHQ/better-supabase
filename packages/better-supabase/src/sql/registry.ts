@@ -64,6 +64,7 @@ import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
+import { OAUTH_SERVER } from "./modules/oauth-server.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
@@ -295,6 +296,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(COLLECTIONS),
       built(SIGNING_KEYS),
       built(SHARED_SIGNALS),
+      built(OAUTH_SERVER),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

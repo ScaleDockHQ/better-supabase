@@ -1,0 +1,137 @@
+---
+title: OAuth server
+description: Storage for your own OAuth 2.1 authorization server, with hashed client secrets, PKCE-bound authorization codes, device codes, grants and a revocation list.
+---
+
+`oauth-server` stores what an OAuth 2.1 authorization server needs:
+registered clients (RFC 7591) with hashed secrets, one grant per user and
+client, single-use authorization codes bound to a PKCE S256 challenge
+(RFC 7636), device codes (RFC 8628) and a revocation list of access token
+`jti`s. It issues no tokens. Sign them with
+[signing keys](/docs/blocks/signing-keys) and accept them with
+[`accessTokenResolver`](/docs/auth/access-tokens).
+
+Use it when your app is the authorization server for its own clients, for
+example a platform that lets third-party apps act for its users. When the
+Supabase Auth OAuth server fits, use that instead; the
+[OAuth consent page](/docs/auth/oauth-consent) covers it.
+
+```bash
+better-supabase add oauth-server
+```
+
+```ts
+import {
+  createOAuthServer,
+  sqlTransport,
+} from "better-supabase/blocks/oauth-server";
+
+const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+```
+
+Every function is service-role only, except `my_oauth_grants` and
+`revoke_my_oauth_grant`, which a signed-in user calls for their own grants.
+Clients can't read the tables. Secrets, codes and registration tokens are
+generated in TypeScript and only their SHA-256 reaches the database.
+
+## Clients
+
+`registerClient(metadata)` registers a client and returns its
+`clientSecret` and `registrationAccessToken` once. A client with
+`tokenEndpointAuthMethod: "none"` is public and gets no secret. Redirect URIs
+must be absolute, carry no fragment, and use `https` or `http` on a loopback
+host (RFC 9700 section 2.1). Metadata without a column of its own, such as
+`logo_uri`, goes in `metadata`.
+
+```ts
+const { client, clientSecret, registrationAccessToken } = await oauth
+  .registerClient({
+    name: "Acme CLI",
+    redirectUris: ["http://127.0.0.1:8976/callback"],
+    grantTypes: ["authorization_code", "refresh_token"],
+    tokenEndpointAuthMethod: "none",
+    scope: "contacts:read contacts:write",
+  })
+  .orThrow();
+```
+
+`verifyClient(clientId, secret)` returns the client when the secret matches
+(`null` as the secret for a public client), and
+`verifyRegistrationToken(clientId, token)` checks the RFC 7592 token before
+`readClient` or `updateClient`. `rotateSecret` returns a new secret, and
+`deleteClient` removes the client with its grants and codes.
+
+## Authorization codes
+
+After the user consents, store the code with the request's PKCE challenge.
+Only `S256` is accepted:
+
+```ts
+const { code } = await oauth
+  .createAuthorizationCode({
+    clientId,
+    userId: user.id,
+    redirectUri,
+    scope: "contacts:read",
+    codeChallenge,
+    codeChallengeMethod: "S256",
+  })
+  .orThrow();
+```
+
+At the token endpoint, `redeemAuthorizationCode` hashes the code, computes
+S256 of the `codeVerifier` and compares both with the client and redirect
+URI in one locked row. It returns who to issue tokens for, or `null` for any
+mismatch. A code presented a second time also revokes its grant, so tokens
+issued from a stolen code stop working (RFC 9700 section 4.5). Codes live 60
+seconds (`codeSeconds`).
+
+## Device codes
+
+`createDeviceCode(clientId, scope)` returns a `deviceCode` for the client
+and a `userCode` such as `BDFG-HJKL` for the user. The verification page
+reads the request with `deviceRequest(userCode)` and calls
+`approveDeviceCode` or `denyDeviceCode` with the signed-in user. The client
+polls `pollDeviceCode(deviceCode, clientId)`:
+
+| Status                  | Token response (RFC 8628 section 3.5)                   |
+| ----------------------- | ------------------------------------------------------- |
+| `authorization_pending` | keep polling every `interval` seconds                   |
+| `slow_down`             | polled too soon; `interval` grows by 5 seconds          |
+| `access_denied`         | the user denied                                         |
+| `expired_token`         | the code expired (`deviceCodeSeconds`, 600)             |
+| `invalid_grant`         | unknown code, another client, or already exchanged      |
+| `ok`                    | issue tokens for `authorization`; the code is now spent |
+
+## Grants and revocation
+
+A grant is a user's consent for a client. Approving a code or a device code
+reuses the user's active grant for the client and widens its scopes. Put the
+grant id in the tokens you issue as `grant_id`.
+
+`revokeGrant(grantId)` ends every token and code issued under it.
+`revokeToken(jti, expiresAt)` puts one access token on the revocation list
+until it would expire anyway. `isRevoked(jti, grantId)` checks both, and
+treats an unknown grant as revoked, so deleting a client ends its tokens.
+Pass the client to the resolver as `revocation`:
+
+```ts
+accessTokenResolver({ jwks, issuer, audience, revocation: oauth });
+```
+
+For a connected-apps page, `listGrants(userId)` returns a user's grants with
+the client name. In the browser, the user calls `my_oauth_grants` and
+`revoke_my_oauth_grant` over RPC for their own grants only; a read-only
+support session can't revoke ([support sessions](/docs/blocks/sql#support-sessions)).
+
+`purge()` deletes expired codes, device codes and revocation entries; run it
+from a daily job.
+
+## Events
+
+| Event                                             | Data                            |
+| ------------------------------------------------- | ------------------------------- |
+| `oauth_client.registered`, `oauth_client.deleted` | `clientId`                      |
+| `oauth_grant.created`, `oauth_grant.revoked`      | `grantId`, `userId`, `clientId` |
+
+Each also writes an audit entry when the audit module is installed.

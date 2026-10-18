@@ -233,6 +233,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  "oauth-server": {
+    schema: "better_supabase",
+    options: {},
+  },
   onboarding: {
     schema: "better_supabase",
     options: {},

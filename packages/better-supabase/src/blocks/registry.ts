@@ -54,6 +54,7 @@ import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
 import { notificationsBlock } from "./notifications/manifest.ts";
 import { numberSequencesBlock } from "./number-sequences/manifest.ts";
+import { oauthServerBlock } from "./oauth-server/manifest.ts";
 import { onboardingBlock } from "./onboarding/manifest.ts";
 import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
@@ -163,6 +164,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   mfaBlock,
   notificationsBlock,
   numberSequencesBlock,
+  oauthServerBlock,
   onboardingBlock,
   ordersBlock,
   organizationsBlock,
