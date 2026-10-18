@@ -3,6 +3,7 @@ import {
   namedPreset,
   type Preset,
   PRESET_NAMES,
+  PRESETS,
 } from "better-supabase/preset";
 import { describe, expect, test } from "vitest";
 
@@ -15,14 +16,14 @@ const withProvider = (preset: Preset): string =>
   encodePreset({ ...preset, access: "provider" });
 
 describe("previewFiles", () => {
-  test.each(PRESET_NAMES.filter((name) => name !== "everything"))(
-    "renders the %s preset with access: provider",
-    (name) => {
-      expect(
-        previewFiles(withProvider(namedPreset(name))).length,
-      ).toBeGreaterThan(0);
-    },
-  );
+  // sso needs roleOrder under access: provider; the next test covers that.
+  test.each(
+    PRESET_NAMES.filter((name) => !PRESETS[name].blocks.includes("sso")),
+  )("renders the %s preset with access: provider", (name) => {
+    expect(
+      previewFiles(withProvider(namedPreset(name))).length,
+    ).toBeGreaterThan(0);
+  });
 
   test("keeps a real config error, such as sso without roleOrder", () => {
     expect(() => previewFiles(withProvider(namedPreset("everything")))).toThrow(

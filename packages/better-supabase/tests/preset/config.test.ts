@@ -4,11 +4,12 @@ import { defineConfig, resolveConfig } from "../../src/config/index.ts";
 import { encodePreset } from "../../src/preset/code.ts";
 import { expandPreset, presetOf } from "../../src/preset/config.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
-import { namedPreset } from "../../src/preset/presets.ts";
+import { namedPreset, PRESET_NAMES } from "../../src/preset/presets.ts";
 
 describe("presetOf", () => {
   it("reads a name, a code, a /create URL and an object", () => {
     expect(presetOf("saas")).toEqual(namedPreset("saas"));
+    expect(presetOf("consumer").scope).toBe("user");
     const code = encodePreset({ casing: "camel", blocks: ["tags"] });
     expect(presetOf(code)).toEqual({
       ...DEFAULT_CONVENTIONS,
@@ -27,7 +28,7 @@ describe("presetOf", () => {
 
   it("names the presets when the input is none of them", () => {
     expect(() => presetOf("startup")).toThrow(
-      'preset: "startup" is not a preset. Use a name (minimal, saas, crm, projects, commerce, scheduling, ai, everything), a code from /create, or its URL.',
+      `preset: "startup" is not a preset. Use a name (${PRESET_NAMES.join(", ")}), a code from /create, or its URL.`,
     );
   });
 });

@@ -40,9 +40,15 @@ export type {
   PresetScope,
 } from "./fields.ts";
 
-export { isPresetName, namedPreset, PRESET_NAMES, PRESETS } from "./presets.ts";
+export {
+  isPresetName,
+  namedPreset,
+  PRESET_GROUPS,
+  PRESET_NAMES,
+  PRESETS,
+} from "./presets.ts";
 
-export type { NamedPreset, PresetName } from "./presets.ts";
+export type { NamedPreset, PresetGroup, PresetName } from "./presets.ts";
 
 export {
   glueCommand,

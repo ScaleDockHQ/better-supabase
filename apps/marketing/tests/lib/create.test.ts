@@ -165,6 +165,13 @@ describe("selection helpers", () => {
     expect(matchingPreset(crm)).toBe("crm");
     expect(crm.casing).toBe("camel");
   });
+
+  test("sets the conventions a preset names, and a scope its blocks fit", () => {
+    const consumer = applyNamedPreset(minimal, "consumer");
+    expect(consumer.scope).toBe("user");
+    expect(applyNamedPreset(consumer, "saas").scope).toBe("tenant");
+    expect(applyNamedPreset(consumer, "minimal").scope).toBe("user");
+  });
 });
 
 describe("blockGroups", () => {

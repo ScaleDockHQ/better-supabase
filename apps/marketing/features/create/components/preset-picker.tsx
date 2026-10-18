@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 import {
   isPresetName,
+  PRESET_GROUPS,
   PRESET_NAMES,
   type PresetName,
   PRESETS,
@@ -12,7 +13,10 @@ import { useId } from "react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -41,6 +45,13 @@ function PresetLabel({ value }: { value: string }): ReactElement {
     </>
   );
 }
+
+const GROUPS = Object.values(PRESET_GROUPS).map((label) => ({
+  label,
+  names: PRESET_NAMES.filter(
+    (name) => PRESET_GROUPS[PRESETS[name].group] === label,
+  ),
+}));
 
 function blockCount(name: PresetName): string {
   const count = PRESETS[name].blocks.length;
@@ -81,24 +92,32 @@ export function PresetPicker({
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {PRESET_NAMES.map((name) => (
-            <SelectItem key={name} value={name} label={PRESETS[name].title}>
-              <span className="flex min-w-0 items-start gap-2">
-                <CategoryIcon category={PRESET_CATEGORY[name]} size="sm" />
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="flex items-baseline gap-2">
-                    <span className="font-medium">{PRESETS[name].title}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {blockCount(name)}
+          {GROUPS.map(({ label, names }) => (
+            <SelectGroup key={label}>
+              <SelectLabel>{label}</SelectLabel>
+              {names.map((name) => (
+                <SelectItem key={name} value={name} label={PRESETS[name].title}>
+                  <span className="flex min-w-0 items-start gap-2">
+                    <CategoryIcon category={PRESET_CATEGORY[name]} size="sm" />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-medium">
+                          {PRESETS[name].title}
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {blockCount(name)}
+                        </span>
+                      </span>
+                      <span className="max-w-64 text-xs whitespace-normal text-muted-foreground">
+                        {PRESETS[name].description}
+                      </span>
                     </span>
                   </span>
-                  <span className="max-w-64 text-xs whitespace-normal text-muted-foreground">
-                    {PRESETS[name].description}
-                  </span>
-                </span>
-              </span>
-            </SelectItem>
+                </SelectItem>
+              ))}
+            </SelectGroup>
           ))}
+          <SelectSeparator />
           <SelectItem
             value={CUSTOM_PRESET.value}
             label={CUSTOM_PRESET.label}

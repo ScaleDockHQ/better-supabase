@@ -239,9 +239,9 @@ describe("named presets", () => {
     expect(renderModules(names).length).toBeGreaterThan(0);
   });
 
-  it("builds every other preset on saas", () => {
+  it("builds every preset after the starters on saas", () => {
     for (const name of PRESET_NAMES) {
-      if (name === "minimal" || name === "saas") {
+      if (PRESETS[name].group === "starters") {
         continue;
       }
 
