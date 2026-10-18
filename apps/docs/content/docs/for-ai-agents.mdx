@@ -105,6 +105,11 @@ for every item.
   docs home is [`/docs.md`](/docs.md). Requests with `Accept: text/markdown`
   get the same content at the normal URL, and each page links its Markdown
   with `<link rel="alternate" type="text/markdown">`.
+- The block and recipe pages work the same way:
+  [`/blocks/notifications.md`](/blocks/notifications.md) has the install
+  command, the config entry, the events and the related blocks, and
+  [`/blocks.md`](/blocks.md) and [`/recipes.md`](/recipes.md) list them all.
+  `llms.txt` links both lists.
 - Callouts, steps, cards, tabs and prop tables come out as plain Markdown
   (blockquotes, numbered headings, link lists and tables), not as JSX.
 - An unknown docs URL answers 404, so an agent can tell a missing page from a
