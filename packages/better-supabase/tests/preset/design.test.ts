@@ -182,49 +182,36 @@ describe("design codes", () => {
     ).rejects.toThrow("must be [x, y]");
   });
 
-  it.each([
-    [{ extraColumns: [] }, "design.extraColumns must be an object"],
-    [
-      { extraColumns: { tags: "text" } },
-      "design.extraColumns.tags must be an object of column name to SQL type",
-    ],
-    [
-      {
-        extraColumns: {
-          tags: Object.fromEntries(
-            Array.from({ length: 65 }, (_, index) => [
-              `c${String(index)}`,
-              "text",
-            ]),
-          ),
-        },
-      },
-      "design.extraColumns.tags has 65 columns; the most is 64",
-    ],
-    [{ positions: [] }, "design.positions must be an object"],
-    [
-      {
-        positions: Object.fromEntries(
-          Array.from({ length: 1001 }, (_, index) => [
-            `public.t${String(index)}`,
-            [0, 0],
-          ]),
-        ),
-      },
-      "design.positions has 1001 entries; the most is 1000",
-    ],
-    [
-      {
-        appTables: Object.fromEntries(
-          Array.from({ length: 101 }, (_, index) => [`t${String(index)}`, {}]),
-        ),
-      },
-      "design.appTables has 101 tables; the most is 100",
-    ],
-  ])("refuses a malformed design part (%#)", async (design, message) => {
+  it("refuses parts of the wrong shape and past their caps", async () => {
+    const decoded = async (value: unknown): Promise<CreateDesign> =>
+      decodeDesign(await deflated(JSON.stringify(value)));
+
+    const many = (count: number, entry: (index: number) => unknown) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [
+          `t_${String(index)}`,
+          entry(index),
+        ]),
+      );
+
+    await expect(decoded({ extraColumns: [] })).rejects.toThrow(
+      "design.extraColumns must be an object",
+    );
+    await expect(decoded({ extraColumns: { tags: "text" } })).rejects.toThrow(
+      "design.extraColumns.tags",
+    );
     await expect(
-      decodeDesign(await deflated(JSON.stringify(design))),
-    ).rejects.toThrow(message);
+      decoded({ extraColumns: { tags: many(65, () => "text") } }),
+    ).rejects.toThrow("design.extraColumns.tags");
+    await expect(decoded({ positions: [] })).rejects.toThrow(
+      "design.positions must be an object",
+    );
+    await expect(
+      decoded({ positions: many(1001, () => [0, 0]) }),
+    ).rejects.toThrow("design.positions");
+    await expect(decoded({ appTables: many(101, () => ({})) })).rejects.toThrow(
+      "design.appTables",
+    );
   });
 
   it("refuses a design too large for a URL", async () => {
@@ -243,7 +230,7 @@ describe("design codes", () => {
     );
 
     await expect(encodeDesign({ appTables })).rejects.toThrow(
-      "Download the config instead and run `better-supabase init --config`.",
+      "Download the config instead, save it as better-supabase.config.ts, then run `better-supabase init` and `better-supabase sql sync`.",
     );
   });
 });

@@ -171,35 +171,27 @@ describe("appTablesOf", () => {
     );
   });
 
-  const column = (config: unknown): unknown => ({
-    t: { columns: { c: config } },
-  });
+  it("refuses values of the wrong shape", () => {
+    const column = (value: unknown): unknown => ({
+      a: { columns: { b: value } },
+    });
 
-  it.each([
-    [[], "appTables must be an object keyed by table name"],
-    [{ t: 1 }, "appTables.t must be an object"],
-    [{ t: { columns: [] } }, "columns must be an object keyed by column"],
-    [{ t: { columns: { Bad: { type: "text" } } } }, "Bad"],
-    [{ t: { timestamps: "yes" } }, "must be true or false"],
-    [column(1), "appTables.t.columns.c must be an object"],
-    [column({ type: "uuid", references: 1 }), "references must be an object"],
-    [
-      column({ type: "uuid", references: { table: 1 } }),
-      "references.table must be a string",
-    ],
-    [
-      column({ type: "uuid", references: { table: "t", onDelete: "drop" } }),
-      "onDelete",
-    ],
-    [
-      column({
-        type: "uuid",
-        references: { block: "organizations", table: "Bad Name" },
-      }),
-      "is not a logical table name of the organizations block",
-    ],
-  ] as const)("refuses %j", (value, message) => {
-    fails(value, message);
+    const reference = (value: unknown): unknown =>
+      column({ type: "uuid", references: value });
+
+    fails([], "appTables must be an object keyed by table name");
+    fails({ a: "table" }, "appTables.a must be an object");
+    fails({ a: { columns: [] } }, "appTables.a.columns must be an object");
+    fails({ a: { columns: { B: { type: "text" } } } }, "appTables.a.columns.B");
+    fails(column("text"), "appTables.a.columns.b must be an object");
+    fails(column({ type: "text", unique: "yes" }), "must be true or false");
+    fails(reference("auth.users"), "references must be an object");
+    fails(reference({ table: 1 }), "references.table must be a string");
+    fails(reference({ table: "auth.users", onDelete: "drop" }), "onDelete");
+    fails(
+      reference({ block: "crm", table: "Contacts" }),
+      '"Contacts" is not a logical table name of the crm block',
+    );
   });
 });
 
