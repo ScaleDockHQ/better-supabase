@@ -15,6 +15,9 @@ import type { Pool } from "pg";
 /** world-postgres stores UTC in `timestamp without time zone` columns. */
 const utc = (column: string): string => `(${column} at time zone 'UTC')`;
 
+/** The column every keyset query adds: the row's sort key as `text[]`. */
+const CURSOR = "__cursor";
+
 const RUN_COLUMNS = `
   r.id as "runId", r.status::text as status, r.deployment_id as "deploymentId",
   r.name as "workflowName", nullif(r.spec_version, '')::int as "specVersion",
@@ -65,15 +68,50 @@ const HOOKS = `
     ${utc("max(e.created_at)")} as "updatedAt",
     ${utc("max(e.created_at) filter (where e.type = 'hook_received')")} as "receivedAt",
     ${utc("max(e.created_at) filter (where e.type = 'hook_disposed')")} as "disposedAt",
-    bool_or(h.is_webhook) as "isWebhook", bool_or(h.is_system) as "isSystem"
+    bool_or(h.is_webhook) as "isWebhook", bool_or(h.is_system) as "isSystem",
+    ${cursorColumn(["min(e.created_at)", "e.correlation_id"])}
   from workflow.workflow_events e
   left join workflow.workflow_hooks h on h.hook_id = e.correlation_id
   where e.type like 'hook\\_%' and e.correlation_id is not null`;
 
+interface Page {
+  readonly limit: number;
+  /** The sort key of the last row of the previous page, as text. */
+  readonly after: readonly string[] | undefined;
+  readonly order: "asc" | "desc";
+}
+
+function encodeCursor(key: readonly string[]): string {
+  return Buffer.from(JSON.stringify(key)).toString("base64url");
+}
+
+function decodeCursor(cursor: string, width: number): readonly string[] {
+  let key: unknown;
+
+  try {
+    key = JSON.parse(Buffer.from(cursor, "base64url").toString("utf-8"));
+  } catch {
+    key = undefined;
+  }
+
+  if (
+    !Array.isArray(key) ||
+    key.length !== width ||
+    !key.every((part) => typeof part === "string")
+  ) {
+    throw new RangeError(
+      "better-supabase: not an analytics cursor; pass the cursor of the previous page",
+    );
+  }
+
+  return key;
+}
+
 function page(
   pagination: PaginationOptions | undefined,
   max: number,
-): { limit: number; offset: number; order: "asc" | "desc" } {
+  width: number,
+): Page {
   const limit = Math.min(max, Math.max(1, pagination?.limit ?? max));
 
   if (pagination?.limit !== undefined && pagination.limit > max) {
@@ -82,35 +120,51 @@ function page(
     );
   }
 
-  const offset = Number(pagination?.cursor ?? 0);
+  const cursor = pagination?.cursor;
 
   return {
     limit,
-    offset: Number.isSafeInteger(offset) && offset > 0 ? offset : 0,
+    after:
+      cursor === undefined || cursor === ""
+        ? undefined
+        : decodeCursor(cursor, width),
     order: pagination?.sortOrder === "asc" ? "asc" : "desc",
   };
 }
 
-function paged<T>(
-  rows: readonly T[],
-  limit: number,
-  offset: number,
-): PaginatedResponse<T> {
-  const hasMore = rows.length > limit;
+/**
+ * ` and (a, b) > ($n, $m)` past the previous page's last row, `<` when the
+ * order is descending. The row comparison uses an index on `(a, b)`.
+ */
+function keyset(
+  columns: readonly string[],
+  { after, order }: Page,
+  values: unknown[],
+): string {
+  if (after === undefined) {
+    return "";
+  }
 
-  return {
-    data: rows.slice(0, limit),
-    hasMore,
-    cursor: hasMore ? String(offset + limit) : null,
-  };
+  const params = after.map((part) => {
+    values.push(part);
+
+    return `$${String(values.length)}`;
+  });
+
+  return ` and (${columns.join(", ")}) ${order === "asc" ? ">" : "<"} (${params.join(", ")})`;
 }
 
-/** Converts SQL nulls to the optional fields the analytics schemas allow. */
+/** `array[...]::text[] as "__cursor"`: the sort key a page's cursor carries. */
+function cursorColumn(columns: readonly string[]): string {
+  return `array[${columns.map((column) => `(${column})::text`).join(", ")}] as "${CURSOR}"`;
+}
+
+/** Converts SQL nulls to the optional fields the analytics schemas allow, and drops the cursor column. */
 function compact<T>(row: Record<string, unknown>): T {
   const out: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(row)) {
-    if (value !== null) {
+    if (value !== null && key !== CURSOR) {
       out[key] = value;
     }
   }
@@ -122,6 +176,11 @@ function compact<T>(row: Record<string, unknown>): T {
 function notFound(what: string, id: string): Error {
   return new Error(`better-supabase: workflow ${what} "${id}" not found`);
 }
+
+const RUN_KEY = ["r.created_at", "r.id"];
+const STEP_KEY = ["s.created_at", "s.step_id"];
+const WAIT_KEY = ["w.created_at", "w.wait_id"];
+const HOOK_KEY = ["min(e.created_at)", "e.correlation_id"];
 
 const RUN_SCOPED_LIMIT = 1000;
 const LIMIT = 100;
@@ -140,6 +199,24 @@ export function createAnalytics(pool: Pool): Analytics {
     const result = await pool.query(sql, [...params]);
 
     return result.rows.map((row: Record<string, unknown>) => compact<T>(row));
+  };
+
+  const paged = async <T>(
+    sql: string,
+    params: readonly unknown[],
+    limit: number,
+  ): Promise<PaginatedResponse<T>> => {
+    const result = await pool.query(sql, [...params]);
+    const raw = result.rows.map((row: Record<string, unknown>) => row);
+    const hasMore = raw.length > limit;
+    const key = raw[limit - 1]?.[CURSOR];
+
+    return {
+      data: raw.slice(0, limit).map((row) => compact<T>(row)),
+      hasMore,
+      cursor:
+        hasMore && Array.isArray(key) ? encodeCursor(key.map(String)) : null,
+    };
   };
 
   const one = async <T>(
@@ -180,7 +257,7 @@ export function createAnalytics(pool: Pool): Analytics {
   const listEvents = async (
     params: AnalyticsListEventsParams,
   ): Promise<PaginatedResponse<AnalyticsEvent>> => {
-    const { limit, offset, order } = page(params.pagination, RUN_SCOPED_LIMIT);
+    const current = page(params.pagination, RUN_SCOPED_LIMIT, 1);
     const values: unknown[] = [params.runId];
     let where = "e.run_id = $1";
 
@@ -194,17 +271,18 @@ export function createAnalytics(pool: Pool): Analytics {
       where += ` and e.correlation_id = $${String(values.length)}`;
     }
 
-    values.push(limit + 1, offset);
+    where += keyset(["e.id"], current, values);
+    values.push(current.limit + 1);
 
-    const data = await rows<AnalyticsEvent>(
-      `select ${EVENT_COLUMNS} from workflow.workflow_events e
+    return paged<AnalyticsEvent>(
+      `select ${EVENT_COLUMNS}, ${cursorColumn(["e.id"])}
+       from workflow.workflow_events e
        join workflow.workflow_runs r on r.id = e.run_id
-       where ${where} order by e.id ${order}
-       limit $${String(values.length - 1)} offset $${String(values.length)}`,
+       where ${where} order by e.id ${current.order}
+       limit $${String(values.length)}`,
       values,
+      current.limit,
     );
-
-    return paged(data, limit, offset);
   };
 
   return {
@@ -217,7 +295,7 @@ export function createAnalytics(pool: Pool): Analytics {
           runId,
         ),
       async list(params = {}) {
-        const { limit, offset, order } = page(params.pagination, LIMIT);
+        const current = page(params.pagination, LIMIT, 2);
         const values: unknown[] = [];
         let where = "true";
 
@@ -243,21 +321,26 @@ export function createAnalytics(pool: Pool): Analytics {
         }
 
         where += window(params, "r.updated_at", values);
-        values.push(limit + 1, offset);
+        where += keyset(RUN_KEY, current, values);
+        values.push(current.limit + 1);
 
-        const data = await rows<AnalyticsRun>(
-          `select ${RUN_COLUMNS} from workflow.workflow_runs r where ${where}
-           order by r.created_at ${order}, r.id ${order}
-           limit $${String(values.length - 1)} offset $${String(values.length)}`,
+        return paged<AnalyticsRun>(
+          `select ${RUN_COLUMNS}, ${cursorColumn(RUN_KEY)}
+           from workflow.workflow_runs r where ${where}
+           order by r.created_at ${current.order}, r.id ${current.order}
+           limit $${String(values.length)}`,
           values,
+          current.limit,
         );
-
-        return paged(data, limit, offset);
       },
     },
     attributes: {
       async list(params = {}) {
-        const { limit, offset } = page(params.pagination, LIMIT);
+        const current = {
+          ...page(params.pagination, LIMIT, 1),
+          order: "asc" as const,
+        };
+
         const values: unknown[] = [];
         let where = "true";
 
@@ -267,21 +350,22 @@ export function createAnalytics(pool: Pool): Analytics {
         }
 
         where += window(params, "r.updated_at", values);
-        values.push(limit + 1, offset);
+        where += keyset(["k.key"], current, values);
+        values.push(current.limit + 1);
 
-        const data = await rows<AnalyticsAttributeKey>(
+        return paged<AnalyticsAttributeKey>(
           `select k.key, count(*)::int as "runCount",
              ${utc("min(r.created_at)")} as "firstSeenAt",
-             ${utc("max(r.updated_at)")} as "lastSeenAt"
+             ${utc("max(r.updated_at)")} as "lastSeenAt",
+             ${cursorColumn(["k.key"])}
            from workflow.workflow_runs r
            cross join lateral jsonb_object_keys(coalesce(r.attributes, '{}'::jsonb)) as k(key)
            where ${where}
            group by k.key order by k.key
-           limit $${String(values.length - 1)} offset $${String(values.length)}`,
+           limit $${String(values.length)}`,
           values,
+          current.limit,
         );
-
-        return paged(data, limit, offset);
       },
     },
     steps: {
@@ -293,18 +377,19 @@ export function createAnalytics(pool: Pool): Analytics {
           stepId,
         ),
       async list(params) {
-        const { limit, offset, order } = page(
-          params.pagination,
-          RUN_SCOPED_LIMIT,
-        );
+        const current = page(params.pagination, RUN_SCOPED_LIMIT, 2);
+        const values: unknown[] = [params.runId];
+        const where = `s.run_id = $1${keyset(STEP_KEY, current, values)}`;
+        values.push(current.limit + 1);
 
-        const data = await rows<AnalyticsStep>(
-          `select ${STEP_COLUMNS} from workflow.workflow_steps s where s.run_id = $1
-           order by s.created_at ${order}, s.step_id ${order} limit $2 offset $3`,
-          [params.runId, limit + 1, offset],
+        return paged<AnalyticsStep>(
+          `select ${STEP_COLUMNS}, ${cursorColumn(STEP_KEY)}
+           from workflow.workflow_steps s where ${where}
+           order by s.created_at ${current.order}, s.step_id ${current.order}
+           limit $${String(values.length)}`,
+          values,
+          current.limit,
         );
-
-        return paged(data, limit, offset);
       },
     },
     events: {
@@ -353,15 +438,19 @@ export function createAnalytics(pool: Pool): Analytics {
           hookId,
         ),
       async list(params) {
-        const { limit, offset, order } = page(params.pagination, LIMIT);
+        const current = page(params.pagination, LIMIT, 2);
+        const values: unknown[] = [params.runId];
+        const having = keyset(HOOK_KEY, current, values);
+        values.push(current.limit + 1);
 
-        const data = await rows<AnalyticsHook>(
+        return paged<AnalyticsHook>(
           `${HOOKS} and e.run_id = $1 group by e.run_id, e.correlation_id
-           order by "createdAt" ${order}, "hookId" ${order} limit $2 offset $3`,
-          [params.runId, limit + 1, offset],
+           having true${having}
+           order by min(e.created_at) ${current.order}, e.correlation_id ${current.order}
+           limit $${String(values.length)}`,
+          values,
+          current.limit,
         );
-
-        return paged(data, limit, offset);
       },
     },
     waits: {
@@ -374,11 +463,7 @@ export function createAnalytics(pool: Pool): Analytics {
           waitId,
         ),
       async list(params) {
-        const { limit, offset, order } = page(
-          params.pagination,
-          RUN_SCOPED_LIMIT,
-        );
-
+        const current = page(params.pagination, RUN_SCOPED_LIMIT, 2);
         const values: unknown[] = [params.runId];
         let where = "w.run_id = $1";
 
@@ -387,16 +472,17 @@ export function createAnalytics(pool: Pool): Analytics {
           where += ` and w.status::text = $${String(values.length)}`;
         }
 
-        values.push(limit + 1, offset);
+        where += keyset(WAIT_KEY, current, values);
+        values.push(current.limit + 1);
 
-        const data = await rows<AnalyticsWait>(
-          `select ${WAIT_COLUMNS} from workflow.workflow_waits w where ${where}
-           order by w.created_at ${order}, w.wait_id ${order}
-           limit $${String(values.length - 1)} offset $${String(values.length)}`,
+        return paged<AnalyticsWait>(
+          `select ${WAIT_COLUMNS}, ${cursorColumn(WAIT_KEY)}
+           from workflow.workflow_waits w where ${where}
+           order by w.created_at ${current.order}, w.wait_id ${current.order}
+           limit $${String(values.length)}`,
           values,
+          current.limit,
         );
-
-        return paged(data, limit, offset);
       },
     },
   };

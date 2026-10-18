@@ -214,9 +214,54 @@ describe("options", () => {
       concurrency: 5,
     });
     expect(worldOptionsFromEnv({ WORKFLOW_POSTGRES_URL: "" })).toEqual({});
+    expect(
+      worldOptionsFromEnv({
+        WORKFLOW_POSTGRES_MAX_CONNECTIONS: "20",
+        WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS: "5000",
+        WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS: "1000",
+        WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS: "60000",
+        WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS: "0",
+      }),
+    ).toEqual({
+      maxConnections: 20,
+      connectionTimeout: 5000,
+      idleTimeout: 1000,
+      statementTimeout: 60_000,
+    });
     expect(() => worldOptionsFromEnv({ WORKFLOW_DELIVERY: "push" })).toThrow(
       'WORKFLOW_DELIVERY must be "poll" or "pg_net"',
     );
+  });
+
+  it("reports errors of idle pooled connections without throwing", async () => {
+    const { pool } = fakePool({});
+    let listener: ((error: Error) => void) | undefined;
+    const errors: unknown[] = [];
+
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: (_message: string, fields?: Readonly<Record<string, unknown>>) => {
+        errors.push(fields?.["error"]);
+      },
+    };
+
+    // SAFETY: the World attaches its listener through on("error").
+    const watched = Object.assign(pool, {
+      on: (_event: string, next: (error: Error) => void) => {
+        listener = next;
+
+        return watched;
+      },
+    }) as Pool;
+
+    const world = createSupabaseWorld({ pool: watched, logger });
+    expect(() => listener?.(new Error("Connection terminated"))).not.toThrow();
+    expect(errors).toEqual([
+      expect.objectContaining({ message: "Connection terminated" }),
+    ]);
+    await world.close();
   });
 
   it("names the protocol it speaks and builds from the environment", async () => {

@@ -10,7 +10,7 @@ import {
 } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
-import { fromPgError } from "../postgres/executor.ts";
+import { fromPgError } from "../postgres/pg-error.ts";
 import { fromAuthError } from "./delete-account.ts";
 
 export interface EndSessionsResult {

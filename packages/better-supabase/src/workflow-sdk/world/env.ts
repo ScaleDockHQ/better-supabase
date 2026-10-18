@@ -62,6 +62,21 @@ export function worldOptionsFromEnv(
   const namespace = read("WORKFLOW_QUEUE_NAMESPACE");
   const concurrency = positiveInt(read("WORKFLOW_POSTGRES_WORKER_CONCURRENCY"));
   const pollInterval = positiveInt(read("WORKFLOW_POSTGRES_POLL_INTERVAL_MS"));
+  const maxConnections = positiveInt(read("WORKFLOW_POSTGRES_MAX_CONNECTIONS"));
+
+  const connectionTimeout = positiveInt(
+    read("WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS"),
+  );
+
+  const idleTimeout = positiveInt(read("WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS"));
+
+  const statementTimeout = positiveInt(
+    read("WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS"),
+  );
+
+  const idleInTransactionTimeout = positiveInt(
+    read("WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS"),
+  );
 
   return {
     ...(connectionString === undefined ? {} : { connectionString }),
@@ -73,5 +88,12 @@ export function worldOptionsFromEnv(
     ...(namespace === undefined ? {} : { namespace }),
     ...(concurrency === undefined ? {} : { concurrency }),
     ...(pollInterval === undefined ? {} : { pollInterval }),
+    ...(maxConnections === undefined ? {} : { maxConnections }),
+    ...(connectionTimeout === undefined ? {} : { connectionTimeout }),
+    ...(idleTimeout === undefined ? {} : { idleTimeout }),
+    ...(statementTimeout === undefined ? {} : { statementTimeout }),
+    ...(idleInTransactionTimeout === undefined
+      ? {}
+      : { idleInTransactionTimeout }),
   };
 }

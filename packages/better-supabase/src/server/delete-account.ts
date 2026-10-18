@@ -13,7 +13,7 @@ import {
   mapDbError,
 } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
-import { fromPgError } from "../postgres/executor.ts";
+import { fromPgError } from "../postgres/pg-error.ts";
 
 export interface DeleteAccountOptions {
   /**

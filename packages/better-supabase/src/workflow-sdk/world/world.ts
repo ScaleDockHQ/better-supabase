@@ -15,6 +15,7 @@ import { dbError } from "../../core/errors.ts";
 import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { watchPoolErrors } from "../../postgres/pool-errors.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
@@ -115,7 +116,18 @@ export function createSupabaseWorld(
         env("WORKFLOW_POSTGRES_URL") ??
         env("SUPABASE_DB_URL") ??
         env("DATABASE_URL"),
+      max: Math.max(1, options.maxConnections ?? 10),
+      connectionTimeoutMillis: options.connectionTimeout ?? 30_000,
+      idleTimeoutMillis: options.idleTimeout ?? 10_000,
+      statement_timeout: options.statementTimeout ?? 30_000,
+      idle_in_transaction_session_timeout:
+        options.idleInTransactionTimeout ?? 15_000,
     });
+
+  watchPoolErrors(pool, {
+    ...(options.events ? { events: options.events } : {}),
+    ...(options.logger ? { logger: options.logger } : {}),
+  });
 
   const base = createPostgresWorld({
     pool,
@@ -632,8 +644,13 @@ export function createSupabaseWorld(
  * from `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL` or `DATABASE_URL`, and
  * `WORKFLOW_DELIVERY`, `WORKFLOW_FLOW_URL`, `WORKFLOW_DELIVERY_SECRET`,
  * `WORKFLOW_ENCRYPTION_KEY`, `WORKFLOW_DELIVERY_QUEUE`,
- * `WORKFLOW_QUEUE_NAMESPACE`, `WORKFLOW_POSTGRES_WORKER_CONCURRENCY` and
- * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`.
+ * `WORKFLOW_QUEUE_NAMESPACE`, `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`,
+ * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`, and the pool settings
+ * `WORKFLOW_POSTGRES_MAX_CONNECTIONS`,
+ * `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`,
+ * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`,
+ * `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS` and
+ * `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
  */
 export function createWorld(): SupabaseWorld {
   return createSupabaseWorld(worldOptionsFromEnv());

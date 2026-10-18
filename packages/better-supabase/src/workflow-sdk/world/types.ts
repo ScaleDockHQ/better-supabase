@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 
+import type { EventHub } from "../../core/events.ts";
+import type { Logger } from "../../core/logger.ts";
 import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk-world.ts";
 
 /**
@@ -57,6 +59,24 @@ export interface SupabaseWorldOptions {
   readonly deliveryTimeout?: number;
   /** The queue namespace, as `WORKFLOW_QUEUE_NAMESPACE`. */
   readonly namespace?: string;
+  /**
+   * Connections the World's own pool opens (default 10). Each delivery holds
+   * one only for its short claim, settle and heartbeat statements, so more
+   * deliveries than connections wait for one instead of failing.
+   */
+  readonly maxConnections?: number;
+  /** Milliseconds a statement waits for a free connection before it fails (default 30000). */
+  readonly connectionTimeout?: number;
+  /** Milliseconds an unused connection stays open (default 10000). */
+  readonly idleTimeout?: number;
+  /** `statement_timeout` of the World's connections, in milliseconds (default 30000). */
+  readonly statementTimeout?: number;
+  /** `idle_in_transaction_session_timeout` of the World's connections, in milliseconds (default 15000). */
+  readonly idleInTransactionTimeout?: number;
+  /** `betterSupabase.events`: errors on idle pooled connections arrive as `error` events. */
+  readonly events?: EventHub;
+  /** Where idle-connection errors go without `error` handlers. Defaults to the console. */
+  readonly logger?: Logger;
 }
 
 /** The deliveries one message may take; matches world-postgres (49 plus 24 retries of the terminal write). */

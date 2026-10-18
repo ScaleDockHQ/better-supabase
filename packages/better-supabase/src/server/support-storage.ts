@@ -21,7 +21,7 @@ import type {
 import { type DbError, mapDbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { toDbError } from "../core/result.ts";
-import { fromPgError } from "../postgres/executor.ts";
+import { fromPgError } from "../postgres/pg-error.ts";
 
 export interface SupportStorageOptions {
   /** The service-role `supabase.storage` that serves what the target may read. */
