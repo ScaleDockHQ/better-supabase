@@ -59,6 +59,7 @@ export interface ModuleTableSpec {
   readonly optional?: readonly string[];
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
+  readonly adoptOnlyWhenMapped?: boolean;
   readonly lifecycle?: ModuleTableLifecycle;
 }
 

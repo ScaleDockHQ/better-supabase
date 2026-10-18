@@ -157,6 +157,17 @@ export function applyEnvironment(
   return merged;
 }
 
+export function defaultConfig(
+  cwd: string,
+  explicit?: string,
+  environment?: string,
+): ResolvedConfig {
+  const path = discoverConfig(cwd, explicit);
+  const resolved = resolveConfig({}, !path || explicit ? cwd : dirname(path));
+
+  return environment === undefined ? resolved : { ...resolved, environment };
+}
+
 /**
  * Loads `better-supabase.config.*` with c12 and checks it against the config
  * schema. c12 imports `.ts` natively (Node 24 strips the types), so no

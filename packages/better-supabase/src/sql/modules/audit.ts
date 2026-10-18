@@ -178,6 +178,7 @@ const NAMES: ModuleNames = {
         "changedValues",
       ],
       optionalTable: true,
+      adoptOnlyWhenMapped: true,
     },
   },
   hooks: ["audit_retention"],

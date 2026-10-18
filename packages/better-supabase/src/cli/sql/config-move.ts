@@ -131,13 +131,88 @@ function reindent(text: string, from: string, to: string): string {
     .join("\n");
 }
 
+const sortKey = (key: string | undefined): string => (key ?? "").toLowerCase();
+
+function keysSorted(keys: readonly (string | undefined)[]): boolean {
+  return keys.every(
+    (key, index) =>
+      index === 0 ||
+      (key !== undefined && sortKey(keys[index - 1]) <= sortKey(key)),
+  );
+}
+
+function rootKeys(source: string): readonly (string | undefined)[] {
+  const code = mask(source);
+  const root = configObject(code);
+
+  const props = root === undefined ? undefined : properties(source, code, root);
+
+  return props?.map((prop) => prop.key) ?? [];
+}
+
+function sortBlocksKey(source: string): string {
+  const code = mask(source);
+  const root = configObject(code);
+
+  if (root === undefined) {
+    return source;
+  }
+
+  const props = properties(source, code, root);
+  const blocksIndex = props?.findIndex((prop) => prop.key === "blocks") ?? -1;
+
+  if (!props || blocksIndex === -1) {
+    return source;
+  }
+
+  const targetIndex = props.findIndex(
+    (prop, index) =>
+      index !== blocksIndex && sortKey(prop.key) > sortKey("blocks"),
+  );
+
+  if (targetIndex === -1 || targetIndex === blocksIndex + 1) {
+    return source;
+  }
+
+  const blocks = propertySpan(source, code, root, props, blocksIndex);
+  const target = props[targetIndex]!;
+
+  if (target.start > blocks.start) {
+    return source;
+  }
+
+  const at = blocks.multiline
+    ? propertySpan(source, code, root, props, targetIndex).start
+    : target.start;
+
+  const moved = blocks.multiline
+    ? `${blocks.value},${blocks.trailing}\n`
+    : `${blocks.value}, `;
+
+  return (
+    source.slice(0, at) +
+    moved +
+    source.slice(at, blocks.start) +
+    source.slice(blocks.end)
+  );
+}
+
 /**
  * `source` with `sql.modules` moved to a top-level `blocks` key, placed
- * right after `sql`. `sql` is dropped when nothing else is left in it. A
- * config without `sql.modules` comes back unchanged; one that also sets
- * `blocks` is refused, because the two need a merge by hand.
+ * right after `sql`, or in sorted position when the config's top-level keys
+ * are sorted. `sql` is dropped when nothing else is left in it. A config
+ * without `sql.modules` comes back unchanged; one that also sets `blocks` is
+ * refused, because the two need a merge by hand.
  */
 export function moveSqlModulesToBlocks(source: string): ConfigEdit {
+  const edit = moveSqlModules(source);
+
+  return edit.ok && edit.text !== source && keysSorted(rootKeys(source))
+    ? { ok: true, text: sortBlocksKey(edit.text) }
+    : edit;
+}
+
+function moveSqlModules(source: string): ConfigEdit {
   const code = mask(source);
   const root = configObject(code);
 
@@ -263,6 +338,19 @@ export function moveSqlModulesToBlocks(source: string): ConfigEdit {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+function withBlocksSorted(
+  config: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const entries = Object.entries(config).filter(([key]) => key !== "blocks");
+  const after = entries.findIndex(([key]) => sortKey(key) > "blocks");
+  entries.splice(after === -1 ? entries.length : after, 0, [
+    "blocks",
+    config["blocks"],
+  ]);
+
+  return Object.fromEntries(entries);
+}
+
 /** `moveSqlModulesToBlocks` for `better-supabase.config.json`. */
 export function moveSqlModulesToBlocksJson(source: string): ConfigEdit {
   let config: unknown;
@@ -307,7 +395,11 @@ export function moveSqlModulesToBlocksJson(source: string): ConfigEdit {
     next["blocks"] = modules;
   }
 
+  const sorted = keysSorted(Object.keys(config))
+    ? withBlocksSorted(next)
+    : next;
+
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
 
-  return { ok: true, text: `${JSON.stringify(next, null, indent)}\n` };
+  return { ok: true, text: `${JSON.stringify(sorted, null, indent)}\n` };
 }

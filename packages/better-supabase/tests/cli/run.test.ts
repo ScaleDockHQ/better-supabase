@@ -1,5 +1,5 @@
 import { existsSync, utimesSync, writeFileSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +62,29 @@ describe("run", () => {
     expect(
       await run(["codemod", "0.5", "--dry-run", "--cwd", dir]),
     ).toMatchObject({ code: 0 });
+  });
+
+  it("runs codemod 0.9 on a config that still has sql.modules", async () => {
+    const path = join(dir, "better-supabase.config.ts");
+    await writeFile(
+      path,
+      "export default {\n  sql: {\n    modules: { tenant: true },\n  },\n};\n",
+    );
+
+    const before = await run(["sql", "list", "--cwd", dir]);
+    expect(before.code).toBe(2);
+    expect(before.stderr).toContain("better-supabase codemod 0.9");
+
+    const nested = join(dir, "src");
+    await mkdir(nested);
+
+    expect(await run(["codemod", "0.9", "--cwd", nested])).toMatchObject({
+      code: 0,
+      stdout: expect.stringContaining("better-supabase.config.ts"),
+    });
+    expect(await readFile(path, "utf-8")).toBe(
+      "export default {\n  blocks: { tenant: true },\n};\n",
+    );
   });
 
   it("prints the usage to stderr without a command and to stdout for help", async () => {

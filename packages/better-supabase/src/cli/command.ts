@@ -69,6 +69,7 @@ export interface CliCommandDef<T extends ArgsDef> {
   readonly args: T;
   /** String options that take a list: comma-separated, repeated, or both. */
   readonly lists?: readonly (keyof T & string)[];
+  readonly runsWithInvalidConfig?: boolean;
   readonly run: (
     args: CliArgs<T>,
     context: CliContext,
@@ -82,6 +83,7 @@ export type AnyCommand = Exclude<
 >;
 
 const LISTS = new WeakMap<object, readonly string[]>();
+const RUNS_WITH_INVALID_CONFIG = new WeakSet<object>();
 
 /** A citty command that receives the `CliContext` and returns a `CommandResult`. */
 export function defineCliCommand<const T extends ArgsDef>(
@@ -95,6 +97,10 @@ export function defineCliCommand<const T extends ArgsDef>(
 
   LISTS.set(command, def.lists ?? []);
 
+  if (def.runsWithInvalidConfig === true) {
+    RUNS_WITH_INVALID_CONFIG.add(command);
+  }
+
   return command;
 }
 
@@ -103,6 +109,12 @@ export function listArgs<T extends ArgsDef>(
   command: CommandDef<T>,
 ): readonly string[] {
   return LISTS.get(command) ?? [];
+}
+
+export function runsWithInvalidConfig<T extends ArgsDef>(
+  command: CommandDef<T>,
+): boolean {
+  return RUNS_WITH_INVALID_CONFIG.has(command);
 }
 
 /** Splits a comma-separated option into its trimmed, non-empty parts. */

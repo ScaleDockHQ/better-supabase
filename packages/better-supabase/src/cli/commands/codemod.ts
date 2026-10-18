@@ -165,5 +165,6 @@ export const codemodCommand: AnyCommand = defineCliCommand({
       "Rewrites imports, calls and config keys for renamed better-supabase APIs",
   },
   args: CODEMOD_ARGS,
+  runsWithInvalidConfig: true,
   run: (args, { config, io }) => runCodemod(config, args, painter(io.color)),
 });

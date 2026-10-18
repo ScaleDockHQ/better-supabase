@@ -258,7 +258,12 @@ every user it mentions (after group expansion) follow the subject: the
 trigger adds a `participating` row to `notification_subscriptions` for each
 of them. A user who already has a row for the subject keeps it, so someone
 who chose `ignore` stays unsubscribed. An edit adds only the newly mentioned
-users. `options.follow: false` turns this off.
+users. `options.follow: false` turns this off. Following does not depend on
+`options.notify`: `notify: false` stops the notifications but still adds the
+subscription rows, so set `follow: false` as well to stop them. While
+following is on, an app that brings its own subscriptions table (adopt mode)
+must accept every subject type it comments on in the subject type column,
+including any check constraint or foreign key on it.
 
 ## In the browser
 

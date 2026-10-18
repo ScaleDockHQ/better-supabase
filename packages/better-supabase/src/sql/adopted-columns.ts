@@ -38,7 +38,11 @@ export function adoptedTables(
     const unchecked = SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {};
 
     for (const [logical, table] of Object.entries(spec)) {
-      if (!ctx.hasTable(logical)) {
+      if (
+        !ctx.hasTable(logical) ||
+        (table.adoptOnlyWhenMapped === true &&
+          ctx.config.tables[logical] === undefined)
+      ) {
         continue;
       }
 
@@ -106,7 +110,11 @@ export function adoptedColumnProblems(
     const unchecked = SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {};
 
     for (const [logical, table] of Object.entries(spec)) {
-      if (!ctx.hasTable(logical)) {
+      if (
+        !ctx.hasTable(logical) ||
+        (table.adoptOnlyWhenMapped === true &&
+          ctx.config.tables[logical] === undefined)
+      ) {
         continue;
       }
 

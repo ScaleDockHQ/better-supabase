@@ -83,7 +83,7 @@ export default defineConfig({
 
   it("adds the comma when sql is the last property", () => {
     const source = `export default defineConfig({
-  schema: "public",
+  x: 1,
   sql: {
     modules: ["tenant"],
     dir: "db"
@@ -92,7 +92,7 @@ export default defineConfig({
 `;
 
     expect(moved(source)).toBe(`export default defineConfig({
-  schema: "public",
+  x: 1,
   sql: {
     dir: "db"
   },
@@ -104,14 +104,69 @@ export default defineConfig({
   it("rewrites one-line objects and a shorthand modules", () => {
     expect(
       moved(
-        `export default defineConfig({ sql: { dir: "db", modules }, x: 1 });`,
+        `export default defineConfig({ sql: { dir: "db", modules }, a: 1 });`,
       ),
     ).toBe(
-      `export default defineConfig({ sql: { dir: "db" }, blocks: modules, x: 1 });`,
+      `export default defineConfig({ sql: { dir: "db" }, blocks: modules, a: 1 });`,
     );
     expect(
       moved(`export default defineConfig({ sql: { "modules": ["tenant"] } });`),
     ).toBe(`export default defineConfig({ "blocks": ["tenant"] });`);
+  });
+
+  it("puts blocks in sorted position when the top-level keys are sorted", () => {
+    expect(
+      moved(`export default defineConfig({
+  casing: "camel",
+  // Generated types.
+  schemas: ["public"],
+  sql: {
+    dir: "db",
+    // Installed blocks.
+    modules: { tenant: true }, // tenancy
+  },
+  types: "src/types.ts",
+});
+`),
+    ).toBe(`export default defineConfig({
+  // Installed blocks.
+  blocks: { tenant: true }, // tenancy
+  casing: "camel",
+  // Generated types.
+  schemas: ["public"],
+  sql: {
+    dir: "db",
+  },
+  types: "src/types.ts",
+});
+`);
+    expect(
+      moved(`export default defineConfig({
+  casing: "camel",
+  sql: {
+    modules: ["tenant"],
+  },
+});
+`),
+    ).toBe(`export default defineConfig({
+  blocks: ["tenant"],
+  casing: "camel",
+});
+`);
+    expect(
+      moved(
+        `export default defineConfig({ casing: "camel", sql: { dir: "db", modules } });`,
+      ),
+    ).toBe(
+      `export default defineConfig({ blocks: modules, casing: "camel", sql: { dir: "db" } });`,
+    );
+    expect(
+      moved(
+        `export default defineConfig({ $schema: "x", sql: { modules: ["tenant"] } });`,
+      ),
+    ).toBe(
+      `export default defineConfig({ $schema: "x", blocks: ["tenant"] });`,
+    );
   });
 
   it("keeps a config without sql.modules, so a second run changes nothing", () => {
@@ -148,13 +203,26 @@ export default defineConfig({
 describe("moveSqlModulesToBlocksJson", () => {
   it("moves the key in place and drops an empty sql", () => {
     const edit = moveSqlModulesToBlocksJson(
-      `{\n  "schema": "public",\n  "sql": { "modules": ["tenant"] },\n  "x": 1\n}\n`,
+      `{\n  "schema": "public",\n  "sql": { "modules": ["tenant"] },\n  "a": 1\n}\n`,
     );
 
     expect(edit).toEqual({
       ok: true,
-      text: `{\n  "schema": "public",\n  "blocks": [\n    "tenant"\n  ],\n  "x": 1\n}\n`,
+      text: `{\n  "schema": "public",\n  "blocks": [\n    "tenant"\n  ],\n  "a": 1\n}\n`,
     });
+  });
+
+  it("puts blocks in sorted position when the top-level keys are sorted", () => {
+    const edit = moveSqlModulesToBlocksJson(
+      `{ "casing": "camel", "schemas": ["public"], "sql": { "dir": "db", "modules": ["tenant"] } }`,
+    );
+
+    expect(edit.ok && Object.keys(JSON.parse(edit.text))).toEqual([
+      "blocks",
+      "casing",
+      "schemas",
+      "sql",
+    ]);
   });
 
   it("keeps the other sql settings and refuses with blocks set", () => {

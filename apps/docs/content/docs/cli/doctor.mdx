@@ -980,6 +980,10 @@ maps a table, or a column of it, that the live database lacks, so the
 module's functions fail when they run. Doctor reads every column the
 module's SQL names: the ones in `blocks.<name>.columns` and the
 defaults for the unmapped ones, leaving out the columns mapped to `null`.
+Tables that an adopted module uses only when `blocks.<name>.tables` maps
+them (the notifications `deliveryEvents` and `suppressions`, the audit
+`restricted` table and the invitations `platformInvitations`) are checked
+once they are mapped, and skipped otherwise, as the generated SQL skips them.
 Map the logical column to the column that holds it, map it to `null` when
 the module allows that, or add the column. `better-supabase sql sync`
 refuses an optional column that the `create table` in `supabase/schemas`

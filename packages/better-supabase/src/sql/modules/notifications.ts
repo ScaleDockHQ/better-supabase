@@ -182,6 +182,7 @@ const NAMES: ModuleNames = {
       },
       optional: ["tenant", "provider"],
       optionalTable: true,
+      adoptOnlyWhenMapped: true,
     },
     subscriptions: {
       name: "notification_subscriptions",
@@ -230,6 +231,7 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
       },
       optionalTable: true,
+      adoptOnlyWhenMapped: true,
     },
   },
   // after_notify predates the before_/after_<entity>_<action> names and keeps
