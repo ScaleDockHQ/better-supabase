@@ -49,13 +49,26 @@ create table if not exists "better_supabase"."field_definitions" (
   "entity" text not null,
   "key" text not null,
   "label" text not null,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json')),
+  "type" text not null,
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
+alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+  end if;
+end;
+$$;
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
@@ -321,13 +334,26 @@ create table if not exists "better_supabase"."field_definitions" (
   "entity" text not null,
   "key" text not null,
   "label" text not null,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json')),
+  "type" text not null,
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
+alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+  end if;
+end;
+$$;
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;
@@ -595,13 +621,26 @@ create table if not exists "app_private"."field_definitions" (
   "entity" text not null,
   "key" text not null,
   "label" text not null,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json')),
+  "type" text not null,
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
+alter table "app_private"."field_definitions" drop constraint if exists "field_definitions_type_check";
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"app_private"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+    alter table "app_private"."field_definitions" drop constraint if exists "bs_field_definitions_type";
+    alter table "app_private"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bs_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 41e34c72';
+  end if;
+end;
+$$;
 alter table "app_private"."field_definitions" enable row level security;
 revoke all on "app_private"."field_definitions" from anon, authenticated;
 grant select on "app_private"."field_definitions" to authenticated;
@@ -867,13 +906,26 @@ create table if not exists "better_supabase"."field_definitions" (
   "entity" text not null,
   "key" text not null,
   "label" text not null,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json')),
+  "type" text not null,
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
+alter table "better_supabase"."field_definitions" drop constraint if exists "field_definitions_type_check";
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+  end if;
+end;
+$$;
 alter table "better_supabase"."field_definitions" enable row level security;
 revoke all on "better_supabase"."field_definitions" from anon, authenticated;
 grant select on "better_supabase"."field_definitions" to authenticated;

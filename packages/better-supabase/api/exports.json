@@ -216,6 +216,7 @@
       "DEFAULT_ACTIVE_TENANT",
       "DEFAULT_CLAIMS",
       "defineConfig",
+      "FIELD_FORMATS",
       "GEN_TASKS",
       "INTEGRATION_NAMES",
       "jsonSchema",
@@ -271,6 +272,8 @@
       "ExposeConfig",
       "ExposePrivilege",
       "ExposeRole",
+      "FieldFormat",
+      "FieldFormatInput",
       "GenConfig",
       "GeneratedFile",
       "Generator",
@@ -4731,6 +4734,7 @@
   "./blocks/custom-fields": {
     "values": [
       "createCustomFields",
+      "CUSTOM_FIELD_TYPES",
       "customFieldsBlock",
       "customFieldsEvents"
     ],
@@ -4738,6 +4742,7 @@
       "CustomFields",
       "CustomFieldsEvents",
       "CustomFieldsOptions",
+      "CustomFieldType",
       "FieldDefinition",
       "FieldDefinitionDetail"
     ]

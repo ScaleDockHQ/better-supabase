@@ -13,6 +13,7 @@ import {
   AUTH_USERS,
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
+import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
@@ -400,48 +401,16 @@ function checkKeyColumns(table: AppTable): void {
   }
 }
 
-const EMAIL = String.raw`^[^@\s]+@[^@\s]+\.[^@\s]+$`;
-const URL_PATTERN = String.raw`^https?://\S+$`;
-
-/** The bounds a format implies when the column sets no `min` or `max`. */
-const FORMAT_BOUNDS: Partial<
-  Record<NonNullable<AppColumnConfig["format"]>, readonly [number, number]>
-> = {
-  rating: [1, 5],
-  percent: [0, 100],
-};
-
 /** The conditions of a column's check: its format, options and bounds. */
 function constraintChecks(name: string, column: AppColumnConfig): string[] {
   const ident = sqlIdent(name);
   const conditions: string[] = [];
 
-  switch (column.format) {
-    case "email": {
-      conditions.push(`${ident} ~* ${sqlString(EMAIL)}`);
-      break;
-    }
+  const format =
+    column.format === undefined ? undefined : FIELD_FORMATS[column.format];
 
-    case "url": {
-      conditions.push(`${ident} ~* ${sqlString(URL_PATTERN)}`);
-      break;
-    }
-
-    case "phone":
-    case "long_text":
-    case "color":
-    case "rating":
-    case "percent":
-    case "currency":
-    case undefined: {
-      break;
-    }
-
-    default: {
-      const never: never = column.format;
-
-      throw new TypeError(`Unknown column format "${String(never)}"`);
-    }
+  if (format?.pattern !== undefined) {
+    conditions.push(`${ident} ~* ${sqlString(format.pattern)}`);
   }
 
   if (column.options !== undefined) {
@@ -454,11 +423,8 @@ function constraintChecks(name: string, column: AppColumnConfig): string[] {
     );
   }
 
-  const implied =
-    column.format === undefined ? undefined : FORMAT_BOUNDS[column.format];
-
-  const min = column.min ?? implied?.[0];
-  const max = column.max ?? implied?.[1];
+  const min = column.min ?? format?.bounds?.[0];
+  const max = column.max ?? format?.bounds?.[1];
   const measured = column.type === "text" ? `char_length(${ident})` : ident;
 
   if (min !== undefined) {

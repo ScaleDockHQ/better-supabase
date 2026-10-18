@@ -1,6 +1,7 @@
 import type { BlockScope } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
+import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
@@ -70,20 +71,6 @@ const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "comment",
   "identity",
 ]);
-
-/** The column types each format fits. */
-const FORMAT_TYPES: Readonly<
-  Record<AppColumnFormat, readonly AppColumnType[]>
-> = {
-  email: ["text"],
-  url: ["text"],
-  phone: ["text"],
-  long_text: ["text"],
-  color: ["text"],
-  rating: ["integer", "bigint"],
-  percent: ["integer", "numeric"],
-  currency: ["bigint"],
-};
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([
   "integer",
@@ -175,7 +162,7 @@ function formatOf(
     );
   }
 
-  const types = FORMAT_TYPES[value];
+  const types: readonly AppColumnType[] = FIELD_FORMATS[value].types;
 
   if (!types.includes(type)) {
     throw new TypeError(

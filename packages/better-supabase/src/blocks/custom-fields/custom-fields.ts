@@ -1,5 +1,6 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -33,6 +34,7 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   readonly entity: string;
   readonly key: string;
   readonly label: string;
+  /** A `CustomFieldType`, or the value an adopted table stores. */
   readonly type: string;
   readonly required: boolean;
   readonly sensitive: boolean;
@@ -51,7 +53,7 @@ export interface CustomFields {
     entity: string,
     key: string,
     label: string,
-    type: string,
+    type: CustomFieldType,
     sensitive?: boolean,
   ): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;

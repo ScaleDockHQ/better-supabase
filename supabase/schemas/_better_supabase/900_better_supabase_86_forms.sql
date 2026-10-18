@@ -261,7 +261,8 @@ begin
       v_keys := v_keys || (v_field ->> 'key');
       v_custom := null;
       if v_field ? 'customField' then
-        select jsonb_strip_nulls(jsonb_build_object('label', d."label", 'type', d."type", 'required', d."required"))
+        select jsonb_strip_nulls(jsonb_build_object('label', d."label", 'type', case d."type" when 'multi_option' then 'multi' when 'user' then 'text' when 'rating' then 'integer' when 'currency' then 'integer' else d."type" end, 'required', d."required"))
+            || case when d."type" = 'rating' then jsonb_build_object('min', 1, 'max', 5) else '{}'::jsonb end
           into v_custom
           from "better_supabase"."field_definitions" d
           where d."id" = (v_field ->> 'customField')::uuid and d."tenant_id" = form_resolve.tenant;
@@ -269,7 +270,7 @@ begin
           v_problem := format('field %s: customField %s is not a field definition in this organization', v_field ->> 'key', v_field ->> 'customField');
         exit steps;
         end if;
-        if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass('"better_supabase"."field_options"') is not null then
+        if v_custom ->> 'type' in ('option', 'multi') and not v_field ? 'options' and to_regclass('"better_supabase"."field_options"') is not null then
           execute format('select jsonb_agg(jsonb_build_object(''value'', o."value", ''label'', o."label") order by o."value") from %s o where o."definition_id" = $1', to_regclass('"better_supabase"."field_options"'))
             into v_options using (v_field ->> 'customField')::uuid;
           v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));

@@ -1,3 +1,8 @@
+import {
+  FIELD_FORMAT_NAMES,
+  type FieldFormatName,
+} from "../../core/contracts/field-formats.ts";
+
 /**
  * The column types an app table may use. Money is a `bigint` of minor units
  * next to a `text` currency column (ADR 0024 and 0037), never `numeric`.
@@ -35,21 +40,11 @@ export type AppReference = AppReferenceTarget & {
 /**
  * What a column holds, beyond its Postgres type. `email`, `url`, `rating`
  * and `percent` add a check; the others tell the UI and `gen` how to show
- * the value. Money is a `currency` `bigint` of minor units next to a
- * `text` column of 3 characters for the code (ADR 0037).
+ * the value. `FIELD_FORMATS` lists the types each fits and its input.
  */
-export const APP_COLUMN_FORMATS = [
-  "email",
-  "url",
-  "phone",
-  "long_text",
-  "color",
-  "rating",
-  "percent",
-  "currency",
-] as const;
+export const APP_COLUMN_FORMATS: typeof FIELD_FORMAT_NAMES = FIELD_FORMAT_NAMES;
 
-export type AppColumnFormat = (typeof APP_COLUMN_FORMATS)[number];
+export type AppColumnFormat = FieldFormatName;
 
 export interface AppColumnConfig {
   readonly type: AppColumnType;
