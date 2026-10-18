@@ -202,7 +202,7 @@ function BlockLinks({
           ) : (
             <SiteLink
               href={blockPath(name)}
-              className="inline-flex rounded-md border border-border bg-background px-2 py-0.5 font-mono text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="inline-flex min-h-6 items-center rounded-md border border-border bg-background px-2 py-0.5 font-mono text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               {name}
             </SiteLink>

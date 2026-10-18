@@ -15,7 +15,18 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${String(port)}`,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: /mobile\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile",
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
+    },
+  ],
   webServer: {
     command: `pnpm --dir ../.. exec turbo run build --filter=marketing && pnpm exec next start -p ${String(port)}`,
     url: `http://127.0.0.1:${String(port)}/create`,

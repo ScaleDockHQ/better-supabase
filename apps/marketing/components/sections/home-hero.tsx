@@ -42,7 +42,7 @@ export function HomeHero() {
           <CopyCommand command={site.install} />
           <a
             href={site.npm}
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="inline-flex min-h-6 items-center text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             npm
           </a>
