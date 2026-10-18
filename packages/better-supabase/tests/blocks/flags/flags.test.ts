@@ -55,6 +55,7 @@ describe("evaluateFlag", () => {
       value: false,
       variant: "off",
       reason: "DISABLED",
+      found: true,
     });
   });
 
@@ -70,7 +71,12 @@ describe("evaluateFlag", () => {
 
     expect(
       await evaluateFlag(definition, { targetingKey: USER, tenant: "org-1" }),
-    ).toEqual({ value: true, variant: "beta", reason: "TARGETING_MATCH" });
+    ).toEqual({
+      value: true,
+      variant: "beta",
+      reason: "TARGETING_MATCH",
+      found: true,
+    });
     expect(
       await evaluateFlag(definition, {
         targetingKey: "other",
@@ -208,7 +214,26 @@ describe("evaluateFlag", () => {
       value: false,
       variant: "off",
       reason: "DEFAULT",
+      found: true,
     });
+  });
+
+  it("tells a missing default variant from a null value", async () => {
+    expect(await evaluateFlag(flag({ defaultVariant: "gone" }))).toEqual({
+      value: null,
+      variant: "gone",
+      reason: "DEFAULT",
+      found: false,
+    });
+    expect(
+      await evaluateFlag(
+        flag({
+          type: "object",
+          variants: { none: null },
+          defaultVariant: "none",
+        }),
+      ),
+    ).toEqual({ value: null, variant: "none", reason: "DEFAULT", found: true });
   });
 });
 
@@ -273,6 +298,7 @@ describe("flagDefinitionsOf", () => {
       {
         key: "odd",
         type: "boolean",
+        invalidType: "weird",
         variants: {},
         defaultVariant: "",
         enabled: false,
@@ -354,6 +380,41 @@ describe("createFlagsProvider", () => {
     ).toMatchObject({
       errorCode: "TYPE_MISMATCH",
     });
+  });
+
+  it("reports a flag of an unknown type as PARSE_ERROR", async () => {
+    const definitions = flagDefinitionsOf([
+      {
+        key: "odd",
+        type: "weird",
+        variants: { on: true },
+        default_variant: "on",
+      },
+    ]);
+
+    expect(
+      await createFlagsProvider({ definitions }).resolveBooleanEvaluation(
+        "odd",
+        false,
+        {},
+      ),
+    ).toEqual({
+      value: false,
+      reason: "ERROR",
+      errorCode: "PARSE_ERROR",
+      errorMessage: 'Flag "odd" has the unknown type "weird"',
+    });
+    expect(
+      await createFlagsProvider({
+        definitions,
+        errorCodes: {
+          FLAG_NOT_FOUND: "not-found",
+          TYPE_MISMATCH: "type",
+          PROVIDER_NOT_READY: "not-ready",
+          GENERAL: "general",
+        },
+      }).resolveBooleanEvaluation("odd", false, {}),
+    ).toMatchObject({ errorCode: "general" });
   });
 
   it("caches definitions for ttl, reloads after refresh() and after a failure", async () => {

@@ -55,7 +55,13 @@ export interface FlagOverride {
 /** A row of the `flags` table with its overrides (`flag_definitions()`). */
 export interface FlagDefinition {
   readonly key: string;
+  /** `"boolean"` when the row's type is unknown; `invalidType` then holds it. */
   readonly type: FlagType;
+  /**
+   * The row's type when it isn't one of `FlagType`. Such a flag is never
+   * served: the adapters fall back and the provider reports `PARSE_ERROR`.
+   */
+  readonly invalidType?: string;
   readonly description?: string;
   readonly variants: Readonly<Record<string, FlagValue>>;
   readonly defaultVariant: string;
@@ -115,6 +121,7 @@ export type FlagReason =
 export type FlagErrorCode =
   | "FLAG_NOT_FOUND"
   | "TYPE_MISMATCH"
+  | "PARSE_ERROR"
   | "PROVIDER_NOT_READY"
   | "GENERAL";
 
@@ -246,9 +253,12 @@ async function chooseVariant(
 
 /** The result of `evaluateFlag()`, which never fails. */
 export interface FlagEvaluation {
+  /** The variant's value; `null` when `found` is false. */
   readonly value: FlagValue;
   readonly variant: string;
   readonly reason: FlagReason;
+  /** Whether `variants` has the chosen variant, so a `null` value is real. */
+  readonly found: boolean;
 }
 
 /** Evaluates one flag as `better_supabase.flag_evaluation()` does. */
@@ -258,7 +268,14 @@ export async function evaluateFlag(
 ): Promise<FlagEvaluation> {
   const { variant, reason } = await chooseVariant(flag, context);
 
-  return { value: flag.variants[variant] ?? null, variant, reason };
+  const found = Object.hasOwn(flag.variants, variant);
+
+  return {
+    value: found ? (flag.variants[variant] ?? null) : null,
+    variant,
+    reason,
+    found,
+  };
 }
 
 const FLAG_TYPES: ReadonlySet<string> = new Set([
@@ -268,11 +285,17 @@ const FLAG_TYPES: ReadonlySet<string> = new Set([
   "object",
 ]);
 
-const flagTypeOf = (value: unknown): FlagType => {
+const flagTypeOf = (
+  value: unknown,
+): Pick<FlagDefinition, "type" | "invalidType"> => {
   const text = textOf(value);
 
-  // SAFETY: checked against the types the flags table's check allows.
-  return FLAG_TYPES.has(text) ? (text as FlagType) : "boolean";
+  if (value === undefined || value === null || FLAG_TYPES.has(text)) {
+    // SAFETY: checked against the types the flags table's check allows.
+    return { type: FLAG_TYPES.has(text) ? (text as FlagType) : "boolean" };
+  }
+
+  return { type: "boolean", invalidType: text };
 };
 
 function ruleOf(value: unknown): FlagRule | undefined {
@@ -312,7 +335,7 @@ function ruleOf(value: unknown): FlagRule | undefined {
 export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
   return recordsOf(value, "flag_definitions").map((row) => ({
     key: textOf(row["key"]),
-    type: flagTypeOf(row["type"]),
+    ...flagTypeOf(row["type"]),
     // SAFETY: a jsonb object column; its values are JSON.
     variants: (isRecord(row["variants"]) ? row["variants"] : {}) as Record<
       string,
@@ -373,8 +396,12 @@ export interface FlagsProviderOptions<
   /**
    * OpenFeature's `ErrorCode` enum (from `@openfeature/core` or
    * `@openfeature/server-sdk`), so the provider's types match `Provider`.
+   * A map without `PARSE_ERROR` reports an unknown flag type as `GENERAL`.
    */
-  readonly errorCodes?: Readonly<Record<FlagErrorCode, Code>>;
+  readonly errorCodes?: Readonly<
+    Record<Exclude<FlagErrorCode, "PARSE_ERROR">, Code> &
+      Partial<Record<"PARSE_ERROR", Code>>
+  >;
   readonly now?: () => number;
 }
 
@@ -418,6 +445,7 @@ export interface FlagsProvider<Code extends string = FlagErrorCode> {
 const DEFAULT_CODES: Readonly<Record<FlagErrorCode, FlagErrorCode>> = {
   FLAG_NOT_FOUND: "FLAG_NOT_FOUND",
   TYPE_MISMATCH: "TYPE_MISMATCH",
+  PARSE_ERROR: "PARSE_ERROR",
   PROVIDER_NOT_READY: "PROVIDER_NOT_READY",
   GENERAL: "GENERAL",
 };
@@ -515,6 +543,15 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         reason: "ERROR",
         errorCode: codes.FLAG_NOT_FOUND,
         errorMessage: `Flag "${flagKey}" is not defined`,
+      };
+    }
+
+    if (flag.invalidType !== undefined) {
+      return {
+        value: defaultValue,
+        reason: "ERROR",
+        errorCode: codes.PARSE_ERROR ?? codes.GENERAL,
+        errorMessage: `Flag "${flagKey}" has the unknown type "${flag.invalidType}"`,
       };
     }
 

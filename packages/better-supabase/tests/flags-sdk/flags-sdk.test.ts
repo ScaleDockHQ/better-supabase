@@ -122,7 +122,7 @@ describe("betterSupabaseAdapter", () => {
     );
     expect(adapter.origin).toBeUndefined();
     await expect(adapter.decide({ key: "missing" })).rejects.toThrow(
-      'Flag "missing": it is missing or has another type',
+      'Flag "missing": it is missing, and it has no defaultValue',
     );
 
     const failing = betterSupabaseAdapter({
@@ -140,6 +140,80 @@ describe("betterSupabaseAdapter", () => {
         flags: [{ key: "new_editor", defaultValue: true }],
       }),
     ).toEqual({});
+  });
+
+  describe("null values", () => {
+    const json = flag({
+      key: "layout",
+      type: "object",
+      variants: { none: null, grid: { columns: 3 }, label: "grid" },
+      defaultVariant: "none",
+    });
+
+    const served = (variant: string) => ({
+      definitions: [{ ...json, defaultVariant: variant }],
+    });
+
+    // [variant, declared defaultValue, served value]
+    const cases: [string, unknown, unknown][] = [
+      ["missing", null, null],
+      ["missing", { columns: 1 }, { columns: 1 }],
+      ["none", undefined, null],
+      ["none", null, null],
+      ["none", { columns: 1 }, { columns: 1 }],
+      ["grid", undefined, { columns: 3 }],
+      ["grid", null, { columns: 3 }],
+      ["grid", { columns: 1 }, { columns: 3 }],
+      ["label", null, null],
+      ["label", { columns: 1 }, { columns: 1 }],
+      ["label", "list", "grid"],
+    ];
+
+    it.each(cases)(
+      "variant %s with defaultValue %j serves %j",
+      async (variant, defaultValue, expected) => {
+        const adapter = betterSupabaseAdapter(served(variant))();
+
+        const params = {
+          key: "layout",
+          ...(defaultValue === undefined ? {} : { defaultValue }),
+        };
+
+        expect(await adapter.decide(params)).toEqual(expected);
+        expect(await adapter.bulkDecide({ flags: [params] })).toEqual({
+          layout: expected,
+        });
+      },
+    );
+
+    it("throws for a missing variant without a defaultValue", async () => {
+      const adapter = betterSupabaseAdapter(served("missing"))();
+
+      await expect(adapter.decide({ key: "layout" })).rejects.toThrow(
+        "it has no such variant or has another type",
+      );
+      expect(await adapter.bulkDecide({ flags: [{ key: "layout" }] })).toEqual(
+        {},
+      );
+    });
+  });
+
+  it("never serves a flag of an unknown type", async () => {
+    const adapter = betterSupabaseAdapter({
+      definitions: [flag({ invalidType: "json" })],
+    })();
+
+    expect(
+      await adapter.decide({ key: "new_editor", defaultValue: false }),
+    ).toBe(false);
+    await expect(adapter.decide({ key: "new_editor" })).rejects.toThrow(
+      'it has the unknown type "json"',
+    );
+    expect(
+      await adapter.bulkDecide({
+        flags: [{ key: "new_editor" }, { key: "x", defaultValue: 1 }],
+      }),
+    ).toEqual({ x: 1 });
   });
 
   it("decides a batch from one load", async () => {
@@ -239,6 +313,21 @@ describe("flagOptions and getProviderData", () => {
       },
       hints: [],
     });
+  });
+
+  it("hints at a flag of an unknown type", async () => {
+    const data = await getProviderData({
+      provider: betterSupabaseAdapter({
+        definitions: [flag({ invalidType: "json" })],
+      }).provider,
+    });
+
+    expect(data.hints).toEqual([
+      {
+        key: "better-supabase/invalid-type",
+        text: 'Flag "new_editor" has the unknown type "json", so it always serves its fallback',
+      },
+    ]);
   });
 
   it("turns a failed load into a hint", async () => {

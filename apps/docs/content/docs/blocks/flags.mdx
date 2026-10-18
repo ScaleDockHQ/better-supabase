@@ -226,6 +226,10 @@ await OpenFeature.setProviderAndWait(provider);
 export const flags = OpenFeature.getClient();
 ```
 
+A row whose `type` is not one the table allows resolves to the default
+with `PARSE_ERROR`, or `GENERAL` when the `errorCodes` map has no
+`PARSE_ERROR`.
+
 `flagContext(ctx)` builds the evaluation context from verified claims: the
 user id as `targetingKey`, the tenant (`tenant_id`, then
 `app_metadata.tenant_id`), its plan features from the `features` claim and
