@@ -11,7 +11,10 @@ export function AppHeader() {
   const t = useExtracted("navigation");
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur">
+    <header
+      data-recipe="notification-bell"
+      className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur"
+    >
       <SidebarTrigger className="-ml-1" aria-label={t("Toggle sidebar")} />
       <Separator orientation="vertical" className="mr-2 h-4" />
       <span className="text-sm font-medium text-muted-foreground">

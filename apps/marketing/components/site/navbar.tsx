@@ -1,10 +1,10 @@
 import Link from "next/link";
+import { siGithub } from "simple-icons";
 
+import { BrandLogo } from "@/components/site/brand-icons";
 import { LinkButton } from "@/components/site/link-button";
 import { LogoMark } from "@/components/site/logo";
-import { SiteLink } from "@/components/site/site-link";
-import { ThemeToggle } from "@/components/site/theme-toggle";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { NavLink } from "@/components/site/nav-link";
 import { navLinks, site } from "@/lib/site";
 
 export function Navbar() {
@@ -21,23 +21,25 @@ export function Navbar() {
           </Link>
           <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
             {navLinks.map((link) => (
-              <SiteLink
+              <NavLink
                 key={link.href}
                 href={link.href}
-                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {link.label}
-              </SiteLink>
+              </NavLink>
             ))}
           </nav>
         </div>
         <div className="flex items-center gap-1">
-          <LinkButton variant="ghost" size="sm" href={site.github}>
-            GitHub
+          <LinkButton
+            variant="ghost"
+            size="icon"
+            href={site.github}
+            aria-label="GitHub repository"
+          >
+            <BrandLogo mark={siGithub} className="size-4" />
           </LinkButton>
-          <ThemeToggle
-            className={buttonVariants({ variant: "ghost", size: "icon" })}
-          />
           <LinkButton size="sm" href={site.getStarted}>
             Get started
           </LinkButton>

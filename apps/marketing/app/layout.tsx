@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { SiteFooter } from "@/components/site/footer";
 import { Navbar } from "@/components/site/navbar";
+import { ThemeHotkey } from "@/components/site/theme-hotkey";
 import { ThemeProvider } from "@/components/theme-provider";
 import { geistMono, inter } from "@/lib/fonts";
 import { site } from "@/lib/site";
@@ -51,6 +52,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           >
             Skip to content
           </a>
+          <ThemeHotkey />
           <Navbar />
           <main
             id="main"

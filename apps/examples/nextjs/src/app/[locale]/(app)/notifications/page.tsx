@@ -20,7 +20,9 @@ export default function NotificationsPage() {
         actions={<NotificationActions />}
       />
       <UnreadSummary />
-      <NotificationList />
+      <div data-recipe="notification-list">
+        <NotificationList />
+      </div>
     </>
   );
 }

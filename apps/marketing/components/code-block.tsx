@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * Shiki reads the clock while highlighting, so the result is cached per
  * snippet. The high-contrast themes keep comments above 4.5:1 on the card.
  */
-async function highlight(code: string, lang: string): Promise<string> {
+export async function highlight(code: string, lang: string): Promise<string> {
   "use cache";
   cacheLife("max");
 

@@ -18,6 +18,9 @@ const docsPaths = [
 ];
 
 export default createNextConfig({
+  // Vercel Services rewrites `/_next/(.*)` to this service, and the image
+  // optimizer returns 404 through that rewrite, so images are served as is.
+  images: { unoptimized: true },
   redirects() {
     return Promise.resolve([
       {

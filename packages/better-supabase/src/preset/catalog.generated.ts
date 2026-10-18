@@ -6,7 +6,7 @@ export const PRESET_CATALOG: PresetCatalog = {
   "blocks": [
     {
       "name": "updated-at",
-      "title": "updated_at triggers",
+      "title": "Update timestamps",
       "category": "foundation",
       "requires": [],
       "integrates": [],

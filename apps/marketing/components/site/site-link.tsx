@@ -16,20 +16,22 @@ function isAppRoute(href: string): href is Route {
 interface SiteLinkProps {
   readonly href: string;
   readonly className?: string;
+  readonly "aria-label"?: string;
+  readonly "aria-current"?: "page" | undefined;
   readonly children: ReactNode;
 }
 
-export function SiteLink({ href, className, children }: SiteLinkProps) {
+export function SiteLink({ href, children, ...props }: SiteLinkProps) {
   if (!isAppRoute(href)) {
     return (
-      <a href={href} className={className}>
+      <a href={href} {...props}>
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={href} className={className}>
+    <Link href={href} {...props}>
       {children}
     </Link>
   );

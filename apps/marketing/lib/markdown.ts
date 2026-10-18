@@ -2,7 +2,7 @@ import type { BlockGroup, CatalogBlock } from "./blocks";
 import type { AvailableRecipe, Recipe } from "./recipes";
 
 import { configSnippet, installCommand } from "./blocks";
-import { shadcnAdd } from "./recipes";
+import { recipePrompt, shadcnAdd } from "./recipes";
 
 /** The headers of every Markdown mirror, the same ones the docs app sends. */
 export const markdownHeaders: HeadersInit = {
@@ -127,8 +127,8 @@ export function recipeMarkdown(
   site: MarkdownSite,
 ): string {
   const sides = [
-    ["Web (Next.js)", recipe.web],
-    ["Native (Expo)", recipe.native],
+    ["Web (Next.js)", "web"],
+    ["Native (Expo)", "native"],
   ] as const;
 
   const sections = [
@@ -143,10 +143,16 @@ export function recipeMarkdown(
     fence("bash", installCommand(recipe.block)),
   ];
 
-  for (const [label, side] of sides) {
+  for (const [label, platform] of sides) {
+    const side = recipe[platform];
+
     sections.push(`## ${label}`);
 
-    if (side.components.length > 0) {
+    if (platform === "native") {
+      sections.push(
+        `The snippet uses ${side.components.map((name) => `\`${name}\``).join(", ")} from \`react-native\`, so it needs no styling library.`,
+      );
+    } else if (side.components.length > 0) {
       sections.push(
         "Add the shadcn components:",
         fence("bash", shadcnAdd(side.components)),
@@ -165,6 +171,15 @@ export function recipeMarkdown(
       fence("tsx", side.snippet.code),
     );
   }
+
+  sections.push(
+    "## Prompt",
+    "Paste one of these into a coding agent to build the recipe in your app.",
+    "### Web",
+    fence("text", recipePrompt(recipe, "web", site.url)),
+    "### Native",
+    fence("text", recipePrompt(recipe, "native", site.url)),
+  );
 
   return `${sections.join("\n\n")}\n`;
 }

@@ -121,7 +121,13 @@ the config and the glue there, and prints next steps that target it:
 `pnpm --filter @acme/runtime add ...` (or `npm install -w`, `yarn workspace`,
 `bun add --cwd`) and `better-supabase gen --cwd packages/runtime`. Without
 `--package` and without a terminal, `init` stops with an error that lists the
-packages; `--package .` writes at the root as before. See
+packages; `--package .` writes at the root as before.
+
+On [Create](https://bettersupabase.com/create), turn on Monorepo and enter
+the package path (`apps/web` by default): the install command then ends in
+`--package <dir>`, and the apply command passes
+`--config <dir>/better-supabase.config.ts`, since `apply` has no `--package`
+flag. The migrations stay in the root `supabase/` folder. See
 [monorepos](/docs/guides/monorepo) for how to split the runtime from domain
 packages.
 

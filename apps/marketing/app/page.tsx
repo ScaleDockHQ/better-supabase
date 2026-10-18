@@ -5,11 +5,12 @@ import { FaqSection } from "@/components/sections/faq";
 import { FeatureGrid } from "@/components/sections/feature-grid";
 import { GetStarted } from "@/components/sections/get-started";
 import { HomeHero } from "@/components/sections/home-hero";
+import { LogoCloud } from "@/components/sections/logo-cloud";
 import { RecipesStrip } from "@/components/sections/recipes-strip";
-import { RuntimesBand } from "@/components/sections/runtimes-band";
 import { Section } from "@/components/sections/section";
 import { JsonLd } from "@/components/site/json-ld";
-import { faq, features, frameworks } from "@/lib/home";
+import { faq, features } from "@/lib/home";
+import { integrations, integrationsIn } from "@/lib/integrations";
 import { site } from "@/lib/site";
 import { faqPage, homeGraph } from "@/lib/structured-data";
 
@@ -27,16 +28,8 @@ export default function HomePage() {
       </Section>
       <CatalogShowcase />
       <RecipesStrip />
-      <Section
-        id="frameworks"
-        eyebrow="Frameworks"
-        title="Works where your code runs"
-        description="Adapters build a per-request client for the caller, so the same repository API works in pages, routes, procedures and functions."
-      >
-        <FeatureGrid items={frameworks} columns={3} />
-      </Section>
+      <LogoCloud />
       <CliSection />
-      <RuntimesBand />
       <GetStarted />
       <FaqSection />
       <Closer />
@@ -48,6 +41,12 @@ export default function HomePage() {
           github: site.github,
           npm: site.npm,
           company: site.company,
+          runtimes: integrationsIn("Runtimes").map(
+            (integration) => integration.name,
+          ),
+          frameworks: integrations
+            .filter((integration) => integration.group !== "Runtimes")
+            .map((integration) => integration.name),
         })}
       />
       <JsonLd data={faqPage(faq)} />

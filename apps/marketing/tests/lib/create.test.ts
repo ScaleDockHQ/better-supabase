@@ -1,7 +1,11 @@
 import {
   decodePreset,
+  encodePreset,
   namedPreset,
   type Preset,
+  PRESET_NAMES,
+  presetApplyCommand,
+  presetInstallCommand,
   resolvePreset,
 } from "better-supabase/preset";
 import { describe, expect, test } from "vitest";
@@ -10,14 +14,20 @@ import { blocks } from "../../lib/blocks";
 import {
   applyNamedPreset,
   blockGroups,
+  commandFor,
+  CONFIG_FILE,
   createHref,
   DEFAULT_PRESET,
-  graphLayout,
   initialPreset,
   matchingPreset,
-  NODE_WIDTH,
+  PACKAGE_MANAGERS,
+  packageDir,
+  packagePath,
+  presetColumns,
   rowNote,
+  shuffledPreset,
   toggleBlock,
+  withPackage,
 } from "../../lib/create";
 
 const minimal = namedPreset("minimal");
@@ -45,6 +55,88 @@ describe("the /create URL", () => {
       "comments",
       "profiles",
     ]);
+  });
+
+  test("keeps the monorepo package outside the preset code", () => {
+    const code = encodePreset(minimal);
+    expect(createHref(minimal, "apps/web")).toBe(
+      `/create?preset=${code}&package=apps/web`,
+    );
+    expect(createHref(minimal, "packages/my app")).toBe(
+      `/create?preset=${code}&package=packages/my%20app`,
+    );
+    expect(createHref(minimal)).toBe(`/create?preset=${code}`);
+  });
+});
+
+describe("the monorepo package", () => {
+  test("accepts a relative path inside the repository", () => {
+    expect(packageDir("apps/web")).toBe("apps/web");
+    expect(packageDir("./apps/web/")).toBe("apps/web");
+    expect(packageDir("packages/@scope/app")).toBe("packages/@scope/app");
+  });
+
+  test("rejects absolute paths, parent segments and empty values", () => {
+    const accepted = [
+      null,
+      "",
+      ".",
+      "/apps/web",
+      "../web",
+      "apps/../web",
+      "apps//web",
+      String.raw`apps\web`,
+      "C:/web",
+    ].filter((value) => packageDir(value) !== undefined);
+
+    expect(accepted).toEqual([]);
+  });
+
+  test("adds --package to init and --config to apply", () => {
+    const resolved = resolvePreset(minimal);
+    const code = encodePreset(minimal);
+    expect(withPackage(presetInstallCommand(resolved), "apps/web")).toBe(
+      `npx better-supabase init --preset ${code} --package apps/web`,
+    );
+    expect(withPackage(presetApplyCommand(resolved), "apps/web")).toBe(
+      `npx better-supabase apply --preset ${code} --config apps/web/better-supabase.config.ts`,
+    );
+    expect(withPackage(presetInstallCommand(resolved), undefined)).toBe(
+      presetInstallCommand(resolved),
+    );
+  });
+
+  test("prefixes the package's files", () => {
+    expect(packagePath("lib/blocks.ts", "apps/web")).toBe(
+      "apps/web/lib/blocks.ts",
+    );
+    expect(packagePath(CONFIG_FILE, undefined)).toBe(
+      "better-supabase.config.ts",
+    );
+  });
+});
+
+describe("the package manager switch", () => {
+  test("runs the command through each manager's runner", () => {
+    const command = "npx better-supabase init --preset 1A";
+    expect(PACKAGE_MANAGERS.map((each) => commandFor(command, each))).toEqual([
+      "pnpm dlx better-supabase init --preset 1A",
+      "npx better-supabase init --preset 1A",
+      "yarn dlx better-supabase init --preset 1A",
+      "bunx better-supabase init --preset 1A",
+    ]);
+  });
+});
+
+describe("shuffledPreset", () => {
+  test("picks a named preset other than the current one", () => {
+    for (const random of [0, 0.5, 0.99]) {
+      const name = shuffledPreset("saas", () => random);
+      expect(PRESET_NAMES).toContain(name);
+      expect(name).not.toBe("saas");
+    }
+
+    expect(shuffledPreset(undefined, () => 0)).toBe(PRESET_NAMES[0]);
   });
 });
 
@@ -110,31 +202,41 @@ describe("blockGroups", () => {
   });
 });
 
-describe("graphLayout", () => {
+describe("presetColumns", () => {
   test("puts every block right of what it requires", () => {
-    const layout = graphLayout(resolvePreset(toggleBlock(minimal, "comments")));
-    const x = new Map(layout.nodes.map((node) => [node.name, node.x]));
+    const { columns, edges } = presetColumns(
+      resolvePreset(toggleBlock(minimal, "comments")),
+    );
 
-    for (const edge of layout.edges.filter(
-      (each) => each.kind === "requires",
-    )) {
-      expect(x.get(edge.from)).toBeGreaterThan(x.get(edge.to) ?? Infinity);
+    const column = new Map(
+      columns.flatMap((nodes, index) =>
+        nodes.map((node) => [node.name, index] as const),
+      ),
+    );
+
+    for (const edge of edges.filter((each) => each.kind === "requires")) {
+      expect(column.get(edge.from)).toBeGreaterThan(
+        column.get(edge.to) ?? Infinity,
+      );
     }
 
-    expect(layout.edges).toContainEqual({
+    expect(edges).toContainEqual({
       from: "comments",
       to: "access",
       kind: "requires",
     });
-    expect(layout.width).toBeGreaterThan(NODE_WIDTH * 3);
+    expect(columns.length).toBeGreaterThanOrEqual(2);
     expect(
-      layout.nodes.find((node) => node.name === "comments")?.selected,
+      columns.flat().find((node) => node.name === "comments")?.selected,
     ).toBe(true);
   });
 
   test("is empty without blocks", () => {
-    const layout = graphLayout(resolvePreset({ ...minimal, blocks: [] }));
-    expect(layout.nodes).toEqual([]);
-    expect(layout.width).toBe(16);
+    const { columns, edges } = presetColumns(
+      resolvePreset({ ...minimal, blocks: [] }),
+    );
+
+    expect(columns).toEqual([]);
+    expect(edges).toEqual([]);
   });
 });

@@ -37,9 +37,102 @@ export function initialPreset(param: string | null): Preset {
   }
 }
 
-/** The URL `/create` keeps in sync with the selection. */
-export function createHref(preset: Preset): string {
-  return `/create?preset=${encodePreset(preset)}`;
+/** The workspace package the monorepo option starts with. */
+export const DEFAULT_PACKAGE = "apps/web";
+
+const PACKAGE_SEGMENT = /^[A-Za-z0-9@._-]+$/u;
+
+/**
+ * A workspace package directory, normalized (`./apps/web/` to `apps/web`),
+ * or undefined unless it is a relative path inside the repository: no
+ * leading `/`, no `.` or `..` segments, no backslashes.
+ */
+export function packageDir(value: string | null): string | undefined {
+  if (value === null) {
+    return undefined;
+  }
+
+  const segments = value
+    .trim()
+    .replace(/^\.\//u, "")
+    .replace(/\/+$/u, "")
+    .split("/");
+
+  const valid = segments.every(
+    (segment) =>
+      PACKAGE_SEGMENT.test(segment) && segment !== "." && segment !== "..",
+  );
+
+  return valid ? segments.join("/") : undefined;
+}
+
+/** The URL `/create` keeps in sync with the selection, and the monorepo package when it is on. */
+export function createHref(preset: Preset, pkg?: string): string {
+  const base = `/create?preset=${encodePreset(preset)}`;
+
+  return pkg === undefined
+    ? base
+    : `${base}&package=${encodeURIComponent(pkg).replaceAll("%2F", "/")}`;
+}
+
+/** The config file `init` writes. */
+export const CONFIG_FILE = "better-supabase.config.ts";
+
+/** A file path inside the package, or at the root without one. */
+export function packagePath(file: string, pkg: string | undefined): string {
+  return pkg === undefined ? file : `${pkg}/${file}`;
+}
+
+/**
+ * The command for a workspace package: `init` writes into it with
+ * `--package`, and `apply` edits the config there with `--config` (it has
+ * no `--package`). The SQL stays in the root `supabase/` either way.
+ */
+export function withPackage(command: string, pkg: string | undefined): string {
+  if (pkg === undefined) {
+    return command;
+  }
+
+  return /\sapply\s/u.test(command)
+    ? `${command} --config ${packagePath(CONFIG_FILE, pkg)}`
+    : `${command} --package ${pkg}`;
+}
+
+export const PACKAGE_MANAGERS = ["pnpm", "npm", "yarn", "bun"] as const;
+
+export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
+
+const RUNNERS = {
+  pnpm: "pnpm dlx",
+  npm: "npx",
+  yarn: "yarn dlx",
+  bun: "bunx",
+} satisfies Readonly<Record<PackageManager, string>>;
+
+/** An `npx` command run through the package manager's own runner. */
+export function commandFor(command: string, manager: PackageManager): string {
+  return command.replace(/^npx\s/u, `${RUNNERS[manager]} `);
+}
+
+function cryptoRandom(): number {
+  const [value = 0] = crypto.getRandomValues(new Uint32Array(1));
+
+  return value / 2 ** 32;
+}
+
+/** A named preset other than `current`, picked with `random` (0 to 1). */
+export function shuffledPreset(
+  current: PresetName | undefined,
+  random: () => number = cryptoRandom,
+): PresetName {
+  const others = PRESET_NAMES.filter((name) => name !== current);
+
+  const index = Math.min(
+    others.length - 1,
+    Math.floor(random() * others.length),
+  );
+
+  return others[index] ?? DEFAULT_PRESET;
 }
 
 /** The named preset whose blocks the selection matches, if any. */
@@ -175,8 +268,6 @@ export function blockGroups(
 
 export interface GraphNode {
   readonly name: string;
-  readonly x: number;
-  readonly y: number;
   readonly selected: boolean;
 }
 
@@ -187,24 +278,16 @@ export interface GraphEdge {
   readonly kind: "requires" | "integrates";
 }
 
-export interface GraphLayout {
-  readonly width: number;
-  readonly height: number;
-  readonly nodes: readonly GraphNode[];
+export interface PresetColumns {
+  readonly columns: readonly (readonly GraphNode[])[];
   readonly edges: readonly GraphEdge[];
 }
-
-export const NODE_WIDTH = 148;
-export const NODE_HEIGHT = 28;
-const COLUMN_GAP = 56;
-const ROW_GAP = 12;
-const PADDING = 8;
 
 /**
  * Columns by dependency depth: a block sits one column right of the deepest
  * block it requires, so every `requires` edge points left.
  */
-export function graphLayout(resolved: ResolvedPreset): GraphLayout {
+export function presetColumns(resolved: ResolvedPreset): PresetColumns {
   const names = new Set(resolved.blocks.map((block) => block.name));
   const requires = new Map<string, string[]>();
 
@@ -232,23 +315,15 @@ export function graphLayout(resolved: ResolvedPreset): GraphLayout {
     return own;
   };
 
-  const columns: string[][] = [];
+  const columns: GraphNode[][] = [];
 
   for (const block of resolved.blocks) {
     const column = depthOf(block.name);
-    columns[column] = [...(columns[column] ?? []), block.name];
+    columns[column] = [
+      ...(columns[column] ?? []),
+      { name: block.name, selected: block.selected },
+    ];
   }
-
-  const nodes = columns.flatMap((column, x) =>
-    column.map((name, y) => ({
-      name,
-      x: PADDING + x * (NODE_WIDTH + COLUMN_GAP),
-      y: PADDING + y * (NODE_HEIGHT + ROW_GAP),
-      selected: resolved.blocks.some(
-        (block) => block.name === name && block.selected,
-      ),
-    })),
-  );
 
   const edges: GraphEdge[] = [
     ...[...requires].flatMap(([from, tos]) =>
@@ -259,14 +334,5 @@ export function graphLayout(resolved: ResolvedPreset): GraphLayout {
       .map((each) => ({ ...each, kind: "integrates" as const })),
   ];
 
-  const rows = Math.max(0, ...columns.map((column) => column.length));
-
-  return {
-    width:
-      PADDING * 2 +
-      Math.max(0, columns.length * (NODE_WIDTH + COLUMN_GAP) - COLUMN_GAP),
-    height: PADDING * 2 + Math.max(0, rows * (NODE_HEIGHT + ROW_GAP) - ROW_GAP),
-    nodes,
-    edges,
-  };
+  return { columns, edges };
 }

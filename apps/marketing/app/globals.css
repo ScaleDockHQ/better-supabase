@@ -168,6 +168,40 @@
   background-size: 14px 14px;
 }
 
+/*
+ * The sidebars' ScrollArea: the viewport hides the native scrollbar (Base UI
+ * sets that), the overlay thumb shows on hover or while scrolling, and the
+ * edges fade while there is more to scroll.
+ */
+.sidebar-scroll [data-slot="scroll-area-viewport"] {
+  overscroll-behavior: contain;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black min(2rem, var(--scroll-area-overflow-y-start, 0px)),
+    black calc(100% - min(2rem, var(--scroll-area-overflow-y-end, 0px))),
+    transparent 100%
+  );
+}
+
+.sidebar-scroll [data-slot="scroll-area-scrollbar"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-scroll
+  [data-slot="scroll-area-scrollbar"]:is([data-hovering], [data-scrolling]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-scroll [data-slot="scroll-area-scrollbar"] {
+    transition: none;
+  }
+}
+
 @layer base {
   html {
     scroll-padding-top: 5rem;

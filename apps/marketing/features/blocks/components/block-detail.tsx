@@ -21,6 +21,7 @@ import { site } from "@/lib/site";
 import { absoluteUrl, blockSource } from "@/lib/structured-data";
 import { cn } from "@/lib/utils";
 
+import { BlockIcon } from "./block-icon";
 import { BlockPreview } from "./block-preview";
 import {
   ClientPanel,
@@ -31,7 +32,6 @@ import {
   RecipeList,
 } from "./block-sections";
 import { BlockTile } from "./block-tile";
-import { CategoryIcon } from "./category-icon";
 
 const SECTIONS = [
   { id: "install", label: "Install" },
@@ -75,7 +75,11 @@ export async function BlockDetail({
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] xl:items-center">
             <header className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
-                <CategoryIcon category={block.category} size="lg" />
+                <BlockIcon
+                  name={block.name}
+                  category={block.category}
+                  size="lg"
+                />
                 <div className="flex flex-col">
                   <h1 className="text-3xl font-semibold tracking-tight">
                     {block.title}

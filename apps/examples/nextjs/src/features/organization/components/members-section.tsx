@@ -38,7 +38,7 @@ export async function MembersSection() {
 
   return (
     <>
-      <Card>
+      <Card data-recipe="members-table">
         <CardHeader>
           <CardTitle>{t("Members")}</CardTitle>
           <CardDescription>

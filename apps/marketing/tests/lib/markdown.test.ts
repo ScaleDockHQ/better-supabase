@@ -10,7 +10,9 @@ import {
 import {
   availableRecipes,
   plannedRecipes,
+  recipePrompt,
   recipesFor,
+  shadcnAdd,
 } from "../../lib/recipes";
 
 const site = {
@@ -68,6 +70,10 @@ describe("markdown mirrors", () => {
     expect(markdown).toContain(
       `(https://example.com/blocks/${recipe.block}.md)`,
     );
+    expect(markdown).toContain("## Prompt");
+    expect(markdown).toContain(recipePrompt(recipe, "web", site.url));
+    expect(markdown).toContain(recipePrompt(recipe, "native", site.url));
+    expect(markdown).not.toContain(shadcnAdd(recipe.native.components));
   });
 
   test("the recipes index links the available recipes", () => {
