@@ -1943,6 +1943,80 @@ describe("expose exclusions of missing columns (BS339)", () => {
   });
 });
 
+describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
+  const tenantSnapshot = (trigger: boolean) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const tags = table(tables, "tags");
+      const tenant = { ...notes.columns[0]!, name: "organization_id" };
+
+      for (const entry of [notes, tags]) {
+        entry.columns = [
+          ...entry.columns.filter(
+            (column) => column.name !== "organization_id",
+          ),
+          tenant,
+        ];
+      }
+
+      notes.columns = [...notes.columns, { ...tenant, name: "tag_id" }];
+      notes.foreignKeys = [
+        {
+          name: "notes_tag_id_fkey",
+          columns: ["tag_id"],
+          refSchema: "public",
+          refTable: "tags",
+          refColumns: ["id"],
+          oneToOne: false,
+          onDelete: "no action",
+          onUpdate: "no action",
+        },
+      ];
+      notes.triggers = trigger
+        ? [
+            {
+              name: "bs_same_tenant_tag_id",
+              timing: "before",
+              events: ["insert", "update"],
+              level: "row",
+              function: "better_supabase.same_tenant",
+            },
+          ]
+        : [];
+    });
+
+  const notes = (findings: readonly { readonly target?: string }[]) =>
+    findings.filter((finding) => finding.target === "public.notes.tag_id");
+
+  it("lists a key between two tenant tables without the trigger", async () => {
+    const findings = await run(
+      "BS340",
+      context(tenantSnapshot(false), {}, { blocks: ["tenant"] }),
+    );
+
+    expect(notes(findings)).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining(
+          "public.notes.tag_id references public.tags, and both have organization_id",
+        ),
+      },
+    ]);
+  });
+
+  it("passes with the trigger, or without the tenant block", async () => {
+    expect(
+      notes(
+        await run(
+          "BS340",
+          context(tenantSnapshot(true), {}, { blocks: ["tenant"] }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS340", context(tenantSnapshot(false)))).toEqual([]);
+  });
+});
+
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
     name: "bs_broadcast_org_notes",

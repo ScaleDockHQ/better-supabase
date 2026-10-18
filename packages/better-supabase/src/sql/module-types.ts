@@ -20,6 +20,7 @@ import type {
   ModuleIdType,
   ModuleNames,
 } from "./context.ts";
+import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
@@ -210,6 +211,10 @@ export interface ModuleLayout {
   readonly declaredTables?: readonly string[];
   /** The declared tables with row level security on, for tables `fromPolicies` makes service-only. */
   readonly rlsTables?: readonly string[];
+  /** The foreign keys the schema files declare, for `blocks.tenant.options.sameTenant.auto`. */
+  readonly foreignKeys?: readonly DeclaredForeignKey[];
+  /** Each declared table's columns, `schema.table` to names, for `sameTenant.auto`. */
+  readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;

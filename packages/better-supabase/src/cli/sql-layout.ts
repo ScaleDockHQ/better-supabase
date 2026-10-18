@@ -17,6 +17,7 @@ import {
   policyGrants,
   resolveExposeColumns,
   resolveModules,
+  sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
 import {
@@ -131,6 +132,15 @@ export async function moduleLayoutFor(
     resolved.has("sessions") &&
     config.blocks["sessions"]?.options?.["policies"] === true;
 
+  const sameTenant = config.blocks["tenant"]?.options?.["sameTenant"];
+
+  const autoSameTenant =
+    resolved.has("tenant") &&
+    typeof sameTenant === "object" &&
+    sameTenant !== null &&
+    "auto" in sameTenant &&
+    sameTenant.auto === true;
+
   const base = moduleLayout(
     config,
     input.testsDir,
@@ -171,6 +181,9 @@ export async function moduleLayoutFor(
       ? {
           rlsTables: rlsTables(await declarativeTexts(config), config.schemas),
         }
+      : {}),
+    ...(autoSameTenant
+      ? sameTenantLayout(await declarativeTexts(config), config.schemas)
       : {}),
     ...(fromPolicies || sessionPolicies
       ? {

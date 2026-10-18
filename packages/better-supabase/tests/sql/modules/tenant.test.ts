@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { sameTenantLayout } from "../../../src/sql/foreign-keys.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -203,6 +204,95 @@ describe("tenant module sameTenant", () => {
         },
       ]),
     ).toThrow(/match\.customer_id must be a lowercase column name/);
+  });
+});
+
+describe("tenant module sameTenant auto", () => {
+  const schema = `
+create table public.customers (
+  id uuid primary key,
+  organization_id uuid not null
+);
+create table public.projects (
+  key text,
+  organization_id uuid not null,
+  constraint projects_pk primary key (key)
+);
+create table public.tasks (
+  id uuid primary key,
+  organization_id uuid not null,
+  customer_id uuid references public.customers,
+  project_key text,
+  owner_id uuid references auth.users (id),
+  foreign key (project_key) references public.projects
+);
+create table public.notes (
+  id uuid primary key,
+  organization_id uuid not null,
+  task_id uuid,
+  customer_id uuid,
+  foreign key (organization_id, customer_id) references public.customers (organization_id, id)
+);
+alter table public.notes add constraint notes_task_fk foreign key (task_id) references public.tasks (id);
+`;
+
+  const inputs = sameTenantLayout([{ text: schema }], ["public"]);
+
+  const autoBody = (sameTenant: unknown) =>
+    moduleBody("tenant", {
+      modules: { tenant: { options: { sameTenant } } },
+      ...inputs,
+    })!;
+
+  const derived = [
+    {
+      table: "public.tasks",
+      column: "customer_id",
+      references: { table: "public.customers", column: "id" },
+    },
+    {
+      table: "public.tasks",
+      column: "project_key",
+      references: { table: "public.projects", column: "key" },
+    },
+    {
+      table: "public.notes",
+      column: "task_id",
+      references: { table: "public.tasks", column: "id" },
+    },
+  ];
+
+  it("renders the derived entries exactly like the same entries listed", () => {
+    expect(autoBody({ auto: true })).toBe(body(derived));
+  });
+
+  it("skips keys to tables without the tenant column and keys that include it", () => {
+    const sql = autoBody({ auto: true });
+
+    expect(sql).not.toContain("bs_same_tenant_owner_id");
+    expect(sql).not.toContain(
+      '"bs_same_tenant_customer_id" on "public"."notes"',
+    );
+  });
+
+  it("lets a listed entry for the same column win", () => {
+    const listed = {
+      table: "public.tasks",
+      column: "customer_id",
+      references: { table: "public.customers", where: "{row}.active" },
+    };
+
+    expect(autoBody({ auto: true, entries: [listed] })).toBe(
+      body([listed, derived[1], derived[2]]),
+    );
+  });
+
+  it("renders only the entries with auto off, and needs the scan with it on", () => {
+    expect(autoBody({ auto: false, entries: [derived[0]] })).toBe(
+      body([derived[0]]),
+    );
+    expect(() => body({ auto: true })).toThrow(/sameTenant\.auto derives/);
+    expect(() => body({ entries: [] })).toThrow(/or \{ auto: true/);
   });
 });
 

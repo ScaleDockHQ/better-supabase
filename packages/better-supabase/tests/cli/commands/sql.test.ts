@@ -661,6 +661,32 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     ).toThrow(/is not a privilege/);
   });
 
+  it("derives sameTenant triggers from the declared foreign keys", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create table public.customers (id uuid primary key, organization_id uuid not null);\ncreate table public.tasks (id uuid primary key, organization_id uuid not null, customer_id uuid references public.customers);\n",
+    );
+    await sql(["sync"], {
+      blocks: { tenant: { options: { sameTenant: { auto: true } } } },
+    });
+
+    const names = await readdir(schemas);
+
+    const tenant = await readFile(
+      join(
+        schemas,
+        names.find((name) => name.endsWith("_tenant.sql"))!,
+      ),
+      "utf-8",
+    );
+
+    expect(tenant).toContain(
+      `create trigger "bs_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "public"."tasks"`,
+    );
+  });
+
   it("writes the session policy on the tables the schema files create", async () => {
     const schemas = join(root, "supabase/schemas");
     await mkdir(schemas, { recursive: true });

@@ -998,6 +998,17 @@ excludes nothing, and a renamed secret column is granted under its new name.
 Remove the exclusion, or exclude the column's new name. See
 [column privileges](/docs/guides/data-api-grants).
 
+### BS340
+
+**Info: a tenant foreign key has no same-tenant trigger.** With the `tenant`
+block, doctor lists each single-column foreign key between two tables that
+both have the tenant column, when the key doesn't include that column and
+the table has no `bs_same_tenant_<column>` trigger. The foreign key checks
+that the referenced row exists, not that it belongs to the same tenant. Add
+the reference to `blocks.tenant.options.sameTenant`, or set
+`sameTenant: { auto: true }`. See
+[references within one tenant](/docs/blocks/access#references-within-one-tenant).
+
 ## Auth config
 
 ### BS401

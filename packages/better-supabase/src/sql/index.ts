@@ -58,6 +58,10 @@ export { auditRegistrations } from "./audit-registrations.ts";
 
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
+export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
+
+export { sameTenantColumn, sameTenantTrigger } from "./modules/tenant-same.ts";
+
 export { expiredFlagsQuery } from "./flag-lifecycle.ts";
 
 export { subjectColumns } from "./subject-registry.ts";

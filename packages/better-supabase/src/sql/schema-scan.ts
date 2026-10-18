@@ -8,7 +8,7 @@ export interface PolicyGrant {
   readonly privileges: readonly ("select" | "insert" | "update" | "delete")[];
 }
 
-const NAME = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+export const NAME: string = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
 
 const POLICY = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+policy\s+(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)((?:(?!\bcreate\s+policy\b)[\s\S])*?)(?:\busing\b|\bwith\s+check\b|;)`,
@@ -41,18 +41,18 @@ function inOrder(statements: Statement[][]): void {
 
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
-const unquote = (name: string): string =>
+export const unquote = (name: string): string =>
   name.startsWith('"')
     ? name.slice(1, -1).replaceAll('""', '"')
     : name.toLowerCase();
 
-function qualified(target: string): string {
+export function qualified(target: string): string {
   const parts = (target.match(new RegExp(NAME, "g")) ?? []).map(unquote);
 
   return parts.length === 1 ? `public.${parts[0]!}` : parts.join(".");
 }
 
-const TABLE = /* @__PURE__ */ new RegExp(
+export const TABLE: RegExp = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
   "gi",
 );
@@ -207,7 +207,7 @@ export function declaredTableColumns(
   return found;
 }
 
-function closingParen(text: string, open: number): number {
+export function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 
@@ -234,7 +234,7 @@ function closingParen(text: string, open: number): number {
   return -1;
 }
 
-function splitTopLevel(text: string): string[] {
+export function splitTopLevel(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let quote: string | undefined;

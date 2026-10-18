@@ -1,6 +1,11 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
-import { excludedColumns } from "../../sql/index.ts";
+import {
+  excludedColumns,
+  moduleLayout,
+  sameTenantColumn,
+  sameTenantTrigger,
+} from "../../sql/index.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
 import { catalogOf, qualified } from "./shared.ts";
@@ -93,6 +98,62 @@ export const ADOPTION_RULES: readonly Rule[] = [
           }));
         },
       );
+    },
+  },
+  {
+    code: "BS340",
+    severity: "info",
+    title: "Tenant foreign key without a same-tenant trigger",
+    description:
+      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has no `bs_same_tenant_<column>` trigger. List the reference in `blocks.tenant.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
+    check: (context) => {
+      if (!context.config.blockNames.includes("tenant")) {
+        return [];
+      }
+
+      const tenant = sameTenantColumn(moduleLayout(context.config));
+      const { tables } = catalogOf(context);
+
+      const tenantTables = new Set(
+        tables
+          .filter((table) =>
+            table.columns.some((column) => column.name === tenant),
+          )
+          .map(qualified),
+      );
+
+      return tables
+        .filter(
+          (table) =>
+            context.config.schemas.includes(table.schema) &&
+            tenantTables.has(qualified(table)),
+        )
+        .flatMap((table) => {
+          const triggers = new Set(
+            table.triggers.map((trigger) => trigger.name),
+          );
+
+          return table.foreignKeys.flatMap((key): FindingInput[] => {
+            const [column] = key.columns;
+
+            if (
+              column === undefined ||
+              key.columns.length !== 1 ||
+              column === tenant ||
+              !tenantTables.has(`${key.refSchema}.${key.refTable}`) ||
+              triggers.has(sameTenantTrigger(column))
+            ) {
+              return [];
+            }
+
+            return [
+              {
+                message: `${qualified(table)}.${column} references ${key.refSchema}.${key.refTable}, and both have ${tenant}, but no trigger checks that the referenced row has the same ${tenant}. Add it to blocks.tenant.options.sameTenant, or set sameTenant: { auto: true }.`,
+                target: `${qualified(table)}.${column}`,
+              },
+            ];
+          });
+        });
     },
   },
 ];
