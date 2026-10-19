@@ -2,6 +2,7 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
@@ -203,13 +204,16 @@ export async function write(
   return lines;
 }
 
-/** The line that tells the reader how the written modules reach the database. */
-export async function nextStep(config: ResolvedConfig): Promise<string> {
+/** The command that takes the written modules to the database. */
+export async function nextStep(config: ResolvedConfig): Promise<NextStep> {
   const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
 
   return workflow === "migrations"
-    ? `Then apply it: ${migrationCommand(workflow)}`
-    : `Then create a migration: ${migrationCommand(workflow, "better_supabase_module")}`;
+    ? { command: migrationCommand(workflow), when: "applies the migration" }
+    : {
+        command: migrationCommand(workflow, "better_supabase_module"),
+        when: "creates a migration from the module files",
+      };
 }
 
 /** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */

@@ -43,6 +43,7 @@ describe("seed", () => {
     await write("supabase/seed.mjs", "export const seed = 1;\n");
     expect(await seed(["--entry", "supabase/seed.mjs"])).toEqual({
       code: 1,
+      errorCode: "invalid_input",
       error:
         "supabase/seed.mjs must export defineSeed(...) as `seed` or default.",
     });
@@ -60,6 +61,13 @@ describe("seed", () => {
 
     expect(result).toEqual({
       code: 0,
+      data: {
+        file: "db/seed.sql",
+        wrote: true,
+        tables: 2,
+        applied: true,
+        listed: true,
+      },
       output:
         "Wrote db/seed.sql (2 tables)\nInserted the fixtures (existing rows were kept).",
     });

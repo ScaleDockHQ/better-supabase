@@ -27,6 +27,15 @@ export async function listModules(
       )
     : undefined;
 
+  const modules: {
+    name: string;
+    description: string;
+    installed: boolean;
+    tracked: boolean;
+    custom: boolean;
+    requires: readonly string[];
+  }[] = [];
+
   const lines = Object.values(SQL_MODULES).map((module) => {
     const path = files.get(module.name);
 
@@ -46,6 +55,15 @@ export async function listModules(
         ? module.providerRequires
         : module.requires;
 
+    modules.push({
+      name: module.name,
+      description: module.description,
+      installed,
+      tracked,
+      custom: path === undefined,
+      requires,
+    });
+
     const needs = requires.length > 0 ? ` (needs ${requires.join(", ")})` : "";
     const integrates = module.integrates ?? [];
 
@@ -60,6 +78,7 @@ export async function listModules(
 
   return {
     code: 0,
+    data: { modules },
     output: `${lines.join("\n")}\n\n● installed and in blocks   ○ installed, not in blocks   ◇ custom mode (the app implements it)`,
   };
 }

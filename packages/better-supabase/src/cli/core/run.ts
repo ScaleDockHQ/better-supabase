@@ -21,7 +21,13 @@ import {
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
-import { type Rendered, renderError, renderResult } from "./output.ts";
+import {
+  document,
+  envelope,
+  type Rendered,
+  renderError,
+  renderResult,
+} from "./output.ts";
 import {
   checkArgs,
   closestName,
@@ -277,7 +283,11 @@ export function createCli(init: CreateCliOptions): Cli {
       const { parent, name, candidates } = resolution;
 
       if (parent.length === 0 && name === "version") {
-        out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+        out(
+          json
+            ? document(envelope(0, { data: { version: VERSION } }))
+            : VERSION,
+        );
 
         return finish(0);
       }
@@ -303,7 +313,11 @@ export function createCli(init: CreateCliOptions): Cli {
         end === -1 ? resolution.rest : resolution.rest.slice(0, end);
 
       if (before.includes("--version")) {
-        out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+        out(
+          json
+            ? document(envelope(0, { data: { version: VERSION } }))
+            : VERSION,
+        );
 
         return finish(0);
       }

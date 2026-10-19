@@ -142,9 +142,11 @@ describe("strict parsing", () => {
     const result = await run(["gen", "--chek", "--json", "--cwd", dir]);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      code: "usage",
-      flag: "--chek",
-      suggestion: "--check",
+      error: {
+        code: "usage",
+        flag: "--chek",
+        suggestion: "--check",
+      },
     });
   });
 
@@ -170,8 +172,10 @@ describe("strict parsing", () => {
 
     const gen = await run(["gen", "help", "--cwd", dir, "--json"]);
     expect(JSON.parse(gen.stdout)).toMatchObject({
-      code: "usage",
-      suggestion: "better-supabase gen --help",
+      error: {
+        code: "usage",
+        suggestion: "better-supabase gen --help",
+      },
     });
   });
 

@@ -62,12 +62,17 @@ export function staleResult(
   state: FileState,
   regenerate: string,
 ): CommandResult {
+  const data = { file: state.file, upToDate: state.upToDate };
+
   return state.upToDate
-    ? { code: 0, output: `${state.file} is up to date.` }
+    ? { code: 0, output: `${state.file} is up to date.`, data }
     : {
         code: 1,
+        data,
+        next: [{ command: regenerate, when: "rewrites the file" }],
         output: fileDiff(state.file, state.current, state.contents),
         error: `${state.file} is out of date. Run \`${regenerate}\`.`,
+        errorCode: "check_failed",
       };
 }
 

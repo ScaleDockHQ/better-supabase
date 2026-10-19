@@ -29,5 +29,3 @@ export const SQL_ARGS = {
 export type SqlArgs = CliArgs<typeof SQL_ARGS>;
 
 export type SqlFlags = CliOptions<typeof SQL_ARGS>;
-
-export const USAGE = "Run `better-supabase sql --help` for the actions.";

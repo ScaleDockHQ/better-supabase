@@ -131,10 +131,10 @@ and each introspection query after 2 minutes.
 | `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
 | `--out <dir>`          | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
 
-With `--json`, `gen` prints `{ "tables", "written" }`, and `gen --check`
-prints `{ "upToDate", "stale" }`. When several tasks run, it prints
-`{ "tasks": { "<task>": { "code", "data" } } }` instead, with each task's
-document under its name.
+With `--json`, the envelope's `data` is `{ "tables", "written" }` for `gen`
+and `{ "upToDate", "stale" }` for `gen --check`. When several tasks run,
+`data` is `{ "tasks": { "<task>": { "code", "data" } } }` instead, with each
+task's result under its name.
 
 A connection string holds the database password, so no command takes one as
 an argument, where it would land in shell history and the process list. Set

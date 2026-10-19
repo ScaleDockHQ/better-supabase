@@ -11,6 +11,7 @@ import type { CliEnv } from "../env.ts";
 
 import { byCodePoint } from "../compare.ts";
 import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { writeLine } from "../core/files.ts";
 import { display, readIfExists, sameText } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -144,14 +145,17 @@ export async function runSkills(
       output: skills
         .map((skill) => `${skill.name}\n  ${skill.description}`)
         .join("\n"),
+      data: {
+        skills: skills.map(({ name, description }) => ({ name, description })),
+      },
     };
   }
 
   if (action !== "install") {
-    return {
-      code: 2,
-      error: `${action ? `Unknown skills action "${action}"` : "Name an action"}. Use \`skills list\` or \`skills install\`.`,
-    };
+    throw new CliError(
+      "usage",
+      `${action ? `Unknown skills action "${action}"` : "Name an action"}. Use \`skills list\` or \`skills install\`.`,
+    );
   }
 
   const global = args.global === true;
@@ -165,10 +169,10 @@ export async function runSkills(
   const unknown = requested.filter((name) => !isAgent(name));
 
   if (unknown.length > 0) {
-    return {
-      code: 2,
-      error: `Unknown agent ${unknown.join(", ")}. Use ${Object.keys(AGENT_DIRS).join(", ")}.`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown agent ${unknown.join(", ")}. Use ${Object.keys(AGENT_DIRS).join(", ")}.`,
+    );
   }
 
   // SAFETY: AGENT_DIRS is keyed by Agent, and Object.keys widens the keys to string.
@@ -185,6 +189,7 @@ export async function runSkills(
 
   const check = args.check === true;
   const lines: string[] = [];
+  const files: { path: string; wrote: boolean }[] = [];
   const stale: string[] = [];
   const diffs: string[] = [];
 
@@ -215,20 +220,24 @@ export async function runSkills(
       continue;
     }
 
-    lines.push((await writeLine(path, file.contents, shown)).line);
+    const { line, wrote } = await writeLine(path, file.contents, shown);
+    lines.push(line);
+    files.push({ path: shown, wrote });
   }
 
   if (check) {
     return stale.length === 0
-      ? { code: 0, output: "Skills are up to date." }
+      ? { code: 0, output: "Skills are up to date.", data: { agents, stale } }
       : {
           code: 1,
+          data: { agents, stale },
           output: diffs.join("\n"),
           error: `Out of date: ${stale.join(", ")}. Run \`better-supabase skills install\`.`,
+          errorCode: "check_failed",
         };
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return { code: 0, output: lines.join("\n"), data: { agents, files } };
 }
 
 export const skillsCommand: AnyCommand = defineCliCommand({

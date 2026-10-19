@@ -8,6 +8,7 @@ import {
   moduleBody,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import { CliError } from "../core/errors.ts";
 import { layout } from "./providers.ts";
 
 export async function printModule(
@@ -19,10 +20,10 @@ export async function printModule(
   const module = name ? SQL_MODULES[name] : undefined;
 
   if (!module) {
-    return {
-      code: 2,
-      error: `Name one module: ${Object.keys(SQL_MODULES).join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Name one module: ${Object.keys(SQL_MODULES).join(", ")}`,
+    );
   }
 
   const body = moduleBody(
@@ -33,6 +34,7 @@ export async function printModule(
   if (body === undefined) {
     return {
       code: 0,
+      data: { module: module.name, custom: true },
       output: `-- blocks.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
         [module.name],
         await layout(config, args, [module.name]),
@@ -47,5 +49,9 @@ export async function printModule(
     };
   }
 
-  return { code: 0, output: body };
+  return {
+    code: 0,
+    output: body,
+    data: { module: module.name, custom: false, sql: body },
+  };
 }

@@ -7,6 +7,7 @@ import type { CliEnv } from "../env.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
@@ -95,11 +96,10 @@ export async function runAdopt(
   const block = args.block;
 
   if (block === undefined) {
-    return {
-      code: 2,
-      error:
-        "Name the block to adopt, e.g. `better-supabase adopt teams --from public.teams`.",
-    };
+    throw new CliError(
+      "usage",
+      "Name the block to adopt, e.g. `better-supabase adopt teams --from public.teams`.",
+    );
   }
 
   const proposal = proposeAdoption(block, await deps.tables(), {

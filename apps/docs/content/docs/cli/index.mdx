@@ -47,7 +47,7 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 | `--cwd <dir>`     | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)). |
 | `--config <file>` | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                   |
 | `--env <name>`    | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                 |
-| `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.                                                                                                        |
+| `--json`          | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                 |
 | `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
 | `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
 | `--version`       | Prints the version.                                                                                                                                                                      |
@@ -62,11 +62,36 @@ The CLI exits with 0 on success, 1 when a command fails or finds a problem
 the environment needs a change. Every error has a code, listed on the
 [errors page](/docs/cli/errors).
 
-With `--json`, stdout holds exactly one JSON document: the command's result
-(`gen` prints `{ "tables", "written" }`, `doctor` its report), or a
-[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document when it
-fails. Progress and diagnostics go to stderr, so
-`better-supabase gen --check --json | jq .stale` stays parseable.
+With `--json`, stdout holds exactly one JSON document, the result envelope
+described by
+[`cli-result-v1.json`](https://unpkg.com/better-supabase/schemas/cli-result-v1.json):
+
+```json
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v1.json",
+  "status": "error",
+  "data": { "upToDate": false, "stale": ["src/lib/supabase/generated.ts"] },
+  "error": {
+    "type": "https://bettersupabase.com/docs/cli/errors#check_failed",
+    "title": "Out of date",
+    "detail": "Out of date: src/lib/supabase/generated.ts. Run `better-supabase gen`.",
+    "code": "check_failed",
+    "exitCode": 1
+  }
+}
+```
+
+| Field    | Holds                                                                                                                  |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `status` | `success` for exit code 0, `action_required` for exit code 3, and `error` otherwise                                    |
+| `data`   | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `sql list` the modules               |
+| `error`  | A [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document with a stable `code` ([errors](/docs/cli/errors)) |
+| `next`   | The commands to run next, each as `{ "command", "when" }`                                                              |
+
+A failed check keeps its `data`, so a script can read what is stale and the
+error together. Progress and the text output go to stderr, so
+`better-supabase gen --check --json | jq .data.stale` stays parseable. In a
+terminal the next commands print after the output, under `Next:`.
 
 ## Environment
 

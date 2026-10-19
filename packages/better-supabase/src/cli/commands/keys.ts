@@ -89,6 +89,7 @@ export async function runKeys(
   if (!Array.isArray(previous)) {
     return {
       code: 1,
+      errorCode: "invalid_input",
       error: `${display(config.root, out)} is not a JSON array of keys.`,
     };
   }
@@ -146,7 +147,17 @@ export async function runKeys(
     );
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: {
+      file: display(config.root, out),
+      kid: key.kid,
+      kept: previous.length,
+      configured,
+      gitignored: ignored,
+    },
+  };
 }
 
 export const keysCommand: AnyCommand = defineCliCommand({

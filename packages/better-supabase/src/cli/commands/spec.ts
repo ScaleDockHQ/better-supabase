@@ -16,7 +16,7 @@ import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../core/command.ts";
-import { errorText, failedResult } from "../core/errors.ts";
+import { errorText, failedResult, CliError } from "../core/errors.ts";
 import { display, sameText, writeIfChanged } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
@@ -421,6 +421,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     code: 1,
     output,
     data: manifest,
+    errorCode: stale ? "check_failed" : "findings",
     error: stale
       ? "The spec files are out of date. Run `better-supabase spec emit`."
       : `${count} ${count === 1 ? "finding fails" : "findings fail"} --fail-on ${options.failOn}.`,
@@ -517,26 +518,26 @@ export const specCommand: AnyCommand = defineCliCommand({
     const [action, format] = args._;
 
     if (!isAction(action)) {
-      return Promise.resolve({
-        code: 2,
-        error: `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
-      });
+      throw new CliError(
+        "usage",
+        `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
+      );
     }
 
     const failOn = args["fail-on"] ?? context.config.specs.failOn;
 
     if (!isFailOn(failOn)) {
-      return Promise.resolve({
-        code: 2,
-        error: `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
-      });
+      throw new CliError(
+        "usage",
+        `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
+      );
     }
 
     if (args.ui !== undefined && !isUi(args.ui)) {
-      return Promise.resolve({
-        code: 2,
-        error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
-      });
+      throw new CliError(
+        "usage",
+        `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
+      );
     }
 
     const interval = parseInterval(
@@ -548,13 +549,12 @@ export const specCommand: AnyCommand = defineCliCommand({
       args.watch === true &&
       (action !== "emit" || typeof interval === "string")
     ) {
-      return Promise.resolve({
-        code: 2,
-        error:
-          action === "emit" && typeof interval === "string"
-            ? interval
-            : "--watch only applies to `spec emit`.",
-      });
+      throw new CliError(
+        "usage",
+        action === "emit" && typeof interval === "string"
+          ? interval
+          : "--watch only applies to `spec emit`.",
+      );
     }
 
     const options = specOptionsFromConfig(context.config, action, {

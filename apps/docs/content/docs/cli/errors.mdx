@@ -4,18 +4,23 @@ description: What each CLI error code means, its exit code, and how to fix it.
 ---
 
 Every error the CLI reports has a code. In a terminal it prints the message
-on stderr. With `--json` it prints one
-[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document on
-stdout instead, whose `type` links to the code's section on this page:
+on stderr. With `--json` the [result envelope](/docs/cli#exit-codes-and-json-output)
+on stdout holds a [Problem Details](https://www.rfc-editor.org/rfc/rfc9457)
+document under `error`, whose `type` links to the code's section on this
+page:
 
 ```json
 {
-  "type": "https://bettersupabase.com/docs/cli/errors#unknown_command",
-  "title": "Unknown command",
-  "detail": "Unknown command \"genn\". Did you mean \"gen\"?",
-  "code": "unknown_command",
-  "exitCode": 2,
-  "suggestion": "gen"
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v1.json",
+  "status": "error",
+  "error": {
+    "type": "https://bettersupabase.com/docs/cli/errors#unknown_command",
+    "title": "Unknown command",
+    "detail": "Unknown command \"genn\". Did you mean \"gen\"?",
+    "code": "unknown_command",
+    "exitCode": 2,
+    "suggestion": "gen"
+  }
 }
 ```
 

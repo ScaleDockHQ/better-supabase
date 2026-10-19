@@ -141,7 +141,11 @@ export async function dataMigration(
   now: Now,
 ): Promise<CommandResult> {
   if (config.blockNames.length === 0) {
-    return { code: 0, output: "blocks is empty; nothing to write." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to write.",
+      data: { wrote: false },
+    };
   }
 
   if (
@@ -151,6 +155,7 @@ export async function dataMigration(
       code: 0,
       output:
         "sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
+      data: { wrote: false },
     };
   }
 
@@ -190,16 +195,25 @@ export async function dataMigration(
     return {
       code: 0,
       output: `${dir}/${latest} already has these rows; nothing to write.`,
+      data: { file: `${dir}/${latest}`, wrote: false },
     };
   }
 
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
 
   if (args["dry-run"] === true) {
-    return { code: 0, output: `Would write ${path}` };
+    return {
+      code: 0,
+      output: `Would write ${path}`,
+      data: { file: path, wrote: false },
+    };
   }
 
   await writeIfChanged(resolve(config.root, path), contents);
 
-  return { code: 0, output: `Wrote ${path}` };
+  return {
+    code: 0,
+    output: `Wrote ${path}`,
+    data: { file: path, wrote: true },
+  };
 }

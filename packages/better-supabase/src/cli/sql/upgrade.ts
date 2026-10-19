@@ -45,7 +45,11 @@ export async function upgrade(
   now: Now,
 ): Promise<CommandResult> {
   if (config.blockNames.length === 0) {
-    return { code: 0, output: "blocks is empty; nothing to upgrade." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to upgrade.",
+      data: { upgrades: [], stale: [] },
+    };
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
@@ -58,6 +62,11 @@ export async function upgrade(
 
   const plan = upgradePlan(installed, sqlLayout);
 
+  const data = {
+    upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
+    stale,
+  };
+
   const behind = plan.map(
     (entry) =>
       `${entry.module} is at version ${String(entry.from)}; the current version is ${String(entry.to)}`,
@@ -68,11 +77,14 @@ export async function upgrade(
       return {
         code: 0,
         output: "SQL modules are at their current versions.",
+        data,
       };
     }
 
     return {
       code: 1,
+      errorCode: "check_failed",
+      data,
       output: diffs.join("\n\n"),
       error: [
         ...behind,
@@ -86,6 +98,7 @@ export async function upgrade(
     return {
       code: 0,
       output: "SQL modules are at their current versions.",
+      data,
     };
   }
 
@@ -131,11 +144,14 @@ export async function upgrade(
       undefined,
       migrations ? steps : [],
     )),
-    "",
-    await nextStep(config),
   );
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data,
+    next: [await nextStep(config)],
+  };
 }
 
 interface Installed {

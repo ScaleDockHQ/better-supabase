@@ -15,6 +15,7 @@ import {
   encodePreset,
   namedPreset,
 } from "../../../src/preset/index.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 let dir: string;
 
@@ -74,7 +75,7 @@ describe("preset decode", () => {
     expect(decoded.data).toMatchObject({ code, derived: [] });
   });
 
-  it("exits 1 on what can't install, and 2 on what isn't a preset", () => {
+  it("exits 1 on what can't install, and 2 on what isn't a preset", async () => {
     const config = resolveConfig({}, dir);
 
     const conflict = runPreset(config, {
@@ -85,12 +86,12 @@ describe("preset decode", () => {
     expect(conflict.output).toContain(
       'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
     );
-    expect(runPreset(config, { _: ["decode", "startup"] }).code).toBe(2);
-    expect(runPreset(config, { _: ["decode"] }).code).toBe(2);
-    expect(runPreset(config, { _: [] }).code).toBe(2);
-    expect(runPreset(config, { _: ["nope"] }).error).toContain(
-      'Unknown preset action "nope"',
-    );
+    await usageError(() => runPreset(config, { _: ["decode", "startup"] }));
+    await usageError(() => runPreset(config, { _: ["decode"] }));
+    await usageError(() => runPreset(config, { _: [] }));
+    expect(
+      await usageError(() => runPreset(config, { _: ["nope"] })),
+    ).toContain('Unknown preset action "nope"');
   });
 });
 
@@ -126,17 +127,17 @@ describe("preset info", () => {
 });
 
 describe("blocks", () => {
-  it("lists every block by category, or one category", () => {
+  it("lists every block by category, or one category", async () => {
     const all = runBlocks({ _: ["list"] });
     expect(all.output).toContain("identity:\n");
     expect(all.output).toContain("  comments");
     const crm = runBlocks({ _: ["list"], category: "crm" });
     expect(crm.output).toMatch(/^crm:\n/);
     expect(crm.output).not.toContain("identity:");
-    expect(runBlocks({ _: ["list"], category: "nope" }).code).toBe(2);
+    await usageError(() => runBlocks({ _: ["list"], category: "nope" }));
   });
 
-  it("shows one block with its install command and glue", () => {
+  it("shows one block with its install command and glue", async () => {
     const view = runBlocks({ _: ["view", "outbox"] });
     expect(view.code).toBe(0);
     expect(view.output).toContain("Install: better-supabase add outbox");
@@ -147,22 +148,22 @@ describe("blocks", () => {
     expect(runBlocks({ _: ["view", "tenant"] }).output).toContain(
       "Requires:   updated-at",
     );
-    expect(runBlocks({ _: ["view"] }).code).toBe(2);
-    expect(runBlocks({ _: ["view", "nope"] }).error).toContain(
-      "better-supabase blocks search nope",
-    );
+    await usageError(() => runBlocks({ _: ["view"] }));
+    expect(
+      await usageError(() => runBlocks({ _: ["view", "nope"] })),
+    ).toContain("better-supabase blocks search nope");
   });
 
-  it("searches names, titles and descriptions", () => {
+  it("searches names, titles and descriptions", async () => {
     expect(runBlocks({ _: ["search", "invoice"] }).output).toContain(
       "  invoices",
     );
     expect(runBlocks({ _: ["search", "zzzz"] }).output).toContain(
       'No block matches "zzzz"',
     );
-    expect(runBlocks({ _: ["search"] }).code).toBe(2);
-    expect(runBlocks({ _: [] }).code).toBe(2);
-    expect(runBlocks({ _: ["nope"] }).code).toBe(2);
+    await usageError(() => runBlocks({ _: ["search"] }));
+    await usageError(() => runBlocks({ _: [] }));
+    await usageError(() => runBlocks({ _: ["nope"] }));
   });
 });
 
@@ -253,24 +254,29 @@ describe("apply", () => {
   it("refuses what it can't apply", async () => {
     const config = resolveConfig({}, dir);
     const deps = { now, configFile: join(dir, "better-supabase.config.ts") };
-    expect((await runApply(config, {}, deps)).code).toBe(2);
+    await usageError(() => runApply(config, {}, deps));
     expect(
-      (await runApply(config, { preset: "saas", only: "all" }, deps)).error,
+      await usageError(() =>
+        runApply(config, { preset: "saas", only: "all" }, deps),
+      ),
     ).toBe('--only must be "blocks" or "conventions"');
+    await expect(
+      runApply(config, { preset: "saas" }, { now }),
+    ).rejects.toMatchObject({
+      code: "config_not_found",
+      message: expect.stringContaining("better-supabase init --preset saas"),
+    });
+    await usageError(() => runApply(config, { preset: "startup" }, deps));
     expect(
-      (await runApply(config, { preset: "saas" }, { now })).error,
-    ).toContain("better-supabase init --preset saas");
-    expect((await runApply(config, { preset: "startup" }, deps)).code).toBe(2);
-    expect(
-      (
-        await runApply(
+      await usageError(() =>
+        runApply(
           config,
           {
             preset: encodePreset({ blocks: ["organizations"], scope: "none" }),
           },
           deps,
-        )
-      ).error,
+        ),
+      ),
     ).toContain("The preset can't install: organizations");
     await files({ "better-supabase.config.ts": "export default config;\n" });
     expect((await runApply(config, { preset: "saas" }, deps)).error).toContain(

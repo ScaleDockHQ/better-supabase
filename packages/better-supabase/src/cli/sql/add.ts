@@ -4,10 +4,11 @@ import { basename } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SqlDeps } from "../commands/sql.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { SqlFlags } from "./args.ts";
 
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
-import { type SqlFlags, USAGE } from "./args.ts";
+import { CliError } from "../core/errors.ts";
 import { addBlocksToConfig, addBlocksToJson, keyText } from "./config-edit.ts";
 import {
   layoutFor,
@@ -23,16 +24,16 @@ export async function addModules(
   deps: SqlDeps,
 ): Promise<CommandResult> {
   if (names.length === 0) {
-    return { code: 2, error: `Name at least one module.\n${USAGE}` };
+    throw new CliError("usage", `Name at least one module.`);
   }
 
   const unknown = names.filter((name) => !(name in SQL_MODULES));
 
   if (unknown.length > 0) {
-    return {
-      code: 2,
-      error: `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
+    );
   }
 
   const owner =
@@ -94,9 +95,12 @@ export async function addModules(
     lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
   }
 
-  lines.push("", await nextStep(config));
-
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: { added, pulledIn, untracked },
+    next: [await nextStep(config)],
+  };
 }
 
 /**

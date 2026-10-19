@@ -8,7 +8,7 @@ import type { Snapshot } from "../introspect/types.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
-import { errorText } from "../core/errors.ts";
+import { errorText, CliError } from "../core/errors.ts";
 import { display, writeIfChanged } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
@@ -161,10 +161,10 @@ export async function runDoctor(
   );
 
   if (unknown.length > 0) {
-    return {
-      code: 2,
-      error: `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
+    );
   }
 
   const explainTables = list(args.explain);
@@ -172,14 +172,14 @@ export async function runDoctor(
   const claims = explainClaims(args);
 
   if ("error" in claims) {
-    return { code: 2, error: String(claims.error) };
+    throw new CliError("usage", String(claims.error));
   }
 
   if (args.claims !== undefined && explainTables.length === 0) {
-    return {
-      code: 2,
-      error: "--claims plans a query, so it needs --explain <table>.",
-    };
+    throw new CliError(
+      "usage",
+      "--claims plans a query, so it needs --explain <table>.",
+    );
   }
 
   // --stats and --explain ask for their checks even when --only leaves them out.
@@ -368,6 +368,14 @@ export async function runDoctor(
   const strict = args.strict === true || config.doctor.strict;
   const code = errors > 0 || (strict && warnings > 0) ? 1 : 0;
 
+  const failure =
+    code === 0
+      ? {}
+      : {
+          errorCode: "findings" as const,
+          error: `Doctor found ${errors} errors and ${warnings} warnings${strict ? " (--strict fails on warnings)" : ""}.`,
+        };
+
   if (out) {
     await writeIfChanged(resolve(config.root, out), `${report}\n`);
 
@@ -375,12 +383,13 @@ export async function runDoctor(
       code,
       output: `Wrote ${out}: ${errors} errors, ${warnings} warnings.`,
       data: { out, errors, warnings },
+      ...failure,
     };
   }
 
   return format === "json"
-    ? { code, data: jsonReport(findings, VERSION) }
-    : { code, output: report };
+    ? { code, data: jsonReport(findings, VERSION), ...failure }
+    : { code, output: report, ...failure };
 }
 
 export const doctorCommand: AnyCommand = defineCliCommand({
@@ -399,10 +408,10 @@ export const doctorCommand: AnyCommand = defineCliCommand({
       ];
 
       if (conflicting.length > 0) {
-        return {
-          code: 2,
-          error: `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
-        };
+        throw new CliError(
+          "usage",
+          `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
+        );
       }
 
       let snapshot: Snapshot;
@@ -411,7 +420,11 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
       } catch (cause) {
         if (cause instanceof MetadataRejectedError) {
-          return { code: METADATA_REJECTED, error: cause.message };
+          return {
+            code: METADATA_REJECTED,
+            errorCode: "invalid_input",
+            error: cause.message,
+          };
         }
 
         throw cause;

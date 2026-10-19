@@ -20,6 +20,7 @@ import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 interface Report {
   findings: { code: string; severity: string; message: string }[];
@@ -65,28 +66,24 @@ describe("doctor command", () => {
 
   it("rejects conflicting or malformed claims before reading anything", async () => {
     const user = "8a6f1c3e-2b4d-4e5f-9a7b-1c2d3e4f5a6b";
-    expect(await doctor(["--as", user, "--claims", "{}"])).toEqual({
-      code: 2,
-      error: "Pass --as or --claims, not both",
-    });
-    expect(await doctor(["--as", "alice"])).toEqual({
-      code: 2,
-      error: '--as takes a user id (uuid), got "alice"',
-    });
-    expect(await doctor(["--claims", "[1]"])).toEqual({
-      code: 2,
-      error: "--claims takes a JSON object",
-    });
-    expect((await doctor(["--claims", "{nope"])).error).toMatch(
+    expect(
+      await usageError(() => doctor(["--as", user, "--claims", "{}"])),
+    ).toBe("Pass --as or --claims, not both");
+    expect(await usageError(() => doctor(["--as", "alice"]))).toBe(
+      '--as takes a user id (uuid), got "alice"',
+    );
+    expect(await usageError(() => doctor(["--claims", "[1]"]))).toBe(
+      "--claims takes a JSON object",
+    );
+    expect(await usageError(() => doctor(["--claims", "{nope"]))).toMatch(
       /^--claims is not valid JSON: /,
     );
   });
 
   it("rejects --claims without --explain instead of ignoring it", async () => {
-    expect(await doctor(["--claims", '{"role":"authenticated"}'])).toEqual({
-      code: 2,
-      error: "--claims plans a query, so it needs --explain <table>.",
-    });
+    expect(
+      await usageError(() => doctor(["--claims", '{"role":"authenticated"}'])),
+    ).toBe("--claims plans a query, so it needs --explain <table>.");
   });
 
   it("reads the snapshot and the live checks over one connection, then closes it", async () => {

@@ -9,12 +9,8 @@ import {
 } from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
-
-const USAGE = `Usage:
-  better-supabase blocks list [--category <name>]   Every block, by category
-  better-supabase blocks view <name>                One block: what it needs, works with and installs
-  better-supabase blocks search <text>              Blocks whose name, title or description match`;
 
 const CATEGORIES: readonly BlockCategory[] = [
   "identity",
@@ -106,10 +102,10 @@ function listing(entries: readonly BlockEntry[]): string[] {
 
 function list(category: string | undefined): CommandResult {
   if (category !== undefined && !CATEGORIES.some((each) => each === category)) {
-    return {
-      code: 2,
-      error: `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
+    );
   }
 
   const entries = ENTRIES.filter(
@@ -125,16 +121,16 @@ function list(category: string | undefined): CommandResult {
 
 function view(name: string | undefined): CommandResult {
   if (name === undefined) {
-    return { code: 2, error: `Name a block.\n${USAGE}` };
+    throw new CliError("usage", `Name a block.`);
   }
 
   const entry = ENTRIES.find((each) => each.name === name);
 
   if (entry === undefined) {
-    return {
-      code: 2,
-      error: `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
+    );
   }
 
   const glue = PRESET_CATALOG.glue.filter(
@@ -163,7 +159,7 @@ function view(name: string | undefined): CommandResult {
 
 function search(text: string | undefined): CommandResult {
   if (text === undefined || text.trim() === "") {
-    return { code: 2, error: `Pass the text to search for.\n${USAGE}` };
+    throw new CliError("usage", `Pass the text to search for.`);
   }
 
   const query = text.toLowerCase();
@@ -201,11 +197,11 @@ export function runBlocks(args: BlocksOptions): CommandResult {
     }
 
     case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
+      throw new CliError("usage", `Name an action.`);
     }
 
     default: {
-      return { code: 2, error: `Unknown blocks action "${action}".\n${USAGE}` };
+      throw new CliError("usage", `Unknown blocks action "${action}".`);
     }
   }
 }

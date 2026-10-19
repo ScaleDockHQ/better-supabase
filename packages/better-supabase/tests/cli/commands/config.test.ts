@@ -30,9 +30,8 @@ describe("config", () => {
     const result = await run(["config", "--json", "--cwd", dir], { env: {} });
     expect(result.code).toBe(0);
 
-    const printed = JSON.parse(result.stdout) as {
-      file: string;
-      config: Record<string, unknown>;
+    const { data: printed } = JSON.parse(result.stdout) as {
+      data: { file: string; config: Record<string, unknown> };
     };
 
     expect(printed.file).toBe("better-supabase.config.mjs");

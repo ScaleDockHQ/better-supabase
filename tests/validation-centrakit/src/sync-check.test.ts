@@ -54,12 +54,14 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         fixture,
       ]);
 
-      const report = JSON.parse(result.stdout) as {
-        readonly findings: readonly {
-          readonly code: string;
-          readonly severity: string;
-          readonly message: string;
-        }[];
+      const { data: report } = JSON.parse(result.stdout) as {
+        readonly data: {
+          readonly findings: readonly {
+            readonly code: string;
+            readonly severity: string;
+            readonly message: string;
+          }[];
+        };
       };
 
       // The adopt options that keep CentraKit's own token storage, secret

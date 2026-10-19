@@ -1,7 +1,7 @@
-import type { CommandResult } from "./io.ts";
+import type { CommandResult, NextStep } from "./io.ts";
 
 import { highlight, type Paint } from "../style.ts";
-import { CliError } from "./errors.ts";
+import { CliError, type CliErrorCode, type CliProblem } from "./errors.ts";
 
 /** What one run writes: text, or under `--json` exactly one JSON document on stdout. */
 export interface Rendered {
@@ -14,42 +14,128 @@ export interface RenderOptions {
   readonly paint: Paint;
 }
 
-const document = (value: unknown): string => JSON.stringify(value, null, 2);
+export const RESULT_SCHEMA_URL =
+  "https://unpkg.com/better-supabase/schemas/cli-result-v1.json";
 
 /**
- * A command's result. Under `--json`, stdout gets the command's `data`, or
- * `{ "message": output }` when it has none, or Problem Details when it failed
- * without data; the text output moves to stderr as a diagnostic.
+ * `action_required` when the user has to act (exit code 3): give an input,
+ * consent, or log in. `next` then names the command to run.
+ */
+export type ResultStatus = "success" | "error" | "action_required";
+
+/** The one document `--json` prints, described by `schemas/cli-result-v1.json`. */
+export interface ResultEnvelope {
+  readonly $schema: string;
+  readonly status: ResultStatus;
+  readonly data?: unknown;
+  readonly error?: CliProblem;
+  readonly next?: readonly NextStep[];
+}
+
+const statusOf = (exitCode: number): ResultStatus => {
+  if (exitCode === 0) {
+    return "success";
+  }
+
+  return exitCode === 3 ? "action_required" : "error";
+};
+
+function defaultErrorCode(exitCode: number): CliErrorCode {
+  switch (exitCode) {
+    case 2: {
+      return "usage";
+    }
+
+    case 3: {
+      return "input_required";
+    }
+
+    case 130: {
+      return "cancelled";
+    }
+
+    default: {
+      return "failed";
+    }
+  }
+}
+
+/** The `--json` envelope for a run that ended with `exitCode`. */
+export function envelope(
+  exitCode: number,
+  parts: Omit<ResultEnvelope, "$schema" | "status"> = {},
+): ResultEnvelope {
+  return {
+    $schema: RESULT_SCHEMA_URL,
+    status: statusOf(exitCode),
+    ...(parts.data === undefined ? {} : { data: parts.data }),
+    ...(parts.error ? { error: parts.error } : {}),
+    ...(parts.next && parts.next.length > 0 ? { next: parts.next } : {}),
+  };
+}
+
+export const document = (value: unknown): string =>
+  JSON.stringify(value, null, 2);
+
+function nextText(next: readonly NextStep[], paint: Paint): string {
+  const width = Math.max(...next.map((step) => step.command.length));
+
+  return [
+    "Next:",
+    ...next.map(
+      (step) => `  ${paint("cyan", step.command.padEnd(width))}  ${step.when}`,
+    ),
+  ].join("\n");
+}
+
+/**
+ * A command's result. Under `--json`, stdout gets the envelope with the
+ * command's `data`, its `next` steps, and Problem Details when it failed;
+ * the text output moves to stderr as a diagnostic.
  */
 export function renderResult(
   result: CommandResult,
   options: RenderOptions,
 ): Rendered {
+  const next = result.next ?? [];
+
   if (!options.json) {
+    const stdout = [
+      ...(result.output ? [highlight(result.output, options.paint)] : []),
+      ...(next.length > 0 && result.code === 0
+        ? [nextText(next, options.paint)]
+        : []),
+    ].join("\n\n");
+
     return {
-      ...(result.output
-        ? { stdout: highlight(result.output, options.paint) }
-        : {}),
+      ...(stdout ? { stdout } : {}),
       ...(result.error ? { stderr: options.paint("red", result.error) } : {}),
     };
   }
 
-  if (result.data === undefined && result.error) {
-    return {
-      stdout: document(
-        new CliError("failed", result.error, { exitCode: result.code }).problem,
-      ),
-      ...(result.output ? { stderr: result.output } : {}),
-    };
-  }
+  const failed = result.code !== 0;
+
+  const problem = failed
+    ? new CliError(
+        result.errorCode ?? defaultErrorCode(result.code),
+        result.error ?? result.output ?? "The command failed.",
+        { exitCode: result.code },
+      ).problem
+    : undefined;
 
   const diagnostics = [
-    ...(result.data !== undefined && result.output ? [result.output] : []),
-    ...(result.error ? [result.error] : []),
+    ...(result.output ? [result.output] : []),
+    ...(result.error && !failed ? [result.error] : []),
   ];
 
   return {
-    stdout: document(result.data ?? { message: result.output ?? "" }),
+    stdout: document(
+      envelope(result.code, {
+        ...(result.data === undefined ? {} : { data: result.data }),
+        ...(problem ? { error: problem } : {}),
+        next,
+      }),
+    ),
     ...(diagnostics.length > 0 ? { stderr: diagnostics.join("\n") } : {}),
   };
 }
@@ -60,7 +146,9 @@ export function renderError(
   options: RenderOptions & { readonly usage?: string },
 ): Rendered {
   if (options.json) {
-    return { stdout: document(error.problem) };
+    return {
+      stdout: document(envelope(error.exitCode, { error: error.problem })),
+    };
   }
 
   return {

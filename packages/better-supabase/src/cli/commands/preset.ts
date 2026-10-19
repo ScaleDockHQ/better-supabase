@@ -16,11 +16,8 @@ import {
   type ResolvedPreset,
 } from "../../preset/index.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
-
-const USAGE = `Usage:
-  better-supabase preset decode <name|code|url>   What a preset holds and what it installs
-  better-supabase preset info                     The config's preset and how the config differs from it`;
 
 const PRESET_ARGS = {
   action: {
@@ -100,10 +97,7 @@ function presetData(resolved: ResolvedPreset): PresetData {
 
 function decode(value: string | undefined): CommandResult {
   if (value === undefined) {
-    return {
-      code: 2,
-      error: `Name a preset, a code or a /create URL.\n${USAGE}`,
-    };
+    throw new CliError("usage", `Name a preset, a code or a /create URL.`);
   }
 
   let preset: Preset;
@@ -120,7 +114,7 @@ function decode(value: string | undefined): CommandResult {
       preset = presetOf(param);
     }
   } catch (error) {
-    return { code: 2, error: messageOf(error) };
+    throw new CliError("usage", messageOf(error));
   }
 
   const resolved = resolvePreset(preset);
@@ -187,7 +181,7 @@ function info(config: ResolvedConfig): CommandResult {
   try {
     preset = presetOf(config.preset);
   } catch (error) {
-    return { code: 2, error: messageOf(error) };
+    throw new CliError("usage", messageOf(error));
   }
 
   const resolved = resolvePreset(preset);
@@ -228,11 +222,11 @@ export function runPreset(
     }
 
     case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
+      throw new CliError("usage", `Name an action.`);
     }
 
     default: {
-      return { code: 2, error: `Unknown preset action "${action}".\n${USAGE}` };
+      throw new CliError("usage", `Unknown preset action "${action}".`);
     }
   }
 }

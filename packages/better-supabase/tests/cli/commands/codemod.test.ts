@@ -11,6 +11,7 @@ import {
 } from "../../../src/cli/commands/codemod.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 describe("runCodemod", () => {
   let root: string;
@@ -52,14 +53,12 @@ describe("runCodemod", () => {
   });
 
   it("asks for a known codemod", async () => {
-    expect(await codemod([])).toMatchObject({
-      code: 2,
-      error: expect.stringContaining("Name a codemod:\n  0.4"),
-    });
-    expect(await codemod(["0.99"])).toMatchObject({
-      code: 2,
-      error: expect.stringContaining('Unknown codemod "0.99"'),
-    });
+    expect(await usageError(() => codemod([]))).toContain(
+      "Name a codemod:\n  0.4",
+    );
+    expect(await usageError(() => codemod(["0.99"]))).toContain(
+      'Unknown codemod "0.99"',
+    );
   });
 
   it("shows the changes with --dry-run and writes them without", async () => {

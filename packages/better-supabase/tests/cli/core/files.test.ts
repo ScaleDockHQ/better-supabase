@@ -19,6 +19,7 @@ describe("cli files", () => {
     expect(state.upToDate).toBe(true);
     expect(staleResult(state, "cmd")).toEqual({
       code: 0,
+      data: { file: "a.txt", upToDate: true },
       output: "a.txt is up to date.",
     });
     const stale = staleResult(await fileState(root, "a.txt", "y\n"), "cmd");

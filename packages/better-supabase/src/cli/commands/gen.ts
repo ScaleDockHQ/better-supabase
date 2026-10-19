@@ -5,7 +5,7 @@ import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
-import { errorText, failedResult } from "../core/errors.ts";
+import { errorText, failedResult, CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { runMetadataGen, EMITS } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
@@ -258,10 +258,10 @@ export const genCommand: AnyCommand = defineCliCommand({
       ];
 
       if (conflicting.length > 0) {
-        return {
-          code: 2,
-          error: `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
-        };
+        throw new CliError(
+          "usage",
+          `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
+        );
       }
 
       return runMetadataGen({
@@ -279,23 +279,23 @@ export const genCommand: AnyCommand = defineCliCommand({
     }
 
     if (args.emit !== undefined || args.out !== undefined) {
-      return {
-        code: 2,
-        error: `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
-      };
+      throw new CliError(
+        "usage",
+        `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
+      );
     }
 
     const requested =
       args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
 
     if (typeof requested === "string") {
-      return { code: 2, error: requested };
+      throw new CliError("usage", requested);
     }
 
     const tasks = selectTasks(context.config, requested);
 
     if (tasks.length === 0) {
-      return { code: 2, error: "--tasks names no task." };
+      throw new CliError("usage", "--tasks names no task.");
     }
 
     const options: GenOptions = {
@@ -314,7 +314,7 @@ export const genCommand: AnyCommand = defineCliCommand({
     );
 
     if (typeof interval === "string") {
-      return { code: 2, error: interval };
+      throw new CliError("usage", interval);
     }
 
     return args.watch === true

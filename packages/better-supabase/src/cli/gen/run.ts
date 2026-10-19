@@ -207,6 +207,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         code: 1,
         output: `${diffs.join("\n\n")}${notice}`,
         error: `Generated files are out of date:\n${lines.join("\n")}\nRun \`better-supabase gen\`.`,
+        errorCode: "check_failed",
         data: { upToDate: false, stale, leftovers, warnings },
       };
     }

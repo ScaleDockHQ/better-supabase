@@ -1,6 +1,7 @@
 import type { AnyCommand } from "../core/command.ts";
 
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { fileState, writeLine } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
@@ -37,10 +38,10 @@ export const introspectCommand: AnyCommand = defineCliCommand({
     const format = args.format ?? "snapshot";
 
     if (format !== "snapshot" && format !== "generator-metadata") {
-      return {
-        code: 2,
-        error: '--format must be "snapshot" or "generator-metadata"',
-      };
+      throw new CliError(
+        "usage",
+        '--format must be "snapshot" or "generator-metadata"',
+      );
     }
 
     const source = await sourceArgs(args, io);
@@ -81,6 +82,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
             code: 1,
             output: fileDiff(file, current, contents, painter(io.color)),
             error: `${file} is out of date. Run \`better-supabase introspect\`.`,
+            errorCode: "check_failed",
             data: { file, upToDate: false },
           };
     }

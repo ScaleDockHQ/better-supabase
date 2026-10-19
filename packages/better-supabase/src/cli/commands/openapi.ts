@@ -6,6 +6,7 @@ import type { CommandResult } from "../core/io.ts";
 
 import { importExport } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { fileState, staleResult, writeLine } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -42,10 +43,10 @@ export async function runOpenApi(
   const [action] = args._;
 
   if (action !== "emit") {
-    return {
-      code: 2,
-      error: `${action ? `Unknown openapi action "${action}"` : "Name an action"}. Run \`better-supabase openapi emit\`.`,
-    };
+    throw new CliError(
+      "usage",
+      `${action ? `Unknown openapi action "${action}"` : "Name an action"}. Run \`better-supabase openapi emit\`.`,
+    );
   }
 
   const entry = args.entry ?? config.openapi.entry;
@@ -65,6 +66,7 @@ export async function runOpenApi(
   ) {
     return {
       code: 1,
+      errorCode: "invalid_input",
       error: `${display(config.root, entry)} must export an OpenAPI document (createOpenApi(...)) as \`openapi\` or default.`,
     };
   }
@@ -76,9 +78,9 @@ export async function runOpenApi(
     return staleResult(state, "better-supabase openapi emit");
   }
 
-  const { line } = await writeLine(state.path, contents, state.file);
+  const { line, wrote } = await writeLine(state.path, contents, state.file);
 
-  return { code: 0, output: line };
+  return { code: 0, output: line, data: { file: state.file, wrote } };
 }
 
 export const openapiCommand: AnyCommand = defineCliCommand({

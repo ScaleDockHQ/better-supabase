@@ -4,7 +4,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 
 import type { Prompter } from "../prompts.ts";
 
-import { CliError } from "./errors.ts";
+import { CliError, type CliErrorCode } from "./errors.ts";
 
 export interface CliIo {
   readonly stdout: (text: string) => void;
@@ -28,12 +28,25 @@ export interface RunResult {
   readonly stderr: string;
 }
 
+/** A command to run next, and when it applies. */
+export interface NextStep {
+  readonly command: string;
+  readonly when: string;
+}
+
 export interface CommandResult {
   readonly code: number;
   readonly output?: string;
   readonly error?: string;
-  /** The JSON document `--json` prints instead of `output`. */
+  /**
+   * The error code `--json` reports when `code` is not 0. Without it, exit
+   * code 2 reports `usage`, 3 `input_required`, 130 `cancelled`, and any
+   * other `failed`.
+   */
+  readonly errorCode?: CliErrorCode;
+  /** The `data` of the `--json` envelope. */
   readonly data?: unknown;
+  readonly next?: readonly NextStep[];
 }
 
 /**

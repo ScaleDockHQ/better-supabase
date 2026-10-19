@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
 import { run } from "../../src/cli/core/run.ts";
 import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
@@ -151,6 +152,7 @@ describe("shipped JSON Schemas", () => {
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "ai-message-v1.json",
       "cli-commands-v1.json",
+      "cli-result-v1.json",
       "config-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
@@ -176,6 +178,31 @@ describe("shipped JSON Schemas", () => {
     expect(
       gen.commands.map((command: { name: string }) => command.name),
     ).toEqual(["gen"]);
+  });
+
+  it.each([
+    [["--version", "--json"], 0, "success"],
+    [["gen", "--chek", "--json"], 2, "error"],
+    [["gne", "--json"], 2, "error"],
+    [["skills", "list", "--json"], 0, "success"],
+    [["sql", "list", "--json"], 0, "success"],
+    [["sql", "print", "mfa", "--json"], 0, "success"],
+    [["sql", "print", "--json"], 2, "error"],
+  ])("describe the result of %j", async (argv, code, status) => {
+    const result = await run(argv);
+    const envelope = JSON.parse(result.stdout) as { status: string };
+
+    expect(result.code).toBe(code);
+    expect(envelope.status).toBe(status);
+    expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+  });
+
+  it("list every CLI error code in the result schema", async () => {
+    const schema = (await load("cli-result-v1.json")) as {
+      $defs: { problem: { properties: { code: { enum: string[] } } } };
+    };
+
+    expect(schema.$defs.problem.properties.code.enum).toEqual(CLI_ERROR_CODES);
   });
 
   it("describe the fixture snapshot", async () => {

@@ -166,8 +166,10 @@ agent can call them without reading the rendered page.
 
 - Types come from generated code. After a migration, run `better-supabase gen` and fix the errors instead of casting.
 - Repository calls return a `Result`. Check `result.ok` or return the Result from a handler.
-- `--json` prints one JSON document on stdout, and errors as Problem Details
-  with a stable `code` ([errors](/docs/cli/errors)). The files the CLI writes
+- `--json` prints one result envelope on stdout
+  ([`cli-result-v1.json`](https://unpkg.com/better-supabase/schemas/cli-result-v1.json)):
+  the command's `data`, Problem Details with a stable `code` under `error`
+  ([errors](/docs/cli/errors)), and the `next` commands to run. The files the CLI writes
   for other tools (the snapshot, the doctor report, the config) have a
   `$schema` URL. `--check` flags exit with 1 on drift, so agents can verify
   their own changes.

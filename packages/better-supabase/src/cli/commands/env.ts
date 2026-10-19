@@ -190,6 +190,7 @@ export async function runEnv(
       output: Object.entries(values)
         .map(([key, value]) => `${key}=${value}`)
         .join("\n"),
+      data: { values },
     };
   }
 
@@ -197,7 +198,7 @@ export async function runEnv(
   const path = insideRoot(config.root, out, args.out ? "--out" : "env.output");
   const current = (await readIfExists(path)) ?? "";
 
-  const { line } = await writeLine(
+  const { line, wrote } = await writeLine(
     path,
     mergeEnv(current, values),
     display(config.root, out),
@@ -205,11 +206,11 @@ export async function runEnv(
     { mode: 0o600 },
   );
 
-  const lines = [line];
+  const warnings: string[] = [];
 
   if (!text(status, "PUBLISHABLE_KEY")) {
-    lines.push(
-      "Warning: this Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
+    warnings.push(
+      "This Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
     );
   }
 
@@ -226,12 +227,21 @@ export async function runEnv(
       );
 
   if (!ignored) {
-    lines.push(
-      `Warning: add ${out} to .gitignore; it contains the secret key.`,
-    );
+    warnings.push(`Add ${out} to .gitignore; it contains the secret key.`);
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: [line, ...warnings.map((warning) => `Warning: ${warning}`)].join(
+      "\n",
+    ),
+    data: {
+      file: display(config.root, out),
+      wrote,
+      keys: Object.keys(values),
+      warnings,
+    },
+  };
 }
 
 export const envCommand: AnyCommand = defineCliCommand({

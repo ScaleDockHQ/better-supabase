@@ -31,6 +31,7 @@ import {
   stubProvider,
   withProvider,
 } from "../../fixtures/authorization-provider.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 describe("moduleLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
@@ -94,29 +95,21 @@ describe("runSql", () => {
     runSql(resolveConfig(config, root), parseCommandArgs(sqlCommand, argv));
 
   it("asks for an action and rejects unknown ones", async () => {
-    const usage = "Run `better-supabase sql --help` for the actions.";
-    expect(await sql([])).toEqual({
-      code: 2,
-      error: `Name an action.\n${usage}`,
-    });
-    expect(await sql(["drop"])).toEqual({
-      code: 2,
-      error: `Unknown sql action "drop".\n${usage}`,
-    });
+    expect(await usageError(() => sql([]))).toBe("Name an action.");
+    expect(await usageError(() => sql(["drop"]))).toBe(
+      'Unknown sql action "drop".',
+    );
   });
 
   it("asks for module names", async () => {
-    expect(await sql(["add"])).toEqual({
-      code: 2,
-      error:
-        "Name at least one module.\nRun `better-supabase sql --help` for the actions.",
-    });
+    expect(await usageError(() => sql(["add"]))).toBe(
+      "Name at least one module.",
+    );
     const names = Object.keys(SQL_MODULES).join(", ");
-    expect(await sql(["print"])).toEqual({
-      code: 2,
-      error: `Name one module: ${names}`,
-    });
-    expect((await sql(["print", "nope"])).code).toBe(2);
+    expect(await usageError(() => sql(["print"]))).toBe(
+      `Name one module: ${names}`,
+    );
+    await usageError(() => sql(["print", "nope"]));
   });
 
   it("adds a module next to the ones blocks lists", async () => {
@@ -373,6 +366,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   it("has nothing to sync for an empty blocks", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,
+      data: { blocks: [] },
       output: "blocks is empty; nothing to sync.",
     });
   });
@@ -408,6 +402,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   it("writes the rows a schema diff skips into a data migration", async () => {
     expect(await sql(["data"])).toEqual({
       code: 0,
+      data: { wrote: false },
       output: "blocks is empty; nothing to write.",
     });
 
@@ -439,6 +434,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(migration).not.toContain("create table");
     expect(await sql(["data"], config)).toEqual({
       code: 0,
+      data: { file: path, wrote: false },
       output: `${path} already has these rows; nothing to write.`,
     });
   });
@@ -518,6 +514,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
     expect(await sql(["upgrade", "--check"], config)).toEqual({
       code: 0,
+      data: { upgrades: [], stale: [] },
       output: "SQL modules are at their current versions.",
     });
   });
@@ -876,10 +873,12 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     const config: BetterSupabaseConfig = { blocks: ["tenant"] };
     expect(await sql(["upgrade"])).toEqual({
       code: 0,
+      data: { upgrades: [], stale: [] },
       output: "blocks is empty; nothing to upgrade.",
     });
     expect(await sql(["upgrade", "--check"], config)).toEqual({
       code: 0,
+      data: { upgrades: [], stale: [] },
       output: "SQL modules are at their current versions.",
     });
     await sql(["sync"], config);
@@ -913,7 +912,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(done.output).toContain(
       "Renames memberships.org_id to organization_id",
     );
-    expect(done.output).toContain("Then create a migration:");
+    expect(done.next?.[0]?.when).toBe(
+      "creates a migration from the module files",
+    );
     expect(await readFile(path, "utf-8")).toContain("-- @bs-module tenant@2");
     expect((await sql(["upgrade"], config)).output).toBe(
       "SQL modules are at their current versions.",
@@ -1005,6 +1006,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       expect(await moduleMigrations()).toHaveLength(1);
       expect(await sql(["sync", "--check"], config)).toEqual({
         code: 0,
+        data: { stale: [] },
         output: "SQL module migration is up to date.",
       });
 
@@ -1039,6 +1041,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     it("upgrades nothing before the first module migration", async () => {
       expect(await sql(["upgrade", "--check"], migrations(["mfa"]))).toEqual({
         code: 0,
+        data: { upgrades: [], stale: [] },
         output: "SQL modules are at their current versions.",
       });
     });
@@ -1056,7 +1059,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       expect(added.output).toMatch(
         /^Wrote supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
       );
-      expect(added.output).toContain("Then apply it: supabase migration up");
+      expect(added.next).toEqual([
+        { command: "supabase migration up", when: "applies the migration" },
+      ]);
     });
 
     it("keeps the rows in the module migration, so sql data writes nothing", async () => {
@@ -1103,7 +1108,9 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       expect(done.output).toContain(
         "Renames memberships.org_id to organization_id",
       );
-      expect(done.output).toContain("Then apply it: supabase migration up");
+      expect(done.next).toEqual([
+        { command: "supabase migration up", when: "applies the migration" },
+      ]);
       expect(done.output).not.toContain("_better_supabase_block_upgrade.sql");
       const all = await moduleMigrations();
       expect(all).toHaveLength(2);
@@ -1134,6 +1141,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(printed.output).not.toBe(SQL_MODULES["tenant"]!.sql);
     expect(await sql(["print", "mfa"])).toEqual({
       code: 0,
+      data: { module: "mfa", custom: false, sql: SQL_MODULES["mfa"]!.sql },
       output: SQL_MODULES["mfa"]!.sql,
     });
   });

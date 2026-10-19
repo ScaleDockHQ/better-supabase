@@ -12,6 +12,7 @@ import { loadConfig } from "../../../src/cli/config.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { encodePreset } from "../../../src/preset/index.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 let dir: string;
 
@@ -134,7 +135,7 @@ describe("adopt", () => {
 
   it("asks for a block, prints the entry without a config, and refuses a config it can't edit", async () => {
     const config = resolveConfig({}, dir);
-    expect((await runAdopt(config, {}, { tables })).code).toBe(2);
+    await usageError(() => runAdopt(config, {}, { tables }));
     const loose = await runAdopt(config, { block: "teams" }, { tables });
     expect(loose.code).toBe(0);
     expect(loose.output).toContain(
@@ -245,22 +246,20 @@ describe("apply --adopt", () => {
     const config = resolveConfig({}, dir);
     await writeFile(configPath(), json({}));
     expect(
-      (
-        await runApply(
+      await usageError(() =>
+        runApply(
           config,
           { preset, adopt: true, only: "conventions" },
           { configFile: configPath(), now, tables },
-        )
-      ).error,
+        ),
+      ),
     ).toBe("--adopt maps blocks, and --only conventions takes none.");
-    expect(
-      (
-        await runApply(
-          config,
-          { preset, adopt: true },
-          { configFile: configPath(), now },
-        )
-      ).code,
-    ).toBe(2);
+    await usageError(() =>
+      runApply(
+        config,
+        { preset, adopt: true },
+        { configFile: configPath(), now },
+      ),
+    );
   });
 });

@@ -3,10 +3,11 @@ import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { addModules } from "../sql/add.ts";
-import { SQL_ARGS, type SqlFlags, USAGE } from "../sql/args.ts";
+import { SQL_ARGS, type SqlFlags } from "../sql/args.ts";
 import { listModules } from "../sql/list.ts";
 import { dataMigration, type Now } from "../sql/migrations.ts";
 import { printModule } from "../sql/print.ts";
@@ -61,14 +62,11 @@ export async function runSql(
     }
 
     case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
+      throw new CliError("usage", "Name an action.");
     }
 
     default: {
-      return {
-        code: 2,
-        error: `Unknown sql action "${action}".\n${USAGE}`,
-      };
+      throw new CliError("usage", `Unknown sql action "${action}".`);
     }
   }
 }

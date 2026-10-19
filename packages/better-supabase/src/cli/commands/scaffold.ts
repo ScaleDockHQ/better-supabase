@@ -8,6 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { writeLine } from "../core/files.ts";
 import { display, sameText } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -102,10 +103,10 @@ export async function runScaffold(
   const [kind] = args._ ?? [];
 
   if (kind !== "api") {
-    return {
-      code: 2,
-      error: `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\`.`,
-    };
+    throw new CliError(
+      "usage",
+      `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\`.`,
+    );
   }
 
   const configured = config.scaffold.api ?? {};
@@ -115,22 +116,21 @@ export async function runScaffold(
   const framework = chosen ?? (detected.length === 1 ? detected[0] : undefined);
 
   if (!isFramework(framework)) {
-    return {
-      code: 2,
-      error:
-        chosen === undefined
-          ? "Pass --framework hono or --framework next, or set scaffold.api.framework."
-          : `--framework takes hono or next, got "${chosen}".`,
-    };
+    throw new CliError(
+      "usage",
+      chosen === undefined
+        ? "Pass --framework hono or --framework next, or set scaffold.api.framework."
+        : `--framework takes hono or next, got "${chosen}".`,
+    );
   }
 
   const name = args.name ?? configured.name ?? "api";
 
   if (!/^[a-z][\w-]*$/i.test(name)) {
-    return {
-      code: 2,
-      error: `--name must be a file name without a folder, got "${name}".`,
-    };
+    throw new CliError(
+      "usage",
+      `--name must be a file name without a folder, got "${name}".`,
+    );
   }
 
   const basePath = `/${(args["base-path"] ?? configured.basePath ?? "/api").replaceAll(/^\/+|\/+$/g, "")}`;
@@ -145,6 +145,7 @@ export async function runScaffold(
   if (requested.length === 0 && !known) {
     return {
       code: 1,
+      errorCode: "not_found",
       error: `No ${display(config.root, metaPaths(config.output).js)}. Run \`better-supabase gen\` first, or pass --tables.`,
     };
   }
@@ -179,6 +180,10 @@ export async function runScaffold(
   };
 
   const lines: string[] = [];
+
+  const files: { path: string; action: "kept" | "written" | "unchanged" }[] =
+    [];
+
   const stale: string[] = [];
   const diffs: string[] = [];
 
@@ -192,6 +197,7 @@ export async function runScaffold(
 
     if (!file.generated && exists) {
       lines.push(`Kept ${file.path} (yours)`);
+      files.push({ path: file.path, action: "kept" });
       continue;
     }
 
@@ -207,6 +213,7 @@ export async function runScaffold(
     if (options.check === true) {
       if (sameText(current, file.contents)) {
         lines.push(`${file.path} is up to date.`);
+        files.push({ path: file.path, action: "unchanged" });
       } else {
         stale.push(file.path);
         diffs.push(fileDiff(file.path, current, file.contents));
@@ -215,19 +222,27 @@ export async function runScaffold(
       continue;
     }
 
-    lines.push((await writeLine(path, file.contents, file.path)).line);
+    const { line, wrote } = await writeLine(path, file.contents, file.path);
+    lines.push(line);
+    files.push({ path: file.path, action: wrote ? "written" : "unchanged" });
   }
 
   if (stale.length > 0) {
     return {
       code: 1,
       output: diffs.join("\n"),
+      data: { framework, tables, files, stale },
       error: `Out of date: ${stale.join(", ")}. Run \`better-supabase scaffold api\`.`,
+      errorCode: "check_failed",
     };
   }
 
   if (options.generatedOnly === true || options.check === true) {
-    return { code: 0, output: lines.join("\n") };
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { framework, tables, files, stale },
+    };
   }
 
   const steps = scaffoldNextSteps(context, config.specs.entry);
@@ -255,6 +270,7 @@ export async function runScaffold(
       ...steps.map((step) => `- ${step}`),
       ...save,
     ].join("\n"),
+    data: { framework, tables, files, stale, steps },
   };
 }
 

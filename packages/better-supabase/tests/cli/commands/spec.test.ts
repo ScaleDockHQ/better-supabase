@@ -136,9 +136,14 @@ describe("spec emit", () => {
   it("returns the manifest under --json", async () => {
     const result = await spec("emit", "--json");
     expect(JSON.parse(result.stdout)).toMatchObject({
-      $schema:
-        "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json",
-      outputs: [expect.objectContaining({ format: "openapi", version: "3.1" })],
+      status: "success",
+      data: {
+        $schema:
+          "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json",
+        outputs: [
+          expect.objectContaining({ format: "openapi", version: "3.1" }),
+        ],
+      },
     });
   });
 });

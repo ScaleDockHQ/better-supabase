@@ -72,8 +72,9 @@ export default defineConfig({
 });
 ```
 
-`doctor --json` prints one report that follows
-[`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json).
+`doctor --json` puts the report in the envelope's `data`. The report follows
+[`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json),
+and a run with errors has the `findings` error code.
 
 ## Ignoring checks
 

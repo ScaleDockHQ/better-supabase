@@ -65,6 +65,7 @@ export async function runSeed(
   if (!isSeed(seed)) {
     return {
       code: 1,
+      errorCode: "invalid_input",
       error: `${display(config.root, entry)} must export defineSeed(...) as \`seed\` or default.`,
     };
   }
@@ -85,7 +86,7 @@ export async function runSeed(
     };
   }
 
-  const { line } = await writeLine(
+  const { line, wrote } = await writeLine(
     state.path,
     contents,
     state.file,
@@ -116,6 +117,7 @@ export async function runSeed(
   }
 
   const dir = supabaseDir(config.root);
+  let listed = true;
   const toml = resolve(config.root, dir, "config.toml");
 
   const seedPath = out.startsWith(`${dir}/`)
@@ -127,6 +129,7 @@ export async function runSeed(
     const folder = seedPath.replace(/[^/]+$/, "");
 
     if (!text.includes(seedPath) && !text.includes(`${folder}*`)) {
+      listed = false;
       lines.push(
         "",
         `Add it to ${dir}/config.toml so \`supabase db reset\` runs it:`,
@@ -136,7 +139,17 @@ export async function runSeed(
     }
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: {
+      file: state.file,
+      wrote,
+      tables: statements.length,
+      applied: args.apply === true,
+      listed,
+    },
+  };
 }
 
 export const seedCommand: AnyCommand = defineCliCommand({

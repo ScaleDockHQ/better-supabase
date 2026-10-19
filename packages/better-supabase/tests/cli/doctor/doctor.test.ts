@@ -2290,8 +2290,8 @@ describe("doctor command", () => {
 
     expect(result.code).toBe(1);
 
-    const report = JSON.parse(result.stdout) as {
-      findings: { code: string; location?: unknown }[];
+    const { data: report } = JSON.parse(result.stdout) as {
+      data: { findings: { code: string; location?: unknown }[] };
     };
 
     expect(

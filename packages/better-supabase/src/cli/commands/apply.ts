@@ -19,6 +19,7 @@ import {
 } from "../../preset/index.ts";
 import { loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
@@ -249,26 +250,25 @@ export async function runApply(
   const input = args.preset;
 
   if (input === undefined) {
-    return {
-      code: 2,
-      error:
-        "Pass --preset with a named preset, a code from /create or its URL.",
-    };
+    throw new CliError(
+      "usage",
+      "Pass --preset with a named preset, a code from /create or its URL.",
+    );
   }
 
   const only = args.only;
 
   if (only !== undefined && only !== "blocks" && only !== "conventions") {
-    return { code: 2, error: '--only must be "blocks" or "conventions"' };
+    throw new CliError("usage", '--only must be "blocks" or "conventions"');
   }
 
   const file = deps.configFile;
 
   if (file === undefined) {
-    return {
-      code: 2,
-      error: `No config file to apply the preset to. Start a project with \`better-supabase init --preset ${input}\`.`,
-    };
+    throw new CliError(
+      "config_not_found",
+      `No config file to apply the preset to. Start a project with \`better-supabase init --preset ${input}\`.`,
+    );
   }
 
   let preset: Preset;
@@ -276,10 +276,10 @@ export async function runApply(
   try {
     preset = presetOf(input);
   } catch (error) {
-    return {
-      code: 2,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    throw new CliError(
+      "usage",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   let design: CreateDesign | undefined;
@@ -290,10 +290,10 @@ export async function runApply(
         ? undefined
         : await designFor(config, input, preset);
   } catch (error) {
-    return {
-      code: 2,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    throw new CliError(
+      "usage",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   const conflict = describeConflicts(
@@ -301,7 +301,7 @@ export async function runApply(
   );
 
   if (conflict !== undefined) {
-    return { code: 2, error: conflict };
+    throw new CliError("usage", conflict);
   }
 
   const breaking =
@@ -356,13 +356,12 @@ export async function runApply(
 
   if (args.adopt === true) {
     if (only === "conventions" || deps.tables === undefined) {
-      return {
-        code: 2,
-        error:
-          only === "conventions"
-            ? "--adopt maps blocks, and --only conventions takes none."
-            : "--adopt needs the database or a snapshot to read the tables from.",
-      };
+      throw new CliError(
+        "usage",
+        only === "conventions"
+          ? "--adopt maps blocks, and --only conventions takes none."
+          : "--adopt needs the database or a snapshot to read the tables from.",
+      );
     }
 
     const adoption = adoptBlocks(

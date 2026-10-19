@@ -8,6 +8,7 @@ import type { CliIo } from "../../../src/cli/core/io.ts";
 
 import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
+import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
 import { registerCommand, run } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
@@ -166,8 +167,8 @@ describe("run", () => {
       (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
     ).toContain("Usage: better-supabase <command> [options]");
     expect((await run(["--", "gen"])).code).toBe(2);
-    expect((await run(["--cwd", dir, "openapi"])).stderr).toBe(
-      "Name an action. Run `better-supabase openapi emit`.\n",
+    expect((await run(["--cwd", dir, "openapi"])).stderr).toMatch(
+      /^Name an action\. Run `better-supabase openapi emit`\.\n\nUsage: better-supabase openapi /,
     );
     expect((await run(["openapi", "publish", "--cwd", dir])).stderr).toMatch(
       /^Unknown openapi action "publish"/,
@@ -185,13 +186,17 @@ describe("run", () => {
       await run(["init", "--casing", "pascal", "--cwd", dir]),
     ).toMatchObject({
       code: 2,
-      stderr: '--casing must be "camel" or "snake"\n',
+      stderr: expect.stringMatching(
+        /^--casing must be "camel" or "snake"\n\nUsage: /,
+      ),
     });
     expect(
       await run(["introspect", "--format", "xml", "--cwd", dir]),
     ).toMatchObject({
       code: 2,
-      stderr: '--format must be "snapshot" or "generator-metadata"\n',
+      stderr: expect.stringMatching(
+        /^--format must be "snapshot" or "generator-metadata"\n\nUsage: /,
+      ),
     });
   });
 
@@ -620,13 +625,17 @@ describe("run", () => {
     const unknown = await run(["genn", "--json"]);
     expect(unknown).toMatchObject({ code: 2, stderr: "" });
     expect(JSON.parse(unknown.stdout)).toMatchObject({
-      type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
-      code: "unknown_command",
-      suggestion: "gen",
+      error: {
+        type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+        code: "unknown_command",
+        suggestion: "gen",
+      },
     });
 
     expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
-      version: VERSION,
+      $schema: RESULT_SCHEMA_URL,
+      status: "success",
+      data: { version: VERSION },
     });
 
     const missing = await run([
@@ -641,7 +650,9 @@ describe("run", () => {
 
     expect(missing.code).toBe(2);
     expect(JSON.parse(missing.stdout)).toMatchObject({
-      code: "config_not_found",
+      error: {
+        code: "config_not_found",
+      },
     });
   });
 
@@ -662,8 +673,10 @@ describe("run", () => {
     const config = await run(["sql", "list", "--cwd", dir, "--json"]);
     expect(config.code).toBe(2);
     expect(JSON.parse(config.stdout)).toMatchObject({
-      code: "config_invalid",
-      issues: [expect.stringMatching(/^casing: /)],
+      error: {
+        code: "config_invalid",
+        issues: [expect.stringMatching(/^casing: /)],
+      },
     });
   });
 
@@ -702,6 +715,7 @@ describe("run", () => {
           Promise.resolve({
             code: 0,
             output: context.io.prompts ? "prompts" : "no prompts",
+            data: { prompts: context.io.prompts !== undefined },
           }),
       }),
     );
@@ -721,8 +735,8 @@ describe("run", () => {
     expect(await ask(["--yes"])).toBe("no prompts\n");
     expect(await ask(["-y"])).toBe("no prompts\n");
     expect(await ask([], { CI: "true" })).toBe("no prompts\n");
-    expect(JSON.parse(await ask(["--json"]))).toEqual({
-      message: "no prompts",
+    expect(JSON.parse(await ask(["--json"]))).toMatchObject({
+      data: { prompts: false },
     });
   });
 
@@ -746,8 +760,10 @@ describe("run", () => {
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
     expect(JSON.parse(result.stdout)).toMatchObject({
-      code: "missing_value",
-      flag: "--db-url-stdin",
+      error: {
+        code: "missing_value",
+        flag: "--db-url-stdin",
+      },
     });
   });
 
@@ -795,7 +811,9 @@ describe("run", () => {
     });
 
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({ code, flag: "--cwd" });
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      error: { code, flag: "--cwd" },
+    });
   });
 
   it("exits 130 when the person cancels a prompt", async () => {

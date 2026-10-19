@@ -7,6 +7,7 @@ import type { CommandResult } from "../core/io.ts";
 
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { writeIfChanged } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
@@ -95,13 +96,16 @@ export async function runCodemod(
     .join("\n");
 
   if (name === undefined) {
-    return { code: 2, error: `Name a codemod:\n${names}` };
+    throw new CliError("usage", `Name a codemod:\n${names}`);
   }
 
   const codemod = CODEMODS[name];
 
   if (!codemod) {
-    return { code: 2, error: `Unknown codemod "${name}". Codemods:\n${names}` };
+    throw new CliError(
+      "usage",
+      `Unknown codemod "${name}". Codemods:\n${names}`,
+    );
   }
 
   const roots = (paths.length > 0 ? paths : ["."]).map((path) =>

@@ -48,7 +48,11 @@ export async function syncModules(
     config.blockNames.length > 0 || Object.keys(config.appTables).length > 0;
 
   if (!hasSql && topics === undefined) {
-    return { code: 0, output: "blocks is empty; nothing to sync." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to sync.",
+      data: { blocks: [] },
+    };
   }
 
   if (await writesMigrations(config)) {
@@ -60,7 +64,11 @@ export async function syncModules(
 
     const lines = await write(config, args, config.blockNames, sqlLayout, now);
 
-    return { code: 0, output: lines.join("\n") };
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { blocks: config.blockNames },
+    };
   }
 
   if (args.check !== true) {
@@ -93,7 +101,11 @@ export async function syncModules(
       }
     }
 
-    return { code: 0, output: lines.join("\n") };
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { blocks: config.blockNames },
+    };
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
@@ -134,11 +146,13 @@ export async function syncModules(
   }
 
   return stale.length === 0
-    ? { code: 0, output: "SQL module files are up to date." }
+    ? { code: 0, output: "SQL module files are up to date.", data: { stale } }
     : {
         code: 1,
+        data: { stale },
         output: diffs.join("\n\n"),
         error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
+        errorCode: "check_failed",
       };
 }
 
@@ -188,10 +202,16 @@ async function checkModuleMigration(
   }
 
   return stale.length === 0
-    ? { code: 0, output: "SQL module migration is up to date." }
+    ? {
+        code: 0,
+        output: "SQL module migration is up to date.",
+        data: { stale },
+      }
     : {
         code: 1,
+        data: { stale },
         output: diffs.join("\n\n"),
         error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+        errorCode: "check_failed",
       };
 }

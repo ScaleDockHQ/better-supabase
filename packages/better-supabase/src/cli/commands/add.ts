@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
-import type { CommandResult } from "../core/io.ts";
+import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { TemplateContext } from "../templates.ts";
 import type { SqlDeps } from "./sql.ts";
@@ -17,6 +17,7 @@ import {
   resolvePreset,
 } from "../../preset/index.ts";
 import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
 import { readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import {
@@ -28,6 +29,7 @@ import {
   parseIntegrations,
   templateContextFor,
   writeFiles,
+  writtenLines,
 } from "../glue.ts";
 import { detectProject, installCommand } from "../project/detect.ts";
 import { addModules } from "../sql/add.ts";
@@ -232,6 +234,7 @@ async function addIntegrations(
     return {
       code: 0,
       output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
+      data: { integrations: [], files: [], packages: [], unlisted: [] },
     };
   }
 
@@ -246,16 +249,16 @@ async function addIntegrations(
   }
 
   if (named.length === 0) {
-    return {
-      code: 2,
-      error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
-    };
+    throw new CliError(
+      "usage",
+      `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
+    );
   }
 
   const requested = parseIntegrations(named);
 
   if (typeof requested === "string") {
-    return { code: 2, error: requested };
+    throw new CliError("usage", requested);
   }
 
   const integrations = resolveIntegrations(requested);
@@ -266,13 +269,18 @@ async function addIntegrations(
     return CANCELLED;
   }
 
-  const lines = await writeFiles(config.root, files, args, force);
+  const written = await writeFiles(config.root, files, args, force);
+  const lines = writtenLines(written);
   const lib = libEntry(templateContext);
 
-  if (
+  const libMissing =
     !existsSync(resolve(config.root, lib)) &&
-    integrations.some((name) => needsLib([name]))
-  ) {
+    integrations.some((name) => needsLib([name]));
+
+  const next: NextStep[] = [];
+
+  if (libMissing) {
+    next.push({ command: "better-supabase init", when: `${lib} is missing` });
     lines.push(
       "",
       `Warning: ${lib} is missing. Run \`better-supabase init\` first.`,
@@ -283,11 +291,14 @@ async function addIntegrations(
     (name) => name !== "better-supabase" && name !== "@supabase/supabase-js",
   );
 
-  if (packages.length > 0) {
-    lines.push(
-      "",
-      `Install: ${installCommand(project.packageManager, packages)}`,
-    );
+  const install =
+    packages.length > 0
+      ? installCommand(project.packageManager, packages)
+      : undefined;
+
+  if (install !== undefined) {
+    lines.push("", `Install: ${install}`);
+    next.push({ command: install, when: "to install the packages they need" });
   }
 
   for (const name of integrations) {
@@ -308,7 +319,12 @@ async function addIntegrations(
     );
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: { integrations, files: written, packages, unlisted },
+    next,
+  };
 }
 
 export const addCommand: AnyCommand = defineCliCommand({

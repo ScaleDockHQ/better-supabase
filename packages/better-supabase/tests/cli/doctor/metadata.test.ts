@@ -61,7 +61,7 @@ describe("doctor --metadata", () => {
 
   it("skips the rules that need extras with an info finding, and runs the rest", async () => {
     const result = await doctor(["--metadata", "-", "--json"]);
-    const report = JSON.parse(result.stdout) as Report;
+    const { data: report } = JSON.parse(result.stdout) as { data: Report };
 
     const skipped = report.findings.filter((finding) =>
       finding.message.startsWith(

@@ -183,30 +183,28 @@ export async function runMetadataGen(
   const emit = options.emit ?? "schema";
 
   if (!isEmit(emit)) {
-    return {
-      code: 2,
-      error: `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
-    };
+    throw new CliError(
+      "usage",
+      `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
+    );
   }
 
   if (options.out !== undefined && options.emit !== undefined) {
-    return {
-      code: 2,
-      error:
-        "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
-    };
+    throw new CliError(
+      "usage",
+      "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
+    );
   }
 
   if (options.out === undefined && options.check) {
-    return { code: 2, error: "--check with --metadata needs --out <dir>" };
+    throw new CliError("usage", "--check with --metadata needs --out <dir>");
   }
 
   if (options.out === undefined && options.json) {
-    return {
-      code: 2,
-      error:
-        "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
-    };
+    throw new CliError(
+      "usage",
+      "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
+    );
   }
 
   let snapshot: Snapshot;
@@ -215,7 +213,11 @@ export async function runMetadataGen(
     snapshot = await readMetadataSnapshot(options.metadata, options.cwd, io);
   } catch (cause) {
     if (cause instanceof MetadataRejectedError) {
-      return { code: METADATA_REJECTED, error: cause.message };
+      return {
+        code: METADATA_REJECTED,
+        errorCode: "invalid_input",
+        error: cause.message,
+      };
     }
 
     throw cause;
