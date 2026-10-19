@@ -10,13 +10,19 @@ or a pool from `createPostgres()`.
 ```ts
 import { createPostgres, postgresExecutor } from "better-supabase/postgres";
 
-const postgres = createPostgres(); // SUPABASE_DB_URL or DATABASE_URL
+const postgres = createPostgres(); // SUPABASE_DB_URL, DATABASE_URL, POSTGRES_URL
 
 const asUser = betterSupabase.connect(
   postgresExecutor(postgres.asUser({ sub: userId, tenant_id: organizationId })),
 );
 const asAdmin = betterSupabase.connect(postgresExecutor(postgres.admin));
 ```
+
+Without a `connectionString`, `createPostgres()` reads the first of
+`SUPABASE_DB_URL`, `DATABASE_URL`, `POSTGRES_URL` and
+`POSTGRES_URL_NON_POOLING` that is set, the [`dbUrl`](/docs/auth/env) order.
+Each query runs in its own transaction with transaction-local settings, so
+the transaction pooler that `POSTGRES_URL` points to works.
 
 Results match PostgREST exactly: same row shapes, nested includes, relation
 filters, pagination and error kinds. The test suite runs the same queries

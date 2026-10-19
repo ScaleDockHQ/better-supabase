@@ -912,6 +912,42 @@ describe("env", () => {
     ]);
   });
 
+  it("reads the Vercel Postgres connection strings after the Supabase ones", () => {
+    const base = {
+      SUPABASE_URL: PROJECT_URL,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+    };
+
+    const pooled = "postgres://user:pass@pooler.supabase.com:6543/postgres";
+    const direct = "postgres://user:pass@pooler.supabase.com:5432/postgres";
+
+    expect(
+      parseEnv({ ...base, POSTGRES_URL_NON_POOLING: direct }).env?.dbUrl,
+    ).toBe(direct);
+    expect(
+      parseEnv({
+        ...base,
+        POSTGRES_URL: pooled,
+        POSTGRES_URL_NON_POOLING: direct,
+      }).env?.dbUrl,
+    ).toBe(pooled);
+    expect(
+      parseEnv({ ...base, DATABASE_URL: direct, POSTGRES_URL: pooled }).env
+        ?.dbUrl,
+    ).toBe(direct);
+    expect(parseEnv({ ...base, POSTGRES_URL: "mysql://x" }).issues).toEqual([
+      {
+        variables: [
+          "SUPABASE_DB_URL",
+          "DATABASE_URL",
+          "POSTGRES_URL",
+          "POSTGRES_URL_NON_POOLING",
+        ],
+        message: "must be a postgres:// connection string",
+      },
+    ]);
+  });
+
   it("names problems without leaking values", () => {
     const result = parseEnv(
       {

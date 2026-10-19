@@ -12,7 +12,11 @@ export interface BetterSupabaseEnv {
   readonly jwksUrl: URL;
   /** `SUPABASE_JWKS`: inline keys, used instead of fetching `jwksUrl`. */
   readonly jwks?: InlineJwks;
-  /** Direct Postgres connection string (`SUPABASE_DB_URL` / `DATABASE_URL`). */
+  /**
+   * Postgres connection string: `SUPABASE_DB_URL`, `DATABASE_URL`, then
+   * the Vercel integration's `POSTGRES_URL` (pooled) and
+   * `POSTGRES_URL_NON_POOLING`.
+   */
   readonly dbUrl?: string;
   /** Project ref for hosted projects (`<ref>.supabase.co`). */
   readonly projectRef?: string;
@@ -83,7 +87,12 @@ export const ENV_VARIABLES: {
     `${prefix}SUPABASE_PUBLISHABLE_DEFAULT_KEY`,
   ]),
   secretKey: ["SUPABASE_SECRET_KEY"],
-  dbUrl: ["SUPABASE_DB_URL", "DATABASE_URL"],
+  dbUrl: [
+    "SUPABASE_DB_URL",
+    "DATABASE_URL",
+    "POSTGRES_URL",
+    "POSTGRES_URL_NON_POOLING",
+  ],
   jwksUrl: ["SUPABASE_JWKS_URL"],
   jwks: ["SUPABASE_JWKS"],
   readUrl: ["SUPABASE_READ_URL"],
