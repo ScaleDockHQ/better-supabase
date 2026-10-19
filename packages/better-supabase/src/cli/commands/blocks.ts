@@ -9,6 +9,7 @@ import {
 } from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { commandMeta } from "../core/manifest.ts";
 
 const USAGE = `Usage:
   better-supabase blocks list [--category <name>]   Every block, by category
@@ -38,6 +39,7 @@ const BLOCKS_ARGS = {
   action: {
     type: "positional",
     required: false,
+    variadic: true,
     description: "list, view or search",
   },
   category: {
@@ -209,10 +211,7 @@ export function runBlocks(args: BlocksOptions): CommandResult {
 }
 
 export const blocksCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "blocks",
-    description: "Lists, shows and searches the blocks you can add",
-  },
+  meta: commandMeta("blocks"),
   args: BLOCKS_ARGS,
   run: (args) => Promise.resolve(runBlocks(args)),
 });

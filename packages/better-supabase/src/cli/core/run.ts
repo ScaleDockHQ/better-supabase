@@ -1,17 +1,11 @@
-import {
-  type CommandDef,
-  defineCommand,
-  parseArgs,
-  renderUsage,
-  runCommand,
-} from "citty";
+import { parseArgs, runCommand } from "citty";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CliEntry } from "../builtin-commands.ts";
 import type { CliIo, CommandResult, RunResult } from "./io.ts";
+import type { CommandSpec } from "./manifest.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
 import { type Command, legacyCommand } from "../legacy.ts";
@@ -26,7 +20,18 @@ import {
   runsWithInvalidConfig,
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
+import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { type Rendered, renderError, renderResult } from "./output.ts";
+import {
+  checkArgs,
+  closestName,
+  commandArgs,
+  type CommandNode,
+  commandTree,
+  helpFlags,
+  type Loader,
+  resolveCommand,
+} from "./parse.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */
@@ -35,53 +40,32 @@ export interface RunOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly io?: CliIo;
   readonly signal?: AbortSignal;
+  /** The name the CLI was called with, for help and hints. Defaults to `better-supabase`. */
+  readonly bin?: string;
 }
 
 export interface CreateCliOptions {
-  /** The commands the CLI dispatches, by name. `createCli` copies the map. */
-  readonly commands: ReadonlyMap<string, CliEntry>;
+  /** The command tree: names, descriptions, groups and subcommands. */
+  readonly commands: readonly CommandSpec[];
+  /** Loads each leaf in `commands`, keyed by its space-separated path (`"sql add"`). */
+  readonly loaders: ReadonlyMap<string, Loader>;
 }
 
 export interface Cli {
   /** Runs the CLI. Never exits the process; returns the exit code and output. */
   run(argv: readonly string[], options?: RunOptions): Promise<RunResult>;
-  /** The usage text for the CLI, or for one command; plain unless `color` is set. */
+  /** The usage text for the CLI, or for one command path (`"sql add"`); plain unless `color` is set. */
   help(command?: string, color?: boolean): Promise<string>;
-  /** The names `run()` dispatches, registered commands included. */
+  /** The top-level names `run()` dispatches, registered commands included. */
   commandNames(): string[];
-  /** The root usage's description of each lazily loaded command, for checking against the command. */
-  commandDescriptions(): ReadonlyMap<string, string>;
   /** Adds a command that is already loaded. */
   register(name: string, command: AnyCommand): void;
 }
 
-/** Global options that take a value, so the command name is the token after them. */
-const GLOBAL_VALUE_FLAGS: ReadonlySet<string> = new Set(
-  Object.entries(GLOBAL_ARGS).flatMap(([name, definition]) =>
-    definition.type === "string" ? [`--${name}`] : [],
-  ),
-);
+const ROOT_DESCRIPTION =
+  "Typed Supabase: codegen, doctor, the SQL modules and project setup";
 
-/** The index of the command name: the first token that is not an option or an option's value. */
-function commandIndex(argv: readonly string[]): number {
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index]!;
-
-    if (token === "--") {
-      return -1;
-    }
-
-    if (!token.startsWith("-")) {
-      return index;
-    }
-
-    if (GLOBAL_VALUE_FLAGS.has(token)) {
-      index += 1;
-    }
-  }
-
-  return -1;
-}
+const DEFAULT_BIN = "better-supabase";
 
 function isCommandResult(value: unknown): value is CommandResult {
   return (
@@ -123,55 +107,45 @@ function withoutPrompts(io: CliIo): CliIo {
   return rest;
 }
 
-/** The registered command closest to a mistyped one, if it is close enough to be a typo. */
-async function suggestCommand(
-  name: string,
-  names: readonly string[],
-): Promise<string | undefined> {
-  if (names.length === 0) {
-    return undefined;
-  }
+function metaDescription(command: AnyCommand): string {
+  const { meta } = command;
 
-  const { closest, distance } = await import("fastest-levenshtein");
-  const candidate = closest(name, [...names]);
-
-  return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
-    ? candidate
-    : undefined;
+  return typeof meta === "object" && !(meta instanceof Promise)
+    ? (meta.description ?? "")
+    : "";
 }
 
-/** A CLI over its own command registry, so tests and embedders don't share state through the module. */
+/** A CLI over its own command tree, so tests and embedders don't share state through the module. */
 export function createCli(init: CreateCliOptions): Cli {
-  const commands = new Map(init.commands);
+  const tree = commandTree(init.commands, init.loaders);
 
-  const root = defineCommand({
-    meta: {
-      name: "better-supabase",
+  const helpText = async (
+    path: readonly string[],
+    bin: string,
+    color: boolean,
+  ): Promise<string> => {
+    const paint = painter(color);
+
+    const options = {
+      bin,
       version: VERSION,
-      description:
-        "Typed Supabase: codegen, doctor, the SQL modules and project setup",
-    },
-    args: GLOBAL_ARGS,
-    subCommands: () =>
-      Object.fromEntries(
-        [...commands].map(([name, entry]) => [
-          name,
-          "command" in entry
-            ? entry.command
-            : defineCommand({
-                meta: { name, description: entry.description },
-              }),
-        ]),
-      ),
-  });
+      description: ROOT_DESCRIPTION,
+      paint,
+    };
+
+    const resolution = resolveCommand(tree, path);
+
+    return resolution.kind === "command"
+      ? commandHelp(resolution.node, options)
+      : rootHelp(tree, options);
+  };
 
   const help = async (command?: string, color = false): Promise<string> => {
-    const load =
-      command === undefined ? undefined : commands.get(command)?.load;
-
-    const text = load
-      ? await renderUsage(await load(), root)
-      : await renderUsage(root);
+    const text = await helpText(
+      command === undefined ? [] : command.split(" "),
+      DEFAULT_BIN,
+      color,
+    );
 
     return color ? text : stripVTControlCharacters(text);
   };
@@ -182,6 +156,7 @@ export function createCli(init: CreateCliOptions): Cli {
   ): Promise<RunResult> => {
     const stdout: string[] = [];
     const stderr: string[] = [];
+    const bin = options.bin ?? DEFAULT_BIN;
 
     const io: CliIo = options.io ?? {
       stdout: (text) => {
@@ -214,8 +189,8 @@ export function createCli(init: CreateCliOptions): Cli {
 
     const paint = painter(io.color);
 
-    const usage = (command?: string): Promise<string> =>
-      help(command, io.color === true);
+    const usage = (path: readonly string[] = []): Promise<string> =>
+      helpText(path, bin, io.color === true);
 
     const finish = (code: number): RunResult => ({
       code,
@@ -223,16 +198,26 @@ export function createCli(init: CreateCliOptions): Cli {
       stderr: stderr.join(""),
     });
 
-    const index = commandIndex(argv);
-    const name = index === -1 ? undefined : argv[index];
-    const rest = index === -1 ? [...argv] : argv.toSpliced(index, 1);
+    let resolution = resolveCommand(tree, argv);
 
-    const flags = new Set(
-      rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
-    );
+    if (
+      resolution.kind === "unknown" &&
+      resolution.parent.length === 0 &&
+      resolution.name === "help"
+    ) {
+      const topic = resolveCommand(tree, resolution.rest);
 
-    const wantsHelp = flags.has("--help") || flags.has("-h");
-    const json = flags.has("--json");
+      resolution =
+        topic.kind === "command"
+          ? { ...topic, rest: [...topic.rest, "--help"] }
+          : topic.kind === "root"
+            ? { kind: "root", rest: ["--help"] }
+            : topic;
+    }
+
+    const path = resolution.kind === "command" ? resolution.node.path : [];
+    const flags = helpFlags(resolution.rest);
+    const { json } = flags;
 
     const report = (rendered: Rendered): void => {
       if (rendered.stdout) {
@@ -244,7 +229,10 @@ export function createCli(init: CreateCliOptions): Cli {
       }
     };
 
-    const reportError = async (cause: unknown): Promise<RunResult> => {
+    const reportError = async (
+      cause: unknown,
+      usagePath: readonly string[] = path,
+    ): Promise<RunResult> => {
       const error = toCliError(cause);
 
       const shown =
@@ -262,7 +250,7 @@ export function createCli(init: CreateCliOptions): Cli {
           json,
           paint,
           ...(SHOWS_USAGE.has(error.code)
-            ? { usage: await usage(error.code === "usage" ? name : undefined) }
+            ? { usage: await usage(usagePath) }
             : {}),
         }),
       );
@@ -270,47 +258,80 @@ export function createCli(init: CreateCliOptions): Cli {
       return finish(error.exitCode);
     };
 
-    if (flags.has("--version") || name === "version") {
-      out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+    const printHelp = async (node?: CommandNode): Promise<RunResult> => {
+      if (json) {
+        const document = await treeJson(
+          node ? new Map([[node.spec.name, node]]) : tree,
+          VERSION,
+        );
+
+        out(JSON.stringify(document, null, 2));
+      } else {
+        out(await usage(node?.path));
+      }
 
       return finish(0);
-    }
+    };
 
-    if (name === undefined) {
-      (wantsHelp ? out : fail)(await usage());
+    if (resolution.kind === "unknown") {
+      const { parent, name, candidates } = resolution;
 
-      return finish(wantsHelp ? 0 : 2);
-    }
+      if (parent.length === 0 && name === "version") {
+        out(json ? JSON.stringify({ version: VERSION }) : VERSION);
 
-    if (name === "help") {
-      const topic = rest.find((token) => !token.startsWith("-"));
-      out(await usage(topic));
+        return finish(0);
+      }
 
-      return finish(0);
-    }
-
-    const load = commands.get(name)?.load;
-
-    if (!load) {
-      const suggestion = await suggestCommand(name, [...commands.keys()]);
+      const suggestion = await closestName(name, candidates);
+      const full = [...parent, name].join(" ");
+      const suggested = suggestion ? [...parent, suggestion].join(" ") : "";
 
       return reportError(
         new CliError(
           "unknown_command",
-          `Unknown command "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ""}`,
-          suggestion ? { suggestion } : {},
+          `Unknown command "${full}".${suggestion ? ` Did you mean "${suggested}"?` : ""}`,
+          suggestion ? { suggestion: suggested } : {},
         ),
+        parent,
       );
     }
 
-    if (wantsHelp) {
-      out(await usage(name));
+    if (resolution.kind === "root") {
+      const end = resolution.rest.indexOf("--");
 
-      return finish(0);
+      const before =
+        end === -1 ? resolution.rest : resolution.rest.slice(0, end);
+
+      if (before.includes("--version")) {
+        out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+
+        return finish(0);
+      }
+
+      if (flags.help) {
+        return printHelp();
+      }
+
+      fail(await usage());
+
+      return finish(2);
+    }
+
+    const { node, rest } = resolution;
+
+    if (flags.help) {
+      return printHelp(node);
+    }
+
+    if (!node.load) {
+      fail(await usage(node.path));
+
+      return finish(2);
     }
 
     let context: CliContext;
-    let command: CommandDef;
+    let command: AnyCommand;
+    let rawArgs: string[];
 
     try {
       // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
@@ -319,13 +340,24 @@ export function createCli(init: CreateCliOptions): Cli {
         { defaultConfig, discoverConfig, loadConfig },
         { configEnvironment, isCi, parseEnv },
       ] = await Promise.all([
-        load(),
+        node.load(),
         import("../config.ts"),
         import("../env.ts"),
       ]);
 
       command = loaded;
-      const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
+      rawArgs = joinRepeated(rest, listArgs(command));
+
+      // A command without declared args parses its own argv.
+      if (command.args !== undefined) {
+        await checkArgs(
+          await commandArgs(command),
+          rawArgs,
+          [bin, ...node.path].join(" "),
+        );
+      }
+
+      const globals = parseArgs<typeof GLOBAL_ARGS>([...rest], GLOBAL_ARGS);
       const cwd = projectDirectory(options.cwd ?? ".", globals.cwd);
       const env = parseEnv(options.env ?? {});
       const environment = configEnvironment(globals.env, env);
@@ -375,7 +407,7 @@ export function createCli(init: CreateCliOptions): Cli {
 
     try {
       const { result } = await runCommand(command, {
-        rawArgs: joinRepeated(rest, listArgs(command)),
+        rawArgs,
         data: context,
       });
 
@@ -394,24 +426,20 @@ export function createCli(init: CreateCliOptions): Cli {
   return {
     run,
     help,
-    commandNames: () => [...commands.keys()],
-    commandDescriptions: () =>
-      new Map(
-        [...commands].flatMap(([name, entry]) =>
-          "description" in entry ? [[name, entry.description] as const] : [],
-        ),
-      ),
+    commandNames: () => [...tree.keys()],
     register: (name, command) => {
-      commands.set(name, {
+      tree.set(name, {
+        spec: { name, description: metaDescription(command) },
+        path: [name],
         load: () => Promise.resolve(command),
-        command,
+        children: new Map(),
       });
     },
   };
 }
 
 /** The CLI the `better-supabase` bin runs, with every built-in command. */
-const defaultCli: Cli = createCli({ commands: builtinCommands() });
+const defaultCli: Cli = createCli(builtinCommands());
 
 export const run: Cli["run"] = (argv, options) => defaultCli.run(argv, options);
 
@@ -421,10 +449,6 @@ export const help: Cli["help"] = (command, color) =>
 /** The names `run()` dispatches, registered commands included. */
 export const commandNames: Cli["commandNames"] = () =>
   defaultCli.commandNames();
-
-/** The root usage's description of each built-in command, for checking against the command. */
-export const commandDescriptions: Cli["commandDescriptions"] = () =>
-  defaultCli.commandDescriptions();
 
 /** Registers a citty command; `defineCliCommand` gives it the `CliContext`. */
 export function registerCommand(name: string, command: AnyCommand): void;

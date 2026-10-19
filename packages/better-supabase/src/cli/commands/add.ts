@@ -18,6 +18,7 @@ import {
 } from "../../preset/index.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { readIfExists } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -44,6 +45,7 @@ const ADD_ARGS = {
   block: {
     type: "positional",
     required: false,
+    variadic: true,
     description:
       "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
   },
@@ -310,11 +312,7 @@ async function addIntegrations(
 }
 
 export const addCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "add",
-    description:
-      "Adds blocks with what they require, or glue for an integration with --framework",
-  },
+  meta: commandMeta("add"),
   args: ADD_ARGS,
   lists: ["framework"],
   run: (args, { config, configFile, io }) =>

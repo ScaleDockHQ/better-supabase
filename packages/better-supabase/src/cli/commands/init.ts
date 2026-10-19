@@ -31,6 +31,7 @@ import {
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
@@ -545,11 +546,7 @@ export async function runInit(
 }
 
 export const initCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "init",
-    description:
-      "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
-  },
+  meta: commandMeta("init"),
   args: INIT_ARGS,
   lists: ["with"],
   run: (args, { config, io }) => runInit(config, args, io.prompts),

@@ -11,6 +11,7 @@ import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { insideRoot, writeLine } from "../core/files.ts";
 import { display, readIfExists } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
 import {
   parseStackStatus,
@@ -234,11 +235,7 @@ export async function runEnv(
 }
 
 export const envCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "env",
-    description:
-      "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
-  },
+  meta: commandMeta("env"),
   args: ARGS,
   run: (args, { config, env, signal }) => runEnv(config, args, env, signal),
 });

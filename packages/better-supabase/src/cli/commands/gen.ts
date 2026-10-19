@@ -6,6 +6,7 @@ import type { Snapshot } from "../introspect/types.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
 import { errorText, failedResult } from "../core/errors.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { runMetadataGen, EMITS } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
@@ -244,11 +245,7 @@ async function watch(
 }
 
 export const genCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "gen",
-    description:
-      "Writes the typed client from the database, then every other generated file the config sets up",
-  },
+  meta: commandMeta("gen"),
   args: ARGS,
   lists: ["tasks"],
   run: async (args, context) => {

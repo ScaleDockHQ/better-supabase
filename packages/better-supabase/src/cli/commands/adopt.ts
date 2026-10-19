@@ -8,6 +8,7 @@ import type { SnapshotSource } from "./snapshot.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { toCatalog } from "../introspect/index.ts";
 import { withSpinner } from "../prompts.ts";
@@ -190,11 +191,7 @@ export async function runAdopt(
 }
 
 export const adoptCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "adopt",
-    description:
-      "Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map",
-  },
+  meta: commandMeta("adopt"),
   args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
   lists: ["from"],
   run: async (args, { config, configFile, env, io, signal }) => {

@@ -10,6 +10,7 @@ import { stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { errorText } from "../core/errors.ts";
 import { display, writeIfChanged } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
@@ -383,11 +384,7 @@ export async function runDoctor(
 }
 
 export const doctorCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "doctor",
-    description:
-      "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
-  },
+  meta: commandMeta("doctor"),
   args: ARGS,
   lists: ["only", "ignore", "explain"],
   run: async (args, { config, cwd, env, io, signal }) => {

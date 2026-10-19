@@ -3,6 +3,7 @@ import type { AnyCommand } from "../core/command.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { redact, redactUrl } from "../core/redact.ts";
 
 /** The resolved config as JSON: generators by name and version, every credential redacted. */
@@ -21,11 +22,7 @@ export function printableConfig(config: ResolvedConfig): unknown {
 }
 
 export const configCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "config",
-    description:
-      "Prints the resolved config: the file it came from, the active environment and every option with its default",
-  },
+  meta: commandMeta("config"),
   args: {},
   run: (_args, context) => {
     const config = printableConfig(context.config);

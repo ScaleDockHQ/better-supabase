@@ -8,6 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { writeIfChanged } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { type Paint, painter, plain } from "../style.ts";
 
@@ -15,6 +16,7 @@ const CODEMOD_ARGS = {
   name: {
     type: "positional",
     required: false,
+    variadic: true,
     description:
       "The codemod (0.4, 0.5, 0.6 or 0.9), then the files or directories to rewrite (default: the project)",
   },
@@ -159,11 +161,7 @@ export async function runCodemod(
 }
 
 export const codemodCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "codemod",
-    description:
-      "Rewrites imports, calls and config keys for renamed better-supabase APIs",
-  },
+  meta: commandMeta("codemod"),
   args: CODEMOD_ARGS,
   runsWithInvalidConfig: true,
   run: (args, { config, io }) => runCodemod(config, args, painter(io.color)),

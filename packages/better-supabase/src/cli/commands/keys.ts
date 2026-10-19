@@ -8,6 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { supabaseDir } from "../supabase-toml.ts";
 
 const ARGS = {
@@ -149,11 +150,7 @@ export async function runKeys(
 }
 
 export const keysCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "keys",
-    description:
-      "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
-  },
+  meta: commandMeta("keys"),
   args: ARGS,
   run: (args, { config }) => runKeys(config, args),
 });

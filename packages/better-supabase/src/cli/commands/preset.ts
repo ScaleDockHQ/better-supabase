@@ -16,6 +16,7 @@ import {
   type ResolvedPreset,
 } from "../../preset/index.ts";
 import { defineCliCommand } from "../core/command.ts";
+import { commandMeta } from "../core/manifest.ts";
 
 const USAGE = `Usage:
   better-supabase preset decode <name|code|url>   What a preset holds and what it installs
@@ -25,6 +26,7 @@ const PRESET_ARGS = {
   action: {
     type: "positional",
     required: false,
+    variadic: true,
     description: "decode or info",
   },
 } as const;
@@ -236,11 +238,7 @@ export function runPreset(
 }
 
 export const presetCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "preset",
-    description:
-      "Decodes a preset code, or shows the config's preset and how the config differs from it",
-  },
+  meta: commandMeta("preset"),
   args: PRESET_ARGS,
   run: (args, { config }) => Promise.resolve(runPreset(config, args)),
 });

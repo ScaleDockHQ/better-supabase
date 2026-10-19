@@ -8,6 +8,7 @@ import { importExport } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { fileState, staleResult, writeLine } from "../core/files.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 
 const ARGS = {
   action: {
@@ -81,11 +82,7 @@ export async function runOpenApi(
 }
 
 export const openapiCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "openapi",
-    description:
-      "Writes the document your createOpenApi() module exports, so CI can check it for drift",
-  },
+  meta: commandMeta("openapi"),
   args: ARGS,
   run: (args, { config }) => runOpenApi(config, args),
 });

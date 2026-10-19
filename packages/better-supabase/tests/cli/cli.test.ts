@@ -948,7 +948,7 @@ describe("gen", () => {
 
   it("prints help and version", async () => {
     const help = (await run(["--help"])).stdout;
-    expect(help).toContain("USAGE better-supabase [OPTIONS]");
+    expect(help).toContain("Usage: better-supabase <command> [options]");
 
     for (const command of ["init", "gen", "doctor", "sql"]) {
       expect(help).toMatch(new RegExp(`^ +${command} +\\S`, "m"));

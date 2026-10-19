@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { run } from "../../src/cli/core/run.ts";
 import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
@@ -149,6 +150,7 @@ describe("shipped JSON Schemas", () => {
 
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "ai-message-v1.json",
+      "cli-commands-v1.json",
       "config-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
@@ -160,6 +162,20 @@ describe("shipped JSON Schemas", () => {
         `https://unpkg.com/better-supabase/schemas/${file}`,
       );
     }
+  });
+
+  it("describe the command tree that --help --json prints", async () => {
+    const root = await run(["--help", "--json"]);
+    expect(root.code).toBe(0);
+    expect(
+      await errorsFor("cli-commands-v1.json", JSON.parse(root.stdout)),
+    ).toEqual([]);
+
+    const gen = JSON.parse((await run(["gen", "--help", "--json"])).stdout);
+    expect(await errorsFor("cli-commands-v1.json", gen)).toEqual([]);
+    expect(
+      gen.commands.map((command: { name: string }) => command.name),
+    ).toEqual(["gen"]);
   });
 
   it("describe the fixture snapshot", async () => {

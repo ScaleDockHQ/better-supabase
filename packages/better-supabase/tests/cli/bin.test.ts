@@ -47,7 +47,7 @@ describe("the built bin", () => {
     });
     const usage = await spawn(["--help"], dir);
     expect(usage.code).toBe(0);
-    expect(usage.stdout).toContain("USAGE better-supabase");
+    expect(usage.stdout).toContain("Usage: better-supabase");
   });
 
   it("exits 2 with Problem Details for a mistyped command under --json", async () => {

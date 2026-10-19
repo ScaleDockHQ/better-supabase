@@ -20,6 +20,7 @@ import {
 import { loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import {
   type AdoptProposal,
@@ -446,11 +447,7 @@ export async function runApply(
 }
 
 export const applyCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "apply",
-    description:
-      "Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules",
-  },
+  meta: commandMeta("apply"),
   args: { ...APPLY_ARGS, ...SOURCE_ARGS },
   run: async (args, { config, configFile, env, io, signal }) =>
     runApply(config, args, {

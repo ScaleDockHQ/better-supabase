@@ -2,6 +2,7 @@ import type { AnyCommand } from "../core/command.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { fileState, writeLine } from "../core/files.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import { withSpinner } from "../prompts.ts";
@@ -30,10 +31,7 @@ const ARGS = {
 } as const;
 
 export const introspectCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "introspect",
-    description: "Saves the database schema as a snapshot for offline gen",
-  },
+  meta: commandMeta("introspect"),
   args: ARGS,
   run: async (args, { config, env, io, signal }) => {
     const format = args.format ?? "snapshot";

@@ -18,6 +18,7 @@ import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { errorText, failedResult } from "../core/errors.ts";
 import { display, sameText, writeIfChanged } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { writeAtomic } from "../introspect/cache.ts";
 import { SPEC_CACHE_DIR, sha256 } from "../spec/cache.ts";
@@ -510,11 +511,7 @@ async function watch(
 }
 
 export const specCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "spec",
-    description:
-      "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",
-  },
+  meta: commandMeta("spec"),
   args: ARGS,
   run: (args, context) => {
     const [action, format] = args._;

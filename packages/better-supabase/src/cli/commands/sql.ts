@@ -3,6 +3,7 @@ import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { addModules } from "../sql/add.ts";
 import { SQL_ARGS, type SqlFlags, USAGE } from "../sql/args.ts";
@@ -73,11 +74,7 @@ export async function runSql(
 }
 
 export const sqlCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "sql",
-    description:
-      "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration",
-  },
+  meta: commandMeta("sql"),
   args: SQL_ARGS,
   run: (args, { config, configFile, io }) =>
     runSql(config, args, painter(io.color), {

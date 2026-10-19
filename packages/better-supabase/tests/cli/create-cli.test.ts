@@ -3,8 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CliEntry } from "../../src/cli/builtin-commands.ts";
-
 import { builtinCommands } from "../../src/cli/builtin-commands.ts";
 import { defineCliCommand } from "../../src/cli/core/command.ts";
 import { createCli } from "../../src/cli/core/run.ts";
@@ -28,11 +26,11 @@ describe("createCli", () => {
   });
 
   it("dispatches only the commands it was given", async () => {
-    const commands = new Map<string, CliEntry>([
-      ["ping", { load: () => Promise.resolve(ping), command: ping }],
-    ]);
+    const cli = createCli({
+      commands: [{ name: "ping", description: "Answers pong" }],
+      loaders: new Map([["ping", () => Promise.resolve(ping)]]),
+    });
 
-    const cli = createCli({ commands });
     expect(cli.commandNames()).toEqual(["ping"]);
     expect((await cli.run(["ping", "--cwd", dir])).stdout).toBe(
       `pong ${dir}\n`,
@@ -43,24 +41,24 @@ describe("createCli", () => {
   });
 
   it("keeps registrations out of other instances", () => {
-    const first = createCli({ commands: new Map() });
-    const second = createCli({ commands: new Map() });
+    const first = createCli({ commands: [], loaders: new Map() });
+    const second = createCli({ commands: [], loaders: new Map() });
     first.register("ping", ping);
     expect(first.commandNames()).toEqual(["ping"]);
     expect(second.commandNames()).toEqual([]);
   });
 
   it("skips the value of a global option when it looks for the command", async () => {
-    const cli = createCli({ commands: new Map() });
+    const cli = createCli({ commands: [], loaders: new Map() });
     cli.register("ping", ping);
     const result = await cli.run(["--cwd", dir, "ping"]);
     expect(result.stdout).toBe(`pong ${dir}\n`);
   });
 
-  it("describes the lazily loaded commands only", () => {
-    const cli = createCli({ commands: builtinCommands() });
+  it("lists registered commands next to the built-in ones", async () => {
+    const cli = createCli(builtinCommands());
     cli.register("ping", ping);
-    expect(cli.commandDescriptions().has("ping")).toBe(false);
-    expect(cli.commandDescriptions().get("gen")).toContain("typed client");
+    expect(cli.commandNames()).toContain("ping");
+    expect(await cli.help()).toMatch(/Other commands\n {2}ping +Answers pong/);
   });
 });

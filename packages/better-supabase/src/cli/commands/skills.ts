@@ -13,6 +13,7 @@ import { byCodePoint } from "../compare.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { writeLine } from "../core/files.ts";
 import { display, readIfExists, sameText } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 
 const ARGS = {
@@ -231,11 +232,7 @@ export async function runSkills(
 }
 
 export const skillsCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "skills",
-    description:
-      "Installs the Agent Skills that ship with this version of better-supabase",
-  },
+  meta: commandMeta("skills"),
   args: ARGS,
   lists: ["agent"],
   run: (args, { config, env }) => runSkills(config, args, env),

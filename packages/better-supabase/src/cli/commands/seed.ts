@@ -12,6 +12,7 @@ import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { fileState, staleResult, writeLine } from "../core/files.ts";
 import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { withSpinner } from "../prompts.ts";
 import { supabaseDir } from "../supabase-toml.ts";
@@ -139,11 +140,7 @@ export async function runSeed(
 }
 
 export const seedCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "seed",
-    description:
-      "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
-  },
+  meta: commandMeta("seed"),
   args: ARGS,
   run: async (args, { config, env, io }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);

@@ -39,7 +39,7 @@ describe("run", () => {
     const unknown = await run(["nope"]);
     expect(unknown.code).toBe(2);
     expect(unknown.stderr).toMatch(
-      /^Unknown command "nope"\.\n\n.*\(better-supabase v/,
+      /^Unknown command "nope"\.\n\nbetter-supabase v/,
     );
 
     const missing = await run([
@@ -92,10 +92,10 @@ describe("run", () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
     expect((await run(["sql", "--help"])).stdout).toContain(
-      "USAGE better-supabase sql [OPTIONS] [ACTION]",
+      "Usage: better-supabase sql [options] [action...]",
     );
     expect((await run(["help", "sql"])).stdout).toContain(
-      "USAGE better-supabase sql",
+      "Usage: better-supabase sql",
     );
   });
 
@@ -123,7 +123,7 @@ describe("run", () => {
     const missing = await run(["greet", "--cwd", dir]);
     expect(missing.code).toBe(2);
     expect(missing.stderr).toMatch(
-      /^Missing required argument: --name\n\n.*USAGE better-supabase greet/s,
+      /^Missing required argument: --name\n\nUsage: better-supabase greet/s,
     );
   });
 
@@ -164,7 +164,7 @@ describe("run", () => {
   it("finds the command after global options and reports bad actions and values", async () => {
     expect(
       (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
-    ).toContain("USAGE better-supabase [OPTIONS]");
+    ).toContain("Usage: better-supabase <command> [options]");
     expect((await run(["--", "gen"])).code).toBe(2);
     expect((await run(["--cwd", dir, "openapi"])).stderr).toBe(
       "Name an action. Run `better-supabase openapi emit`.\n",

@@ -4,6 +4,7 @@ export const SQL_ARGS = {
   action: {
     type: "positional",
     required: false,
+    variadic: true,
     description:
       "list (modules and whether they are installed), add <module...> (SQL files only; `better-supabase add` also wires clients), sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>",
   },
