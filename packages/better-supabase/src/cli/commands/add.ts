@@ -186,11 +186,22 @@ async function addBlocks(
       ),
   );
 
-  if (glue.length > 0) {
-    lines.push("", `Glue for ${frameworks.join(", ")}: ${glueCommand(glue)}`);
+  const glueLine = glue.length > 0 ? glueCommand(glue) : undefined;
+
+  if (glueLine !== undefined) {
+    lines.push("", `Glue for ${frameworks.join(", ")}: ${glueLine}`);
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: {
+      blocks: names,
+      modules: added.data,
+      clients: clients.map((client) => client.key),
+      ...(glueLine === undefined ? {} : { glue: glueLine }),
+    },
+  };
 }
 
 /** `lib/blocks.ts` next to `lib/supabase/`. */

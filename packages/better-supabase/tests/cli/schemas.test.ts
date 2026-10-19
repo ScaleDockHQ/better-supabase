@@ -1,5 +1,15 @@
-import { readdir, readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
@@ -195,6 +205,81 @@ describe("shipped JSON Schemas", () => {
     expect(result.code).toBe(code);
     expect(envelope.status).toBe(status);
     expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+  });
+
+  describe("in a project", () => {
+    let dir = "";
+    let workspace = "";
+
+    const snapshot = fileURLToPath(
+      new URL("fixtures/module-snapshot.json", import.meta.url),
+    );
+
+    beforeAll(async () => {
+      dir = await mkdtemp(join(tmpdir(), "better-supabase-schemas-"));
+      await writeFile(
+        join(dir, "package.json"),
+        JSON.stringify({ name: "app", dependencies: { next: "16.0.0" } }),
+      );
+      await writeFile(join(dir, "better-supabase.config.json"), "{}\n");
+      workspace = await mkdtemp(join(tmpdir(), "better-supabase-schemas-ws-"));
+      await mkdir(join(workspace, "apps/web"), { recursive: true });
+      await writeFile(join(workspace, "package.json"), '{"name":"root"}');
+      await writeFile(
+        join(workspace, "pnpm-workspace.yaml"),
+        "packages:\n  - apps/*\n",
+      );
+      await writeFile(
+        join(workspace, "apps/web/package.json"),
+        JSON.stringify({ name: "web", dependencies: { next: "16.0.0" } }),
+      );
+    });
+
+    afterAll(async () => {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workspace, { recursive: true, force: true });
+    });
+
+    it.each([
+      [["init", "--dry-run", "--yes"], 0, "success"],
+      [["init", "--force", "--agent", "yes"], 3, "action_required"],
+      [["init", "--cwd", "WORKSPACE", "--agent", "yes"], 3, "action_required"],
+      [["add", "mfa", "--dry-run"], 0, "success"],
+      [["apply", "--preset", "saas", "--dry-run"], 0, "success"],
+      [["adopt", "audit", "--snapshot", "SNAPSHOT"], 1, "error"],
+      [["preset", "info"], 0, "success"],
+      [["preset", "decode", "nope"], 2, "error"],
+      [["blocks", "list"], 0, "success"],
+      [["blocks", "view", "audit"], 0, "success"],
+      [["blocks", "search", "audit"], 0, "success"],
+      [["skills", "install", "--for", "cursor", "--dry-run"], 0, "success"],
+      [["completion", "zsh"], 0, "success"],
+      [["gen", "--snapshot", "SNAPSHOT", "--dry-run"], 0, "success"],
+      [["spec", "validate"], 1, "error"],
+      [["scaffold", "api", "--dry-run"], 1, "error"],
+      [["keys", "--dry-run"], 0, "success"],
+      [["doctor", "--snapshot", "SNAPSHOT"], 1, "error"],
+      [["config"], 0, "success"],
+      [["sql", "add", "mfa", "--dry-run"], 0, "success"],
+      [["codemod", "0.9", "--dry-run"], 0, "success"],
+    ])("describe the result of %j", async (argv, code, status) => {
+      const result = await run(
+        [
+          ...argv.map(
+            (word) =>
+              ({ SNAPSHOT: snapshot, WORKSPACE: workspace })[word] ?? word,
+          ),
+          ...(argv.includes("--cwd") ? [] : ["--cwd", dir]),
+          "--json",
+        ],
+        { cwd: dir },
+      );
+
+      const envelope = JSON.parse(result.stdout) as { status: string };
+
+      expect([result.code, envelope.status]).toEqual([code, status]);
+      expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+    });
   });
 
   it("list every CLI error code in the result schema", async () => {
