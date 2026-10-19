@@ -139,6 +139,51 @@ const outcomes = await dispatcher
 
 `approvalsAction` starts an [approval request](/docs/blocks/approvals) for the action in `config.action`, which must be a policy action your approvals options name for the subject type.
 
+## Editor
+
+`useRuleBuilder` from `better-supabase/blocks/rules/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `save`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
+
+```tsx title="components/rule-editor.tsx"
+"use client";
+
+import { useRuleBuilder } from "better-supabase/blocks/rules/react";
+
+export function RuleEditor({ organizationId }: { organizationId: string }) {
+  const builder = useRuleBuilder({
+    organizationId,
+    rule: null,
+    subjectType: "expense",
+    trigger: "expense.submitted",
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void builder.save({ enabled: true });
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => builder.addRule(undefined, "amount")}
+      >
+        Add condition
+      </button>
+      <button
+        type="submit"
+        disabled={!builder.dirty || builder.issues.length > 0}
+      >
+        Save
+      </button>
+    </form>
+  );
+}
+```
+
+`addRule(group, field)` and `addGroup(group, combinator)` add to the root group when `group` is left out and return the new node's id. `setField` keeps the operator and value when the new field has the same type, and `setOperator` keeps the value when the new operator takes the same kind of value. `move(id, group, index)` takes the index the node ends up at, as `arrayMove` from dnd-kit counts it. `locked` names nodes the editor can't change, move or remove, such as a fixed first condition; a group that holds a locked node can't be removed either. The lock lives in the editor only, so enforce it on the server if it matters.
+
+The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/rules` for your own editor. `createRuleBuilderController` is the same state without React, and `better-supabase/blocks/rules/vue`, `/svelte` and `/solid` export `useRuleBuilder` for those frameworks, taking the controller's options with a `client` from `createRules`. In Server Components, call `rules.get(id)` instead.
+
 ## Configure
 
 ```ts title="better-supabase.config.ts"

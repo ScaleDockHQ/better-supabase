@@ -848,6 +848,27 @@
       "types": "./dist/blocks/rules/index.d.ts",
       "default": "./dist/blocks/rules/index.js"
     },
+    "./blocks/rules/react": {
+      "@better-supabase/source": "./src/blocks/rules/react/index.ts",
+      "types": "./dist/blocks/rules/react/index.d.ts",
+      "react-server": "./dist/blocks/rules/react/server.js",
+      "default": "./dist/blocks/rules/react/index.js"
+    },
+    "./blocks/rules/vue": {
+      "@better-supabase/source": "./src/blocks/rules/vue/index.ts",
+      "types": "./dist/blocks/rules/vue/index.d.ts",
+      "default": "./dist/blocks/rules/vue/index.js"
+    },
+    "./blocks/rules/svelte": {
+      "@better-supabase/source": "./src/blocks/rules/svelte/index.ts",
+      "types": "./dist/blocks/rules/svelte/index.d.ts",
+      "default": "./dist/blocks/rules/svelte/index.js"
+    },
+    "./blocks/rules/solid": {
+      "@better-supabase/source": "./src/blocks/rules/solid/index.ts",
+      "types": "./dist/blocks/rules/solid/index.d.ts",
+      "default": "./dist/blocks/rules/solid/index.js"
+    },
     "./blocks/reviews": {
       "@better-supabase/source": "./src/blocks/reviews/index.ts",
       "types": "./dist/blocks/reviews/index.d.ts",
@@ -2099,6 +2120,23 @@
       "./blocks/rules": {
         "types": "./dist/blocks/rules/index.d.ts",
         "default": "./dist/blocks/rules/index.js"
+      },
+      "./blocks/rules/react": {
+        "types": "./dist/blocks/rules/react/index.d.ts",
+        "react-server": "./dist/blocks/rules/react/server.js",
+        "default": "./dist/blocks/rules/react/index.js"
+      },
+      "./blocks/rules/vue": {
+        "types": "./dist/blocks/rules/vue/index.d.ts",
+        "default": "./dist/blocks/rules/vue/index.js"
+      },
+      "./blocks/rules/svelte": {
+        "types": "./dist/blocks/rules/svelte/index.d.ts",
+        "default": "./dist/blocks/rules/svelte/index.js"
+      },
+      "./blocks/rules/solid": {
+        "types": "./dist/blocks/rules/solid/index.d.ts",
+        "default": "./dist/blocks/rules/solid/index.js"
       },
       "./blocks/reviews": {
         "types": "./dist/blocks/reviews/index.d.ts",

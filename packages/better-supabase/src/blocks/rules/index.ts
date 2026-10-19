@@ -36,6 +36,29 @@ export {
 } from "./fields.ts";
 
 export {
+  createRuleBuilderController,
+  type RuleBuilderActions,
+  type RuleBuilderController,
+  type RuleBuilderControllerOptions,
+  type RuleBuilderSnapshot,
+} from "./client.ts";
+
+export {
+  contains,
+  emptyConditions,
+  findNode,
+  insertNode,
+  moveNode,
+  parentOf,
+  removeNode,
+  ruleOperators,
+  setCombinator,
+  setRuleField,
+  setRuleOperator,
+  updateNode,
+} from "./tree.ts";
+
+export {
   approvalsAction,
   type RuleApprovals,
   type RuleSubjectContext,
