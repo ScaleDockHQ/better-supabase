@@ -115,6 +115,7 @@
   "./streams/redis": 9646,
   "./credentials": 24620,
   "./vercel-connect": 9394,
+  "./stripe": 1677,
   "./yjs": 26750,
   "./better-result": 6828,
   "./blocks/inbox": 27565,

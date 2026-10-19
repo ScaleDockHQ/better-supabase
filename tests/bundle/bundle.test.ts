@@ -223,6 +223,7 @@ const NODE_LOADED = [
   "./tanstack-db",
   "./tanstack-db/supabase",
   "./blocks/push",
+  "./stripe",
 ];
 
 type ExportTarget =
@@ -436,6 +437,23 @@ describe("bundle", () => {
         "@supabase/ssr",
       );
     }
+  });
+
+  it("imports stripe statically from /stripe and keeps the optional peer loader native", async () => {
+    const { externals, files } = closures.get("./stripe")!;
+    expect(externals).toContain("stripe");
+
+    const sources = await Promise.all(
+      files.map((file) => readFile(file, "utf-8")),
+    );
+
+    const loader = sources.find((source) =>
+      source.includes("function importOptionalPeer("),
+    );
+
+    expect(loader).toMatch(
+      /import\(\s*\/\* webpackIgnore: true \*\/\s*\/\* @vite-ignore \*\/\s*specifier\s*\)/,
+    );
   });
 
   it("never imports postgrest-typegen at runtime outside the CLI", () => {

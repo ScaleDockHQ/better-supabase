@@ -46,7 +46,7 @@ peer as BS601.
 | `expo-server`                           | `>=55 <59`           | `better-supabase/expo`                                                                                                                |
 | `@modelcontextprotocol/server`          | `>=2.3.0 <3`         | `better-supabase/mcp/sdk`                                                                                                             |
 | `@opentelemetry/api`                    | `>=1.9 <2`           | `better-supabase/otel`                                                                                                                |
-| `stripe`                                | `>=17 <24`           | `better-supabase/blocks/billing`, unless you pass a client                                                                            |
+| `stripe`                                | `>=17 <24`           | `better-supabase/stripe`, and `better-supabase/blocks/billing`, `blocks/usage` and `commerce` unless you pass a client                |
 | `redis`                                 | `>=5 <7`             | `better-supabase/streams/redis` with the `url` option                                                                                 |
 | `yjs`                                   | `>=13.6 <14`         | `better-supabase/yjs`, unless you pass the module                                                                                     |
 | `jsonpath-rfc9535`                      | `>=1.3.0 <2`         | `better-supabase/overlay`, unless you pass a JSONPath engine                                                                          |
@@ -84,6 +84,14 @@ them on first use. They are peers so that your package manager warns you when
 you upgrade one past the major releases the conformance tests cover. A
 framework range that spans two majors (`@sveltejs/kit`, `h3`, `nuxt`,
 `react-router`) is tested at both.
+
+Optional peers that better-supabase loads on first use, such as `stripe` for
+`{ secretKey }`, `redis` and `yjs`, load through a native `import()` that
+bundlers leave alone. That works in Node, Bun and Deno, and in a bundled app
+that keeps the package external. When your bundler includes the package
+instead, pass the client or module yourself; for Stripe, pass
+`stripeFromKey()` from `better-supabase/stripe`, which imports `stripe` by name
+so the bundler and file tracing pick it up.
 
 When another package in your app needs a version outside a range, and you
 don't import the subpath that needs it, allow it in `pnpm-workspace.yaml`:

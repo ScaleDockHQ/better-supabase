@@ -586,6 +586,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./stripe": {
+      "@better-supabase/source": "./src/stripe/index.ts",
+      "types": "./dist/stripe/index.d.ts",
+      "default": "./dist/stripe/index.js"
+    },
     "./yjs": {
       "@better-supabase/source": "./src/yjs/index.ts",
       "types": "./dist/yjs/index.d.ts",
@@ -1858,6 +1863,10 @@
       "./vercel-connect": {
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
+      },
+      "./stripe": {
+        "types": "./dist/stripe/index.d.ts",
+        "default": "./dist/stripe/index.js"
       },
       "./yjs": {
         "types": "./dist/yjs/index.d.ts",

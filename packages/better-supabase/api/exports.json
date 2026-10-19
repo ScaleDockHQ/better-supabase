@@ -3663,6 +3663,14 @@
       "VercelConnectRef"
     ]
   },
+  "./stripe": {
+    "values": [
+      "stripeFromKey"
+    ],
+    "types": [
+      "StripeFromKeyOptions"
+    ]
+  },
   "./yjs": {
     "values": [
       "compactDocument",

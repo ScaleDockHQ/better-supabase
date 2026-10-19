@@ -1,12 +1,17 @@
 /**
  * Imports an optional peer package on first use, or resolves `undefined` when
  * it is not installed so the caller can say how to add it. The specifier is
- * a variable on purpose: bundlers then leave the peer out of apps that never
- * reach this call.
+ * a variable on purpose, and the bundler-ignore comments keep it a native
+ * import in bundled apps: bundlers leave the peer out of apps that never reach
+ * this call, and an app that externalizes the package resolves it at runtime.
  */
 export async function importOptionalPeer(specifier: string): Promise<unknown> {
   try {
-    return await import(specifier);
+    return await import(
+      /* webpackIgnore: true */
+      /* @vite-ignore */
+      specifier
+    );
   } catch {
     return undefined;
   }
