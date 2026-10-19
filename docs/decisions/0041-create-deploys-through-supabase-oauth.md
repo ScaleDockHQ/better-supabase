@@ -29,7 +29,7 @@ The visitor picks an existing project or creates one through the
 Management API (`lib/supabase-management.ts`). The deploy route renders the
 SQL on the server from the preset and design codes with `previewFiles`, so
 the browser never sends SQL. It joins every schema file and then every data
-file into one migration, `better_supabase_create`, and applies it with
+file into one migration, `better_supabase_blocks`, and applies it with
 `POST /v1/projects/{ref}/database/migrations`, which runs it in a
 transaction. pgTAP files stay out. A project with tables in `public` needs
 an explicit confirm, checked again on the server. Presets with

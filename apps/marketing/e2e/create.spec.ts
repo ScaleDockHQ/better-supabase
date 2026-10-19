@@ -198,7 +198,7 @@ test("the monorepo option keeps the package in the URL and the commands", async 
 
   await dialog.getByRole("tab", { name: "Existing project" }).click();
   await expect(dialog.getByTestId("apply-command")).toHaveText(
-    `pnpm dlx better-supabase apply --preset ${code} --config apps/web/better-supabase.config.ts`,
+    `pnpm dlx better-supabase apply --preset ${code} --package apps/web`,
   );
 
   // A reload restores the package from the URL.

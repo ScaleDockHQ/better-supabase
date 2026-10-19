@@ -1,11 +1,15 @@
+import { INTEGRATION_INFO } from "better-supabase/config";
 import {
+  integrationsForFramework,
   type Preset,
   type PresetAccess,
   type PresetConventions,
   type PresetFramework,
   type PresetPlatforms,
   PRESET_NAMES,
+  presetField,
   PRESETS,
+  PROVIDER_COMMENT,
 } from "better-supabase/preset";
 import {
   siAstro,
@@ -51,24 +55,32 @@ export interface FrameworkInfo {
   readonly mark: BrandMark;
 }
 
+const FRAMEWORK_LABELS = presetField("framework").labels;
+
+function framework(name: PresetFramework, mark: BrandMark): FrameworkInfo {
+  return { label: FRAMEWORK_LABELS[name].label, mark };
+}
+
 export const FRAMEWORKS = {
-  next: { label: "Next.js", mark: siNextdotjs },
-  vite: { label: "Vite", mark: siVite },
-  "tanstack-start": { label: "TanStack Start", mark: siTanstack },
-  expo: { label: "Expo", mark: siExpo },
-  sveltekit: { label: "SvelteKit", mark: siSvelte },
-  nuxt: { label: "Nuxt", mark: siNuxt },
-  hono: { label: "Hono", mark: siHono },
-  astro: { label: "Astro", mark: siAstro },
-  "react-router": { label: "React Router", mark: siReactrouter },
+  next: framework("next", siNextdotjs),
+  vite: framework("vite", siVite),
+  "tanstack-start": framework("tanstack-start", siTanstack),
+  expo: framework("expo", siExpo),
+  sveltekit: framework("sveltekit", siSvelte),
+  nuxt: framework("nuxt", siNuxt),
+  hono: framework("hono", siHono),
+  astro: framework("astro", siAstro),
+  "react-router": framework("react-router", siReactrouter),
 } satisfies Readonly<Record<PresetFramework, FrameworkInfo>>;
 
-export const PLATFORMS = ["web", "native", "both"] as const;
+const PLATFORM_FIELD = presetField("platforms");
+
+export const PLATFORMS: readonly PresetPlatforms[] = PLATFORM_FIELD.values;
 
 export const PLATFORM_LABELS = {
-  web: "Web",
-  native: "Native",
-  both: "Web and native",
+  web: PLATFORM_FIELD.labels.web.label,
+  native: PLATFORM_FIELD.labels.native.label,
+  both: PLATFORM_FIELD.labels.both.label,
 } satisfies Readonly<Record<PresetPlatforms, string>>;
 
 /** The platforms a framework can build: Expo builds a native app, every other framework a web app. */
@@ -123,57 +135,23 @@ export const CONVENTION_KEYS = [
 export type ConventionKey = (typeof CONVENTION_KEYS)[number];
 
 export const FIELD_LABELS = {
-  framework: "Framework",
-  platforms: "Platforms",
-  casing: "Casing",
-  idType: "ID type",
-  scope: "Row ownership",
-  tenantName: "Tenant name",
-  access: "Auth and permissions",
-  api: "API schema",
-  integrations: "Integrations",
+  framework: presetField("framework").label,
+  platforms: presetField("platforms").label,
+  casing: presetField("casing").label,
+  idType: presetField("idType").label,
+  scope: presetField("scope").label,
+  tenantName: presetField("tenantName").label,
+  access: presetField("access").label,
+  api: presetField("api").label,
+  integrations: presetField("integrations").label,
 } satisfies Readonly<Record<keyof PresetConventions, string>>;
 
 export const CONVENTION_VALUES = {
-  casing: {
-    snake: { label: "snake_case", hint: "Rows keep the database names." },
-    camel: {
-      label: "camelCase",
-      hint: "Rows are renamed inside the PostgREST query.",
-    },
-  },
-  idType: {
-    uuid: { label: "UUID" },
-    text: { label: "Text" },
-    bigint: { label: "Bigint" },
-    integer: { label: "Integer" },
-  },
-  scope: {
-    tenant: {
-      label: "Per tenant",
-      hint: "Rows belong to a tenant, checked through access.",
-    },
-    user: { label: "Per user", hint: "Rows belong to the signed-in user." },
-    none: {
-      label: "Shared",
-      hint: "One shared space for every signed-in user.",
-    },
-  },
-  tenantName: {
-    organization: { label: "Organization" },
-    workspace: { label: "Workspace" },
-    team: { label: "Team" },
-  },
-  api: {
-    none: {
-      label: "Module schema only",
-      hint: "The Data API reaches no module tables.",
-    },
-    api: {
-      label: "Data API schema (api)",
-      hint: "Security invoker wrappers in an api schema, so the Data API reaches them without exposing the module schema.",
-    },
-  },
+  casing: presetField("casing").labels,
+  idType: presetField("idType").labels,
+  scope: presetField("scope").labels,
+  tenantName: presetField("tenantName").labels,
+  api: presetField("api").labels,
 } satisfies {
   readonly [K in ConventionKey]: Readonly<
     Record<PresetConventions[K], OptionInfo>
@@ -220,17 +198,11 @@ export interface AuthChoiceInfo extends OptionInfo {
   readonly optional?: true;
 }
 
+const ACCESS_LABELS = presetField("access").labels;
+
 export const AUTH_CHOICE_INFO = {
-  roles: {
-    label: "Built-in roles",
-    hint: "Owner, admin, member and viewer, mapped to permission keys in the config.",
-    access: "roles",
-  },
-  catalog: {
-    label: "Permissions tables",
-    hint: "Role, permission and override tables in the database.",
-    access: "catalog",
-  },
+  roles: { ...ACCESS_LABELS.roles, access: "roles" },
+  catalog: { ...ACCESS_LABELS.catalog, access: "catalog" },
   permdock: {
     label: "PermDock",
     hint: "Typed permissions from PermDock, plugged in as the authorization provider.",
@@ -238,16 +210,8 @@ export const AUTH_CHOICE_INFO = {
     authz: "permdock",
     optional: true,
   },
-  provider: {
-    label: "Your own provider",
-    hint: "Any library that implements AuthorizationProvider.",
-    access: "provider",
-  },
-  custom: {
-    label: "Custom SQL",
-    hint: "Your own SQL expressions.",
-    access: "custom",
-  },
+  provider: { ...ACCESS_LABELS.provider, access: "provider" },
+  custom: { ...ACCESS_LABELS.custom, access: "custom" },
 } satisfies Readonly<Record<AuthChoice, AuthChoiceInfo>>;
 
 /** The auth choice a preset and the `authz` parameter make. */
@@ -291,67 +255,40 @@ export interface IntegrationInfo {
 
 export const INTEGRATIONS = {
   client: {
-    title: "Browser client",
-    description:
-      "A browser client with cookie sessions shared with the server.",
+    ...INTEGRATION_INFO.client,
     files: ["lib/supabase/client.ts"],
     mark: siSupabase,
-    requires: [],
   },
   next: {
-    title: "Next.js",
-    description:
-      "The proxy, and helpers for Server Components, route handlers and actions.",
+    ...INTEGRATION_INFO.next,
     files: ["lib/supabase/server.ts", "proxy.ts"],
     mark: siNextdotjs,
-    requires: ["client"],
   },
   react: {
-    title: "React",
-    description: "A React provider and typed TanStack Query hooks.",
+    ...INTEGRATION_INFO.react,
     files: ["providers.tsx", "lib/hooks.ts"],
     mark: siReact,
-    requires: ["client"],
   },
-  hono: {
-    title: "Hono",
-    description: "Hono middleware, handlers and REST resources.",
-    files: ["server.ts"],
-    mark: siHono,
-    requires: [],
-  },
-  orpc: {
-    title: "oRPC",
-    description: "oRPC middleware with a typed context and ORPCError mapping.",
-    files: ["router.ts"],
-    mark: orpcGlyph,
-    requires: [],
-  },
+  hono: { ...INTEGRATION_INFO.hono, files: ["server.ts"], mark: siHono },
+  orpc: { ...INTEGRATION_INFO.orpc, files: ["router.ts"], mark: orpcGlyph },
   edge: {
-    title: "Edge Function",
-    description: "A Supabase Edge Function with CORS and Problem Details.",
+    ...INTEGRATION_INFO.edge,
     files: ["supabase/functions/api"],
     mark: siSupabase,
-    requires: [],
   },
   expo: {
-    title: "Expo",
-    description:
-      "Expo Router server loaders, API routes and middleware, and a native client.",
+    ...INTEGRATION_INFO.expo,
     files: [
       "lib/supabase/expo.ts",
       "lib/supabase/client.native.ts",
       "app/+middleware.ts",
     ],
     mark: siExpo,
-    requires: ["client"],
   },
   mcp: {
-    title: "MCP server",
-    description: "An MCP server over Streamable HTTP, as an Edge Function.",
+    ...INTEGRATION_INFO.mcp,
     files: ["supabase/functions/mcp"],
     mark: siModelcontextprotocol,
-    requires: [],
   },
 } satisfies Readonly<Record<IntegrationName, IntegrationInfo>>;
 
@@ -370,29 +307,20 @@ export const INTEGRATION_ORDER = [
 /** Why `init --preset` adds an integration on its own. */
 export type ImpliedReason = "framework" | "required";
 
-function isIntegrationName(name: string): name is IntegrationName {
-  return Object.hasOwn(INTEGRATIONS, name);
-}
-
 /**
  * The integrations `init --preset` adds for the framework whatever the
- * selection says: the framework's own one, when it has one, and what that
- * one requires.
+ * selection says (`integrationsForFramework`): the framework's own one,
+ * when it has one, and what that one requires.
  */
 export function impliedIntegrations(
   framework: PresetFramework,
 ): ReadonlyMap<IntegrationName, ImpliedReason> {
-  const implied = new Map<IntegrationName, ImpliedReason>();
-
-  if (isIntegrationName(framework)) {
-    implied.set(framework, "framework");
-
-    for (const each of INTEGRATIONS[framework].requires) {
-      implied.set(each, "required");
-    }
-  }
-
-  return implied;
+  return new Map(
+    integrationsForFramework(framework).map((name, index) => [
+      name,
+      index === 0 ? "framework" : "required",
+    ]),
+  );
 }
 
 /** The note on a locked integration row. */
@@ -474,10 +402,7 @@ export function permDockGenerate(manager: PackageManager): readonly string[] {
   );
 }
 
-const PROVIDER_COMMENT = [
-  "  // The provider access model reads roles from your authorization",
-  "  // library: set `authorization` to its adapter.",
-].join("\n");
+const PROVIDER_LINES = PROVIDER_COMMENT.join("\n");
 
 const CONFIG_IMPORT = 'import { defineConfig } from "better-supabase/config";';
 
@@ -546,7 +471,7 @@ export function authzPromptSection(
  */
 export function withPermDock(configSource: string): string {
   if (
-    !configSource.includes(PROVIDER_COMMENT) ||
+    !configSource.includes(PROVIDER_LINES) ||
     !configSource.startsWith(CONFIG_IMPORT)
   ) {
     return configSource;
@@ -554,5 +479,5 @@ export function withPermDock(configSource: string): string {
 
   return configSource
     .replace(CONFIG_IMPORT, PERMDOCK_HEADER)
-    .replace(PROVIDER_COMMENT, PERMDOCK_AUTHORIZATION);
+    .replace(PROVIDER_LINES, PERMDOCK_AUTHORIZATION);
 }
