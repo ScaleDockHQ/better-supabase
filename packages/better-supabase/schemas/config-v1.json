@@ -1864,6 +1864,63 @@
                 "description": "Adds a deleted_at column that blocks treat as the soft-delete time."
               }
             }
+          },
+          "rollups": {
+            "type": "object",
+            "description": "Columns of public.<table>_view that aggregate a child table through its reference to this table (ADR 0044).",
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+            "maxProperties": 50,
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["table", "via", "aggregate"],
+              "properties": {
+                "table": {
+                  "type": "string",
+                  "description": "The app table to aggregate."
+                },
+                "via": {
+                  "type": "string",
+                  "description": "The column of that table that references this one."
+                },
+                "aggregate": { "enum": ["count", "sum", "min", "max", "avg"] },
+                "column": {
+                  "type": "string",
+                  "description": "The column to aggregate; count takes none."
+                },
+                "where": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["column", "equals"],
+                  "description": "Counts only the rows whose select column equals one option.",
+                  "properties": {
+                    "column": { "type": "string" },
+                    "equals": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "lookups": {
+            "type": "object",
+            "description": "Columns of public.<table>_view read from the row a reference points at (ADR 0044).",
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+            "maxProperties": 50,
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["via", "column"],
+              "properties": {
+                "via": {
+                  "type": "string",
+                  "description": "The column of this table that references another app table."
+                },
+                "column": {
+                  "type": "string",
+                  "description": "The column of the referenced row to read."
+                }
+              }
+            }
           }
         }
       }

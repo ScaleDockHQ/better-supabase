@@ -34,6 +34,21 @@ const TABLES: AppTablesConfig = {
       rating: { type: "integer", format: "rating" },
       code: { type: "text", comment: "A short code." },
     },
+    rollups: {
+      task_count: { table: "it_tasks", via: "project_id", aggregate: "count" },
+      done_count: {
+        table: "it_tasks",
+        via: "project_id",
+        aggregate: "count",
+        where: { column: "status", equals: "done" },
+      },
+      effort_total: {
+        table: "it_tasks",
+        via: "project_id",
+        aggregate: "sum",
+        column: "effort",
+      },
+    },
   },
   it_tickets: {
     id: "bigint",
@@ -55,7 +70,10 @@ const TABLES: AppTablesConfig = {
         references: { table: "it_projects", onDelete: "cascade" },
       },
       title: { type: "text", nullable: false },
+      status: { type: "text", options: ["todo", "done"] },
+      effort: { type: "integer" },
     },
+    lookups: { project_name: { via: "project_id", column: "name" } },
   },
   it_notes: { scope: "user", columns: { body: { type: "text" } } },
   it_regions: { scope: "none", columns: { code: { type: "text" } } },
@@ -150,6 +168,58 @@ describe.skipIf(!live)("app tables", () => {
     expect(
       await s.value<number>("(select count(*)::int from public.it_tasks)"),
     ).toBe(1);
+  });
+
+  it("reads rollups and lookups through the view, with the caller's row level security", async () => {
+    await s.asRole(ann);
+    await s.client.query(
+      "insert into public.it_projects (organization_id, name) values ($1, 'Launch'), ($1, 'Empty')",
+      [annOrg],
+    );
+
+    const projectId = await s.value<string>(
+      "(select id::text from public.it_projects where name = 'Launch')",
+    );
+
+    await s.client.query(
+      `insert into public.it_tasks (organization_id, project_id, title, status, effort)
+       values ($1, $2, 'Plan', 'done', 3), ($1, $2, 'Ship', 'todo', 5)`,
+      [annOrg, projectId],
+    );
+
+    const { rows } = await s.client.query<{
+      name: string;
+      task_count: string;
+      done_count: string;
+      effort_total: string;
+    }>(
+      "select name, task_count::text, done_count::text, effort_total::text from public.it_projects_view order by name",
+    );
+
+    expect(rows).toEqual([
+      { name: "Empty", task_count: "0", done_count: "0", effort_total: "0" },
+      { name: "Launch", task_count: "2", done_count: "1", effort_total: "8" },
+    ]);
+    expect(
+      await s.value<string>(
+        "(select string_agg(distinct project_name, ',') from public.it_tasks_view)",
+      ),
+    ).toBe("Launch");
+    expect(
+      await s.hint(
+        "update public.it_projects_view set name = 'Renamed' where name = 'Launch'",
+      ),
+    ).toMatch(/enable updating the view/u);
+
+    await s.asRole(bob);
+    expect(
+      await s.value<number>(
+        "(select count(*)::int from public.it_projects_view)",
+      ),
+    ).toBe(0);
+    expect(
+      await s.value<number>("(select count(*)::int from public.it_tasks_view)"),
+    ).toBe(0);
   });
 
   it("refuses a reference to a row of another organization", async () => {

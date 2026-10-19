@@ -107,6 +107,32 @@ create unique index if not exists "projects_organization_id_id_key" on "public".
 alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
 alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;
 
+drop view if exists "public"."projects_view";
+create view "public"."projects_view" with (security_invoker = true) as
+select t.*,
+  r0.value as "open_tasks",
+  r1.value as "done_tasks",
+  r2.value as "next_due_on"
+from "public"."projects" t
+  left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'todo') r0 on true
+  left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'done') r1 on true
+  left join lateral (select min(c."due_on") as value from "public"."tasks" c where c."project_id" = t.id) r2 on true;
+revoke all on "public"."projects_view" from anon, authenticated;
+grant select on "public"."projects_view" to authenticated;
+grant select on "public"."projects_view" to service_role;
+comment on view "public"."projects_view" is 'The rollups and lookups of public.projects, read with the caller''s row level security.';
+
+drop view if exists "public"."tasks_view";
+create view "public"."tasks_view" with (security_invoker = true) as
+select t.*,
+  l0.value as "project_name"
+from "public"."tasks" t
+  left join lateral (select r."name" as value from "public"."projects" r where r.id = t."project_id") l0 on true;
+revoke all on "public"."tasks_view" from anon, authenticated;
+grant select on "public"."tasks_view" to authenticated;
+grant select on "public"."tasks_view" to service_role;
+comment on view "public"."tasks_view" is 'The rollups and lookups of public.tasks, read with the caller''s row level security.';
+
 drop trigger if exists "bs_search_project_index" on "public"."projects";
 create trigger "bs_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"

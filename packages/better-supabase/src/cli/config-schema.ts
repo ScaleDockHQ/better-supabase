@@ -8,6 +8,7 @@ import type {
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ROLLUP_AGGREGATES,
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
@@ -560,6 +561,26 @@ const ENTRIES = {
             ),
             softDelete: v.optional(v.boolean()),
           }),
+        ),
+        rollups: v.optional(
+          v.record(
+            v.string(),
+            v.strictObject({
+              table: v.string(),
+              via: v.string(),
+              aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
+              column: v.optional(v.string()),
+              where: v.optional(
+                v.strictObject({ column: v.string(), equals: v.string() }),
+              ),
+            }),
+          ),
+        ),
+        lookups: v.optional(
+          v.record(
+            v.string(),
+            v.strictObject({ via: v.string(), column: v.string() }),
+          ),
         ),
       }),
     ),

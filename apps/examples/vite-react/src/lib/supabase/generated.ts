@@ -442,6 +442,31 @@ export type Models = {
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: Record<never, never>;
   };
+  projectsView: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      name: string;
+      budgetMinor: number;
+      currency: string;
+      leadId: string | null;
+      labelId: string | null;
+      deletedAt: string | null;
+      openTasks: number | null;
+      doneTasks: number | null;
+      nextDueOn: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
   savedViews: {
     Row: {
       id: string;
@@ -592,6 +617,30 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "tasks_status_check" | "tasks_title_check";
     ForeignKeys: "tasks_assignee_id_fkey" | "tasks_organization_id_fkey" | "tasks_project_id_fkey";
+    Flags: Record<never, never>;
+  };
+  tasksView: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      title: string;
+      status: string;
+      startsOn: string | null;
+      dueOn: string | null;
+      assigneeId: string | null;
+      projectId: string;
+      rank: string;
+      projectName: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
     Flags: Record<never, never>;
   };
 };

@@ -392,6 +392,26 @@ export const projectsUpdate: TableSchema<UpdateOf<'projects'>> = tableSchema({
   },
 });
 
+export const projectsViewRow: TableSchema<RowOf<'projectsView'>> = tableSchema({
+  title: "Projects view",
+  description: "The rollups and lookups of public.projects, read with the caller's row level security.",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    name: { kind: "string" },
+    budgetMinor: { kind: "integer" },
+    currency: { kind: "string" },
+    leadId: { kind: "uuid", nullable: true },
+    labelId: { kind: "uuid", nullable: true },
+    deletedAt: { kind: "datetime", nullable: true },
+    openTasks: { kind: "integer", nullable: true },
+    doneTasks: { kind: "integer", nullable: true },
+    nextDueOn: { kind: "date", nullable: true },
+  },
+});
+
 export const savedViewsRow: TableSchema<RowOf<'savedViews'>> = tableSchema({
   title: "Saved views",
   fields: {
@@ -545,6 +565,25 @@ export const tasksUpdate: TableSchema<UpdateOf<'tasks'>> = tableSchema({
     assigneeId: { kind: "uuid", nullable: true, optional: true },
     projectId: { kind: "uuid", optional: true },
     rank: { kind: "string", optional: true },
+  },
+});
+
+export const tasksViewRow: TableSchema<RowOf<'tasksView'>> = tableSchema({
+  title: "Tasks view",
+  description: "The rollups and lookups of public.tasks, read with the caller's row level security.",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    title: { kind: "string" },
+    status: { kind: "string" },
+    startsOn: { kind: "date", nullable: true },
+    dueOn: { kind: "date", nullable: true },
+    assigneeId: { kind: "uuid", nullable: true },
+    projectId: { kind: "uuid" },
+    rank: { kind: "string" },
+    projectName: { kind: "string", nullable: true },
   },
 });
 

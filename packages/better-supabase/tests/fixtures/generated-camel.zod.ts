@@ -279,6 +279,22 @@ export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
 }).meta({ title: "Projects update" });
 
+export const projectsViewRow: z.ZodType<RowOf<'projectsView'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  budgetMinor: z.int(),
+  currency: z.string(),
+  leadId: z.guid().nullable(),
+  labelId: z.guid().nullable(),
+  deletedAt: z.iso.datetime({ offset: true }).nullable(),
+  openTasks: z.int().nullable(),
+  doneTasks: z.int().nullable(),
+  nextDueOn: z.iso.date().nullable(),
+}).meta({ title: "Projects view", description: "The rollups and lookups of public.projects, read with the caller's row level security." });
+
 export const savedViewsRow: z.ZodType<RowOf<'savedViews'>> = z.object({
   id: z.guid(),
   createdAt: z.iso.datetime({ offset: true }),
@@ -390,6 +406,21 @@ export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   projectId: z.guid().exactOptional(),
   rank: z.string().exactOptional(),
 }).meta({ title: "Tasks update" });
+
+export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  title: z.string(),
+  status: z.string(),
+  startsOn: z.iso.date().nullable(),
+  dueOn: z.iso.date().nullable(),
+  assigneeId: z.guid().nullable(),
+  projectId: z.guid(),
+  rank: z.string(),
+  projectName: z.string().nullable(),
+}).meta({ title: "Tasks view", description: "The rollups and lookups of public.tasks, read with the caller's row level security." });
 
 /** Write validators for the validation plugin. */
 export const validators: {

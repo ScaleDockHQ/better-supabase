@@ -109,6 +109,56 @@ export interface AppTableConfig {
    * reach its rows without a `subjects` entry.
    */
   readonly subject?: AppTableSubject;
+  /**
+   * Values computed from the rows of another app table that references this
+   * one, keyed by the column name they get in `public.<table>_view`
+   * (ADR 0044).
+   */
+  readonly rollups?: Readonly<Record<string, AppRollupConfig>>;
+  /**
+   * Columns of the row a reference points at, keyed by the column name they
+   * get in `public.<table>_view` (ADR 0044).
+   */
+  readonly lookups?: Readonly<Record<string, AppLookupConfig>>;
+}
+
+export const APP_ROLLUP_AGGREGATES = [
+  "count",
+  "sum",
+  "min",
+  "max",
+  "avg",
+] as const;
+
+export type AppRollupAggregate = (typeof APP_ROLLUP_AGGREGATES)[number];
+
+/**
+ * An aggregate over the rows of `table` whose `via` column references this
+ * table: `{ table: "tasks", via: "project_id", aggregate: "count" }`.
+ */
+export interface AppRollupConfig {
+  /** The app table whose rows are aggregated. */
+  readonly table: string;
+  /** The column of `table` that references this table. */
+  readonly via: string;
+  /** `sum` of no rows is 0; `min`, `max` and `avg` of no rows are null. */
+  readonly aggregate: AppRollupAggregate;
+  /**
+   * The column of `table` the aggregate reads: a number for `sum` and
+   * `avg`, a number, date, time or text for `min` and `max`. `count` takes
+   * none and counts rows.
+   */
+  readonly column?: string;
+  /** Only the rows whose select column (a `text` column with `options`) holds `equals`. */
+  readonly where?: { readonly column: string; readonly equals: string };
+}
+
+/** The `column` of the app table row that this table's `via` column references. */
+export interface AppLookupConfig {
+  /** A column of this table that references another app table. */
+  readonly via: string;
+  /** A column of the referenced table. */
+  readonly column: string;
 }
 
 /**

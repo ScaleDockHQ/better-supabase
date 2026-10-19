@@ -126,6 +126,20 @@ describe("diffAppTables", () => {
     ).toEqual(["table.id projects !", "table.changed projects"]);
   });
 
+  test("adding or dropping a rollup or lookup is safe", () => {
+    const counted: AppTablesConfig = {
+      projects: {
+        ...projects["projects"],
+        rollups: {
+          task_count: { table: "tasks", via: "project_id", aggregate: "count" },
+        },
+      },
+    };
+
+    expect(kinds(projects, counted)).toEqual(["table.computed projects"]);
+    expect(kinds(counted, projects)).toEqual(["table.computed projects"]);
+  });
+
   test("keepMissing leaves out the tables the new design doesn't name", () => {
     expect(
       diffAppTables(

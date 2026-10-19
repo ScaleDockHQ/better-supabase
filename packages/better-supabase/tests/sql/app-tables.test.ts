@@ -70,6 +70,45 @@ const FORMATS: AppTablesConfig = {
   },
 };
 
+const COMPUTED: AppTablesConfig = {
+  projects: {
+    columns: { name: { type: "text", nullable: false } },
+    rollups: {
+      done_tasks: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "count",
+        where: { column: "status", equals: "done" },
+      },
+      estimate_total: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "sum",
+        column: "estimate",
+      },
+      last_due: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "max",
+        column: "due_on",
+      },
+    },
+  },
+  tasks: {
+    columns: {
+      project_id: {
+        type: "uuid",
+        nullable: false,
+        references: { table: "projects", onDelete: "cascade" },
+      },
+      status: { type: "text", options: ["todo", "done"] },
+      estimate: { type: "integer" },
+      due_on: { type: "date" },
+    },
+    lookups: { project_name: { via: "project_id", column: "name" } },
+  },
+};
+
 const BLOCKS = ["tenant", "organizations", "updated-at"];
 
 function render(
@@ -348,8 +387,46 @@ alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key 
     );
   });
 
+  it("renders the golden SQL of rollups and lookups as a view", async () => {
+    await expect(
+      golden(render(BLOCKS, { appTables: COMPUTED })),
+    ).toMatchFileSnapshot("__golden__/app-tables/computed.sql");
+  });
+
+  it("reads rollups and lookups through a security_invoker view", () => {
+    const [schema, test] = render(BLOCKS, { appTables: COMPUTED });
+
+    expect(schema?.contents).toContain(
+      `create view "public"."projects_view" with (security_invoker = true) as`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'done') r0 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select coalesce(sum(c."estimate"), 0) as value from "public"."tasks" c where c."project_id" = t.id) r1 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select r."name" as value from "public"."projects" r where r.id = t."project_id") l0 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `grant select on "public"."tasks_view" to authenticated;`,
+    );
+    expect(test?.contents).toContain(
+      `'public.projects_view runs with the caller''s row level security'`,
+    );
+    expect(test?.contents).toContain(
+      `select extensions.is((select count(*)::integer from "public"."projects_view"), 0, 'a stranger sees no rows of public.projects_view');`,
+    );
+  });
+
+  it("renders no view for a table without rollups or lookups", () => {
+    const [schema] = render(BLOCKS, { appTables: TABLES });
+
+    expect(schema?.contents).not.toContain("create view");
+  });
+
   it("counts every check in the pgTAP plan", () => {
-    const [, test] = render(BLOCKS, { appTables: TABLES });
+    const [, test] = render(BLOCKS, { appTables: COMPUTED });
 
     const checks = (test?.contents ?? "")
       .split("\n")

@@ -17,6 +17,7 @@ import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
 
@@ -666,6 +667,8 @@ function testSql(table: AppTable): string {
     );
   }
 
+  checks.push(...appViewChecks(table.name, table.config));
+
   const behaviour = table.scope
     ? [
         `select extensions.is((select count(*)::integer from ${qualified(table.name)} where not (${ownRows(table) ?? "true"})), 0, ${sqlString(`a signed-in user reads only the rows of ${label} their scope reaches`)});`,
@@ -679,7 +682,7 @@ function testSql(table: AppTable): string {
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-${behaviour.join("\n")}
+${[...behaviour, ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}
 reset role;`;
 }
 
@@ -769,6 +772,10 @@ export function appTablesFiles(
       .join("\n\n"),
     ...tables.map((table) => tableSql(table)),
     tenantKeysSql(tables),
+    tables
+      .map((table) => appViewSql(table.name, table.config))
+      .filter((part) => part !== "")
+      .join("\n\n"),
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
       : "",
