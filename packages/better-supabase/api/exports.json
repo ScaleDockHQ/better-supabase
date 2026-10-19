@@ -2109,6 +2109,7 @@
       "decodeFilterQuery",
       "defineListQuery",
       "encodeFilterQuery",
+      "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",
       "FILTER_OPERATORS",
       "UNSET"
@@ -2120,6 +2121,7 @@
       "FilterClock",
       "FilterCombinator",
       "FilterDateValue",
+      "FilterEvaluation",
       "FilterField",
       "FilterFieldInfo",
       "FilterFieldLabels",
@@ -2129,6 +2131,7 @@
       "FilterOperatorArity",
       "FilterOperatorSpec",
       "FilterQuery",
+      "FilterRecordField",
       "FilterRelativeDate",
       "FilterRule",
       "ListDefinition",

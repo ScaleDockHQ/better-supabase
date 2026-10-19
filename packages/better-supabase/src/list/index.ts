@@ -7,6 +7,10 @@ export {
   FILTER_OPERATORS,
 } from "./filter-query.ts";
 
+export { evaluateFilterQuery } from "./filter-evaluate.ts";
+
+export type { FilterEvaluation, FilterRecordField } from "./filter-evaluate.ts";
+
 export type {
   FilterClock,
   FilterCombinator,
