@@ -1,6 +1,7 @@
 import type { Queryable } from "./typegen.ts";
 
 import { CliError } from "../core/errors.ts";
+import { request } from "../core/http.ts";
 import { connect } from "../db.ts";
 
 export type { Queryable };
@@ -89,12 +90,12 @@ export function managementSource(
     "",
   );
 
-  const doFetch = options.fetch ?? fetch;
   const endpoint = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/database/query/read-only`;
 
   const queryable: Queryable = {
     async query(sql: string) {
-      const response = await doFetch(endpoint, {
+      const text = await request(endpoint, {
+        what: `Management API query for project ${options.projectRef}`,
         method: "POST",
         headers: {
           authorization: `Bearer ${options.accessToken}`,
@@ -102,24 +103,15 @@ export function managementSource(
         },
         body: JSON.stringify({ query: sql }),
         ...(options.signal ? { signal: options.signal } : {}),
+        ...(options.fetch ? { fetch: options.fetch } : {}),
       });
-
-      const text = await response.text();
-
-      if (!response.ok) {
-        throw new CliError(
-          response.status === 401 || response.status === 403
-            ? "auth_required"
-            : "request_failed",
-          `Management API query failed (${response.status}) for project ${options.projectRef}: ${text.slice(0, 500)}`,
-        );
-      }
 
       // SAFETY: widens the any from JSON.parse to unknown; the shape is checked below.
       const rows = JSON.parse(text) as unknown;
 
       if (!Array.isArray(rows)) {
-        throw new TypeError(
+        throw new CliError(
+          "request_failed",
           `Management API returned an unexpected body for project ${options.projectRef}.`,
         );
       }

@@ -11,6 +11,7 @@ import {
   resolveConfig,
 } from "../config/index.ts";
 import { configIssues } from "./config-schema.ts";
+import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
 import { type CliIo, display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
@@ -266,20 +267,10 @@ export async function databaseUrl(
   env: CliEnv,
   fromStdin?: string,
 ): Promise<string> {
-  if (fromStdin) {
-    return fromStdin;
-  }
+  const given = databaseUrlCredential(config, env, fromStdin);
 
-  if (config.source.dbUrl) {
-    return config.source.dbUrl;
-  }
-
-  if (env.DATABASE_URL) {
-    return env.DATABASE_URL;
-  }
-
-  if (env.SUPABASE_DB_URL) {
-    return env.SUPABASE_DB_URL;
+  if (given) {
+    return given.value;
   }
 
   let resolved = localUrls.get(config);

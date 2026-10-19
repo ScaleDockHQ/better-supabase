@@ -60,9 +60,15 @@ describe("managementTarget", () => {
     expect(managementTarget(config(), env, {})).toBeUndefined();
   });
 
-  it("asks for an access token", () => {
+  it("asks for an access token with auth_required", () => {
     expect(() => managementTarget(config(), {}, { projectRef: "abc" })).toThrow(
-      "Reading project abc needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN",
+      expect.objectContaining({
+        code: "auth_required",
+        exitCode: 3,
+        message: expect.stringContaining(
+          "Reading project abc needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN",
+        ),
+      }),
     );
   });
 });

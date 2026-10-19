@@ -61,6 +61,7 @@
             "database_unreachable",
             "supabase_cli_missing",
             "supabase_cli_failed",
+            "network_error",
             "request_failed",
             "auth_required",
             "integrity_failed",

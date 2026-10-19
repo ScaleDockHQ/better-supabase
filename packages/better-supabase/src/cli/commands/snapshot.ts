@@ -7,6 +7,7 @@ import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
+import { accessToken } from "../core/credentials.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
@@ -67,11 +68,11 @@ export function managementTarget(
     return undefined;
   }
 
-  const accessToken = config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN;
+  const token = accessToken(config, env);
 
-  if (!accessToken) {
+  if (!token) {
     throw new CliError(
-      "missing_value",
+      "auth_required",
       `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN to a token scoped to this project (https://supabase.com/dashboard/account/tokens), or read the database with $DATABASE_URL, $SUPABASE_DB_URL or --db-url-stdin.`,
       { flag: "SUPABASE_ACCESS_TOKEN" },
     );
@@ -79,7 +80,7 @@ export function managementTarget(
 
   return {
     projectRef,
-    accessToken,
+    accessToken: token.value,
     ...(env.SUPABASE_API_URL ? { apiUrl: env.SUPABASE_API_URL } : {}),
   };
 }

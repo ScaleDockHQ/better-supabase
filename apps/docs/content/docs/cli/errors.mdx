@@ -54,9 +54,8 @@ can run as is. Exit code 2.
 
 ## `missing_value`
 
-The command needs a value it didn't get, such as `SUPABASE_ACCESS_TOKEN` for
-`--project-ref`, a connection string on stdin for `--db-url-stdin`, or a
-directory for `--cwd`. A stdin flag reports it at once when stdin is a
+The command needs a value it didn't get, such as a connection string on
+stdin for `--db-url-stdin` or a directory for `--cwd`. A stdin flag reports it at once when stdin is a
 terminal instead of waiting for input. `flag` names the variable or option
 that supplies it. Exit code 2.
 
@@ -116,6 +115,12 @@ downloads one. Install it with `pnpm add -D supabase`. Exit code 1.
 The Supabase CLI ran and failed, or printed output the command can't read.
 Check that the local stack runs (`supabase start`). Exit code 1.
 
+## `network_error`
+
+An HTTP request got no response: the host was unreachable, the connection
+dropped, or the request took longer than 30 seconds. The message names the
+host. Check the network and run the command again. Exit code 1.
+
 ## `request_failed`
 
 An HTTP request failed, such as a Management API query or the download of
@@ -124,8 +129,10 @@ response. Exit code 1.
 
 ## `auth_required`
 
-A request was refused with 401 or 403. Check that `SUPABASE_ACCESS_TOKEN` is
-set and can read the project. Exit code 3.
+The command reads a hosted project and has no access token, or a request was
+refused with 401 or 403. Set `SUPABASE_ACCESS_TOKEN` (or `source.accessToken`
+in the config) to a token that can read the project. `flag` names the
+variable when the token is missing. Exit code 3.
 
 ## `integrity_failed`
 

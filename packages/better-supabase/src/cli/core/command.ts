@@ -122,7 +122,7 @@ export function defineCliCommand<const T extends ArgsDef>(
 
   if (version !== 1) {
     throw new CliError(
-      "invalid_input",
+      "usage",
       `Command "${def.meta.name}" targets CLI command API v${String(version)}; this version supports v1.`,
     );
   }

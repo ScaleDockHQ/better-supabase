@@ -48,7 +48,7 @@ describe("managementSource", () => {
     });
 
     await expect(source.queryable.query("select 1")).rejects.toThrow(
-      /\(401\) for project abc/,
+      /for project abc failed \(401\)/,
     );
   });
 });

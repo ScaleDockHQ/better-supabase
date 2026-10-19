@@ -41,7 +41,12 @@ import {
   type Loader,
   resolveCommand,
 } from "./parse.ts";
-import { EXEC_CHANNEL, type ExecEvent } from "./trace.ts";
+import {
+  EXEC_CHANNEL,
+  type ExecEvent,
+  HTTP_CHANNEL,
+  type HttpEvent,
+} from "./trace.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */
@@ -151,14 +156,14 @@ function extraCommand(
 
   if (version !== 1) {
     throw new CliError(
-      "invalid_input",
+      "usage",
       `Command "${name}" has no CLI command API version; define it with defineCliCommand.`,
     );
   }
 
   if (tree.has(name) || RESERVED_NAMES.includes(name)) {
     throw new CliError(
-      "invalid_input",
+      "usage",
       `Command "${name}" is taken by a better-supabase command; pick another name.`,
     );
   }
@@ -521,8 +526,17 @@ export function cliFromTree(
       );
     };
 
+    const traceHttp = (message: unknown): void => {
+      // SAFETY: http.ts publishes only HttpEvent objects on HTTP_CHANNEL.
+      const event = message as HttpEvent;
+      log.debug(
+        `http ${event.method} ${event.url}: ${event.status ?? "no response"} after ${event.milliseconds}ms`,
+      );
+    };
+
     if (debug) {
       subscribe(EXEC_CHANNEL, traceExec);
+      subscribe(HTTP_CHANNEL, traceHttp);
     }
 
     try {
@@ -543,6 +557,7 @@ export function cliFromTree(
     } finally {
       if (debug) {
         unsubscribe(EXEC_CHANNEL, traceExec);
+        unsubscribe(HTTP_CHANNEL, traceHttp);
       }
     }
   };

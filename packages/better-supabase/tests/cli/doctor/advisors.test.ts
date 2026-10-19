@@ -124,7 +124,7 @@ describe("splinterAdvisors", () => {
     });
 
     await expect(advisors.lints("security")).rejects.toThrow(
-      `Downloading splinter.sql failed (503) from ${URL}`,
+      `Downloading splinter.sql from ${URL} failed (503)`,
     );
   });
 
