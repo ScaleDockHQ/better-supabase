@@ -16,7 +16,7 @@ import {
 import { applyPlan, changeLines, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import {
   latestMigration,
@@ -105,8 +105,7 @@ export async function syncModules(
 
   const rendered = renderModules(config.blockNames, sqlLayout);
 
-  const plan = {
-    root: config.root,
+  const plan = sqlPlan(config, {
     regenerate: "better-supabase sql sync",
     files: [...rendered.map((file) => moduleFile(file)), ...topicsFile],
     remove: await staleModuleTests(
@@ -115,7 +114,7 @@ export async function syncModules(
       sqlLayout,
       rendered,
     ),
-  };
+  });
 
   return planResult(plan, await applyPlan(plan, { check: true }, paint), {
     data: { blocks: config.blockNames },

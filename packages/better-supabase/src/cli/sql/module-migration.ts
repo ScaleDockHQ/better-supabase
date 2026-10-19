@@ -6,7 +6,7 @@ import type { ModuleFile } from "../../sql/index.ts";
 
 import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { stampAfter } from "./migrations.ts";
 
@@ -172,11 +172,10 @@ export async function writeLatestMigration(
   const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
 
   const applied = await applyPlan(
-    {
-      root: config.root,
+    sqlPlan(config, {
       regenerate: "better-supabase sql sync",
       files: [{ path, contents }],
-    },
+    }),
     { "dry-run": options.dryRun },
   );
 

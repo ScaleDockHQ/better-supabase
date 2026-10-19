@@ -19,6 +19,7 @@ import {
 } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
+import { sqlPlan } from "../sql-layout.ts";
 import {
   migrationCommand,
   readSupabaseToml,
@@ -135,8 +136,7 @@ export async function write(
   const written = files.filter((file) => !migrations || file.kind === "test");
 
   const applied = await applyPlan(
-    {
-      root: config.root,
+    sqlPlan(config, {
       regenerate: "better-supabase sql sync",
       files: written.map((file) => moduleFile(file)),
       remove: await staleModuleTests(
@@ -146,7 +146,7 @@ export async function write(
         files,
         only === undefined,
       ),
-    },
+    }),
     { "dry-run": dryRun },
   );
 

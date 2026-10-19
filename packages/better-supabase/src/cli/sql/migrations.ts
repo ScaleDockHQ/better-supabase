@@ -12,7 +12,7 @@ import {
   renderModules,
 } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { layoutFor } from "./providers.ts";
 
@@ -111,8 +111,7 @@ export async function writeExtensionsMigration(
   const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
 
   const applied = await applyPlan(
-    {
-      root: config.root,
+    sqlPlan(config, {
       regenerate: "better-supabase sql sync",
       files: [
         {
@@ -120,7 +119,7 @@ export async function writeExtensionsMigration(
           contents: `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
         },
       ],
-    },
+    }),
     { "dry-run": dryRun },
   );
 
@@ -211,11 +210,10 @@ export async function dataMigration(
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
 
   const applied = await applyPlan(
-    {
-      root: config.root,
+    sqlPlan(config, {
       regenerate: "better-supabase sql data",
       files: [{ path, contents }],
-    },
+    }),
     { "dry-run": args["dry-run"] },
   );
 

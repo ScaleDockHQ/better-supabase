@@ -20,7 +20,7 @@ import {
 import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationStamp, type Now } from "./migrations.ts";
 import {
@@ -121,11 +121,10 @@ export async function upgrade(
     const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
     const applied = await applyPlan(
-      {
-        root: config.root,
+      sqlPlan(config, {
         regenerate: "better-supabase sql upgrade",
-        files: [{ path: resolve(config.root, path), contents }],
-      },
+        files: [{ path, contents }],
+      }),
       { "dry-run": dryRun },
     );
 

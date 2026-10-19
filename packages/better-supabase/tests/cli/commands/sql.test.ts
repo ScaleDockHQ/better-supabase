@@ -861,6 +861,29 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(migrationsDir(config)).toBe("../../stack/supabase/migrations");
   });
 
+  it("syncs and checks modules in a shared stack outside the project", async () => {
+    const app = join(root, "apps/web");
+    await mkdir(app, { recursive: true });
+    await mkdir(join(root, "stack/supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "stack/supabase/config.toml"), "");
+
+    const config = resolveConfig(
+      { blocks: ["tenant"], sql: { dir: "../../stack/supabase/schemas" } },
+      app,
+    );
+
+    const synced = await runSql(config, parseArgs(["sync"], SQL_ARGS));
+    expect(synced.code).toBe(0);
+    expect(synced.output).toContain("../../stack/supabase/schemas/");
+
+    const checked = await runSql(
+      config,
+      parseArgs(["sync", "--check"], SQL_ARGS),
+    );
+
+    expect(checked.code).toBe(0);
+  });
+
   it("upgrades modules installed before versioned headers", async () => {
     const config: BetterSupabaseConfig = { blocks: ["tenant"] };
     expect(await sql(["upgrade"])).toEqual({

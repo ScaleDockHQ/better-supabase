@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type { FilePlan } from "./core/files.ts";
 
 import {
   type ModuleAccessProvider,
@@ -205,15 +206,13 @@ function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
 }
 
 /**
- * The migrations folder next to the `config.toml` found walking up from
- * `sql.dir`, relative to the root; `supabase/migrations` without one. The
- * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
- * project (a shared stack in a monorepo) finds that stack's folder.
+ * The folder that holds both the project root and `sql.dir`: the root, or
+ * an ancestor when `sql.dir` points at a shared stack. The `sql` commands
+ * write SQL files only inside it.
  */
-export function migrationsDir(config: ResolvedConfig): string {
-  const root = resolve(config.root);
-  let dir = resolve(root, config.sql.dir);
-  let stop = root;
+function sqlRoot(config: ResolvedConfig): string {
+  const dir = resolve(config.root, config.sql.dir);
+  let stop = resolve(config.root);
 
   while (
     dir !== stop &&
@@ -222,6 +221,42 @@ export function migrationsDir(config: ResolvedConfig): string {
   ) {
     stop = dirname(stop);
   }
+
+  return stop;
+}
+
+/**
+ * A plan for files under the project root or `sql.dir`, with paths relative
+ * to the project root.
+ */
+export function sqlPlan(
+  config: ResolvedConfig,
+  plan: Omit<FilePlan, "root" | "base">,
+): FilePlan {
+  return {
+    ...plan,
+    root: sqlRoot(config),
+    base: config.root,
+    files: plan.files.map((file) => ({
+      ...file,
+      path: resolve(config.root, file.path),
+    })),
+    ...(plan.remove
+      ? { remove: plan.remove.map((path) => resolve(config.root, path)) }
+      : {}),
+  };
+}
+
+/**
+ * The migrations folder next to the `config.toml` found walking up from
+ * `sql.dir`, relative to the root; `supabase/migrations` without one. The
+ * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
+ * project (a shared stack in a monorepo) finds that stack's folder.
+ */
+export function migrationsDir(config: ResolvedConfig): string {
+  const root = resolve(config.root);
+  let dir = resolve(root, config.sql.dir);
+  const stop = sqlRoot(config);
 
   for (;;) {
     if (existsSync(join(dir, "config.toml"))) {
