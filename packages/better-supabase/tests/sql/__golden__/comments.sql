@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_33_comments.sql
 -- better-supabase module: comments
--- @bs-module comments@5 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
+-- @bs-module comments@6 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -324,6 +324,7 @@ drop policy if exists "activity_entries_read" on "better_supabase"."activity_ent
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
+drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -353,15 +354,19 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry.
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: event for an activity entry.
 create or replace function "better_supabase"."list_activity"(
   tenant uuid,
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -381,6 +386,7 @@ begin
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."activity_entries" y
     where y."organization_id" = list_activity.tenant
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
@@ -398,7 +404,7 @@ revoke execute on function "better_supabase"."comment_subject_readable"(text, te
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
@@ -407,7 +413,7 @@ grant execute on function "better_supabase"."comment_subject_readable"(text, tex
 grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
-grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
@@ -434,14 +440,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('comments', 5, 'managed')
+values ('comments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_33_comments.sql
 -- better-supabase module: comments
--- @bs-module comments@5 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
+-- @bs-module comments@6 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -832,6 +838,7 @@ drop policy if exists "activity_entries_read" on "better_supabase"."activity_ent
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
+drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -861,15 +868,19 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry.
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: event for an activity entry.
 create or replace function "better_supabase"."list_activity"(
   tenant uuid,
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -889,6 +900,7 @@ begin
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."activity_entries" y
     where y."organization_id" = list_activity.tenant
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
@@ -906,7 +918,7 @@ revoke execute on function "better_supabase"."comment_subject_readable"(text, te
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
@@ -915,7 +927,7 @@ grant execute on function "better_supabase"."comment_subject_readable"(text, tex
 grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
-grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
@@ -942,14 +954,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('comments', 5, 'managed')
+values ('comments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_33_comments.sql
 -- better-supabase module: comments
--- @bs-module comments@5 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
+-- @bs-module comments@6 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1274,6 +1286,7 @@ drop policy if exists "activity_entries_read" on "app_private"."activity_entries
 create policy "activity_entries_read" on "app_private"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "app_private"."activity_subject_readable"(text, text);
+drop function if exists "app_private"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -1303,15 +1316,19 @@ begin
 end;
 $$;
 
+drop function if exists "app_private"."list_activity"(uuid, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry.
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: event for an activity entry.
 create or replace function "app_private"."list_activity"(
   tenant uuid,
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -1331,6 +1348,7 @@ begin
       y."occurred_at" as at, y."id"::text as id
     from "app_private"."activity_entries" y
     where y."organization_id" = list_activity.tenant
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
@@ -1348,7 +1366,7 @@ revoke execute on function "app_private"."comment_subject_readable"(text, text, 
 revoke execute on function "app_private"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "app_private"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 revoke execute on function "app_private"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
-revoke execute on function "app_private"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "app_private"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function "app_private"."delete_comment"(uuid) from public, anon;
 revoke execute on function "app_private"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "app_private"."comment_counts"(uuid, text, text[]) from public, anon;
@@ -1357,7 +1375,7 @@ grant execute on function "app_private"."comment_subject_readable"(text, text, u
 grant execute on function "app_private"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 grant execute on function "app_private"."copy_comments"(uuid, text, text, text, text) to service_role;
-grant execute on function "app_private"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "app_private"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "app_private"."delete_comment"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "app_private"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
@@ -1384,14 +1402,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('comments', 5, 'managed')
+values ('comments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_33_comments.sql
 -- better-supabase module: comments
--- @bs-module comments@5 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
+-- @bs-module comments@6 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1714,6 +1732,7 @@ drop policy if exists "activity_entries_read" on "better_supabase"."activity_ent
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
+drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -1743,15 +1762,19 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry.
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: event for an activity entry.
 create or replace function "better_supabase"."list_activity"(
   tenant uuid,
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -1771,6 +1794,7 @@ begin
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."activity_entries" y
     where y."organization_id" = list_activity.tenant
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
@@ -1788,7 +1812,7 @@ revoke execute on function "better_supabase"."comment_subject_readable"(text, te
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
@@ -1797,7 +1821,7 @@ grant execute on function "better_supabase"."comment_subject_readable"(text, tex
 grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
-grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
@@ -1816,6 +1840,7 @@ drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], u
 drop function if exists "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer, integer);
+drop function if exists "api"."list_activity"(uuid, text, text, timestamptz, integer);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1862,14 +1887,14 @@ as $$ select "better_supabase"."copy_comments"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."copy_comments"(uuid, text, text, text, text) to service_role;
 
-create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50)
+create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50, sources text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
-grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
+grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 
 create or replace function "api"."delete_comment"(id uuid)
 returns boolean
@@ -1928,6 +1953,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('comments', 5, 'managed')
+values ('comments', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -119,12 +119,25 @@ export interface CommentEdit<F extends object = Record<never, never>> {
 /**
  * Where a timeline entry comes from: `event` for an `activity_entries` row
  * that `activitySink()` wrote, `audit` for an audit log entry on the
- * subject's row (with the `audit` and `subjects` modules).
+ * subject's row (with the `audit` and `subjects` modules), `delivery` for a
+ * notification delivery about the subject (with `notifications`) and `run`
+ * for a workflow run on it (with `workflows`).
  */
-export type ActivitySource = "event" | "audit";
+export type ActivitySource = "event" | "audit" | "delivery" | "run";
+
+const ACTIVITY_SOURCES: readonly ActivitySource[] = [
+  "event",
+  "audit",
+  "delivery",
+  "run",
+];
+
+function sourceOf(value: unknown): ActivitySource {
+  return ACTIVITY_SOURCES.find((source) => source === value) ?? "event";
+}
 
 export interface ActivityEntry {
-  /** An `activity_entries` id, or the audit entry's id for `source: "audit"`. */
+  /** An `activity_entries` id, or the audit entry's, delivery's or run's id. */
   readonly id: string;
   readonly source: ActivitySource;
   readonly organizationId: string;
@@ -142,6 +155,8 @@ export interface ActivityHistoryOptions extends CursorPageOptions<Temporal.Insta
   readonly cursor?: Temporal.Instant;
   /** Default 50, at most 500. */
   readonly limit?: number;
+  /** The kinds of entry to return; all of them when left out. */
+  readonly sources?: readonly ActivitySource[];
 }
 
 export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant> {
@@ -197,7 +212,10 @@ export interface Comments<F extends object = Record<never, never>> {
    * with `subject`. Members with `activity.read` see it. With the `subjects`
    * module, an entry on a registered subject type needs `can_subject` read,
    * and a subject's timeline also lists its audit log entries
-   * (`source: "audit"`) when `audit` is installed with its read policy.
+   * (`source: "audit"`) when `audit` is installed with its read policy, the
+   * deliveries of notifications about it (`source: "delivery"`, for members
+   * who also hold `notifications.send`) and its workflow runs
+   * (`source: "run"`, as the runs' read policy allows).
    */
   history(
     organizationId: string,
@@ -248,7 +266,7 @@ function activityOf(value: unknown): ActivityEntry {
 
   return {
     id: textOf(row["id"]),
-    source: row["source"] === "audit" ? "audit" : "event",
+    source: sourceOf(row["source"]),
     organizationId: textOf(row["organization_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
@@ -369,6 +387,7 @@ export function createComments<
           subject_id: subject?.id,
           before: instantArg(pageOf(history).cursor),
           max_rows: history.limit,
+          sources: history.sources ? [...history.sources] : undefined,
         },
         (value) => recordsOf(value, "list_activity").map(activityOf),
       ),

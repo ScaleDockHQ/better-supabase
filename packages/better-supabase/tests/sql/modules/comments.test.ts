@@ -358,5 +358,43 @@ describe("comments module", () => {
       );
       expect(sql).toContain(`'source', 'audit'`);
     });
+
+    it("filters by sources and leaves out deliveries and runs without their modules", () => {
+      const sql = render(["comments", "subjects"]);
+      expect(sql).toContain("sources text[] default null");
+      expect(sql).toContain(
+        `(list_activity.sources is null or 'event' = any (list_activity.sources))`,
+      );
+      expect(sql).not.toContain("workflow_runs");
+      expect(sql).toContain(
+        `drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);`,
+      );
+    });
+
+    it("unions a registered subject's workflow runs, read as the caller", () => {
+      const sql = render(["access", "comments", "subjects", "workflows"]);
+      expect(sql).toContain(`from "better_supabase"."workflow_runs" r`);
+      expect(sql).toContain(`'type', 'run.' || r."status"`);
+      expect(sql).toContain(
+        `(list_activity.sources is null or 'run' = any (list_activity.sources))`,
+      );
+      expect(sql).toContain(`'source', 'run'`);
+    });
+
+    it("reads a registered subject's deliveries through a definer helper", () => {
+      const sql = render(["access", "comments", "notifications", "subjects"]);
+      expect(sql).toContain(
+        `create or replace function "better_supabase"."activity_subject_deliveries"(tenant uuid, subject_type text, subject_id text, before timestamptz, max_rows integer)`,
+      );
+      expect(sql).toMatch(
+        /activity_subject_deliveries"\(tenant uuid[\s\S]*?security definer/,
+      );
+      expect(sql).toContain("'activity.read'");
+      expect(sql).toContain("'notifications.send'");
+      expect(sql).toContain(
+        `(list_activity.sources is null or 'delivery' = any (list_activity.sources))`,
+      );
+      expect(sql).toContain(`'source', 'delivery'`);
+    });
   });
 });

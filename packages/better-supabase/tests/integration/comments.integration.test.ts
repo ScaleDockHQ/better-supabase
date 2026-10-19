@@ -938,4 +938,141 @@ describe.skipIf(!live)("comments", () => {
       await s.close();
     }
   });
+
+  it("adds a subject's notification deliveries and workflow runs, filtered by sources", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.rows(
+        `create table public.bs_test_activity_deals (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           owner_id uuid
+         );
+         alter table public.bs_test_activity_deals enable row level security;
+         grant select on public.bs_test_activity_deals to authenticated;
+         create policy "read" on public.bs_test_activity_deals for select to authenticated
+           using (better_supabase.has_organization_role(organization_id)
+             and (owner_id is null or owner_id = (select auth.uid())));`,
+      );
+      await s.install(
+        ["organizations", "notifications", "workflows", "comments", "subjects"],
+        { subjects: { deal: { table: "bs_test_activity_deals" } } },
+      );
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const stranger = await s.user("stranger");
+      const organization = await s.organization(owner, { admin });
+
+      const [open, mine] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_activity_deals (organization_id, owner_id) values ($1, null), ($1, $2) returning id",
+        [organization, admin.id],
+      );
+
+      await s.rows("select better_supabase.record_activity($1)", [
+        {
+          entries: [
+            {
+              event_id: "d1",
+              organization_id: organization,
+              type: "deal.won",
+              subject_type: "deal",
+              subject_id: open!.id,
+              occurred_at: "2026-10-06T10:00:00Z",
+            },
+          ],
+        },
+      ]);
+
+      for (const deal of [open!.id, mine!.id]) {
+        await s.rows(
+          `with ev as (
+             insert into better_supabase.notification_events (organization_id, type, subject_type, subject_id, summary)
+             values ($1, 'deal.won', 'deal', $2, 'Deal won') returning id
+           ), rc as (
+             insert into better_supabase.notification_recipients (event_id, organization_id, user_id)
+             select ev.id, $1, $3 from ev returning id
+           )
+           insert into better_supabase.notification_deliveries (recipient_id, organization_id, channel, status, created_at)
+           select rc.id, $1, 'email', 'sent', '2026-10-06T11:00:00Z' from rc`,
+          [organization, deal, owner.id],
+        );
+        await s.rows(
+          `insert into better_supabase.workflow_runs (engine, external_id, definition, tenant_id, status, subject_type, subject_id, created_at)
+           values ('test', $3, 'close-deal', $1, 'completed', 'deal', $2, '2026-10-06T12:00:00Z')`,
+          [organization, deal, `run-${deal}`],
+        );
+      }
+
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      await s.asRole(owner);
+
+      const timeline = await comments
+        .history(organization, { type: "deal", id: open!.id })
+        .orThrow();
+
+      expect(timeline.map((item) => `${item.source} ${item.type}`)).toEqual([
+        "run run.completed",
+        "delivery delivery.sent",
+        "event deal.won",
+      ]);
+      expect(timeline[0]).toMatchObject({
+        organizationId: organization,
+        subjectType: "deal",
+        subjectId: open!.id,
+        data: { definition: "close-deal", status: "completed" },
+      });
+      expect(timeline[1]).toMatchObject({
+        summary: "Deal won",
+        data: {
+          channel: "email",
+          status: "sent",
+          notificationType: "deal.won",
+          userId: owner.id,
+        },
+      });
+
+      expect(
+        (
+          await comments
+            .history(
+              organization,
+              { type: "deal", id: open!.id },
+              { sources: ["delivery", "event"] },
+            )
+            .orThrow()
+        ).map((item) => item.source),
+      ).toEqual(["delivery", "event"]);
+      expect(
+        await comments
+          .history(organization, { type: "deal", id: mine!.id })
+          .orThrow(),
+      ).toEqual([]);
+      expect(
+        (await comments.history(organization).orThrow()).map(
+          (item) => item.source,
+        ),
+      ).toEqual(["event"]);
+
+      await s.asRole(admin);
+      expect(
+        (
+          await comments
+            .history(organization, { type: "deal", id: open!.id })
+            .orThrow()
+        ).map((item) => item.source),
+      ).toEqual(["delivery", "event"]);
+
+      await s.asRole(stranger);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.activity_subject_deliveries($1, 'deal', $2, null, 50))",
+          [organization, open!.id],
+        ),
+      ).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
 });
