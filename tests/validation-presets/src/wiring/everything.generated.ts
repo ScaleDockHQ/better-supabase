@@ -27,6 +27,7 @@ import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock } from "better-supabase/blocks/deals";
 import { documentsBlock } from "better-supabase/blocks/documents";
+import { domainsBlock } from "better-supabase/blocks/domains";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -117,6 +118,7 @@ export const blockSet = defineBlocks(blockConfig, {
   dataLifecycle: dataLifecycleBlock,
   deals: dealsBlock,
   documents: documentsBlock,
+  domains: domainsBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

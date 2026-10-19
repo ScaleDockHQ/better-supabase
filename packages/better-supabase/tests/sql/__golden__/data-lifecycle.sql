@@ -1596,7 +1596,8 @@ as $$
     ('organization', 'better_supabase.employee_contracts', '"better_supabase"."employee_contracts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.favorites', '"better_supabase"."favorites"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.favorites', '"better_supabase"."favorites"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.organization_hostnames', '"better_supabase"."organization_hostnames"', 'organization_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 

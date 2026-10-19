@@ -130,6 +130,7 @@ export const BLOCK_ICONS = {
   invitations: MailPlusIcon,
   "reserved-slugs": AtSignIcon,
   organizations: Building2Icon,
+  domains: GlobeIcon,
   profiles: CircleUserIcon,
   settings: SettingsIcon,
   teams: UsersIcon,

@@ -27,6 +27,7 @@ import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
 import { documentsBlock } from "./documents/manifest.ts";
+import { domainsBlock } from "./domains/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { engagementsBlock } from "./engagements/manifest.ts";
@@ -138,6 +139,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   dataLifecycleBlock,
   dealsBlock,
   documentsBlock,
+  domainsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

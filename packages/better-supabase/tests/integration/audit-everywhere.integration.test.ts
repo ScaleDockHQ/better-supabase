@@ -23,6 +23,7 @@ const ACTION_MODULES = [
   "api-keys",
   "waitlist",
   "sso",
+  "domains",
 ] as const;
 
 /** The event types `actions` records, each once. */
@@ -55,6 +56,7 @@ const RECORDED = [
   "waitlist.approved",
   "invite_code.created",
   "organization.domain_added",
+  "hostname.added",
 ] as const;
 
 /** Runs one security-relevant action of each module; returns the tenant. */
@@ -88,6 +90,10 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.add_organization_domain($1, $2)", [
     organization,
     `acme-${suffix}.test`,
+  ]);
+  await s.value("better_supabase.add_hostname($1, $2)", [
+    organization,
+    `app.acme-${suffix}.test`,
   ]);
 
   await s.service();

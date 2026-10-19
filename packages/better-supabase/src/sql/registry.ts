@@ -40,6 +40,7 @@ import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
+import { DOMAINS } from "./modules/domains.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
@@ -297,6 +298,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SIGNING_KEYS),
       built(SHARED_SIGNALS),
       built(OAUTH_SERVER),
+      built(DOMAINS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

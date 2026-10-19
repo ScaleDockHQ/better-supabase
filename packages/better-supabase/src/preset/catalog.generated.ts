@@ -1739,6 +1739,22 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "oauth-server"
     },
     {
+      "name": "domains",
+      "title": "Custom domains",
+      "category": "tenancy",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "reserved-slugs"
+      ],
+      "manifest": "domains",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2092,6 +2108,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "documentsBlock",
         "subpath": "better-supabase/blocks/documents"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "domains",
+      "sql": [
+        "domains"
+      ],
+      "category": "tenancy",
+      "client": {
+        "export": "domainsBlock",
+        "subpath": "better-supabase/blocks/domains"
       },
       "consumes": {},
       "provides": []

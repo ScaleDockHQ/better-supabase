@@ -90,6 +90,7 @@
     "service-principals",
     "signing-keys",
     "shared-signals",
-    "oauth-server"
+    "oauth-server",
+    "domains"
   ]
 }

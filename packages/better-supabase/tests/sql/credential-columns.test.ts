@@ -11,11 +11,12 @@ const ALLOWED = (name: string): boolean =>
   name.startsWith("webhook");
 
 /**
- * Not credentials: the domain challenge is published in a DNS TXT record,
- * and a chunk's token count is a number.
+ * Not credentials: the domain and hostname challenges are published in a
+ * DNS TXT record, and a chunk's token count is a number.
  */
 const KNOWN = new Set([
   '"better_supabase"."organization_domains".verification_token',
+  '"better_supabase"."organization_hostnames".verification_token',
   '"better_supabase"."knowledge_chunks".token_count',
 ]);
 

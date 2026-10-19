@@ -58,6 +58,8 @@ const NO_FIELDS: readonly string[] = [
   "data-lifecycle",
   // A document row is the Yjs container of one subject's field; app columns belong on the subject.
   "documents",
+  // A hostname row is routing state the proxy reads; the organization holds app data.
+  "domains",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.

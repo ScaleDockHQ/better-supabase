@@ -1,0 +1,122 @@
+---
+title: Custom domains
+description: Hostnames an organization serves your app on, its own domains verified by a DNS TXT record and subdomains of your platform domain, with a lookup the proxy runs on every request.
+---
+
+`domains` lets each organization serve your app on its own hostnames: a custom domain such as `app.acme.com`, verified by a DNS TXT record, or a subdomain such as `acme.yourapp.com`, which is verified when added. Each organization can mark one verified hostname as primary, and your proxy looks up the organization behind a request's `Host` header with `resolve`.
+
+Listing hostnames needs `domains.read`, and adding, removing or choosing the primary one needs `domains.manage`. Admins get both, and members get `domains.read`.
+
+```bash
+better-supabase add domains
+```
+
+The module needs `tenant` and `access`. With `reserved-slugs` installed, subdomains go through its slug check.
+
+```ts
+import { createDomains } from "better-supabase/blocks/domains";
+
+const domains = createDomains({ transport });
+const hostname = await domains.add(organizationId, "app.acme.com").orThrow();
+// hostname.record: {
+//   type: "TXT",
+//   name: "_better-supabase.app.acme.com",
+//   value: "better-supabase-hostname-verification=3f1c...",
+// }
+```
+
+Show the record to the organization's admin, who publishes it at their DNS provider and points the hostname at your app (a CNAME or the address your host gives you). The record stays on the hostname until it is verified, so the settings page can show it again.
+
+## Verification
+
+`verify_hostname` is granted to the service role only. `createDomainsAdmin` looks up the TXT record over DNS-over-HTTPS (Cloudflare's resolver by default) and marks the hostname verified once the value is there. Pass `actorId` when a user asked for the check, so the database confirms they hold `domains.manage`.
+
+```ts
+import { createDomainsAdmin } from "better-supabase/blocks/domains";
+
+const admin = createDomainsAdmin({ transport: serviceTransport });
+const result = await admin.verify(hostnameId, { actorId: user.id });
+// HOSTNAME_RECORD_MISSING until DNS has the record
+```
+
+Run it from a button on the settings page, or from a [job](/docs/blocks/jobs) that retries until the record appears. Pass `resolver` to look up TXT records another way. Verification proves the organization controls the hostname; your host still has to serve it, so add the domain to your Vercel or Cloudflare project in the same step.
+
+Only one organization can hold a verified hostname. Several can claim one while it is pending, and the first to verify it wins, so a pending claim can't block the real owner.
+
+## Platform subdomains
+
+Set `platformDomain` to your app's own domain, and one label below it becomes a subdomain that is verified when added:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    domains: {
+      options: { platformDomain: "yourapp.com" },
+    },
+  },
+});
+```
+
+`add(organizationId, "acme.yourapp.com")` returns a verified `subdomain` hostname. `yourapp.com` itself and deeper names such as `a.b.yourapp.com` are refused. `txtPrefix` (default `_better-supabase`) sets the record name's first label, such as `_yourapp-verify`.
+
+## The proxy
+
+`resolve(host)` returns the organization behind a verified hostname, or `undefined`. It is open to anon callers, since the proxy runs before sign-in, and it returns nothing a DNS lookup doesn't already show. It ignores the port and the case of the `Host` header.
+
+```ts title="proxy.ts"
+import { createClient } from "@supabase/supabase-js";
+import { createDomains, rpcTransport } from "better-supabase/blocks/domains";
+import { type NextRequest, NextResponse } from "next/server";
+
+const domains = createDomains({
+  transport: rpcTransport(
+    createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    ),
+  ),
+});
+
+export async function proxy(request: NextRequest) {
+  const found = await domains.resolve(request.headers.get("host") ?? "");
+
+  if (!found.ok || found.data === undefined) {
+    return NextResponse.next();
+  }
+
+  const { organizationId, primary, primaryHostname } = found.data;
+
+  if (!primary && primaryHostname !== undefined) {
+    const url = request.nextUrl.clone();
+    url.host = primaryHostname;
+    url.port = "";
+
+    return NextResponse.redirect(url, 308);
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = `/o/${organizationId}${url.pathname}`;
+
+  return NextResponse.rewrite(url);
+}
+```
+
+Cache the answer for a minute or so when every request goes through the proxy: a hostname changes owner only when it is removed and verified again.
+
+## Errors
+
+| Hint                      | Cause                                                               |
+| ------------------------- | ------------------------------------------------------------------- |
+| `HOSTNAME_FORBIDDEN`      | the caller lacks `domains.manage` or `domains.read`                 |
+| `HOSTNAME_INVALID`        | not a hostname, or more than one label below the platform domain    |
+| `HOSTNAME_RESERVED`       | the platform domain itself, or a subdomain `reserved-slugs` refuses |
+| `HOSTNAME_TAKEN`          | another organization has verified this hostname                     |
+| `HOSTNAME_NOT_FOUND`      | no hostname the caller manages has this id                          |
+| `HOSTNAME_NOT_VERIFIED`   | only a verified hostname can be primary                             |
+| `HOSTNAME_RECORD_MISSING` | `verify` found no TXT record with the value yet                     |
+
+## Events
+
+The block records `hostname.added`, `hostname.verified`, `hostname.primary_set` and `hostname.removed` with `organizationId`, `hostnameId` and `hostname`, and writes them to the audit log under `configuration`. See [events](/docs/extending/events).
+
+The block takes `hooks` around its methods, such as a rule on how many hostnames a plan may add; see [extending blocks](/docs/extending/blocks).

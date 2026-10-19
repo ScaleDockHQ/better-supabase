@@ -112,4 +112,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "signing-keys",
   "shared-signals",
   "oauth-server",
+  "domains",
 ];

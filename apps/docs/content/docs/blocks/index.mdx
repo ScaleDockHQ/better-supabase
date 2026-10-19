@@ -168,6 +168,7 @@ expose the module schema itself.
 | [Signing keys](/docs/blocks/signing-keys)                   | `better-supabase/blocks/signing-keys`                                                                                              | `signing-keys`                         |
 | [Shared signals](/docs/blocks/shared-signals)               | `better-supabase/blocks/shared-signals`                                                                                            | `shared-signals`                       |
 | [OAuth server](/docs/blocks/oauth-server)                   | `better-supabase/blocks/oauth-server`                                                                                              | `oauth-server`                         |
+| [Custom domains](/docs/blocks/domains)                      | `better-supabase/blocks/domains`                                                                                                   | `domains`                              |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -299,6 +300,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `signing-keys`       | none                                        | `outbox`, `audit`                                                                                                                       |
 | `shared-signals`     | none                                        | `webhooks-out`, `outbox`, `audit`                                                                                                       |
 | `oauth-server`       | none                                        | `outbox`, `audit`                                                                                                                       |
+| `domains`            | `tenant`, `access`                          | `reserved-slugs`                                                                                                                        |
 | `ensure-rls`         | none                                        | none                                                                                                                                    |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

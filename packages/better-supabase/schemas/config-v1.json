@@ -1266,6 +1266,7 @@
               "data-lifecycle",
               "deals",
               "documents",
+              "domains",
               "drive",
               "drive-files",
               "employees",
@@ -1435,6 +1436,9 @@
             },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
+            },
+            "domains": {
+              "$ref": "#/$defs/blocks/domains"
             },
             "drive": {
               "$ref": "#/$defs/blocks/drive"
@@ -3144,6 +3148,25 @@
               "compactAfter": {
                 "type": "number",
                 "default": 200
+              }
+            }
+          }
+        }
+      },
+      "domains": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "platformDomain": {
+                "type": "string"
+              },
+              "txtPrefix": {
+                "type": "string",
+                "default": "_better-supabase"
               }
             }
           }
