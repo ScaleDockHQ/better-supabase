@@ -2300,6 +2300,15 @@
         },
         "claimsLimit": {
           "type": "number"
+        },
+        "migrationSafety": {
+          "type": "object",
+          "properties": {
+            "since": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

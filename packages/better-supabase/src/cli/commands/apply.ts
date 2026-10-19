@@ -6,7 +6,6 @@ import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Now } from "../sql/migrations.ts";
 
-import { sqlIdent } from "../../core/template.ts";
 import {
   type CreateDesign,
   type DesignChange,
@@ -34,6 +33,7 @@ import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
+import { ident as sqlIdent } from "../doctor/live.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,

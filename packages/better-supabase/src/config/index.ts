@@ -89,6 +89,7 @@ export type {
   GenTask,
   IntegrationName,
   KeysConfig,
+  MigrationSafetyConfig,
   OpenApiConfig,
   ScaffoldApiConfig,
   ScaffoldConfig,

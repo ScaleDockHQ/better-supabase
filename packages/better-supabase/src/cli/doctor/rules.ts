@@ -31,6 +31,7 @@ import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
+import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
@@ -1135,6 +1136,7 @@ export const RULES: readonly Rule[] = [
   ...FLAG_RULES,
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
+  ...MIGRATION_SAFETY_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

@@ -776,6 +776,9 @@ const ENTRIES = {
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
       claimsLimit: v.optional(v.number()),
+      migrationSafety: v.optional(
+        v.strictObject({ since: v.optional(v.string()) }),
+      ),
     }),
   ),
   gen: v.optional(
