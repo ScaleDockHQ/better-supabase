@@ -22,6 +22,9 @@ describe("migrateCliCall", () => {
     expect(
       migrateCliCall(["gen", "--tasks=types,client", "--out", "src/lib"]),
     ).toEqual(["gen", "--only=types,client", "--out-dir", "src/lib"]);
+    expect(
+      migrateCliCall(["skills", "install", "--agent", "cursor,claude"]),
+    ).toEqual(["skills", "install", "--for", "cursor,claude"]);
     expect(migrateCliCall(["sql", "add", "tenant", "--force"])).toEqual([
       "sql",
       "add",

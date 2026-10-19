@@ -3,12 +3,14 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
 import { isSeed } from "../../testing/index.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
+import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand } from "../core/command.ts";
 import {
   applyPlan,
@@ -60,6 +62,7 @@ export async function runSeed(
   env: CliEnv,
   open: typeof connect = connect,
   dbUrl?: string,
+  requireConsent: (request: ConsentRequest) => void = () => {},
 ): Promise<CommandResult> {
   const entry = args.entry ?? config.seed.entry;
   const out = args.out ?? config.seed.output;
@@ -89,6 +92,18 @@ export async function runSeed(
     ],
   };
 
+  const inserts =
+    args.apply === true && args["dry-run"] !== true && args.check !== true;
+
+  const url = inserts ? await databaseUrl(config, env, dbUrl) : undefined;
+
+  if (url !== undefined && !isLocalDatabaseUrl(url)) {
+    requireConsent({
+      effect: "database-write",
+      detail: `seed --apply inserts rows into ${databaseHost(url)}`,
+    });
+  }
+
   const applied = await applyPlan(plan, args);
   const file = display(config.root, out);
 
@@ -98,8 +113,8 @@ export async function runSeed(
 
   const lines = changeLines(applied);
 
-  if (args.apply === true) {
-    const { client, close } = await open(await databaseUrl(config, env, dbUrl));
+  if (url !== undefined) {
+    const { client, close } = await open(url);
 
     try {
       await client.query("begin");
@@ -158,11 +173,11 @@ export async function runSeed(
 export const seedCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("seed"),
   args: { ...ARGS, ...DB_URL_STDIN_ARG, ...PLAN_ARGS },
-  run: async (args, { config, env, io, log }) => {
+  run: async (args, { config, env, io, log, requireConsent }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
 
     const seed = (): Promise<CommandResult> =>
-      runSeed(config, args, env, connect, dbUrl);
+      runSeed(config, args, env, connect, dbUrl, requireConsent);
 
     return args.apply === true
       ? log.progress("Inserting the seed rows", seed)

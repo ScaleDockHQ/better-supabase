@@ -137,17 +137,35 @@ export function resolveCommand(
 export function globalFlags(argv: readonly string[]): {
   readonly help: boolean;
   readonly json: boolean;
+  /** `--no-json`: text output, also in agent mode. */
+  readonly noJson: boolean;
   readonly color: boolean;
   readonly debug: boolean;
+  /** The value of `--agent`, when it is passed. */
+  readonly agent: string | undefined;
 } {
   const end = argv.indexOf("--");
-  const flags = new Set(end === -1 ? argv : argv.slice(0, end));
+  const options = end === -1 ? argv : argv.slice(0, end);
+  const flags = new Set(options);
+
+  const at = options.findLastIndex(
+    (arg) => arg === "--agent" || arg.startsWith("--agent="),
+  );
+
+  const agentArg = options[at];
 
   return {
     help: flags.has("--help") || flags.has("-h"),
-    json: flags.has("--json"),
+    json: flags.has("--json") || flags.has("--json=true"),
+    noJson: flags.has("--no-json") || flags.has("--json=false"),
     color: !flags.has("--no-color") && !flags.has("--color=false"),
     debug: flags.has("--debug"),
+    agent:
+      agentArg === undefined
+        ? undefined
+        : agentArg === "--agent"
+          ? (options[at + 1] ?? "")
+          : agentArg.slice("--agent=".length),
   };
 }
 

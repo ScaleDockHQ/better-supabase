@@ -13,6 +13,10 @@ export interface CliIo {
   readonly stdin?: () => Promise<string>;
   /** Stdin is a terminal, so reading it would wait for typing instead of a pipe. */
   readonly stdinIsTty?: boolean;
+  /** Stdout is a terminal. Agent detection counts `CURSOR_TRACE_ID` only when it is not. */
+  readonly stdoutIsTty?: boolean;
+  /** Whether a path exists on the host, for agent detection. Without it, no file counts. */
+  readonly exists?: (path: string) => boolean;
   /** Color stdout with ANSI escapes. Off unless set; `--no-color` turns it off. */
   readonly color?: boolean;
   /** Color stderr with ANSI escapes. Defaults to `color`. */
@@ -24,8 +28,8 @@ export interface CliIo {
    */
   readonly spinner?: (message: string) => () => void;
   /**
-   * Prompts for a person at a terminal. `run()` drops them in CI and under
-   * `--json` or `--yes`, and without them commands never ask.
+   * Prompts for a person at a terminal. `run()` drops them in CI, in agent
+   * mode and under `--json` or `--yes`, and without them commands never ask.
    */
   readonly prompts?: Prompter;
 }

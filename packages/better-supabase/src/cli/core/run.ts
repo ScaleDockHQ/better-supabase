@@ -5,12 +5,14 @@ import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ConsentRequest } from "./agent.ts";
 import type { CliIo, CommandResult, RunResult } from "./io.ts";
 import type { CommandSpec } from "./manifest.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
+import { checkConsent, missingInputNext, resolveAgent } from "./agent.ts";
 import {
   type AnyCommand,
   type CliCommand,
@@ -131,6 +133,18 @@ function projectDirectory(base: string, flag: string | undefined): string {
   }
 
   return directory;
+}
+
+/** `--force` on a run that writes: not under `--dry-run` or `--check`. */
+function forcesOverwrite(rest: readonly string[]): boolean {
+  const end = rest.indexOf("--");
+  const options = new Set(end === -1 ? rest : rest.slice(0, end));
+
+  return (
+    (options.has("--force") || options.has("--force=true")) &&
+    !options.has("--dry-run") &&
+    !options.has("--check")
+  );
 }
 
 function withoutPrompts(io: CliIo): CliIo {
@@ -256,7 +270,22 @@ export function cliFromTree(
       io.stderr(line);
     };
 
-    const { json, debug, color } = globalFlags(argv);
+    const flags = globalFlags(argv);
+    const { debug, color } = flags;
+    let agent: string | undefined;
+    let agentError: unknown;
+
+    try {
+      agent = resolveAgent(flags.agent, options.env ?? {}, {
+        stdoutIsTty: io.stdoutIsTty === true,
+        exists: io.exists ?? (() => false),
+      });
+    } catch (cause) {
+      agentError = cause;
+    }
+
+    // Agent mode prints JSON unless --no-json; help and --version follow only --json.
+    const json = flags.json || (agent !== undefined && !flags.noJson);
     const paint = painter(io.color === true && color);
 
     const errorPaint = painter((io.stderrColor ?? io.color) === true && color);
@@ -327,7 +356,28 @@ export function cliFromTree(
       cause: unknown,
       usagePath: readonly string[] = path,
     ): Promise<RunResult> => {
-      const error = toCliError(cause);
+      const thrown = toCliError(cause);
+
+      const {
+        type: _type,
+        title: _title,
+        detail: _detail,
+        code: _code,
+        ...extensions
+      } = thrown.problem;
+
+      const error =
+        thrown.code === "input_required" &&
+        thrown.next.length === 0 &&
+        extensions.missing
+          ? new CliError(thrown.code, thrown.message, {
+              ...extensions,
+              cause: thrown,
+              next: [
+                missingInputNext(argv, extensions.missing, extensions.choices),
+              ],
+            })
+          : thrown;
 
       if (debug) {
         log.debug(stackText(cause));
@@ -358,7 +408,7 @@ export function cliFromTree(
     };
 
     const printHelp = async (node?: CommandNode): Promise<RunResult> => {
-      if (json) {
+      if (flags.json) {
         const document = await treeJson(
           node ? new Map([[node.spec.name, node]]) : tree,
           VERSION,
@@ -377,7 +427,7 @@ export function cliFromTree(
 
       if (parent.length === 0 && name === "version") {
         out(
-          json
+          flags.json
             ? document(envelope(0, { data: { version: VERSION } }))
             : VERSION,
         );
@@ -413,7 +463,7 @@ export function cliFromTree(
 
       if (before.includes("--version")) {
         out(
-          json
+          flags.json
             ? document(envelope(0, { data: { version: VERSION } }))
             : VERSION,
         );
@@ -451,6 +501,10 @@ export function cliFromTree(
 
     if (movedOption) {
       return reportError(movedOption);
+    }
+
+    if (agentError !== undefined) {
+      return reportError(agentError);
     }
 
     let context: CliContext;
@@ -513,7 +567,13 @@ export function cliFromTree(
       });
 
       const interactive =
-        globals.json !== true && globals.yes !== true && !isCi(env);
+        !json && globals.yes !== true && !isCi(env) && agent === undefined;
+
+      const requireConsent = (request: ConsentRequest): void => {
+        if (agent !== undefined) {
+          checkConsent(argv, request, globals.confirm);
+        }
+      };
 
       context = {
         cwd,
@@ -522,7 +582,7 @@ export function cliFromTree(
         reloadConfig,
         io: interactive ? io : withoutPrompts(io),
         env,
-        json: globals.json === true,
+        json,
         signal: options.signal,
         log,
         paint,
@@ -531,7 +591,16 @@ export function cliFromTree(
             renderResult(result, { json, paint, errorPaint, compact: true }),
           );
         },
+        agent,
+        requireConsent,
       };
+
+      if (forcesOverwrite(rest)) {
+        requireConsent({
+          effect: "overwrite",
+          detail: `${node.path.join(" ")} --force overwrites files better-supabase did not write`,
+        });
+      }
     } catch (cause) {
       return reportError(cause);
     }

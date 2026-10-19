@@ -2643,6 +2643,7 @@
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vercel/connect": "catalog:",
+    "@vercel/detect-agent": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",

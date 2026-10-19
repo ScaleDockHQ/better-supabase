@@ -78,6 +78,7 @@ catalog:
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
   "@vercel/connect": 2.2.0
+  "@vercel/detect-agent": 1.2.5
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
   "@workflow/world": 5.0.4

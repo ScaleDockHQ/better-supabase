@@ -97,7 +97,15 @@ turns it off); `--help` and `--version` stay text. A missing input returns
 again. Commands whose side effects are destructive (writing to a database
 that is not the local stack, `--force` over files the CLI did not write)
 return `consent_required` in agent mode until they get `--confirm <token>`,
-which `--yes` does not replace.
+which `--yes` does not replace. The token hashes the effect, its
+description and the argv without `--confirm`, so it covers one command
+line and one target, and never the bin name (`next` always runs
+`better-supabase`).
+
+The parity test pins `@vercel/detect-agent` 1.2.5 in the catalog. Bump it
+with the signals in `detectAgent`. The global `--agent` took the name from
+`skills install --agent`, which became `--for`, with a moved-flag hint and
+the 0.9 codemod.
 
 ### Programmatic API
 

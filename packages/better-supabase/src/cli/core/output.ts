@@ -163,13 +163,19 @@ export function renderError(
 ): Rendered {
   if (options.json) {
     return {
-      stdout: document(envelope(error.exitCode, { error: error.problem })),
+      stdout: document(
+        envelope(error.exitCode, { error: error.problem, next: error.next }),
+      ),
     };
   }
 
   return {
-    stderr: options.usage
-      ? `${error.message}\n\n${options.usage}`
-      : error.message,
+    stderr: [
+      error.message,
+      ...(error.next.length > 0
+        ? [nextText(error.next, options.errorPaint ?? options.paint)]
+        : []),
+      ...(options.usage ? [options.usage] : []),
+    ].join("\n\n"),
   };
 }

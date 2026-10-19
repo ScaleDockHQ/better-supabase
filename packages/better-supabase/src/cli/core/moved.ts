@@ -26,7 +26,7 @@ const MOVED_FLAGS: ReadonlyMap<
   ["doctor", { strict: "fail-on warning" }],
   ["env", { print: "out -", from: "status-file" }],
   ["skills list", { from: "source" }],
-  ["skills install", { from: "source" }],
+  ["skills install", { from: "source", agent: "for" }],
   ["sql add", { force: "allow-hook-overlap" }],
 ]);
 

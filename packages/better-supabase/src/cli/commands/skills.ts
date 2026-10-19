@@ -29,7 +29,7 @@ const SOURCE_ARG = {
 } as const;
 
 const INSTALL_ARGS = {
-  agent: {
+  for: {
     type: "string",
     description:
       "cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents",
@@ -156,9 +156,7 @@ async function installSkills(
   const base = global ? (env.HOME ?? homedir()) : config.root;
 
   const requested =
-    args.agent === undefined
-      ? [...(config.skills.agents ?? [])]
-      : list(args.agent);
+    args.for === undefined ? [...(config.skills.agents ?? [])] : list(args.for);
 
   const unknown = requested.filter((name) => !isAgent(name));
 
@@ -214,6 +212,6 @@ export const skillsInstallCommand: AnyCommand = defineCliCommand({
     check: PLAN_ARGS.check,
     "dry-run": PLAN_ARGS["dry-run"],
   },
-  lists: ["agent"],
+  lists: ["for"],
   run: (args, { config, env }) => installSkills(config, args, env),
 });

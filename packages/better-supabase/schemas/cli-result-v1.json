@@ -94,6 +94,27 @@
           "items": {
             "type": "string"
           }
+        },
+        "missing": {
+          "description": "The flags the run needs, for input_required.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "choices": {
+          "description": "The values each missing flag takes, the suggested one first.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "token": {
+          "description": "The value for --confirm once the user agrees, for consent_required.",
+          "type": "string"
         }
       }
     },

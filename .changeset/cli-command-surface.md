@@ -16,6 +16,7 @@ The CLI's command groups (`sql`, `blocks`, `preset`, `skills`, `spec`, `scaffold
 | `env --print`                    | `env --out -`                  |
 | `env --from`                     | `env --status-file`            |
 | `skills install --from`          | `skills install --source`      |
+| `skills install --agent`         | `skills install --for`         |
 | `sql add --force` (hook overlap) | `sql add --allow-hook-overlap` |
 
 An old command or flag exits with code 2 and a `command_moved` error whose `suggestion` is the new call. `better-supabase codemod 0.9` rewrites these calls in `package.json` scripts and GitHub workflows and lists them in other shell files. The package adds a `bsb` bin next to `better-supabase`.

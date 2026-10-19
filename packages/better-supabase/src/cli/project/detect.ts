@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { shellQuote } from "../core/shell.ts";
 import { isRecord } from "../guards.ts";
 import { findSupabaseRoot } from "../supabase-toml.ts";
 
@@ -126,13 +127,6 @@ export interface InstallTarget {
   /** Relative to the workspace root, with forward slashes. */
   readonly dir: string;
   readonly name: string | undefined;
-}
-
-const SHELL_SAFE = /^[\w@%+=:,./-]+$/;
-
-/** `value` as one shell word: unchanged when it is safe, else in single quotes. */
-function shellQuote(value: string): string {
-  return SHELL_SAFE.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 export function installCommand(

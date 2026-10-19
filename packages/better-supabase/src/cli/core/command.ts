@@ -11,6 +11,7 @@ import {
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 import type { Paint } from "../style.ts";
+import type { ConsentRequest } from "./agent.ts";
 import type { CliIo, CommandResult } from "./io.ts";
 import type { CliLog } from "./log.ts";
 
@@ -24,7 +25,7 @@ export interface CliContext {
   readonly configFile?: string;
   /** Loads the config file again, for commands that run until stopped. */
   readonly reloadConfig?: () => Promise<ResolvedConfig>;
-  /** `prompts` is unset in CI and under `--json` or `--yes`. */
+  /** `prompts` is unset in CI, in agent mode and under `--json` or `--yes`. */
   readonly io: CliIo;
   readonly env: CliEnv;
   /** `--json`: return `data`, which `run()` prints as the one JSON document. */
@@ -39,6 +40,13 @@ export interface CliContext {
    * output, or under `--json` one envelope on its own line (NDJSON).
    */
   readonly emit: (result: CommandResult) => void;
+  /** The coding agent running the CLI, in agent mode; `undefined` for a person. */
+  readonly agent: string | undefined;
+  /**
+   * In agent mode, throws `consent_required` until the run passes
+   * `--confirm` with this request's token; does nothing for a person.
+   */
+  readonly requireConsent: (request: ConsentRequest) => void;
 }
 
 /** Options every command accepts; `run()` reads them before the command starts. */
@@ -61,7 +69,21 @@ export const GLOBAL_ARGS = {
   },
   json: {
     type: "boolean",
-    description: "Print one JSON document on stdout; errors as Problem Details",
+    description:
+      "Print one JSON document on stdout; errors as Problem Details. On by default in agent mode",
+    negativeDescription: "Print text, also in agent mode",
+  },
+  agent: {
+    type: "string",
+    description:
+      "Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto",
+    valueHint: "auto|yes|no",
+  },
+  confirm: {
+    type: "string",
+    description:
+      "The token from a consent_required result, passed once the user agreed",
+    valueHint: "token",
   },
   yes: {
     type: "boolean",

@@ -43,20 +43,23 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
 ## Global options
 
-| Option            | Effect                                                                                                                                                                                   |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--cwd <dir>`     | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)). |
-| `--config <file>` | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                   |
-| `--env <name>`    | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                 |
-| `--json`          | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                 |
-| `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
-| `--no-color`      | Prints no ANSI colors on either stream, like `NO_COLOR`.                                                                                                                                 |
-| `--debug`         | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                             |
-| `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
-| `--version`       | Prints the version.                                                                                                                                                                      |
+| Option              | Effect                                                                                                                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cwd <dir>`       | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)).                                                                        |
+| `--config <file>`   | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                                                                                          |
+| `--env <name>`      | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                                                                                        |
+| `--json`            | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                                                                                        |
+| `--agent <mode>`    | Agent mode: `auto` (the default) turns it on when a coding agent runs the CLI, `yes` and `no` decide. Defaults to `$BETTER_SUPABASE_AGENT`. In agent mode, `--json` is on unless you pass `--no-json`, prompts are off, and destructive work waits for consent. |
+| `--confirm <token>` | Runs destructive work that a `consent_required` result named, once the user agreed. The token covers that command line only.                                                                                                                                    |
+| `--yes`, `-y`       | Never prompts; uses the flags and the defaults.                                                                                                                                                                                                                 |
+| `--no-color`        | Prints no ANSI colors on either stream, like `NO_COLOR`.                                                                                                                                                                                                        |
+| `--debug`           | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                                                                                                    |
+| `--help`, `-h`      | Prints the usage of the CLI, or of one command.                                                                                                                                                                                                                 |
+| `--version`         | Prints the version.                                                                                                                                                                                                                                             |
 
-Prompts only run in a terminal. In CI (`$CI` is set), and under `--json` or
-`--yes`, commands use their flags and defaults instead of asking.
+Prompts only run in a terminal. In CI (`$CI` is set), in agent mode, and
+under `--json` or `--yes`, commands use their flags and defaults instead of
+asking.
 
 ## Writing files
 
@@ -93,8 +96,10 @@ with its outcome (`create`, `update`, `unchanged`, `skip` or `remove`).
 ## Exit codes and JSON output
 
 The CLI exits with 0 on success, 1 when a command fails or finds a problem
-(`--check` drift, doctor errors), and 2 when the command line, the config or
-the environment needs a change. Every error has a code, listed on the
+(`--check` drift, doctor errors), 2 when the command line, the config or
+the environment needs a change, and 3 when a person has to act first: give
+a missing value (`input_required`) or agree to destructive work
+(`consent_required`). Every error has a code, listed on the
 [errors page](/docs/cli/errors).
 
 With `--json`, stdout holds exactly one JSON document, the result envelope
@@ -156,6 +161,7 @@ The same failure in a row prints once, and the watch retries every interval.
 | `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
 | `CI`                    | Turns prompts off, and applies the config's `ci` environment                                     |
 | `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                       |
+| `BETTER_SUPABASE_AGENT` | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                   |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the

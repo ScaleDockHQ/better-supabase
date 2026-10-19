@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { text } from "node:stream/consumers";
 
@@ -75,6 +76,8 @@ const result = await run(process.argv.slice(2), {
     },
     stdin: () => text(process.stdin),
     stdinIsTty: process.stdin.isTTY,
+    stdoutIsTty: process.stdout.isTTY,
+    exists: existsSync,
     color: colorEnabled(process.stdout),
     stderrColor: colorEnabled(process.stderr),
     spinner,

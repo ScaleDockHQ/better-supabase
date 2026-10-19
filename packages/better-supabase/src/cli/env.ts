@@ -21,6 +21,8 @@ export interface CliEnv {
   readonly CI?: string | undefined;
   /** The config environment to apply when `--env` is not passed. */
   readonly BETTER_SUPABASE_ENV?: string | undefined;
+  /** Agent mode when `--agent` is not passed: auto, yes or no. `run()` reads it before parsing. */
+  readonly BETTER_SUPABASE_AGENT?: string | undefined;
   /** Every variable of the run, for the processes the CLI starts. */
   readonly [PROCESS_ENV]?: Readonly<Record<string, string | undefined>>;
 }
@@ -68,6 +70,7 @@ export function parseEnv(
       HOME: optionalString,
       CI: optionalString,
       BETTER_SUPABASE_ENV: optionalString,
+      BETTER_SUPABASE_AGENT: optionalString,
     },
     runtimeEnv: env,
     isServer: true,

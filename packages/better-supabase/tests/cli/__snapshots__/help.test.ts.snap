@@ -17,14 +17,16 @@ Options
   --check                          Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Examples
   # Installs two blocks and the modules they require
@@ -54,14 +56,16 @@ Options
   --project-ref <ref>          Read a hosted project through the Management API
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
 Docs: https://bettersupabase.com/docs/cli/presets#adopt
@@ -84,14 +88,16 @@ Options
   --project-ref <ref>          Read a hosted project through the Management API
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files, reads the database with --adopt, calls the Supabase Management API with --project-ref.
 Docs: https://bettersupabase.com/docs/cli/presets#apply
@@ -109,14 +115,16 @@ Commands
   search  Finds blocks by name, description or category
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/presets#blocks
 "
@@ -131,14 +139,16 @@ Options
   --category <name>  One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#blocks
@@ -154,14 +164,16 @@ Arguments
   [text...]  Words to find in block names, titles and descriptions
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#blocks
@@ -177,14 +189,16 @@ Arguments
   [block]  The block to show
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#blocks
@@ -204,14 +218,16 @@ Options
   --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
@@ -231,14 +247,16 @@ Options
   --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
@@ -258,14 +276,16 @@ Options
   --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
@@ -285,14 +305,16 @@ Options
   --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
@@ -311,14 +333,16 @@ Commands
   0.9  Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/codemod
 "
@@ -330,14 +354,16 @@ exports[`help > documents config 1`] = `
 Prints the resolved config: the file it came from, the active environment and every option with its default
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/config#print-the-resolved-config
@@ -366,14 +392,16 @@ Options
   --fix-grants            Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Examples
   # Checks the local database and the project
@@ -399,14 +427,16 @@ Options
   --check               Write nothing; exit 1 with a diff when a file would change
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/local#env
@@ -433,14 +463,16 @@ Options
   --project-ref <ref>  Read a hosted project through the Management API
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Examples
   # Regenerates every file the config sets up
@@ -470,14 +502,16 @@ Options
   --force                                 Overwrite files the CLI did not generate
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Examples
   # Asks what to set up, then writes the files
@@ -505,14 +539,16 @@ Options
   --project-ref <ref>                   Read a hosted project through the Management API
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
 Docs: https://bettersupabase.com/docs/cli/introspect
@@ -531,14 +567,16 @@ Options
   --dry-run     Print what would change and write nothing
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/local#keys
@@ -555,14 +593,16 @@ Commands
   info    Shows the config's preset and how the config differs from it
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/presets#preset
 "
@@ -577,14 +617,16 @@ Arguments
   [preset]  A preset name, a preset code or a /create URL
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#preset
@@ -597,14 +639,16 @@ exports[`help > documents preset info 1`] = `
 Shows the config's preset and how the config differs from it
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#preset
@@ -620,14 +664,16 @@ Commands
   api  Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/scaffold
 "
@@ -648,14 +694,16 @@ Options
   --force              Overwrite files the CLI did not generate
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/scaffold
@@ -677,14 +725,16 @@ Options
   --force         Overwrite files the CLI did not generate
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files, writes to the database with --apply.
 Docs: https://bettersupabase.com/docs/cli/local#seed
@@ -701,14 +751,16 @@ Commands
   install  Copies the skills into each agent's skills folder in the project, or the home folder with --global
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/for-ai-agents
 "
@@ -720,21 +772,23 @@ exports[`help > documents skills install 1`] = `
 Copies the skills into each agent's skills folder in the project, or the home folder with --global
 
 Options
-  --agent <names,...>  cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents
-  --global             Install into your home directory instead of the project
-  --source <dir>       Read skills from this folder instead of the package
-  --check              Write nothing; exit 1 with a diff when a file would change
-  --dry-run            Print what would change, with a diff, and write nothing
+  --for <names,...>  cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents
+  --global           Install into your home directory instead of the project
+  --source <dir>     Read skills from this folder instead of the package
+  --check            Write nothing; exit 1 with a diff when a file would change
+  --dry-run          Print what would change, with a diff, and write nothing
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/for-ai-agents
@@ -750,14 +804,16 @@ Options
   --source <dir>  Read skills from this folder instead of the package
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/for-ai-agents
@@ -774,14 +830,16 @@ Commands
   validate  Validates the documents against their specs and lints them, writing nothing
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/spec
 "
@@ -810,14 +868,16 @@ Options
   --check                   Write nothing; exit 1 with a diff when an output is out of date
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Examples
   # Writes the OpenAPI document
@@ -846,14 +906,16 @@ Options
   --no-cache                Render every output again
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/spec
@@ -874,14 +936,16 @@ Commands
   print    Prints a module's SQL on stdout
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/blocks/sql
 "
@@ -901,14 +965,16 @@ Options
   --allow-hook-overlap  Write modules whose claim the authorization provider's hook already writes
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -925,14 +991,16 @@ Options
   --dry-run          Show what would be written
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -948,14 +1016,16 @@ Options
   --tests-dir <dir>  Where the pgtap module goes. Defaults to sql.testsDir
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -974,14 +1044,16 @@ Options
   --tests-dir <dir>  Where the pgtap module goes. Defaults to sql.testsDir
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -999,14 +1071,16 @@ Options
   --dry-run          Show what would be written
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -1024,14 +1098,16 @@ Options
   --dry-run          Show what would be written
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/blocks/sql
@@ -1073,15 +1149,17 @@ Maintain
   codemod  Rewrites imports, calls and config keys for renamed better-supabase APIs
 
 Global options
-  --cwd <dir>      Project directory
-  --config <file>  Config file, relative to --cwd
-  --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json           Print one JSON document on stdout; errors as Problem Details
-  -y, --yes        Ask nothing; use the flags and the defaults
-  --no-color       Print no colors, like $NO_COLOR
-  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help       Show help
-  --version        Print the version
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+  --version              Print the version
 
 Run better-supabase <command> --help for a command's options.
 Docs: https://bettersupabase.com/docs/cli

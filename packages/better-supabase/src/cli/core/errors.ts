@@ -1,4 +1,4 @@
-import type { CommandResult } from "./io.ts";
+import type { CommandResult, NextStep } from "./io.ts";
 
 /**
  * `1` for a failure or a failed check, `2` for a usage error the caller can
@@ -93,16 +93,24 @@ export interface CliProblem {
   readonly flag?: string;
   /** One line per problem, for `config_invalid` and `env_invalid`. */
   readonly issues?: readonly string[];
+  /** The flags the run needs, for `input_required`. */
+  readonly missing?: readonly string[];
+  /** The values each missing flag takes, the suggested one first. */
+  readonly choices?: Readonly<Record<string, readonly string[]>>;
+  /** The value for `--confirm` once the user agrees, for `consent_required`. */
+  readonly token?: string;
 }
 
 export type CliProblemExtensions = Pick<
   CliProblem,
-  "suggestion" | "flag" | "issues"
+  "suggestion" | "flag" | "issues" | "missing" | "choices" | "token"
 >;
 
 export interface CliErrorOptions extends CliProblemExtensions {
   readonly exitCode?: number;
   readonly cause?: unknown;
+  /** Commands that resolve the error, printed as the envelope's `next`. */
+  readonly next?: readonly NextStep[];
 }
 
 /** An error the CLI reports as text, or as Problem Details under `--json`. */
@@ -111,6 +119,7 @@ export class CliError extends Error {
   readonly code: CliErrorCode;
   readonly exitCode: number;
   readonly problem: CliProblem;
+  readonly next: readonly NextStep[];
 
   constructor(
     code: CliErrorCode,
@@ -121,10 +130,16 @@ export class CliError extends Error {
 
     const [title, defaultExit] = ERRORS[code];
 
-    const { exitCode = defaultExit, cause: _cause, ...extensions } = options;
+    const {
+      exitCode = defaultExit,
+      cause: _cause,
+      next = [],
+      ...extensions
+    } = options;
 
     this.code = code;
     this.exitCode = exitCode;
+    this.next = next;
     this.problem = {
       type: `${CLI_ERRORS_URL}#${code}`,
       title,

@@ -73,6 +73,7 @@ what runs, `--force` only overwrites), so these calls changed:
 | `env --print`                    | `env --out -`                      |
 | `env --from <file>`              | `env --status-file <file>`         |
 | `skills install --from <source>` | `skills install --source <source>` |
+| `skills install --agent <names>` | `skills install --for <names>`     |
 | `sql add --force` (hook overlap) | `sql add --allow-hook-overlap`     |
 
 The old forms exit with code 2 and a `command_moved` error whose

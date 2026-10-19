@@ -99,6 +99,43 @@ describe("seed", () => {
     expect(open.closed()).toBe(1);
   });
 
+  it("asks for consent before inserting into a database that isn't local", async () => {
+    await write("supabase/seed.mjs", SEED);
+    const requests: unknown[] = [];
+
+    const run = (url: string, argv: string[]) =>
+      runSeed(
+        resolveConfig({}, root),
+        parseCommandArgs(seedCommand, [
+          "--entry",
+          "supabase/seed.mjs",
+          ...argv,
+        ]),
+        { DATABASE_URL: url },
+        fakeConnect(fakeSql().pg).connect,
+        undefined,
+        (request) => {
+          requests.push(request);
+        },
+      );
+
+    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
+      "--apply",
+    ]);
+    await run("postgresql://postgres@127.0.0.1:54322/postgres", ["--apply"]);
+    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
+      "--apply",
+      "--dry-run",
+    ]);
+
+    expect(requests).toEqual([
+      {
+        effect: "database-write",
+        detail: "seed --apply inserts rows into db.abc.supabase.co:5432",
+      },
+    ]);
+  });
+
   it("asks for the seed in config.toml unless a glob already covers it", async () => {
     await write("supabase/seed.mjs", SEED);
     await write(

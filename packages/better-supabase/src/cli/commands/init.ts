@@ -169,9 +169,19 @@ async function initTarget(
   const suggested = suggestedPackage(workspace) ?? ".";
 
   if (!prompts) {
+    const others = workspace.packages
+      .map((entry) => entry.dir)
+      .filter((dir) => dir !== suggested);
+
     throw new CliError(
-      "usage",
+      "input_required",
       `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
+      {
+        missing: ["--package"],
+        choices: {
+          "--package": [...new Set([suggested, ...others, "."])],
+        },
+      },
     );
   }
 

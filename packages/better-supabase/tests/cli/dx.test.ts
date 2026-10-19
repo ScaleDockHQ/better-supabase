@@ -142,7 +142,7 @@ describe("init and add", () => {
       },
     );
     const refused = await run(["init", "--cwd", dir]);
-    expect(refused.code).toBe(2);
+    expect(refused.code).toBe(3);
     expect(refused.stderr).toContain(
       "pnpm-workspace.yaml makes this a workspace root. Pass --package with the package that owns the runtime (apps/web, packages/runtime)",
     );
@@ -842,7 +842,7 @@ describe("skills", () => {
     const agents = await run([
       "skills",
       "install",
-      "--agent",
+      "--for",
       "agents",
       "--cwd",
       dir,
@@ -852,7 +852,7 @@ describe("skills", () => {
       ".agents/skills/better-supabase-api/SKILL.md",
     );
     expect(
-      (await run(["skills", "install", "--agent", "vim", "--cwd", dir])).code,
+      (await run(["skills", "install", "--for", "vim", "--cwd", dir])).code,
     ).toBe(2);
   });
 });
