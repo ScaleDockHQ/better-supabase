@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_DEFAULTS } from "../../src/config/defaults.ts";
 import { GEN_TASKS, INTEGRATION_NAMES } from "../../src/config/names.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
+import { tenantNames } from "../../src/core/tenant-naming.ts";
+import { registeredSubjects } from "../../src/sql/subject-registry.ts";
 
 describe("CONFIG_DEFAULTS", () => {
   const resolved = resolveConfig({}, "/app");
@@ -26,6 +28,29 @@ describe("CONFIG_DEFAULTS", () => {
     expect(
       resolveConfig({ gen: { watchInterval: 500 } }, "/app").gen.watchInterval,
     ).toBe(500);
+  });
+
+  it("names the tenant column after sql.naming.tenant", () => {
+    expect(
+      resolveConfig({ plugins: { tenant: true } }, "/app").plugins,
+    ).toEqual(
+      expect.objectContaining({ tenant: { column: "organization_id" } }),
+    );
+    expect(
+      resolveConfig(
+        { plugins: { tenant: true }, sql: { naming: { tenant: "workspace" } } },
+        "/app",
+      ).plugins.tenant,
+    ).toEqual({ column: "workspace_id" });
+    expect(
+      registeredSubjects(
+        { deal: { table: "public.deals" } },
+        tenantNames("workspace"),
+      )[0]?.tenant,
+    ).toBe('"workspace_id"');
+    expect(
+      registeredSubjects({ deal: { table: "public.deals" } })[0]?.tenant,
+    ).toBe('"organization_id"');
   });
 
   it("keeps the name tuples unique", () => {

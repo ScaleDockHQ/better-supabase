@@ -117,7 +117,7 @@ function build(ctx: ModuleContext): string {
     return "";
   }
 
-  const subjects = registeredSubjects(ctx.subjects);
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming);
   const fn = (name: string): string => ctx.fn(name);
 
   return `${schemaPreamble(ctx)}

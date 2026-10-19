@@ -6,6 +6,7 @@ import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { tenantNames } from "../core/tenant-naming.ts";
 import { expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
@@ -248,7 +249,11 @@ export function resolveConfig(
         updatedAt: "updated_at",
       }),
       softDelete: pick(config.plugins?.softDelete, { column: "deleted_at" }),
-      tenant: pick(config.plugins?.tenant, { column: "organization_id" }),
+      tenant: pick(config.plugins?.tenant, {
+        column: tenantNames(config.sql?.naming?.tenant).rename(
+          "organization_id",
+        ),
+      }),
       actor: pick(config.plugins?.actor, {
         createdBy: "created_by",
         updatedBy: "updated_by",
