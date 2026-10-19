@@ -35,7 +35,9 @@ Imports stay at the top of the module. The exceptions are optional
     `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
     the class is defined (an install message; ADR 0014). CLI startup work
-    also loads on demand, each with a comment: the commands in
+    also loads on demand, each with a comment: the CLI itself in the bin
+    shim `bin/better-supabase.js`, which answers a bare `--version` without
+    it, the commands in
     `src/cli/builtin-commands.ts`, config loading and env validation in
     `src/cli/core/run.ts`, `fastest-levenshtein` for the unknown-command and
     unknown-option suggestions in `src/cli/core/parse.ts`, the prompts in

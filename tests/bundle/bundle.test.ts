@@ -11,6 +11,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
 const CLI_BIN = resolve(PACKAGE, "dist/cli/bin.js");
+const SHIM = resolve(PACKAGE, "bin/better-supabase.js");
+
+/** The region comments Rolldown leaves around each source module in a chunk. */
+const COMMAND_REGION = /^\/\/#region (src\/cli\/commands\/\S+)/gm;
 
 /** The CLI's startup cost: what `better-supabase --version` loads before any command. */
 const CLI_STARTUP = "better-supabase CLI (startup)";
@@ -384,6 +388,49 @@ describe("bundle", () => {
       ]);
 
       expect(Number(stdout.trim())).toBeGreaterThan(0);
+    },
+  );
+
+  it("keeps command modules out of the CLI startup chunks", async () => {
+    const startup = closures.get(CLI_STARTUP)!;
+    const eager: string[] = [];
+
+    for (const file of startup.files) {
+      const source = await readFile(file, "utf-8");
+
+      for (const [, module] of source.matchAll(COMMAND_REGION)) {
+        eager.push(`${file.slice(PACKAGE.length + 1)} bundles ${module}`);
+      }
+    }
+
+    expect(eager).toEqual([]);
+    expect(
+      startup.externals.filter(
+        (name) => !BUILTINS.has(name) && name !== "citty",
+      ),
+    ).toEqual([]);
+  });
+
+  it(
+    "answers root --help about as fast as --version",
+    { timeout: 60_000 },
+    async () => {
+      const median = async (argv: readonly string[]): Promise<number> => {
+        const times: number[] = [];
+
+        for (let index = 0; index < 7; index += 1) {
+          const start = performance.now();
+          await promisify(execFile)(process.execPath, [SHIM, ...argv]);
+          times.push(performance.now() - start);
+        }
+
+        return times.toSorted((a, b) => a - b)[3]!;
+      };
+
+      const version = await median(["--version"]);
+      const help = await median(["--help"]);
+
+      expect(help).toBeLessThan(Math.max(version * 2, version + 50));
     },
   );
 
