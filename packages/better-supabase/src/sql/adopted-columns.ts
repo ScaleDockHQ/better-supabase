@@ -2,6 +2,7 @@ import type { AnyBlocksConfig } from "../config/blocks.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
+import { moduleBody } from "./render.ts";
 import {
   declaredColumnTypes,
   declaredEnums,
@@ -26,29 +27,44 @@ export interface AdoptedTable {
   readonly textColumns: readonly string[];
 }
 
-let computed: ReadonlyMap<string, ReadonlySet<string>> | undefined;
+const rendered = (render: () => string | undefined): string => {
+  try {
+    return render() ?? "";
+  } catch {
+    return "";
+  }
+};
 
-function moduleWrites(): ReadonlyMap<string, ReadonlySet<string>> {
-  computed ??= computedWrites(
+let defaults: ReadonlyMap<string, ReadonlySet<string>> | undefined;
+
+function defaultWrites(): ReadonlyMap<string, ReadonlySet<string>> {
+  defaults ??= computedWrites(
     Object.values(SQL_MODULES)
-      .flatMap((module) => {
-        try {
-          return [module.sql];
-        } catch {
-          return [];
-        }
-      })
+      .map((module) => rendered(() => module.sql))
       .join("\n"),
   );
 
-  return computed;
+  return defaults;
 }
 
-const managedText = new Map<string, ReadonlyMap<string, readonly string[]>>();
+function configuredWrites(
+  modules: AnyBlocksConfig,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  return computedWrites(
+    Object.keys(modules)
+      .map((name) => rendered(() => moduleBody(name, { modules })))
+      .join("\n"),
+  );
+}
+
+const managedText = new Map<
+  string,
+  ReadonlyMap<string, readonly (readonly [string, boolean])[]>
+>();
 
 function managedTextColumns(
   module: string,
-): ReadonlyMap<string, readonly string[]> {
+): ReadonlyMap<string, readonly (readonly [string, boolean])[]> {
   const cached = managedText.get(module);
 
   if (cached !== undefined) {
@@ -57,20 +73,20 @@ function managedTextColumns(
 
   const definition = SQL_MODULES[module];
   const ctx = moduleContext(module, {});
-  const tables = new Map<string, readonly string[]>();
+  const tables = new Map<string, readonly (readonly [string, boolean])[]>();
 
   if (definition?.names !== undefined) {
     const types = declaredColumnTypes(
-      [{ text: definition.sql }],
+      [{ text: rendered(() => definition.sql) }],
       [ctx.schemaName],
     );
 
     for (const [logical, spec] of Object.entries(definition.names.tables)) {
       const { schema, name } = ctx.tableName(logical);
       const declared = types.get(`${schema}.${name}`);
-      const written = moduleWrites().get(`${schema}.${name}`);
+      const written = defaultWrites().get(`${schema}.${name}`);
 
-      if (declared === undefined || written === undefined) {
+      if (declared === undefined) {
         continue;
       }
 
@@ -80,10 +96,12 @@ function managedTextColumns(
           .filter(
             ([column, physical]) =>
               declared.get(physical) === "text" &&
-              written.has(physical) &&
               spec.typed?.includes(column) !== true,
           )
-          .map(([column]) => column),
+          .map(([column, physical]) => [
+            column,
+            written?.has(physical) === true,
+          ]),
       );
     }
   }
@@ -101,6 +119,12 @@ export function adoptedTables(
   modules: AnyBlocksConfig,
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
+
+  const written = Object.values(modules).some(
+    (config) => config?.mode === "adopt",
+  )
+    ? configuredWrites(modules)
+    : new Map<string, ReadonlySet<string>>();
 
   for (const name of Object.keys(modules)) {
     if ((modules[name]?.mode ?? "managed") !== "adopt") {
@@ -144,9 +168,15 @@ export function adoptedTables(
         schema,
         table: tableName,
         columns,
-        textColumns: (text.get(logical) ?? []).filter(
-          (column) => column in columns,
-        ),
+        textColumns: (text.get(logical) ?? [])
+          .filter(
+            ([column, byDefault]) =>
+              column in columns &&
+              (byDefault ||
+                written.get(`${schema}.${tableName}`)?.has(columns[column]!) ===
+                  true),
+          )
+          .map(([column]) => column),
       });
     }
 

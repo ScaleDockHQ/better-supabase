@@ -198,4 +198,34 @@ create table public.app_events (
 
     expect(table?.textColumns).toEqual(["period"]);
   });
+
+  it("reads the writes the module's options add", () => {
+    const tables = { history: "public.status_history" };
+
+    const machines = {
+      quote: {
+        table: "public.quotes",
+        column: "status",
+        initial: "draft",
+        transitions: { draft: ["sent"] },
+      },
+    };
+
+    const history = (options?: Record<string, unknown>) =>
+      adoptedTables({
+        "state-machine": {
+          mode: "adopt",
+          tables,
+          ...(options ? { options } : {}),
+        },
+      }).find((table) => table.logical === "history")?.textColumns;
+
+    expect(history()).toEqual([]);
+    expect(history({ machines })).toEqual([
+      "subjectId",
+      "fromStatus",
+      "toStatus",
+      "reason",
+    ]);
+  });
 });
