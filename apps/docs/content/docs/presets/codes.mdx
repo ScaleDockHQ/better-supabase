@@ -97,8 +97,9 @@ The `0` stays the encoding. The JSON's own format goes in a `version` key,
 which `encodeDesign` writes only for a design that needs it:
 `designFormat(design)` returns `1` when a table or column uses a key added
 after the first release (`format`, `options`, `min`, `max`, `comment`,
-`identity`, or a table's `id`, `unique`, `indexes` or `comment`), and `0`
-otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
+`identity`, or a table's `id`, `unique`, `indexes` or `comment`), `2` when
+a table has a `subject`, `3` when a table has `rollups` or `lookups`, and
+`0` otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
 the newest format this release reads; a code with a higher `version` fails
 with a message to update better-supabase instead of losing keys.
 
@@ -123,7 +124,9 @@ is kept instead of dropped, as `apply` merges a design. Each `DesignChange`
 has a `kind`, the `table` and `column`, a one-sentence `summary`, and
 `breaking`. A dropped or renamed table or column, a type change and a column
 made required without a default are breaking, and their `steps` give the
-expand-and-contract migration that makes them safe:
+expand-and-contract migration that makes them safe. A change to a table's
+rollups or lookups is the safe `table.computed`, because their view keeps
+no rows:
 
 ```ts
 import { diffAppTables } from "better-supabase/preset";
