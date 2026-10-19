@@ -1,6 +1,10 @@
 import type { ModuleContext } from "../context.ts";
 
 import {
+  CUSTOM_FIELD_FORM_TYPES,
+  RATING_BOUNDS,
+} from "../../core/contracts/field-formats.ts";
+import {
   FORM_DEFINITION_SCHEMA,
   FORM_MAX_LENGTH,
   FORM_SCHEMA_DIALECT,
@@ -13,6 +17,25 @@ const textMax = (type: keyof typeof FORM_MAX_LENGTH): string =>
 const definitionInvalid = (errors: string): string =>
   `raise exception 'the form definition is invalid: %', array_to_string(${errors}, '; ')
       using errcode = '22023', detail = to_jsonb(${errors})::text, hint = 'FORM_DEFINITION_INVALID';`;
+
+/** The form field type a custom field type answers as (`CUSTOM_FIELD_FORM_TYPES`). */
+function formTypeOf(type: string): string {
+  const renamed = Object.entries(CUSTOM_FIELD_FORM_TYPES)
+    .filter(([custom, form]) => custom !== form)
+    .map(
+      ([custom, form]) => `when ${sqlString(custom)} then ${sqlString(form)}`,
+    )
+    .join(" ");
+
+  return `case ${type} ${renamed} else ${type} end`;
+}
+
+/** The bounds a rating field answers within, unless the form field sets its own. */
+function formBoundsOf(type: string): string {
+  const [min, max] = RATING_BOUNDS;
+
+  return `case when ${type} = 'rating' then jsonb_build_object('min', ${String(min)}, 'max', ${String(max)}) else '{}'::jsonb end`;
+}
 
 function customFieldResolve(ctx: ModuleContext): string {
   const problem = (message: string): string => `v_problem := ${message};
@@ -32,7 +55,7 @@ function customFieldResolve(ctx: ModuleContext): string {
   // A constant query would make plpgsql_check resolve the table when it is missing.
   const options = cf.hasTable("options")
     ? `
-        if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass(${sqlString(cf.table("options"))}) is not null then
+        if v_custom ->> 'type' in ('option', 'multi') and not v_field ? 'options' and to_regclass(${sqlString(cf.table("options"))}) is not null then
           execute format(${sqlString(`select jsonb_agg(jsonb_build_object('value', o.${o("value")}, 'label', o.${o("label")}) order by o.${o("value")}) from %s o where o.${o("definition")} = $1`)}, to_regclass(${sqlString(cf.table("options"))}))
             into v_options using (v_field ->> 'customField')::uuid;
           v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));
@@ -40,7 +63,8 @@ function customFieldResolve(ctx: ModuleContext): string {
     : "";
 
   return `if v_field ? 'customField' then
-        select jsonb_strip_nulls(jsonb_build_object('label', d.${d("label")}, 'type', d.${d("type")}, 'required', d.${d("required")}))
+        select jsonb_strip_nulls(jsonb_build_object('label', d.${d("label")}, 'type', ${formTypeOf(`d.${d("type")}`)}, 'required', d.${d("required")}))
+            || ${formBoundsOf(`d.${d("type")}`)}
           into v_custom
           from ${cf.table("definitions")} d
           where d.${d("id")} = (v_field ->> 'customField')::uuid and d.${d("tenant")} = form_resolve.tenant;

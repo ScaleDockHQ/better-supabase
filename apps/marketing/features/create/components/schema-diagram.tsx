@@ -98,6 +98,7 @@ const schemaResponse = v.union([
               table: v.string(),
               columns: v.array(v.string()),
             }),
+            onDelete: v.string(),
           }),
         ),
         tenantColumn: v.nullable(v.string()),
@@ -283,7 +284,7 @@ function SchemaView({
   const data = merged;
   const { tables } = data;
   const relations = schemaRelations(tables);
-  const issues = designIssues(designState.design, data);
+  const issues = designIssues(designState.design, data, preset);
 
   const notes = pkg !== undefined || placeholder || issues.length > 0;
 

@@ -35,6 +35,80 @@ const TABLES: AppTablesConfig = {
   },
 };
 
+const FORMATS: AppTablesConfig = {
+  contacts: {
+    id: "bigint",
+    comment: "People the team talks to.",
+    unique: [["organization_id", "code"]],
+    indexes: [["stage", "created_at"]],
+    columns: {
+      number: { type: "bigint", identity: true },
+      email: { type: "text", format: "email" },
+      website: { type: "text", format: "url" },
+      phone: { type: "text", format: "phone" },
+      stage: { type: "text", options: ["lead", "won", "it's lost"] },
+      labels: { type: "text[]", options: ["red", "blue"] },
+      score: { type: "integer", format: "rating" },
+      share: { type: "numeric", format: "percent", max: 50 },
+      code: {
+        type: "text",
+        min: 2,
+        max: 8,
+        comment: "The short code, unique per tenant.",
+      },
+      price_minor: { type: "bigint", format: "currency" },
+      price_currency: { type: "text", min: 3, max: 3 },
+    },
+  },
+  notes: {
+    columns: {
+      contact_id: {
+        type: "bigint",
+        references: { table: "contacts", onDelete: "cascade" },
+      },
+    },
+  },
+};
+
+const COMPUTED: AppTablesConfig = {
+  projects: {
+    columns: { name: { type: "text", nullable: false } },
+    rollups: {
+      done_tasks: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "count",
+        where: { column: "status", equals: "done" },
+      },
+      estimate_total: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "sum",
+        column: "estimate",
+      },
+      last_due: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "max",
+        column: "due_on",
+      },
+    },
+  },
+  tasks: {
+    columns: {
+      project_id: {
+        type: "uuid",
+        nullable: false,
+        references: { table: "projects", onDelete: "cascade" },
+      },
+      status: { type: "text", options: ["todo", "done"] },
+      estimate: { type: "integer" },
+      due_on: { type: "date" },
+    },
+    lookups: { project_name: { via: "project_id", column: "name" } },
+  },
+};
+
 const BLOCKS = ["tenant", "organizations", "updated-at"];
 
 function render(
@@ -82,6 +156,50 @@ describe("appTables SQL", () => {
     await expect(
       golden(render([], { scope: "none", appTables: TABLES })),
     ).toMatchFileSnapshot("__golden__/app-tables/none.sql");
+  });
+
+  it("renders a subject's rank and soft-delete columns and its search trigger", async () => {
+    const appTables: AppTablesConfig = {
+      projects: {
+        columns: {
+          name: { type: "text", nullable: false },
+          stage: { type: "text" },
+        },
+        subject: {
+          type: "project",
+          title: "name",
+          search: {},
+          rank: { group: "stage" },
+          softDelete: true,
+        },
+      },
+    };
+
+    const files = render([...BLOCKS, "subjects", "search"], {
+      appTables,
+      subjects: {
+        project: {
+          table: "public.projects",
+          idType: "uuid",
+          title: "name",
+          search: {},
+          deletedAt: "deleted_at",
+          rank: { column: "rank", group: "stage" },
+        },
+      },
+    });
+
+    const search = renderModules([...BLOCKS, "subjects", "search"], {
+      appTables,
+      subjects: {
+        project: { table: "public.projects", title: "name", search: {} },
+      },
+    }).find((file) => file.module === "search" && file.kind === "schema");
+
+    expect(search?.contents).not.toContain("bs_search_project_index");
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/subject.sql",
+    );
   });
 
   it("renders the golden SQL with the tenant renamed", async () => {
@@ -180,8 +298,135 @@ describe("appTables SQL", () => {
     );
   });
 
+  it("renders the golden SQL of formats, options, bounds and keys", async () => {
+    await expect(
+      golden(render(BLOCKS, { appTables: FORMATS })),
+    ).toMatchFileSnapshot("__golden__/app-tables/formats.sql");
+  });
+
+  it("names each check and unique key, and drops it before adding it", () => {
+    const [schema, test] = render(BLOCKS, { appTables: FORMATS });
+
+    expect(schema?.contents).toContain(
+      `alter table "public"."contacts" drop constraint if exists "contacts_email_check";
+alter table "public"."contacts" add constraint "contacts_email_check" check ("email" ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');`,
+    );
+    expect(schema?.contents).toContain(
+      `check ("stage" in ('lead', 'won', 'it''s lost'))`,
+    );
+    expect(schema?.contents).toContain(
+      `check ("labels" <@ array['red', 'blue']::text[])`,
+    );
+    expect(schema?.contents).toContain(`check ("score" >= 1 and "score" <= 5)`);
+    expect(schema?.contents).toContain(
+      `check (char_length("code") >= 2 and char_length("code") <= 8)`,
+    );
+    expect(schema?.contents).toContain(
+      `check (char_length("price_currency") >= 3 and char_length("price_currency") <= 3)`,
+    );
+    expect(schema?.contents).toContain(
+      `add constraint "contacts_organization_id_code_key" unique ("organization_id", "code");`,
+    );
+    expect(schema?.contents).toContain(
+      `create index if not exists "contacts_stage_created_at_idx" on "public"."contacts" ("stage", "created_at");`,
+    );
+    expect(schema?.contents).toContain(
+      `comment on column "public"."contacts"."code" is 'The short code, unique per tenant.';`,
+    );
+    expect(schema?.contents).toContain(
+      `add column if not exists "number" bigint generated by default as identity;`,
+    );
+    expect(schema?.contents).toContain(
+      "id bigint generated by default as identity primary key",
+    );
+    expect(test?.contents).toContain(
+      `select extensions.col_has_check('public'::name, 'contacts'::name, 'email'::name,`,
+    );
+    expect(test?.contents).not.toContain(`'phone'::name`);
+  });
+
+  it("checks the tenant of a reference between tenant-scoped tables", () => {
+    const [schema, test] = render(BLOCKS, {
+      appTables: {
+        ...TABLES,
+        folders: {
+          columns: {
+            parent_id: {
+              type: "uuid",
+              references: { table: "folders", onDelete: "set null" },
+            },
+          },
+        },
+        drafts: {
+          scope: "user",
+          columns: {
+            project_id: { type: "uuid", references: { table: "projects" } },
+          },
+        },
+      },
+    });
+
+    expect(schema?.contents).toContain(
+      'add column if not exists "project_id" uuid not null;',
+    );
+    expect(schema?.contents).toContain(
+      `create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);`,
+    );
+    expect(schema?.contents).toContain(
+      `alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
+alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;`,
+    );
+    expect(schema?.contents).toContain(
+      `foreign key ("organization_id", "parent_id") references "public"."folders" ("organization_id", id) on delete set null ("parent_id");`,
+    );
+    expect(schema?.contents).toContain(
+      `add column if not exists "project_id" uuid references "public"."projects" (id);`,
+    );
+    expect(test?.contents).toContain(
+      `'public.tasks.project_id references a row of the same tenant'`,
+    );
+  });
+
+  it("renders the golden SQL of rollups and lookups as a view", async () => {
+    await expect(
+      golden(render(BLOCKS, { appTables: COMPUTED })),
+    ).toMatchFileSnapshot("__golden__/app-tables/computed.sql");
+  });
+
+  it("reads rollups and lookups through a security_invoker view", () => {
+    const [schema, test] = render(BLOCKS, { appTables: COMPUTED });
+
+    expect(schema?.contents).toContain(
+      `create view "public"."projects_view" with (security_invoker = true) as`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select count(*) as value from "public"."tasks" c where c."project_id" = t.id and c."status" = 'done') r0 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select coalesce(sum(c."estimate"), 0) as value from "public"."tasks" c where c."project_id" = t.id) r1 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `left join lateral (select r."name" as value from "public"."projects" r where r.id = t."project_id") l0 on true`,
+    );
+    expect(schema?.contents).toContain(
+      `grant select on "public"."tasks_view" to authenticated;`,
+    );
+    expect(test?.contents).toContain(
+      `'public.projects_view runs with the caller''s row level security'`,
+    );
+    expect(test?.contents).toContain(
+      `select extensions.is((select count(*)::integer from "public"."projects_view"), 0, 'a stranger sees no rows of public.projects_view');`,
+    );
+  });
+
+  it("renders no view for a table without rollups or lookups", () => {
+    const [schema] = render(BLOCKS, { appTables: TABLES });
+
+    expect(schema?.contents).not.toContain("create view");
+  });
+
   it("counts every check in the pgTAP plan", () => {
-    const [, test] = render(BLOCKS, { appTables: TABLES });
+    const [, test] = render(BLOCKS, { appTables: COMPUTED });
 
     const checks = (test?.contents ?? "")
       .split("\n")
@@ -245,6 +490,17 @@ describe("appTables SQL errors", () => {
       }),
     ).toThrow(
       "appTables.tags: the tags block already keeps a table named tags; choose another name",
+    );
+  });
+
+  it("refuses a composite key on a column the table lacks", () => {
+    expect(() =>
+      render(["updated-at"], {
+        scope: "user",
+        appTables: { items: { unique: [["organization_id"]] } },
+      }),
+    ).toThrow(
+      'appTables.items.unique: the table has no column "organization_id" (id, user_id, created_at, updated_at)',
     );
   });
 

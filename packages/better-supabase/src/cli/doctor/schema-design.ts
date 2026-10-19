@@ -1,3 +1,4 @@
+import type { AppColumnType } from "../../config/index.ts";
 import type {
   CatalogForeignKey,
   CatalogIndex,
@@ -16,6 +17,20 @@ import {
   qualified,
   tableObject,
 } from "./shared.ts";
+
+/** The `format` the database reports for each app column type. */
+const APP_COLUMN_FORMAT: Readonly<Record<AppColumnType, string>> = {
+  text: "text",
+  uuid: "uuid",
+  integer: "int4",
+  bigint: "int8",
+  numeric: "numeric",
+  boolean: "bool",
+  timestamptz: "timestamptz",
+  date: "date",
+  jsonb: "jsonb",
+  "text[]": "_text",
+};
 
 /**
  * Whether a partial index's predicate only skips rows where a key column is
@@ -518,5 +533,60 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
           return found;
         }),
       ),
+  },
+  {
+    code: "BS228",
+    severity: "warning",
+    title: "App table column drifted from appTables",
+    description:
+      "A column of an app table has a different type or nullability in the database than `appTables` gives it, usually after an edit by hand or a migration that wasn't regenerated. `gen` types the column from `appTables`, so the app reads values the database doesn't hold. A table or column the database doesn't have yet is left out: that is a migration not applied.",
+    check: (context) => {
+      const columns = new Map(
+        context.snapshot.generator.columns
+          .filter((column) => column.schema === "public")
+          .map((column) => [`${column.table}.${column.name}`, column]),
+      );
+
+      return Object.entries(context.config.appTables).flatMap(
+        ([table, config]) =>
+          Object.entries(config.columns ?? {}).flatMap(
+            ([name, column]): FindingInput[] => {
+              const found = columns.get(`${table}.${name}`);
+
+              if (found === undefined) {
+                return [];
+              }
+
+              const format = APP_COLUMN_FORMAT[column.type];
+              const nullable = column.nullable !== false;
+
+              const drift = [
+                ...(found.format === format
+                  ? []
+                  : [
+                      `is ${found.format} in the database and ${column.type} in appTables`,
+                    ]),
+                ...(found.is_nullable === nullable
+                  ? []
+                  : [
+                      nullable
+                        ? "is not null in the database and nullable in appTables"
+                        : "is nullable in the database and required in appTables",
+                    ]),
+              ];
+
+              return drift.length === 0
+                ? []
+                : [
+                    {
+                      message: `public.${table}.${name} ${drift.join(", and ")}. Change appTables to match the database, or regenerate the migration with \`better-supabase sql sync\` and apply it. Follow the expand-and-contract steps from \`better-supabase apply\` when rows depend on the old shape.`,
+                      target: `public.${table}.${name}`,
+                      object: { kind: "table", schema: "public", name: table },
+                    },
+                  ];
+            },
+          ),
+      );
+    },
   },
 ];

@@ -23,8 +23,15 @@ export { expandPreset, presetConfig, presetOf } from "./config.ts";
 export { appReservedColumns, isAppDefault } from "../config/app-tables.ts";
 
 export {
+  APP_COLUMN_FORMATS,
+  type AppColumnFormat,
+} from "../config/types/app-tables.ts";
+
+export {
   decodeDesign,
+  DESIGN_FORMAT,
   DesignTooLongError,
+  designFormat,
   designApplyCommand,
   designConfig,
   designConfigSource,
@@ -36,6 +43,14 @@ export {
 } from "./design.ts";
 
 export type { CreateDesign } from "./design.ts";
+
+export { diffAppTables, diffDesigns } from "./design-diff.ts";
+
+export type {
+  DesignChange,
+  DesignChangeKind,
+  DiffOptions,
+} from "./design-diff.ts";
 
 export type { PresetInput } from "./config.ts";
 

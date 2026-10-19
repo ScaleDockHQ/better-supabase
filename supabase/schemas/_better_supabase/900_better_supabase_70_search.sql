@@ -165,6 +165,13 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid
         and s."deleted_at" is null;
       v_found := found;
+    when 'project' then
+      select s."organization_id", s."name"::text, null, '/projects/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "public"."projects" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."deleted_at" is null;
+      v_found := found;
     else
       raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
@@ -292,6 +299,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'drive_node' then
     for v_id in select s."id"::text from "better_supabase"."drive_nodes" s loop
       if "better_supabase"."search_refresh"('drive_node', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if (search_reindex.subject_type is null or search_reindex.subject_type = 'project') and to_regclass('"public"."projects"') is not null then
+    for v_id in select s."id"::text from "public"."projects" s loop
+      if "better_supabase"."search_refresh"('project', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

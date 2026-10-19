@@ -297,7 +297,8 @@ Restrictive policies only narrow access, so doctor skips them.
 
 **Warning: tenant column without an index.** With the
 [tenant plugin](/docs/plugins), every query filters on the tenant column. Add
-an index that starts with it.
+an index that starts with it. Views are left out, because a query on a view
+uses the indexes of its tables.
 
 ### BS205
 
@@ -439,8 +440,9 @@ Four kinds of column don't count. A single-column primary key doesn't, because
 its uniqueness stops a write from taking over another row. A tenant column
 doesn't when every policy for the write pins it without an `or`, to
 `better_supabase.current_tenant_id()`, to `better_supabase.can('tenant', column, ...)`
-or to `column in (select better_supabase.tenant_ids_with(...))`, so a write can
-only name a tenant the caller already acts in or holds the permission in. A
+or to `column in (select better_supabase.tenant_ids_with(...))` or
+`column in (select better_supabase.member_organization_ids())`, so a write can
+only name a tenant the caller is a member of or holds the permission in. A
 subject's `deletedAt` column in `config.subjects` doesn't: `can_subject`
 filters soft-deleted rows out of a check that the row's own policies already
 pass, so clearing the column only shows a row again to someone who could
@@ -652,6 +654,19 @@ each line in `doctor.sources` that sets either. Use `pagination: "cursor"`
 unless the UI needs page numbers, keep `[api] max_rows` set so no request
 reads a whole table, and use `count: "planned"` or `"estimated"` on tables
 that can grow large.
+
+### BS228
+
+**Warning: app table column drifted from `appTables`.** A column of an app
+table has a different type or nullability in the database than
+[`appTables`](/docs/blocks/app-tables) gives it, usually after an edit by
+hand or a migration that wasn't regenerated. `gen` types the column from
+`appTables`, so the app reads values the database doesn't hold. Change
+`appTables` to match the database, or run `better-supabase sql sync` and
+apply the migration it generates. When rows depend on the old shape, follow
+the expand-and-contract steps that `apply --preset` prints for a breaking
+change. A table or column the database doesn't have yet is left out, since
+that is a migration not applied.
 
 ## Drift
 

@@ -256,6 +256,7 @@ export const projectsRow: v.GenericSchema<RowOf<'projects'>> = v.pipe(v.object({
   currency: v.string(),
   leadId: v.nullable(v.pipe(v.string(), v.uuid())),
   labelId: v.nullable(v.pipe(v.string(), v.uuid())),
+  deletedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Projects"));
 export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -267,6 +268,7 @@ export const projectsInsert: v.GenericSchema<InsertOf<'projects'>> = v.pipe(v.ob
   currency: v.exactOptional(v.string()),
   leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
 }), v.title("Projects insert"));
 export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -278,7 +280,24 @@ export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.ob
   currency: v.exactOptional(v.string()),
   leadId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   labelId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
 }), v.title("Projects update"));
+
+export const projectsViewRow: v.GenericSchema<RowOf<'projectsView'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  name: v.string(),
+  budgetMinor: v.pipe(v.number(), v.integer()),
+  currency: v.string(),
+  leadId: v.nullable(v.pipe(v.string(), v.uuid())),
+  labelId: v.nullable(v.pipe(v.string(), v.uuid())),
+  deletedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+  openTasks: v.nullable(v.pipe(v.number(), v.integer())),
+  doneTasks: v.nullable(v.pipe(v.number(), v.integer())),
+  nextDueOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+}), v.title("Projects view"), v.description("The rollups and lookups of public.projects, read with the caller's row level security."));
 
 export const savedViewsRow: v.GenericSchema<RowOf<'savedViews'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
@@ -352,6 +371,61 @@ export const tagsUpdate: v.GenericSchema<UpdateOf<'tags'>> = v.pipe(v.object({
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Tags update"));
 
+export const tasksRow: v.GenericSchema<RowOf<'tasks'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  title: v.pipe(v.string(), v.maxLength(200)),
+  status: v.picklist(["todo", "doing", "done"]),
+  startsOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  dueOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  assigneeId: v.nullable(v.pipe(v.string(), v.uuid())),
+  projectId: v.pipe(v.string(), v.uuid()),
+  rank: v.string(),
+}), v.title("Tasks"));
+export const tasksInsert: v.GenericSchema<InsertOf<'tasks'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  title: v.pipe(v.string(), v.maxLength(200)),
+  status: v.exactOptional(v.picklist(["todo", "doing", "done"])),
+  startsOn: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoDate()))),
+  dueOn: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoDate()))),
+  assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  projectId: v.pipe(v.string(), v.uuid()),
+  rank: v.exactOptional(v.string()),
+}), v.title("Tasks insert"));
+export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  title: v.exactOptional(v.pipe(v.string(), v.maxLength(200))),
+  status: v.exactOptional(v.picklist(["todo", "doing", "done"])),
+  startsOn: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoDate()))),
+  dueOn: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoDate()))),
+  assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
+  projectId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  rank: v.exactOptional(v.string()),
+}), v.title("Tasks update"));
+
+export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  title: v.string(),
+  status: v.string(),
+  startsOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  dueOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  assigneeId: v.nullable(v.pipe(v.string(), v.uuid())),
+  projectId: v.pipe(v.string(), v.uuid()),
+  rank: v.string(),
+  projectName: v.nullable(v.string()),
+}), v.title("Tasks view"), v.description("The rollups and lookups of public.tasks, read with the caller's row level security."));
+
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
@@ -367,6 +441,7 @@ export const validators: {
   readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
+  readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
@@ -381,4 +456,5 @@ export const validators: {
   savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
+  tasks: { insert: tasksInsert, update: tasksUpdate },
 };

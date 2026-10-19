@@ -10,6 +10,7 @@ export type NavId =
   | "availability"
   | "work"
   | "workGrid"
+  | "projects"
   | "approvals"
   | "contacts"
   | "deals"
@@ -71,6 +72,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "work_items.read",
   },
+  { id: "projects", href: "/projects", group: "workspace" },
   {
     id: "approvals",
     href: "/approvals",

@@ -3,15 +3,34 @@ title: Custom fields
 description: Field definitions, options and typed values, with a permission check for sensitive values.
 ---
 
-`custom-fields` stores definitions (`entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`) and one typed value per subject. Types are `text`, `number`, `date`, `bool`, `option` and `json`.
+`custom-fields` stores definitions (`entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`) and one typed value per subject.
 
 ```bash
 better-supabase add custom-fields
 ```
 
 ```ts
-import { createCustomFields } from "better-supabase/blocks/custom-fields";
+import {
+  CUSTOM_FIELD_TYPES,
+  createCustomFields,
+} from "better-supabase/blocks/custom-fields";
 ```
+
+## Types
+
+`CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/blocks/app-tables), so a field and a column that hold the same thing use the same word.
+
+| Type                                     | Holds                         | Forms field type          |
+| ---------------------------------------- | ----------------------------- | ------------------------- |
+| `text`, `number`, `date`, `bool`, `json` | the value                     | the same name             |
+| `option`                                 | one option value              | `option`                  |
+| `multi_option`                           | a JSON array of option values | `multi`                   |
+| `email`, `url`                           | an address                    | `email`, `url`            |
+| `user`                                   | a user id                     | `text`                    |
+| `rating`                                 | 1 to 5                        | `integer`, bounded 1 to 5 |
+| `currency`                               | an integer of minor units     | `integer`                 |
+
+A [form](/docs/blocks/forms) field that names a `customField` answers with the forms field type in the last column, and a form field's own `min`, `max` or `options` win over the definition's. The check on `type` is named `bs_field_definitions_type`; `sql sync` drops the inline check an older install created and adds the named one.
 
 A sensitive value is returned only when `can` passes for the field's `permission`, or `custom_fields.sensitive.read` when the field names none. A provider implements field-level grants behind that key.
 

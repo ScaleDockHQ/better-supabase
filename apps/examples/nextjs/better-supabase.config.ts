@@ -134,6 +134,66 @@ export default defineConfig({
           references: { block: "tags", table: "tags", onDelete: "set null" },
         },
       },
+      // Comments, attachments, tags, versions and search reach projects.
+      subject: {
+        type: "project",
+        title: "name",
+        url: "/projects/{id}",
+        search: {},
+        softDelete: true,
+      },
+      // Read through `public.projects_view`, with the caller's row level
+      // security on projects and tasks.
+      rollups: {
+        open_tasks: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "count",
+          where: { column: "status", equals: "todo" },
+        },
+        done_tasks: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "count",
+          where: { column: "status", equals: "done" },
+        },
+        next_due_on: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "min",
+          column: "due_on",
+        },
+      },
+    },
+    tasks: {
+      columns: {
+        title: { type: "text", nullable: false, max: 200 },
+        status: {
+          type: "text",
+          nullable: false,
+          default: "'todo'",
+          options: ["todo", "doing", "done"],
+        },
+        starts_on: { type: "date" },
+        due_on: { type: "date" },
+        assignee_id: {
+          type: "uuid",
+          references: { table: "auth.users", onDelete: "set null" },
+        },
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+      },
+      // The board orders tasks within each status column.
+      subject: {
+        type: "task",
+        title: "title",
+        url: "/projects/{project_id}",
+        rank: { group: "status" },
+      },
+      lookups: { project_name: { via: "project_id", column: "name" } },
     },
     saved_views: {
       scope: "user",

@@ -6,7 +6,9 @@ import type {
 } from "../config/index.ts";
 
 import {
+  APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ROLLUP_AGGREGATES,
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
@@ -524,11 +526,62 @@ const ENTRIES = {
                   ),
                 }),
               ),
+              format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
+              options: v.optional(v.array(v.string())),
+              min: v.optional(v.number()),
+              max: v.optional(v.number()),
+              comment: v.optional(v.string()),
+              identity: v.optional(v.boolean()),
             }),
           ),
         ),
         scope: v.optional(v.picklist(["inherit", "user", "none"])),
         timestamps: v.optional(v.boolean()),
+        id: v.optional(v.picklist(["uuid", "bigint"])),
+        unique: v.optional(v.array(v.array(v.string()))),
+        indexes: v.optional(v.array(v.array(v.string()))),
+        comment: v.optional(v.string()),
+        subject: v.optional(
+          v.strictObject({
+            type: v.string(),
+            title: v.optional(v.string()),
+            url: v.optional(v.string()),
+            search: v.optional(
+              v.strictObject({
+                title: v.optional(v.string()),
+                body: v.optional(v.array(v.string())),
+              }),
+            ),
+            permissions: v.optional(v.record(v.string(), v.string())),
+            rank: v.optional(
+              v.union([
+                v.literal(true),
+                v.strictObject({ group: v.optional(v.string()) }),
+              ]),
+            ),
+            softDelete: v.optional(v.boolean()),
+          }),
+        ),
+        rollups: v.optional(
+          v.record(
+            v.string(),
+            v.strictObject({
+              table: v.string(),
+              via: v.string(),
+              aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
+              column: v.optional(v.string()),
+              where: v.optional(
+                v.strictObject({ column: v.string(), equals: v.string() }),
+              ),
+            }),
+          ),
+        ),
+        lookups: v.optional(
+          v.record(
+            v.string(),
+            v.strictObject({ via: v.string(), column: v.string() }),
+          ),
+        ),
       }),
     ),
   ),

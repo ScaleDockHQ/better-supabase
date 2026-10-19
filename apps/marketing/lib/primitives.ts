@@ -1,6 +1,6 @@
 import { type AppTable, addTable, type Design, freeTableName } from "./design";
 
-export type PrimitiveKind = "table" | "lookup";
+export type PrimitiveKind = "table" | "lookup" | "tree";
 
 /** The drag data type of a primitive dragged from the side menu onto the canvas. */
 export const PRIMITIVE_DRAG_TYPE = "application/x-better-supabase-primitive";
@@ -35,7 +35,38 @@ export const PRIMITIVES: readonly Primitive[] = [
       },
     },
   },
+  {
+    kind: "tree",
+    title: "Tree",
+    description:
+      "Rows that nest under a parent row of the same table, for folders and categories.",
+    base: "categories",
+    table: { columns: { name: { type: "text", nullable: false } } },
+  },
 ];
+
+/** The table of a primitive under its final name: a tree's `parent_id` references the table itself. */
+function tableOf(primitive: Primitive, name: string, idType: string): AppTable {
+  const id = idType === "bigint" ? "bigint" : "uuid";
+
+  const table: AppTable =
+    id === "bigint" ? { ...primitive.table, id } : primitive.table;
+
+  if (primitive.kind !== "tree") {
+    return table;
+  }
+
+  return {
+    ...table,
+    columns: {
+      ...table.columns,
+      parent_id: {
+        type: id,
+        references: { table: name, onDelete: "cascade" },
+      },
+    },
+  };
+}
 
 export function isPrimitiveKind(value: string): value is PrimitiveKind {
   return PRIMITIVES.some((primitive) => primitive.kind === value);
@@ -47,12 +78,16 @@ export interface AddedPrimitive {
   readonly name: string;
 }
 
-/** Adds an app table of one kind at a top-left corner, under the first free name. */
+/**
+ * Adds an app table of one kind at a top-left corner, under the first free
+ * name. A preset with bigint ids gives the table a bigint id.
+ */
 export function addPrimitive(
   design: Design,
   taken: ReadonlySet<string>,
   kind: PrimitiveKind,
   position: readonly [number, number],
+  idType = "uuid",
 ): AddedPrimitive {
   const primitive =
     PRIMITIVES.find((each) => each.kind === kind) ?? PRIMITIVES[0];
@@ -64,7 +99,7 @@ export function addPrimitive(
   const name = freeTableName(design, taken, primitive.base);
 
   return {
-    design: addTable(design, name, primitive.table, position),
+    design: addTable(design, name, tableOf(primitive, name, idType), position),
     name,
   };
 }

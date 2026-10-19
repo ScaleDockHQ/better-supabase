@@ -93,6 +93,35 @@ so does the whole URL. See
 [Codes and the resolver](/docs/presets/codes) for the encoding and the
 `better-supabase/preset` API.
 
+To skip the blank canvas, pick "Start from a template" under Preset. Each
+template sets a named preset, adds the blocks its tables use and draws the
+app tables with their relations and features. The templates are projects
+and tasks, a content calendar, an asset register, event planning, a
+feedback board and a course catalog. Starting from one replaces the canvas,
+and Undo brings the previous design back.
+
+The Data tab on the table inspector shows eight sample rows for an app
+table. The values follow each column's format, options and bounds, a
+reference shows a row title from the table it points to, and a nullable
+column is empty in some rows. The rows are generated in the browser and
+never reach a database.
+
+The Computed section at the end of the Columns tab adds
+[rollups and lookups](/docs/blocks/app-tables#rollups-and-lookups). A
+rollup counts, sums or takes the min, max or average of the rows that link
+to the table, optionally only the rows with one select value. A lookup
+shows a column of the row the table links to. You pick each part from the
+links the design already has, so there is no SQL to type, and the table's
+node lists them under its columns. Deleting or retyping a column a rollup
+reads removes the rollup.
+
+The Changes tab in Get code lists what you changed in the app tables since
+the page loaded the design in its link. Each change is marked safe or
+breaking, and a breaking one (a dropped, renamed or retyped column, or a
+column made required without a default) lists the expand-and-contract steps
+that [`apply`](/docs/cli/presets#breaking-changes) prints before it refuses
+to write the design.
+
 ## The shared wiring
 
 Three pieces connect the blocks in every recipe.

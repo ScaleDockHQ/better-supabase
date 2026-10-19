@@ -368,6 +368,65 @@ describe("apply with a design", () => {
     ).toBe(json({}));
   });
 
+  it("needs --allow-breaking to retype or drop a column of an app table", async () => {
+    const before = json({
+      appTables: {
+        notes: {
+          scope: "user",
+          columns: { body: { type: "jsonb" }, pinned: { type: "boolean" } },
+        },
+      },
+    });
+
+    await files({ "better-supabase.config.json": before });
+    const url = await designUrl({ appTables: design.appTables ?? {} });
+
+    const refused = await run(["apply", "--preset", url, "--cwd", dir]);
+
+    expect(refused.code).toBe(1);
+    expect(refused.stdout).toContain("Breaking changes to app tables:");
+    expect(refused.stdout).toContain("Changes notes.body from jsonb to text.");
+    expect(refused.stdout).toContain("Drops notes.pinned and its values.");
+    expect(refused.stdout).toContain("1. Add a text column next to body.");
+    expect(refused.stderr).toContain("2 breaking changes");
+    expect(refused.stderr).toContain("--allow-breaking");
+    expect(
+      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+    ).toBe(before);
+
+    const dry = await run([
+      "apply",
+      "--preset",
+      url,
+      "--dry-run",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(dry.code).toBe(0);
+    expect(dry.stdout).toContain("Breaking changes to app tables:");
+
+    const allowed = await run([
+      "apply",
+      "--preset",
+      url,
+      "--allow-breaking",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(allowed.code).toBe(0);
+    expect(
+      JSON.parse(
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+      ),
+    ).toMatchObject({
+      appTables: {
+        notes: { scope: "user", columns: { body: { type: "text" } } },
+      },
+    });
+  });
+
   it("leaves the design out with --only conventions", async () => {
     await files({ "better-supabase.config.json": json({}) });
 

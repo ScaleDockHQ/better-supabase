@@ -139,6 +139,8 @@ as $$
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'drive.read'), false)
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'hiring.read'), false)
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     else false
   end
 $$;

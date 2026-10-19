@@ -14,15 +14,16 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
- * A customer's tags. Typing a name adds the organization's tag with that
- * name, or creates it for callers with `tags.manage`.
+ * A record's tags. Typing a name adds the organization's tag of the
+ * subject's kind with that name, or creates it for callers with
+ * `tags.manage`.
  */
 export function TagInput({
   organizationId,
-  customerId,
+  subject,
 }: {
   organizationId: string;
-  customerId: string;
+  subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("customers");
   const listId = useId();
@@ -31,9 +32,9 @@ export function TagInput({
 
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
-    kind: "customer",
+    subjectType: subject.type,
+    subjectId: subject.id,
+    kind: subject.type,
     schema: blockConfig.tags.api,
   });
 

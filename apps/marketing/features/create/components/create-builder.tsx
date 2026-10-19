@@ -44,7 +44,7 @@ import {
   withAuthChoice,
 } from "@/lib/create-options";
 import { presetPrompt } from "@/lib/create-prompt";
-import { EMPTY_DESIGN } from "@/lib/design";
+import { type Design, EMPTY_DESIGN } from "@/lib/design";
 import { site } from "@/lib/site";
 import { deployBlocker } from "@/lib/supabase-deploy";
 
@@ -108,6 +108,7 @@ export function CreateBuilder({
   );
 
   const [designLoaded, setDesignLoaded] = useState(linkedDesign === null);
+  const [baseline, setBaseline] = useState<Design>(EMPTY_DESIGN);
 
   const [designCode, setDesignCode] = useState("");
 
@@ -178,6 +179,7 @@ export function CreateBuilder({
 
       if (outcome.ok) {
         reset(outcome.value);
+        setBaseline(outcome.value);
       } else {
         toast.error("The design in this link can't be read", {
           description: outcome.message,
@@ -389,6 +391,8 @@ export function CreateBuilder({
             authz={authz}
             design={design}
             designCode={designCode}
+            baseline={baseline}
+            linked={linkedDesign !== null}
           />
           {deployEnabled ? (
             <DeployDialog

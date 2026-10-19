@@ -66,9 +66,10 @@ without `SUPABASE_SECRET_KEY` in the env files) and BS327 (`requireAal('aal2')`
 without MFA enroll and verify in `config.toml`). In 0.9, BS117 (policies
 without a role), BS224 (Data API roles without a statement or idle
 transaction timeout), BS225 (`pg_stat_statements` missing), BS226 (prepared
-statements through the transaction pooler) and BS227 (offset pagination and
-exact counts) arrived the same way, and BS216 started accepting partial
-indexes that only skip null keys.
+statements through the transaction pooler), BS227 (offset pagination and
+exact counts) and BS228 (an app table column drifted from `appTables`)
+arrived the same way, and BS216 started accepting partial indexes that only
+skip null keys.
 
 ## SQL module objects and claims
 

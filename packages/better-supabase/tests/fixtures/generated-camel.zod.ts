@@ -252,6 +252,7 @@ export const projectsRow: z.ZodType<RowOf<'projects'>> = z.object({
   currency: z.string(),
   leadId: z.guid().nullable(),
   labelId: z.guid().nullable(),
+  deletedAt: z.iso.datetime({ offset: true }).nullable(),
 }).meta({ title: "Projects" });
 export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
@@ -263,6 +264,7 @@ export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   currency: z.string().exactOptional(),
   leadId: z.guid().nullable().exactOptional(),
   labelId: z.guid().nullable().exactOptional(),
+  deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
 }).meta({ title: "Projects insert" });
 export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
@@ -274,7 +276,24 @@ export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   currency: z.string().exactOptional(),
   leadId: z.guid().nullable().exactOptional(),
   labelId: z.guid().nullable().exactOptional(),
+  deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
 }).meta({ title: "Projects update" });
+
+export const projectsViewRow: z.ZodType<RowOf<'projectsView'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  name: z.string(),
+  budgetMinor: z.int(),
+  currency: z.string(),
+  leadId: z.guid().nullable(),
+  labelId: z.guid().nullable(),
+  deletedAt: z.iso.datetime({ offset: true }).nullable(),
+  openTasks: z.int().nullable(),
+  doneTasks: z.int().nullable(),
+  nextDueOn: z.iso.date().nullable(),
+}).meta({ title: "Projects view", description: "The rollups and lookups of public.projects, read with the caller's row level security." });
 
 export const savedViewsRow: z.ZodType<RowOf<'savedViews'>> = z.object({
   id: z.guid(),
@@ -348,6 +367,61 @@ export const tagsUpdate: z.ZodType<UpdateOf<'tags'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Tags update" });
 
+export const tasksRow: z.ZodType<RowOf<'tasks'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  title: z.string().max(200),
+  status: z.enum(["todo", "doing", "done"]),
+  startsOn: z.iso.date().nullable(),
+  dueOn: z.iso.date().nullable(),
+  assigneeId: z.guid().nullable(),
+  projectId: z.guid(),
+  rank: z.string(),
+}).meta({ title: "Tasks" });
+export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  title: z.string().max(200),
+  status: z.enum(["todo", "doing", "done"]).exactOptional(),
+  startsOn: z.iso.date().nullable().exactOptional(),
+  dueOn: z.iso.date().nullable().exactOptional(),
+  assigneeId: z.guid().nullable().exactOptional(),
+  projectId: z.guid(),
+  rank: z.string().exactOptional(),
+}).meta({ title: "Tasks insert" });
+export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
+  id: z.guid().exactOptional(),
+  organizationId: z.guid().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  title: z.string().max(200).exactOptional(),
+  status: z.enum(["todo", "doing", "done"]).exactOptional(),
+  startsOn: z.iso.date().nullable().exactOptional(),
+  dueOn: z.iso.date().nullable().exactOptional(),
+  assigneeId: z.guid().nullable().exactOptional(),
+  projectId: z.guid().exactOptional(),
+  rank: z.string().exactOptional(),
+}).meta({ title: "Tasks update" });
+
+export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  title: z.string(),
+  status: z.string(),
+  startsOn: z.iso.date().nullable(),
+  dueOn: z.iso.date().nullable(),
+  assigneeId: z.guid().nullable(),
+  projectId: z.guid(),
+  rank: z.string(),
+  projectName: z.string().nullable(),
+}).meta({ title: "Tasks view", description: "The rollups and lookups of public.tasks, read with the caller's row level security." });
+
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
@@ -363,6 +437,7 @@ export const validators: {
   readonly savedViews: { readonly insert: typeof savedViewsInsert; readonly update: typeof savedViewsUpdate };
   readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
+  readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
@@ -377,4 +452,5 @@ export const validators: {
   savedViews: { insert: savedViewsInsert, update: savedViewsUpdate },
   subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
+  tasks: { insert: tasksInsert, update: tasksUpdate },
 };

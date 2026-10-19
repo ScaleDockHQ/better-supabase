@@ -159,6 +159,11 @@ create policy bs_session_active on "public"."projects" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."tasks";
+create policy bs_session_active on "public"."tasks" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
 drop policy if exists bs_session_active on "public"."saved_views";
 create policy bs_session_active on "public"."saved_views" as restrictive
   for all to authenticated

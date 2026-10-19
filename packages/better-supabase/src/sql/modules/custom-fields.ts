@@ -7,8 +7,16 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
-import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
+import {
+  ensureCheck,
+  fail,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+} from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<CustomFieldsEvents> = {
@@ -119,12 +127,13 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("definitions", "entity")} text not null,
   ${ctx.col("definitions", "key")} text not null,
   ${ctx.col("definitions", "label")} text not null,
-  ${ctx.col("definitions", "type")} text not null check (${ctx.col("definitions", "type")} in ('text', 'number', 'date', 'bool', 'option', 'json')),
+  ${ctx.col("definitions", "type")} text not null,
   ${ctx.col("definitions", "required")} boolean not null default false,
   ${ctx.col("definitions", "sensitive")} boolean not null default false,
   ${ctx.col("definitions", "permission")} text,
 ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
 );
+${typeCheck(ctx, definitions)}
 ${lockTable(definitions, { read: true })}
 `
       }create table if not exists ${values} (
@@ -276,6 +285,18 @@ end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
 ${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}`;
+}
+
+/**
+ * The type check, named so a later release can widen it: dropping the inline
+ * check an older install created, then adding the named one.
+ */
+function typeCheck(ctx: ModuleContext, definitions: string): string {
+  const column = ctx.colName("definitions", "type");
+  const legacy = `${ctx.tableName("definitions").name}_${column}_check`;
+
+  return `alter table ${definitions} drop constraint if exists ${sqlIdent(legacy)};
+${ensureCheck(definitions, "bs_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
 }
 
 function listDefinitions(

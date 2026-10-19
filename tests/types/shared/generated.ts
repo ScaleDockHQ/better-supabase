@@ -26,6 +26,9 @@ export type Database = EnrichDatabase<
       tags: {
         color: "gray" | "red" | "green" | "blue";
       };
+      tasks: {
+        status: "todo" | "doing" | "done";
+      };
     };
   }
 >;
@@ -40,6 +43,8 @@ export const subscriptionsStatusValues = ["active", "trialing", "past_due", "can
 export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export type TagsColor = (typeof tagsColorValues)[number];
+export const tasksStatusValues = ["todo", "doing", "done"] as const;
+export type TasksStatus = (typeof tasksStatusValues)[number];
 
 export type Models = {
   contacts: {
@@ -339,6 +344,7 @@ export type Models = {
       projects: { table: "projects"; kind: "many"; nullable: true };
       subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
+      tasks: { table: "tasks"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -421,6 +427,7 @@ export type Models = {
       currency: string;
       leadId: string | null;
       labelId: string | null;
+      deletedAt: string | null;
     };
     Insert: {
       id?: string;
@@ -432,6 +439,7 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Update: {
       id?: string;
@@ -443,14 +451,46 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
+      deletedAt?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
+      tasks: { table: "tasks"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
-    UniqueKeys: Record<never, never>;
+    UniqueKeys: {
+      projects_organization_id_id_key: readonly ["organizationId", "id"];
+    };
     Checks: never;
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  projectsView: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      name: string;
+      budgetMinor: number;
+      currency: string;
+      leadId: string | null;
+      labelId: string | null;
+      deletedAt: string | null;
+      openTasks: number | null;
+      doneTasks: number | null;
+      nextDueOn: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
     Flags: {
       timestamps: true;
       tenant: "organizationId";
@@ -561,6 +601,86 @@ export type Models = {
     };
     Checks: "tags_color_check";
     ForeignKeys: "tags_organization_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  tasks: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      title: string;
+      status: "todo" | "doing" | "done";
+      startsOn: string | null;
+      dueOn: string | null;
+      assigneeId: string | null;
+      projectId: string;
+      rank: string;
+    };
+    Insert: {
+      id?: string;
+      organizationId: string;
+      createdAt?: string;
+      updatedAt?: string;
+      title: string;
+      status?: "todo" | "doing" | "done";
+      startsOn?: string | null;
+      dueOn?: string | null;
+      assigneeId?: string | null;
+      projectId: string;
+      rank?: string;
+    };
+    Update: {
+      id?: string;
+      organizationId?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      title?: string;
+      status?: "todo" | "doing" | "done";
+      startsOn?: string | null;
+      dueOn?: string | null;
+      assigneeId?: string | null;
+      projectId?: string;
+      rank?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+      project: { table: "projects"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: "tasks_status_check" | "tasks_title_check";
+    ForeignKeys: "tasks_assignee_id_fkey" | "tasks_organization_id_fkey" | "tasks_project_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  tasksView: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      title: string;
+      status: string;
+      startsOn: string | null;
+      dueOn: string | null;
+      assigneeId: string | null;
+      projectId: string;
+      rank: string;
+      projectName: string | null;
+    };
+    Insert: never;
+    Update: never;
+    Relations: Record<never, never>;
+    PrimaryKey: never;
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
     Flags: {
       timestamps: true;
       tenant: "organizationId";

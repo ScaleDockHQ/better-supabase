@@ -143,9 +143,11 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
   for (const name of ["tenant", "access"]) {
     await expect(block(page, name)).toBeChecked();
     await expect(block(page, name)).toBeDisabled();
+    await expect(block(page, name)).toHaveAccessibleDescription(
+      /^Required by .*comments$/u,
+    );
   }
 
-  await expect(page.getByText("Required by comments").first()).toBeVisible();
   await expect(page).toHaveURL(/\/create\?preset=[1-9A-Z][0-9A-Za-z]+$/u);
   const code = new URL(page.url()).searchParams.get("preset") ?? "";
 
@@ -366,10 +368,57 @@ test("a table drawn on the canvas travels in the design code", async ({
     /^pnpm dlx better-supabase init --preset "https:\/\/bettersupabase\.com\/create\?preset=\w+&design=0[\w-]+"$/u,
   );
   await expect(dialog.getByText("appTables").first()).toBeVisible();
+  await expect(dialog.getByTestId("screens-command")).toHaveText(
+    "pnpm dlx better-supabase scaffold screens items",
+  );
   await dialog.getByRole("tab", { name: "AI instructions" }).click();
   await expect(dialog.getByTestId("create-prompt-text")).toContainText(
     "&design=0",
   );
+});
+
+test("a column picked from the grouped type list keeps its kind", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  const inspector = page.getByRole("dialog", { name: "items" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("textbox", { name: "Add a column" }).fill("status");
+  await inspector.getByRole("combobox", { name: "Column type" }).click();
+  await expect(page.getByRole("group", { name: "Choice" })).toBeVisible();
+  await page.getByRole("option", { name: "Single select" }).click();
+  await inspector.getByRole("button", { name: "Add", exact: true }).click();
+
+  await expect(
+    inspector.getByRole("button", { name: "Remove option Option A" }),
+  ).toBeVisible();
+  await inspector.getByRole("textbox", { name: "Options" }).fill("Done");
+  await inspector.getByRole("textbox", { name: "Options" }).press("Enter");
+  await expect(
+    inspector.getByRole("button", { name: "Remove option Done" }),
+  ).toBeVisible();
+
+  const node = page.locator(".react-flow__node-table", { hasText: "items" });
+  await expect(node.getByText("select?", { exact: true })).toBeVisible();
+
+  await inspector.getByRole("tab", { name: "Options" }).click();
+  await inspector.getByRole("button", { name: "Add unique key" }).click();
+  await expect(
+    inspector.getByRole("combobox", { name: "Unique key 1" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page
+      .locator(".react-flow__node-table", { hasText: "items" })
+      .getByText("select?", { exact: true }),
+  ).toBeVisible();
 });
 
 test("a click on a table opens the inspector, and a drag doesn't", async ({
@@ -553,6 +602,78 @@ async function paneAbove(page: Page, id: string) {
   return point ?? { x: 0, y: 0 };
 }
 
+test("many-to-many adds a junction table and a tree references itself", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await items.click({ position: { x: 120, y: 18 }, button: "right" });
+  await page.getByRole("menuitem", { name: "Add many-to-many with…" }).click();
+  await page
+    .getByRole("menuitem", { name: "invitations", exact: true })
+    .click();
+  await expect(page.getByText("Added items_invitations.")).toBeVisible();
+
+  const junction = page.locator(
+    '.react-flow__node[data-id="public.items_invitations"]',
+  );
+
+  await expect(junction).toContainText("item_id");
+  await expect(junction).toContainText("invitation_id");
+
+  const point = await paneAbove(page, "better_supabase.organizations");
+  await page.mouse.click(point.x, point.y, { button: "right" });
+  await page.getByRole("menuitem", { name: "Add tree here" }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.locator('.react-flow__node[data-id="public.categories"]'),
+  ).toContainText("parent_id");
+});
+
+test("record features make a table a subject and show on its node", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+
+  const inspector = page.getByRole("dialog");
+
+  await inspector.getByRole("tab", { name: "Features" }).click();
+  await inspector.getByRole("switch", { name: "Comments" }).click();
+  await inspector.getByRole("switch", { name: "Manual order" }).click();
+
+  await expect(
+    inspector.getByRole("switch", {
+      name: "Rows are records other blocks can reach",
+    }),
+  ).toBeChecked();
+  await expect(
+    inspector.getByRole("textbox", { name: "Subject type" }),
+  ).toHaveValue("item");
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+
+  await expect(
+    items.getByRole("list", { name: "items features" }),
+  ).toContainText("Comments");
+  await expect(items).toContainText("Manual order");
+  await expect(items).toContainText("rank");
+});
+
 test("Add table here on the canvas menu adds a table that covers no other", async ({
   page,
 }) => {
@@ -580,6 +701,7 @@ test("Add table here on the canvas menu adds a table that covers no other", asyn
   const items = page.locator('.react-flow__node[data-id="public.items"]');
   await expectClearOfOthers(page, "public.items");
 
+  await expect(items).toBeFocused();
   await page.keyboard.press("ControlOrMeta+z");
   await expect(items).toHaveCount(0);
 });
@@ -788,4 +910,120 @@ test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
       targets: violation.nodes.map((node) => node.target.join(" ")),
     })),
   ).toEqual([]);
+});
+
+test("the Changes tab compares the design with the one in the link", async ({
+  page,
+}) => {
+  const design = await encodeDesign({
+    appTables: {
+      articles: {
+        columns: { title: { type: "text" }, pinned: { type: "boolean" } },
+      },
+    },
+  });
+
+  await page.goto(`/create?preset=saas&design=${design}`);
+  const articles = page.locator('.react-flow__node[data-id="public.articles"]');
+  await expect(articles).toBeVisible();
+
+  let dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Changes" }).click();
+  await expect(dialog.getByText("No changes yet")).toBeVisible();
+  await dialog.getByRole("button", { name: "Edit the canvas" }).click();
+  await expect(dialog).toBeHidden();
+
+  await articles.focus();
+  await page.keyboard.press("Enter");
+  const inspector = page.getByRole("dialog", { name: "articles" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+  await inspector.getByRole("button", { name: "Delete pinned" }).click();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+
+  dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Changes" }).click();
+  const changes = dialog.getByRole("list", { name: "Changes" });
+  await expect(changes.getByRole("listitem").first()).toContainText(
+    "BreakingDrops articles.pinned and its values.",
+  );
+  await expect(
+    dialog.getByRole("list", {
+      name: "Steps for: Drops articles.pinned and its values.",
+    }),
+  ).toBeVisible();
+  await expect(dialog.getByText("1 breaking change")).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+});
+
+test("a template draws its tables, and the Data tab shows sample rows", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await page.getByRole("button", { name: "Start from a template" }).click();
+  const picker = page.getByRole("dialog", { name: "Start from a template" });
+  await picker.getByRole("button", { name: /^Projects and tasks/u }).click();
+  await expect(picker).toBeHidden();
+  await expect(page).toHaveURL(/&design=0[\w-]+$/u);
+
+  const tasks = page.locator('.react-flow__node[data-id="public.tasks"]');
+  await expect(tasks).toBeVisible();
+
+  await tasks.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "tasks" });
+  await inspector.getByRole("tab", { name: "Data" }).click();
+  await expect(inspector.getByRole("cell", { name: "Task 1" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Undo" }).first().click();
+  await expect(tasks).toHaveCount(0);
+});
+
+test("a rollup added in the inspector shows as a computed row on the table", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await page.getByRole("button", { name: "Start from a template" }).click();
+  const picker = page.getByRole("dialog", { name: "Start from a template" });
+  await picker.getByRole("button", { name: /^Projects and tasks/u }).click();
+  await expect(picker).toBeHidden();
+
+  const projects = page.locator('.react-flow__node[data-id="public.projects"]');
+  await projects.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "projects" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+
+  const computed = inspector.getByRole("region", { name: "Computed" });
+  await expect(computed.getByText("No computed columns yet")).toBeVisible();
+  const before = page.url();
+  await computed.getByRole("button", { name: "Add rollup" }).click();
+
+  const list = computed.getByRole("list", {
+    name: "projects computed columns",
+  });
+
+  await expect(
+    list.getByRole("textbox", { name: "tasks_count name" }),
+  ).toHaveValue("tasks_count");
+  await expect.poll(() => page.url()).not.toBe(before);
+
+  const { violations } = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+  await expect(projects.getByText("tasks_count")).toBeVisible();
+  await expect(
+    projects.getByRole("listitem").filter({ hasText: "tasks_count" }),
+  ).toHaveAttribute("title", /count of tasks/u);
 });

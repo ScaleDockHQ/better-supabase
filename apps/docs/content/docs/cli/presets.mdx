@@ -36,6 +36,31 @@ same name and keeping the others, and each block's extra columns over the
 leaves the design out. See [init](/docs/cli/init#a-design-from-create) for
 what a design holds and what to do when it's too large for a URL.
 
+### Breaking changes
+
+Before it writes a design, `apply` compares each of its tables with the one
+of the same name in `appTables`. Adding a table or an optional column is
+safe. Dropping or renaming a column, changing its type or the table's id
+type, and making a column required without a default break rows already in
+the database or app code that reads them. `apply` lists each breaking
+change with the expand-and-contract steps that make it safe, writes
+nothing and exits 1:
+
+```txt
+Breaking changes to app tables:
+  Changes notes.body from jsonb to text.
+    1. Add a text column next to body.
+    2. Fill it from body with a cast in a migration, and write both columns.
+    3. Move reads to the new column, drop body in a later migration and rename the new one if you need the name.
+```
+
+Pass `--allow-breaking` to write the design anyway, for example on a project
+without data. `--dry-run` prints the list and the diff without it.
+`diffAppTables` and `diffDesigns` from `better-supabase/preset` return the
+same changes, and Create shows them on the Changes tab of Get code.
+[Doctor's BS228](/docs/cli/doctor#bs228) reports a column whose type or
+nullability in the database has drifted from `appTables`.
+
 ### Adopting existing tables
 
 ```bash

@@ -21,6 +21,12 @@ export interface CreateState {
 export type CreateAction =
   /** Records a design change as one step. */
   | { readonly type: "design"; readonly design: Design }
+  /** Records a design change and a block list as one step. */
+  | {
+      readonly type: "step";
+      readonly design: Design;
+      readonly blocks: Preset["blocks"];
+    }
   /** Moves tables without a step, until `commitDrag`. */
   | { readonly type: "drag"; readonly design: Design }
   | { readonly type: "commitDrag" }
@@ -28,6 +34,12 @@ export type CreateAction =
   | { readonly type: "place"; readonly design: Design }
   /** A changed block list is one step; other fields change in place. */
   | { readonly type: "preset"; readonly update: (current: Preset) => Preset }
+  /** Replaces the design and updates the preset as one step, as starting from a template does. */
+  | {
+      readonly type: "template";
+      readonly update: (current: Preset) => Preset;
+      readonly design: Design;
+    }
   | { readonly type: "undo" }
   | { readonly type: "redo" }
   /** Replaces the design and clears the history, as loading a link does. */
@@ -86,6 +98,21 @@ export function createReducer(
           };
     }
 
+    case "step": {
+      const { present } = state.history;
+
+      return action.design === present.design &&
+        sameBlocks(action.blocks, present.blocks)
+        ? state
+        : {
+            settings: { ...state.settings, blocks: action.blocks },
+            history: undoHistory(state.history, {
+              type: "apply",
+              value: { design: action.design, blocks: action.blocks },
+            }),
+          };
+    }
+
     case "drag": {
       return {
         ...state,
@@ -125,6 +152,18 @@ export function createReducer(
               type: "apply",
               value: { ...present, blocks: next.blocks },
             }),
+      };
+    }
+
+    case "template": {
+      const next = action.update(presetOfState(state));
+
+      return {
+        settings: next,
+        history: undoHistory(state.history, {
+          type: "apply",
+          value: { design: action.design, blocks: next.blocks },
+        }),
       };
     }
 
