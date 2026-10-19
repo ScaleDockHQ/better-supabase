@@ -40,6 +40,7 @@ The shadcn MCP server reads the same namespace, so an agent connected to it can 
 | `onboarding-checklist`       | `registry:lib`  | `lib/onboarding.ts`: a getting-started checklist definition                                       | onboarding                                  |
 | `outbox`                     | `registry:lib`  | `lib/outbox.ts`: the outbox on the server connection                                              | outbox                                      |
 | `use-current-organization`   | `registry:hook` | the active organization and `switchTo`, for React DOM and React Native                            | organizations                               |
+| `use-rule-editor`            | `registry:hook` | `useRuleEditor`: one rule's condition tree, validation and save in the active organization        | rules                                       |
 | `push-native`                | `registry:hook` | `usePushRegistration`: registers the Expo push token                                              | push                                        |
 | `outbox-relay-next`          | `registry:file` | `app/api/outbox/route.ts`: the cron route that relays outbox events                               | outbox                                      |
 | `outbox-relay-hono`          | `registry:file` | `src/routes/outbox.ts`: the same relay as a Hono route                                            | outbox                                      |

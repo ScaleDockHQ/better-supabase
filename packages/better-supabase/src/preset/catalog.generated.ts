@@ -3398,6 +3398,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "use-rule-editor",
+      "title": "useRuleEditor",
+      "blocks": [
+        "rules"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-rule-editor.ts"
+      ]
+    },
+    {
       "name": "push-native",
       "title": "usePushRegistration (Expo)",
       "blocks": [
