@@ -11,6 +11,7 @@ import {
   Link2Icon,
   LinkIcon,
   PlusIcon,
+  SigmaIcon,
   UsersIcon,
 } from "lucide-react";
 import { createContext, use, useMemo } from "react";
@@ -330,6 +331,23 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
             </li>
           );
         })}
+        {rows.computed.map((row) => (
+          <li
+            key={row.name}
+            className="flex h-6 items-center gap-2 px-2 text-muted-foreground"
+            title={row.summary}
+          >
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+              <SigmaIcon aria-hidden="true" className="size-3" />
+            </span>
+            <span className="min-w-0 flex-1 truncate font-mono text-xs italic">
+              {row.name}
+            </span>
+            <span className="max-w-24 truncate font-mono text-xs">
+              {row.label}
+            </span>
+          </li>
+        ))}
         {rows.footer.map((row) => (
           <FooterRowView
             key={row}

@@ -8,6 +8,14 @@ import {
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
 
 import { columnLabel, fitted } from "./column-keys";
+import {
+  type AppLookup,
+  type AppRollup,
+  computedColumnRenamed,
+  computedRows,
+  computedTableRenamed,
+  prunedComputed,
+} from "./design-computed";
 import { subjectColumns, subjectColumnsEdited } from "./design-subject";
 
 /** The column types an app table column can have (`appTables.<table>.columns.<column>.type`). */
@@ -83,6 +91,8 @@ export interface AppTable {
   readonly indexes?: readonly (readonly string[])[];
   readonly comment?: string;
   readonly subject?: AppSubject;
+  readonly rollups?: Readonly<Record<string, AppRollup>>;
+  readonly lookups?: Readonly<Record<string, AppLookup>>;
 }
 
 /**
@@ -192,6 +202,7 @@ function columnNamesOf(
     ...(scope === null ? [] : [scope.name]),
     ...Object.keys(table.columns ?? {}),
     ...(table.timestamps === false ? [] : ["created_at", "updated_at"]),
+    ...computedRows(table).map((row) => row.name),
   ];
 }
 
@@ -282,7 +293,9 @@ function withAppTables(
 ): Design {
   const { appTables: _drop, ...rest } = design;
 
-  return Object.keys(appTables).length === 0 ? rest : { ...rest, appTables };
+  return Object.keys(appTables).length === 0
+    ? rest
+    : { ...rest, appTables: prunedComputed(appTables) };
 }
 
 function withPositions(
@@ -375,7 +388,7 @@ export function renameTable(design: Design, from: string, to: string): Design {
   const positions = omitKey(design.positions, appTableId(from));
 
   return withPositions(
-    withAppTables(design, appTables),
+    withAppTables(design, computedTableRenamed(appTables, from, to)),
     position === undefined
       ? positions
       : { ...positions, [appTableId(to)]: position },
@@ -550,21 +563,42 @@ export function renameColumn(
     return design;
   }
 
-  return withAppTables(design, {
-    ...design.appTables,
-    [table]: withKeySets(
+  return withAppTables(
+    design,
+    computedColumnRenamed(
       {
-        ...current,
-        columns: Object.fromEntries(
-          Object.entries(current.columns ?? {}).map(([name, column]) => [
-            name === from ? to : name,
-            column,
-          ]),
+        ...design.appTables,
+        [table]: withKeySets(
+          {
+            ...current,
+            columns: Object.fromEntries(
+              Object.entries(current.columns ?? {}).map(([name, column]) => [
+                name === from ? to : name,
+                column,
+              ]),
+            ),
+          },
+          (columns) => columns.map((column) => (column === from ? to : column)),
         ),
       },
-      (columns) => columns.map((column) => (column === from ? to : column)),
+      table,
+      from,
+      to,
     ),
-  });
+  );
+}
+
+/** Replaces an app table with `edit` applied to it, such as `tableWithComputed`. */
+export function editTable(
+  design: Design,
+  table: string,
+  edit: (current: AppTable) => AppTable,
+): Design {
+  const current = design.appTables?.[table];
+
+  return current === undefined
+    ? design
+    : withAppTables(design, { ...design.appTables, [table]: edit(current) });
 }
 
 export function deleteColumn(
@@ -1143,7 +1177,7 @@ function appSchemaTable(
     },
   );
 
-  return {
+  const schemaTable: SchemaTable = {
     id: appTableId(name),
     schema: APP_SCHEMA,
     name,
@@ -1154,6 +1188,10 @@ function appSchemaTable(
       scope !== null && scope.name !== "user_id" ? scope.name : null,
     columns,
   };
+
+  const computed = computedRows(table);
+
+  return computed.length === 0 ? schemaTable : { ...schemaTable, computed };
 }
 
 /** The extra column names a block table got from the design. */

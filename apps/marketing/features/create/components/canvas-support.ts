@@ -34,6 +34,7 @@ function layoutKey(input: LayoutInput): string {
     input.data.tables.map((table) => [
       table.id,
       table.columns.map((column) => column.name),
+      (table.computed ?? []).map((row) => [row.name, row.label, row.summary]),
       table.foreignKeys.map((key) => [
         key.columns,
         key.target.schema,
