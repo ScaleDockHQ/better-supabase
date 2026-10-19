@@ -1,4 +1,4 @@
--- better-supabase module: deals (0.8.0)
+-- better-supabase module: deals (0.9.0)
 -- @bs-module deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -203,9 +203,9 @@ begin
     new."closed_at" := case when new."outcome" <> 'open' then now() end;
     if new."outcome" = 'open' then
       new."lost_reason" := null;
-      null;
+      perform "better_supabase".emit_event('deal.reopened', jsonb_build_object('organizationId', new."tenant_id", 'dealId', new."id", 'subjectType', 'deal', 'subjectId', new."id"::text, 'name', new."name"), 'deals/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/deals');
     else
-      null;
+      perform "better_supabase".emit_event('deal.closed', jsonb_build_object('organizationId', new."tenant_id", 'dealId', new."id", 'subjectType', 'deal', 'subjectId', new."id"::text, 'name', new."name", 'outcome', new."outcome", 'amount', new."amount"::text, 'currency', new."currency", 'reason', new."lost_reason"), 'deals/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/deals');
     end if;
     v_claims := current_setting('request.jwt.claims', true);
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
@@ -321,7 +321,7 @@ begin
   if create_deal.contacts is not null then
     perform "better_supabase"."set_deal_contacts"(v_deal, create_deal.contacts);
   end if;
-  null;
+  perform "better_supabase".emit_event('deal.created', jsonb_build_object('organizationId', create_deal.tenant, 'dealId', v_deal, 'subjectType', 'deal', 'subjectId', v_deal::text, 'name', v_row."name"), 'deals/' || v_deal::text, (create_deal.tenant::text)::text, null, 'better-supabase/deals');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_deal_create"(uuid)');
   begin
@@ -479,7 +479,7 @@ begin
     end;
   end loop;
   for v_row in select * from "better_supabase"."deals" x where x."id" = any (v_touched) loop
-    null;
+    perform "better_supabase".emit_event('deal.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'dealId')::uuid = v_row."id")), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -833,7 +833,7 @@ begin
     return false;
   end if;
   if archive_deal.archived then
-    null;
+    perform "better_supabase".emit_event('deal.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
   end if;
   return true;
 end;
@@ -861,7 +861,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  null;
+  perform "better_supabase".emit_event('deal.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
   return true;
 end;
 $$;

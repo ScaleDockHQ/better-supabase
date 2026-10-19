@@ -1,4 +1,4 @@
--- better-supabase module: ai-providers (0.8.0)
+-- better-supabase module: ai-providers (0.9.0)
 -- @bs-module ai-providers@2 managed
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -168,6 +168,7 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
+  perform "better_supabase".emit_event('ai_provider_key.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-providers');
   perform better_supabase.audit_event(
     event_type => 'ai_provider_key.saved',
     category => 'security',
@@ -202,6 +203,7 @@ begin
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('ai_provider_key.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-providers');
   perform better_supabase.audit_event(
     event_type => 'ai_provider_key.deleted',
     category => 'security',

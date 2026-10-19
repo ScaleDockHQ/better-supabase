@@ -1,4 +1,4 @@
--- better-supabase module: waitlist (0.8.0)
+-- better-supabase module: waitlist (0.9.0)
 -- @bs-module waitlist@1 managed
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -193,7 +193,8 @@ begin
     raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
   end if;
   if decide_waitlist_entry.approve then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('waitlist.approved', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+  perform better_supabase.audit_event(
     event_type => 'waitlist.approved',
     category => 'access',
     target_type => 'waitlist_entry',
@@ -202,7 +203,8 @@ begin
     metadata => jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email")
   );
   else
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('waitlist.rejected', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+  perform better_supabase.audit_event(
     event_type => 'waitlist.rejected',
     category => 'access',
     target_type => 'waitlist_entry',
@@ -253,6 +255,7 @@ begin
     create_invite_code.role
   )
   returning * into v_row;
+  perform "better_supabase".emit_event('invite_code.created', jsonb_build_object('codeId', v_row."id"::text, 'organizationId', v_row."organization_id"::text, 'prefix', v_row."prefix", 'role', v_row."role"), 'invite-codes/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
     event_type => 'invite_code.created',
     category => 'access',
@@ -313,6 +316,7 @@ begin
   if v_code."id" is null then
     return false;
   end if;
+  perform "better_supabase".emit_event('invite_code.revoked', jsonb_build_object('codeId', v_code."id"::text, 'organizationId', v_tenant::text, 'prefix', v_code."prefix", 'role', v_code."role"), 'invite-codes/' || v_code."id"::text, (v_tenant)::text, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
     event_type => 'invite_code.revoked',
     category => 'access',
@@ -388,7 +392,8 @@ begin
     on conflict do nothing;
     v_added := found;
     if v_added then
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_code."organization_id"::text, 'userId', redeem_for.member, 'role', v_role), 'organizations/' || v_code."organization_id"::text, (v_code."organization_id")::text, null, 'better-supabase/waitlist');
+  perform better_supabase.audit_event(
     event_type => 'organization.member_added',
     category => 'membership',
     target_type => 'user',

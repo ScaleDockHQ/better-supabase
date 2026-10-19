@@ -139,6 +139,7 @@
   "cli/init",
   "cli/introspect",
   "cli/local",
+  "cli/mcp",
   "cli/presets",
   "cli/scaffold",
   "cli/spec",

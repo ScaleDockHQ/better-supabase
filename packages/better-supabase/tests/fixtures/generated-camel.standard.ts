@@ -357,6 +357,7 @@ export const projectsRow: TableSchema<RowOf<'projects'>> = tableSchema({
     leadId: { kind: "uuid", nullable: true },
     labelId: { kind: "uuid", nullable: true },
     deletedAt: { kind: "datetime", nullable: true },
+    internalNotes: { kind: "string", nullable: true },
   },
 });
 
@@ -373,6 +374,7 @@ export const projectsInsert: TableSchema<InsertOf<'projects'>> = tableSchema({
     leadId: { kind: "uuid", nullable: true, optional: true },
     labelId: { kind: "uuid", nullable: true, optional: true },
     deletedAt: { kind: "datetime", nullable: true, optional: true },
+    internalNotes: { kind: "string", nullable: true, optional: true },
   },
 });
 
@@ -389,6 +391,7 @@ export const projectsUpdate: TableSchema<UpdateOf<'projects'>> = tableSchema({
     leadId: { kind: "uuid", nullable: true, optional: true },
     labelId: { kind: "uuid", nullable: true, optional: true },
     deletedAt: { kind: "datetime", nullable: true, optional: true },
+    internalNotes: { kind: "string", nullable: true, optional: true },
   },
 });
 

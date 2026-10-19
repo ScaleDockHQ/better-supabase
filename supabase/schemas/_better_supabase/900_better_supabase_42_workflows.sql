@@ -1,4 +1,4 @@
--- better-supabase module: workflows (0.8.0)
+-- better-supabase module: workflows (0.9.0)
 -- @bs-module workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -197,6 +197,18 @@ begin
       perform realtime.send(jsonb_build_object('id', new."id", 'status', new."status"), 'status', 'workflow-runs:' || new."tenant_id"::text, true);
     end if;
   end if;
+  if new."mode" = 'test' then
+    return null;
+  end if;
+  case new."status"
+    when 'completed' then
+      perform "better_supabase".emit_event('workflow_run.completed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.completed:' || new."id", 'better-supabase/workflows');
+    when 'failed' then
+      perform "better_supabase".emit_event('workflow_run.failed', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.failed:' || new."id", 'better-supabase/workflows');
+    when 'cancelled' then
+      perform "better_supabase".emit_event('workflow_run.cancelled', jsonb_build_object('runId', new."id", 'organizationId', new."tenant_id"::text, 'engine', new."engine", 'externalId', new."external_id", 'definition', new."definition", 'status', new."status", 'error', new."error", 'subjectType', new."subject_type", 'subjectId', new."subject_id"), 'workflow-runs/' || new."id", (new."tenant_id")::text, 'workflow_run.cancelled:' || new."id", 'better-supabase/workflows');
+    else null;
+  end case;
   return null;
 end;
 $$;

@@ -133,6 +133,9 @@ export default defineConfig({
           type: "uuid",
           references: { block: "tags", table: "tags", onDelete: "set null" },
         },
+        // Signed-in members can't select or write it; server code with the
+        // service role reads it by name (ADR 0051).
+        internal_notes: { type: "text", access: "server" },
       },
       // Comments, attachments, tags, versions and search reach projects.
       // Each change to the name, budget or currency keeps a version, which
@@ -199,6 +202,9 @@ export default defineConfig({
       lookups: { project_name: { via: "project_id", column: "name" } },
       // The task import updates the task with the same title in a project.
       unique: [["project_id", "title"]],
+      // task.created, task.updated and task.deleted go to the outbox, where
+      // /api/outbox runs the rules whose trigger is the event (ADR 0048).
+      events: { include: ["status", "project_id"] },
     },
     saved_views: {
       scope: "user",
@@ -398,6 +404,7 @@ export default defineConfig({
     templates: {},
     documents: {},
     "webhooks-out": {},
+    outbox: {},
     "service-principals": {},
     "signing-keys": {},
     // Exports leave out token, hash and secret columns (doctor BS341).

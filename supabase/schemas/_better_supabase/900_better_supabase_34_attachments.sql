@@ -1,4 +1,4 @@
--- better-supabase module: attachments (0.8.0)
+-- better-supabase module: attachments (0.9.0)
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -275,6 +275,7 @@ begin
     "status" = 'clean'
   where a."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('attachment.uploaded', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'mimeType', v_row."mime_type", 'size', v_row."size"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/attachments');
   perform better_supabase.audit_event(
     event_type => 'attachment.uploaded',
     category => 'data',
@@ -320,7 +321,7 @@ begin
   values (v_row."bucket", v_row."object_path", v_row."status", v_row."scan_detail", now())
   on conflict ("bucket", "object_path") do update
     set "status" = excluded."status", "scan_detail" = excluded."scan_detail", "scanned_at" = excluded."scanned_at";
-  null;
+  perform "better_supabase".emit_event('attachment.scanned', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'status', v_row."status", 'uploadedBy', v_row."uploaded_by"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, 'attachment.scanned:' || v_row."id"::text || ':' || v_row."status", 'better-supabase/attachments');
   return to_jsonb(v_row);
 end;
 $$;

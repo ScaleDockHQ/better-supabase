@@ -1,4 +1,4 @@
--- better-supabase module: versions (0.8.0)
+-- better-supabase module: versions (0.9.0)
 -- @bs-module versions@1 managed
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -118,7 +118,7 @@ begin
       order by x."number" desc
       limit 50
     );
-  null;
+  perform "better_supabase".emit_event('version.created', jsonb_build_object('organizationId', version_insert.tenant, 'subjectType', version_insert.subject_type, 'subjectId', version_insert.subject_id, 'id', v_id, 'number', v_number, 'label', version_insert.label, 'source', version_insert.source), 'versions/' || v_id::text, (version_insert.tenant)::text, null, 'better-supabase/versions');
   return jsonb_build_object('id', v_id, 'number', v_number, 'contentHash', v_hash, 'unchanged', false);
 end;
 $$;
@@ -139,6 +139,7 @@ declare
   v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and case snapshot_version.subject_type
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant) and coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'customers.read'), false)
     else false
   end)) then
@@ -146,6 +147,11 @@ begin
   end if;
   if v_content is null and snapshot_version.storage_path is null then
     case snapshot_version.subject_type
+    when 'project' then
+      select jsonb_object_agg(e.key, e.value) into v_content
+      from "public"."projects" s, jsonb_each(to_jsonb(s)) e
+      where s."id" = (snapshot_version.subject_id)::uuid
+        and e.key = any ('{name,budget_minor,currency}'::text[]);
     when 'customer' then
       select jsonb_object_agg(e.key, e.value) into v_content
       from "public"."customers" s, jsonb_each(to_jsonb(s)) e
@@ -191,6 +197,7 @@ declare
   v_rows jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and case list_versions.subject_type
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant) and coalesce(better_supabase.can('tenant', list_versions.tenant, 'customers.read'), false)
     else false
   end)) then
@@ -227,6 +234,7 @@ begin
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and case v_row."subject_type"
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'customers.read'), false)
     else false
   end)) then
@@ -239,11 +247,12 @@ revoke execute on function "better_supabase"."get_version"(uuid) from public, an
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
 
 -- A share link pinned to a version (create_share_link's version_id) reads
--- that version with the token alone, for anon.
+-- that version with the token alone, for anon. Volatile: resolving the link
+-- counts a use.
 create or replace function "better_supabase"."get_shared_version"(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
@@ -273,8 +282,11 @@ grant execute on function "better_supabase"."get_shared_version"(text) to anon, 
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "better_supabase"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "better_supabase"."restore_version"(uuid);
+create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -286,6 +298,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -298,6 +311,7 @@ begin
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and case v_subject_type
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
   end and case v_subject_type
@@ -309,6 +323,34 @@ begin
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
   end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    case v_subject_type
+    when 'project' then
+      select jsonb_object_agg(e.key, e.value) into v_current
+      from "public"."projects" s, jsonb_each(to_jsonb(s)) e
+      where s."id" = (v_subject_id)::uuid
+        and e.key = any ('{name,budget_minor,currency}'::text[]);
+    when 'customer' then
+      select jsonb_object_agg(e.key, e.value) into v_current
+      from "public"."customers" s, jsonb_each(to_jsonb(s)) e
+      where s."id" = (v_subject_id)::uuid
+        and e.key = any ('{name,kvk}'::text[]);
+    else null;
+  end case;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
   begin
@@ -319,6 +361,10 @@ begin
   end;
   perform set_config('better_supabase.versions_restoring', 'on', true);
   case v_subject_type
+    when 'project' then
+      update "public"."projects" s set "name" = r."name", "budget_minor" = r."budget_minor", "currency" = r."currency"
+      from jsonb_populate_record(null::"public"."projects", v_content) r
+      where s."id" = (v_subject_id)::uuid;
     when 'customer' then
       update "public"."customers" s set "name" = r."name", "kvk" = r."kvk"
       from jsonb_populate_record(null::"public"."customers", v_content) r
@@ -328,6 +374,7 @@ begin
   end case;
   perform set_config('better_supabase.versions_restoring', '', true);
   v_result := "better_supabase"."version_insert"(v_tenant, v_subject_type, v_subject_id, v_content, null, null, 'restore', false, auth.uid());
+  perform "better_supabase".emit_event('version.restored', jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number, 'fields', to_jsonb(restore_version.fields)), 'versions/' || (v_result ->> 'id'), (v_tenant)::text, null, 'better-supabase/versions');
   perform better_supabase.audit_event(
     event_type => 'version.restored',
     category => 'data',
@@ -335,7 +382,7 @@ begin
     record_id => restore_version.version_id::text,
     summary => 'restored version ' || v_number::text,
     tenant => (v_tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number, 'fields', to_jsonb(restore_version.fields))
   );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_restore"(uuid, uuid)');
@@ -348,8 +395,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "better_supabase"."restore_version"(uuid) from public, anon;
-grant execute on function "better_supabase"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "better_supabase"."label_version"(version_id uuid, label text)
@@ -372,6 +419,7 @@ begin
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.create'), false) and case v_subject_type
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
   end)) then
@@ -417,6 +465,7 @@ begin
     raise exception 'a frozen version can''t be deleted' using errcode = '55000', hint = 'VERSION_FROZEN';
   end if;
   delete from "better_supabase"."versions" where "id" = delete_version.version_id;
+  perform "better_supabase".emit_event('version.deleted', jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', delete_version.version_id, 'number', v_number), 'versions/' || delete_version.version_id::text, (v_tenant)::text, null, 'better-supabase/versions');
   perform better_supabase.audit_event(
     event_type => 'version.deleted',
     category => 'data',
@@ -472,12 +521,17 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
+drop trigger if exists "bs_versions_project_auto" on "public"."projects";
+create trigger "bs_versions_project_auto"
+  after insert or update of "name", "budget_minor", "currency" on "public"."projects"
+  for each row execute function "better_supabase"."versions_capture"('project', 'id', 'organization_id', 'name,budget_minor,currency', '', '');
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
+drop function if exists "api"."restore_version"(uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -542,14 +596,14 @@ as $$ select "better_supabase"."get_shared_version"($1) $$;
 revoke execute on function "api"."get_shared_version"(text) from public;
 grant execute on function "api"."get_shared_version"(text) to anon, authenticated, service_role;
 
-create or replace function "api"."restore_version"(version_id uuid)
+create or replace function "api"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."restore_version"($1) $$;
-revoke execute on function "api"."restore_version"(uuid) from public, anon;
-grant execute on function "api"."restore_version"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."restore_version"($1, $2) $$;
+revoke execute on function "api"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "api"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "api"."label_version"(version_id uuid, label text)
 returns boolean

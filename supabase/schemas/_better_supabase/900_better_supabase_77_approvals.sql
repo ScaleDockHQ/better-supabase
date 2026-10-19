@@ -1,4 +1,4 @@
--- better-supabase module: approvals (0.8.0)
+-- better-supabase module: approvals (0.9.0)
 -- @bs-module approvals@1 managed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -254,6 +254,7 @@ begin
   if v_req."subject_type" = 'ai_tool_approval' then
     perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", true, (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1));
   end if;
+  perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
     event_type => 'approval.approved',
     category => 'data',
@@ -296,6 +297,7 @@ begin
   if not found then
     raise exception 'this record already has a pending request for that action' using errcode = '23505', hint = 'APPROVAL_PENDING';
   end if;
+  perform "better_supabase".emit_event('approval.requested', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
     event_type => 'approval.requested',
     category => 'data',
@@ -353,7 +355,8 @@ begin
   update "better_supabase"."approval_requests" r set "status" = approval_settle.decision, "decided_at" = now()
     where r."id" = v_req."id" returning * into v_req;
   if approval_settle.decision = 'approved' then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
     event_type => 'approval.approved',
     category => 'data',
     target_type => 'approval_request',
@@ -363,7 +366,8 @@ begin
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
   else
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('approval.rejected', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
     event_type => 'approval.rejected',
     category => 'data',
     target_type => 'approval_request',
@@ -467,7 +471,8 @@ begin
   if decide_approval.decision = 'rejected' then
     update "better_supabase"."approval_requests" r set "status" = 'rejected', "decided_at" = now()
       where r."id" = v_req."id" returning * into v_req;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('approval.rejected', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
     event_type => 'approval.rejected',
     category => 'data',
     target_type => 'approval_request',
@@ -547,6 +552,7 @@ begin
   end if;
   insert into "better_supabase"."approval_decisions" ("request_id", "tenant_id", "step", "approver", "decision", "delegate_to", "comment")
   values (v_req."id", v_req."tenant_id", v_req."step", auth.uid(), 'delegated', delegate_approval.to_user, delegate_approval.comment);
+  perform "better_supabase".emit_event('approval.delegated', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
     event_type => 'approval.delegated',
     category => 'data',
@@ -587,6 +593,7 @@ begin
   end if;
   update "better_supabase"."approval_requests" r set "status" = 'cancelled', "decided_at" = now()
     where r."id" = v_req."id" returning * into v_req;
+  perform "better_supabase".emit_event('approval.cancelled', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
     event_type => 'approval.cancelled',
     category => 'data',
@@ -734,7 +741,7 @@ begin
     )
     returning r.*
   loop
-    null;
+    perform "better_supabase".emit_event('approval.expired', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
     perform "better_supabase"."approval_notify"(v_req."id", 'expired');
     v_count := v_count + 1;
   end loop;

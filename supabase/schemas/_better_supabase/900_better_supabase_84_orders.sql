@@ -1,4 +1,4 @@
--- better-supabase module: orders (0.8.0)
+-- better-supabase module: orders (0.9.0)
 -- @bs-module orders@1 managed
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -1062,7 +1062,7 @@ begin
   perform "better_supabase"."redeem_promotions"(v_order.id, v_priced -> 'promotions');
   update "better_supabase"."carts" x set "status" = 'converted', "converted_at" = now(), "updated_at" = now()
   where x."id" = place_order.cart;
-  null;
+  perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', v_priced ->> 'subtotal', 'discountTotal', v_priced ->> 'discountTotal', 'shippingTotal', v_priced ->> 'shippingTotal', 'taxTotal', v_tax::text, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_order_place"(uuid)');
   begin
@@ -1170,7 +1170,7 @@ begin
   v_number := v_seq::text;
     update "better_supabase"."orders" x set "invoice_number" = v_number, "invoice_sequence" = v_seq, "invoiced_at" = now()
     where x."id" = v_order.id;
-    null;
+    perform "better_supabase".emit_event('order.paid', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id), 'invoiceNumber', v_number), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.paid:' || v_order.id::text, 'better-supabase/orders');
     v_newly := true;
   end if;
   return jsonb_build_object('orderId', v_order.id, 'status', (select x."status" from "better_supabase"."orders" x where x."id" = v_order.id),
@@ -1226,7 +1226,7 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end loop;
   perform "better_supabase"."release_promotions"(v_order.id);
-  null;
+  perform "better_supabase".emit_event('order.cancelled', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'reason', coalesce(p_reason, 'cancelled')), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
 end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
@@ -1429,12 +1429,12 @@ begin
     "tracking_number" = coalesce(ship_fulfillment.tracking_number, x."tracking_number"),
     "tracking_url" = coalesce(ship_fulfillment.tracking_url, x."tracking_url")
   where x."id" = v_fulfillment.id;
-  null;
+  perform "better_supabase".emit_event('fulfillment.shipped', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_fulfillment.id, 'orderId', v_order.id, 'number', v_order.number, 'carrier', (select x."carrier" from "better_supabase"."fulfillments" x where x."id" = v_fulfillment.id), 'trackingNumber', (select x."tracking_number" from "better_supabase"."fulfillments" x where x."id" = v_fulfillment.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   if v_order.status = 'paid'
     and not exists (select 1 from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."quantity_fulfilled" < l."quantity")
     and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" = 'pending') then
     perform "better_supabase"."order_transition"(v_order.id, 'fulfilled');
-    null;
+    perform "better_supabase".emit_event('order.fulfilled', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   end if;
   return true;
 end;
@@ -1476,11 +1476,11 @@ begin
     raise exception 'only a shipped fulfillment can be delivered' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   update "better_supabase"."fulfillments" x set "status" = 'delivered', "delivered_at" = now() where x."id" = v_fulfillment.id;
-  null;
+  perform "better_supabase".emit_event('fulfillment.delivered', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_fulfillment.id, 'orderId', v_order.id, 'number', v_order.number), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   if v_order.status = 'fulfilled'
     and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" in ('pending', 'shipped')) then
     perform "better_supabase"."order_transition"(v_order.id, 'completed');
-    null;
+    perform "better_supabase".emit_event('order.completed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   end if;
   return true;
 end;
@@ -1582,7 +1582,7 @@ begin
     on conflict ("return_id", "order_line_id") do update set "quantity" = x."quantity" + excluded."quantity";
     v_units := v_units + v_item.quantity;
   end loop;
-  null;
+  perform "better_supabase".emit_event('return.requested', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_id, 'orderId', v_order.id, 'number', v_order.number, 'quantity', v_units::text, 'reason', request_return.reason), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   return jsonb_build_object('id', v_id, 'orderId', v_order.id, 'status', 'requested', 'quantity', v_units);
 end;
 $$;
@@ -1638,7 +1638,7 @@ begin
     v_units := v_units + v_line.quantity;
   end loop;
   update "better_supabase"."order_returns" x set "status" = 'received', "received_at" = now() where x."id" = v_return.id;
-  null;
+  perform "better_supabase".emit_event('return.received', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_return.id, 'orderId', v_order.id, 'number', v_order.number, 'quantity', v_units::text), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
   return true;
 end;
 $$;
@@ -1805,7 +1805,7 @@ begin
       if v_total >= v_order.paid_total and v_order.status in ('paid', 'fulfilled', 'completed') then
         perform "better_supabase"."order_transition"(v_order.id, 'refunded');
       end if;
-      null;
+      perform "better_supabase".emit_event('order.refunded', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'amount', v_refund.amount::text, 'refundedTotal', v_total::text, 'status', (select x."status" from "better_supabase"."orders" x where x."id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.refunded:' || v_refund.id::text, 'better-supabase/orders');
     end if;
   end if;
   return (select jsonb_build_object('id', x."id", 'orderId', x."order_id", 'status', x."status",
