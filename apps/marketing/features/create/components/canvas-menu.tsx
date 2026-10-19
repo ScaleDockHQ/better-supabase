@@ -5,6 +5,7 @@ import type { KeyboardEvent, MouseEvent, ReactElement, ReactNode } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { resolvePreset } from "better-supabase/preset";
 import {
+  ArrowLeftRightIcon,
   ArrowRightIcon,
   ClipboardCopyIcon,
   CopyIcon,
@@ -12,6 +13,7 @@ import {
   FoldVerticalIcon,
   LayoutGridIcon,
   ListIcon,
+  ListTreeIcon,
   MaximizeIcon,
   MousePointerClickIcon,
   PanelLeftIcon,
@@ -68,6 +70,7 @@ import {
   isAppTable,
   userConnection,
 } from "@/lib/design";
+import { junctionPosition, manyToMany } from "@/lib/relations";
 
 import { useCanvasBridge } from "./canvas-bridge";
 import { useIsApplePlatform } from "./canvas-toolbar";
@@ -176,6 +179,14 @@ function PaneItems({ point }: { point: Point }): ReactElement {
           <ListIcon aria-hidden="true" />
           <Label>Add lookup table here</Label>
         </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            actions.addAt("tree", point);
+          }}
+        >
+          <ListTreeIcon aria-hidden="true" />
+          <Label>Add tree here</Label>
+        </ContextMenuItem>
       </ContextMenuGroup>
       <ContextMenuSeparator />
       <ContextMenuGroup>
@@ -239,24 +250,57 @@ function PaneItems({ point }: { point: Point }): ReactElement {
 
 const AUTH_USERS = "auth.users";
 
-function ConnectTargets({ table }: { table: SchemaTable }): ReactElement {
+/**
+ * The tables a table can link to: a foreign key on it (`many-to-one`), or a
+ * junction table between the two (`many-to-many`). A target it can't link
+ * to says why.
+ */
+function ConnectTargets({
+  table,
+  kind,
+}: {
+  table: SchemaTable;
+  kind: "many-to-one" | "many-to-many";
+}): ReactElement {
   const { state, actions } = useCanvasMenu();
-  const { state: designState } = useDesign();
+  const { state: designState, actions: designActions } = useDesign();
+  const taken = new Set(state.data.tables.map((each) => each.id));
+
+  const junction = (target: string): ReturnType<typeof manyToMany> => {
+    const from = state.layout.tables[table.id];
+    const to = state.layout.tables[target];
+
+    return manyToMany(
+      designState.design,
+      state.data,
+      state.preset,
+      table.name,
+      target,
+      taken,
+      from === undefined || to === undefined
+        ? undefined
+        : junctionPosition(from, to),
+    );
+  };
+
+  const check = (
+    target: string,
+  ): { ok: true } | { ok: false; error: string } =>
+    kind === "many-to-one"
+      ? connect(designState.design, state.data, state.preset, {
+          source: table.id,
+          target,
+        })
+      : junction(target);
 
   const options = state.data.tables.map((target) => ({
     id: target.id,
     label: target.id === table.id ? `${target.name} (itself)` : target.name,
     app: isAppTable(target),
-    result: connect(designState.design, state.data, state.preset, {
-      source: table.id,
-      target: target.id,
-    }),
+    result: check(target.id),
   }));
 
-  const auth = connect(designState.design, state.data, state.preset, {
-    source: table.id,
-    target: AUTH_USERS,
-  });
+  const auth = check(AUTH_USERS);
 
   const sections = [
     { title: "Your tables", items: options.filter((option) => option.app) },
@@ -278,7 +322,16 @@ function ConnectTargets({ table }: { table: SchemaTable }): ReactElement {
               key={option.id}
               disabled={!option.result.ok}
               onClick={() => {
-                actions.connect(table.id, option.id);
+                if (kind === "many-to-one") {
+                  actions.connect(table.id, option.id);
+                } else {
+                  const result = junction(option.id);
+
+                  if (result.ok) {
+                    designActions.apply(result.design);
+                    actions.undoToast(`Added ${result.name}.`);
+                  }
+                }
               }}
             >
               <Label
@@ -344,7 +397,7 @@ function TableItems({ id }: { id: string }): ReactElement | null {
               <Label>Add connection to…</Label>
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="max-h-80 w-60 shadow-lg">
-              <ConnectTargets table={table} />
+              <ConnectTargets table={table} kind="many-to-one" />
             </ContextMenuSubContent>
           </ContextMenuSub>
         ) : (
@@ -352,6 +405,24 @@ function TableItems({ id }: { id: string }): ReactElement | null {
             <ArrowRightIcon aria-hidden="true" />
             <Label reason="Only app tables can hold a foreign key">
               Add connection to…
+            </Label>
+          </ContextMenuItem>
+        )}
+        {app ? (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger className="gap-2">
+              <ArrowLeftRightIcon aria-hidden="true" />
+              <Label>Add many-to-many with…</Label>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="max-h-80 w-60 shadow-lg">
+              <ConnectTargets table={table} kind="many-to-many" />
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        ) : (
+          <ContextMenuItem disabled>
+            <ArrowLeftRightIcon aria-hidden="true" />
+            <Label reason="Start from one of your tables">
+              Add many-to-many with…
             </Label>
           </ContextMenuItem>
         )}

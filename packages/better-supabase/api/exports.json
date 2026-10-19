@@ -207,7 +207,9 @@
   },
   "./config": {
     "values": [
+      "APP_COLUMN_FORMATS",
       "APP_COLUMN_TYPES",
+      "APP_ROLLUP_AGGREGATES",
       "buildJsonSchema",
       "claimPaths",
       "CONFIG_DEFAULTS",
@@ -215,6 +217,7 @@
       "DEFAULT_ACTIVE_TENANT",
       "DEFAULT_CLAIMS",
       "defineConfig",
+      "FIELD_FORMATS",
       "GEN_TASKS",
       "INTEGRATION_NAMES",
       "jsonSchema",
@@ -234,11 +237,16 @@
       "ActorConfig",
       "AnyBlocksConfig",
       "AppColumnConfig",
+      "AppColumnFormat",
       "AppColumnType",
+      "AppLookupConfig",
       "AppReference",
       "AppReferenceTarget",
+      "AppRollupAggregate",
+      "AppRollupConfig",
       "AppTableConfig",
       "AppTablesConfig",
+      "AppTableSubject",
       "AuthorizationFunctions",
       "AuthorizationMembership",
       "AuthorizationOperation",
@@ -268,6 +276,8 @@
       "ExposeConfig",
       "ExposePrivilege",
       "ExposeRole",
+      "FieldFormat",
+      "FieldFormatInput",
       "GenConfig",
       "GeneratedFile",
       "Generator",
@@ -316,16 +326,21 @@
   },
   "./preset": {
     "values": [
+      "APP_COLUMN_FORMATS",
       "appReservedColumns",
       "decodeDesign",
       "decodePreset",
       "DEFAULT_CONVENTIONS",
+      "DESIGN_FORMAT",
       "designApplyCommand",
       "designConfig",
       "designConfigSource",
+      "designFormat",
       "designInstallCommand",
       "designOf",
       "DesignTooLongError",
+      "diffAppTables",
+      "diffDesigns",
       "encodeDesign",
       "encodePreset",
       "expandPreset",
@@ -357,8 +372,12 @@
       "withPresetField"
     ],
     "types": [
+      "AppColumnFormat",
       "CreateDesign",
       "DecodedPreset",
+      "DesignChange",
+      "DesignChangeKind",
+      "DiffOptions",
       "NamedPreset",
       "Preset",
       "PresetAccess",
@@ -4735,6 +4754,7 @@
   "./blocks/custom-fields": {
     "values": [
       "createCustomFields",
+      "CUSTOM_FIELD_TYPES",
       "customFieldsBlock",
       "customFieldsEvents"
     ],
@@ -4742,6 +4762,7 @@
       "CustomFields",
       "CustomFieldsEvents",
       "CustomFieldsOptions",
+      "CustomFieldType",
       "FieldDefinition",
       "FieldDefinitionDetail"
     ]
@@ -4825,39 +4846,6 @@
       "RegisterClientOptions",
       "RegisteredOAuthClient",
       "RevokeTokenOptions"
-    ]
-  },
-  "./blocks/domains": {
-    "values": [
-      "createDomains",
-      "createDomainsAdmin",
-      "dbTransport",
-      "dohResolver",
-      "domainsBlock",
-      "domainsEvents",
-      "extendBlock",
-      "normalizeHostname",
-      "rpcTransport",
-      "sqlTransport",
-      "withBlockHooks",
-      "wrapTransport"
-    ],
-    "types": [
-      "BlockHooks",
-      "BlockTransport",
-      "BlockTransportMiddleware",
-      "DohResolverOptions",
-      "Domains",
-      "DomainsAdmin",
-      "DomainsAdminOptions",
-      "DomainsEvents",
-      "DomainsOptions",
-      "Hostname",
-      "HostnameEventData",
-      "HostnameMatch",
-      "HostnameRecord",
-      "RpcClient",
-      "TxtResolver"
     ]
   },
   "./blocks/shared-signals": {

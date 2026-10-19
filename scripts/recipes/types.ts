@@ -20,6 +20,8 @@ export interface RecipeSource {
   /** The SQL modules the recipe uses. The first one sets its category. */
   readonly blocks: readonly [string, ...string[]];
   readonly kind: RecipeKind;
+  /** Overrides the category of `blocks[0]`, such as `App tables` for recipes over the app's own tables. */
+  readonly category?: "App tables";
   readonly description: string;
   /** The hook the code calls, and the entry it comes from. Server-rendered recipes have none. */
   readonly hook?: { readonly name: string; readonly entry: string };

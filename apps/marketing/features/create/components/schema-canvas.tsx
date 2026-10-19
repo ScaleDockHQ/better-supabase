@@ -452,6 +452,8 @@ function CanvasInner({
           selectable: false,
           data: {
             kind: edge.kind,
+            onDelete: edge.onDelete,
+            one: edge.one,
             points: edge.points,
             routed: !moved(edge.source) && !moved(edge.target),
             emphasis:
@@ -540,10 +542,13 @@ function CanvasInner({
         y: Math.round(center.y - 60),
       };
 
-      const added = addPrimitive(design, taken, kind, [
-        Math.round(at.x),
-        Math.round(at.y),
-      ]);
+      const added = addPrimitive(
+        design,
+        taken,
+        kind,
+        [Math.round(at.x), Math.round(at.y)],
+        preset.idType,
+      );
 
       const linked =
         references === undefined

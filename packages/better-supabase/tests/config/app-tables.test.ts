@@ -195,6 +195,347 @@ describe("appTablesOf", () => {
   });
 });
 
+describe("appTablesOf formats and keys", () => {
+  const fails = (value: unknown, message: string): void => {
+    expect(() => appTablesOf(value)).toThrow(
+      expect.objectContaining({
+        name: "TypeError",
+        message: expect.stringContaining(message),
+      }),
+    );
+  };
+
+  const column = (value: unknown): unknown => ({
+    a: { columns: { b: value } },
+  });
+
+  it("keeps formats, options, bounds, comments, identity and table keys", () => {
+    const appTables = {
+      contacts: {
+        id: "bigint",
+        comment: "People.",
+        unique: [["name", "email"]],
+        indexes: [["created_at"]],
+        columns: {
+          name: { type: "text", min: 1, max: 80, comment: "Full name." },
+          email: { type: "text", format: "email" },
+          stage: { type: "text", options: ["lead", "won"] },
+          tags: { type: "text[]", options: ["a"] },
+          score: { type: "integer", format: "rating", max: 10 },
+          number: { type: "bigint", identity: true },
+          share: { type: "numeric", min: 0.5 },
+        },
+      },
+      notes: {
+        columns: {
+          contact_id: { type: "bigint", references: { table: "contacts" } },
+        },
+      },
+    } as const;
+
+    expect(appTablesOf(appTables)).toEqual(appTables);
+  });
+
+  it("refuses a format that doesn't fit the type", () => {
+    fails(
+      column({ type: "text", format: "zip" }),
+      "format must be one of email",
+    );
+    fails(
+      column({ type: "integer", format: "email" }),
+      "format: email fits a text column, not integer",
+    );
+    fails(
+      column({ type: "text", format: "currency" }),
+      "currency fits a bigint column, not text",
+    );
+  });
+
+  it("refuses options outside text and text[], empty or repeated", () => {
+    fails(
+      column({ type: "integer", options: ["1"] }),
+      "options fit a text (single select) or text[] (multi-select) column, not integer",
+    );
+    fails(column({ type: "text", options: [] }), "must list 1 to 100 values");
+    fails(column({ type: "text", options: ["a", "a"] }), '"a" is listed twice');
+    fails(
+      column({ type: "text", options: ["a\nb"] }),
+      "without control characters",
+    );
+    fails(
+      column({ type: "text", format: "email", options: ["a"] }),
+      "options make a select; drop the format email",
+    );
+  });
+
+  it("refuses bounds that don't fit", () => {
+    fails(
+      column({ type: "boolean", min: 1 }),
+      "min and max fit a number or text column",
+    );
+    fails(
+      column({ type: "text", min: 1.5 }),
+      "a text length is a whole number",
+    );
+    fails(
+      column({ type: "integer", max: 1.5 }),
+      "an integer bound is a whole number",
+    );
+    fails(column({ type: "integer", min: 5, max: 1 }), "min 5 is above max 1");
+    fails(column({ type: "numeric", min: "1" }), "min must be a number");
+  });
+
+  it("refuses an identity that isn't a plain whole number", () => {
+    fails(
+      column({ type: "text", identity: true }),
+      "an identity is an integer or bigint",
+    );
+    fails(
+      column({ type: "bigint", identity: true, default: "1" }),
+      "an identity takes no default",
+    );
+    fails(
+      column({ type: "bigint", identity: true, nullable: true }),
+      "an identity is never null",
+    );
+  });
+
+  it("refuses a reference whose type differs from the target id", () => {
+    fails(
+      {
+        a: { id: "bigint" },
+        b: { columns: { a_id: { type: "uuid", references: { table: "a" } } } },
+      },
+      "a reference to a needs a bigint column, not uuid",
+    );
+  });
+
+  it("refuses bad table keys", () => {
+    fails({ a: { id: "text" } }, "appTables.a.id must be uuid or bigint");
+    fails(
+      { a: { unique: [[]] } },
+      "appTables.a.unique[0] must list 1 to 32 column names",
+    );
+    fails(
+      { a: { indexes: [["a", "a"]] } },
+      "appTables.a.indexes[0] names a column twice",
+    );
+    fails({ a: { indexes: [["A"]] } }, '"A" is not a column name');
+    fails(
+      { a: { comment: "" } },
+      "appTables.a.comment must be text of 1 to 1000",
+    );
+  });
+});
+
+describe("appTablesOf rollups and lookups", () => {
+  const tables = (
+    projects: Record<string, unknown>,
+    tasks: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    projects: { columns: { name: { type: "text" } }, ...projects },
+    tasks: {
+      columns: {
+        project_id: { type: "uuid", references: { table: "projects" } },
+        status: { type: "text", options: ["todo", "done"] },
+        estimate: { type: "integer" },
+        title: { type: "text" },
+        flagged: { type: "boolean" },
+      },
+      ...tasks,
+    },
+  });
+
+  const fails = (value: unknown, message: string): void => {
+    expect(() => appTablesOf(value)).toThrow(
+      expect.objectContaining({
+        name: "TypeError",
+        message: expect.stringContaining(message),
+      }),
+    );
+  };
+
+  it("keeps valid rollups and lookups", () => {
+    const resolved = appTablesOf(
+      tables(
+        {
+          rollups: {
+            open_tasks: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "count",
+              where: { column: "status", equals: "todo" },
+            },
+            estimate_avg: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "avg",
+              column: "estimate",
+            },
+            last_task: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "max",
+              column: "created_at",
+            },
+          },
+        },
+        { lookups: { project_name: { via: "project_id", column: "name" } } },
+      ),
+    );
+
+    expect(resolved["projects"]?.rollups?.["open_tasks"]).toEqual({
+      table: "tasks",
+      via: "project_id",
+      aggregate: "count",
+      where: { column: "status", equals: "todo" },
+    });
+    expect(resolved["tasks"]?.lookups).toEqual({
+      project_name: { via: "project_id", column: "name" },
+    });
+  });
+
+  it("refuses a child table or link that doesn't exist", () => {
+    fails(
+      tables({
+        rollups: { n: { table: "nope", via: "x", aggregate: "count" } },
+      }),
+      "appTables.projects.rollups.n.table must name an app table (projects, tasks)",
+    );
+    fails(
+      tables({
+        rollups: { n: { table: "tasks", via: "title", aggregate: "count" } },
+      }),
+      "rollups.n.via must name a column of tasks that references projects (project_id)",
+    );
+  });
+
+  it("refuses a column that doesn't fit the aggregate", () => {
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            column: "estimate",
+          },
+        },
+      }),
+      "count counts rows; drop column",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "sum",
+            column: "title",
+          },
+        },
+      }),
+      "sum needs a number column of tasks (estimate)",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "min",
+            column: "flagged",
+          },
+        },
+      }),
+      "min needs a number, date, time or text column",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: { table: "tasks", via: "project_id", aggregate: "median" },
+        },
+      }),
+      "aggregate must be one of count, sum, min, max, avg",
+    );
+  });
+
+  it("filters only on a select column and one of its options", () => {
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            where: { column: "title", equals: "x" },
+          },
+        },
+      }),
+      "where.column must name a select column of tasks (status)",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            where: { column: "status", equals: "late" },
+          },
+        },
+      }),
+      "where.equals must be an option of tasks.status (todo, done)",
+    );
+  });
+
+  it("refuses a lookup through a column that references no app table", () => {
+    fails(
+      tables({}, { lookups: { x: { via: "title", column: "name" } } }),
+      "lookups.x.via must name a column of tasks that references another app table (project_id)",
+    );
+    fails(
+      tables({}, { lookups: { x: { via: "project_id", column: "budget" } } }),
+      "lookups.x.column must name a column of projects (name, created_at, updated_at)",
+    );
+  });
+
+  it("refuses a computed name the table already uses", () => {
+    fails(
+      tables({
+        rollups: {
+          name: { table: "tasks", via: "project_id", aggregate: "count" },
+        },
+      }),
+      'appTables.projects.rollups.name: "name" is already a column of projects',
+    );
+    fails(
+      tables(
+        {},
+        {
+          rollups: {},
+          lookups: { id: { via: "project_id", column: "name" } },
+        },
+      ),
+      '"id" is already a column of tasks',
+    );
+  });
+
+  it("refuses a view name another app table has", () => {
+    fails(
+      {
+        ...tables({
+          rollups: {
+            n: { table: "tasks", via: "project_id", aggregate: "count" },
+          },
+        }),
+        projects_view: {},
+      },
+      "projects_view",
+    );
+  });
+});
+
 describe("isAppDefault", () => {
   it.each([
     ["timestamptz", "now()", true],
@@ -211,5 +552,88 @@ describe("isAppDefault", () => {
     ["text[]", "'[]'", false],
   ] as const)("%s accepts %s: %s", (type, value, expected) => {
     expect(isAppDefault(type, value)).toBe(expected);
+  });
+
+  it("merges a table's subject into subjects", () => {
+    const config = resolveConfig(
+      {
+        sql: { naming: { tenant: "workspace" } },
+        subjects: { customer: { table: "public.customers" } },
+        appTables: {
+          projects: {
+            id: "bigint",
+            columns: {
+              name: { type: "text", nullable: false },
+              stage: { type: "text" },
+            },
+            subject: {
+              type: "project",
+              title: "name",
+              url: "/projects/{id}",
+              search: { body: ["stage"] },
+              permissions: { read: "projects.read" },
+              rank: { group: "stage" },
+              softDelete: true,
+            },
+          },
+          notes: { scope: "user", subject: { type: "note", rank: true } },
+        },
+      },
+      "/app",
+    );
+
+    expect(config.subjects).toEqual({
+      customer: { table: "public.customers" },
+      project: {
+        table: "public.projects",
+        idType: "bigint",
+        tenant: "workspace_id",
+        title: "name",
+        url: "/projects/{id}",
+        search: { body: ["stage"] },
+        permissions: { read: "projects.read" },
+        deletedAt: "deleted_at",
+        rank: { column: "rank", group: "stage" },
+      },
+      note: {
+        table: "public.notes",
+        idType: "uuid",
+        tenant: false,
+        rank: { column: "rank" },
+      },
+    });
+  });
+
+  it("refuses a subject type that is taken or a column the table lacks", () => {
+    expect(() =>
+      resolveConfig(
+        {
+          subjects: { project: { table: "public.other" } },
+          appTables: { projects: { subject: { type: "project" } } },
+        },
+        "/app",
+      ),
+    ).toThrow(/appTables.projects.subject.type: "project" is already/u);
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", title: "name" } },
+      }),
+    ).toThrow(/subject.title must name a column/u);
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", url: "/p/{slug}" } },
+      }),
+    ).toThrow(/subject.url \{slug\} must name a column/u);
+    expect(() =>
+      appTablesOf({
+        projects: {
+          columns: { rank: { type: "text" } },
+          subject: { type: "project", rank: true },
+        },
+      }),
+    ).toThrow(/"rank" is the column appTables.projects.subject adds/u);
+    expect(() =>
+      appTablesOf({ projects: { subject: { type: "Project" } } }),
+    ).toThrow(/subject.type must be lowercase/u);
   });
 });

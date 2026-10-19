@@ -70,7 +70,7 @@ import { cn } from "@/lib/utils";
 
 import { BlockPicker } from "./block-picker";
 import { useCanvasBridge } from "./canvas-bridge";
-import { PresetPicker } from "./preset-picker";
+import { PresetPicker, TemplatePicker } from "./preset-picker";
 import { PrimitivePicker } from "./primitive-picker";
 
 /** The monorepo option: `dir` is the text in the field, valid or not. */
@@ -567,7 +567,10 @@ export function OptionsPanel({
                 }
               />
               <AccordionContent className={GROUP_CONTENT}>
-                <PresetPicker selected={named} onSelect={onNamedPreset} />
+                <div className="flex flex-col gap-2">
+                  <PresetPicker selected={named} onSelect={onNamedPreset} />
+                  <TemplatePicker />
+                </div>
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="stack">

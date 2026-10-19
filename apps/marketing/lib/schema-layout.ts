@@ -5,6 +5,7 @@ import ELK from "elkjs/lib/elk.bundled.js";
 import {
   keyColumnsOf,
   type SchemaColumn,
+  type SchemaComputed,
   type SchemaData,
   type SchemaTable,
 } from "./schema";
@@ -22,6 +23,8 @@ export type FooterRow = "more" | "less" | "add";
 
 export interface TableRows {
   readonly columns: readonly SchemaColumn[];
+  /** The rollups and lookups under an app table's columns. */
+  readonly computed: readonly SchemaComputed[];
   readonly footer: readonly FooterRow[];
   readonly hidden: number;
 }
@@ -63,6 +66,7 @@ export function tableRows(
 
   return {
     columns,
+    computed: options.app ? (table.computed ?? []) : [],
     hidden,
     footer: [
       ...(collapsible
@@ -76,7 +80,8 @@ export function tableRows(
 export function tableHeight(rows: TableRows): number {
   return (
     HEADER_HEIGHT +
-    (rows.columns.length + rows.footer.length) * ROW_HEIGHT +
+    (rows.columns.length + rows.computed.length + rows.footer.length) *
+      ROW_HEIGHT +
     LIST_PADDING * 2
   );
 }
@@ -196,6 +201,10 @@ export interface LayoutEdge {
   readonly target: string;
   readonly targetColumn: string | null;
   readonly kind: EdgeKind;
+  /** The foreign key's `on delete` action; `null` for a soft reference. */
+  readonly onDelete: string | null;
+  /** Whether the referencing column is unique: one row on each side. */
+  readonly one: boolean;
   readonly points: readonly Point[];
 }
 
@@ -289,6 +298,22 @@ interface Relation {
   readonly to: string;
   readonly toColumn: string | null;
   readonly kind: EdgeKind;
+  readonly onDelete: string | null;
+  readonly one: boolean;
+}
+
+/** Whether a foreign key's columns are unique: the primary key, or one unique column. */
+function isOne(table: SchemaTable, columns: readonly string[]): boolean {
+  const [column] = columns;
+
+  if (columns.join(",") === table.primaryKey.join(",")) {
+    return true;
+  }
+
+  return (
+    columns.length === 1 &&
+    table.columns.some((each) => each.name === column && each.unique)
+  );
 }
 
 function relationsOf(data: SchemaData, softRefs: boolean): readonly Relation[] {
@@ -309,6 +334,8 @@ function relationsOf(data: SchemaData, softRefs: boolean): readonly Relation[] {
           to,
           toColumn: key.target.columns[0] ?? target?.primaryKey[0] ?? null,
           kind: "foreign",
+          onDelete: key.onDelete,
+          one: isOne(table, key.columns),
         });
       }
     }
@@ -324,6 +351,8 @@ function relationsOf(data: SchemaData, softRefs: boolean): readonly Relation[] {
           to: ref.to,
           toColumn: byId.get(ref.to)?.primaryKey[0] ?? null,
           kind: "soft",
+          onDelete: null,
+          one: false,
         });
       }
     }
@@ -488,6 +517,8 @@ export async function layoutSchema(
           target,
           targetColumn: visible(targetRows, relation.column),
           kind: relation.kind,
+          onDelete: relation.onDelete,
+          one: relation.one,
           points: [],
         },
       ];
@@ -576,7 +607,12 @@ export async function layoutSchema(
                 id: table.id,
                 width: NODE_WIDTH,
                 height: tableHeight(
-                  rows.get(table.id) ?? { columns: [], footer: [], hidden: 0 },
+                  rows.get(table.id) ?? {
+                    columns: [],
+                    computed: [],
+                    footer: [],
+                    hidden: 0,
+                  },
                 ),
                 layoutOptions: FIXED_PORTS,
                 ports: portsOf(table.id),

@@ -174,6 +174,35 @@ describe("layoutSchema", () => {
     expect(layout.externals["auth.users"]).toBeDefined();
   });
 
+  test("marks each edge's delete action and a one-to-one reference", async () => {
+    const design = addTable(addTable({}, "projects"), "briefs", {
+      columns: {
+        project_id: {
+          type: "uuid",
+          unique: true,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+      },
+    });
+
+    const layout = await layoutSchema(
+      withDesign(data, design, preset),
+      OPTIONS,
+    );
+
+    const edge = layout.edges.find(
+      (each) =>
+        each.target === "public.briefs" && each.source === "public.projects",
+    );
+
+    expect(edge).toMatchObject({ onDelete: "cascade", one: true });
+    expect(
+      layout.edges
+        .filter((each) => each.kind === "soft")
+        .every((each) => each.onDelete === null && !each.one),
+    ).toBe(true);
+  });
+
   test("draws only the visible tables", async () => {
     const [first] = data.tables;
 

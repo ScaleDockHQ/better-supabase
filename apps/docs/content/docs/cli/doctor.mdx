@@ -653,6 +653,19 @@ unless the UI needs page numbers, keep `[api] max_rows` set so no request
 reads a whole table, and use `count: "planned"` or `"estimated"` on tables
 that can grow large.
 
+### BS228
+
+**Warning: app table column drifted from `appTables`.** A column of an app
+table has a different type or nullability in the database than
+[`appTables`](/docs/blocks/app-tables) gives it, usually after an edit by
+hand or a migration that wasn't regenerated. `gen` types the column from
+`appTables`, so the app reads values the database doesn't hold. Change
+`appTables` to match the database, or run `better-supabase sql sync` and
+apply the migration it generates. When rows depend on the old shape, follow
+the expand-and-contract steps that `apply --preset` prints for a breaking
+change. A table or column the database doesn't have yet is left out, since
+that is a migration not applied.
+
 ## Drift
 
 ### BS301

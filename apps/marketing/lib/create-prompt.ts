@@ -247,7 +247,35 @@ function extraColumnsSection(
   ].join("\n\n");
 }
 
-function recipesFor(resolved: ResolvedPreset): readonly AvailableRecipe[] {
+/**
+ * `scaffold screens <table>` for each app table the caller writes, on
+ * Next.js only: the command writes App Router pages, and a `none` table
+ * is written by the service role alone.
+ */
+export function screensCommands(
+  appTables: Readonly<Record<string, PromptDesignTable>>,
+  resolved: ResolvedPreset,
+  pkg: string | undefined,
+): string[] {
+  if (resolved.preset.framework !== "next") {
+    return [];
+  }
+
+  return Object.entries(appTables)
+    .filter(([, table]) => tableScope(table, resolved) !== "none")
+    .map(
+      ([name]) =>
+        `npx better-supabase scaffold screens ${name}${pkg === undefined ? "" : ` --cwd ${pkg}`}`,
+    );
+}
+
+/** The record recipes cover app tables, so they join the block recipes once the design has one. */
+const APP_TABLE_CATEGORY = "App tables";
+
+function recipesFor(
+  resolved: ResolvedPreset,
+  hasAppTables: boolean,
+): readonly AvailableRecipe[] {
   const installed = new Set([
     ...resolved.blocks.map((block) => block.name),
     ...resolved.manifests.map((manifest) => manifest.name),
@@ -256,7 +284,11 @@ function recipesFor(resolved: ResolvedPreset): readonly AvailableRecipe[] {
   const seen = new Set<string>();
 
   return availableRecipes.filter((recipe) => {
-    if (!installed.has(recipe.block) || seen.has(recipe.slug)) {
+    const fits =
+      installed.has(recipe.block) ||
+      (hasAppTables && recipe.category === APP_TABLE_CATEGORY);
+
+    if (!fits || seen.has(recipe.slug)) {
       return false;
     }
 
@@ -276,7 +308,8 @@ function uiSection(
   const sides: readonly ("web" | "native")[] =
     platforms === "both" ? ["web", "native"] : [platforms];
 
-  const recipes = recipesFor(resolved);
+  const appTables = Object.keys(design?.appTables ?? {});
+  const recipes = recipesFor(resolved, appTables.length > 0);
   const glueItems = presetGlue(resolved);
   const glueNames = new Set(glueItems.map((item) => item.name));
 
@@ -320,8 +353,6 @@ function uiSection(
       : []),
   ];
 
-  const appTables = Object.keys(design?.appTables ?? {});
-
   const pages = [
     "`/sign-in`, `/sign-up` and `/reset-password`: the auth pages, outside the app shell. Sign-in redirects to `/` and sign-out returns to `/sign-in`.",
     "`/`: the home page, with a summary of what the blocks hold.",
@@ -341,11 +372,18 @@ function uiSection(
       : []),
   ];
 
+  const screens = screensCommands(design?.appTables ?? {}, resolved, input.pkg);
+
   const crud =
     appTables.length === 0
       ? []
       : [
           `Each app table gets list, create, detail and edit screens. ${sides.includes("web") ? "On web, list the rows with the ReUI data grid (sorting, pagination, a row action menu). " : ""}${sides.includes("native") ? "On native, list them in a `FlatList`. " : ""}Read and write through the generated repository, so RLS decides what each user sees, and confirm deletes in a dialog.`,
+          ...(screens.length > 0
+            ? [
+                `Start each table's screens from the scaffold, which writes plain list, create and detail pages with an input per column, then restyle them with the record recipes above:\n\n${fence("bash", screens.map(run).join("\n"))}`,
+              ]
+            : []),
         ];
 
   return [

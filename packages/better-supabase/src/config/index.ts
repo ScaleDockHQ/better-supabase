@@ -43,12 +43,25 @@ export type {
 export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 export {
+  FIELD_FORMATS,
+  type FieldFormat,
+  type FieldFormatInput,
+} from "../core/contracts/field-formats.ts";
+
+export {
+  APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ROLLUP_AGGREGATES,
   type AppColumnConfig,
+  type AppColumnFormat,
   type AppColumnType,
+  type AppLookupConfig,
   type AppReference,
   type AppReferenceTarget,
+  type AppRollupAggregate,
+  type AppRollupConfig,
   type AppTableConfig,
+  type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
 

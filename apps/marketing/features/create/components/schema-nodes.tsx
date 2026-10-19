@@ -11,9 +11,10 @@ import {
   Link2Icon,
   LinkIcon,
   PlusIcon,
+  SigmaIcon,
   UsersIcon,
 } from "lucide-react";
-import { createContext, use } from "react";
+import { createContext, use, useMemo } from "react";
 
 import type { SchemaTable } from "@/lib/schema";
 import type { TableRows } from "@/lib/schema-layout";
@@ -21,12 +22,17 @@ import type { TableRows } from "@/lib/schema-layout";
 import { Badge } from "@/components/reui/badge";
 import { categoryStyle } from "@/features/blocks/categories";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
+import { installedBlocks, tableFeatures } from "@/lib/record-features";
 import { cn } from "@/lib/utils";
+
+import { useDesign } from "./design-provider";
 
 export type InspectorTab =
   | "overview"
   | "columns"
   | "relations"
+  | "features"
+  | "data"
   | "options"
   | "sql";
 
@@ -208,8 +214,39 @@ function FooterRowView({
   }
 }
 
+/** The record features an app table has on, above its node. */
+function FeatureBadges({ name }: { name: string }): ReactElement | null {
+  const { state } = useDesign();
+  const config = state.design.appTables?.[name];
+
+  const installed = useMemo(
+    () => installedBlocks(state.preset),
+    [state.preset],
+  );
+
+  const features = config === undefined ? [] : tableFeatures(config, installed);
+
+  if (features.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul
+      aria-label={`${name} features`}
+      className="pointer-events-none absolute bottom-full left-0 mb-1 flex max-w-full flex-wrap gap-1"
+    >
+      {features.map((info) => (
+        <li key={info.feature}>
+          <Badge variant="primary-light">{info.label}</Badge>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
   const { table, rows, category, scopeLabel, app, soft, emphasis } = data;
+
   const style = categoryStyle(category);
 
   return (
@@ -221,6 +258,7 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
         emphasisClass(emphasis),
       )}
     >
+      {app ? <FeatureBadges name={table.name} /> : null}
       <Handle
         id=":in"
         type="target"
@@ -276,8 +314,11 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
               <span className="min-w-0 flex-1 truncate font-mono text-xs">
                 {column.name}
               </span>
-              <span className="max-w-24 truncate font-mono text-xs text-muted-foreground">
-                {column.type}
+              <span
+                className="max-w-24 truncate font-mono text-xs text-muted-foreground"
+                title={column.label === undefined ? undefined : column.type}
+              >
+                {column.label ?? column.type}
                 {column.nullable ? "?" : ""}
               </span>
               <Handle
@@ -290,6 +331,23 @@ function TableNodeView({ data, selected }: NodeProps<TableNode>): ReactElement {
             </li>
           );
         })}
+        {rows.computed.map((row) => (
+          <li
+            key={row.name}
+            className="flex h-6 items-center gap-2 px-2 text-muted-foreground"
+            title={row.summary}
+          >
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+              <SigmaIcon aria-hidden="true" className="size-3" />
+            </span>
+            <span className="min-w-0 flex-1 truncate font-mono text-xs italic">
+              {row.name}
+            </span>
+            <span className="max-w-24 truncate font-mono text-xs">
+              {row.label}
+            </span>
+          </li>
+        ))}
         {rows.footer.map((row) => (
           <FooterRowView
             key={row}

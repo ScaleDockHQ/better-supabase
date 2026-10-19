@@ -1,10 +1,22 @@
 import {
+  type AppColumnFormat,
   appReservedColumns,
   isAppDefault,
   type Preset,
 } from "better-supabase/preset";
 
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
+
+import { columnLabel, fitted } from "./column-keys";
+import {
+  type AppLookup,
+  type AppRollup,
+  computedColumnRenamed,
+  computedRows,
+  computedTableRenamed,
+  prunedComputed,
+} from "./design-computed";
+import { subjectColumns, subjectColumnsEdited } from "./design-subject";
 
 /** The column types an app table column can have (`appTables.<table>.columns.<column>.type`). */
 export const APP_COLUMN_TYPES = [
@@ -44,14 +56,43 @@ export interface AppColumn {
   readonly default?: string;
   readonly unique?: boolean;
   readonly references?: AppReference;
+  readonly format?: AppColumnFormat;
+  readonly options?: readonly string[];
+  readonly min?: number;
+  readonly max?: number;
+  readonly comment?: string;
+  readonly identity?: boolean;
 }
 
 export type AppScope = "inherit" | "user" | "none";
+
+export type AppTableId = "uuid" | "bigint";
+
+/** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
+export interface AppSubject {
+  readonly type: string;
+  readonly title?: string;
+  readonly url?: string;
+  readonly search?: {
+    readonly title?: string;
+    readonly body?: readonly string[];
+  };
+  readonly permissions?: Readonly<Record<string, string>>;
+  readonly rank?: true | { readonly group?: string };
+  readonly softDelete?: boolean;
+}
 
 export interface AppTable {
   readonly columns?: Readonly<Record<string, AppColumn>>;
   readonly scope?: AppScope;
   readonly timestamps?: boolean;
+  readonly id?: AppTableId;
+  readonly unique?: readonly (readonly string[])[];
+  readonly indexes?: readonly (readonly string[])[];
+  readonly comment?: string;
+  readonly subject?: AppSubject;
+  readonly rollups?: Readonly<Record<string, AppRollup>>;
+  readonly lookups?: Readonly<Record<string, AppLookup>>;
 }
 
 /**
@@ -161,6 +202,7 @@ function columnNamesOf(
     ...(scope === null ? [] : [scope.name]),
     ...Object.keys(table.columns ?? {}),
     ...(table.timestamps === false ? [] : ["created_at", "updated_at"]),
+    ...computedRows(table).map((row) => row.name),
   ];
 }
 
@@ -218,13 +260,9 @@ const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
   "text[]": "'{}'",
 };
 
-/** A column with its type changed, dropping a default the new type can't take. */
-export function retyped(column: AppColumn, type: AppColumnType): AppColumn {
-  const { default: fallback, ...rest } = column;
-
-  return fallback === undefined || isAppDefault(type, fallback)
-    ? { ...column, type }
-    : { ...rest, type };
+/** A column with its type changed, dropping the keys the new type can't take. */
+function retyped(column: AppColumn, type: AppColumnType): AppColumn {
+  return fitted({ ...column, type });
 }
 
 /** A free app table name: `base`, then `base_2`, `base_3` and so on. */
@@ -255,7 +293,9 @@ function withAppTables(
 ): Design {
   const { appTables: _drop, ...rest } = design;
 
-  return Object.keys(appTables).length === 0 ? rest : { ...rest, appTables };
+  return Object.keys(appTables).length === 0
+    ? rest
+    : { ...rest, appTables: prunedComputed(appTables) };
 }
 
 function withPositions(
@@ -348,27 +388,146 @@ export function renameTable(design: Design, from: string, to: string): Design {
   const positions = omitKey(design.positions, appTableId(from));
 
   return withPositions(
-    withAppTables(design, appTables),
+    withAppTables(design, computedTableRenamed(appTables, from, to)),
     position === undefined
       ? positions
       : { ...positions, [appTableId(to)]: position },
   );
 }
 
-/** Updates an app table's options. */
+export type TablePatch = {
+  readonly [
+    K in
+      | "scope"
+      | "timestamps"
+      | "id"
+      | "unique"
+      | "indexes"
+      | "comment"
+      | "subject"
+  ]?: AppTable[K] | undefined;
+};
+
+const TABLE_PATCH_KEYS = [
+  "scope",
+  "timestamps",
+  "id",
+  "unique",
+  "indexes",
+  "comment",
+  "subject",
+] as const;
+
+/** An app table under construction. */
+type DraftTable = { -readonly [K in keyof AppTable]: AppTable[K] };
+
+function patchKey<K extends (typeof TABLE_PATCH_KEYS)[number]>(
+  next: DraftTable,
+  patch: TablePatch,
+  key: K,
+): void {
+  if (!(key in patch)) {
+    return;
+  }
+
+  const value = patch[key];
+
+  if (value === undefined) {
+    delete next[key];
+  } else {
+    next[key] = value;
+  }
+}
+
+/** Updates an app table's options; a key set to `undefined` is removed. */
 export function updateTable(
   design: Design,
   name: string,
-  patch: Pick<AppTable, "scope" | "timestamps">,
+  patch: TablePatch,
 ): Design {
   const table = design.appTables?.[name];
 
-  return table === undefined
-    ? design
-    : withAppTables(design, {
-        ...design.appTables,
-        [name]: { ...table, ...patch },
-      });
+  if (table === undefined) {
+    return design;
+  }
+
+  const next: DraftTable = { ...table };
+
+  for (const key of TABLE_PATCH_KEYS) {
+    patchKey(next, patch, key);
+  }
+
+  return withAppTables(design, { ...design.appTables, [name]: next });
+}
+
+/**
+ * Sets an app table's id type and retypes the app table columns that
+ * reference it, since a key has the type of the id it points at.
+ */
+export function setTableId(
+  design: Design,
+  name: string,
+  id: AppTableId,
+): Design {
+  const next = updateTable(design, name, {
+    id: id === "uuid" ? undefined : id,
+  });
+
+  return withAppTables(
+    next,
+    Object.fromEntries(
+      Object.entries(next.appTables ?? {}).map(([key, table]) => [
+        key,
+        {
+          ...table,
+          columns: Object.fromEntries(
+            Object.entries(table.columns ?? {}).map(([column, config]) => [
+              column,
+              config.references?.block === undefined &&
+              config.references?.table === name
+                ? retyped(config, id)
+                : config,
+            ]),
+          ),
+        },
+      ]),
+    ),
+  );
+}
+
+/** A table's composite key sets with `edit` applied to each, dropping empty sets and an empty list. */
+function withKeySets(
+  table: AppTable,
+  edit: (columns: readonly string[]) => readonly string[],
+): AppTable {
+  const { unique, indexes, ...rest } = table;
+
+  const sets = (
+    list: readonly (readonly string[])[] | undefined,
+  ): readonly (readonly string[])[] | undefined => {
+    const next = (list ?? []).map(edit).filter((columns) => columns.length > 0);
+
+    return next.length === 0 ? undefined : next;
+  };
+
+  const next: DraftTable = { ...rest };
+  const nextUnique = sets(unique);
+
+  if (rest.subject !== undefined) {
+    next.subject = subjectColumnsEdited(rest.subject, edit);
+  }
+
+  const nextIndexes = sets(indexes);
+
+  if (nextUnique !== undefined) {
+    next.unique = nextUnique;
+  }
+
+  if (nextIndexes !== undefined) {
+    next.indexes = nextIndexes;
+  }
+
+  return next;
 }
 
 /** Sets (adds or replaces) an app table column. */
@@ -404,18 +563,42 @@ export function renameColumn(
     return design;
   }
 
-  return withAppTables(design, {
-    ...design.appTables,
-    [table]: {
-      ...current,
-      columns: Object.fromEntries(
-        Object.entries(current.columns ?? {}).map(([name, column]) => [
-          name === from ? to : name,
-          column,
-        ]),
-      ),
-    },
-  });
+  return withAppTables(
+    design,
+    computedColumnRenamed(
+      {
+        ...design.appTables,
+        [table]: withKeySets(
+          {
+            ...current,
+            columns: Object.fromEntries(
+              Object.entries(current.columns ?? {}).map(([name, column]) => [
+                name === from ? to : name,
+                column,
+              ]),
+            ),
+          },
+          (columns) => columns.map((column) => (column === from ? to : column)),
+        ),
+      },
+      table,
+      from,
+      to,
+    ),
+  );
+}
+
+/** Replaces an app table with `edit` applied to it, such as `tableWithComputed`. */
+export function editTable(
+  design: Design,
+  table: string,
+  edit: (current: AppTable) => AppTable,
+): Design {
+  const current = design.appTables?.[table];
+
+  return current === undefined
+    ? design
+    : withAppTables(design, { ...design.appTables, [table]: edit(current) });
 }
 
 export function deleteColumn(
@@ -429,7 +612,10 @@ export function deleteColumn(
     ? design
     : withAppTables(design, {
         ...design.appTables,
-        [table]: { ...current, columns: omitKey(current.columns, name) },
+        [table]: withKeySets(
+          { ...current, columns: omitKey(current.columns, name) },
+          (columns) => columns.filter((column) => column !== name),
+        ),
       });
 }
 
@@ -492,7 +678,9 @@ export function duplicateTable(
     design: addTable(
       design,
       copy,
-      table,
+      table.subject === undefined
+        ? table
+        : { ...table, subject: { ...table.subject, type: singular(copy) } },
       position === undefined ? undefined : [position[0] + 40, position[1] + 40],
     ),
     name: copy,
@@ -750,12 +938,14 @@ export interface DesignIssue {
 /**
  * What would stop `sql sync` from writing the design: a table name a block
  * already uses, a reference to a table the preset no longer installs, a
- * set-null delete on a required column, and extra columns for a block that
- * is gone or no longer takes them.
+ * set-null delete on a required column, a composite key on a column the
+ * table doesn't have, and extra columns for a block that is gone or no
+ * longer takes them.
  */
 export function designIssues(
   design: Design,
   data: SchemaData,
+  preset: Pick<Preset, "scope" | "tenantName" | "idType">,
 ): readonly DesignIssue[] {
   const issues: DesignIssue[] = [];
 
@@ -792,6 +982,43 @@ export function designIssues(
         table: name,
         message: `A block already creates a ${name} table. Rename this one.`,
       });
+    }
+
+    for (const column of subjectColumns(table.subject)) {
+      if (Object.hasOwn(table.columns ?? {}, column.name)) {
+        issues.push({
+          table: name,
+          message: `${name}.${column.name} clashes with the column its record features add. Rename it.`,
+        });
+      }
+    }
+
+    const known = new Set([
+      "id",
+      ...Object.keys(table.columns ?? {}),
+      ...(table.timestamps === false ? [] : ["created_at", "updated_at"]),
+    ]);
+
+    const scope = scopeColumnOf(table, preset);
+
+    if (scope !== null) {
+      known.add(scope.name);
+    }
+
+    for (const [key, sets] of [
+      ["unique key", table.unique],
+      ["index", table.indexes],
+    ] as const) {
+      for (const columns of sets ?? []) {
+        const gone = columns.filter((column) => !known.has(column));
+
+        if (gone.length > 0) {
+          issues.push({
+            table: name,
+            message: `The ${key} on ${columns.join(", ")} names ${gone.join(", ")}, which ${name} doesn't have.`,
+          });
+        }
+      }
     }
 
     for (const [column, config] of Object.entries(table.columns ?? {})) {
@@ -836,13 +1063,17 @@ export function designIssues(
 }
 
 function appColumn(name: string, column: AppColumn): SchemaColumn {
-  return {
+  const label = columnLabel(column);
+
+  const schemaColumn: SchemaColumn = {
     name,
     type: column.type,
-    nullable: column.nullable ?? true,
-    default: column.default ?? null,
+    nullable: column.identity === true ? false : (column.nullable ?? true),
+    default: column.identity === true ? "identity" : (column.default ?? null),
     unique: column.unique ?? false,
   };
+
+  return label === undefined ? schemaColumn : { ...schemaColumn, label };
 }
 
 const TIMESTAMP: Omit<SchemaColumn, "name"> = {
@@ -872,10 +1103,15 @@ function referencedId(
 function foreignKey(
   column: string,
   to: string,
+  onDelete = "no action",
 ): SchemaTable["foreignKeys"][number] {
   const [schema = "", target = ""] = to.split(".");
 
-  return { columns: [column], target: { schema, table: target, columns: [] } };
+  return {
+    columns: [column],
+    target: { schema, table: target, columns: [] },
+    onDelete,
+  };
 }
 
 /** An app table as the diagram reads it. */
@@ -895,17 +1131,26 @@ function appSchemaTable(
         : (data.tenantTable ?? undefined);
 
   const columns: SchemaColumn[] = [
-    {
-      name: "id",
-      type: "uuid",
-      nullable: false,
-      default: "gen_random_uuid()",
-      unique: false,
-    },
+    table.id === "bigint"
+      ? {
+          name: "id",
+          type: "bigint",
+          nullable: false,
+          default: "identity",
+          unique: false,
+        }
+      : {
+          name: "id",
+          type: "uuid",
+          nullable: false,
+          default: "gen_random_uuid()",
+          unique: false,
+        },
     ...(scope === null ? [] : [scope]),
     ...Object.entries(table.columns ?? {}).map(([key, column]) =>
       appColumn(key, column),
     ),
+    ...subjectColumns(table.subject),
     ...(table.timestamps === false
       ? []
       : [
@@ -917,7 +1162,7 @@ function appSchemaTable(
   const scopeKeys =
     scope === null || scopeTo === undefined
       ? []
-      : [foreignKey(scope.name, scopeTo)];
+      : [foreignKey(scope.name, scopeTo, "cascade")];
 
   const columnKeys = Object.entries(table.columns ?? {}).flatMap(
     ([key, column]) => {
@@ -926,11 +1171,13 @@ function appSchemaTable(
           ? undefined
           : referencedId(column.references, data);
 
-      return to === undefined ? [] : [foreignKey(key, to)];
+      return to === undefined
+        ? []
+        : [foreignKey(key, to, column.references?.onDelete)];
     },
   );
 
-  return {
+  const schemaTable: SchemaTable = {
     id: appTableId(name),
     schema: APP_SCHEMA,
     name,
@@ -941,6 +1188,10 @@ function appSchemaTable(
       scope !== null && scope.name !== "user_id" ? scope.name : null,
     columns,
   };
+
+  const computed = computedRows(table);
+
+  return computed.length === 0 ? schemaTable : { ...schemaTable, computed };
 }
 
 /** The extra column names a block table got from the design. */

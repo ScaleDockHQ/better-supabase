@@ -41,6 +41,23 @@ describe("the /create state", () => {
     ]);
   });
 
+  test("a design and a block list are one step Undo reverts", () => {
+    const on = run(start, {
+      type: "step",
+      design: projects,
+      blocks: ["profiles", "comments"],
+    });
+
+    expect(presetOfState(on).blocks).toEqual(["profiles", "comments"]);
+    expect(on.history.present.design).toBe(projects);
+    expect(on.history.past).toHaveLength(1);
+
+    const undone = run(on, { type: "undo" });
+
+    expect(presetOfState(undone).blocks).toEqual(["profiles"]);
+    expect(undone.history.present.design).toBe(EMPTY_DESIGN);
+  });
+
   test("other preset fields change without a step", () => {
     const camel = run(start, {
       type: "preset",

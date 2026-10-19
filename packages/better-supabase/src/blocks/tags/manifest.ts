@@ -17,5 +17,5 @@ export const tagsBlock: BlockOf<"tags", typeof createTags, TagsEvents> =
     events: tagsEvents,
     create: createTags,
     category: "work",
-    recipes: ["tag-input"],
+    recipes: ["record-page", "tag-input"],
   });

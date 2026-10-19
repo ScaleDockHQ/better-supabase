@@ -493,6 +493,49 @@ describe("buildModel comments", () => {
   });
 });
 
+describe("views", () => {
+  // An app table's `<table>_view` joins its rollups and lookups laterally,
+  // so Postgres reports it as neither insertable nor updatable.
+  it("reads a view Postgres can't update as a read-only model", async () => {
+    const built = await model((generator) => {
+      const tags = tableNamed(generator, "tags");
+      const id = tags.id + 900_000;
+
+      return {
+        views: [
+          ...generator.views,
+          {
+            comment: null,
+            id,
+            is_updatable: false,
+            is_insert_enabled: false,
+            is_update_enabled: false,
+            name: "tags_view",
+            schema: "public",
+          },
+        ],
+        columns: [
+          ...generator.columns,
+          ...generator.columns
+            .filter((column) => column.table_id === tags.id)
+            .map((column) => ({
+              ...column,
+              table_id: id,
+              table: "tags_view",
+              is_updatable: false,
+            })),
+        ],
+      };
+    });
+
+    const view = built.tables.find((table) => table.key === "tagsView")!;
+
+    expect(view.columns.length).toBeGreaterThan(0);
+    expect(view.columns.every((column) => !column.insertable)).toBe(true);
+    expect(view.columns.every((column) => !column.updatable)).toBe(true);
+  });
+});
+
 describe("subject types", () => {
   it("emits SubjectType and SubjectRef from config.subjects", async () => {
     const input = await model(() => ({}), {

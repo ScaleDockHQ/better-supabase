@@ -17,6 +17,7 @@ const data: Pick<SchemaData, "tables"> = {
         {
           columns: ["user_id"],
           target: { schema: "auth", table: "users", columns: ["id"] },
+          onDelete: "cascade",
         },
       ],
       tenantColumn: null,

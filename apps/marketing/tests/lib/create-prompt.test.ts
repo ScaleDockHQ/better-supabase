@@ -20,6 +20,7 @@ import {
   createPrompt,
   type CreatePromptInput,
   type PromptDesign,
+  screensCommands,
 } from "../../lib/create-prompt";
 import { availableRecipes } from "../../lib/recipes";
 
@@ -150,6 +151,25 @@ describe("createPrompt", () => {
     expect(prompt).toContain("Expo Router");
     expect(prompt).toContain("`FlatList`");
     expect(prompt).not.toContain("@reui/data-grid");
+    expect(prompt).not.toContain("scaffold screens");
+  });
+
+  test("Next.js app tables start from scaffold screens and the record recipes", () => {
+    const prompt = createPrompt(input(saas, { ui: true, design }));
+
+    expect(prompt).toContain(
+      "pnpm dlx better-supabase scaffold screens projects",
+    );
+    expect(prompt).toContain("pnpm dlx better-supabase scaffold screens notes");
+    expect(prompt).not.toContain("scaffold screens changelog");
+    expect(prompt).toContain(`${SITE}/recipes/record-grid.md`);
+  });
+
+  test("screensCommands runs in the package and skips tables only the service role writes", () => {
+    expect(screensCommands(design.appTables ?? {}, saas, "apps/web")).toEqual([
+      "npx better-supabase scaffold screens projects --cwd apps/web",
+      "npx better-supabase scaffold screens notes --cwd apps/web",
+    ]);
   });
 
   test("app tables list their implicit columns and RLS by scope", () => {

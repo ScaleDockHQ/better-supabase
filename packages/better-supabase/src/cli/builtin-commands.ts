@@ -120,7 +120,7 @@ const BUILTIN: readonly (readonly [string, CliEntry])[] = [
       load: () =>
         import("./commands/scaffold.ts").then((m) => m.scaffoldCommand),
       description:
-        "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
+        "Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table",
     },
   ],
   [

@@ -39,6 +39,28 @@ describe("primitives", () => {
     expect(table?.columns.map((column) => column.name)).toContain("label");
   });
 
+  test("a tree references itself through parent_id", () => {
+    const { design, name } = addPrimitive(
+      EMPTY_DESIGN,
+      new Set(),
+      "tree",
+      [0, 0],
+      "bigint",
+    );
+
+    expect(name).toBe("categories");
+    expect(design.appTables?.["categories"]).toEqual({
+      id: "bigint",
+      columns: {
+        name: { type: "text", nullable: false },
+        parent_id: {
+          type: "bigint",
+          references: { table: "categories", onDelete: "cascade" },
+        },
+      },
+    });
+  });
+
   test("names never clash", () => {
     const first = addPrimitive(EMPTY_DESIGN, new Set(), "table", [0, 0]);
 

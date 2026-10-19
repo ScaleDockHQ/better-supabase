@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   type CreateDesign,
   decodeDesign,
+  DESIGN_FORMAT,
   designApplyCommand,
+  designFormat,
   designConfig,
   designConfigSource,
   designInstallCommand,
@@ -73,6 +75,91 @@ describe("design codes", () => {
     expect(isDesignCode(code)).toBe(true);
     expect(isPresetCode(code)).toBe(false);
     expect(await decodeDesign(code)).toEqual(DESIGN);
+  });
+
+  it("writes format 1 only for a design that needs it", async () => {
+    const formatted: CreateDesign = {
+      appTables: {
+        contacts: {
+          id: "bigint",
+          unique: [["email"]],
+          columns: {
+            email: { type: "text", format: "email" },
+            stage: { type: "text", options: ["lead", "won"] },
+          },
+        },
+      },
+    };
+
+    expect(designFormat(DESIGN)).toBe(0);
+    expect(designFormat(formatted)).toBe(1);
+    expect(await decodeDesign(await encodeDesign(formatted))).toEqual(
+      formatted,
+    );
+    expect(await decodeDesign(await deflated(JSON.stringify(DESIGN)))).toEqual(
+      DESIGN,
+    );
+    expect(
+      await decodeDesign(
+        await deflated(JSON.stringify({ version: 1, ...formatted })),
+      ),
+    ).toEqual(formatted);
+    await expect(
+      decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
+    ).rejects.toThrow(
+      "design: the code needs format 9, and this better-supabase reads up to 3; update better-supabase",
+    );
+  });
+
+  it("writes format 2 for a table that is a subject", async () => {
+    const subject: CreateDesign = {
+      appTables: {
+        projects: {
+          columns: { name: { type: "text" } },
+          subject: { type: "project", title: "name", rank: true },
+        },
+      },
+    };
+
+    expect(designFormat(subject)).toBe(2);
+    expect(await decodeDesign(await encodeDesign(subject))).toEqual(subject);
+  });
+
+  it("writes format 3 for rollups and lookups", async () => {
+    const computed: CreateDesign = {
+      appTables: {
+        projects: {
+          columns: { name: { type: "text" } },
+          rollups: {
+            task_count: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "count",
+            },
+          },
+        },
+        tasks: {
+          columns: {
+            project_id: { type: "uuid", references: { table: "projects" } },
+          },
+          lookups: { project_name: { via: "project_id", column: "name" } },
+        },
+      },
+    };
+
+    expect(designFormat(computed)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(computed))).toEqual(computed);
+    await expect(
+      encodeDesign({
+        appTables: {
+          projects: {
+            rollups: {
+              n: { table: "tasks", via: "project_id", aggregate: "count" },
+            },
+          },
+        },
+      }),
+    ).rejects.toThrow("rollups.n.table must name an app table");
   });
 
   it("encodes an empty design to an empty code", async () => {

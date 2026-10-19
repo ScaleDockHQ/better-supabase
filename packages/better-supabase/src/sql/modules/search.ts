@@ -130,6 +130,37 @@ function refreshBranch(subject: RegisteredSubject): string {
       v_found := found;`;
 }
 
+/** Whether a subject's table is an app table, which exists only after every block file. */
+function isAppTable(ctx: ModuleContext, subject: RegisteredSubject): boolean {
+  return subject.schema === "public" && ctx.appTables.has(subject.table);
+}
+
+/** The trigger that re-indexes a subject's row; `fn` is `search_index_row`. */
+function triggerSql(fn: string, subject: RegisteredSubject): string {
+  const trigger = sqlIdent(`bs_search_${subject.type}_index`.slice(0, 63));
+  const columns = watchedColumns(subject).map(sqlIdent).join(", ");
+
+  return `drop trigger if exists ${trigger} on ${subject.qualified};
+create trigger ${trigger}
+  after insert or delete or update of ${columns} on ${subject.qualified}
+  for each row execute function ${fn}(${sqlString(subject.type)}, ${sqlString(subject.config.id ?? "id")});`;
+}
+
+/**
+ * When `search_reindex` reads a subject's rows. An app table may not
+ * exist yet when the block's data runs, so its branch checks first.
+ */
+function reindexCondition(
+  ctx: ModuleContext,
+  subject: RegisteredSubject,
+): string {
+  const type = `search_reindex.subject_type is null or search_reindex.subject_type = ${sqlString(subject.type)}`;
+
+  return isAppTable(ctx, subject)
+    ? `(${type}) and to_regclass(${sqlString(subject.qualified)}) is not null`
+    : type;
+}
+
 function triggers(
   ctx: ModuleContext,
   subjects: readonly RegisteredSubject[],
@@ -137,15 +168,26 @@ function triggers(
   const fn = ctx.fn("search_index_row");
 
   return subjects
-    .map((subject) => {
-      const trigger = sqlIdent(`bs_search_${subject.type}_index`.slice(0, 63));
-      const columns = watchedColumns(subject).map(sqlIdent).join(", ");
+    .filter((subject) => !isAppTable(ctx, subject))
+    .map((subject) => triggerSql(fn, subject))
+    .join("\n\n");
+}
 
-      return `drop trigger if exists ${trigger} on ${subject.qualified};
-create trigger ${trigger}
-  after insert or delete or update of ${columns} on ${subject.qualified}
-  for each row execute function ${fn}(${sqlString(subject.type)}, ${sqlString(subject.config.id ?? "id")});`;
-    })
+/**
+ * The indexing triggers on the app tables that are subjects with a
+ * `search` entry, which the app tables file adds once the tables exist.
+ * `ctx` is the search module's context.
+ */
+export function appTableSearchTriggers(ctx: ModuleContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const fn = ctx.fn("search_index_row");
+
+  return searchedSubjects(ctx)
+    .filter((subject) => isAppTable(ctx, subject))
+    .map((subject) => triggerSql(fn, subject))
     .join("\n\n");
 }
 
@@ -657,9 +699,7 @@ ${
     ? "  null;"
     : subjects
         .map(
-          (
-            subject,
-          ) => `  if search_reindex.subject_type is null or search_reindex.subject_type = ${sqlString(subject.type)} then
+          (subject) => `  if ${reindexCondition(ctx, subject)} then
     for v_id in select s.${subject.id}::text from ${subject.qualified} s loop
       if ${fn("search_refresh")}(${sqlString(subject.type)}, v_id) then
         v_count := v_count + 1;

@@ -10,7 +10,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { runScaffold } from "../../../src/cli/commands/scaffold.ts";
 import { run } from "../../../src/cli/run.ts";
+import {
+  type BetterSupabaseConfig,
+  resolveConfig,
+} from "../../../src/config/index.ts";
 
 let dir = "";
 
@@ -213,5 +218,237 @@ describe("scaffold from the config", () => {
     const current = await gen("--check");
     expect(current.code).toBe(0);
     expect(current.stdout).toContain("src/lib/api.generated.ts is up to date.");
+  });
+});
+
+describe("scaffold screens", () => {
+  const APP_TABLES: BetterSupabaseConfig["appTables"] = {
+    projects: {
+      columns: { name: { type: "text", nullable: false, max: 200 } },
+      subject: { type: "project", title: "name" },
+    },
+    tasks: {
+      columns: {
+        title: { type: "text", nullable: false },
+        status: {
+          type: "text",
+          nullable: false,
+          options: ["todo", "doing", "done"],
+          default: "'todo'",
+        },
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects" },
+        },
+        estimate: { type: "integer", min: 0 },
+        due_on: { type: "date" },
+        done: { type: "boolean", default: "false" },
+        meta: { type: "jsonb", default: "'{}'" },
+      },
+    },
+  };
+
+  const screens = (
+    table: string | undefined,
+    config: BetterSupabaseConfig = {},
+    flags: Record<string, string> = {},
+  ) =>
+    runScaffold(
+      resolveConfig({ casing: "camel", appTables: APP_TABLES, ...config }, dir),
+      { _: table === undefined ? ["screens"] : ["screens", table], ...flags },
+    );
+
+  it("writes list, create and detail pages from the app table", async () => {
+    await project({ next: "16.0.0" }, false);
+    const result = await screens("tasks");
+    expect(result.error).toBeUndefined();
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("Wrote src/app/tasks/page.tsx");
+    expect(result.output).toContain("record-* recipes");
+
+    const list = await read("src/app/tasks/page.tsx");
+    expect(list).toContain("from '../../lib/supabase/server';");
+    expect(list).toContain("bs.require({ requireTenant: true })");
+    expect(list).toContain(
+      "select: ['id', 'title', 'status', 'projectId', 'estimate', 'dueOn']",
+    );
+    expect(list).toContain("where: { organizationId: tenant }");
+    expect(list).toContain("orderBy: { createdAt: 'desc' }");
+
+    const form = await read("src/app/tasks/form.tsx");
+    expect(form).toContain('<option value="doing">doing</option>');
+    expect(form).toContain('type="number" min={0}');
+    expect(form).toContain('type="date"');
+    expect(form).toContain('<input type="checkbox" name="done" />');
+    expect(form).not.toContain('name="meta"');
+
+    const actions = await read("src/app/tasks/actions.ts");
+    expect(actions).toContain("projectId: required(form, 'project_id'),");
+    expect(actions).toContain(
+      "estimate: map(optional(form, 'estimate'), Number),",
+    );
+    expect(actions).toContain("done: form.get('done') === 'on',");
+    expect(actions).toContain("organizationId: tenant");
+    expect(actions).not.toContain("toTimestamp");
+
+    const create = await read("src/app/tasks/new/page.tsx");
+    expect(create).toContain(
+      "db.projects.findMany({ select: ['id', 'name'], limit: 200 })",
+    );
+
+    const detail = await read("src/app/tasks/[id]/page.tsx");
+    expect(detail).toContain("notFound();");
+    expect(detail).toContain("where: { id, organizationId: tenant }");
+  });
+
+  it("keeps pages that exist and follows --base-path", async () => {
+    await project({ next: "16.0.0" }, false);
+    await mkdir(join(dir, "src/app/(app)/work"), { recursive: true });
+    await writeFile(join(dir, "src/app/(app)/work/page.tsx"), "// mine\n");
+
+    const result = await screens("projects", {}, { "base-path": "(app)/work" });
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("Kept src/app/(app)/work/page.tsx (yours)");
+    expect(await read("src/app/(app)/work/page.tsx")).toBe("// mine\n");
+    expect(await read("src/app/(app)/work/actions.ts")).toContain(
+      "redirect(`/work/",
+    );
+  });
+
+  it("scopes per user and leaves the tenant out", async () => {
+    await project({ next: "16.0.0" }, false);
+    const result = await screens("projects", { sql: { scope: "user" } });
+    expect(result.code).toBe(0);
+    const list = await read("src/app/projects/page.tsx");
+    expect(list).toContain("const { db } = await bs.require();");
+    expect(list).not.toContain("tenant");
+  });
+
+  it("refuses what it can't serve", async () => {
+    await project({ next: "16.0.0" }, false);
+    expect((await screens(undefined)).error).toContain("Name the app table");
+    expect((await screens("nope")).error).toContain(
+      "App tables: projects, tasks.",
+    );
+    expect(
+      (await screens("tasks", { appTables: { tasks: { scope: "none" } } }))
+        .error,
+    ).toContain('scope "none"');
+    expect(
+      (
+        await screens("tasks", {
+          appTables: {
+            tasks: { columns: { tags: { type: "text[]", nullable: false } } },
+          },
+        })
+      ).error,
+    ).toContain("tasks.tags is required");
+    expect(
+      (await screens("tasks", {}, { "base-path": "tasks/[id]" })).error,
+    ).toContain("static route");
+  });
+
+  it("maps every column type and codec to an input and a parse", async () => {
+    await project({ next: "16.0.0" }, false);
+
+    const LEDGER: BetterSupabaseConfig["appTables"] = {
+      entries: {
+        id: "bigint",
+        subject: { type: "entry", softDelete: true },
+        columns: {
+          contact: { type: "text", format: "email" },
+          site: { type: "text", format: "url" },
+          phone: { type: "text", format: "phone" },
+          body: { type: "text", format: "long_text", max: 500 },
+          shade: { type: "text", format: "color" },
+          score: { type: "integer", format: "rating" },
+          kind: { type: "text", options: ["a", "b"] },
+          owner: { type: "uuid", references: { table: "auth.users" } },
+          ref: { type: "uuid" },
+          amount: { type: "numeric", min: 0, max: 10 },
+          total: { type: "bigint", nullable: false, default: "0" },
+          paid: { type: "boolean", default: "true" },
+          at: { type: "timestamptz" },
+          external: { type: "uuid", default: "gen_random_uuid()" },
+        },
+      },
+    };
+
+    const codecs = {
+      int8: "string",
+      numeric: "string",
+      timestamptz: "string",
+    } as const;
+
+    const result = await screens("entries", {
+      appTables: LEDGER,
+      codecs,
+      sql: { naming: { tenant: "workspace" } },
+    });
+
+    expect(result.error).toBeUndefined();
+
+    const form = await read("src/app/entries/form.tsx");
+
+    for (const type of ["email", "url", "tel", "color", "datetime-local"]) {
+      expect(form).toContain(`type="${type}"`);
+    }
+
+    expect(form).toContain('<textarea id="body" name="body" maxLength={500}');
+    expect(form).toContain('<option value="">None</option>');
+    expect(form).toContain('step="any"');
+    expect(form).toContain("defaultChecked");
+    expect(form).not.toContain('name="external"');
+
+    const actions = await read("src/app/entries/actions.ts");
+    expect(actions).toContain("amount: optional(form, 'amount'),");
+    expect(actions).toContain("total: required(form, 'total'),");
+    expect(actions).toContain("at: map(optional(form, 'at'), toTimestamp),");
+
+    const detail = await read("src/app/entries/[id]/page.tsx");
+    expect(detail).toContain(String.raw`/^\d+$/`);
+    expect(detail).toContain(
+      "where: { id, workspaceId: tenant, deletedAt: { isNull: true } }",
+    );
+
+    for (const int8 of ["bigint", "number"] as const) {
+      await rm(join(dir, "src/app"), { recursive: true, force: true });
+      await screens("entries", {
+        appTables: LEDGER,
+        codecs: { int8, numeric: "number", timestamptz: "instant" },
+      });
+      const parse = int8 === "bigint" ? "BigInt" : "Number";
+      expect(await read("src/app/entries/actions.ts")).toContain(
+        `total: ${parse}(required(form, 'total')),`,
+      );
+      expect(await read("src/app/entries/[id]/page.tsx")).toContain(
+        `${parse}(id)`,
+      );
+    }
+
+    expect(await read("src/app/entries/actions.ts")).toContain(
+      "amount: map(optional(form, 'amount'), Number),",
+    );
+  });
+
+  it("refuses a required timestamp the instant codec can't fill", async () => {
+    await project({ next: "16.0.0" }, false);
+
+    const result = await screens("tasks", {
+      codecs: { timestamptz: "instant" },
+      appTables: {
+        tasks: { columns: { at: { type: "timestamptz", nullable: false } } },
+      },
+    });
+
+    expect(result.error).toContain("tasks.at is required");
+  });
+
+  it("needs Next.js", async () => {
+    await project({ hono: "4.0.0" }, false);
+    expect((await screens("tasks")).error).toContain(
+      "Screens are Next.js pages",
+    );
   });
 });

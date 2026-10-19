@@ -1166,6 +1166,13 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
       "required": [
@@ -1177,7 +1184,8 @@
         "budgetMinor",
         "currency",
         "leadId",
-        "labelId"
+        "labelId",
+        "deletedAt"
       ],
       "additionalProperties": false
     },
@@ -1225,6 +1233,13 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
       "required": [
@@ -1277,8 +1292,105 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       },
+      "additionalProperties": false
+    },
+    "projectsViewRow": {
+      "title": "Projects view",
+      "description": "The rollups and lookups of public.projects, read with the caller's row level security.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "budgetMinor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "leadId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "openTasks": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "doneTasks": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "nextDueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "name",
+        "budgetMinor",
+        "currency",
+        "leadId",
+        "labelId",
+        "deletedAt",
+        "openTasks",
+        "doneTasks",
+        "nextDueOn"
+      ],
       "additionalProperties": false
     },
     "savedViewsRow": {
@@ -1625,6 +1737,299 @@
           "readOnly": true
         }
       },
+      "additionalProperties": false
+    },
+    "tasksRow": {
+      "title": "Tasks",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "doing",
+            "done"
+          ]
+        },
+        "startsOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "dueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "assigneeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rank": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "title",
+        "status",
+        "startsOn",
+        "dueOn",
+        "assigneeId",
+        "projectId",
+        "rank"
+      ],
+      "additionalProperties": false
+    },
+    "tasksInsert": {
+      "title": "Tasks insert",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "doing",
+            "done"
+          ]
+        },
+        "startsOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "dueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "assigneeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rank": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "organizationId",
+        "title",
+        "projectId"
+      ],
+      "additionalProperties": false
+    },
+    "tasksUpdate": {
+      "title": "Tasks update",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "doing",
+            "done"
+          ]
+        },
+        "startsOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "dueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "assigneeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rank": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tasksViewRow": {
+      "title": "Tasks view",
+      "description": "The rollups and lookups of public.tasks, read with the caller's row level security.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "startsOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "dueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "assigneeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rank": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "title",
+        "status",
+        "startsOn",
+        "dueOn",
+        "assigneeId",
+        "projectId",
+        "rank",
+        "projectName"
+      ],
       "additionalProperties": false
     }
   }
