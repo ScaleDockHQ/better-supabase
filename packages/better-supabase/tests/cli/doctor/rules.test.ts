@@ -1319,6 +1319,66 @@ describe("adopted tables without a mapped column (BS330)", () => {
   });
 });
 
+describe("adopted enum columns the module writes as text (BS342)", () => {
+  const enumSnapshot = snapshot((tables, catalog) => {
+    const notes = table(tables, "notes");
+    const column = notes.columns[0]!;
+
+    catalog.enums = [
+      ...catalog.enums,
+      { schema: "public", name: "subject_type", values: ["invoice"] },
+      { schema: "public", name: "fiscal_period", values: ["2026"] },
+    ];
+
+    const enumColumn = (name: string, udt: string) => ({
+      ...column,
+      name,
+      udt,
+      format: udt,
+      typeSchema: "public",
+      isEnum: true,
+      isArray: false,
+    });
+
+    tables.push({
+      ...notes,
+      name: "number_sequences",
+      columns: [
+        enumColumn("entity", "subject_type"),
+        enumColumn("period", "fiscal_period"),
+      ],
+      foreignKeys: [],
+      triggers: [],
+    });
+  });
+
+  const blocks = {
+    blocks: {
+      "number-sequences": {
+        mode: "adopt" as const,
+        tables: { sequences: "public.number_sequences" },
+      },
+    },
+  };
+
+  it("reports an enum column the module writes as text, not one it casts", async () => {
+    expect(await run("BS342", context(enumSnapshot, {}, blocks))).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "public.number_sequences.period",
+        message: expect.stringContaining(
+          "(sequences.period), which is the enum public.fiscal_period",
+        ),
+      }),
+    ]);
+  });
+
+  it("passes managed modules and tables the snapshot lacks", async () => {
+    expect(await run("BS342", context(enumSnapshot))).toEqual([]);
+    expect(await run("BS342", context(base, {}, blocks))).toEqual([]);
+  });
+});
+
 describe("subject registry (BS331, BS332)", () => {
   it("reports a missing table and each missing column", async () => {
     const findings = await run(

@@ -1,8 +1,24 @@
--- better-supabase module: number-sequences (0.8.0)
+-- better-supabase module: number-sequences (0.9.0)
 -- @bs-module number-sequences@1 adopt
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -98,7 +114,7 @@ begin
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || v_period, 0));
   insert into "centrakit"."organization_number_sequences" ("tenant_id", "entity", "period", "last_number")
-  values (next_number.tenant, p_entity, v_period, 1)
+  values (next_number.tenant, better_supabase.as_column_type(p_entity, (null::"centrakit"."organization_number_sequences")."entity"), v_period, 1)
   on conflict ("tenant_id", "entity", "period")
   do update set "last_number" = "centrakit"."organization_number_sequences"."last_number" + 1, "updated_at" = now()
   returning "last_number" into v_n;

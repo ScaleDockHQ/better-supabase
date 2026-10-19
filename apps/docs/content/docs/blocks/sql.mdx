@@ -447,6 +447,17 @@ the database and reports what can't map, and
 does the same for every block of a preset that has tables under its default
 names.
 
+An adopted column keeps the type the module writes, which is `text` for
+names, kinds and subject types. A few of those may be an enum or a domain
+instead, because the module casts what it writes and compares to the
+column's declared type through `better_supabase.as_column_type`: the tags
+`kind` and `subjectType` and the number-sequences `entity`. Any other text
+column the module writes a parameter or computed value into must take a text
+value: `sql sync` and `adopt` refuse an enum there when the schema files
+declare it, and doctor reports it as [BS342](/docs/cli/doctor#bs342). A
+column the module only writes string literals into, such as the teams
+`status`, may be an enum whose labels include those literals.
+
 `organizations` and `profiles` also take `options.extraColumns`: your own
 columns, keyed by name with their SQL type, which the module adds to its
 managed table, copies on writes and returns from its reads. A name the module

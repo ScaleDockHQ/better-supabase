@@ -27,4 +27,4 @@ table takes no app columns: its rows are counters the module owns.
 
 ## Adopt mode
 
-Map `tables.sequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`.
+Map `tables.sequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`. The adopted `entity` column may be an enum, such as `entity public.workflow_subject_type`: `next_number` casts the entity name to the column's type.

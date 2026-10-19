@@ -39,6 +39,7 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["entity"],
     },
   },
 };
@@ -306,7 +307,7 @@ begin
   ])}
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || v_period, 0));
   insert into ${table} (${tenant}, ${entityCol}, ${period}, ${last})
-  values (next_number.tenant, p_entity, v_period, 1)
+  values (next_number.tenant, ${ctx.cast("sequences", "entity", "p_entity")}, v_period, 1)
   on conflict (${tenant}, ${entityCol}, ${period})
   do update set ${last} = ${table}.${last} + 1, ${updatedAt} = now()
   returning ${last} into v_n;

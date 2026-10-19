@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { adoptedColumnProblems } from "../../src/sql/adopted-columns.ts";
+import {
+  adoptedColumnProblems,
+  adoptedTables,
+} from "../../src/sql/adopted-columns.ts";
 
 describe("adoptedColumnProblems", () => {
   it("refuses a default optional column the adopted table does not declare", () => {
@@ -131,5 +134,68 @@ describe("adoptedColumnProblems", () => {
         ["public"],
       ).join("\n"),
     ).toContain("public.hook_secrets.secret (secrets.secret)");
+  });
+
+  it("refuses an enum column the module writes as text, and passes one it casts", () => {
+    const files = [
+      {
+        text: `create type public.tag_kind as enum ('task', 'customer');
+create table public.org_tags (
+  id uuid primary key,
+  organization_id uuid not null,
+  kind public.tag_kind not null,
+  name text not null,
+  slug text not null,
+  color text,
+  description text,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+create table public.app_events (
+  id uuid primary key,
+  position bigint not null,
+  type public.tag_kind not null,
+  source text,
+  subject text,
+  organization_id uuid,
+  key text,
+  payload jsonb not null,
+  actor_id uuid,
+  created_at timestamptz not null,
+  xid xid8 not null
+);`,
+      },
+    ];
+
+    const tags = {
+      tags: {
+        mode: "adopt" as const,
+        tables: { tags: "public.org_tags", taggings: null },
+        columns: { tags: { tenant: "organization_id", rank: null } },
+      },
+    };
+
+    expect(adoptedColumnProblems(tags, files, ["public"])).toEqual([]);
+
+    expect(
+      adoptedColumnProblems(
+        { outbox: { mode: "adopt", tables: { events: "public.app_events" } } },
+        files,
+        ["public"],
+      ),
+    ).toEqual([
+      "blocks.outbox is in adopt mode and writes text into public.app_events.type (events.type), which is the enum public.tag_kind. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.",
+    ]);
+  });
+
+  it("lists the text columns each adopted table takes without a cast", () => {
+    const [table] = adoptedTables({
+      "number-sequences": {
+        mode: "adopt",
+        tables: { sequences: "public.org_sequences" },
+      },
+    });
+
+    expect(table?.textColumns).toEqual(["period"]);
   });
 });

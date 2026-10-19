@@ -61,6 +61,11 @@ export interface ModuleTableSpec {
   readonly optionalTable?: boolean;
   readonly adoptOnlyWhenMapped?: boolean;
   readonly lifecycle?: ModuleTableLifecycle;
+  /**
+   * Text columns an adopted table may declare with another type, such as an
+   * enum: the module writes and compares them through `ctx.cast`.
+   */
+  readonly typed?: readonly string[];
 }
 
 export interface ModuleTableLifecycle {
@@ -270,6 +275,13 @@ export interface ModuleContext {
   colName(table: string, column: string): string;
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
+  /**
+   * `value`, a text expression, as the type of a logical column the table
+   * spec lists in `typed`. In adopt mode the column may be an enum or another
+   * type with a text input, so the value goes through
+   * `better_supabase.as_column_type`; in managed mode it stays as it is.
+   */
+  cast(table: string, column: string, value: string): string;
   /** Whether an optional logical table exists (it can be mapped to `null`). */
   hasTable(table: string): boolean;
   /** Whether the module owns `table` (managed mode). */
@@ -917,6 +929,21 @@ export function createModuleContext(
     colName: (table, logical) => requiredColumn(table, logical),
     has: (table, logical) =>
       config.tables[table] !== null && column(table, logical) !== null,
+    cast(table, logical, value) {
+      if (names.tables[table]?.typed?.includes(logical) !== true) {
+        throw new TypeError(
+          `Module "${module}" casts ${table}.${logical}, which its names.tables.${table}.typed doesn't list`,
+        );
+      }
+
+      if (config.mode !== "adopt") {
+        return value;
+      }
+
+      const parts = tableName(table);
+
+      return `better_supabase.as_column_type(${value}, (null::${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}).${sqlIdent(requiredColumn(table, logical))})`;
+    },
     hasTable: (table) => {
       if (!names.tables[table]) {
         throw new TypeError(`Module "${module}" has no table "${table}"`);

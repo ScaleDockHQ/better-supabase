@@ -27,6 +27,7 @@ const names = {
       name: "items",
       columns: { tenant: "org_id", label: "label" },
       optional: ["label"],
+      typed: ["label"],
     },
     extras: { name: "extras", columns: { id: "id" }, optionalTable: true },
   },
@@ -34,6 +35,27 @@ const names = {
 };
 
 describe("createModuleContext", () => {
+  it("casts a typed column to its adopted type, and leaves a managed one as it is", () => {
+    expect(
+      createModuleContext("demo", () => names).cast(
+        "items",
+        "label",
+        "p_label",
+      ),
+    ).toBe("p_label");
+
+    const adopted = createModuleContext("demo", () => names, {
+      modules: { demo: { mode: "adopt", tables: { items: "public.things" } } },
+    });
+
+    expect(adopted.cast("items", "label", "p_label")).toBe(
+      'better_supabase.as_column_type(p_label, (null::"public"."things")."label")',
+    );
+    expect(() => adopted.cast("items", "tenant", "p_tenant")).toThrow(
+      /doesn't list/,
+    );
+  });
+
   it("resolves default names in the module schema", () => {
     const ctx = createModuleContext("demo", () => names);
     expect(ctx.mode).toBe("managed");

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  declaredColumnTypes,
+  declaredEnums,
   declaredTableColumns,
   declaredTables,
   extensionSchema,
@@ -66,6 +68,49 @@ describe("declaredTableColumns", () => {
       "name",
       "slug",
     ]);
+  });
+});
+
+describe("declaredColumnTypes", () => {
+  it("reads each column's type without its options", () => {
+    const types = declaredColumnTypes(
+      [
+        {
+          text: `create table public.tags (
+  id uuid primary key default gen_random_uuid(),
+  kind public.tag_kind not null,
+  "Label" character varying(80) collate "C" not null,
+  rank text,
+  ids bigint[] not null default '{}',
+  unique (kind, "Label")
+);`,
+        },
+      ],
+      ["public"],
+    );
+
+    expect(Object.fromEntries(types.get("public.tags")!)).toEqual({
+      id: "uuid",
+      kind: "public.tag_kind",
+      Label: "character varying(80)",
+      rank: "text",
+      ids: "bigint[]",
+    });
+  });
+});
+
+describe("declaredEnums", () => {
+  it("lists the enum types, qualified", () => {
+    expect([
+      ...declaredEnums([
+        {
+          text: `create type public.tag_kind as enum ('task');
+create type "App".status as enum ();
+create type public.pair as (a int, b int);
+-- create type public.ignored as enum ('x');`,
+        },
+      ]),
+    ]).toEqual(["public.tag_kind", "App.status"]);
   });
 });
 
