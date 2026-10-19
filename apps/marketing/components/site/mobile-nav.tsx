@@ -72,6 +72,9 @@ export function MobileNav() {
             ))}
           </nav>
           <SheetFooter>
+            <LinkButton variant="outline" size="lg" href="/contact">
+              Contact
+            </LinkButton>
             <LinkButton variant="outline" size="lg" href={site.github}>
               <BrandLogo mark={siGithub} className="size-4" />
               GitHub
