@@ -5,6 +5,9 @@ import {
   DbException,
   dbError,
   dbErrorOf,
+  isDbError,
+  mapDbError,
+  type RawDbError,
 } from "./errors.ts";
 
 /** Turns a `DbError` into the error `.orThrow()` throws; set with `betterSupabase.mapError()`. */
@@ -374,9 +377,35 @@ export function fromBetterResult<T>(
   }
 }
 
+function isRawDbError(value: unknown): value is RawDbError {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    (value instanceof Error && value.name !== "PostgrestError")
+  ) {
+    return false;
+  }
+
+  return (
+    "code" in value &&
+    typeof value.code === "string" &&
+    (!("message" in value) ||
+      value.message === undefined ||
+      typeof value.message === "string")
+  );
+}
+
 export function toDbError(cause: unknown): DbError {
   if (cause instanceof DbException) {
     return cause.error;
+  }
+
+  if (isDbError(cause)) {
+    return cause;
+  }
+
+  if (isRawDbError(cause)) {
+    return mapDbError(cause);
   }
 
   if (cause instanceof Error && cause.name === "AbortError") {
