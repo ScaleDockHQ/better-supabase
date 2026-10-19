@@ -6,6 +6,7 @@ import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Now } from "../sql/migrations.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import {
   type CreateDesign,
   type DesignChange,
@@ -81,7 +82,7 @@ const APPLY_ARGS = {
   "allow-breaking": {
     type: "boolean",
     description:
-      "Write a design that drops, renames or retypes app table columns, or makes one required without a default",
+      "Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements",
   },
   "dry-run": {
     type: "boolean",
@@ -226,6 +227,49 @@ function describeBreaking(changes: readonly DesignChange[]): string[] {
       ...change.steps.map((step, index) => `    ${String(index + 1)}. ${step}`),
     ]),
   ];
+}
+
+/** The statements that rename the tables and columns `changes` renames, in order. */
+function renameStatements(changes: readonly DesignChange[]): string[] {
+  return changes.flatMap((change) => {
+    if (change.from === undefined) {
+      return [];
+    }
+
+    if (change.kind === "table.renamed") {
+      return [
+        `alter table public.${sqlIdent(change.from)} rename to ${sqlIdent(change.table)};`,
+      ];
+    }
+
+    if (change.kind === "column.renamed" && change.column !== undefined) {
+      return [
+        `alter table public.${sqlIdent(change.table)} rename column ${sqlIdent(change.from)} to ${sqlIdent(change.column)};`,
+      ];
+    }
+
+    return [];
+  });
+}
+
+/** How to run `renames` before `sql sync` creates the new names. */
+function describeRenames(
+  renames: readonly string[],
+  renamedTables: readonly string[],
+  file: string,
+): string[] {
+  return renames.length === 0
+    ? []
+    : [
+        "Run these in a migration before `better-supabase sql sync`, so the renamed tables and columns keep their rows:",
+        ...renames.map((statement) => `  ${statement}`),
+        ...(renamedTables.length === 0
+          ? []
+          : [
+              `Then remove ${renamedTables.join(", ")} from appTables in ${file}: apply keeps the tables a design leaves out.`,
+            ]),
+        "",
+      ];
 }
 
 /** The config file edited for `--only`: the `preset` key, or the blocks. */
@@ -378,12 +422,28 @@ export async function runApply(
     throw new CliError("usage", conflict);
   }
 
-  const breaking =
+  const changes =
     design?.appTables === undefined
       ? []
-      : diffAppTables(config.appTables, design.appTables, {
-          keepMissing: true,
-        }).filter((change) => change.breaking);
+      : diffAppTables(config.appTables, design.appTables);
+
+  // `writeDesign` keeps the tables a design doesn't name, so a dropped table
+  // is only reported.
+  const kept = changes
+    .filter((change) => change.kind === "table.dropped")
+    .map((change) => change.table);
+
+  const renamedTables = changes.flatMap((change) =>
+    change.kind === "table.renamed" && change.from !== undefined
+      ? [change.from]
+      : [],
+  );
+
+  const breaking = changes.filter(
+    (change) => change.breaking && change.kind !== "table.dropped",
+  );
+
+  const renames = renameStatements(breaking);
 
   const shown = display(config.root, file);
 
@@ -395,7 +455,7 @@ export async function runApply(
     return {
       code: 1,
       output: describeBreaking(breaking).join("\n"),
-      data: { file: shown, written: false, breaking },
+      data: { file: shown, written: false, breaking, kept },
       error: `Nothing was written: the design has ${breaking.length === 1 ? "a breaking change" : `${String(breaking.length)} breaking changes`} to tables the app already has. Follow the steps above, or pass --allow-breaking to write it anyway.`,
     };
   }
@@ -423,8 +483,16 @@ export async function runApply(
   const paint = deps.paint ?? plain;
   let text = withDesign.text;
 
-  const lines: string[] =
-    breaking.length === 0 ? [] : [...describeBreaking(breaking), ""];
+  const lines: string[] = [
+    ...(breaking.length === 0 ? [] : [...describeBreaking(breaking), ""]),
+    ...describeRenames(renames, renamedTables, shown),
+    ...(kept.length === 0
+      ? []
+      : [
+          `Kept ${kept.join(", ")}: the design doesn't name ${kept.length === 1 ? "it" : "them"}, and apply keeps the tables a design leaves out. Remove ${kept.length === 1 ? "it" : "them"} from appTables in ${shown} to drop ${kept.length === 1 ? "it" : "them"}.`,
+          "",
+        ]),
+  ];
 
   if (createUrlParam(input, "authz") !== undefined) {
     lines.push(AUTHZ_NOTE, "");
@@ -480,7 +548,13 @@ export async function runApply(
     );
   }
 
-  const data = { file: shown, adopted, contents: text };
+  const data = {
+    file: shown,
+    adopted,
+    contents: text,
+    kept,
+    ...(renames.length === 0 ? {} : { renames }),
+  };
 
   if (text === source) {
     lines.push(`${shown} already holds the preset.`);

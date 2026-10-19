@@ -98,8 +98,10 @@ export function ChangesPanel({
             {breaking} breaking {breaking === 1 ? "change" : "changes"}
           </AlertTitle>
           <AlertDescription>
-            <code className="font-mono">apply</code> refuses these on a project
-            that has the tables. Follow the steps under each, or pass{" "}
+            These drop, rename or retype data, or add a rule that rows already
+            in the table may not pass. <code className="font-mono">apply</code>{" "}
+            refuses them on a project that has the tables. Follow the steps
+            under each, or pass{" "}
             <code className="font-mono">--allow-breaking</code> when the tables
             hold no data yet.
           </AlertDescription>

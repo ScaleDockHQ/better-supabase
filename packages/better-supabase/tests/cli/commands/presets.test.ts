@@ -517,6 +517,47 @@ describe("apply with a design", () => {
     });
   });
 
+  it("refuses a rename without --allow-breaking and prints its statements with it", async () => {
+    const before = json({
+      appTables: {
+        memos: { scope: "user", columns: { body: { type: "text" } } },
+        links: { scope: "user", columns: { url: { type: "text" } } },
+      },
+    });
+
+    await files({ "better-supabase.config.json": before });
+    const url = await designUrl({ appTables: design.appTables ?? {} });
+
+    const refused = await run(["apply", "--preset", url, "--cwd", dir]);
+
+    expect(refused.code).toBe(1);
+    expect(refused.stdout).toContain("Renames table memos to notes.");
+    expect(
+      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+    ).toBe(before);
+
+    const allowed = await run([
+      "apply",
+      "--preset",
+      url,
+      "--allow-breaking",
+      "--json",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(allowed.code).toBe(0);
+
+    const envelope = JSON.parse(allowed.stdout) as {
+      data: { renames?: string[]; kept: string[] };
+    };
+
+    expect(envelope.data.renames).toEqual([
+      'alter table public."memos" rename to "notes";',
+    ]);
+    expect(envelope.data.kept).toEqual(["links"]);
+  });
+
   it("leaves the design out with --only conventions", async () => {
     await files({ "better-supabase.config.json": json({}) });
 

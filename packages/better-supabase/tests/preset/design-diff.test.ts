@@ -140,6 +140,109 @@ describe("diffAppTables", () => {
     expect(kinds(counted, projects)).toEqual(["table.computed projects"]);
   });
 
+  test("a new or tighter column constraint is breaking", () => {
+    const status: AppTablesConfig = {
+      tasks: {
+        columns: {
+          status: { type: "text", options: ["open", "done", "archived"] },
+          points: { type: "integer", min: 0, max: 10 },
+          email: { type: "text" },
+          project_id: { type: "uuid", references: { table: "projects" } },
+        },
+      },
+    };
+
+    expect(
+      kinds(status, {
+        tasks: {
+          columns: {
+            status: { type: "text", options: ["open", "done"], unique: true },
+            points: { type: "integer", min: 1, max: 5 },
+            email: { type: "text", format: "email" },
+            project_id: { type: "uuid", references: { table: "boards" } },
+          },
+        },
+      }),
+    ).toEqual([
+      "column.unique tasks.status !",
+      "column.options tasks.status !",
+      "column.bounds tasks.points !",
+      "column.format tasks.email !",
+      "column.reference tasks.project_id !",
+    ]);
+  });
+
+  test("a looser constraint, a display format and onDelete are safe", () => {
+    const before: AppTablesConfig = {
+      tasks: {
+        columns: {
+          status: { type: "text", options: ["open"], unique: true },
+          points: { type: "integer", min: 1, max: 5 },
+          body: { type: "text" },
+          project_id: { type: "uuid", references: { table: "projects" } },
+        },
+      },
+    };
+
+    expect(
+      kinds(before, {
+        tasks: {
+          columns: {
+            status: { type: "text", options: ["open", "done"] },
+            points: { type: "integer", min: 0 },
+            body: { type: "text", format: "long_text", comment: "Notes." },
+            project_id: {
+              type: "uuid",
+              references: { table: "projects", onDelete: "cascade" },
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      "column.changed tasks.status",
+      "column.changed tasks.points",
+      "column.changed tasks.body",
+      "column.changed tasks.project_id",
+    ]);
+  });
+
+  test("a new scope, unique set or removed generated columns is breaking", () => {
+    const before: AppTablesConfig = {
+      tasks: {
+        columns: { title: { type: "text" } },
+        subject: { type: "task", rank: true, softDelete: true },
+      },
+    };
+
+    expect(
+      kinds(before, {
+        tasks: {
+          columns: { title: { type: "text" } },
+          scope: "user",
+          timestamps: false,
+          unique: [["title"]],
+          subject: { type: "task" },
+        },
+      }),
+    ).toEqual([
+      "table.scope tasks !",
+      "table.unique tasks !",
+      "table.columns tasks !",
+    ]);
+  });
+
+  test("indexes, the comment and the subject title are safe", () => {
+    expect(
+      kinds(projects, {
+        projects: {
+          ...projects["projects"],
+          indexes: [["name"]],
+          subject: { type: "project", title: "name" },
+        },
+      }),
+    ).toEqual(["table.changed projects"]);
+  });
+
   test("keepMissing leaves out the tables the new design doesn't name", () => {
     expect(
       diffAppTables(
