@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
@@ -20,12 +20,11 @@ import { commandMeta } from "../core/manifest.ts";
 import { type Paint, plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
-  name: {
+  path: {
     type: "positional",
     required: false,
     variadic: true,
-    description:
-      "The codemod (0.4, 0.5, 0.6 or 0.9), then the files or directories to rewrite (default: the project)",
+    description: "Files or directories to rewrite (default: the project)",
   },
   "dry-run": {
     type: "boolean",
@@ -37,7 +36,8 @@ const CODEMOD_ARGS = {
   },
 } as const;
 
-export type CodemodArgs = CliArgs<typeof CODEMOD_ARGS>;
+/** `_` is the codemod name, then the paths. */
+export type CodemodArgs = CliOptions<typeof CODEMOD_ARGS>;
 
 const SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([
   ".ts",
@@ -99,7 +99,7 @@ export async function runCodemod(
   args: CodemodArgs,
   paint: Paint = plain,
 ): Promise<CommandResult> {
-  const [name, ...paths] = args._;
+  const [name, ...paths] = args._ ?? [];
 
   const names = Object.entries(CODEMODS)
     .map(([key, codemod]) => `  ${key.padEnd(5)} ${codemod.description}`)
@@ -187,9 +187,13 @@ export async function runCodemod(
   };
 }
 
-export const codemodCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("codemod"),
-  args: CODEMOD_ARGS,
-  runsWithInvalidConfig: true,
-  run: (args, { config, paint }) => runCodemod(config, args, paint),
-});
+/** The `codemod <name>` subcommand for one codemod in `CODEMODS`. */
+export function codemodCommand(name: string): AnyCommand {
+  return defineCliCommand({
+    meta: commandMeta(`codemod ${name}`),
+    args: CODEMOD_ARGS,
+    runsWithInvalidConfig: true,
+    run: (args, { config, paint }) =>
+      runCodemod(config, { ...args, _: [name, ...args._] }, paint),
+  });
+}

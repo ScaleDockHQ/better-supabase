@@ -83,7 +83,7 @@ describe("adopt", () => {
 
     const written = await runAdopt(
       config,
-      { block: "teams", from: "public.teams" },
+      { block: "teams", tables: "public.teams" },
       { configFile: configPath(), tables },
     );
 

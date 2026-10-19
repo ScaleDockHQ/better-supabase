@@ -201,15 +201,15 @@ describe("gen spec step", () => {
   });
 });
 
-describe("gen --tasks", () => {
+describe("gen --only", () => {
   it("refuses an empty task list", async () => {
-    const result = await run(["gen", "--tasks", "", "--cwd", root]);
+    const result = await run(["gen", "--only", "", "--cwd", root]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("--tasks names no task.");
+    expect(result.stderr).toContain("--only names no task.");
   });
 
   it("rejects an unknown task before reading the schema", async () => {
-    const result = await run(["gen", "--tasks", "lint", "--cwd", root]);
+    const result = await run(["gen", "--only", "lint", "--cwd", root]);
     expect(result.code).toBe(2);
     expect(result.stderr).toContain('Unknown gen task "lint"');
   });

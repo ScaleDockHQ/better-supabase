@@ -2,7 +2,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SpecDiagnostic, SpecUi } from "../../spec/index.ts";
-import type { AnyCommand, CliArgs, CliContext } from "../core/command.ts";
+import type { AnyCommand, CliContext, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type {
   FailOn,
@@ -41,22 +41,12 @@ import { undocumentedTopics } from "../spec/topics.ts";
 import { loadTopics } from "../topics.ts";
 import { parseInterval, stampFiles, watchLoop } from "../watch.ts";
 
-const ACTIONS = ["emit", "check", "validate"] as const;
-
-type SpecAction = (typeof ACTIONS)[number];
-
-const isAction = (value: unknown): value is SpecAction =>
-  ACTIONS.some((action) => action === value);
+type SpecAction = "emit" | "check" | "validate";
 
 const isUi = (value: unknown): value is SpecUi =>
   SPEC_UIS.some((ui) => ui === value);
 
 const ARGS = {
-  action: {
-    type: "positional",
-    required: false,
-    description: "emit, check or validate",
-  },
   format: {
     type: "positional",
     required: false,
@@ -121,11 +111,16 @@ const ARGS = {
   },
   "dry-run": {
     type: "boolean",
-    description: "With emit, print what would change and write nothing",
+    description: "Print what would change and write nothing",
+  },
+  check: {
+    type: "boolean",
+    description:
+      "Write nothing; exit 1 with a diff when an output is out of date",
   },
 } as const;
 
-export type SpecArgs = CliArgs<typeof ARGS>;
+type SpecArgs = CliOptions<typeof ARGS>;
 
 export interface SpecRunOptions {
   readonly config: ResolvedConfig;
@@ -493,71 +488,82 @@ function watch(
   });
 }
 
-export const specCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("spec"),
-  args: ARGS,
-  run: (args, context) => {
-    const [action, format] = args._;
+/** Runs `spec emit` (or its `--check`) or `spec validate` with the parsed flags. */
+function runSpecCommand(
+  action: SpecAction,
+  args: SpecArgs,
+  context: CliContext,
+): Promise<CommandResult> {
+  const [format] = args._ ?? [];
+  const failOn = args["fail-on"] ?? context.config.specs.failOn;
 
-    if (!isAction(action)) {
-      throw new CliError(
-        "usage",
-        `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
-      );
-    }
-
-    const failOn = args["fail-on"] ?? context.config.specs.failOn;
-
-    if (!isFailOn(failOn)) {
-      throw new CliError(
-        "usage",
-        `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
-      );
-    }
-
-    if (args.ui !== undefined && !isUi(args.ui)) {
-      throw new CliError(
-        "usage",
-        `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
-      );
-    }
-
-    const interval = parseInterval(
-      args.interval,
-      context.config.gen.watchInterval,
+  if (!isFailOn(failOn)) {
+    throw new CliError(
+      "usage",
+      `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
     );
+  }
 
-    if (
-      args.watch === true &&
-      (action !== "emit" || typeof interval === "string")
-    ) {
-      throw new CliError(
-        "usage",
-        action === "emit" && typeof interval === "string"
-          ? interval
-          : "--watch only applies to `spec emit`.",
-      );
+  if (args.ui !== undefined && !isUi(args.ui)) {
+    throw new CliError(
+      "usage",
+      `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
+    );
+  }
+
+  const interval = parseInterval(
+    args.interval,
+    context.config.gen.watchInterval,
+  );
+
+  if (args.watch === true) {
+    if (action !== "emit") {
+      throw new CliError("usage", "--watch doesn't combine with --check.");
     }
 
-    const options = specOptionsFromConfig(context.config, action, {
-      failOn,
-      cache: args.cache,
-      ...(args["dry-run"] === true ? { dryRun: true } : {}),
-      ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
-      ...(args.entry === undefined ? {} : { entry: args.entry }),
-      filter: {
-        ...(typeof format === "string" ? { format } : {}),
-        ...(args["spec-version"] === undefined
-          ? {}
-          : { version: args["spec-version"] }),
-        ...(args.out === undefined ? {} : { out: args.out }),
-        ...(args.yaml === true ? { yaml: true } : {}),
-        ...(isUi(args.ui) ? { ui: args.ui } : {}),
-      },
-    });
+    if (typeof interval === "string") {
+      throw new CliError("usage", interval);
+    }
+  }
 
-    return args.watch === true && typeof interval === "number"
-      ? watch(options, interval, context)
-      : runSpec(options);
+  const options = specOptionsFromConfig(context.config, action, {
+    failOn,
+    cache: args.cache ?? true,
+    ...(args["dry-run"] === true ? { dryRun: true } : {}),
+    ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
+    ...(args.entry === undefined ? {} : { entry: args.entry }),
+    filter: {
+      ...(typeof format === "string" ? { format } : {}),
+      ...(args["spec-version"] === undefined
+        ? {}
+        : { version: args["spec-version"] }),
+      ...(args.out === undefined ? {} : { out: args.out }),
+      ...(args.yaml === true ? { yaml: true } : {}),
+      ...(isUi(args.ui) ? { ui: args.ui } : {}),
+    },
+  });
+
+  return args.watch === true && typeof interval === "number"
+    ? watch(options, interval, context)
+    : runSpec(options);
+}
+
+export const specEmitCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("spec emit"),
+  args: ARGS,
+  run: (args, context) =>
+    runSpecCommand(args.check === true ? "check" : "emit", args, context),
+});
+
+export const specValidateCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("spec validate"),
+  args: {
+    format: ARGS.format,
+    "spec-version": ARGS["spec-version"],
+    entry: ARGS.entry,
+    "fail-on": ARGS["fail-on"],
+    manifest: ARGS.manifest,
+    cache: ARGS.cache,
   },
+  run: (args, context) => runSpecCommand("validate", args, context),
 });

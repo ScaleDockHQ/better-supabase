@@ -94,13 +94,13 @@ isn't an object literal `apply` can follow, it changes nothing and prints the
 ## adopt
 
 ```bash
-pnpm better-supabase adopt teams --from public.squads --dry-run
-pnpm better-supabase adopt audit --from public.audit_logs
-pnpm better-supabase adopt tags --from app.labels,app.label_links --json
+pnpm better-supabase adopt teams --tables public.squads --dry-run
+pnpm better-supabase adopt audit --tables public.audit_logs
+pnpm better-supabase adopt tags --tables app.labels,app.label_links --json
 ```
 
 `adopt` maps one block onto tables the app already has and writes the
-proposed `blocks.<block>` entry in adopt mode. Each table in `--from`
+proposed `blocks.<block>` entry in adopt mode. Each table in `--tables`
 (`table` or `schema.table`, comma-separated or repeated) goes to the block's
 logical table whose columns it matches best; the block's other tables are
 looked up by their default names. Each logical column then takes the column

@@ -29,11 +29,6 @@ import {
 } from "../scaffold/api.ts";
 
 const ARGS = {
-  kind: {
-    type: "positional",
-    required: false,
-    description: "api",
-  },
   framework: {
     type: "string",
     description: "hono or next. Defaults to the one in package.json",
@@ -99,20 +94,11 @@ export interface ScaffoldOptions {
   readonly check?: boolean;
 }
 
-export async function runScaffold(
+export async function runScaffoldApi(
   config: ResolvedConfig,
   args: ScaffoldFlags,
   options: ScaffoldOptions = {},
 ): Promise<CommandResult> {
-  const [kind] = args._ ?? [];
-
-  if (kind !== "api") {
-    throw new CliError(
-      "usage",
-      `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\`.`,
-    );
-  }
-
   const configured = config.scaffold.api ?? {};
   const project = await detectProject(config.root);
   const detected = project.frameworks.filter(isFramework);
@@ -250,9 +236,9 @@ const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
     )
     .join(", ")} }`;
 
-export const scaffoldCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("scaffold"),
+export const scaffoldApiCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("scaffold api"),
   args: { ...ARGS, ...PLAN_ARGS },
   lists: ["tables"],
-  run: (args, { config }) => runScaffold(config, args),
+  run: (args, { config }) => runScaffoldApi(config, args),
 });

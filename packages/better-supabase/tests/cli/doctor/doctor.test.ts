@@ -2321,7 +2321,8 @@ describe("doctor command", () => {
           "snapshot.json",
           "--only",
           "BS204",
-          "--strict",
+          "--fail-on",
+          "warning",
           "--cwd",
           dir,
         ])

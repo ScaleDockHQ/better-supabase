@@ -12,32 +12,83 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ["add", () => import("./commands/add.ts").then((m) => m.addCommand)],
   ["apply", () => import("./commands/apply.ts").then((m) => m.applyCommand)],
   ["adopt", () => import("./commands/adopt.ts").then((m) => m.adoptCommand)],
-  ["preset", () => import("./commands/preset.ts").then((m) => m.presetCommand)],
-  ["blocks", () => import("./commands/blocks.ts").then((m) => m.blocksCommand)],
+  [
+    "preset decode",
+    () => import("./commands/preset.ts").then((m) => m.presetDecodeCommand),
+  ],
+  [
+    "preset info",
+    () => import("./commands/preset.ts").then((m) => m.presetInfoCommand),
+  ],
+  [
+    "blocks list",
+    () => import("./commands/blocks.ts").then((m) => m.blocksListCommand),
+  ],
+  [
+    "blocks view",
+    () => import("./commands/blocks.ts").then((m) => m.blocksViewCommand),
+  ],
+  [
+    "blocks search",
+    () => import("./commands/blocks.ts").then((m) => m.blocksSearchCommand),
+  ],
+  [
+    "skills list",
+    () => import("./commands/skills.ts").then((m) => m.skillsListCommand),
+  ],
+  [
+    "skills install",
+    () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
+  ],
   ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
-  ["skills", () => import("./commands/skills.ts").then((m) => m.skillsCommand)],
   ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
   [
     "introspect",
     () => import("./commands/introspect.ts").then((m) => m.introspectCommand),
   ],
   [
-    "openapi",
-    () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
+    "spec emit",
+    () => import("./commands/spec.ts").then((m) => m.specEmitCommand),
   ],
-  ["spec", () => import("./commands/spec.ts").then((m) => m.specCommand)],
   [
-    "scaffold",
-    () => import("./commands/scaffold.ts").then((m) => m.scaffoldCommand),
+    "spec validate",
+    () => import("./commands/spec.ts").then((m) => m.specValidateCommand),
+  ],
+  [
+    "scaffold api",
+    () => import("./commands/scaffold.ts").then((m) => m.scaffoldApiCommand),
   ],
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
-  ["sql", () => import("./commands/sql.ts").then((m) => m.sqlCommand)],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
+  ["sql list", () => import("./commands/sql.ts").then((m) => m.sqlListCommand)],
+  ["sql add", () => import("./commands/sql.ts").then((m) => m.sqlAddCommand)],
+  ["sql sync", () => import("./commands/sql.ts").then((m) => m.sqlSyncCommand)],
   [
-    "codemod",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand),
+    "sql upgrade",
+    () => import("./commands/sql.ts").then((m) => m.sqlUpgradeCommand),
+  ],
+  ["sql data", () => import("./commands/sql.ts").then((m) => m.sqlDataCommand)],
+  [
+    "sql print",
+    () => import("./commands/sql.ts").then((m) => m.sqlPrintCommand),
+  ],
+  [
+    "codemod 0.4",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.4")),
+  ],
+  [
+    "codemod 0.5",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.5")),
+  ],
+  [
+    "codemod 0.6",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.6")),
+  ],
+  [
+    "codemod 0.9",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.9")),
   ],
 ];
 

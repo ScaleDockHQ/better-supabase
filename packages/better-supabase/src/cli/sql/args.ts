@@ -1,13 +1,7 @@
-import type { CliArgs, CliOptions } from "../core/command.ts";
+import type { CliOptions } from "../core/command.ts";
 
+/** Every flag a `sql` subcommand takes; each subcommand declares its own subset. */
 export const SQL_ARGS = {
-  action: {
-    type: "positional",
-    required: false,
-    variadic: true,
-    description:
-      "list (modules and whether they are installed), add <module...> (SQL files only; `better-supabase add` also wires clients), sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>",
-  },
   check: {
     type: "boolean",
     description:
@@ -19,13 +13,11 @@ export const SQL_ARGS = {
     valueHint: "dir",
   },
   "dry-run": { type: "boolean", description: "Show what would be written" },
-  force: {
+  "allow-hook-overlap": {
     type: "boolean",
     description:
-      "Write tenant even though the authorization provider's hook owns the memberships claim",
+      "Write modules whose claim the authorization provider's hook already writes",
   },
 } as const;
-
-export type SqlArgs = CliArgs<typeof SQL_ARGS>;
 
 export type SqlFlags = CliOptions<typeof SQL_ARGS>;

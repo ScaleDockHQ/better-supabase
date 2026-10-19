@@ -3,7 +3,7 @@ import type { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "../names.ts";
 export interface OpenApiConfig {
   /** Module exporting the document (or a function returning it) as `openapi` or default. */
   readonly entry?: string;
-  /** JSON file `better-supabase openapi emit` writes. */
+  /** JSON file `better-supabase spec emit openapi` writes. */
   readonly output?: string;
 }
 

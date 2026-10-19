@@ -34,7 +34,7 @@ const ADOPT_ARGS = {
     required: false,
     description: "The block to adopt existing tables for",
   },
-  from: {
+  tables: {
     type: "string",
     description:
       "The existing tables, as table or schema.table; the block's other tables are looked up by their default names",
@@ -102,12 +102,12 @@ export async function runAdopt(
   if (block === undefined) {
     throw new CliError(
       "usage",
-      "Name the block to adopt, e.g. `better-supabase adopt teams --from public.teams`.",
+      "Name the block to adopt, e.g. `better-supabase adopt teams --tables public.teams`.",
     );
   }
 
   const proposal = proposeAdoption(block, await deps.tables(), {
-    from: list(args.from),
+    from: list(args.tables),
     blocks: config.blocks,
     schemas: adoptSchemas(config),
   });
@@ -208,7 +208,7 @@ export async function runAdopt(
 export const adoptCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("adopt"),
   args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
-  lists: ["from"],
+  lists: ["tables"],
   run: async (args, { config, configFile, env, io, log, paint, signal }) => {
     const tables = snapshotTables(config, env, {
       ...(await sourceArgs(args, io)),

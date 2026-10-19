@@ -253,7 +253,7 @@ describe("init and add", () => {
 
     const add = await run([
       "add",
-      "--framework",
+      "--integration",
       "mcp,orpc",
       "--cwd",
       dir,
@@ -267,15 +267,15 @@ describe("init and add", () => {
     expect(add.stdout).toContain("Would create router.ts");
     expect(add.stdout).toContain("pnpm add @orpc/server @supabase/server");
     expect(existsSync(join(dir, "router.ts"))).toBe(false);
-    expect((await run(["add", "--framework", "nope", "--cwd", dir])).code).toBe(
-      2,
-    );
+    expect(
+      (await run(["add", "--integration", "nope", "--cwd", dir])).code,
+    ).toBe(2);
     expect(resolveIntegrations(["react"])).toEqual(["client", "react"]);
   });
 
   it("skips the app definition for Edge Function projects", async () => {
     await project({});
-    const init = await run(["init", "--with", "mcp", "--cwd", dir]);
+    const init = await run(["init", "--integration", "mcp", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(
       existsSync(join(dir, "supabase/functions/_shared/supabase.ts")),
@@ -443,7 +443,15 @@ describe("env", () => {
         ".gitignore": ".env*.local\n",
       },
     );
-    const result = await run(["env", "--from", "status.json", "--cwd", dir]);
+
+    const result = await run([
+      "env",
+      "--status-file",
+      "status.json",
+      "--cwd",
+      dir,
+    ]);
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
     expect(result.stdout).not.toContain("sb_secret_test");
@@ -457,7 +465,7 @@ describe("env", () => {
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
     await chmod(join(dir, ".env.local"), 0o644);
     expect(
-      (await run(["env", "--from", "status.json", "--cwd", dir])).stdout,
+      (await run(["env", "--status-file", "status.json", "--cwd", dir])).stdout,
     ).toContain("Unchanged");
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
   });
@@ -472,7 +480,7 @@ describe("env", () => {
     await chmod(bin, 0o755);
 
     const result = await run(
-      ["env", "--print", "--prefix", "VITE_", "--cwd", dir],
+      ["env", "--out", "-", "--prefix", "VITE_", "--cwd", dir],
       {
         env: { SUPABASE_BIN: bin },
         io: { stdout: () => {}, stderr: () => {} },
@@ -492,7 +500,7 @@ describe("env", () => {
     );
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--print", "--cwd", dir], {
+    const result = await run(["env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -504,9 +512,12 @@ describe("env", () => {
   it("rejects a --from file without status JSON", async () => {
     await project({}, { "status.txt": "Stopped\n" });
 
-    const result = await run(["env", "--from", "status.txt", "--cwd", dir], {
-      io: { stdout: () => {}, stderr: () => {} },
-    });
+    const result = await run(
+      ["env", "--status-file", "status.txt", "--cwd", dir],
+      {
+        io: { stdout: () => {}, stderr: () => {} },
+      },
+    );
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
@@ -517,14 +528,14 @@ describe("env", () => {
   it.each([
     ["--out", "../.env.local"],
     ["--out", "/tmp/better-supabase-escape.env"],
-    ["--from", "../status.json"],
+    ["--status-file", "../status.json"],
   ])("refuses %s %s outside the project root", async (flag, path) => {
     await project({}, { "status.json": JSON.stringify(status) });
 
     const args =
-      flag === "--from"
-        ? ["env", "--from", path, "--cwd", dir]
-        : ["env", "--from", "status.json", "--out", path, "--cwd", dir];
+      flag === "--status-file"
+        ? ["env", "--status-file", path, "--cwd", dir]
+        : ["env", "--status-file", "status.json", "--out", path, "--cwd", dir];
 
     const result = await run(args, {
       io: { stdout: () => {}, stderr: () => {} },
@@ -544,7 +555,7 @@ describe("env", () => {
     await writeFile(bin, "#!/bin/sh\nexit 2\n");
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--print", "--cwd", dir], {
+    const result = await run(["env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -710,8 +721,8 @@ export const seed = defineSeed(defineSupabase(schema), {
   });
 });
 
-describe("openapi emit", () => {
-  it("writes the exported document and detects drift", async () => {
+describe("spec emit openapi", () => {
+  it("writes a createOpenApi() document and detects drift", async () => {
     await project(
       {},
       {
@@ -722,8 +733,9 @@ describe("openapi emit", () => {
     );
 
     const emit = await run([
-      "openapi",
+      "spec",
       "emit",
+      "openapi",
       "--entry",
       "openapi.mjs",
       "--cwd",
@@ -737,8 +749,9 @@ describe("openapi emit", () => {
     expect(
       (
         await run([
-          "openapi",
+          "spec",
           "emit",
+          "openapi",
           "--check",
           "--entry",
           "openapi.mjs",
@@ -750,8 +763,9 @@ describe("openapi emit", () => {
     await writeFile(join(dir, "openapi.json"), "{}\n");
 
     const drift = await run([
-      "openapi",
+      "spec",
       "emit",
+      "openapi",
       "--check",
       "--entry",
       "openapi.mjs",
@@ -763,9 +777,19 @@ describe("openapi emit", () => {
     expect(drift.stdout).toContain("-{}");
     expect(drift.stdout).toContain('+  "openapi": "3.1.0",');
     expect(
-      (await run(["openapi", "emit", "--entry", "bad.mjs", "--cwd", dir])).code,
-    ).toBe(1);
-    expect((await run(["openapi", "--cwd", dir])).code).toBe(2);
+      (
+        await run([
+          "spec",
+          "emit",
+          "openapi",
+          "--entry",
+          "bad.mjs",
+          "--cwd",
+          dir,
+        ])
+      ).code,
+    ).not.toBe(0);
+    expect((await run(["openapi", "emit", "--cwd", dir])).code).toBe(2);
   });
 });
 
@@ -851,7 +875,7 @@ describe("flags from the config", () => {
       env: { output: ".env.development.local", prefix: "VITE_" },
     });
     expect(
-      (await run(["env", "--from", "status.json", "--cwd", dir])).code,
+      (await run(["env", "--status-file", "status.json", "--cwd", dir])).code,
     ).toBe(0);
     expect(
       await readFile(join(dir, ".env.development.local"), "utf-8"),
@@ -859,7 +883,7 @@ describe("flags from the config", () => {
     expect(existsSync(join(dir, ".env.local"))).toBe(false);
     await run([
       "env",
-      "--from",
+      "--status-file",
       "status.json",
       "--prefix",
       "none",
@@ -888,7 +912,9 @@ describe("flags from the config", () => {
 
   it("init lists the integrations; add sets up the configured ones", async () => {
     await project({ hono: "4" });
-    expect((await run(["init", "--with", "mcp", "--cwd", dir])).code).toBe(0);
+    expect(
+      (await run(["init", "--integration", "mcp", "--cwd", dir])).code,
+    ).toBe(0);
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("integrations: ['hono', 'mcp'],");
@@ -906,7 +932,7 @@ describe("flags from the config", () => {
 
     const orpc = await run([
       "add",
-      "--framework",
+      "--integration",
       "orpc",
       "--dry-run",
       "--cwd",

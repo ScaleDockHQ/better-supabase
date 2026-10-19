@@ -28,7 +28,8 @@
     "directory": "packages/better-supabase"
   },
   "bin": {
-    "better-supabase": "./bin/better-supabase.js"
+    "better-supabase": "./bin/better-supabase.js",
+    "bsb": "./bin/better-supabase.js"
   },
   "files": [
     "bin",

@@ -96,7 +96,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "add",
     description:
-      "Adds blocks with what they require, or glue for an integration with --framework",
+      "Adds blocks with what they require, or glue for an integration with --integration",
     group: "setup",
     docs: "/docs/cli/init#add",
     examples: [
@@ -105,7 +105,7 @@ export const COMMANDS: readonly CommandSpec[] = [
         description: "Installs two blocks and the modules they require",
       },
       {
-        command: "better-supabase add --framework hono",
+        command: "better-supabase add --integration hono",
         description: "Adds the Hono glue",
       },
     ],
@@ -134,6 +134,22 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "setup",
     docs: "/docs/cli/presets#preset",
     effects: [],
+    subcommands: [
+      {
+        name: "decode",
+        description:
+          "Prints the blocks, auth and settings a preset code or Create URL holds",
+        docs: "/docs/cli/presets#preset",
+        effects: [],
+      },
+      {
+        name: "info",
+        description:
+          "Shows the config's preset and how the config differs from it",
+        docs: "/docs/cli/presets#preset",
+        effects: [],
+      },
+    ],
   },
   {
     name: "blocks",
@@ -141,6 +157,27 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "setup",
     docs: "/docs/cli/presets#blocks",
     effects: [],
+    subcommands: [
+      {
+        name: "list",
+        description: "Lists the blocks, optionally in one category",
+        docs: "/docs/cli/presets#blocks",
+        effects: [],
+      },
+      {
+        name: "view",
+        description:
+          "Shows a block: its tables, the blocks it requires and its options",
+        docs: "/docs/cli/presets#blocks",
+        effects: [],
+      },
+      {
+        name: "search",
+        description: "Finds blocks by name, description or category",
+        docs: "/docs/cli/presets#blocks",
+        effects: [],
+      },
+    ],
   },
   {
     name: "skills",
@@ -149,6 +186,21 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "setup",
     docs: "/docs/for-ai-agents",
     effects: [FILES],
+    subcommands: [
+      {
+        name: "list",
+        description: "Lists the skills that ship with this version",
+        docs: "/docs/for-ai-agents",
+        effects: [],
+      },
+      {
+        name: "install",
+        description:
+          "Copies the skills into each agent's skills folder in the project, or the home folder with --global",
+        docs: "/docs/for-ai-agents",
+        effects: [FILES],
+      },
+    ],
   },
   {
     name: "gen",
@@ -182,14 +234,32 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "generate",
     docs: "/docs/cli/spec",
     effects: [FILES],
-  },
-  {
-    name: "openapi",
-    description:
-      "Writes the document your createOpenApi() module exports, so CI can check it for drift",
-    group: "generate",
-    docs: "/docs/cli/local#openapi-emit",
-    effects: [FILES],
+    subcommands: [
+      {
+        name: "emit",
+        description:
+          "Writes the spec documents, or exits 1 when one is out of date with --check",
+        docs: "/docs/cli/spec",
+        examples: [
+          {
+            command: "better-supabase spec emit openapi",
+            description: "Writes the OpenAPI document",
+          },
+          {
+            command: "better-supabase spec emit --check",
+            description: "Exits 1 when a written document is out of date",
+          },
+        ],
+        effects: [FILES],
+      },
+      {
+        name: "validate",
+        description:
+          "Validates the documents against their specs and lints them, writing nothing",
+        docs: "/docs/cli/spec",
+        effects: [],
+      },
+    ],
   },
   {
     name: "scaffold",
@@ -198,6 +268,15 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "generate",
     docs: "/docs/cli/scaffold",
     effects: [FILES],
+    subcommands: [
+      {
+        name: "api",
+        description:
+          "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
+        docs: "/docs/cli/scaffold",
+        effects: [FILES],
+      },
+    ],
   },
   {
     name: "env",
@@ -226,7 +305,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "doctor",
     description:
-      "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
+      "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning",
     group: "inspect",
     docs: "/docs/cli/doctor",
     examples: [
@@ -260,6 +339,47 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "maintain",
     docs: "/docs/blocks/sql",
     effects: [FILES],
+    subcommands: [
+      {
+        name: "list",
+        description: "Lists the SQL modules and which ones the project has",
+        docs: "/docs/blocks/sql",
+        effects: [],
+      },
+      {
+        name: "add",
+        description:
+          "Writes module files and their pgTAP tests, and adds the modules to the config",
+        docs: "/docs/blocks/sql",
+        effects: [FILES],
+      },
+      {
+        name: "sync",
+        description:
+          "Writes the files for the modules the config lists and removes the ones it no longer lists",
+        docs: "/docs/blocks/sql",
+        effects: [FILES],
+      },
+      {
+        name: "upgrade",
+        description:
+          "Rewrites module files to this version's SQL, or exits 1 when one is behind with --check",
+        docs: "/docs/blocks/sql",
+        effects: [FILES],
+      },
+      {
+        name: "data",
+        description: "Writes the data migration for blocks in adopt mode",
+        docs: "/docs/blocks/sql",
+        effects: [FILES],
+      },
+      {
+        name: "print",
+        description: "Prints a module's SQL on stdout",
+        docs: "/docs/blocks/sql",
+        effects: [],
+      },
+    ],
   },
   {
     name: "codemod",
@@ -268,6 +388,33 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "maintain",
     docs: "/docs/cli/codemod",
     effects: [FILES],
+    subcommands: [
+      {
+        name: "0.4",
+        description: "Renames from 0.3 to 0.4",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "0.5",
+        description: "Renames from 0.4 to 0.5",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "0.6",
+        description: "Changes from 0.5 to 0.6: kits become blocks and modules",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "0.9",
+        description:
+          "Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+    ],
   },
 ];
 

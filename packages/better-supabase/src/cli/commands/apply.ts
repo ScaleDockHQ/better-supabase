@@ -391,7 +391,7 @@ export async function runApply(
             ]),
           ),
         },
-        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --from <schema.table>\`, or leave the block out of the preset.`,
+        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --tables <schema.table>\`, or leave the block out of the preset.`,
       };
     }
 

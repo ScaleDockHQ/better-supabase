@@ -5,8 +5,15 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { runApply } from "../../../src/cli/commands/apply.ts";
-import { runBlocks } from "../../../src/cli/commands/blocks.ts";
-import { runPreset } from "../../../src/cli/commands/preset.ts";
+import {
+  listBlocks,
+  searchBlocks,
+  viewBlock,
+} from "../../../src/cli/commands/blocks.ts";
+import {
+  decodePresetInput,
+  presetInfo,
+} from "../../../src/cli/commands/preset.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
@@ -55,8 +62,7 @@ const APP_TABLES_FILE = "supabase/schemas/900_better_supabase_app_tables.sql";
 
 describe("preset decode", () => {
   it("prints a named preset, a code and a /create URL", () => {
-    const config = resolveConfig({}, dir);
-    const named = runPreset(config, { _: ["decode", "minimal"] });
+    const named = decodePresetInput("minimal");
     expect(named.code).toBe(0);
     expect(named.output).toContain(
       `Code: ${encodePreset(namedPreset("minimal"))}`,
@@ -64,9 +70,9 @@ describe("preset decode", () => {
     expect(named.output).toContain("  profiles");
     const code = encodePreset({ blocks: ["comments"], casing: "camel" });
 
-    const decoded = runPreset(config, {
-      _: ["decode", `https://bettersupabase.com/create?preset=${code}`],
-    });
+    const decoded = decodePresetInput(
+      `https://bettersupabase.com/create?preset=${code}`,
+    );
 
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
@@ -76,22 +82,16 @@ describe("preset decode", () => {
   });
 
   it("exits 1 on what can't install, and 2 on what isn't a preset", async () => {
-    const config = resolveConfig({}, dir);
-
-    const conflict = runPreset(config, {
-      _: ["decode", encodePreset({ blocks: ["organizations"], scope: "user" })],
-    });
+    const conflict = decodePresetInput(
+      encodePreset({ blocks: ["organizations"], scope: "user" }),
+    );
 
     expect(conflict.code).toBe(1);
     expect(conflict.output).toContain(
       'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
     );
-    await usageError(() => runPreset(config, { _: ["decode", "startup"] }));
-    await usageError(() => runPreset(config, { _: ["decode"] }));
-    await usageError(() => runPreset(config, { _: [] }));
-    expect(
-      await usageError(() => runPreset(config, { _: ["nope"] })),
-    ).toContain('Unknown preset action "nope"');
+    await usageError(() => decodePresetInput("startup"));
+    await usageError(() => decodePresetInput(undefined));
   });
 });
 
@@ -106,7 +106,7 @@ describe("preset info", () => {
       dir,
     );
 
-    const info = runPreset(config, { _: ["info"] });
+    const info = presetInfo(config);
     expect(info.code).toBe(0);
     expect(info.output).toContain("Preset: minimal");
     expect(info.output).toContain("  + tags");
@@ -117,10 +117,9 @@ describe("preset info", () => {
 
   it("says when the config adds nothing, or names no preset", () => {
     expect(
-      runPreset(resolveConfig({ preset: "minimal" }, dir), { _: ["info"] })
-        .output,
+      presetInfo(resolveConfig({ preset: "minimal" }, dir)).output,
     ).toContain("The config adds nothing to the preset.");
-    expect(runPreset(resolveConfig({}, dir), { _: ["info"] }).output).toContain(
+    expect(presetInfo(resolveConfig({}, dir)).output).toContain(
       "The config names no preset.",
     );
   });
@@ -128,42 +127,34 @@ describe("preset info", () => {
 
 describe("blocks", () => {
   it("lists every block by category, or one category", async () => {
-    const all = runBlocks({ _: ["list"] });
+    const all = listBlocks(undefined);
     expect(all.output).toContain("identity:\n");
     expect(all.output).toContain("  comments");
-    const crm = runBlocks({ _: ["list"], category: "crm" });
+    const crm = listBlocks("crm");
     expect(crm.output).toMatch(/^crm:\n/);
     expect(crm.output).not.toContain("identity:");
-    await usageError(() => runBlocks({ _: ["list"], category: "nope" }));
+    await usageError(() => listBlocks("nope"));
   });
 
   it("shows one block with its install command and glue", async () => {
-    const view = runBlocks({ _: ["view", "outbox"] });
+    const view = viewBlock("outbox");
     expect(view.code).toBe(0);
     expect(view.output).toContain("Install: better-supabase add outbox");
     expect(view.output).toContain("@better-supabase/outbox-relay-next");
     expect(view.output).toContain(
       "More: https://bettersupabase.com/blocks/outbox",
     );
-    expect(runBlocks({ _: ["view", "tenant"] }).output).toContain(
-      "Requires:   updated-at",
+    expect(viewBlock("tenant").output).toContain("Requires:   updated-at");
+    await usageError(() => viewBlock(undefined));
+    expect(await usageError(() => viewBlock("nope"))).toContain(
+      "better-supabase blocks search nope",
     );
-    await usageError(() => runBlocks({ _: ["view"] }));
-    expect(
-      await usageError(() => runBlocks({ _: ["view", "nope"] })),
-    ).toContain("better-supabase blocks search nope");
   });
 
   it("searches names, titles and descriptions", async () => {
-    expect(runBlocks({ _: ["search", "invoice"] }).output).toContain(
-      "  invoices",
-    );
-    expect(runBlocks({ _: ["search", "zzzz"] }).output).toContain(
-      'No block matches "zzzz"',
-    );
-    await usageError(() => runBlocks({ _: ["search"] }));
-    await usageError(() => runBlocks({ _: [] }));
-    await usageError(() => runBlocks({ _: ["nope"] }));
+    expect(searchBlocks("invoice").output).toContain("  invoices");
+    expect(searchBlocks("zzzz").output).toContain('No block matches "zzzz"');
+    await usageError(() => searchBlocks(undefined));
   });
 });
 

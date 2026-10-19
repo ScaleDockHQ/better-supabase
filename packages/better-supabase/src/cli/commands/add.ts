@@ -53,9 +53,9 @@ const ADD_ARGS = {
     required: false,
     variadic: true,
     description:
-      "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
+      "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --integration, sets up the integrations in the config that have no files yet",
   },
-  framework: {
+  integration: {
     type: "string",
     description:
       "Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react",
@@ -63,8 +63,12 @@ const ADD_ARGS = {
   },
   force: {
     type: "boolean",
+    description: "Overwrite files that exist",
+  },
+  "allow-hook-overlap": {
+    type: "boolean",
     description:
-      "Overwrite files that exist; with blocks, write modules a provider's hook would duplicate",
+      "With blocks: write modules whose claim the authorization provider's hook already writes",
   },
   "tests-dir": {
     type: "string",
@@ -210,14 +214,14 @@ export async function runAdd(
   prompts?: Prompter,
   deps: SqlDeps = SYSTEM_DEPS,
 ): Promise<CommandResult> {
-  if (args._.length > 0 && args.framework === undefined) {
+  if (args._.length > 0 && args.integration === undefined) {
     return addBlocks(config, args, args._, deps);
   }
 
-  if (args.framework !== undefined) {
+  if (args.integration !== undefined) {
     return addIntegrations(
       config,
-      { ...args, _: list(args.framework) },
+      { ...args, _: list(args.integration) },
       prompts,
     );
   }
@@ -350,7 +354,7 @@ export const addCommand: AnyCommand = defineCliCommand({
     "dry-run": PLAN_ARGS["dry-run"],
     check: PLAN_ARGS.check,
   },
-  lists: ["framework"],
+  lists: ["integration"],
   run: (args, { config, configFile, io }) =>
     runAdd(config, args, io.prompts, {
       ...SYSTEM_DEPS,

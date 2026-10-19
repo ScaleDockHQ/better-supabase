@@ -238,15 +238,15 @@ describe("spec diagnostics", () => {
   });
 });
 
-describe("spec check", () => {
+describe("spec emit --check", () => {
   it("passes when the file matches and fails when it drifts", async () => {
     await spec("emit");
-    expect((await spec("check")).code).toBe(0);
+    expect((await spec("emit", "--check")).code).toBe(0);
     const json = await readFile(join(dir, "openapi.json"), "utf-8");
     await writeFile(join(dir, "openapi.json"), json.replaceAll("\n", "\r\n"));
-    expect((await spec("check")).code).toBe(0);
+    expect((await spec("emit", "--check")).code).toBe(0);
     await writeFile(join(dir, "openapi.json"), "{}\n");
-    const stale = await spec("check");
+    const stale = await spec("emit", "--check");
     expect(stale.code).toBe(1);
     expect(stale.stdout).toContain("output-stale");
     expect(stale.stdout).toContain("--- openapi.json\ton disk");
@@ -255,7 +255,7 @@ describe("spec check", () => {
   });
 
   it("reports a missing file", async () => {
-    const missing = await spec("check");
+    const missing = await spec("emit", "--check");
     expect(missing.code).toBe(1);
     expect(missing.stdout).toContain("output-missing");
   });
@@ -293,7 +293,7 @@ describe("spec arguments", () => {
     expect((await spec("publish")).code).toBe(2);
     expect((await spec("emit", "--fail-on", "loud")).code).toBe(2);
     expect((await spec("emit", "--ui", "nope")).code).toBe(2);
-    expect((await spec("check", "--watch")).code).toBe(2);
+    expect((await spec("emit", "--check", "--watch")).code).toBe(2);
     expect((await spec("emit", "--watch", "--interval", "0")).code).toBe(2);
     const version = await spec("emit", "openapi", "--spec-version", "9.9");
     expect(version.code).toBe(1);
@@ -380,7 +380,7 @@ describe("spec arguments", () => {
       ),
     ).toBe(false);
 
-    const strict = await spec("check", "--fail-on", "warning");
+    const strict = await spec("emit", "--check", "--fail-on", "warning");
     expect(strict.code).toBe(1);
     expect(strict.stdout).toContain("asyncapi-topic-undocumented");
   });

@@ -46,13 +46,13 @@ export async function addModules(
     MEMBERSHIP_CLAIM_MODULES.has(name),
   );
 
-  if (owner && hookModules.length > 0 && args.force !== true) {
+  if (owner && hookModules.length > 0 && args["allow-hook-overlap"] !== true) {
     return {
       code: 1,
       error: [
         `The access token hook of ${owner} writes the memberships claim.`,
         `${hookModules.join(" and ")} would add a second source for it. Use the provider's hook instead,`,
-        "or pass --force to write the modules anyway.",
+        "or pass --allow-hook-overlap to write the modules anyway.",
       ].join("\n"),
     };
   }

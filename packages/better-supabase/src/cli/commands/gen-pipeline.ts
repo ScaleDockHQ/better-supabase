@@ -9,7 +9,7 @@ import type { Paint } from "../style.ts";
 import { failedResult, parseNames } from "../core/errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
 import { runEnv } from "./env.ts";
-import { runScaffold } from "./scaffold.ts";
+import { runScaffoldApi } from "./scaffold.ts";
 import { runSeed } from "./seed.ts";
 import { runSpec, specOptionsFromConfig } from "./spec.ts";
 import { runSql } from "./sql.ts";
@@ -33,7 +33,7 @@ const ORDER: ReadonlyMap<GenTask, number> = new Map(
   GEN_TASKS.map((task, index) => [task, index]),
 );
 
-/** Checks `--tasks` names. Returns an error message for an unknown one. */
+/** Checks `--only` names. Returns an error message for an unknown one. */
 export function parseTasks(
   names: readonly string[],
 ): readonly GenTask[] | string {
@@ -41,7 +41,7 @@ export function parseTasks(
 }
 
 /**
- * The tasks `gen` runs, in pipeline order: `--tasks`, then `gen.tasks`, then
+ * The tasks `gen` runs, in pipeline order: `--only`, then `gen.tasks`, then
  * every task the config sets up.
  */
 export function selectTasks(
@@ -118,9 +118,9 @@ const STEPS: Readonly<
   seed: ({ config, check, dryRun, env }) =>
     runSeed(config, { check, "dry-run": dryRun }, env),
   scaffold: ({ config, check, dryRun }) =>
-    runScaffold(
+    runScaffoldApi(
       config,
-      { _: ["api"], "dry-run": dryRun },
+      { "dry-run": dryRun },
       { generatedOnly: true, check },
     ),
   env: async ({ config, check, dryRun, env }) =>

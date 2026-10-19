@@ -93,4 +93,4 @@ jobs:
           # SUPABASE_DB_URL comes from the dotenv file, so the inner shell expands it.
           # shellcheck disable=SC2016
           pnpm exec dotenv -e .env.development.local -- \
-            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm exec better-supabase doctor --cwd apps/examples/nextjs --db-url-stdin --strict'
+            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm exec better-supabase doctor --cwd apps/examples/nextjs --db-url-stdin --fail-on warning'

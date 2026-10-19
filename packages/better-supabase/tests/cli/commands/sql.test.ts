@@ -1,3 +1,4 @@
+import { parseArgs } from "citty";
 import {
   mkdir,
   mkdtemp,
@@ -10,12 +11,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  migrationsDir,
-  sqlCommand,
-  runSql,
-} from "../../../src/cli/commands/sql.ts";
-import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
+import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import {
   type BetterSupabaseConfig,
@@ -92,12 +89,12 @@ describe("runSql", () => {
   });
 
   const sql = (argv: string[], config: BetterSupabaseConfig = {}) =>
-    runSql(resolveConfig(config, root), parseCommandArgs(sqlCommand, argv));
+    runSql(resolveConfig(config, root), parseArgs(argv, SQL_ARGS));
 
   it("asks for an action and rejects unknown ones", async () => {
-    expect(await usageError(() => sql([]))).toBe("Name an action.");
+    expect(await usageError(() => sql([]))).toBe("Name a subcommand.");
     expect(await usageError(() => sql(["drop"]))).toBe(
-      'Unknown sql action "drop".',
+      'Unknown sql subcommand "drop".',
     );
   });
 
@@ -131,15 +128,10 @@ describe("runSql", () => {
 
   it("lists added modules in the config file, or prints them when it can't", async () => {
     const run = (argv: string[], configFile?: string) =>
-      runSql(
-        resolveConfig({}, root),
-        parseCommandArgs(sqlCommand, argv),
-        undefined,
-        {
-          now: () => new Date("2026-10-15T00:00:00Z"),
-          ...(configFile === undefined ? {} : { configFile }),
-        },
-      );
+      runSql(resolveConfig({}, root), parseArgs(argv, SQL_ARGS), undefined, {
+        now: () => new Date("2026-10-15T00:00:00Z"),
+        ...(configFile === undefined ? {} : { configFile }),
+      });
 
     expect((await run(["add", "updated-at"])).output).toContain(
       'Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:\n  "updated-at": {},',
@@ -1175,6 +1167,12 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
         "The access token hook of the authorization provider (stub) writes the memberships claim.",
       ),
     });
+
+    expect(
+      await sql(["add", "tenant", "--allow-hook-overlap", "--dry-run"], {
+        authorization: stubProvider,
+      }),
+    ).toMatchObject({ code: 0 });
   });
 
   describe("the provider access model", () => {

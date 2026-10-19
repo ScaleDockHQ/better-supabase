@@ -106,7 +106,7 @@ describe("run", () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
     expect((await run(["sql", "--help"])).stdout).toContain(
-      "Usage: better-supabase sql [options] [action...]",
+      "Usage: better-supabase sql <command> [options]",
     );
     expect((await run(["help", "sql"])).stdout).toContain(
       "Usage: better-supabase sql",
@@ -146,17 +146,31 @@ describe("run", () => {
       (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
     ).toContain("Usage: better-supabase <command> [options]");
     expect((await run(["--", "gen"])).code).toBe(2);
-    expect((await run(["--cwd", dir, "openapi"])).stderr).toMatch(
-      /^Name an action\. Run `better-supabase openapi emit`\.\n\nUsage: better-supabase openapi /,
-    );
-    expect((await run(["openapi", "publish", "--cwd", dir])).stderr).toMatch(
-      /^Unknown openapi action "publish"/,
+    expect(await run(["--cwd", dir, "openapi", "emit"])).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^"openapi emit" is now "spec emit openapi"\. Run: better-supabase spec emit openapi --cwd /,
+      ),
+    });
+    expect((await run(["spec", "check", "--cwd", dir])).stderr).toMatch(
+      /^"spec check" is now "spec emit --check"/,
     );
     expect((await run(["skills", "--cwd", dir])).stderr).toMatch(
-      /^Name an action\. Use `skills list`/,
+      /^Name a skills subcommand: list, install\.\n\nUsage: better-supabase skills /,
     );
     expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
-      /^Unknown skills action "remove"/,
+      /^Unknown command "skills remove"/,
+    );
+    expect(await run(["gen", "--tasks", "types", "--cwd", dir])).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^--tasks is now --only\. Run: better-supabase gen --only types --cwd /,
+      ),
+    });
+    expect(
+      (await run(["doctor", "--strict", "--json", "--cwd", dir])).stdout,
+    ).toContain(
+      '"suggestion": "better-supabase doctor --fail-on warning --json --cwd',
     );
     const skills = await run(["skills", "list", "--cwd", dir]);
     expect(skills.code).toBe(0);
@@ -170,11 +184,11 @@ describe("run", () => {
       ),
     });
     expect(
-      await run(["introspect", "--format", "xml", "--cwd", dir]),
+      await run(["introspect", "--kind", "xml", "--cwd", dir]),
     ).toMatchObject({
       code: 2,
       stderr: expect.stringMatching(
-        /^--format must be "snapshot" or "generator-metadata"\n\nUsage: /,
+        /^--kind must be "snapshot" or "generator-metadata"\n\nUsage: /,
       ),
     });
   });
@@ -261,7 +275,7 @@ describe("run", () => {
         "introspect",
         "--project-ref",
         "abc",
-        "--format",
+        "--kind",
         "generator-metadata",
         "--out",
         "meta.json",
@@ -298,7 +312,7 @@ describe("run", () => {
         "introspect",
         "--snapshot",
         "supabase/snapshot.json",
-        "--format",
+        "--kind",
         "generator-metadata",
         "--out",
         "meta.json",
@@ -899,7 +913,7 @@ describe("run", () => {
   });
 
   it("prints stack traces and the child commands under --debug", async () => {
-    const result = await run(["env", "--print", "--debug", "--cwd", dir], {
+    const result = await run(["env", "--out", "-", "--debug", "--cwd", dir], {
       env: { SUPABASE_BIN: join(dir, "missing-supabase") },
       io: io(),
     });
@@ -910,7 +924,7 @@ describe("run", () => {
     );
     expect(result.stderr).toMatch(/debug CliError: .+\n\s+at /);
 
-    const quiet = await run(["env", "--print", "--cwd", dir], {
+    const quiet = await run(["env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: join(dir, "missing-supabase") },
       io: io(),
     });

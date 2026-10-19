@@ -145,7 +145,7 @@ describe("init prompts", () => {
     expect(
       (
         await runWith(
-          ["init", "--casing", "camel", "--with", "hono", "--force"],
+          ["init", "--casing", "camel", "--integration", "hono", "--force"],
           prompts,
         )
       ).code,

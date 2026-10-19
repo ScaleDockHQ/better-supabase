@@ -941,8 +941,8 @@ describe("gen", () => {
     );
   });
 
-  it("rejects an unknown introspect --format", async () => {
-    const result = await run(["introspect", "--format", "nope", "--cwd", dir]);
+  it("rejects an unknown introspect --kind", async () => {
+    const result = await run(["introspect", "--kind", "nope", "--cwd", dir]);
     expect(result.code).toBe(2);
   });
 
@@ -1061,7 +1061,16 @@ describe("sql", () => {
       /^ {2}tenant/m,
     );
     expect((await run(["sql", "add", "audit", "--cwd", dir])).code).toBe(0);
-    const forced = await run(["sql", "add", "tenant", "--force", "--cwd", dir]);
+
+    const forced = await run([
+      "sql",
+      "add",
+      "tenant",
+      "--allow-hook-overlap",
+      "--cwd",
+      dir,
+    ]);
+
     expect(forced.code).toBe(0);
     expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
   });
@@ -1107,7 +1116,7 @@ describe("sql", () => {
       "sql",
       "add",
       "entitlements",
-      "--force",
+      "--allow-hook-overlap",
       "--cwd",
       dir,
     ]);

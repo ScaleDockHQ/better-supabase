@@ -126,7 +126,9 @@ describe("strict parsing", () => {
   it("shows a group's commands on stderr when no subcommand is named", async () => {
     const result = await grouped().run(["grp"]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toMatch(/^Usage: better-supabase grp <command>/);
+    expect(result.stderr).toMatch(
+      /^Name a grp subcommand: a\.\n\nUsage: better-supabase grp <command>/,
+    );
     expect(result.stderr).toMatch(/Commands\n {2}a +Echoes/);
   });
 

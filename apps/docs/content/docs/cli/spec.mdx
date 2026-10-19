@@ -8,16 +8,16 @@ describes and writes them to disk, so they live in the repository and CI can
 check them for drift.
 
 ```bash
-pnpm better-supabase spec emit       # write every configured document
-pnpm better-supabase spec check      # exit 1 when a file is out of date
-pnpm better-supabase spec validate   # also check against the official schemas
+pnpm better-supabase spec emit           # write every configured document
+pnpm better-supabase spec emit --check   # exit 1 when a file is out of date
+pnpm better-supabase spec validate       # also check against the official schemas
 ```
 
-| Action     | What it does                                                                                                   |
-| ---------- | -------------------------------------------------------------------------------------------------------------- |
-| `emit`     | Renders each output and writes the files that changed                                                          |
-| `check`    | Renders each output and compares it with the file on disk, ignoring line endings; writes nothing               |
-| `validate` | Renders each output, writes nothing, and checks the document against its format's official JSON Schema as well |
+| Subcommand     | What it does                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `emit`         | Renders each output and writes the files that changed                                                          |
+| `emit --check` | Renders each output and compares it with the file on disk, ignoring line endings; writes nothing               |
+| `validate`     | Renders each output, writes nothing, and checks the document against its format's official JSON Schema as well |
 
 A second positional argument keeps one format: `spec emit asyncapi`. When
 no output of that format is configured, `spec` renders it on its own to the
@@ -88,11 +88,11 @@ export default defineConfig({
 });
 ```
 
-| Key       | Default                                           | What it sets                                                                                 |
-| --------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `entry`   | `openapi.entry`, else `src/lib/openapi.ts`        | The entry module                                                                             |
-| `outputs` | `[{ format: "openapi", output: "openapi.json" }]` | The documents to write                                                                       |
-| `failOn`  | `"error"`                                         | The lowest severity that fails `emit`, `check` and `validate`: `error`, `warning` or `never` |
+| Key       | Default                                           | What it sets                                                                                        |
+| --------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `entry`   | `openapi.entry`, else `src/lib/openapi.ts`        | The entry module                                                                                    |
+| `outputs` | `[{ format: "openapi", output: "openapi.json" }]` | The documents to write                                                                              |
+| `failOn`  | `"error"`                                         | The lowest severity that fails `emit`, `emit --check` and `validate`: `error`, `warning` or `never` |
 
 Each output takes:
 
@@ -117,8 +117,9 @@ always gives the same bytes.
 
 `openapi: { entry, output }` is a deprecated alias of `specs`. When `specs`
 is unset, `openapi.entry` becomes `specs.entry` and `openapi.output` becomes
-the output of the one OpenAPI document. The
-[`openapi emit`](/docs/cli/local#openapi-emit) command still reads it.
+the output of the one OpenAPI document. A module that exports a
+`createOpenApi` document instead of a `defineApi` definition works too, so
+`spec emit openapi` replaces the old `openapi emit` command.
 
 ## Options
 
@@ -132,6 +133,7 @@ the output of the one OpenAPI document. The
 | `--fail-on <level>`        | Exit 1 on findings at this level: `error`, `warning` or `never`. Defaults to `specs.failOn`                    |
 | `--manifest <file>`        | Also write the diagnostics manifest to this file. Defaults to `specs.manifest`                                 |
 | `--cache`, `--no-cache`    | Reuse renders whose inputs did not change (the default), or render every output again                          |
+| `--check`                  | With `emit`, compare each output with the file on disk and write nothing; exit 1 when one is stale or missing  |
 | `--dry-run`                | With `emit`, print a diff of each output that would change and write nothing                                   |
 | `--watch`                  | With `emit`, render again whenever a watched file changes                                                      |
 | `--interval <ms>`          | Milliseconds between checks in `--watch`. Defaults to `gen.watchInterval`, then `1000`                         |
@@ -158,18 +160,18 @@ format's own checks (see [diagnostics](/docs/specs/diagnostics)) and the
 ones `spec` adds. They print grouped by severity, each with its output
 path, code and JSON Pointer:
 
-| `--fail-on` | Fails on                                                |
-| ----------- | ------------------------------------------------------- |
-| `error`     | errors                                                  |
-| `warning`   | errors and warnings                                     |
-| `never`     | no finding; a stale or missing file still fails `check` |
+| `--fail-on` | Fails on                                                  |
+| ----------- | --------------------------------------------------------- |
+| `error`     | errors                                                    |
+| `warning`   | errors and warnings                                       |
+| `never`     | no finding; a stale or missing file still fails `--check` |
 
 The codes `spec` adds:
 
 | Code                          | Severity | Meaning                                                                                  |
 | ----------------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `output-stale`                | error    | `check`: the file on disk differs from the rendered document                             |
-| `output-missing`              | error    | `check`: the file does not exist yet                                                     |
+| `output-stale`                | error    | `--check`: the file on disk differs from the rendered document                           |
+| `output-missing`              | error    | `--check`: the file does not exist yet                                                   |
 | `schema-invalid`              | error    | `validate`: the document does not match the format's official JSON Schema                |
 | `schema-unavailable`          | info     | `validate`: no official schema is bundled for this version; only the semantic checks ran |
 | `overlay-invalid`             | error    | An overlay file does not parse or is not an Overlay document                             |
@@ -260,9 +262,9 @@ and has no timestamps, so the same inputs give the same bytes:
 
 | Field     | What it holds                                                                                                                                   |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok`      | `false` when a finding fails `failOn` or `check` found a stale file                                                                             |
+| `ok`      | `false` when a finding fails `failOn` or `--check` found a stale file                                                                           |
 | `outputs` | Per output: format, version, the exact `pin` it follows, path, SHA-256 of the text, status, whether it came from the cache, and its diagnostics |
-| `status`  | `written` or `unchanged` (`emit`), `up-to-date` or `stale` (`check`), `validated` (`validate`)                                                  |
+| `status`  | `written` or `unchanged` (`emit`), `up-to-date` or `stale` (`--check`), `validated` (`validate`)                                                |
 | `summary` | The number of findings per severity                                                                                                             |
 
 ## Reference pages
@@ -270,15 +272,15 @@ and has no timestamps, so the same inputs give the same bytes:
 `ui` on an output, or `--ui <name>`, also writes an HTML reference page next
 to each OpenAPI document: `openapi.html` for `openapi.json`. The page loads
 the document from `./openapi.json` and takes its title from `info.title`.
-`check` compares the page too. The UIs, their pinned versions and the
+`emit --check` compares the page too. The UIs, their pinned versions and the
 self-hosted mode are on [Reference UIs](/docs/specs/reference-ui).
 
 ## In CI
 
 ```bash
-pnpm better-supabase spec check --fail-on warning
+pnpm better-supabase spec emit --check --fail-on warning
 pnpm better-supabase spec validate --manifest spec-manifest.json
 ```
 
-`check` exits 1 when a file is stale or missing, or when a finding fails
+`emit --check` exits 1 when a file is stale or missing, or when a finding fails
 `--fail-on`. Usage errors exit 2.

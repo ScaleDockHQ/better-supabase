@@ -35,13 +35,13 @@ const ARGS = {
     description: `With --metadata, the file to print: ${EMITS.join(", ")}. Defaults to schema`,
     valueHint: "file",
   },
-  out: {
+  "out-dir": {
     type: "string",
     description:
       "With --metadata, write every generated file into this directory instead of printing one",
     valueHint: "dir",
   },
-  tasks: {
+  only: {
     type: "string",
     description: `Tasks to run: ${GEN_TASKS.join(", ")}. Defaults to gen.tasks, or every task the config sets up`,
     valueHint: "list",
@@ -223,12 +223,12 @@ async function watch(
 export const genCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("gen"),
   args: ARGS,
-  lists: ["tasks"],
+  lists: ["only"],
   run: async (args, context) => {
     checkMetadataFlags({
       ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
       ...(args.emit === undefined ? {} : { emit: args.emit }),
-      ...(args.out === undefined ? {} : { out: args.out }),
+      ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
       check: args.check === true,
       json: context.json,
       conflicting: [
@@ -248,12 +248,12 @@ export const genCommand: AnyCommand = defineCliCommand({
         check: args.check === true,
         paint: context.paint,
         ...(args.emit === undefined ? {} : { emit: args.emit }),
-        ...(args.out === undefined ? {} : { out: args.out }),
+        ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
       });
     }
 
     const requested =
-      args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
+      args.only === undefined ? undefined : parseTasks(list(args.only));
 
     if (typeof requested === "string") {
       throw new CliError("usage", requested);
@@ -262,7 +262,7 @@ export const genCommand: AnyCommand = defineCliCommand({
     const tasks = selectTasks(context.config, requested);
 
     if (tasks.length === 0) {
-      throw new CliError("usage", "--tasks names no task.");
+      throw new CliError("usage", "--only names no task.");
     }
 
     const options: GenOptions = {

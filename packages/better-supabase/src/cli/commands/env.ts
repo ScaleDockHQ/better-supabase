@@ -29,7 +29,8 @@ import {
 const ARGS = {
   out: {
     type: "string",
-    description: "Env file to write. Defaults to env.output, then .env.local",
+    description:
+      "Env file to write, or - to print the variables. Defaults to env.output, then .env.local",
     valueHint: "file",
   },
   prefix: {
@@ -38,14 +39,10 @@ const ARGS = {
       'Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix',
     valueHint: "prefix",
   },
-  from: {
+  "status-file": {
     type: "string",
     description: "Read `supabase status -o json` output from a file",
     valueHint: "file",
-  },
-  print: {
-    type: "boolean",
-    description: "Print the variables instead of writing them",
   },
 } as const;
 
@@ -68,11 +65,11 @@ async function readStatus(
   env: CliEnv,
   signal?: AbortSignal,
 ): Promise<StackStatus> {
-  const from = args.from;
+  const from = args["status-file"];
 
   if (from) {
     const status = parseStackStatus(
-      await readFile(insideRoot(config.root, from, "--from"), "utf-8"),
+      await readFile(insideRoot(config.root, from, "--status-file"), "utf-8"),
     );
 
     if (!status) {
@@ -200,7 +197,7 @@ export async function runEnv(
     values["SUPABASE_JWT_SECRET"] = jwtSecret;
   }
 
-  if (args.print === true) {
+  if (args.out === "-") {
     return {
       code: 0,
       output: Object.entries(values)

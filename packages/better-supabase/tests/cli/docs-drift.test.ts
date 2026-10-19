@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { GLOBAL_ARGS } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
+import { specPaths } from "../../src/cli/core/manifest.ts";
 import { commandNames, help } from "../../src/cli/core/run.ts";
 import {
   INTEGRATIONS,
@@ -26,7 +27,6 @@ const PAGES: Readonly<Record<string, string>> = {
   env: "cli/local.mdx",
   keys: "cli/local.mdx",
   seed: "cli/local.mdx",
-  openapi: "cli/local.mdx",
   spec: "cli/spec.mdx",
   scaffold: "cli/scaffold.mdx",
   gen: "cli/gen.mdx",
@@ -47,11 +47,13 @@ const globalFlags = Object.entries(GLOBAL_ARGS).map(([name, definition]) =>
 
 const globals = new Set(["help", "version", ...globalFlags]);
 
+/** The flags of `command` and of every subcommand under it. */
 async function flagsOf(command: string): Promise<string[]> {
-  const usage = await help(command);
+  const paths = specPaths().filter((path) => path[0] === command);
+  const usages = await Promise.all(paths.map((path) => help(path.join(" "))));
 
-  const flags = [...usage.matchAll(/--([a-z][a-z0-9-]*)/g)].map(
-    (match) => match[1] ?? "",
+  const flags = usages.flatMap((usage) =>
+    [...usage.matchAll(/--([a-z][a-z0-9-]*)/g)].map((match) => match[1] ?? ""),
   );
 
   return [...new Set(flags)].filter((flag) => !globals.has(flag)).toSorted();

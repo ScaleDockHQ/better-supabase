@@ -1,5 +1,5 @@
 import type { BlockCategory } from "../../blocks/index.ts";
-import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import {
@@ -31,22 +31,31 @@ const CATEGORIES: readonly BlockCategory[] = [
   "database",
 ];
 
-const BLOCKS_ARGS = {
-  action: {
-    type: "positional",
-    required: false,
-    variadic: true,
-    description: "list, view or search",
-  },
+const LIST_ARGS = {
   category: {
     type: "string",
     description:
-      "With list: one category (identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database)",
+      "One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database",
     valueHint: "name",
   },
 } as const;
 
-type BlocksOptions = CliOptions<typeof BLOCKS_ARGS>;
+const VIEW_ARGS = {
+  block: {
+    type: "positional",
+    required: false,
+    description: "The block to show",
+  },
+} as const;
+
+const SEARCH_ARGS = {
+  text: {
+    type: "positional",
+    required: false,
+    variadic: true,
+    description: "Words to find in block names, titles and descriptions",
+  },
+} as const;
 
 interface BlockEntry {
   readonly name: string;
@@ -100,7 +109,7 @@ function listing(entries: readonly BlockEntry[]): string[] {
   }).slice(1);
 }
 
-function list(category: string | undefined): CommandResult {
+export function listBlocks(category: string | undefined): CommandResult {
   if (category !== undefined && !CATEGORIES.some((each) => each === category)) {
     throw new CliError(
       "usage",
@@ -119,7 +128,7 @@ function list(category: string | undefined): CommandResult {
   };
 }
 
-function view(name: string | undefined): CommandResult {
+export function viewBlock(name: string | undefined): CommandResult {
   if (name === undefined) {
     throw new CliError("usage", `Name a block.`);
   }
@@ -157,7 +166,7 @@ function view(name: string | undefined): CommandResult {
   return { code: 0, output: lines.join("\n"), data: { block: entry, glue } };
 }
 
-function search(text: string | undefined): CommandResult {
+export function searchBlocks(text: string | undefined): CommandResult {
   if (text === undefined || text.trim() === "") {
     throw new CliError("usage", `Pass the text to search for.`);
   }
@@ -180,34 +189,20 @@ function search(text: string | undefined): CommandResult {
   };
 }
 
-export function runBlocks(args: BlocksOptions): CommandResult {
-  const [action, ...rest] = args._ ?? [];
+export const blocksListCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks list"),
+  args: LIST_ARGS,
+  run: (args) => Promise.resolve(listBlocks(args.category)),
+});
 
-  switch (action) {
-    case "list": {
-      return list(args.category);
-    }
+export const blocksViewCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks view"),
+  args: VIEW_ARGS,
+  run: (args) => Promise.resolve(viewBlock(args.block)),
+});
 
-    case "view": {
-      return view(rest[0]);
-    }
-
-    case "search": {
-      return search(rest.join(" "));
-    }
-
-    case undefined: {
-      throw new CliError("usage", `Name an action.`);
-    }
-
-    default: {
-      throw new CliError("usage", `Unknown blocks action "${action}".`);
-    }
-  }
-}
-
-export const blocksCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("blocks"),
-  args: BLOCKS_ARGS,
-  run: (args) => Promise.resolve(runBlocks(args)),
+export const blocksSearchCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks search"),
+  args: SEARCH_ARGS,
+  run: (args) => Promise.resolve(searchBlocks(args._.join(" "))),
 });

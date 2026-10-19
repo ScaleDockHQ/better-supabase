@@ -19,14 +19,14 @@ skill.
 3. Use `db` from the handler context and return its `Result`, a plain value
    or a `Response`.
 4. For a table exposed as REST, prefer `bs.resource(...)` over hand-written
-   routes, and regenerate `openapi.json` with `better-supabase openapi emit`.
+   routes, and regenerate `openapi.json` with `better-supabase spec emit openapi`.
 5. Add an API test that calls the endpoint as a user and as another tenant,
    and with a delegated token that lacks the scope (the
    `better-supabase-testing` skill).
 
 Done when the endpoint rejects callers outside `allow` and tokens without its
 `scopes`, errors come back as Problem Details (no hand-built error JSON), and
-`openapi emit --check` passes if the project has an OpenAPI file.
+`spec emit openapi --check` passes if the project has an OpenAPI file.
 
 ## Who gets in
 
@@ -82,7 +82,7 @@ Don't build error JSON by hand; errors become Problem Details.
 `defineResource` / `bs.resource(table, { operations, list, input })` gives you
 list, get, create, update and delete, with validation and paging (`{ items, page }`).
 `createOpenApi(betterSupabase, { resources })` describes the same routes, and
-`better-supabase openapi emit --check` keeps `openapi.json` in sync.
+`better-supabase spec emit openapi --check` keeps `openapi.json` in sync.
 
 Pass `pagination: "cursor"` to a resource, `defineListQuery` or an MCP table
 for lists that clients read page by page: the list takes `after` instead of

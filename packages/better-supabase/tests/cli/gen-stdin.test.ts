@@ -148,13 +148,13 @@ describe("gen --metadata", () => {
       [["--metadata", "-", "--snapshot", "s.json"], /--snapshot/],
       [["--metadata", "-", "--emit", "sql"], /--emit must be one of/],
       [
-        ["--metadata", "-", "--emit", "types", "--out", "x"],
+        ["--metadata", "-", "--emit", "types", "--out-dir", "x"],
         /Pass one of them/,
       ],
       [["--metadata", "-", "--check"], /needs --out/],
       [["--metadata", "-", "--json"], /--json has nothing to print/],
       [["--emit", "types"], /--emit only applies with --metadata/],
-      [["--out", "x"], /--out only applies with --metadata/],
+      [["--out-dir", "x"], /--out-dir only applies with --metadata/],
     ] as const;
 
     for (const [args, reason] of cases as readonly (readonly [
@@ -171,7 +171,7 @@ describe("gen --metadata", () => {
   });
 
   it("writes the multi-file layout into --out, leaving the configured paths and the manifest alone", async () => {
-    const result = await gen(["--metadata", "-", "--out", "out"]);
+    const result = await gen(["--metadata", "-", "--out-dir", "out"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("out/generated.ts");
 
@@ -190,7 +190,7 @@ describe("gen --metadata", () => {
         join(root, "node_modules/.cache/better-supabase/gen-manifest.json"),
       ),
     ).toBe(false);
-    const check = await gen(["--metadata", "-", "--out", "out", "--check"]);
+    const check = await gen(["--metadata", "-", "--out-dir", "out", "--check"]);
     expect(check.code).toBe(0);
     expect(await readFile(join(root, "out/generated.ts"), "utf-8")).toContain(
       'import meta from "./generated.meta.js";',

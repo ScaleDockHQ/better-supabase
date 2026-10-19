@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { builtinCommands } from "../../src/cli/builtin-commands.ts";
-import { findSpec } from "../../src/cli/core/manifest.ts";
-import { commandNames, help } from "../../src/cli/core/run.ts";
+import { findSpec, specPaths } from "../../src/cli/core/manifest.ts";
+import { help } from "../../src/cli/core/run.ts";
 import { VERSION } from "../../src/cli/version.ts";
 
 // The snapshots must survive a release, which bumps VERSION.
@@ -24,7 +24,10 @@ describe("help", () => {
     expect(await help(path)).toContain(`\n\n${spec?.description}\n`);
   });
 
-  it.each(commandNames())("documents %s", async (command) => {
-    expect(await usage(command)).toMatchSnapshot();
-  });
+  it.each(specPaths().map((path) => path.join(" ")))(
+    "documents %s",
+    async (command) => {
+      expect(await usage(command)).toMatchSnapshot();
+    },
+  );
 });

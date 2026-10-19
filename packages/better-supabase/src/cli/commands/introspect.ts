@@ -21,7 +21,7 @@ const ARGS = {
       "Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
     valueHint: "file",
   },
-  format: {
+  kind: {
     type: "string",
     description:
       "snapshot (the default) or generator-metadata (postgrest-typegen's input)",
@@ -36,12 +36,12 @@ export const introspectCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("introspect"),
   args: ARGS,
   run: async (args, { config, env, io, log, paint, signal }) => {
-    const format = args.format ?? "snapshot";
+    const format = args.kind ?? "snapshot";
 
     if (format !== "snapshot" && format !== "generator-metadata") {
       throw new CliError(
         "usage",
-        '--format must be "snapshot" or "generator-metadata"',
+        '--kind must be "snapshot" or "generator-metadata"',
       );
     }
 

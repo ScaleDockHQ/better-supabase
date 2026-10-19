@@ -37,12 +37,13 @@ describe("command manifest", () => {
     expect([...loaders.keys()].toSorted()).toEqual(leaves.toSorted());
   });
 
-  it("gives every built-in command a group, a docs link and its effects", () => {
+  it("gives every built-in command a docs link and its effects, and each top-level one a group", () => {
     const incomplete = specPaths()
       .filter((path) => {
         const spec = findSpec(path);
+        const grouped = path.length > 1 || spec?.group !== undefined;
 
-        return !(spec?.group && spec.docs && spec.effects);
+        return !(grouped && spec?.docs && spec.effects);
       })
       .map((path) => path.join(" "));
 

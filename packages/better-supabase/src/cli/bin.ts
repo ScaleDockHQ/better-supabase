@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { basename } from "node:path";
 import { text } from "node:stream/consumers";
 
 import type * as PromptsModule from "./prompts.ts";
@@ -56,7 +57,12 @@ process.once("SIGTERM", () => {
   controller.abort();
 });
 
+// A symlinked bin keeps the typed name in argv[1]; shims that run the file
+// directly (pnpm, Windows) report better-supabase.
+const invoked = basename(process.argv[1] ?? "", ".js");
+
 const result = await run(process.argv.slice(2), {
+  bin: invoked === "bsb" ? "bsb" : "better-supabase",
   cwd: process.cwd(),
   env: process.env,
   signal: controller.signal,

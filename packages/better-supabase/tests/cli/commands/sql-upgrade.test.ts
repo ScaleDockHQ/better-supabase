@@ -1,10 +1,11 @@
+import { parseArgs } from "citty";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
-import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { runSql } from "../../../src/cli/commands/sql.ts";
+import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 vi.mock(import("../../../src/sql/index.ts"), async (original) => ({
@@ -41,7 +42,7 @@ describe("sql upgrade with forward steps", () => {
   const sql = (argv: string[]) =>
     runSql(
       resolveConfig({ blocks: ["tenant"] }, root),
-      parseCommandArgs(sqlCommand, argv),
+      parseArgs(argv, SQL_ARGS),
     );
 
   it("writes the steps with SQL into a migration before the schema diff", async () => {

@@ -1,3 +1,4 @@
+import { parseArgs } from "citty";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
@@ -15,8 +16,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runSql, sqlCommand } from "../../src/cli/commands/sql.ts";
-import { parseCommandArgs } from "../../src/cli/core/command.ts";
+import { runSql } from "../../src/cli/commands/sql.ts";
+import { SQL_ARGS } from "../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
@@ -113,10 +114,7 @@ describe.skipIf(!available)(
     let root = "";
 
     const sql = (argv: string[]) =>
-      runSql(
-        resolveConfig({ blocks: NAMES }, root),
-        parseCommandArgs(sqlCommand, argv),
-      );
+      runSql(resolveConfig({ blocks: NAMES }, root), parseArgs(argv, SQL_ARGS));
 
     beforeAll(async () => {
       root = await mkdtemp(join(tmpdir(), "bs-pgdelta-"));

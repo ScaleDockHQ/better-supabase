@@ -24,6 +24,7 @@ import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
 import { RESERVED_NAMES } from "./manifest.ts";
+import { movedCommand, movedFlag } from "./moved.ts";
 import {
   document,
   envelope,
@@ -384,6 +385,12 @@ export function cliFromTree(
         return finish(0);
       }
 
+      const moved = movedCommand(argv, bin);
+
+      if (moved) {
+        return reportError(moved, parent);
+      }
+
       const suggestion = await closestName(name, candidates);
       const full = [...parent, name].join(" ");
       const suggested = suggestion ? [...parent, suggestion].join(" ") : "";
@@ -430,9 +437,20 @@ export function cliFromTree(
     }
 
     if (!node.load) {
-      fail(await usage(node.path));
+      const names = [...node.children.keys()].join(", ");
 
-      return finish(2);
+      return reportError(
+        new CliError(
+          "usage",
+          `Name a ${node.path.join(" ")} subcommand: ${names}.`,
+        ),
+      );
+    }
+
+    const movedOption = movedFlag(node.path, rest, bin);
+
+    if (movedOption) {
+      return reportError(movedOption);
     }
 
     let context: CliContext;

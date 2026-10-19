@@ -74,9 +74,11 @@ const ARGS = {
     description: "Skip checks; also doctor.ignore in the config",
     valueHint: "codes",
   },
-  strict: {
-    type: "boolean",
-    description: "Fail on warnings; also doctor.strict",
+  "fail-on": {
+    type: "string",
+    description:
+      "Exit 1 on findings at this level: error (the default), warning (the default with doctor.strict) or never",
+    valueHint: "level",
   },
   metadata: {
     type: "string",
@@ -355,15 +357,27 @@ export async function runDoctor(
     (finding) => finding.severity === "warning",
   ).length;
 
-  const strict = args.strict === true || config.doctor.strict;
-  const code = errors > 0 || (strict && warnings > 0) ? 1 : 0;
+  const failOn =
+    args["fail-on"] ?? (config.doctor.strict ? "warning" : "error");
+
+  if (failOn !== "error" && failOn !== "warning" && failOn !== "never") {
+    throw new CliError(
+      "usage",
+      `--fail-on takes error, warning or never, got "${failOn}".`,
+    );
+  }
+
+  const code =
+    failOn !== "never" && (errors > 0 || (failOn === "warning" && warnings > 0))
+      ? 1
+      : 0;
 
   const failure =
     code === 0
       ? {}
       : {
           errorCode: "findings" as const,
-          error: `Doctor found ${errors} errors and ${warnings} warnings${strict ? " (--strict fails on warnings)" : ""}.`,
+          error: `Doctor found ${errors} errors and ${warnings} warnings${failOn === "warning" ? " (--fail-on warning)" : ""}.`,
         };
 
   if (out) {

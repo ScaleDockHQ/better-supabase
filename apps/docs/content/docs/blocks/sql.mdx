@@ -69,10 +69,10 @@ the database, or every migration, lacks.
 `better-supabase sql add <module...>` writes the same module files and
 config entries as `add`, and stops there: it never edits `lib/blocks.ts` and
 prints no glue. Use it in a project that only uses the SQL, in CI, or when you
-wire the clients yourself. It takes the same `--dry-run`, `--force` and
-`--tests-dir` options. The rest of this page describes behavior both commands
-share, and the other `sql` actions (`list`, `sync`, `upgrade`, `data` and
-`print`) are low-level commands too.
+wire the clients yourself. It takes the same `--dry-run`,
+`--allow-hook-overlap` and `--tests-dir` options. The rest of this page
+describes behavior both commands share, and the other `sql` subcommands
+(`list`, `sync`, `upgrade`, `data` and `print`) are low-level commands too.
 
 ## Workflows
 
@@ -265,9 +265,9 @@ the files: `sql sync` rewrites them, and doctor reports a hand edit.
 When the config's [authorization provider](/docs/extending/authorization-providers)
 has a token hook that owns the `memberships` claim (`tokenHook.ownedClaims`),
 `sql add tenant` stops, because two hooks would write that claim. Pass
-`--force` to write it anyway,
+`--allow-hook-overlap` to write it anyway,
 for example to keep the helpers while you migrate. Modules that need `tenant`,
-such as `invitations`, are written without `--force`, with `tenant` as a
+such as `invitations`, are written without `--allow-hook-overlap`, with `tenant` as a
 dependency and a note: its memberships table backs `has_organization_role()`, and no
 hook should call `membership_claims()`. `entitlements` needs `tenant` only
 with `entitlements.memberships: "tenant"`: with a provider, it reads the
@@ -430,7 +430,7 @@ export default defineConfig({
 | `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                       |
 | `api`         | a schema for the Data API that gets entry points for the module's functions (`sql.api` by default; see below), or `false` for none                                       |
 
-[`better-supabase adopt <block> --from <schema.table>`](/docs/cli/presets#adopt)
+[`better-supabase adopt <block> --tables <schema.table>`](/docs/cli/presets#adopt)
 writes the `tables` and `columns` of an adopt-mode entry from the tables in
 the database and reports what can't map, and
 [`apply --preset <code> --adopt`](/docs/cli/presets#adopting-existing-tables)

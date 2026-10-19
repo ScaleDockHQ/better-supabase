@@ -20,12 +20,15 @@ import {
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 
-const ARGS = {
-  action: {
-    type: "positional",
-    required: false,
-    description: "list or install",
+const SOURCE_ARG = {
+  source: {
+    type: "string",
+    description: "Read skills from this folder instead of the package",
+    valueHint: "dir",
   },
+} as const;
+
+const INSTALL_ARGS = {
   agent: {
     type: "string",
     description:
@@ -36,15 +39,12 @@ const ARGS = {
     type: "boolean",
     description: "Install into your home directory instead of the project",
   },
-  from: {
-    type: "string",
-    description: "Read skills from this folder instead of the package",
-    valueHint: "dir",
-  },
 } as const;
 
-export type SkillsArgs = CliArgs<
-  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+type InstallArgs = CliArgs<
+  typeof INSTALL_ARGS &
+    typeof SOURCE_ARG &
+    Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
 const AGENT_DIRS = {
@@ -132,33 +132,26 @@ export async function loadSkills(
   return skills.sort((a, b) => byCodePoint(a.name, b.name));
 }
 
-export async function runSkills(
+async function listSkills(source: string | undefined): Promise<CommandResult> {
+  const skills = await loadSkills(source ?? skillsRoot());
+
+  return {
+    code: 0,
+    output: skills
+      .map((skill) => `${skill.name}\n  ${skill.description}`)
+      .join("\n"),
+    data: {
+      skills: skills.map(({ name, description }) => ({ name, description })),
+    },
+  };
+}
+
+async function installSkills(
   config: ResolvedConfig,
-  args: SkillsArgs,
+  args: InstallArgs,
   env: CliEnv,
 ): Promise<CommandResult> {
-  const [action] = args._;
-  const skills = await loadSkills(args.from ?? skillsRoot());
-
-  if (action === "list") {
-    return {
-      code: 0,
-      output: skills
-        .map((skill) => `${skill.name}\n  ${skill.description}`)
-        .join("\n"),
-      data: {
-        skills: skills.map(({ name, description }) => ({ name, description })),
-      },
-    };
-  }
-
-  if (action !== "install") {
-    throw new CliError(
-      "usage",
-      `${action ? `Unknown skills action "${action}"` : "Name an action"}. Use \`skills list\` or \`skills install\`.`,
-    );
-  }
-
+  const skills = await loadSkills(args.source ?? skillsRoot());
   const global = args.global === true;
   const base = global ? (env.HOME ?? homedir()) : config.root;
 
@@ -207,13 +200,20 @@ export async function runSkills(
   });
 }
 
-export const skillsCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("skills"),
+export const skillsListCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("skills list"),
+  args: SOURCE_ARG,
+  run: (args) => listSkills(args.source),
+});
+
+export const skillsInstallCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("skills install"),
   args: {
-    ...ARGS,
+    ...INSTALL_ARGS,
+    ...SOURCE_ARG,
     check: PLAN_ARGS.check,
     "dry-run": PLAN_ARGS["dry-run"],
   },
   lists: ["agent"],
-  run: (args, { config, env }) => runSkills(config, args, env),
+  run: (args, { config, env }) => installSkills(config, args, env),
 });

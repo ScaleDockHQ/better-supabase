@@ -89,7 +89,7 @@ const INIT_ARGS = {
       "Row keys in camelCase (camel, the default) or the database's snake_case (snake)",
     valueHint: "camel|snake",
   },
-  with: {
+  integration: {
     type: "string",
     description:
       "Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react",
@@ -210,7 +210,7 @@ async function chosenPreset(
     value === undefined &&
     prompts &&
     args.casing === undefined &&
-    args.with === undefined
+    args.integration === undefined
   ) {
     const picked = await prompts.select(
       "Preset",
@@ -377,7 +377,7 @@ export async function runInit(
     ? { dir: target.dir, name: project.name }
     : undefined;
 
-  const requested = parseIntegrations(list(args.with));
+  const requested = parseIntegrations(list(args.integration));
 
   if (typeof requested === "string") {
     throw new CliError("usage", requested);
@@ -405,7 +405,7 @@ export async function runInit(
   ]);
 
   const picked =
-    args.with === undefined && prompts && chosen === null
+    args.integration === undefined && prompts && chosen === null
       ? await chooseIntegrations(prompts, detected)
       : detected;
 
@@ -590,7 +590,7 @@ export async function runInit(
 export const initCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("init"),
   args: { ...INIT_ARGS, ...PLAN_ARGS },
-  lists: ["with"],
+  lists: ["integration"],
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
 

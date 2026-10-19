@@ -203,7 +203,7 @@ describe("scaffold from the config", () => {
     await configure({ framework: "hono", tables: ["customers"] });
 
     const gen = (...args: string[]) =>
-      run(["gen", "--tasks", "scaffold", ...args, "--cwd", dir]);
+      run(["gen", "--only", "scaffold", ...args, "--cwd", dir]);
 
     const stale = await gen("--check");
     expect(stale.code).toBe(1);

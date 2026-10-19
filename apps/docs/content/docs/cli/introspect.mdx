@@ -4,7 +4,7 @@ description: Save a schema snapshot so codegen and doctor run without a database
 ---
 
 ```bash
-better-supabase introspect [--out <file>] [--format <snapshot|generator-metadata>] [--check]
+better-supabase introspect [--out <file>] [--kind <snapshot|generator-metadata>] [--check]
 ```
 
 `introspect` reads your database the way [`gen`](/docs/cli/gen) does and
@@ -17,10 +17,10 @@ writes what it found to `supabase/snapshot.json`. Commit the file, set
 | Option                | Effect                                                                                       |
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `--out <file>`        | Where to write. Defaults to `supabase/snapshot.json`, or `supabase/generator-metadata.json`. |
-| `--format <format>`   | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
+| `--kind <kind>`       | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
 | `--check`             | Writes nothing; exits 1 when the file no longer matches the database.                        |
 | `--dry-run`           | Prints a diff of the file and writes nothing.                                                |
-| `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--format`.               |
+| `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--kind`.                 |
 | `--db-url-stdin`      | Reads the connection string from stdin.                                                      |
 | `--project-ref <ref>` | Reads a hosted project through the Management API.                                           |
 
