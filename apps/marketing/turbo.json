@@ -10,7 +10,9 @@
         "DOCS_ORIGIN",
         "SUPABASE_OAUTH_CLIENT_ID",
         "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET"
+        "SUPABASE_OAUTH_COOKIE_SECRET",
+        "RESEND_API_KEY",
+        "CONTACT_FROM_EMAIL"
       ]
     },
     "build": {
@@ -20,7 +22,9 @@
         "NEXT_PUBLIC_SITE_URL",
         "SUPABASE_OAUTH_CLIENT_ID",
         "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET"
+        "SUPABASE_OAUTH_COOKIE_SECRET",
+        "RESEND_API_KEY",
+        "CONTACT_FROM_EMAIL"
       ]
     },
     "dev:portless": {
@@ -30,7 +34,9 @@
         "DOCS_ORIGIN",
         "SUPABASE_OAUTH_CLIENT_ID",
         "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET"
+        "SUPABASE_OAUTH_COOKIE_SECRET",
+        "RESEND_API_KEY",
+        "CONTACT_FROM_EMAIL"
       ]
     },
     "lint": {

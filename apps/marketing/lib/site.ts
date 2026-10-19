@@ -8,6 +8,7 @@ export const site = {
   github: "https://github.com/ScaleDockHQ/better-supabase",
   npm: "https://www.npmjs.com/package/better-supabase",
   email: "hello@scaledock.com",
+  contactEmail: "info@scaledock.com",
   company: { name: "ScaleDock", url: "https://scaledock.com" },
   install: "pnpm add better-supabase",
   getStarted: "/docs/getting-started",
@@ -56,7 +57,7 @@ export const footerColumns: readonly {
       { href: "/enterprise", label: "Enterprise" },
       { href: site.github, label: "GitHub" },
       { href: site.npm, label: "npm" },
-      { href: `mailto:${site.email}`, label: "Contact" },
+      { href: "/contact", label: "Contact" },
     ],
   },
 ];

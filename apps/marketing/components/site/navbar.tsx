@@ -33,7 +33,10 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-1">
-          <div className="hidden sm:flex">
+          <div className="hidden items-center gap-1 sm:flex">
+            <LinkButton variant="ghost" size="sm" href="/contact">
+              Contact
+            </LinkButton>
             <LinkButton
               variant="ghost"
               size="icon"
