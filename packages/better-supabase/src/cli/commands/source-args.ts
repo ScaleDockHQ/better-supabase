@@ -3,6 +3,7 @@ import type { CliIo } from "../io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
+import { CliError } from "../errors.ts";
 
 /** Where to read the schema from, shared by gen, introspect and doctor. */
 export const SOURCE_ARGS = {
@@ -28,6 +29,19 @@ export async function sourceArgs(
   io: CliIo,
 ): Promise<SnapshotSource> {
   const snapshotPath = args.snapshot;
+
+  const live = (["db-url-stdin", "project-ref"] as const).find(
+    (flag) => args[flag] !== undefined && args[flag] !== false,
+  );
+
+  if (snapshotPath && live) {
+    throw new CliError(
+      "usage",
+      `--snapshot reads a saved file and --${live} reads a database. Pass one of them.`,
+      { flag: "--snapshot" },
+    );
+  }
+
   const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
   const projectRef = args["project-ref"];
 

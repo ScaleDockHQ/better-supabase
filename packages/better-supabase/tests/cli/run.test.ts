@@ -316,6 +316,44 @@ describe("run", () => {
     expect(meta.schemas).toEqual([]);
   });
 
+  it("converts a saved snapshot with --snapshot, without a database", async () => {
+    const api = emptyProject();
+    vi.stubGlobal("fetch", api.fetch);
+
+    await run(["introspect", "--project-ref", "abc", "--cwd", dir], {
+      env: ENV,
+      io: io(),
+    });
+
+    const calls = api.calls.length;
+
+    const converted = await run(
+      [
+        "introspect",
+        "--snapshot",
+        "supabase/snapshot.json",
+        "--format",
+        "generator-metadata",
+        "--out",
+        "meta.json",
+        "--cwd",
+        dir,
+      ],
+      { io: io() },
+    );
+
+    expect(converted.stdout).toBe("Wrote meta.json (0 tables).\n");
+    expect(api.calls).toHaveLength(calls);
+
+    const both = await run(
+      ["introspect", "--snapshot", "s.json", "--project-ref", "abc"],
+      { cwd: dir, env: ENV, io: io() },
+    );
+
+    expect(both.code).toBe(2);
+    expect(both.stderr).toContain("Pass one of them.");
+  });
+
   it("watches: reports load errors, regenerates on change and stays quiet otherwise", async () => {
     let failing = true;
     let printed = false;

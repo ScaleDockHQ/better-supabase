@@ -45,8 +45,10 @@ export const introspectCommand: AnyCommand = defineCliCommand({
       };
     }
 
-    const { snapshotPath: _ignored, ...source } = await sourceArgs(args, io);
+    const source = await sourceArgs(args, io);
 
+    // `--snapshot` converts a saved file; without it, introspect always reads
+    // the database, even when the config names a snapshot.
     const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
       loadSnapshot(config, env, {
         ...source,

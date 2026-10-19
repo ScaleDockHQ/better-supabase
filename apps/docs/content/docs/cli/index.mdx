@@ -7,23 +7,27 @@ description: Codegen, SQL and diagnostics for better-supabase projects.
 pnpm better-supabase <command> [options]
 ```
 
-| Command                                                | What it does                                                                                    |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                 |
-| [`add`](/docs/cli/init#add)                            | Installs blocks with the modules they require, or glue for an integration with `--framework`    |
-| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up    |
-| [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                         |
-| [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                           |
-| [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                     |
-| [`seed`](/docs/cli/local#seed)                         | Renders typed fixtures to seed SQL                                                              |
-| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module |
-| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                  |
-| [`openapi emit`](/docs/cli/local#openapi-emit)         | Writes `openapi.json` from your `createOpenApi` module                                          |
-| [`sql`](/docs/blocks/sql)                              | Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files             |
-| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in                                        |
-| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                        |
-| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations  |
-| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                            |
+| Command                                                | What it does                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                  |
+| [`add`](/docs/cli/init#add)                            | Installs blocks with the modules they require, or glue for an integration with `--framework`     |
+| [`apply`](/docs/cli/presets#apply)                     | Applies a preset to an existing project: edits the config, shows the diff and writes the modules |
+| [`adopt`](/docs/cli/presets#adopt)                     | Maps a block onto tables the app already has, and reports what can't map                         |
+| [`preset`](/docs/cli/presets#preset)                   | Decodes a preset code, or shows how the config differs from its preset                           |
+| [`blocks`](/docs/cli/presets#blocks)                   | Lists, shows and searches the blocks you can add                                                 |
+| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up     |
+| [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                          |
+| [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                            |
+| [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                      |
+| [`seed`](/docs/cli/local#seed)                         | Renders typed fixtures to seed SQL                                                               |
+| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module  |
+| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                   |
+| [`openapi emit`](/docs/cli/local#openapi-emit)         | Writes `openapi.json` from your `createOpenApi` module                                           |
+| [`sql`](/docs/blocks/sql)                              | Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files              |
+| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in                                         |
+| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                         |
+| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations   |
+| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                             |
 
 Options you would pass on every run belong in the
 [config](/docs/cli/config#flags-and-the-config): a flag wins for one run, then
