@@ -63,6 +63,7 @@ export {
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
+  APP_TABLE_EVENT_KINDS,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
@@ -73,6 +74,8 @@ export {
   type AppRollupAggregate,
   type AppRollupConfig,
   type AppTableConfig,
+  type AppTableEventKind,
+  type AppTableEvents,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";

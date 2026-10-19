@@ -512,4 +512,35 @@ describe("appTables SQL errors", () => {
       }),
     ).toThrow("the organizations block already keeps a table named workspaces");
   });
+
+  it("renders the golden SQL of events through the outbox", async () => {
+    await expect(
+      golden(
+        render([...BLOCKS, "outbox"], {
+          appTables: {
+            tasks: {
+              columns: {
+                title: { type: "text", nullable: false },
+                status: { type: "text", options: ["todo", "done"] },
+              },
+              subject: { type: "task" },
+              events: { include: ["status"] },
+            },
+            notes: {
+              columns: { body: { type: "text" } },
+              events: { on: ["deleted"] },
+            },
+          },
+        }),
+      ),
+    ).toMatchFileSnapshot("__golden__/app-tables/events.sql");
+  });
+
+  it("refuses events without the outbox block", () => {
+    expect(() =>
+      render(BLOCKS, { appTables: { tasks: { events: true } } }),
+    ).toThrow(
+      "appTables.tasks.events needs the outbox block; add it to blocks",
+    );
+  });
 });

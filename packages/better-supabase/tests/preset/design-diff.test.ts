@@ -140,6 +140,15 @@ describe("diffAppTables", () => {
     expect(kinds(counted, projects)).toEqual(["table.computed projects"]);
   });
 
+  test("turning events on or off is safe", () => {
+    const emitting: AppTablesConfig = {
+      projects: { ...projects["projects"], events: true },
+    };
+
+    expect(kinds(projects, emitting)).toEqual(["table.events projects"]);
+    expect(kinds(emitting, projects)).toEqual(["table.events projects"]);
+  });
+
   test("a new or tighter column constraint is breaking", () => {
     const status: AppTablesConfig = {
       tasks: {

@@ -8,10 +8,15 @@ import {
   createRuleDispatcher,
   createRules,
   createRulesAdmin,
+  createRuleSink,
   defineRuleFields,
   evaluateRule,
+  notifyAction,
   ruleFilterFields,
   rulesBlock,
+  setFieldAction,
+  webhookAction,
+  workflowAction,
 } from "../../../src/blocks/rules/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
@@ -474,6 +479,239 @@ describe("createRuleDispatcher", () => {
       ok: false,
       error: { hint: "RULE_ACTION_INVALID" },
     });
+  });
+
+  const context = {
+    organizationId: "org-1",
+    subjectType: "task",
+    subjectId: "t1",
+    eventId: "ev-1",
+    payload: { assignee_id: "u2", title: "Ship" },
+  };
+
+  it("runs the built-in notify, set_field, webhook and workflow actions", async () => {
+    const calls: unknown[] = [];
+
+    const dispatcher = createRuleDispatcher({
+      handlers: {
+        notify: notifyAction({
+          send: (type, input) => {
+            calls.push(["notify", type, input]);
+
+            return "sent";
+          },
+        }),
+        set_field: setFieldAction((write) => {
+          calls.push(["set_field", write]);
+
+          return ok(true);
+        }),
+        webhook: webhookAction({
+          dispatch: (input) => {
+            calls.push(["webhook", input]);
+
+            return AsyncResult.ok("d1");
+          },
+        }),
+        workflow: workflowAction({
+          run: (input) => {
+            calls.push(["workflow", input]);
+
+            return AsyncResult.ok("run-1");
+          },
+        }),
+      },
+    });
+
+    const outcomes = await dispatcher
+      .dispatch(
+        [
+          {
+            rule: rule([
+              {
+                kind: "notify",
+                config: {
+                  type: "task.assigned",
+                  recipients: ["u1"],
+                  recipientField: "assignee_id",
+                },
+              },
+              {
+                kind: "set_field",
+                config: { field: "status", value: "review" },
+              },
+              { kind: "webhook", config: { endpointId: "ep-1" } },
+              { kind: "workflow", config: { definition: "wf-1" } },
+            ]),
+            results: {},
+          },
+        ],
+        context,
+      )
+      .orThrow();
+
+    expect(outcomes.every((outcome) => outcome.ok)).toBe(true);
+    expect(calls).toEqual([
+      [
+        "notify",
+        "task.assigned",
+        {
+          recipients: ["u1", "u2"],
+          tenant: "org-1",
+          key: "rule:r1:notify:ev-1",
+          subject: { type: "task", id: "t1" },
+          data: { assignee_id: "u2", title: "Ship", rule: "Large expenses" },
+        },
+      ],
+      [
+        "set_field",
+        {
+          organizationId: "org-1",
+          subjectType: "task",
+          subjectId: "t1",
+          field: "status",
+          value: "review",
+        },
+      ],
+      [
+        "webhook",
+        {
+          endpointId: "ep-1",
+          type: "expense.submitted",
+          data: {
+            subjectType: "task",
+            subjectId: "t1",
+            assignee_id: "u2",
+            title: "Ship",
+          },
+          eventId: "ev-1",
+        },
+      ],
+      [
+        "workflow",
+        {
+          definition: "wf-1",
+          input: { assignee_id: "u2", title: "Ship" },
+          idempotencyKey: "rule:r1:workflow:ev-1",
+          subject: { type: "task", id: "t1" },
+          tenant: "org-1",
+        },
+      ],
+    ]);
+  });
+
+  it("refuses built-in actions without their config", async () => {
+    const dispatcher = createRuleDispatcher({
+      handlers: {
+        notify: notifyAction({ send: () => undefined }),
+        set_field: setFieldAction(() => ok(true)),
+        webhook: webhookAction({ dispatch: () => AsyncResult.ok("d1") }),
+        workflow: workflowAction({ run: () => AsyncResult.ok("run-1") }),
+      },
+    });
+
+    const outcomes = await dispatcher
+      .dispatch(
+        [
+          {
+            rule: rule([
+              { kind: "notify", config: { type: "task.assigned" } },
+              { kind: "set_field", config: { field: "status" } },
+              { kind: "webhook" },
+              { kind: "workflow" },
+            ]),
+            results: {},
+          },
+        ],
+        context,
+      )
+      .orThrow();
+
+    expect(
+      outcomes.map((outcome) => (outcome.ok ? "ok" : outcome.error.hint)),
+    ).toEqual([
+      "RULE_ACTION_INVALID",
+      "RULE_ACTION_INVALID",
+      "RULE_ACTION_INVALID",
+      "RULE_ACTION_INVALID",
+    ]);
+  });
+
+  it("runs the rules for an outbox event through createRuleSink", async () => {
+    const runs: unknown[] = [];
+    const seen: unknown[] = [];
+    const match = { rule: rule([{ kind: "ok" }]), results: {} };
+
+    const sink = createRuleSink({
+      rules: {
+        run: (organizationId, input) => {
+          runs.push([organizationId, input]);
+
+          return AsyncResult.ok(input.subjectId === "t1" ? [match] : []);
+        },
+      },
+      dispatcher: createRuleDispatcher<string>({
+        handlers: { ok: ({ context: value }) => ok(value) },
+      }),
+      load: (event) =>
+        event.type === "task.skipped"
+          ? undefined
+          : {
+              organizationId: "org-1",
+              subjectType: "task",
+              subjectId: (event.payload as { id: string }).id,
+              subject: { status: "todo" },
+              context: `ctx-${event.id}`,
+            },
+      onOutcomes: (event, outcomes) => seen.push([event.id, outcomes]),
+    });
+
+    await sink([
+      { id: "e1", type: "task.created", payload: { id: "t1" } },
+      { id: "e2", type: "task.skipped", payload: { id: "t2" } },
+      { id: "e3", type: "task.updated", payload: { id: "t3" } },
+    ]);
+
+    expect(runs).toEqual([
+      [
+        "org-1",
+        {
+          subjectType: "task",
+          trigger: "task.created",
+          subject: { status: "todo" },
+          subjectId: "t1",
+        },
+      ],
+      [
+        "org-1",
+        {
+          subjectType: "task",
+          trigger: "task.updated",
+          subject: { status: "todo" },
+          subjectId: "t3",
+        },
+      ],
+    ]);
+    expect(seen).toEqual([
+      ["e1", [{ ruleId: "r1", kind: "ok", ok: true, value: "ctx-e1" }]],
+    ]);
+  });
+
+  it("throws from createRuleSink when the evaluation fails, so the outbox retries", async () => {
+    const sink = createRuleSink({
+      rules: { run: () => AsyncResult.err(dbError("unexpected", "down")) },
+      dispatcher: createRuleDispatcher({ handlers: {} }),
+      load: () => ({
+        organizationId: "org-1",
+        subjectType: "task",
+        subject: {},
+        context: undefined,
+      }),
+    });
+
+    await expect(sink([{ id: "e1", type: "task.created" }])).rejects.toThrow(
+      "down",
+    );
   });
 });
 

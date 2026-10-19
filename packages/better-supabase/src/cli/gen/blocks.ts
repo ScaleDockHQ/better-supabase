@@ -5,6 +5,7 @@ import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
+  appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
   resolveModule,
   resolveModules,
@@ -143,13 +144,45 @@ function literal(value: unknown, indent: string): string {
   return JSON.stringify(value);
 }
 
+/** Every event type the app tables emit, in config order. */
+function appTableEvents(
+  config: Pick<ResolvedConfig, "appTables">,
+): readonly string[] {
+  return Object.entries(config.appTables).flatMap(([name, table]) =>
+    appTableEventTypes(name, table),
+  );
+}
+
+/** `appTableEvents` and `appTableEventSchemas`, for app tables that set `events`. */
+function appTableEventLines(types: readonly string[]): string[] {
+  if (types.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "/** The events `appTables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks. */",
+    "export const appTableEvents = defineEvents({",
+    ...types.map((type) => `  ${prop(type)}: event<AppTableEventData>(),`),
+    "});",
+    "",
+    "/** The app table events with an open payload, for AsyncAPI's `cloudEvents.blocks`. */",
+    "export const appTableEventSchemas = {",
+    ...types.map((type) => `  ${prop(type)}: true,`),
+    "} as const;",
+  ];
+}
+
 /**
  * `blocks.generated.ts`: each installed block's schema, API schema and the
- * options its TypeScript side reads, for `defineBlocks(blockConfig, ...)`.
- * `undefined` when the config installs no blocks.
+ * options its TypeScript side reads, for `defineBlocks(blockConfig, ...)`,
+ * and the app table events. `undefined` when the config installs no blocks.
  */
 export function emitBlockConfig(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "output" | "sql">,
+  config: Pick<
+    ResolvedConfig,
+    "appTables" | "blocks" | "blockNames" | "output" | "sql"
+  >,
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
@@ -157,6 +190,7 @@ export function emitBlockConfig(
   }
 
   const entries = blockConfigEntries(config);
+  const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
 
   return {
@@ -164,7 +198,9 @@ export function emitBlockConfig(
     contents: [
       GENERATED_HEADER,
       "",
-      `import type { GeneratedBlocks } from ${q(`${runtime}/blocks`)};`,
+      events.length === 0
+        ? `import type { GeneratedBlocks } from ${q(`${runtime}/blocks`)};`
+        : `import {\n  type AppTableEventData,\n  defineEvents,\n  event,\n  type GeneratedBlocks,\n} from ${q(`${runtime}/blocks`)};`,
       "",
       "/**",
       " * The installed blocks' settings from the `blocks` config, for",
@@ -172,6 +208,7 @@ export function emitBlockConfig(
       " * and the options its SQL and TypeScript halves share.",
       " */",
       `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
+      ...appTableEventLines(events),
       "",
     ].join("\n"),
   };

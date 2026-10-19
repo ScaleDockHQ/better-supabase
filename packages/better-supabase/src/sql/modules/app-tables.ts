@@ -3,6 +3,7 @@ import type {
   AppColumnConfig,
   AppReference,
   AppTableConfig,
+  AppTableEventKind,
 } from "../../config/types/app-tables.ts";
 import type { ModuleContext, ModuleIdType } from "../context.ts";
 import type { ModuleFile, ModuleLayout } from "../module-types.ts";
@@ -10,6 +11,7 @@ import type { ModuleFile, ModuleLayout } from "../module-types.ts";
 import {
   APP_DELETED_AT_COLUMN,
   APP_RANK_COLUMN,
+  appTableEventKinds,
   AUTH_USERS,
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
@@ -561,6 +563,179 @@ create trigger ${trigger} before update on ${target}
   for each row execute function better_supabase.set_updated_at();`;
 }
 
+/** The event type prefix: the subject type, or the table name. */
+function eventBase(table: AppTable): string {
+  return table.config.subject?.type ?? table.name;
+}
+
+/** The event kinds the table emits; empty without `events`. */
+function eventKinds(table: AppTable): readonly AppTableEventKind[] {
+  return appTableEventKinds(table.config);
+}
+
+/**
+ * The trigger that writes `<base>.created`, `.updated` and `.deleted` to the
+ * outbox (ADR 0048). An update that changes no column but `updated_at`
+ * emits nothing.
+ */
+function eventsSql(table: AppTable): string {
+  const kinds = eventKinds(table);
+
+  if (kinds.length === 0) {
+    return "";
+  }
+
+  const { ctx } = table;
+
+  if (!ctx.installed("outbox")) {
+    throw new TypeError(
+      `appTables.${table.name}.events needs the outbox block; add it to blocks`,
+    );
+  }
+
+  const target = qualified(table.name);
+  const fn = ctx.fn(`${table.name}_emit_event`);
+  const trigger = ctx.trigger("emit_event");
+  const base = eventBase(table);
+  const events = table.config.events;
+
+  const include =
+    events === true || events === undefined ? [] : (events.include ?? []);
+
+  const tenant = ctx.scope.kind === "tenant" ? table.scope?.name : undefined;
+  const subject = table.config.subject;
+
+  const fields = [
+    `'id', v_row -> 'id'`,
+    ...(tenant === undefined
+      ? []
+      : [`'organizationId', v_row -> ${sqlString(tenant)}`]),
+    ...(subject === undefined
+      ? []
+      : [
+          `'subjectType', ${sqlString(subject.type)}`,
+          `'subjectId', v_row ->> 'id'`,
+        ]),
+    ...include.map(
+      (column) => `${sqlString(column)}, v_row -> ${sqlString(column)}`,
+    ),
+  ];
+
+  const emit = (kind: AppTableEventKind): string =>
+    ctx.emit({
+      type: `${base}.${kind}`,
+      payload: `jsonb_build_object(${[...fields, ...(kind === "updated" ? ["'changed', to_jsonb(v_changed)"] : [])].join(", ")})`,
+      subject: `${sqlString(`${table.name.replaceAll("_", "-")}/`)} || (v_row ->> 'id')`,
+      ...(tenant === undefined
+        ? {}
+        : { tenant: `v_row ->> ${sqlString(tenant)}` }),
+    });
+
+  const branch = (kind: AppTableEventKind): string => {
+    switch (kind) {
+      case "created": {
+        return `  if tg_op = 'INSERT' then
+    v_row := to_jsonb(new);
+    ${emit(kind)}
+  end if;`;
+      }
+
+      case "updated": {
+        return `  if tg_op = 'UPDATE' then
+    v_row := to_jsonb(new);
+    select coalesce(array_agg(n.key order by n.key), array[]::text[]) into v_changed
+      from jsonb_each(v_row) n
+      join jsonb_each(to_jsonb(old)) o on o.key = n.key
+     where n.value is distinct from o.value and n.key <> 'updated_at';
+    if cardinality(v_changed) > 0 then
+      ${emit(kind)}
+    end if;
+  end if;`;
+      }
+
+      case "deleted": {
+        return `  if tg_op = 'DELETE' then
+    v_row := to_jsonb(old);
+    ${emit(kind)}
+  end if;`;
+      }
+
+      default: {
+        const never: never = kind;
+
+        throw new TypeError(`Unknown app table event "${String(never)}"`);
+      }
+    }
+  };
+
+  if (emit(kinds[0] ?? "created") === "") {
+    return "";
+  }
+
+  const operations = kinds.map((kind) => TRIGGER_OPERATIONS[kind]).join(" or ");
+
+  return `create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_changed text[];
+begin
+${kinds.map((kind) => branch(kind)).join("\n")}
+  return null;
+end;
+$$;
+revoke all on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${target};
+create trigger ${trigger} after ${operations} on ${target}
+  for each row execute function ${fn}();`;
+}
+
+/** Whether `eventsSql` renders a trigger: the table sets `events` and the outbox takes them. */
+function emitsEvents(table: AppTable): boolean {
+  const kind = eventKinds(table)[0];
+
+  return (
+    kind !== undefined &&
+    table.ctx.installed("outbox") &&
+    table.ctx.emit({ type: `${eventBase(table)}.${kind}`, payload: "null" }) !==
+      ""
+  );
+}
+
+/** pgTAP checks for the events trigger; `seeded` adds one that the seeded row emitted. */
+function eventChecks(table: AppTable, seeded: boolean): readonly string[] {
+  if (!emitsEvents(table)) {
+    return [];
+  }
+
+  const label = `${SCHEMA}.${table.name}`;
+
+  const checks = [
+    `select extensions.has_trigger('${SCHEMA}'::name, ${sqlString(table.name)}::name, ${sqlString(table.ctx.trigger("emit_event").replaceAll('"', ""))}::name, ${sqlString(`${label} emits outbox events`)});`,
+  ];
+
+  if (seeded && eventKinds(table).includes("created")) {
+    const outbox = table.ctx.of("outbox");
+    const type = `${eventBase(table)}.created`;
+
+    checks.push(
+      `select extensions.ok(exists (select 1 from ${outbox.table("events")} e where e.${outbox.col("events", "type")} = ${sqlString(type)}), ${sqlString(`an insert into ${label} emits ${type}`)});`,
+    );
+  }
+
+  return checks;
+}
+
+const TRIGGER_OPERATIONS: Readonly<Record<AppTableEventKind, string>> = {
+  created: "insert",
+  updated: "update",
+  deleted: "delete",
+};
+
 function tableSql(table: AppTable): string {
   return [
     `alter table ${qualified(table.name)} enable row level security;`,
@@ -570,6 +745,7 @@ function tableSql(table: AppTable): string {
     indexesSql(table),
     commentsSql(table),
     triggerSql(table),
+    eventsSql(table),
   ]
     .filter((part) => part !== "")
     .join("\n");
@@ -830,8 +1006,11 @@ function testSql(table: AppTable): string {
         `select extensions.throws_ok($$insert into ${qualified(table.name)} default values$$, '42501', null, ${sqlString(`a signed-in user cannot write ${label}; only the service role does`)});`,
       ];
 
-  return `${checks.join("\n")}
-${table.scope && seeded !== undefined ? `\n${seeded}\n` : ""}
+  const seededSql = table.scope && seeded !== undefined ? seeded : undefined;
+  const emitted = eventChecks(table, seededSql !== undefined);
+
+  return `${[...checks, ...(seededSql === undefined ? emitted : [])].join("\n")}
+${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 ${[...behaviour, ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}

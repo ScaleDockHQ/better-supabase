@@ -130,6 +130,27 @@ export interface AppTableConfig {
    * get in `public.<table>_view` (ADR 0044).
    */
   readonly lookups?: Readonly<Record<string, AppLookupConfig>>;
+  /**
+   * Emits an outbox event for each insert, update and delete (ADR 0048):
+   * `<subject type or table>.created`, `.updated` and `.deleted`. Needs the
+   * `outbox` block.
+   */
+  readonly events?: true | AppTableEvents;
+}
+
+export const APP_TABLE_EVENT_KINDS = ["created", "updated", "deleted"] as const;
+
+export type AppTableEventKind = (typeof APP_TABLE_EVENT_KINDS)[number];
+
+/** Which writes emit an event and which column values its payload carries. */
+export interface AppTableEvents {
+  /** Defaults to all three. */
+  readonly on?: readonly AppTableEventKind[];
+  /**
+   * Columns whose values go in the payload. By default it holds the row id
+   * and, for updates, the names of the changed columns.
+   */
+  readonly include?: readonly string[];
 }
 
 export const APP_ROLLUP_AGGREGATES = [

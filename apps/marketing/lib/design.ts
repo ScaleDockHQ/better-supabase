@@ -23,7 +23,12 @@ import {
   computedTableRenamed,
   prunedComputed,
 } from "./design-computed";
-import { subjectColumns, subjectColumnsEdited } from "./design-subject";
+import {
+  type AppEvents,
+  eventsColumnsEdited,
+  subjectColumns,
+  subjectColumnsEdited,
+} from "./design-subject";
 
 export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "better-supabase/config";
 
@@ -79,6 +84,8 @@ export interface AppTable {
   readonly subject?: AppSubject;
   readonly rollups?: Readonly<Record<string, AppRollup>>;
   readonly lookups?: Readonly<Record<string, AppLookup>>;
+  /** Outbox events on insert, update and delete; the shape of `AppTableEvents`. */
+  readonly events?: true | AppEvents;
 }
 
 /**
@@ -377,6 +384,7 @@ export type TablePatch = {
       | "indexes"
       | "comment"
       | "subject"
+      | "events"
   ]?: AppTable[K] | undefined;
 };
 
@@ -388,6 +396,7 @@ const TABLE_PATCH_KEYS = [
   "indexes",
   "comment",
   "subject",
+  "events",
 ] as const;
 
 /** An app table under construction. */
@@ -487,6 +496,10 @@ function withKeySets(
 
   if (rest.subject !== undefined) {
     next.subject = subjectColumnsEdited(rest.subject, edit);
+  }
+
+  if (rest.events !== undefined) {
+    next.events = eventsColumnsEdited(rest.events, edit);
   }
 
   const nextIndexes = sets(indexes);

@@ -13,6 +13,7 @@ import {
   featureBlocker,
   installedBlocks,
   RECORD_FEATURES,
+  setEvents,
   setFeature,
   tableFeatures,
 } from "../../lib/record-features";
@@ -148,5 +149,34 @@ describe("record features", () => {
     expect(copy.design.appTables?.[copy.name]?.subject?.type).toBe(
       "projects_copy",
     );
+  });
+
+  test("events set the table key and add the outbox block", () => {
+    const on = setEvents(projects, ["profiles"], "projects", true);
+
+    expect(on.design.appTables?.["projects"]?.events).toBe(true);
+    expect(on.blocks).toEqual(["profiles", "outbox"]);
+
+    const off = setEvents(on.design, on.blocks, "projects", false);
+
+    expect(off.design.appTables?.["projects"]).not.toHaveProperty("events");
+    expect(off.blocks).toEqual(["profiles", "outbox"]);
+    expect(setEvents(projects, [], "missing", true).design).toBe(projects);
+  });
+
+  test("a column rename keeps the events payload columns in step", () => {
+    const design: Design = {
+      appTables: {
+        projects: {
+          columns: { name: { type: "text" } },
+          events: { include: ["name"] },
+        },
+      },
+    };
+
+    expect(
+      renameColumn(design, "projects", "name", "title").appTables?.["projects"]
+        ?.events,
+    ).toEqual({ include: ["title"] });
   });
 });

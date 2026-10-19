@@ -107,7 +107,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 3; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 4; update better-supabase",
     );
   });
 
@@ -147,7 +147,7 @@ describe("design codes", () => {
       },
     };
 
-    expect(designFormat(computed)).toBe(DESIGN_FORMAT);
+    expect(designFormat(computed)).toBe(3);
     expect(await decodeDesign(await encodeDesign(computed))).toEqual(computed);
     await expect(
       encodeDesign({
@@ -160,6 +160,20 @@ describe("design codes", () => {
         },
       }),
     ).rejects.toThrow("rollups.n.table must name an app table");
+  });
+
+  it("writes format 4 for table events", async () => {
+    const events: CreateDesign = {
+      appTables: {
+        tasks: {
+          columns: { status: { type: "text" } },
+          events: { on: ["created"], include: ["status"] },
+        },
+      },
+    };
+
+    expect(designFormat(events)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(events))).toEqual(events);
   });
 
   it("encodes an empty design to an empty code", async () => {

@@ -1,6 +1,12 @@
 import type { AppSubject, Design } from "./design";
 import type { SchemaColumn } from "./schema";
 
+/** Which writes emit an event and the columns its payload carries. */
+export interface AppEvents {
+  readonly on?: readonly ("created" | "updated" | "deleted")[];
+  readonly include?: readonly string[];
+}
+
 /** The columns `subject` adds: `rank` for manual order and `deleted_at` for trash. */
 export function subjectColumns(
   subject: AppSubject | undefined,
@@ -94,4 +100,19 @@ export function subjectTypeError(
   return owner === undefined
     ? undefined
     : `${owner} already has the subject type ${type}.`;
+}
+
+/** App table events with `edit` applied to the payload columns, dropping an empty list. */
+export function eventsColumnsEdited(
+  events: true | AppEvents,
+  edit: (columns: readonly string[]) => readonly string[],
+): true | AppEvents {
+  if (events === true) {
+    return true;
+  }
+
+  const { include, ...rest } = events;
+  const kept = include === undefined ? [] : edit(include);
+
+  return kept.length === 0 ? rest : { ...rest, include: kept };
 }

@@ -682,3 +682,31 @@ describe("isAppDefault", () => {
     ).toThrow(/subject.type must be lowercase/u);
   });
 });
+
+describe("appTablesOf events", () => {
+  it("keeps true or on and include, without duplicates", () => {
+    expect(appTablesOf({ tasks: { events: true } })["tasks"]?.events).toBe(
+      true,
+    );
+    expect(
+      appTablesOf({
+        tasks: {
+          columns: { status: { type: "text" } },
+          events: { on: ["updated", "updated"], include: ["status", "id"] },
+        },
+      })["tasks"]?.events,
+    ).toEqual({ on: ["updated"], include: ["status", "id"] });
+  });
+
+  it("names the key of a bad events setting", () => {
+    expect(() => appTablesOf({ tasks: { events: false } })).toThrow(
+      "appTables.tasks.events must be true or { on, include }",
+    );
+    expect(() => appTablesOf({ tasks: { events: { on: ["moved"] } } })).toThrow(
+      "appTables.tasks.events.on must list one or more of created, updated, deleted",
+    );
+    expect(() =>
+      appTablesOf({ tasks: { events: { include: ["missing"] } } }),
+    ).toThrow(/appTables.tasks.events.include\[0\] must name a column/u);
+  });
+});

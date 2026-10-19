@@ -14,6 +14,7 @@ import {
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
+  APP_TABLE_EVENT_KINDS,
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
@@ -694,6 +695,15 @@ const ENTRIES = {
             v.string(),
             v.strictObject({ via: v.string(), column: v.string() }),
           ),
+        ),
+        events: v.optional(
+          v.union([
+            v.literal(true),
+            v.strictObject({
+              on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
+              include: v.optional(strings),
+            }),
+          ]),
         ),
       }),
     ),

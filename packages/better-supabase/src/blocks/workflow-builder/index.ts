@@ -26,6 +26,7 @@ export {
   type WorkflowGrantPrincipal,
   type WorkflowNodeRun,
   type WorkflowNodeRunStatus,
+  type WorkflowSinkEvent,
   type WorkflowStepInfo,
   type WorkflowTrigger,
   type WorkflowTriggerKind,

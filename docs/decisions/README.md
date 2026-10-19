@@ -53,4 +53,5 @@ add one, and link it from the code or config it explains.
 | [0045](0045-cli-command-tree-and-agent-mode.md)       | The CLI runs from one command tree with real subcommands, one JSON envelope and agent mode; `bsb` is its short name            |
 | [0046](0046-rules.md)                                 | Tenant rules are `FilterQuery` trees with `{ kind, config }` action references, evaluated in TypeScript and in SQL             |
 | [0047](0047-cli-contract-for-other-clis.md)           | The CLI contract (exit codes, `cli-result-v1`, `cli-commands-v1`, consent) is published for other CLIs to follow               |
+| [0048](0048-app-table-events.md)                      | App tables emit outbox events from a trigger; rules and workflows consume them through sinks                                   |
 | [0050](0050-migration-safety-lint.md)                 | Doctor lints unapplied migrations for statements that lock tables, without a SQL parser dependency                             |

@@ -7,11 +7,14 @@ import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
+  APP_TABLE_EVENT_KINDS,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
   type AppReference,
   type AppTableConfig,
+  type AppTableEventKind,
+  type AppTableEvents,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
@@ -44,6 +47,7 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "subject",
   "rollups",
   "lookups",
+  "events",
 ]);
 
 const SUBJECT_KEYS: ReadonlySet<string> = new Set([
@@ -879,6 +883,75 @@ function subjectColumnsOf(value: unknown): readonly string[] {
   ];
 }
 
+/** The event kinds `events` turns on; empty without it. */
+export function appTableEventKinds(
+  table: AppTableConfig,
+): readonly AppTableEventKind[] {
+  const events = table.events;
+
+  if (events === undefined) {
+    return [];
+  }
+
+  return events === true
+    ? APP_TABLE_EVENT_KINDS
+    : (events.on ?? APP_TABLE_EVENT_KINDS);
+}
+
+/** The event types an app table emits: `<subject type or table>.<kind>`. */
+export function appTableEventTypes(
+  name: string,
+  table: AppTableConfig,
+): readonly string[] {
+  const base = table.subject?.type ?? name;
+
+  return appTableEventKinds(table).map((kind) => `${base}.${kind}`);
+}
+
+function isEventKind(value: unknown): value is AppTableEventKind {
+  return APP_TABLE_EVENT_KINDS.some((kind) => kind === value);
+}
+
+/** `events` checked: `true`, or `on` from the event kinds and `include` from the table's columns. */
+function eventsOf(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): true | AppTableEvents | undefined {
+  if (value === undefined || value === true) {
+    return value;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be true or { on, include }`);
+  }
+
+  checkKeys(where, value, new Set(["on", "include"]));
+  const { on, include } = value;
+
+  if (
+    on !== undefined &&
+    (!Array.isArray(on) || on.length === 0 || !on.every(isEventKind))
+  ) {
+    throw new TypeError(
+      `${where}.on must list one or more of ${APP_TABLE_EVENT_KINDS.join(", ")}`,
+    );
+  }
+
+  if (include !== undefined && !Array.isArray(include)) {
+    throw new TypeError(`${where}.include must be a list of columns`);
+  }
+
+  const included = include?.map((name: unknown, index: number) =>
+    namedColumn(`${where}.include[${index}]`, name, columns),
+  );
+
+  return {
+    ...(on === undefined ? {} : { on: [...new Set(on)] }),
+    ...(included === undefined ? {} : { include: [...new Set(included)] }),
+  };
+}
+
 function tableOf(
   where: string,
   value: unknown,
@@ -945,6 +1018,12 @@ function tableOf(
     new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
   );
 
+  const events = eventsOf(
+    `${where}.events`,
+    value["events"],
+    new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
+  );
+
   return {
     ...(columns === undefined ? {} : { columns: Object.fromEntries(resolved) }),
     ...(scope === undefined ? {} : { scope }),
@@ -954,6 +1033,7 @@ function tableOf(
     ...(indexes === undefined ? {} : { indexes }),
     ...(comment === undefined ? {} : { comment }),
     ...(subject === undefined ? {} : { subject }),
+    ...(events === undefined ? {} : { events }),
   };
 }
 

@@ -236,6 +236,49 @@ scoped to the tenant, and none otherwise. A user column named `rank` or
 triggers for app tables are written into the app tables file, which runs
 after the `search` block.
 
+## Events
+
+Set `events` and every insert, update and delete on the table writes an event
+to the outbox in the same transaction, so writes through PostgREST, the SQL
+editor or another service emit it too. The table needs the
+[outbox](/docs/blocks/outbox) block. On [Create](/create), the Emit events
+switch in a table's Features tab sets it and adds the block.
+
+```ts title="better-supabase.config.ts"
+appTables: {
+  tasks: {
+    columns: {
+      title: { type: "text", nullable: false },
+      status: { type: "text" },
+    },
+    subject: { type: "task", title: "title" },
+    events: { on: ["created", "updated"], include: ["title", "status"] },
+  },
+},
+```
+
+`events: true` emits all three kinds with no extra columns. The event type is
+the subject type, or the table name, followed by `.created`, `.updated` or
+`.deleted`. The payload is an `AppTableEventData`:
+
+| Field            | Value                                                                 |
+| ---------------- | --------------------------------------------------------------------- |
+| `id`             | the row's id                                                          |
+| `organizationId` | the tenant column, when the table is scoped to the tenant             |
+| `subjectType`    | the subject type, when the table has a `subject`                      |
+| `subjectId`      | the row's id as text, when the table has a `subject`                  |
+| `changed`        | on an update, the columns whose value changed                         |
+| the `include`d   | each column `include` names, with its new value (old value on delete) |
+
+An update that changes only `updated_at` emits nothing. `gen blocks` writes
+`appTableEvents` into `lib/supabase/blocks.ts`, a typed event map you pass to
+`createOutbox`, and `appTableEventSchemas`, which documents them in the
+AsyncAPI document through `defineApi({ events: { blocks: appTableEventSchemas } })`.
+To react to the events, consume them with
+[`createRuleSink`](/docs/blocks/rules#run-rules-from-events) or
+[`workflows.sink()`](/docs/blocks/workflow-builder#start-from-outbox-events).
+The decision is ADR 0048.
+
 ## Rollups and lookups
 
 A rollup aggregates the rows of another app table that reference this one,

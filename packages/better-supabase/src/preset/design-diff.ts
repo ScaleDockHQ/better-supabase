@@ -18,6 +18,7 @@ export type DesignChangeKind =
   | "table.columns"
   | "table.changed"
   | "table.computed"
+  | "table.events"
   | "column.added"
   | "column.dropped"
   | "column.renamed"
@@ -314,9 +315,23 @@ function tableChanges(
     id: undefined,
     rollups: undefined,
     lookups: undefined,
+    events: undefined,
   });
 
-  if (changes.length === 0 && !same(rest(before), rest(after))) {
+  if (!same(before.events, after.events)) {
+    changes.push(
+      safe(
+        "table.events",
+        name,
+        `Changes the outbox events ${name} emits, which replaces its events trigger.`,
+      ),
+    );
+  }
+
+  if (
+    changes.every((change) => change.kind === "table.events") &&
+    !same(rest(before), rest(after))
+  ) {
     changes.push(safe("table.changed", name, `Changes table ${name}.`));
   }
 
