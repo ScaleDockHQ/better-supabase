@@ -2,7 +2,7 @@
   ".": 66623,
   "./config": 36851,
   "./preset": 21774,
-  "./cli": 516459,
+  "./cli": 529557,
   "./client": 27967,
   "./client/native": 25874,
   "./react": 25714,
@@ -299,5 +299,5 @@
   "./tanstack-db": 1433,
   "./tanstack-db/supabase": 3855,
   "./blocks/push": 25885,
-  "better-supabase CLI (startup)": 20329
+  "better-supabase CLI (startup)": 28979
 }

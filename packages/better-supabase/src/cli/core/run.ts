@@ -22,11 +22,10 @@ import {
   listArgs,
   runsWithInvalidConfig,
 } from "./command.ts";
-import { COMPLETE_COMMAND, complete, completionLines } from "./completion.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
-import { RESERVED_NAMES } from "./manifest.ts";
+import { COMPLETE_COMMAND, RESERVED_NAMES } from "./manifest.ts";
 import { movedCommand, movedFlag } from "./moved.ts";
 import {
   document,
@@ -273,8 +272,14 @@ export function cliFromTree(
 
     if (argv[0] === COMPLETE_COMMAND) {
       const words = argv[1] === "--" ? argv.slice(2) : argv.slice(1);
-      // A failed lookup offers nothing rather than printing an error into the prompt.
-      const lines = await complete(tree, words).then(completionLines, () => "");
+
+      // Loaded on demand: only the shell's Tab key runs it. A failed load or
+      // lookup offers nothing rather than printing an error into the prompt.
+      const lines = await import("./completion.ts")
+        .then(async ({ complete, completionLines }) =>
+          completionLines(await complete(tree, words)),
+        )
+        .catch(() => "");
 
       if (lines !== "") {
         out(lines);

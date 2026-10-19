@@ -38,8 +38,9 @@ Imports stay at the top of the module. The exceptions are optional
     also loads on demand, each with a comment: the CLI itself in the bin
     shim `bin/better-supabase.js`, which answers a bare `--version` without
     it, the commands in
-    `src/cli/builtin-commands.ts`, config loading and env validation in
-    `src/cli/core/run.ts`, `fastest-levenshtein` for the unknown-command and
+    `src/cli/builtin-commands.ts`, config loading, env validation and the
+    shell completion engine (`__complete`) in `src/cli/core/run.ts`,
+    `fastest-levenshtein` for the unknown-command and
     unknown-option suggestions in `src/cli/core/parse.ts`, the prompts in
     `src/cli/bin.ts`, the arktype-backed typegen entries in
     `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas

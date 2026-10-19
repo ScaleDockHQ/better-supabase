@@ -7,6 +7,7 @@
 import type { ArgDef, ArgsDef } from "citty";
 
 import { completionValues, GLOBAL_ARGS, listArgs } from "./command.ts";
+import { COMPLETE_COMMAND } from "./manifest.ts";
 import { type CommandNode, commandArgs, isVariadic } from "./parse.ts";
 
 export const SHELLS = ["bash", "zsh", "fish"] as const;
@@ -15,9 +16,6 @@ export type Shell = (typeof SHELLS)[number];
 
 export const isShell = (value: string): value is Shell =>
   SHELLS.some((shell) => shell === value);
-
-/** The hidden command the scripts call. */
-export const COMPLETE_COMMAND = "__complete";
 
 /** The bins the scripts register for. */
 const BINS = ["better-supabase", "bsb"] as const;

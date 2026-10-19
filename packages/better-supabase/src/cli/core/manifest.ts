@@ -63,6 +63,9 @@ export const RESERVED_NAMES: readonly string[] = [
   "cloud",
 ];
 
+/** The hidden command the completion scripts call. */
+export const COMPLETE_COMMAND = "__complete";
+
 export const DOCS_ORIGIN = "https://bettersupabase.com";
 
 const FILES: CommandEffect = { kind: "files" };
