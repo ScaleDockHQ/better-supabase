@@ -60,6 +60,7 @@ const allowed = new Set([
   "apps/marketing/features/create/components/get-code-dialog.tsx",
   "apps/marketing/lib/create-options.ts",
   "apps/marketing/tests/lib/create-options.test.ts",
+  "apps/marketing/tests/lib/permdock-commands.json",
 ]);
 
 // Tracked and new files only, so build output such as `tsbuildinfo` is skipped.

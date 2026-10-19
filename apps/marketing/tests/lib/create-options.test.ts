@@ -8,6 +8,7 @@ import {
   presetConfigSource,
   resolvePreset,
 } from "better-supabase/preset";
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 import { createHref, PACKAGE_MANAGERS } from "../../lib/create";
@@ -39,6 +40,22 @@ import {
 } from "../../lib/create-options";
 
 const saas = namedPreset("saas");
+
+interface CommandOption {
+  readonly name: string;
+  readonly choices?: readonly string[];
+}
+
+// SAFETY: the fixture is the trimmed `permdock --help --json` (cli-commands-v1) checked in beside this test.
+const PERMDOCK_COMMANDS = JSON.parse(
+  readFileSync(new URL("permdock-commands.json", import.meta.url), "utf-8"),
+) as {
+  readonly options: readonly CommandOption[];
+  readonly commands: readonly {
+    readonly path: string;
+    readonly options: readonly CommandOption[];
+  }[];
+};
 
 function valuesOf(key: string): readonly string[] {
   return PRESET_FIELDS.find((field) => field.key === key)?.values ?? [];
@@ -192,6 +209,51 @@ describe("PermDock setup", () => {
     expect(commands).toContain(
       "supabase db schema declarative sync --no-apply -f permdock",
     );
+  });
+
+  test("names only commands and flags the pinned PermDock CLI has", () => {
+    const leaf = (words: readonly string[]) =>
+      PERMDOCK_COMMANDS.commands
+        .filter((command) => {
+          const path = command.path.split(" ");
+
+          return path.every((word, index) => words[index] === word);
+        })
+        .toSorted((a, b) => b.path.length - a.path.length)[0];
+
+    const lines = permDockGenerate("npm").filter((line) =>
+      line.startsWith("npx permdock "),
+    );
+
+    const problems: string[] = [];
+
+    for (const line of lines) {
+      const args = line.split(" ").slice(2);
+      const command = leaf(args);
+
+      if (command === undefined) {
+        problems.push(`no command: ${line}`);
+        continue;
+      }
+
+      const options = [...PERMDOCK_COMMANDS.options, ...command.options];
+
+      for (const [index, word] of args.entries()) {
+        const option = options.find(({ name }) => `--${name}` === word);
+
+        if (word.startsWith("--") && option === undefined) {
+          problems.push(`no ${word}: ${line}`);
+        } else if (
+          option?.choices !== undefined &&
+          !option.choices.includes(args[index + 1] ?? "")
+        ) {
+          problems.push(`bad ${word} value: ${line}`);
+        }
+      }
+    }
+
+    expect(lines).toHaveLength(4);
+    expect(problems).toEqual([]);
   });
 
   test("puts the provider in the config where the comment was", () => {
