@@ -62,6 +62,8 @@ Add more with `--integration edge,mcp`. A project with only `edge` and `mcp` get
 `src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
 
+Side effects: Writes files.
+
 ## Starting from a preset
 
 ```bash
@@ -196,3 +198,5 @@ Relative imports follow your `tsconfig.json`: they keep `.ts` when
 Edge Functions always use `.ts` and get a `deno.json` import map. CI
 typechecks every template against the library, so the files compile as
 written. The names and the layout are described in [Naming](/docs/concepts/naming).
+
+Side effects: Writes files.

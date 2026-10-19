@@ -23,6 +23,11 @@ A second positional argument keeps one format: `spec emit asyncapi`. When
 no output of that format is configured, `spec` renders it on its own to the
 format's default file name.
 
+| Command         | Side effects  |
+| --------------- | ------------- |
+| `spec emit`     | Writes files. |
+| `spec validate` | None.         |
+
 ## The entry module
 
 `spec` imports `specs.entry` (default `src/lib/openapi.ts`). The module

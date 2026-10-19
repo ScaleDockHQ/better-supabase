@@ -1,0 +1,113 @@
+---
+title: Agent mode
+description: What the CLI does differently when a coding agent runs it, and how an agent hands a decision back to the user.
+---
+
+When a coding agent runs the CLI, it switches to agent mode: every command
+prints one [JSON result envelope](/docs/cli#exit-codes-and-json-output) on
+stdout, never prompts, and stops before destructive work until the user
+agrees. A command that needs an answer or a consent exits with code 3 and
+says, in `next`, which command to run once the user decides.
+
+```bash
+pnpm better-supabase gen --agent yes
+```
+
+## Turning it on and off
+
+`--agent` takes `auto`, `yes` or `no`, and `$BETTER_SUPABASE_AGENT` sets it
+when the flag is not passed. `auto` is the default: agent mode turns on when
+the environment shows a coding agent.
+
+| Signal                                                             | Agent                                              |
+| ------------------------------------------------------------------ | -------------------------------------------------- |
+| `AI_AGENT`                                                         | Its value                                          |
+| `CURSOR_TRACE_ID`, when stdout is not a terminal                   | `cursor`                                           |
+| `CURSOR_AGENT`                                                     | `cursor-cli`                                       |
+| `CLAUDECODE` or `CLAUDE_CODE`                                      | `claude`                                           |
+| `CODEX_SANDBOX`, `CODEX_CI` or `CODEX_THREAD_ID`                   | `codex`                                            |
+| `GEMINI_CLI`                                                       | `gemini`                                           |
+| `COPILOT_MODEL`, `COPILOT_ALLOW_ALL` or `COPILOT_GITHUB_TOKEN`     | `github-copilot`                                   |
+| `OPENCODE_CLIENT`, `AUGMENT_AGENT`, `ANTIGRAVITY_AGENT`, `REPL_ID` | `opencode`, `augment-cli`, `antigravity`, `replit` |
+| `/opt/.devin` exists                                               | `devin`                                            |
+
+Cursor sets `CURSOR_TRACE_ID` in a person's terminal too, so that one counts
+only when stdout isn't a terminal. The list follows
+[`@vercel/detect-agent`](https://www.npmjs.com/package/@vercel/detect-agent),
+and a test keeps the two in step.
+
+In agent mode, `--no-json` prints text again, and `--agent no` turns the whole
+mode off. `--help` and `--version` always print text.
+
+## Missing input
+
+Where a person would get a prompt, an agent gets `action_required` with the
+flags the command needs (`missing`), the values each one takes (`choices`)
+and the command to run with the answer filled in (`next`). For example, `init`
+at a workspace root needs to know which package owns the runtime:
+
+```json
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v1.json",
+  "status": "action_required",
+  "error": {
+    "type": "https://bettersupabase.com/docs/cli/errors#input_required",
+    "title": "Input required",
+    "code": "input_required",
+    "exitCode": 3,
+    "missing": ["--package"],
+    "choices": { "--package": ["apps/web", "."] }
+  },
+  "next": [
+    {
+      "command": "better-supabase init --package apps/web --yes",
+      "when": "with the value the user picks from choices[\"--package\"]"
+    }
+  ]
+}
+```
+
+The agent asks the user to pick, or picks itself when the answer is clear,
+and runs the `next` command with that value. Secrets in the command line are
+replaced by their `--*-stdin` flag, so `next` never repeats a password.
+
+## Consent
+
+Two kinds of work need the user's consent in agent mode: `--force` over files
+the CLI didn't write, and `seed --apply` against a database that isn't on this
+machine. The command stops with `consent_required` and a token:
+
+```json
+{
+  "status": "action_required",
+  "error": {
+    "code": "consent_required",
+    "detail": "init --force overwrites files better-supabase did not write. Ask the user first, then run again with --confirm 7f21dd17503845de.",
+    "exitCode": 3,
+    "token": "7f21dd17503845de"
+  },
+  "next": [
+    {
+      "command": "better-supabase init --force --confirm 7f21dd17503845de",
+      "when": "after the user agrees"
+    }
+  ]
+}
+```
+
+The agent shows the user what will happen, and runs the `next` command once
+they agree. `--yes` doesn't count as consent. The token is a hash of the
+command line and the change, so it works for that exact command only: change a
+flag or the target database and the command asks again. It is not a secret;
+it makes the agent stop and ask, and doesn't stop a caller that means to skip
+the question.
+
+`--dry-run` and `--check` never need consent, since they write nothing.
+Apart from these stops, agent mode changes how a command reports, never what
+it does.
+
+## Teaching an agent
+
+The [Agent Skills](/docs/for-ai-agents#agent-skills) tell agents about these
+rules. `better-supabase skills install --for cursor` (or `claude`, `codex`
+and the rest) copies them into the project.

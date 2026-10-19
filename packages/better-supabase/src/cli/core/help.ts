@@ -171,7 +171,7 @@ function effectText(effect: CommandEffect): string {
 }
 
 /** The Side effects line: "Writes files, reads the database." */
-function effectsLine(effects: readonly CommandEffect[]): string {
+export function effectsLine(effects: readonly CommandEffect[]): string {
   if (effects.length === 0) {
     return "None.";
   }

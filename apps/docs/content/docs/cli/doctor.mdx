@@ -38,6 +38,8 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 
 Doctor never prints env values, only variable names and line numbers.
 
+Side effects: Reads the database, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+
 ## In CI
 
 `--format github` writes workflow annotations, so findings show up on the pull

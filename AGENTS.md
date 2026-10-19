@@ -186,7 +186,8 @@ Move each to its stable release when it ships, and update this list.
 | `maintainer-skills`                       | skills, `skills-lock.json`, plugin manifests |
 
 Agent notes, by topic: [`adapters`](docs/agents/adapters.md),
-[`blocks`](docs/agents/blocks.md), [`commands`](docs/agents/commands.md),
+[`blocks`](docs/agents/blocks.md), [`cli`](docs/agents/cli.md),
+[`commands`](docs/agents/commands.md),
 [`core`](docs/agents/core.md), [`database`](docs/agents/database.md),
 [`formatting`](docs/agents/formatting.md), [`nextjs`](docs/agents/nextjs.md)
 and [`tooling`](docs/agents/tooling.md).

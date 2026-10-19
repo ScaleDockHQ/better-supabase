@@ -74,6 +74,15 @@ wire the clients yourself. It takes the same `--dry-run`,
 describes behavior both commands share, and the other `sql` subcommands
 (`list`, `sync`, `upgrade`, `data` and `print`) are low-level commands too.
 
+| Command       | Side effects  |
+| ------------- | ------------- |
+| `sql list`    | None.         |
+| `sql add`     | Writes files. |
+| `sql sync`    | Writes files. |
+| `sql upgrade` | Writes files. |
+| `sql data`    | Writes files. |
+| `sql print`   | None.         |
+
 ## Workflows
 
 `sql.workflow` says how the modules reach a migration. There are three:

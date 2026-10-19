@@ -166,7 +166,8 @@ A check such as `doctor` or `spec validate` found problems at or above the
 The command needs an answer it would prompt for, and it can't prompt (in CI,
 under `--json` or for an agent). `missing` lists the flags it needs,
 `choices` the values each one takes when there is a fixed set, and `next`
-holds the command to run with the answer filled in. Exit code 3.
+holds the command to run with the answer filled in. Exit code 3. See
+[agent mode](/docs/cli/agent-mode#missing-input).
 
 ## `consent_required`
 
@@ -175,7 +176,7 @@ consent. Agent mode asks for it before `--force` overwrites files the CLI
 didn't write and before `seed --apply` writes to a database that isn't on
 this machine. Rerun it with the `--confirm <token>` that `next` shows (the
 token is also in `token`, and covers only that command line); `--yes`
-doesn't replace it. Exit code 3.
+doesn't replace it. Exit code 3. See [agent mode](/docs/cli/agent-mode#consent).
 
 ## `cancelled`
 

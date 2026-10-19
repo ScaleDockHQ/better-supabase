@@ -12,6 +12,8 @@ writes what it found to `supabase/snapshot.json`. Commit the file, set
 `source.snapshot` in the config, and CI and contributors can run `gen` and
 `doctor` without a database.
 
+Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.
+
 ## Options
 
 | Option                | Effect                                                                                       |

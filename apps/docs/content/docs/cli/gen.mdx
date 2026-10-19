@@ -12,6 +12,8 @@ better-supabase gen --metadata <path|-> [--emit <file> | --out-dir <dir> [--chec
 the typed client from the database, then every other generated file the
 config sets up, so the config holds the options instead of each command line.
 
+Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.
+
 ## Tasks
 
 | Task       | Runs by default when                                   | Does what                                                                        |

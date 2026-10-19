@@ -42,6 +42,8 @@ Docker daemon and rejects `supabase status -o json`. `env` then reads
 `SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
 secret.
 
+Side effects: Writes files.
+
 ## keys
 
 ```bash
@@ -55,6 +57,8 @@ JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `keys` refuses to overwrite an existing file
 unless you pass `--force`, and `--out <file>` (or `keys.output` in the
 config) writes somewhere else. `--dry-run` writes nothing.
+
+Side effects: Writes files.
 
 ## seed
 
@@ -102,6 +106,8 @@ to seed another database, pipe its connection string in with
 Tests import the same rows: `seed.rows.customers.first`, and
 `await seed.insert(sql)` in a `beforeAll`. Node loads `seed.ts` directly,
 so use `.ts` extensions in its relative imports.
+
+Side effects: Writes files, writes to the database with `--apply`.
 
 ## OpenAPI files
 
