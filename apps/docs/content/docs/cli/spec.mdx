@@ -141,7 +141,7 @@ the output of the one OpenAPI document. A module that exports a
 | `--check`                  | With `emit`, compare each output with the file on disk and write nothing; exit 1 when one is stale or missing  |
 | `--dry-run`                | With `emit`, print a diff of each output that would change and write nothing                                   |
 | `--watch`                  | With `emit`, render again whenever a watched file changes                                                      |
-| `--interval <ms>`          | Milliseconds between checks in `--watch`. Defaults to `gen.watchInterval`, then `1000`                         |
+| `--interval <ms>`          | Milliseconds between checks in `--watch`. Defaults to `gen.watchInterval`, then `2000`                         |
 
 `--spec-version` keeps the configured outputs at that version. When none
 match, and the selection has one format, it renders that version to a file
