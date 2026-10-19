@@ -298,25 +298,26 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 
 ### Core
 
-| Import                                                                                                                                     | What it gives you                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `better-supabase`                                                                                                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                     |
-| `better-supabase/config`                                                                                                                   | `defineConfig` and generators for `better-supabase.config.ts`                        |
-| `better-supabase/preset`                                                                                                                   | Named presets, preset codes and the resolver behind `/create`                        |
-| `better-supabase/server`                                                                                                                   | Repositories bound to the caller, admin and acting-as identities                     |
-| `better-supabase/postgres`                                                                                                                 | The same repositories over direct Postgres                                           |
-| `better-supabase/env`                                                                                                                      | Validated Supabase settings                                                          |
-| `better-supabase/list`                                                                                                                     | Search, facets, sorting and pagination from one definition                           |
-| `better-supabase/better-result`                                                                                                            | `withBetterResult`: a `db` whose methods return better-result values                 |
-| `better-supabase/storage`, `/realtime`                                                                                                     | Typed buckets (paths, versions, vector, analytics) and broadcast topics              |
-| `better-supabase/plugins/timestamps`, `/plugins/soft-delete`, `/plugins/tenant`, `/plugins/actor`, `/plugins/validation`, `/plugins/rules` | Timestamps, soft delete, tenant scoping, actor columns, validation and runtime rules |
-| `better-supabase/sql`                                                                                                                      | The SQL modules and read-set compiler behind `better-supabase sql`                   |
-| `better-supabase/lint`                                                                                                                     | Editor rules for unbounded reads and unscoped deletes                                |
-| `better-supabase/cli`                                                                                                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI                  |
-| `better-supabase/testing`                                                                                                                  | `asUser`, `localAuth`, typed seeds and conformance kits                              |
-| `better-supabase/events`, `/otel`                                                                                                          | CloudEvents and OpenTelemetry                                                        |
-| `better-supabase/spec`, `/openapi`, `/asyncapi`, `/arazzo`                                                                                 | One API model rendered as OpenAPI 3.0 to 3.2, AsyncAPI 3 and Arazzo 1 documents      |
-| `better-supabase/overlay`                                                                                                                  | Apply, define and diff OpenAPI Overlay 1.0 to 1.2 documents                          |
+| Import                                                                                                                                     | What it gives you                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `better-supabase`                                                                                                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                       |
+| `better-supabase/config`                                                                                                                   | `defineConfig` and generators for `better-supabase.config.ts`                          |
+| `better-supabase/preset`                                                                                                                   | Named presets, preset codes and the resolver behind `/create`                          |
+| `better-supabase/server`                                                                                                                   | Repositories bound to the caller, admin and acting-as identities                       |
+| `better-supabase/postgres`                                                                                                                 | The same repositories over direct Postgres                                             |
+| `better-supabase/env`                                                                                                                      | Validated Supabase settings                                                            |
+| `better-supabase/stripe`                                                                                                                   | `stripeFromKey`: a Stripe client for billing, usage and commerce that bundlers resolve |
+| `better-supabase/list`                                                                                                                     | Search, facets, sorting and pagination from one definition                             |
+| `better-supabase/better-result`                                                                                                            | `withBetterResult`: a `db` whose methods return better-result values                   |
+| `better-supabase/storage`, `/realtime`                                                                                                     | Typed buckets (paths, versions, vector, analytics) and broadcast topics                |
+| `better-supabase/plugins/timestamps`, `/plugins/soft-delete`, `/plugins/tenant`, `/plugins/actor`, `/plugins/validation`, `/plugins/rules` | Timestamps, soft delete, tenant scoping, actor columns, validation and runtime rules   |
+| `better-supabase/sql`                                                                                                                      | The SQL modules and read-set compiler behind `better-supabase sql`                     |
+| `better-supabase/lint`                                                                                                                     | Editor rules for unbounded reads and unscoped deletes                                  |
+| `better-supabase/cli`                                                                                                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI                    |
+| `better-supabase/testing`                                                                                                                  | `asUser`, `localAuth`, typed seeds and conformance kits                                |
+| `better-supabase/events`, `/otel`                                                                                                          | CloudEvents and OpenTelemetry                                                          |
+| `better-supabase/spec`, `/openapi`, `/asyncapi`, `/arazzo`                                                                                 | One API model rendered as OpenAPI 3.0 to 3.2, AsyncAPI 3 and Arazzo 1 documents        |
+| `better-supabase/overlay`                                                                                                                  | Apply, define and diff OpenAPI Overlay 1.0 to 1.2 documents                            |
 
 ### Frontend and local data
 

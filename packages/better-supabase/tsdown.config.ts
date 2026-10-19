@@ -218,6 +218,7 @@ const entries = [
   "streams/redis/index",
   "credentials/index",
   "vercel-connect/index",
+  "stripe/index",
   "yjs/index",
   "better-result/index",
   "blocks/inbox/index",

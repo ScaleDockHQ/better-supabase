@@ -359,11 +359,14 @@ import {
   reportUsageToStripe,
   sqlTransport,
 } from "better-supabase/blocks/usage";
+import { stripeFromKey } from "better-supabase/stripe";
+
+const stripe = stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY });
 
 export async function GET() {
   const { reported, skipped } = await reportUsageToStripe({
     transport: sqlTransport(postgres),
-    stripe: { secretKey: env.STRIPE_SECRET_KEY },
+    stripe,
     eventName: (meter) => (meter === "api_calls" ? "api_requests" : undefined),
   });
   return Response.json({ reported, skipped });
@@ -396,8 +399,10 @@ customer or an event name are skipped and stay unreported. They don't hold up
 the rest: once a run meets a meter without an event name or a tenant without
 a customer, it asks `unreported_usage` again with that meter in `skip_meters`
 or that tenant in `skip_tenants`, so `batch` still fills with counters it can
-send. `stripe` is an
-optional peer; pass a Stripe client instead of `secretKey` to use your own.
+send. The `stripe`
+option takes the same sources as in the [billing](/docs/blocks/billing#setup)
+block: `stripeFromKey()` in a bundled app, `{ secretKey }` in plain Node, or a
+Stripe client of your own.
 
 ## Functions
 

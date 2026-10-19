@@ -16,7 +16,9 @@ Imports stay at the top of the module. The exceptions are optional
     in `src/cli/introspect/typegen.ts` (an install message when they are
     missing), `oxfmt` in the same file (unformatted output with a
     notice), `stripe` through a variable specifier in
-    `src/blocks/stripe.ts` (an install message, or pass a client),
+    `src/blocks/stripe.ts` (an install message, or pass a client) and by
+    name in `src/stripe/stripe.ts`, so bundlers include it for
+    `stripeFromKey()`,
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
     (an install message, or pass a client), `jsonpath-rfc9535` through a
     variable specifier in `src/overlay/load.ts` (an install message, or pass

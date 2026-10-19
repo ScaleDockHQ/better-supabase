@@ -84,7 +84,10 @@ export interface StripePaymentsClient {
 }
 
 export interface StripePaymentsOptions {
-  /** A client, `{ secretKey }` to create one from `stripe`, or a factory. */
+  /**
+   * A client, a factory such as `stripeFromKey()` from `better-supabase/stripe`,
+   * or `{ secretKey }` to create one from `stripe` in plain Node.
+   */
   readonly stripe: StripeSource<StripePaymentsClient>;
   /** The endpoint's `whsec_` secret; several while it rotates. */
   readonly webhookSecret: string | readonly string[];

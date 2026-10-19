@@ -123,7 +123,10 @@ export interface StripeTaxClient {
 }
 
 export interface StripeTaxOptions {
-  /** A client, `{ secretKey }` to create one from `stripe`, or a factory. */
+  /**
+   * A client, a factory such as `stripeFromKey()` from `better-supabase/stripe`,
+   * or `{ secretKey }` to create one from `stripe` in plain Node.
+   */
   readonly stripe: StripeSource<StripeTaxClient>;
   /** Defaults to `stripe-tax`. */
   readonly name?: string;
