@@ -46,6 +46,7 @@ import {
   resolveIntegrations,
   TEMPLATES,
 } from "../templates.ts";
+import { blockNames } from "./blocks.ts";
 
 const ADD_ARGS = {
   block: {
@@ -355,6 +356,7 @@ export const addCommand: AnyCommand = defineCliCommand({
     check: PLAN_ARGS.check,
   },
   lists: ["integration"],
+  completions: { block: blockNames },
   run: (args, { config, configFile, io }) =>
     runAdd(config, args, io.prompts, {
       ...SYSTEM_DEPS,

@@ -12,6 +12,7 @@
     "doctor",
     "config",
     "codemod",
+    "completion",
     "errors"
   ]
 }

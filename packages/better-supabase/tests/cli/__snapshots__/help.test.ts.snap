@@ -348,6 +348,35 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
 
+exports[`help > documents completion 1`] = `
+"Usage: better-supabase completion [options] [shell]
+
+Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb
+
+Arguments
+  [shell]  bash, zsh, fish
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Turns on completion in the current zsh; add it to ~/.zshrc
+  $ eval "$(better-supabase completion zsh)"
+
+Side effects: None.
+Docs: https://bettersupabase.com/docs/cli/completion
+"
+`;
+
 exports[`help > documents config 1`] = `
 "Usage: better-supabase config [options]
 
@@ -1121,13 +1150,14 @@ Typed Supabase: codegen, doctor, the SQL modules and project setup
 Usage: better-supabase <command> [options]
 
 Set up
-  init    Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
-  add     Adds blocks with what they require, or glue for an integration with --integration
-  apply   Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules
-  adopt   Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map
-  preset  Decodes a preset code, or shows the config's preset and how the config differs from it
-  blocks  Lists, shows and searches the blocks you can add
-  skills  Installs the Agent Skills that ship with this version of better-supabase
+  init        Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
+  add         Adds blocks with what they require, or glue for an integration with --integration
+  apply       Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules
+  adopt       Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map
+  preset      Decodes a preset code, or shows the config's preset and how the config differs from it
+  blocks      Lists, shows and searches the blocks you can add
+  skills      Installs the Agent Skills that ship with this version of better-supabase
+  completion  Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb
 
 Generate
   gen         Writes the typed client from the database, then every other generated file the config sets up

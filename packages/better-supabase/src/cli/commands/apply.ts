@@ -14,6 +14,7 @@ import {
   encodePreset,
   isPresetName,
   type Preset,
+  PRESET_NAMES,
   presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
@@ -463,6 +464,10 @@ export async function runApply(
 export const applyCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("apply"),
   args: { ...APPLY_ARGS, ...SOURCE_ARGS },
+  completions: {
+    preset: () => PRESET_NAMES,
+    only: () => ["blocks", "conventions"],
+  },
   run: async (args, { config, configFile, env, io, paint, signal }) =>
     runApply(config, args, {
       now: () => new Date(),

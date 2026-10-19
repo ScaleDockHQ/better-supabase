@@ -91,6 +91,10 @@ function entryOf(block: PresetCatalogBlock): BlockEntry {
 
 const ENTRIES: readonly BlockEntry[] = PRESET_CATALOG.blocks.map(entryOf);
 
+/** Every block name, for completion. */
+export const blockNames = (): readonly string[] =>
+  ENTRIES.map((entry) => entry.name);
+
 function listing(entries: readonly BlockEntry[]): string[] {
   const width = Math.max(0, ...entries.map((entry) => entry.name.length));
 
@@ -192,12 +196,14 @@ export function searchBlocks(text: string | undefined): CommandResult {
 export const blocksListCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("blocks list"),
   args: LIST_ARGS,
+  completions: { category: () => CATEGORIES },
   run: (args) => Promise.resolve(listBlocks(args.category)),
 });
 
 export const blocksViewCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("blocks view"),
   args: VIEW_ARGS,
+  completions: { block: blockNames },
   run: (args) => Promise.resolve(viewBlock(args.block)),
 });
 

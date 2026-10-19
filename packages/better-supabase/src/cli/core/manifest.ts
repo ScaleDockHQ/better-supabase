@@ -203,6 +203,21 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "completion",
+    description:
+      "Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb",
+    group: "setup",
+    docs: "/docs/cli/completion",
+    examples: [
+      {
+        command: 'eval "$(better-supabase completion zsh)"',
+        description:
+          "Turns on completion in the current zsh; add it to ~/.zshrc",
+      },
+    ],
+    effects: [],
+  },
+  {
     name: "gen",
     description:
       "Writes the typed client from the database, then every other generated file the config sets up",

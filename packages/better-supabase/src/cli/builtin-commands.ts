@@ -40,6 +40,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "skills install",
     () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
   ],
+  [
+    "completion",
+    () => import("./commands/completion.ts").then((m) => m.completionCommand),
+  ],
   ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
   ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],

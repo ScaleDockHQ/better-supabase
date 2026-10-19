@@ -110,6 +110,9 @@ export type CliOptions<T extends ArgsDef> = {
   readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliArgs<T>[K];
 } & { readonly _?: readonly string[] };
 
+/** The values a shell offers for one argument, for names it can't know from the arg definition. */
+export type CompletionValues = () => readonly string[];
+
 export interface CliCommandDef<T extends ArgsDef> {
   /** The command contract; a breaking change to `CliContext` or `CommandResult` ships a new one. */
   readonly apiVersion?: 1;
@@ -117,6 +120,10 @@ export interface CliCommandDef<T extends ArgsDef> {
   readonly args: T;
   /** String options that take a list: comma-separated, repeated, or both. */
   readonly lists?: readonly (keyof T & string)[];
+  /** Values `completion` offers per argument: block, preset or task names. */
+  readonly completions?: {
+    readonly [K in keyof T & string]?: CompletionValues;
+  };
   readonly runsWithInvalidConfig?: boolean;
   readonly run: (
     args: CliArgs<T>,
@@ -134,6 +141,12 @@ export type AnyCommand = Exclude<
 export type CliCommand = AnyCommand & { readonly apiVersion: 1 };
 
 const LISTS = new WeakMap<object, readonly string[]>();
+
+const COMPLETIONS = new WeakMap<
+  object,
+  Readonly<Partial<Record<string, CompletionValues>>>
+>();
+
 const RUNS_WITH_INVALID_CONFIG = new WeakSet<object>();
 
 /** A citty command that receives the `CliContext` and returns a `CommandResult`. */
@@ -156,6 +169,7 @@ export function defineCliCommand<const T extends ArgsDef>(
   });
 
   LISTS.set(command, def.lists ?? []);
+  COMPLETIONS.set(command, def.completions ?? {});
 
   if (def.runsWithInvalidConfig === true) {
     RUNS_WITH_INVALID_CONFIG.add(command);
@@ -169,6 +183,13 @@ export function listArgs<T extends ArgsDef>(
   command: CommandDef<T>,
 ): readonly string[] {
   return LISTS.get(command) ?? [];
+}
+
+/** The completion values a command declared through `defineCliCommand`, by argument. */
+export function completionValues<T extends ArgsDef>(
+  command: CommandDef<T>,
+): Readonly<Partial<Record<string, CompletionValues>>> {
+  return COMPLETIONS.get(command) ?? {};
 }
 
 export function runsWithInvalidConfig<T extends ArgsDef>(

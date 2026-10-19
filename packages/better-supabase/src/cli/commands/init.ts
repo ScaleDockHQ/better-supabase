@@ -601,6 +601,7 @@ export const initCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("init"),
   args: { ...INIT_ARGS, ...PLAN_ARGS },
   lists: ["integration"],
+  completions: { preset: () => PRESET_NAMES },
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
 

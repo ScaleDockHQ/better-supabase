@@ -24,7 +24,11 @@ import {
 } from "../doctor/inputs.ts";
 import { LIVE_CODES, type OpenLive, openLive } from "../doctor/live-source.ts";
 import { locate } from "../doctor/locate.ts";
-import { explainClaims, reportFormat } from "../doctor/options.ts";
+import {
+  explainClaims,
+  FLAG_FORMATS,
+  reportFormat,
+} from "../doctor/options.ts";
 import {
   type DoctorContext,
   type Finding,
@@ -409,10 +413,17 @@ export async function runDoctor(
     : { code, output: report, ...failure };
 }
 
+const ruleCodes = (): string[] => [...new Set([...RULE_CODES, ...LIVE_CODES])];
+
 export const doctorCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("doctor"),
   args: { ...SOURCE_ARGS, ...ARGS },
   lists: ["only", "ignore", "explain"],
+  completions: {
+    format: () => FLAG_FORMATS,
+    only: ruleCodes,
+    ignore: ruleCodes,
+  },
   run: async (args, { config, cwd, env, io, log, paint, signal }) => {
     if (args.metadata !== undefined) {
       refuseWithMetadata([

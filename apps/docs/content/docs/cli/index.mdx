@@ -27,6 +27,10 @@ pnpm better-supabase <command> [options]
 | [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                         |
 | [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations   |
 | [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                             |
+| [`completion`](/docs/cli/completion)                   | Prints the shell completion script for bash, zsh or fish                                         |
+
+The package also installs the short bin `bsb`, so `pnpm bsb gen` runs the same
+CLI as `pnpm better-supabase gen`.
 
 Options you would pass on every run belong in the
 [config](/docs/cli/config#flags-and-the-config): a flag wins for one run, then

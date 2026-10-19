@@ -213,5 +213,6 @@ export const skillsInstallCommand: AnyCommand = defineCliCommand({
     "dry-run": PLAN_ARGS["dry-run"],
   },
   lists: ["for"],
+  completions: { for: () => Object.keys(AGENT_DIRS) },
   run: (args, { config, env }) => installSkills(config, args, env),
 });

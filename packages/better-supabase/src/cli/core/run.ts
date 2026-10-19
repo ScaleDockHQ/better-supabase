@@ -22,6 +22,7 @@ import {
   listArgs,
   runsWithInvalidConfig,
 } from "./command.ts";
+import { COMPLETE_COMMAND, complete, completionLines } from "./completion.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
@@ -269,6 +270,18 @@ export function cliFromTree(
 
       io.stderr(line);
     };
+
+    if (argv[0] === COMPLETE_COMMAND) {
+      const words = argv[1] === "--" ? argv.slice(2) : argv.slice(1);
+      // A failed lookup offers nothing rather than printing an error into the prompt.
+      const lines = await complete(tree, words).then(completionLines, () => "");
+
+      if (lines !== "") {
+        out(lines);
+      }
+
+      return { code: 0, stdout: stdout.join(""), stderr: stderr.join("") };
+    }
 
     const flags = globalFlags(argv);
     const { debug, color } = flags;

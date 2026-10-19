@@ -25,6 +25,7 @@ import {
   setBlockInJson,
 } from "../sql/config-edit.ts";
 import { type Paint, plain } from "../style.ts";
+import { blockNames } from "./blocks.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -209,6 +210,7 @@ export const adoptCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("adopt"),
   args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
   lists: ["tables"],
+  completions: { block: blockNames },
   run: async (args, { config, configFile, env, io, log, paint, signal }) => {
     const tables = snapshotTables(config, env, {
       ...(await sourceArgs(args, io)),

@@ -224,6 +224,7 @@ export const genCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("gen"),
   args: ARGS,
   lists: ["only"],
+  completions: { only: () => GEN_TASKS },
   run: async (args, context) => {
     checkMetadataFlags({
       ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
