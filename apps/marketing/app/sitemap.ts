@@ -10,6 +10,7 @@ const routes = [
   "/recipes",
   "/create",
   "/enterprise",
+  "/contact",
   "/docs",
 ] as const;
 
