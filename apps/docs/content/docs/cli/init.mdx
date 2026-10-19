@@ -10,9 +10,9 @@ pnpm better-supabase init  # once it is a dependency
 
 `init` reads your `package.json` and writes:
 
-- `better-supabase.config.ts` with `casing` written out (`--casing camel|snake`;
-  `init` picks `camel` by default, while a config without `casing` means
-  `snake`). It lists the integrations it set up under `integrations`, and
+- `better-supabase.config.ts` with `casing` written out (`--casing snake|camel`,
+  `snake` by default, as in a config without `casing`) and the
+  [conventions](#conventions) that differ from the defaults. It lists the integrations it set up under `integrations`, and
   carries commented `gen`, `env` and `doctor` entries for the options you
   would otherwise pass on every run (see [Flags and the config](/docs/cli/config#flags-and-the-config))
 - `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
@@ -43,9 +43,9 @@ already exist are never overwritten unless you pass `--force` or confirm the
 prompt. `--dry-run` shows what would be written, and `--check` exits 1 when a
 file is missing or differs ([writing files](/docs/cli#writing-files)). The names and the layout are described in [Naming](/docs/concepts/naming).
 
-In a terminal, `init` asks for the casing (unless you pass `--casing`), the
-integrations, with the detected ones checked (unless you pass `--integration`), and
-whether to overwrite files that exist. `add` without names asks which
+In a terminal, `init` asks for the conventions (unless you pass a convention
+flag), the integrations, with the detected ones checked (unless you pass
+`--integration`), and whether to overwrite files that exist. `add` without names asks which
 integrations to add. It never asks in CI, when stdin or stdout is not a
 terminal, or with `--yes`, which takes the flags and the defaults.
 
@@ -64,6 +64,40 @@ Add more with `--integration edge,mcp`. A project with only `edge` and `mcp` get
 
 Side effects: Writes files.
 
+## Conventions
+
+The convention flags set what [Create](https://bettersupabase.com/create)
+sets in its Conventions step, with the same names and defaults:
+
+| Flag            | Config key             | Values                                                             |
+| --------------- | ---------------------- | ------------------------------------------------------------------ |
+| `--casing`      | `casing`               | `snake` (default), `camel`                                         |
+| `--scope`       | `sql.scope`            | `tenant` (default), `user`, `none`                                 |
+| `--tenant-name` | `sql.naming.tenant`    | `organization` (default), `workspace`, `team`, or a lowercase name |
+| `--access`      | `blocks.access.model`  | `roles` (default), `catalog`, `provider`, `custom`                 |
+| `--id-type`     | `blocks.access.idType` | `uuid` (default), `text`, `bigint`, `integer`                      |
+| `--api`         | `sql.api`              | `none` (default), `api`                                            |
+
+Without `--preset`, `init` asks for each one in a terminal, in Create's
+order: Casing, Row ownership, Tenant name (for tenant scope only), Auth and
+permissions, ID type and API schema. Once you pass a convention flag, it
+asks for none of them and takes the defaults for the rest. It writes only
+the values that differ from the defaults: `sql` for the scope, tenant name
+and API schema, and `blocks.access` for the access model and id type, which
+installs the access block. With `--access provider` it also writes a comment
+that points you at the `authorization` key.
+
+With `--preset`, each flag overrides that convention of the preset, and
+`init` writes the changed preset code. A code stores the tenant names Create
+offers (`organization`, `workspace`, `team`), so for another name leave
+`--tenant-name` out and set `sql.naming.tenant` in the config. `apply` takes
+the same flags.
+
+```bash
+pnpm better-supabase init --scope user --api api
+pnpm better-supabase init --preset saas --tenant-name workspace --access catalog
+```
+
 ## Starting from a preset
 
 ```bash
@@ -76,21 +110,21 @@ npx better-supabase init --preset 1pWEF3d578B1iGt16
 also:
 
 - writes `preset` into `better-supabase.config.ts`, which `defineConfig`
-  expands into `blocks` and the preset's conventions, and takes `casing` from
-  the preset unless you pass `--casing`
+  expands into `blocks` and the preset's conventions; the
+  [convention flags](#conventions) override them
 - adds the preset's integrations and its framework's integration to the
   ones it found
 - writes the module files of every block the preset installs, as
   `better-supabase sql sync` does
 - writes `lib/blocks.ts`, which wires the blocks that have a TypeScript
-  client with `createBlocks`
+  client with `defineBlocks`
 - prints the `npx shadcn@latest add @better-supabase/...` command for the
   [registry glue](/docs/registry) that fits the preset's framework and
   platforms
 
 A preset that can't install, such as one whose blocks need tenants under
 scope `user`, stops `init` with the reason. In a terminal without
-`--preset`, `--casing` or `--integration`, `init` first asks for a preset; None
+`--preset`, a convention flag or `--integration`, `init` first asks for a preset; None
 keeps the steps above out. To apply a preset to a project that already has
 a config, use [`apply`](/docs/cli/presets#apply).
 
@@ -149,10 +183,9 @@ the config and the glue there, and prints next steps that target it:
 packages; `--package .` writes at the root as before.
 
 On [Create](https://bettersupabase.com/create), turn on Monorepo and enter
-the package path (`apps/web` by default): the install command then ends in
-`--package <dir>`, and the apply command passes
-`--config <dir>/better-supabase.config.ts`, since `apply` has no `--package`
-flag. The migrations stay in the root `supabase/` folder. See
+the package path (`apps/web` by default): the install and apply commands then
+end in `--package <dir>`. A Create URL carries it as `&package=`, so `init`
+and `apply` take it from a URL you pass to `--preset`. The migrations stay in the root `supabase/` folder. See
 [monorepos](/docs/guides/monorepo) for how to split the runtime from domain
 packages.
 
@@ -169,8 +202,8 @@ of the config and writes their module files and the modules they require
 [`sql add`](/docs/blocks/sql#low-level-sql-add), the low-level command that
 stops after the SQL). It also wires the blocks that have a TypeScript client into
 `lib/blocks.ts`: an import and an entry in the object passed to
-`createBlocks`. When the file is missing or doesn't call `createBlocks` with
-an object literal, `add` prints the lines to add instead. Last, it prints the
+`defineBlocks` (or `createBlocks`). When the file is missing or calls neither
+with an object literal, `add` prints the lines to add instead. Last, it prints the
 `npx shadcn@latest add @better-supabase/...` command for the registry glue
 of those blocks that fits the frameworks in the config or `package.json`.
 `better-supabase blocks list` shows the names. `--force` overwrites files
@@ -183,15 +216,16 @@ or a new package in a workspace gets its glue. When `--integration` names
 integrations the config doesn't list yet, `add` prints the `integrations`
 entry to paste.
 
-| Integration | Writes                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------- |
-| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                |
-| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                             |
-| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                               |
-| `hono`      | `server.ts`, which creates `bs` and adds the middleware and error handler                         |
-| `orpc`      | `router.ts`, which creates `bs` and adds the auth middleware                                      |
-| `edge`      | `supabase/functions/api` (`server.ts` creates `bs`) plus `supabase/functions/_shared/supabase.ts` |
-| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bs`)            |
+| Integration | Writes                                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                     |
+| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                                                                  |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                    |
+| `hono`      | `server.ts`, which creates `bs` and adds the middleware and error handler                                                              |
+| `orpc`      | `router.ts`, which creates `bs` and adds the auth middleware                                                                           |
+| `edge`      | `supabase/functions/api` (`server.ts` creates `bs`) plus `supabase/functions/_shared/supabase.ts`                                      |
+| `expo`      | `lib/supabase/expo.ts` (`bs` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts` |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bs`)                                                 |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.

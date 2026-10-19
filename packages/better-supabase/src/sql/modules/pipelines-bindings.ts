@@ -374,7 +374,10 @@ export function pipelineBindings(
     }
   }
 
-  const registry = registeredSubjects({ ...builtInSubjects, ...ctx.subjects });
+  const registry = registeredSubjects(
+    { ...builtInSubjects, ...ctx.subjects },
+    ctx.naming,
+  );
 
   return Object.entries(raw).map(([type, entry]) => {
     const where = `blocks.pipelines.options.subjects.${type}`;

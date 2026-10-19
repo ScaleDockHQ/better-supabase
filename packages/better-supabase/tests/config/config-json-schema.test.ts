@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_SCHEMA, renderConfigSchema } from "./config-json-schema.ts";
 
 describe("schemas/config-v1.json", () => {
-  it("types blocks.<module>.options from the block manifests", async () => {
+  it("is rendered from the config schema and the block manifests", async () => {
     // Compared as JSON: Oxfmt formats the file after the script writes it.
     expect(JSON.parse(await readFile(CONFIG_SCHEMA, "utf-8"))).toEqual(
-      JSON.parse(await renderConfigSchema()),
+      JSON.parse(renderConfigSchema()),
     );
   });
 });

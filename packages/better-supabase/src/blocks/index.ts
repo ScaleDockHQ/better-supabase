@@ -15,7 +15,7 @@ export type {
   CreateBlocksOptions,
 } from "./create-blocks.ts";
 
-export { defineBlock } from "./define-block.ts";
+export { BLOCK_CATEGORIES, defineBlock } from "./define-block.ts";
 
 export {
   blockOptions,

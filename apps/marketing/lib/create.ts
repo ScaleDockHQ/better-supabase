@@ -105,18 +105,12 @@ export function packagePath(file: string, pkg: string | undefined): string {
 }
 
 /**
- * The command for a workspace package: `init` writes into it with
- * `--package`, and `apply` edits the config there with `--config` (it has
- * no `--package`). The SQL stays in the root `supabase/` either way.
+ * The command for a workspace package: `init` writes into it and `apply`
+ * edits the config there, both with `--package`. The SQL stays in the root
+ * `supabase/` either way.
  */
 export function withPackage(command: string, pkg: string | undefined): string {
-  if (pkg === undefined) {
-    return command;
-  }
-
-  return /\sapply\s/u.test(command)
-    ? `${command} --config ${packagePath(CONFIG_FILE, pkg)}`
-    : `${command} --package ${pkg}`;
+  return pkg === undefined ? command : `${command} --package ${pkg}`;
 }
 
 export const PACKAGE_MANAGERS = ["pnpm", "npm", "yarn", "bun"] as const;

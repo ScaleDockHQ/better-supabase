@@ -4,15 +4,17 @@
   "title": "better-supabase config",
   "description": "Configuration for better-supabase.config.ts (or .json).",
   "type": "object",
-  "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string"
     },
+    "preset": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
+    },
     "source": {
-      "description": "Where codegen reads the database from. Without any of these, $DATABASE_URL and then the local stack are used.",
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "dbUrl": {
           "type": "string",
@@ -34,28 +36,31 @@
           "type": "boolean",
           "description": "Read a Supabase Lite project's schema from [db] driver in supabase/config.toml. On when that key is present; false reads the database like any other project."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "Where codegen reads the database from. Without any of these, $DATABASE_URL and then the local stack are used."
     },
     "schemas": {
-      "description": "Postgres schemas to generate.",
       "type": "array",
       "items": {
         "type": "string"
       },
+      "description": "Postgres schemas to generate.",
       "default": ["public"]
     },
     "casing": {
-      "$ref": "#/$defs/casing",
+      "enum": ["snake", "camel"],
+      "type": "string",
       "default": "snake"
     },
     "tables": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "casing": {
-            "$ref": "#/$defs/casing"
+            "enum": ["snake", "camel"],
+            "type": "string"
           },
           "exclude": {
             "type": "boolean"
@@ -77,7 +82,8 @@
             },
             "description": "Database names of not-null columns an insert may leave out because the database fills them, for example from a before insert trigger."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "output": {
@@ -90,46 +96,12 @@
       "description": "PostgREST major version written to database.types.ts.",
       "default": "13"
     },
-    "codecs": {
-      "description": "Runtime types for timestamps, int8 and numeric columns.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "timestamptz": {
-          "enum": ["string", "instant"],
-          "default": "string"
-        },
-        "int8": {
-          "enum": ["number", "string", "bigint"],
-          "default": "number"
-        },
-        "numeric": {
-          "enum": ["number", "string"],
-          "default": "number"
-        }
-      }
-    },
-    "relations": {
-      "description": "How generated relations are typed.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "nullableUnderRls": {
-          "type": "boolean",
-          "description": "Type to-one includes of tables with row level security as nullable, since a policy can hide the related row.",
-          "default": false
-        }
-      }
-    },
     "json": {
-      "description": "Types for jsonb columns, keyed by `table.column`.",
       "type": "object",
       "additionalProperties": {
-        "oneOf": [
+        "anyOf": [
           {
             "type": "object",
-            "required": ["import"],
-            "additionalProperties": false,
             "properties": {
               "import": {
                 "type": "string",
@@ -137,14 +109,15 @@
               },
               "schema": {
                 "type": "object",
+                "additionalProperties": {},
                 "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
               }
-            }
+            },
+            "required": ["import"],
+            "additionalProperties": false
           },
           {
             "type": "object",
-            "required": ["type"],
-            "additionalProperties": false,
             "properties": {
               "type": {
                 "type": "string",
@@ -152,97 +125,210 @@
               },
               "schema": {
                 "type": "object",
+                "additionalProperties": {},
                 "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
               }
-            }
+            },
+            "required": ["type"],
+            "additionalProperties": false
           }
         ]
-      }
+      },
+      "description": "Types for jsonb columns, keyed by `table.column`."
+    },
+    "codecs": {
+      "type": "object",
+      "properties": {
+        "timestamptz": {
+          "enum": ["string", "instant"],
+          "type": "string",
+          "default": "string"
+        },
+        "int8": {
+          "enum": ["number", "string", "bigint"],
+          "type": "string",
+          "default": "number"
+        },
+        "numeric": {
+          "enum": ["number", "string"],
+          "type": "string",
+          "default": "number"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Runtime types for timestamps, int8 and numeric columns."
+    },
+    "relations": {
+      "type": "object",
+      "properties": {
+        "nullableUnderRls": {
+          "type": "boolean",
+          "description": "Type to-one includes of tables with row level security as nullable, since a policy can hide the related row.",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "How generated relations are typed."
+    },
+    "sensitive": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Columns guarded by the noSensitiveSelect rule (`table.column` or `schema.table.column`)."
+    },
+    "storagePaths": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Text columns holding a storage object path (`table.column` or `schema.table.column`), mapped to a `buckets` key or bucket id. Typed as `StoragePath<'bucket-id'>`."
+    },
+    "functions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "notNull": {
+            "anyOf": [
+              {
+                "const": true
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "true for the whole result, or the returns table columns that are never null."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Function results gen may type as not null, keyed by function name. Results are nullable by default."
+    },
+    "expose": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/privilege"
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "anon": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/privilege"
+                }
+              },
+              "authenticated": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/privilege"
+                }
+              },
+              "serviceRole": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/privilege"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "execute": {
+                "type": "array",
+                "items": {
+                  "enum": ["anon", "authenticated"],
+                  "type": "string"
+                }
+              },
+              "serviceRole": {
+                "type": "boolean"
+              }
+            },
+            "required": ["execute"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL module and checked by doctor (BS106)."
+    },
+    "readSets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL module."
     },
     "generators": {
-      "description": "Generator plugins. Only available in better-supabase.config.ts.",
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Generator plugins. Only available in better-supabase.config.ts."
     },
     "plugins": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "timestamps": {
-          "oneOf": [
+          "anyOf": [
             {
               "type": "boolean"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "createdAt": {
-                  "type": "string"
-                },
-                "updatedAt": {
-                  "type": "string"
-                }
-              }
+              "additionalProperties": {}
             }
           ]
         },
         "softDelete": {
-          "oneOf": [
+          "anyOf": [
             {
               "type": "boolean"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "column": {
-                  "type": "string"
-                }
-              }
+              "additionalProperties": {}
             }
           ]
         },
         "tenant": {
-          "oneOf": [
+          "anyOf": [
             {
               "type": "boolean"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "column": {
-                  "type": "string"
-                }
-              }
+              "additionalProperties": {}
             }
           ]
         },
         "actor": {
-          "oneOf": [
+          "anyOf": [
             {
               "type": "boolean"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "createdBy": {
-                  "type": "string"
-                },
-                "updatedBy": {
-                  "type": "string"
-                }
-              }
+              "additionalProperties": {}
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "claims": {
-      "description": "Claim names shared by the SQL modules, codegen and runtime defaults.",
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "tenant": {
           "type": "string",
@@ -260,14 +346,14 @@
           "type": "string",
           "description": "Claim the memberships hook writes. Defaults to `memberships`."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "Claim names shared by the SQL modules, codegen and runtime defaults."
     },
     "buckets": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["path"],
-        "additionalProperties": false,
         "properties": {
           "id": {
             "type": "string"
@@ -276,8 +362,7 @@
             "type": "boolean"
           },
           "path": {
-            "description": "Path template, e.g. `{organizationId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",
-            "oneOf": [
+            "anyOf": [
               {
                 "type": "string"
               },
@@ -288,23 +373,20 @@
                 },
                 "minItems": 1
               }
-            ]
+            ],
+            "description": "Path template, e.g. `{organizationId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments."
           },
           "policy": {
-            "oneOf": [
+            "anyOf": [
               {
-                "enum": ["tenant", "owner", "public", "none"]
+                "enum": ["tenant", "owner", "public", "none"],
+                "type": "string"
               },
               {
                 "type": "object",
-                "description": "A policy through the access contract (tenant_ids_with, is_platform), or through `sql` templates such as an authorization provider's.",
-                "required": ["access"],
-                "additionalProperties": false,
                 "properties": {
                   "access": {
                     "type": "object",
-                    "required": ["read", "write"],
-                    "additionalProperties": false,
                     "properties": {
                       "read": {
                         "type": "string"
@@ -318,7 +400,9 @@
                       "delete": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": ["read", "write"],
+                    "additionalProperties": false
                   },
                   "scope": {
                     "type": "string",
@@ -329,15 +413,12 @@
                     "minimum": 1
                   },
                   "sql": {
-                    "description": "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract, or `provider` for `authorization.functions`.",
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "const": "provider"
                       },
                       {
                         "type": "object",
-                        "required": ["idsWith", "isPlatform"],
-                        "additionalProperties": false,
                         "properties": {
                           "idsWith": {
                             "type": "string"
@@ -345,13 +426,19 @@
                           "isPlatform": {
                             "type": "string"
                           }
-                        }
+                        },
+                        "required": ["idsWith", "isPlatform"],
+                        "additionalProperties": false
                       }
-                    ]
+                    ],
+                    "description": "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract, or `provider` for `authorization.functions`."
                   }
-                }
+                },
+                "required": ["access"],
+                "additionalProperties": false
               }
-            ]
+            ],
+            "description": "A generated storage policy (tenant, owner, public or none), or a policy through the access contract (tenant_ids_with, is_platform) or `sql` templates such as an authorization provider's."
           },
           "fileSizeLimit": {
             "type": "string"
@@ -363,34 +450,26 @@
             }
           },
           "versioning": {
-            "description": "Keep earlier object versions. bucket.apply() sets it.",
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Keep earlier object versions. bucket.apply() sets it."
           },
           "lifecycle": {
-            "description": "When noncurrent versions expire. Needs versioning: true.",
             "type": "object",
-            "additionalProperties": false,
-            "required": ["rules"],
             "properties": {
               "rules": {
                 "type": "array",
-                "minItems": 1,
-                "maxItems": 1000,
                 "items": {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": ["noncurrentVersionExpiration"],
                   "properties": {
                     "id": {
                       "type": "string"
                     },
                     "status": {
-                      "enum": ["Enabled", "Disabled"]
+                      "enum": ["Enabled", "Disabled"],
+                      "type": "string"
                     },
                     "noncurrentVersionExpiration": {
                       "type": "object",
-                      "additionalProperties": false,
-                      "required": ["noncurrentDays"],
                       "properties": {
                         "noncurrentDays": {
                           "type": "integer",
@@ -401,130 +480,153 @@
                           "minimum": 1,
                           "maximum": 100
                         }
-                      }
+                      },
+                      "required": ["noncurrentDays"],
+                      "additionalProperties": false
                     }
-                  }
-                }
+                  },
+                  "required": ["noncurrentVersionExpiration"],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 1000
               }
-            }
+            },
+            "required": ["rules"],
+            "additionalProperties": false,
+            "description": "When noncurrent versions expire. Needs versioning: true."
           }
-        }
+        },
+        "required": ["path"],
+        "additionalProperties": false
       }
     },
     "topics": {
-      "description": "Realtime topic templates.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
-      }
+      },
+      "description": "Realtime topic templates."
     },
-    "sensitive": {
-      "description": "Columns guarded by the noSensitiveSelect rule (`table.column` or `schema.table.column`).",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "storagePaths": {
-      "description": "Text columns holding a storage object path (`table.column` or `schema.table.column`), mapped to a `buckets` key or bucket id. Typed as `StoragePath<'bucket-id'>`.",
+    "realtime": {
       "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
-    "functions": {
-      "description": "Function results gen may type as not null, keyed by function name. Results are nullable by default.",
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "notNull": {
-            "description": "true for the whole result, or the returns table columns that are never null.",
-            "oneOf": [
-              {
-                "const": true
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`."
+        },
+        "global": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tables in `tables` without a tenant column, which broadcast on one topic for every signed-in user."
+        },
+        "users": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Tables in `tables` whose rows belong to one user, mapped to the user column. They broadcast on a topic per user that only that user receives."
+        },
+        "policies": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": ["from", "output"],
+          "additionalProperties": false,
+          "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale."
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": {
+                "type": "string",
+                "description": "The template of a topic `policies.from` exports."
               },
-              {
+              "table": {
+                "type": "string",
+                "description": "`table` or `schema.table`."
+              },
+              "values": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "The column per placeholder. Defaults to the placeholder in snake_case."
+              },
+              "events": {
                 "type": "array",
                 "items": {
+                  "enum": ["insert", "update", "delete"],
                   "type": "string"
                 }
-              }
-            ]
-          }
-        }
-      }
-    },
-    "expose": {
-      "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL module and checked by doctor (BS106).",
-      "type": "object",
-      "additionalProperties": {
-        "oneOf": [
-          {
-            "$ref": "#/$defs/privileges"
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "anon": {
-                "$ref": "#/$defs/privileges"
               },
-              "authenticated": {
-                "$ref": "#/$defs/privileges"
+              "event": {
+                "type": "string",
+                "description": "The broadcast event name. Defaults to the operation."
+              },
+              "payload": {
+                "enum": ["keys", "row"],
+                "type": "string",
+                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants."
               }
-            }
-          }
-        ]
-      }
-    },
-    "readSets": {
-      "description": "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL module.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+            },
+            "required": ["topic", "table"],
+            "additionalProperties": false
+          },
+          "description": "Broadcast triggers `sql sync` writes to `policies.output`: each calls better_supabase.broadcast_topic() (the realtime-tables module) for a topic `policies.from` exports."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Live query change broadcasts."
     },
     "entitlements": {
-      "description": "Where the `entitlements` SQL module finds each tenant's entitlements: a Stripe customer, a plan catalog or your own function.",
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "customer": {
-          "description": "`table.column` or `schema.table.column` holding the Stripe customer id.",
           "type": "string",
+          "description": "`table.column` or `schema.table.column` holding the Stripe customer id.",
           "default": "organizations.stripe_customer_id"
         },
         "key": {
-          "description": "The tenant id column of that table.",
           "type": "string",
+          "description": "The tenant id column of that table.",
           "default": "id"
         },
         "memberships": {
-          "description": "Where has_entitlement and feature_claims read memberships: \"provider\" (the authorization provider's memberIds functions) or \"tenant\" (better_supabase.memberships). Defaults to \"provider\" when `authorization` is set.",
-          "enum": ["tenant", "provider"]
+          "enum": ["tenant", "provider"],
+          "type": "string",
+          "description": "Where has_entitlement and feature_claims read memberships: \"provider\" (the authorization provider's memberIds functions) or \"tenant\" (better_supabase.memberships). Defaults to \"provider\" when `authorization` is set."
         },
         "source": {
-          "description": "Where each tenant's entitlements come from: \"stripe-sync\" (the Stripe Sync Engine, the default), \"custom\" (your own better_supabase.tenant_entitlements), or a plan catalog in your tables.",
-          "oneOf": [
+          "anyOf": [
             {
-              "enum": ["stripe-sync", "custom"]
+              "enum": ["stripe-sync", "custom"],
+              "type": "string"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "required": ["plans"],
               "properties": {
                 "plans": {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": ["subscriptions", "features"],
                   "properties": {
                     "subscriptions": {
                       "type": "object",
-                      "additionalProperties": false,
-                      "required": ["table", "tenant", "plan"],
                       "properties": {
                         "table": {
                           "type": "string"
@@ -544,12 +646,12 @@
                             "type": "string"
                           }
                         }
-                      }
+                      },
+                      "required": ["table", "tenant", "plan"],
+                      "additionalProperties": false
                     },
                     "features": {
                       "type": "object",
-                      "additionalProperties": false,
-                      "required": ["table", "plan", "feature"],
                       "properties": {
                         "table": {
                           "type": "string"
@@ -566,27 +668,31 @@
                         "value": {
                           "type": "string"
                         }
-                      }
+                      },
+                      "required": ["table", "plan", "feature"],
+                      "additionalProperties": false
                     }
-                  }
+                  },
+                  "required": ["subscriptions", "features"],
+                  "additionalProperties": false
                 }
-              }
+              },
+              "required": ["plans"],
+              "additionalProperties": false
             }
-          ]
+          ],
+          "description": "Where each tenant's entitlements come from: \"stripe-sync\" (the Stripe Sync Engine, the default), \"custom\" (your own better_supabase.tenant_entitlements), or a plan catalog in your tables."
         },
         "claim": {
-          "description": "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys).",
-          "oneOf": [
+          "anyOf": [
             {
               "const": false
             },
             {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
                 "maxTenants": {
-                  "type": "integer",
-                  "minimum": 1
+                  "type": "number"
                 },
                 "keys": {
                   "type": "object",
@@ -594,17 +700,18 @@
                     "type": "string"
                   }
                 }
-              }
+              },
+              "additionalProperties": false
             }
-          ]
+          ],
+          "description": "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys)."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "Where the `entitlements` SQL module finds each tenant's entitlements: a Stripe customer, a plan catalog or your own function."
     },
     "authorization": {
-      "description": "An authorization provider (apiVersion 1) the SQL modules, policies and doctor delegate to.",
       "type": "object",
-      "additionalProperties": false,
-      "required": ["apiVersion", "name", "scopes", "tenantScope", "functions"],
       "properties": {
         "apiVersion": {
           "const": 1
@@ -616,8 +723,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["name"],
             "properties": {
               "name": {
                 "type": "string",
@@ -625,12 +730,15 @@
               },
               "idType": {
                 "enum": ["uuid", "text", "bigint", "integer"],
+                "type": "string",
                 "description": "Required on the tenant scope."
               },
               "parent": {
                 "type": "string"
               }
-            }
+            },
+            "required": ["name"],
+            "additionalProperties": false
           }
         },
         "tenantScope": {
@@ -639,9 +747,6 @@
         },
         "functions": {
           "type": "object",
-          "additionalProperties": false,
-          "required": ["idsWith", "isPlatform"],
-          "description": "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}.",
           "properties": {
             "idsWith": {
               "type": "string"
@@ -674,15 +779,28 @@
             "canApprove": {
               "type": "string",
               "description": "Whether the caller may decide the tool call {tool} waits on in {tenant}."
+            },
+            "isApprover": {
+              "type": "string"
+            },
+            "holdersOf": {
+              "type": "string"
+            },
+            "actorMayWrite": {
+              "type": "string"
+            },
+            "permitted": {
+              "type": "string"
             }
-          }
+          },
+          "required": ["idsWith", "isPlatform"],
+          "additionalProperties": false,
+          "description": "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}."
         },
         "requires": {
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["function", "role"],
             "properties": {
               "function": {
                 "type": "string"
@@ -693,15 +811,15 @@
               "role": {
                 "type": "string"
               }
-            }
+            },
+            "required": ["function", "role"],
+            "additionalProperties": false
           }
         },
         "permissions": {
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["key"],
             "properties": {
               "key": {
                 "type": "string"
@@ -715,15 +833,49 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "required": ["key"],
+            "additionalProperties": false
+          }
+        },
+        "operations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "permission": {
+                "type": "string",
+                "minLength": 1
+              },
+              "meta": {
+                "type": "object",
+                "properties": {
+                  "risk": {
+                    "enum": ["low", "medium", "high"],
+                    "type": "string"
+                  },
+                  "effects": {
+                    "type": "array",
+                    "items": {
+                      "enum": ["read", "write", "delete", "external"],
+                      "type": "string"
+                    }
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["permission"],
+            "additionalProperties": false
           }
         },
         "memberships": {
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["table", "userColumn", "scope", "idColumn"],
             "properties": {
               "table": {
                 "type": "string"
@@ -731,44 +883,43 @@
               "userColumn": {
                 "type": "string"
               },
-              "idColumn": {
-                "type": "string"
-              },
               "scope": {
-                "oneOf": [
+                "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "required": ["column"],
                     "properties": {
                       "column": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": ["column"],
+                    "additionalProperties": false
                   },
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "required": ["value"],
                     "properties": {
                       "value": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": ["value"],
+                    "additionalProperties": false
                   }
                 ]
+              },
+              "idColumn": {
+                "type": "string"
               }
-            }
+            },
+            "required": ["table", "userColumn", "scope", "idColumn"],
+            "additionalProperties": false
           }
         },
         "suspension": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "user": {
               "type": "object",
-              "additionalProperties": false,
-              "required": ["table", "id"],
               "properties": {
                 "table": {
                   "type": "string"
@@ -788,12 +939,12 @@
                     "type": "string"
                   }
                 }
-              }
+              },
+              "required": ["table", "id"],
+              "additionalProperties": false
             },
             "tenant": {
               "type": "object",
-              "additionalProperties": false,
-              "required": ["table", "id"],
               "properties": {
                 "table": {
                   "type": "string"
@@ -813,32 +964,29 @@
                     "type": "string"
                   }
                 }
-              }
+              },
+              "required": ["table", "id"],
+              "additionalProperties": false
             }
-          }
+          },
+          "additionalProperties": false
         },
         "roleSources": {
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["table", "role"],
             "properties": {
               "table": {
                 "type": "string"
               },
               "role": {
                 "type": "object",
-                "additionalProperties": false,
-                "required": ["column", "through"],
                 "properties": {
                   "column": {
                     "type": "string"
                   },
                   "through": {
                     "type": "object",
-                    "additionalProperties": false,
-                    "required": ["table", "id", "column"],
                     "properties": {
                       "table": {
                         "type": "string"
@@ -849,25 +997,29 @@
                       "column": {
                         "type": "string"
                       }
-                    }
+                    },
+                    "required": ["table", "id", "column"],
+                    "additionalProperties": false
                   }
-                }
+                },
+                "required": ["column", "through"],
+                "additionalProperties": false
               }
-            }
+            },
+            "required": ["table", "role"],
+            "additionalProperties": false
           }
         },
         "decidingColumns": {
           "type": "array",
           "items": {
             "type": "string",
-            "description": "`schema.table.column`.",
-            "pattern": "^[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*$"
+            "pattern": "^[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*$",
+            "description": "`schema.table.column`."
           }
         },
         "tokenHook": {
           "type": "object",
-          "additionalProperties": false,
-          "required": ["function", "ownedClaims"],
           "properties": {
             "function": {
               "type": "string"
@@ -877,17 +1029,15 @@
             },
             "ownedClaims": {
               "type": "array",
-              "minItems": 1,
               "items": {
                 "type": "string"
-              }
+              },
+              "minItems": 1
             },
             "registeredClaims": {
               "type": "array",
               "items": {
                 "type": "object",
-                "additionalProperties": false,
-                "required": ["name", "function"],
                 "properties": {
                   "name": {
                     "type": "string"
@@ -895,13 +1045,13 @@
                   "function": {
                     "type": "string"
                   }
-                }
+                },
+                "required": ["name", "function"],
+                "additionalProperties": false
               }
             },
             "budget": {
               "type": "object",
-              "additionalProperties": false,
-              "required": ["claims", "bytes"],
               "properties": {
                 "claims": {
                   "type": "array",
@@ -916,11 +1066,12 @@
                 "truncatedClaim": {
                   "type": "string"
                 }
-              }
+              },
+              "required": ["claims", "bytes"],
+              "additionalProperties": false
             },
             "markers": {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
                 "hook": {
                   "type": "string"
@@ -928,38 +1079,41 @@
                 "grants": {
                   "type": "string"
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "grantsCommand": {
               "type": "string"
             }
-          }
+          },
+          "required": ["function", "ownedClaims"],
+          "additionalProperties": false
         },
         "delegation": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "scopes": {
               "type": "object",
-              "description": "OAuth scope to the permission keys it grants a delegated token.",
               "additionalProperties": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
-              }
+              },
+              "description": "OAuth scope to the permission keys it grants a delegated token."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "approvals": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "distinctApprover": {
               "type": "boolean",
               "description": "The user who asked for a tool call can't approve it. Default false."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "problems": {
           "type": "array",
@@ -967,43 +1121,41 @@
             "type": "string"
           }
         }
-      }
+      },
+      "required": ["apiVersion", "name", "scopes", "tenantScope", "functions"],
+      "additionalProperties": false,
+      "description": "An authorization provider (apiVersion 1) the SQL modules, policies and doctor delegate to."
     },
     "vectorSearch": {
-      "description": "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each.",
       "type": "object",
       "additionalProperties": {
-        "oneOf": [
+        "anyOf": [
           {
-            "type": "string",
-            "description": "The embedding column."
+            "type": "string"
           },
           {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["column"],
             "properties": {
               "column": {
                 "type": "string"
               },
               "distance": {
                 "enum": ["cosine", "l2", "inner_product"],
+                "type": "string",
                 "default": "cosine"
               },
               "type": {
                 "enum": ["vector", "halfvec"],
+                "type": "string",
                 "default": "vector"
               },
               "key": {
                 "type": "string",
-                "default": "id",
-                "description": "The primary key column db.$search({ score: true }) merges by."
+                "description": "The primary key column db.$search({ score: true }) merges by.",
+                "default": "id"
               },
               "hybrid": {
                 "type": "object",
-                "additionalProperties": false,
-                "required": ["tsvector"],
-                "description": "Fuses a full-text ranking over a tsvector column with the vector ranking (reciprocal rank fusion).",
                 "properties": {
                   "tsvector": {
                     "type": "string"
@@ -1013,11 +1165,13 @@
                     "default": "simple"
                   },
                   "k": {
-                    "type": "integer",
-                    "minimum": 1,
+                    "type": "number",
                     "default": 60
                   }
-                }
+                },
+                "required": ["tsvector"],
+                "additionalProperties": false,
+                "description": "Fuses a full-text ranking over a tsvector column with the vector ranking (reciprocal rank fusion)."
               },
               "boost": {
                 "type": "string",
@@ -1036,27 +1190,30 @@
               },
               "boostMode": {
                 "enum": ["multiply", "add"],
+                "type": "string",
                 "description": "How boost combines with the score. Defaults to multiply."
               },
               "order": {
                 "type": "string",
                 "description": "A SQL order by list over the row t that breaks score ties."
               }
-            }
+            },
+            "required": ["column"],
+            "additionalProperties": false
           }
-        ]
-      }
+        ],
+        "description": "The embedding column, or the column and its search options."
+      },
+      "description": "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each."
     },
     "subjects": {
-      "description": "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it.",
       "type": "object",
       "propertyNames": {
+        "type": "string",
         "pattern": "^[a-z][a-z0-9_]{0,62}$"
       },
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": false,
-        "required": ["table"],
         "properties": {
           "table": {
             "type": "string",
@@ -1071,7 +1228,7 @@
             "description": "The id column's type, such as `uuid` or `bigint`."
           },
           "tenant": {
-            "oneOf": [
+            "anyOf": [
               {
                 "type": "string"
               },
@@ -1079,8 +1236,7 @@
                 "const": false
               }
             ],
-            "default": "organization_id",
-            "description": "The tenant column, or `false` for a subject without a tenant."
+            "description": "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant is renamed."
           },
           "title": {
             "type": "string",
@@ -1111,7 +1267,6 @@
           },
           "search": {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "title": {
                 "type": "string"
@@ -1122,13 +1277,11 @@
                   "type": "string"
                 }
               }
-            }
+            },
+            "additionalProperties": false
           },
           "rank": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["column"],
-            "description": "The rank key column and the column it is grouped by, for `move()`.",
             "properties": {
               "column": {
                 "type": "string"
@@ -1136,100 +1289,303 @@
               "group": {
                 "type": "string"
               }
-            }
+            },
+            "required": ["column"],
+            "additionalProperties": false,
+            "description": "The rank key column and the column it is grouped by, for `move()`."
           }
-        }
-      }
+        },
+        "required": ["table"],
+        "additionalProperties": false
+      },
+      "description": "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it."
     },
-    "realtime": {
-      "description": "Live query change broadcasts.",
+    "appTables": {
       "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "tables": {
-          "description": "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "global": {
-          "description": "Tables in `tables` without a tenant column, which broadcast on one topic for every signed-in user.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "users": {
-          "description": "Tables in `tables` whose rows belong to one user, mapped to the user column. They broadcast on a topic per user that only that user receives.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "policies": {
-          "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["from", "output"],
-          "properties": {
-            "from": {
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "enum": [
+                    "text",
+                    "uuid",
+                    "integer",
+                    "bigint",
+                    "numeric",
+                    "boolean",
+                    "timestamptz",
+                    "date",
+                    "jsonb",
+                    "text[]"
+                  ],
+                  "type": "string"
+                },
+                "nullable": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "default": {
+                  "type": "string",
+                  "description": "now(), gen_random_uuid(), auth.uid(), true, false, a number, a 'quoted' literal, '{}' or '[]'."
+                },
+                "unique": {
+                  "type": "boolean"
+                },
+                "references": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "type": "string"
+                        },
+                        "onDelete": {
+                          "enum": [
+                            "cascade",
+                            "restrict",
+                            "set null",
+                            "no action"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": ["table"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "block": {
+                          "type": "string"
+                        },
+                        "table": {
+                          "type": "string"
+                        },
+                        "onDelete": {
+                          "enum": [
+                            "cascade",
+                            "restrict",
+                            "set null",
+                            "no action"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": ["block", "table"],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "Another app table, auth.users, or a logical table of an installed block ({ block, table })."
+                },
+                "format": {
+                  "enum": [
+                    "email",
+                    "url",
+                    "phone",
+                    "long_text",
+                    "color",
+                    "rating",
+                    "percent",
+                    "currency"
+                  ],
+                  "type": "string",
+                  "description": "What the column holds. email, url, rating and percent add a check; phone, long_text, color and currency are hints for the UI and gen. ADR 0042."
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The values of a text column (single select) or of each element of a text[] column (multi-select), checked by the database."
+                },
+                "min": {
+                  "type": "number",
+                  "description": "The smallest value of a number column, or the shortest text."
+                },
+                "max": {
+                  "type": "number",
+                  "description": "The largest value of a number column, or the longest text."
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "identity": {
+                  "type": "boolean",
+                  "description": "An integer or bigint the database numbers (generated by default as identity)."
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            "description": "The table's own columns, keyed by lower snake name. id, created_at, updated_at, user_id and the tenant column are reserved."
+          },
+          "scope": {
+            "enum": ["inherit", "user", "none"],
+            "type": "string",
+            "description": "inherit follows sql.scope; user keeps rows per user; none lets signed-in users read and only the service role write.",
+            "default": "inherit"
+          },
+          "timestamps": {
+            "type": "boolean",
+            "default": true
+          },
+          "id": {
+            "enum": ["uuid", "bigint"],
+            "type": "string",
+            "description": "The id's type. A reference to the table needs a column of the same type.",
+            "default": "uuid"
+          },
+          "unique": {
+            "type": "array",
+            "items": {
               "type": "array",
               "items": {
                 "type": "string"
               }
             },
-            "output": {
-              "type": "string"
-            }
-          }
-        },
-        "triggers": {
-          "description": "Broadcast triggers `sql sync` writes to `policies.output`: each calls better_supabase.broadcast_topic() (the realtime-tables module) for a topic `policies.from` exports.",
-          "type": "array",
-          "items": {
+            "description": "Sets of columns that are unique together."
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Sets of columns to index, in order."
+          },
+          "comment": {
+            "type": "string"
+          },
+          "subject": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["topic", "table"],
             "properties": {
-              "topic": {
-                "description": "The template of a topic `policies.from` exports.",
+              "type": {
                 "type": "string"
               },
-              "table": {
-                "description": "`table` or `schema.table`.",
+              "title": {
                 "type": "string"
               },
-              "values": {
-                "description": "The column per placeholder. Defaults to the placeholder in snake_case.",
+              "url": {
+                "type": "string"
+              },
+              "search": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "permissions": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
                 }
               },
-              "events": {
-                "type": "array",
-                "items": {
-                  "enum": ["insert", "update", "delete"]
+              "rank": {
+                "anyOf": [
+                  {
+                    "const": true
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "group": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Adds a rank text column for move(), ordered within group when set."
+              },
+              "softDelete": {
+                "type": "boolean",
+                "description": "Adds a deleted_at column that blocks treat as the soft-delete time."
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false,
+            "description": "Registers the table as a subject, so comments, attachments, tags, versions, search and other blocks reach its rows (ADR 0043)."
+          },
+          "rollups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string",
+                  "description": "The app table to aggregate."
+                },
+                "via": {
+                  "type": "string",
+                  "description": "The column of that table that references this one."
+                },
+                "aggregate": {
+                  "enum": ["count", "sum", "min", "max", "avg"],
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string",
+                  "description": "The column to aggregate; count takes none."
+                },
+                "where": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "equals": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["column", "equals"],
+                  "additionalProperties": false,
+                  "description": "Counts only the rows whose select column equals one option."
                 }
               },
-              "event": {
-                "description": "The broadcast event name. Defaults to the operation.",
-                "type": "string"
+              "required": ["table", "via", "aggregate"],
+              "additionalProperties": false
+            },
+            "description": "Columns of public.<table>_view that aggregate a child table through its reference to this table (ADR 0044)."
+          },
+          "lookups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "via": {
+                  "type": "string",
+                  "description": "The column of this table that references another app table."
+                },
+                "column": {
+                  "type": "string",
+                  "description": "The column of the referenced row to read."
+                }
               },
-              "payload": {
-                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants.",
-                "enum": ["keys", "row"]
-              }
-            }
+              "required": ["via", "column"],
+              "additionalProperties": false
+            },
+            "description": "Columns of public.<table>_view read from the row a reference points at (ADR 0044)."
           }
-        }
-      }
-    },
-    "preset": {
-      "description": "A named preset (minimal, saas, crm, projects, commerce, scheduling, ai, everything), a code from bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win.",
-      "type": "string",
-      "minLength": 1
+        },
+        "additionalProperties": false
+      },
+      "description": "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040."
     },
     "blocks": {
       "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
@@ -1693,303 +2049,13 @@
         }
       ]
     },
-    "appTables": {
-      "description": "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040.",
-      "type": "object",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]{0,62}$"
-      },
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "columns": {
-            "type": "object",
-            "description": "The table's own columns, keyed by lower snake name. id, created_at, updated_at, user_id and the tenant column are reserved.",
-            "propertyNames": {
-              "pattern": "^[a-z][a-z0-9_]{0,62}$"
-            },
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["type"],
-              "properties": {
-                "type": {
-                  "enum": [
-                    "text",
-                    "uuid",
-                    "integer",
-                    "bigint",
-                    "numeric",
-                    "boolean",
-                    "timestamptz",
-                    "date",
-                    "jsonb",
-                    "text[]"
-                  ]
-                },
-                "nullable": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "default": {
-                  "type": "string",
-                  "description": "now(), gen_random_uuid(), auth.uid(), true, false, a number, a 'quoted' literal, '{}' or '[]'."
-                },
-                "unique": {
-                  "type": "boolean"
-                },
-                "references": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["table"],
-                  "description": "Another app table, auth.users, or a logical table of an installed block ({ block, table }).",
-                  "properties": {
-                    "table": {
-                      "type": "string"
-                    },
-                    "block": {
-                      "type": "string"
-                    },
-                    "onDelete": {
-                      "enum": ["cascade", "restrict", "set null", "no action"]
-                    }
-                  }
-                },
-                "format": {
-                  "enum": [
-                    "email",
-                    "url",
-                    "phone",
-                    "long_text",
-                    "color",
-                    "rating",
-                    "percent",
-                    "currency"
-                  ],
-                  "description": "What the column holds. email, url, rating and percent add a check; phone, long_text, color and currency are hints for the UI and gen. ADR 0042."
-                },
-                "options": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "minItems": 1,
-                  "maxItems": 100,
-                  "uniqueItems": true,
-                  "description": "The values of a text column (single select) or of each element of a text[] column (multi-select), checked by the database."
-                },
-                "min": {
-                  "type": "number",
-                  "description": "The smallest value of a number column, or the shortest text."
-                },
-                "max": {
-                  "type": "number",
-                  "description": "The largest value of a number column, or the longest text."
-                },
-                "comment": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 1000
-                },
-                "identity": {
-                  "type": "boolean",
-                  "description": "An integer or bigint the database numbers (generated by default as identity)."
-                }
-              }
-            }
-          },
-          "scope": {
-            "enum": ["inherit", "user", "none"],
-            "default": "inherit",
-            "description": "inherit follows sql.scope; user keeps rows per user; none lets signed-in users read and only the service role write."
-          },
-          "timestamps": {
-            "type": "boolean",
-            "default": true
-          },
-          "id": {
-            "enum": ["uuid", "bigint"],
-            "default": "uuid",
-            "description": "The id's type. A reference to the table needs a column of the same type."
-          },
-          "unique": {
-            "type": "array",
-            "maxItems": 20,
-            "description": "Sets of columns that are unique together.",
-            "items": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 32,
-              "uniqueItems": true,
-              "items": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9_]{0,62}$"
-              }
-            }
-          },
-          "indexes": {
-            "type": "array",
-            "maxItems": 20,
-            "description": "Sets of columns to index, in order.",
-            "items": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 32,
-              "uniqueItems": true,
-              "items": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9_]{0,62}$"
-              }
-            }
-          },
-          "comment": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000
-          },
-          "subject": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["type"],
-            "description": "Registers the table as a subject, so comments, attachments, tags, versions, search and other blocks reach its rows (ADR 0043).",
-            "properties": {
-              "type": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9_]{0,62}$"
-              },
-              "title": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9_]{0,62}$"
-              },
-              "url": {
-                "type": "string",
-                "pattern": "^/"
-              },
-              "search": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "title": {
-                    "type": "string"
-                  },
-                  "body": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                }
-              },
-              "permissions": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "rank": {
-                "description": "Adds a rank text column for move(), ordered within group when set.",
-                "oneOf": [
-                  {
-                    "const": true
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "group": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                ]
-              },
-              "softDelete": {
-                "type": "boolean",
-                "description": "Adds a deleted_at column that blocks treat as the soft-delete time."
-              }
-            }
-          },
-          "rollups": {
-            "type": "object",
-            "description": "Columns of public.<table>_view that aggregate a child table through its reference to this table (ADR 0044).",
-            "propertyNames": {
-              "pattern": "^[a-z][a-z0-9_]{0,62}$"
-            },
-            "maxProperties": 50,
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["table", "via", "aggregate"],
-              "properties": {
-                "table": {
-                  "type": "string",
-                  "description": "The app table to aggregate."
-                },
-                "via": {
-                  "type": "string",
-                  "description": "The column of that table that references this one."
-                },
-                "aggregate": {
-                  "enum": ["count", "sum", "min", "max", "avg"]
-                },
-                "column": {
-                  "type": "string",
-                  "description": "The column to aggregate; count takes none."
-                },
-                "where": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["column", "equals"],
-                  "description": "Counts only the rows whose select column equals one option.",
-                  "properties": {
-                    "column": {
-                      "type": "string"
-                    },
-                    "equals": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "lookups": {
-            "type": "object",
-            "description": "Columns of public.<table>_view read from the row a reference points at (ADR 0044).",
-            "propertyNames": {
-              "pattern": "^[a-z][a-z0-9_]{0,62}$"
-            },
-            "maxProperties": 50,
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["via", "column"],
-              "properties": {
-                "via": {
-                  "type": "string",
-                  "description": "The column of this table that references another app table."
-                },
-                "column": {
-                  "type": "string",
-                  "description": "The column of the referenced row to read."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "sql": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "workflow": {
-          "description": "How the SQL modules reach the database: pg-delta (Declarative Schemas 2.0), migra (declarative schemas 1.0) or migrations (written straight into a migration). Unset, supabase/config.toml decides, and pg-delta is the default.",
-          "enum": ["pg-delta", "migra", "migrations"]
+          "enum": ["pg-delta", "migra", "migrations"],
+          "type": "string",
+          "description": "How the SQL modules reach the database: pg-delta (Declarative Schemas 2.0), migra (declarative schemas 1.0) or migrations (written straight into a migration). Unset, supabase/config.toml decides, and pg-delta is the default."
         },
         "dir": {
           "type": "string",
@@ -2004,37 +2070,38 @@
           "default": "supabase/tests"
         },
         "schema": {
-          "description": "The schema of every block's functions and managed tables, unless the block sets its own.",
           "type": "string",
+          "description": "The schema of every block's functions and managed tables, unless the block sets its own.",
           "default": "better_supabase"
         },
         "api": {
-          "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false.",
-          "type": "string"
+          "type": "string",
+          "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false."
         },
         "scope": {
-          "description": "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
           "enum": ["tenant", "user", "none"],
+          "type": "string",
+          "description": "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
           "default": "tenant"
         },
         "naming": {
-          "description": "Names for the tenant concept in SQL.",
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "tenant": {
-              "description": "The tenant concept's singular name in table, function and column names, such as workspace or team.",
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "description": "The tenant concept's singular name in table, function and column names, such as workspace or team.",
               "default": "organization"
             }
-          }
+          },
+          "additionalProperties": false,
+          "description": "Names for the tenant concept in SQL."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "seed": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "entry": {
           "type": "string",
@@ -2044,13 +2111,11 @@
           "type": "string",
           "default": "supabase/seeds/000_better_supabase.sql"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "openapi": {
       "type": "object",
-      "deprecated": true,
-      "description": "Deprecated: use specs. openapi.entry and openapi.output map onto it.",
-      "additionalProperties": false,
       "properties": {
         "entry": {
           "type": "string",
@@ -2060,12 +2125,12 @@
           "type": "string",
           "default": "openapi.json"
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "Deprecated: use specs. openapi.entry and openapi.output map onto it."
     },
     "specs": {
       "type": "object",
-      "description": "The documents better-supabase spec emit writes (OpenAPI, AsyncAPI, Arazzo).",
-      "additionalProperties": false,
       "properties": {
         "entry": {
           "type": "string",
@@ -2076,8 +2141,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
-            "required": ["format"],
             "properties": {
               "format": {
                 "type": "string",
@@ -2101,52 +2164,57 @@
               },
               "serialize": {
                 "enum": ["json", "yaml"],
+                "type": "string",
                 "description": "Defaults to yaml when output ends in .yaml or .yml, otherwise json."
               },
               "ui": {
                 "enum": ["scalar", "swagger", "redoc", "elements", "rapidoc"],
+                "type": "string",
                 "description": "Also writes a reference page (openapi.html for openapi.json) next to OpenAPI outputs."
               }
-            }
+            },
+            "required": ["format"],
+            "additionalProperties": false
           }
         },
         "failOn": {
           "enum": ["error", "warning", "never"],
-          "default": "error",
-          "description": "The lowest severity that fails spec emit, check and validate."
+          "type": "string",
+          "description": "The lowest severity that fails spec emit, check and validate.",
+          "default": "error"
         },
         "manifest": {
           "type": "string",
           "description": "Also write the diagnostics manifest (JSON) to this file, like spec --manifest."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "The documents better-supabase spec emit writes (OpenAPI, AsyncAPI, Arazzo)."
     },
     "doctor": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "ignore": {
           "type": "array",
           "items": {
-            "type": "string",
-            "pattern": "^BS\\d{3}$"
+            "type": "string"
           }
         },
         "only": {
           "type": "array",
-          "description": "Run only these checks.",
           "items": {
-            "type": "string",
-            "pattern": "^BS\\d{3}$"
-          }
+            "type": "string"
+          },
+          "description": "Run only these checks."
         },
         "strict": {
           "type": "boolean"
         },
         "format": {
           "enum": ["text", "sarif", "github"],
-          "default": "text",
-          "description": "Report format. The global --json flag still picks the JSON report."
+          "type": "string",
+          "description": "Report format. The global --json flag still picks the JSON report.",
+          "default": "text"
         },
         "output": {
           "type": "string",
@@ -2159,38 +2227,36 @@
           }
         },
         "policyHelperLimit": {
-          "type": "integer",
-          "minimum": 1
+          "type": "number"
         },
         "claimsLimit": {
-          "type": "integer",
-          "minimum": 1
+          "type": "number"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "gen": {
       "type": "object",
-      "description": "What better-supabase gen runs.",
-      "additionalProperties": false,
       "properties": {
         "tasks": {
           "type": "array",
-          "description": "The steps gen runs, in order. Without a list: types, plus sql, spec, seed and scaffold when the project uses them. env runs only when listed.",
           "items": {
-            "enum": ["types", "sql", "spec", "seed", "scaffold", "env"]
-          }
+            "enum": ["types", "sql", "spec", "seed", "scaffold", "env"],
+            "type": "string"
+          },
+          "description": "The steps gen runs, in order. Without a list: types, plus sql, spec, seed and scaffold when the project uses them. env runs only when listed."
         },
         "watchInterval": {
           "type": "number",
-          "exclusiveMinimum": 0,
+          "minimum": 1,
           "description": "Milliseconds between checks in gen --watch and spec emit --watch."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "What better-supabase gen runs."
     },
     "env": {
       "type": "object",
-      "description": "The env file better-supabase env writes.",
-      "additionalProperties": false,
       "properties": {
         "output": {
           "type": "string",
@@ -2200,19 +2266,19 @@
           "type": "string",
           "description": "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default."
         }
-      }
+      },
+      "additionalProperties": false,
+      "description": "The env file better-supabase env writes."
     },
     "scaffold": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "api": {
           "type": "object",
-          "description": "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current.",
-          "additionalProperties": false,
           "properties": {
             "framework": {
-              "enum": ["hono", "next"]
+              "enum": ["hono", "next"],
+              "type": "string"
             },
             "tables": {
               "type": "array",
@@ -2228,13 +2294,15 @@
               "type": "string",
               "default": "/api"
             }
-          }
+          },
+          "additionalProperties": false,
+          "description": "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "integrations": {
       "type": "array",
-      "description": "The integrations init and add wrote.",
       "items": {
         "enum": [
           "next",
@@ -2245,38 +2313,41 @@
           "mcp",
           "client",
           "react"
-        ]
-      }
+        ],
+        "type": "string"
+      },
+      "description": "The integrations init and add wrote."
     },
     "skills": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "agents": {
           "type": "array",
-          "description": "Agent folders skills install writes to. Defaults to the ones the project has, else agents.",
           "items": {
-            "enum": ["cursor", "claude", "agents"]
-          }
+            "enum": ["cursor", "claude", "agents"],
+            "type": "string"
+          },
+          "description": "Agent folders skills install writes to. Defaults to the ones the project has, else agents."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "keys": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "output": {
           "type": "string",
           "description": "Signing key file better-supabase keys writes. Defaults to supabase/signing_keys.json."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "$env": {
       "type": "object",
-      "description": "Overrides per environment, keyed by name. Picked by --env, $BETTER_SUPABASE_ENV, or ci when $CI is set.",
       "additionalProperties": {
         "$ref": "#/$defs/environment"
-      }
+      },
+      "description": "Overrides per environment, keyed by name. Picked by --env, $BETTER_SUPABASE_ENV, or ci when $CI is set."
     },
     "$development": {
       "$ref": "#/$defs/environment"
@@ -2291,10 +2362,10 @@
       "$ref": "#/$defs/environment"
     }
   },
+  "additionalProperties": false,
   "$defs": {
     "environment": {
       "type": "object",
-      "description": "Keys an environment block overrides. Objects merge into the config; arrays and other values replace.",
       "additionalProperties": false,
       "properties": {
         "source": {
@@ -2315,29 +2386,14 @@
         "postgrestVersion": {
           "$ref": "#/properties/postgrestVersion"
         },
+        "json": {
+          "$ref": "#/properties/json"
+        },
         "codecs": {
           "$ref": "#/properties/codecs"
         },
         "relations": {
           "$ref": "#/properties/relations"
-        },
-        "json": {
-          "$ref": "#/properties/json"
-        },
-        "generators": {
-          "$ref": "#/properties/generators"
-        },
-        "plugins": {
-          "$ref": "#/properties/plugins"
-        },
-        "claims": {
-          "$ref": "#/properties/claims"
-        },
-        "buckets": {
-          "$ref": "#/properties/buckets"
-        },
-        "topics": {
-          "$ref": "#/properties/topics"
         },
         "sensitive": {
           "$ref": "#/properties/sensitive"
@@ -2354,6 +2410,24 @@
         "readSets": {
           "$ref": "#/properties/readSets"
         },
+        "generators": {
+          "$ref": "#/properties/generators"
+        },
+        "plugins": {
+          "$ref": "#/properties/plugins"
+        },
+        "claims": {
+          "$ref": "#/properties/claims"
+        },
+        "buckets": {
+          "$ref": "#/properties/buckets"
+        },
+        "topics": {
+          "$ref": "#/properties/topics"
+        },
+        "realtime": {
+          "$ref": "#/properties/realtime"
+        },
         "entitlements": {
           "$ref": "#/properties/entitlements"
         },
@@ -2366,8 +2440,11 @@
         "subjects": {
           "$ref": "#/properties/subjects"
         },
-        "realtime": {
-          "$ref": "#/properties/realtime"
+        "appTables": {
+          "$ref": "#/properties/appTables"
+        },
+        "blocks": {
+          "$ref": "#/properties/blocks"
         },
         "sql": {
           "$ref": "#/properties/sql"
@@ -2402,150 +2479,176 @@
         "keys": {
           "$ref": "#/properties/keys"
         }
-      }
-    },
-    "stringRecord": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
-    "moduleConfigProperties": {
-      "mode": {
-        "enum": ["managed", "adopt", "custom"],
-        "default": "managed"
       },
-      "schema": {
-        "type": "string",
-        "default": "better_supabase"
-      },
-      "tables": {
-        "type": "object",
-        "additionalProperties": {
-          "type": ["string", "null"]
-        }
-      },
-      "columns": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "object",
-          "additionalProperties": {
-            "type": ["string", "null"]
-          }
-        }
-      },
-      "idType": {
-        "type": "string"
-      },
-      "scope": {
-        "description": "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant.",
-        "enum": ["tenant", "user", "none"]
-      },
-      "functions": {
-        "description": "Function name to the name the block writes it under, such as create_organization to start_company.",
-        "$ref": "#/$defs/stringRecord"
-      },
-      "triggerPrefix": {
-        "type": "string",
-        "default": "bs_"
-      },
-      "permissions": {
-        "$ref": "#/$defs/stringRecord"
-      },
-      "options": {
-        "type": "object"
-      },
-      "api": {
-        "oneOf": [
-          {
-            "type": "string"
-          },
-          {
-            "const": false
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["schema"],
-            "properties": {
-              "schema": {
-                "type": "string"
-              },
-              "functions": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        ]
-      }
+      "description": "Keys an environment block overrides. Objects merge into the config; arrays and other values replace."
     },
     "moduleConfig": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
         "mode": {
-          "$ref": "#/$defs/moduleConfigProperties/mode"
+          "enum": ["managed", "adopt", "custom"],
+          "type": "string",
+          "default": "managed"
         },
         "schema": {
-          "$ref": "#/$defs/moduleConfigProperties/schema"
+          "type": "string",
+          "default": "better_supabase"
         },
         "tables": {
-          "$ref": "#/$defs/moduleConfigProperties/tables"
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
         },
         "columns": {
-          "$ref": "#/$defs/moduleConfigProperties/columns"
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
         },
         "idType": {
-          "$ref": "#/$defs/moduleConfigProperties/idType"
+          "type": "string"
         },
         "scope": {
-          "$ref": "#/$defs/moduleConfigProperties/scope"
-        },
-        "functions": {
-          "$ref": "#/$defs/moduleConfigProperties/functions"
-        },
-        "triggerPrefix": {
-          "$ref": "#/$defs/moduleConfigProperties/triggerPrefix"
-        },
-        "permissions": {
-          "$ref": "#/$defs/moduleConfigProperties/permissions"
-        },
-        "options": {
-          "$ref": "#/$defs/moduleConfigProperties/options"
-        },
-        "api": {
-          "$ref": "#/$defs/moduleConfigProperties/api"
-        }
-      }
-    },
-    "accessBlock": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "mode": {
-          "$ref": "#/$defs/moduleConfigProperties/mode"
-        },
-        "schema": {
-          "$ref": "#/$defs/moduleConfigProperties/schema"
-        },
-        "tables": {
-          "$ref": "#/$defs/moduleConfigProperties/tables"
-        },
-        "columns": {
-          "$ref": "#/$defs/moduleConfigProperties/columns"
-        },
-        "idType": {
-          "$ref": "#/$defs/moduleConfigProperties/idType"
-        },
-        "scope": {
-          "$ref": "#/$defs/moduleConfigProperties/scope"
+          "enum": ["tenant", "user", "none"],
+          "type": "string",
+          "description": "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant."
         },
         "functions": {
           "type": "object",
-          "additionalProperties": false,
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Function name to the name the block writes it under, such as create_organization to start_company."
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "hooks": {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "type": "string"
+            },
+            "functions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "boolean"
+        },
+        "audit": {
+          "type": "boolean"
+        },
+        "api": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string"
+                },
+                "functions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["schema"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "accessBlock": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": ["managed", "adopt", "custom"],
+          "type": "string",
+          "default": "managed"
+        },
+        "schema": {
+          "type": "string",
+          "default": "better_supabase"
+        },
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "columns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "idType": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": ["tenant", "user", "none"],
+          "type": "string",
+          "description": "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant."
+        },
+        "functions": {
+          "type": "object",
           "properties": {
             "can": {
               "type": "string"
@@ -2562,28 +2665,75 @@
             "canAssign": {
               "type": "string"
             },
-            "permissionClaims": {
-              "type": "string"
-            },
             "canAssignFor": {
               "type": "string"
+            },
+            "permissionClaims": {
+              "type": "string"
             }
-          }
-        },
-        "triggerPrefix": {
-          "$ref": "#/$defs/moduleConfigProperties/triggerPrefix"
+          },
+          "additionalProperties": false
         },
         "permissions": {
-          "$ref": "#/$defs/moduleConfigProperties/permissions"
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "options": {
-          "$ref": "#/$defs/moduleConfigProperties/options"
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "hooks": {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "type": "string"
+            },
+            "functions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "boolean"
+        },
+        "audit": {
+          "type": "boolean"
         },
         "api": {
-          "$ref": "#/$defs/moduleConfigProperties/api"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "type": "string"
+                },
+                "functions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["schema"],
+              "additionalProperties": false
+            }
+          ]
         },
         "model": {
           "enum": ["roles", "catalog", "provider", "custom"],
+          "type": "string",
           "default": "roles"
         },
         "roles": {
@@ -2601,27 +2751,24 @@
         },
         "scopes": {
           "type": "object",
-          "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
           "additionalProperties": {
             "type": "array",
             "items": {
               "type": "string"
             }
-          }
+          },
+          "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes."
         },
         "disabled": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "tenant": {
-              "oneOf": [
+              "anyOf": [
                 {
                   "type": "string"
                 },
                 {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": ["table", "id"],
                   "properties": {
                     "table": {
                       "type": "string"
@@ -2641,22 +2788,19 @@
                         "type": "string"
                       }
                     }
-                  }
+                  },
+                  "required": ["table", "id"],
+                  "additionalProperties": false
                 }
               ]
             },
-            "tenantKey": {
-              "type": "string"
-            },
             "user": {
-              "oneOf": [
+              "anyOf": [
                 {
                   "type": "string"
                 },
                 {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": ["table", "id"],
                   "properties": {
                     "table": {
                       "type": "string"
@@ -2676,24 +2820,26 @@
                         "type": "string"
                       }
                     }
-                  }
+                  },
+                  "required": ["table", "id"],
+                  "additionalProperties": false
                 }
               ]
             },
             "userKey": {
               "type": "string"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "activeTenant": {
-          "oneOf": [
+          "anyOf": [
             {
-              "enum": ["claim", "resolver"]
+              "enum": ["claim", "resolver"],
+              "type": "string"
             },
             {
               "type": "object",
-              "additionalProperties": false,
-              "required": ["profileColumn"],
               "properties": {
                 "profileColumn": {
                   "type": "string"
@@ -2701,29 +2847,19 @@
                 "key": {
                   "type": "string"
                 }
-              }
+              },
+              "required": ["profileColumn"],
+              "additionalProperties": false
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "casing": {
-      "enum": ["snake", "camel"]
-    },
-    "privileges": {
-      "type": "array",
-      "items": {
-        "anyOf": [
-          {
-            "enum": ["select", "insert", "update", "delete"]
-          },
-          {
-            "description": "A column privilege, such as `update(title, body)`, or every declared column but some, such as `select(*, -token_hash)`.",
-            "type": "string",
-            "pattern": "^(select|insert|update)\\s*\\(\\s*([a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*|\\*(\\s*,\\s*-\\s*[a-z_][a-z0-9_$]*)*)\\s*\\)$"
-          }
-        ]
-      }
+    "privilege": {
+      "type": "string",
+      "pattern": "^(?:select|insert|update|delete|(?:select|insert|update)\\s*\\(\\s*(?:[a-z_][a-z0-9_$]*(?:\\s*,\\s*[a-z_][a-z0-9_$]*)*|\\*(?:\\s*,\\s*-\\s*[a-z_][a-z0-9_$]*)*)\\s*\\))$",
+      "description": "select, insert, update or delete, a column privilege such as `update(title, body)`, or every declared column but some, such as `select(*, -token_hash)`."
     },
     "blocks": {
       "access": {

@@ -14,11 +14,14 @@ import type { TemplateFile } from "../templates.ts";
 
 import { resolveConfig } from "../../config/index.ts";
 import {
+  type ConfigConventions,
+  conventionConfig,
   type CreateDesign,
   designConfig,
   designOf,
   encodePreset,
   glueCommand,
+  integrationsForFramework,
   isPresetName,
   type Preset,
   PRESET_NAMES,
@@ -30,6 +33,15 @@ import {
   type ResolvedPreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import {
+  CONVENTION_ARGS,
+  CONVENTION_COMPLETIONS,
+  conventionFlags,
+  defaultConventions,
+  hasConventionFlags,
+  promptConventions,
+  withConventions,
+} from "../conventions.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -39,6 +51,7 @@ import {
   planResult,
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
@@ -63,7 +76,6 @@ import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
 import {
   baseFiles,
-  INTEGRATIONS,
   needsLib,
   resolveIntegrations,
   suggestedIntegrations,
@@ -71,7 +83,9 @@ import {
 } from "../templates.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitArgs = CliArgs<typeof INIT_ARGS & typeof PLAN_ARGS>;
+export type InitArgs = CliArgs<
+  typeof INIT_ARGS & typeof CONVENTION_ARGS & typeof PLAN_ARGS
+>;
 
 const SQL_WORKFLOWS: readonly SqlWorkflow[] = [
   "pg-delta",
@@ -83,12 +97,6 @@ const isSqlWorkflow = (value: string): value is SqlWorkflow =>
   SQL_WORKFLOWS.some((workflow) => workflow === value);
 
 const INIT_ARGS = {
-  casing: {
-    type: "string",
-    description:
-      "Row keys in camelCase (camel, the default) or the database's snake_case (snake)",
-    valueHint: "camel|snake",
-  },
   integration: {
     type: "string",
     description:
@@ -141,19 +149,22 @@ function devPackages(project: Project, lite: boolean): string[][] {
   return missing.length === 0 ? [] : [missing];
 }
 
-/** Where `init` writes: `--cwd`, `--package`, or the workspace package the person picks. */
+/**
+ * Where `init` writes: `--cwd`, `--package` (or the `package=` of a Create
+ * URL), or the workspace package the person picks.
+ */
 async function initTarget(
   cwd: string,
-  args: InitArgs,
+  pkg: string | undefined,
   prompts: Prompter | undefined,
 ): Promise<{ readonly dir: string } | CommandResult> {
-  if (args.package !== undefined) {
-    const dir = posix.normalize(args.package.replaceAll("\\", "/"));
+  if (pkg !== undefined) {
+    const dir = posix.normalize(pkg.replaceAll("\\", "/"));
 
     if (!existsSync(join(cwd, dir, "package.json"))) {
       throw new CliError(
         "usage",
-        `--package ${args.package} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
+        `--package ${pkg} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
       );
     }
 
@@ -204,6 +215,7 @@ async function initTarget(
 /** The preset `--preset` names, or the one the person picks; `null` for none. */
 async function chosenPreset(
   args: InitArgs,
+  flags: Partial<ConfigConventions>,
   prompts: Prompter | undefined,
 ): Promise<
   | {
@@ -219,7 +231,7 @@ async function chosenPreset(
   if (
     value === undefined &&
     prompts &&
-    args.casing === undefined &&
+    !hasConventionFlags(flags) &&
     args.integration === undefined
   ) {
     const picked = await prompts.select(
@@ -261,6 +273,8 @@ async function chosenPreset(
     );
   }
 
+  preset = withConventions(preset, flags);
+
   const resolved = resolvePreset(preset);
 
   if (resolved.conflicts.length > 0) {
@@ -282,7 +296,10 @@ async function chosenPreset(
   }
 
   return {
-    value: isPresetName(value) ? value : encodePreset(preset),
+    value:
+      isPresetName(value) && !hasConventionFlags(flags)
+        ? value
+        : encodePreset(preset),
     resolved,
     design,
   };
@@ -323,37 +340,26 @@ export async function runInit(
   prompts?: Prompter,
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
-  const chosen = await chosenPreset(args, prompts);
+  const flags = conventionFlags(args);
+  const chosen = await chosenPreset(args, flags, prompts);
 
   if (chosen !== null && "code" in chosen) {
     return chosen;
   }
 
-  const casing =
-    args.casing ??
-    chosen?.resolved.preset.casing ??
-    (prompts
-      ? await prompts.select(
-          "Row keys",
-          [
-            { value: "camel", label: "camelCase", hint: "customerId" },
-            {
-              value: "snake",
-              label: "snake_case",
-              hint: "customer_id, as in the database",
-            },
-          ],
-          "camel",
-        )
-      : "camel");
+  let conventions: ConfigConventions | undefined = chosen?.resolved.preset;
 
-  if (casing === undefined) {
+  conventions ??=
+    prompts && !hasConventionFlags(flags)
+      ? await promptConventions(prompts)
+      : defaultConventions(flags);
+
+  if (conventions === undefined) {
     return CANCELLED;
   }
 
-  if (casing !== "camel" && casing !== "snake") {
-    throw new CliError("usage", '--casing must be "camel" or "snake"');
-  }
+  const casing = conventions.casing;
+  const keys = conventionConfig(conventions);
 
   const workflow = args.workflow ?? "pg-delta";
 
@@ -364,7 +370,11 @@ export async function runInit(
     );
   }
 
-  const target = await initTarget(config.root, args, prompts);
+  const target = await initTarget(
+    config.root,
+    args.package ?? createUrlParam(args.preset, "package"),
+    prompts,
+  );
 
   if ("code" in target) {
     return target;
@@ -398,9 +408,7 @@ export async function runInit(
       ? []
       : [
           ...chosen.resolved.preset.integrations,
-          ...INTEGRATIONS.filter(
-            (name) => name === chosen.resolved.preset.framework,
-          ),
+          ...integrationsForFramework(chosen.resolved.preset.framework),
         ],
   );
 
@@ -445,6 +453,13 @@ export async function runInit(
         integrations,
         workflow,
         chosen?.value,
+        chosen === null
+          ? {
+              ...(keys.sql === undefined ? {} : { sql: keys.sql }),
+              ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
+              provider: conventions.access === "provider",
+            }
+          : { provider: conventions.access === "provider" },
       ),
       ...integrationFiles(integrations, templateContext),
       ...(chosen === null
@@ -496,6 +511,10 @@ export async function runInit(
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
   ];
+
+  if (createUrlParam(args.preset, "authz") !== undefined) {
+    lines.push("", AUTHZ_NOTE);
+  }
 
   if (chosen !== null) {
     const presetConfig = resolveConfig(
@@ -599,9 +618,9 @@ export async function runInit(
 
 export const initCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("init"),
-  args: { ...INIT_ARGS, ...PLAN_ARGS },
+  args: { ...CONVENTION_ARGS, ...INIT_ARGS, ...PLAN_ARGS },
   lists: ["integration"],
-  completions: { preset: () => PRESET_NAMES },
+  completions: { ...CONVENTION_COMPLETIONS, preset: () => PRESET_NAMES },
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
 

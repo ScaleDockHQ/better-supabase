@@ -242,6 +242,94 @@ describe("apply", () => {
     ).toContain(`  casing: 'snake',\n  preset: '${code}',\n`);
   });
 
+  it("overrides the preset's conventions with the convention flags", async () => {
+    await files({ "better-supabase.config.json": json({}) });
+
+    const result = await run([
+      "apply",
+      "--preset",
+      "minimal",
+      "--scope",
+      "user",
+      "--api",
+      "api",
+      "--dry-run",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).toBe(0);
+
+    const code = encodePreset({
+      ...namedPreset("minimal"),
+      scope: "user",
+      api: "api",
+    });
+
+    expect(result.stdout).toContain(`+  "preset": "${code}"`);
+
+    const config = resolveConfig({}, dir);
+    const deps = { now, configFile: join(dir, "better-supabase.config.json") };
+    expect(
+      await usageError(() =>
+        runApply(config, { preset: "minimal", scope: "everyone" }, deps),
+      ),
+    ).toBe("--scope must be one of tenant, user, none.");
+    expect(
+      await usageError(() =>
+        runApply(config, { preset: "minimal", "tenant-name": "club" }, deps),
+      ),
+    ).toContain(
+      "--tenant-name with a preset takes organization, workspace, team",
+    );
+    expect(
+      await usageError(() =>
+        runApply(
+          config,
+          { preset: "minimal", only: "blocks", access: "catalog" },
+          deps,
+        ),
+      ),
+    ).toContain("takes no convention flags");
+  });
+
+  it("edits the config of the package --package or the URL's package= names", async () => {
+    await files({
+      "package.json": json({ name: "root" }),
+      "apps/web/package.json": json({ name: "web" }),
+      "apps/web/better-supabase.config.json": json({}),
+    });
+    const url = `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&authz=acme&package=apps/web`;
+
+    const result = await run(["apply", "--preset", url, "--cwd", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      "The authorization library chosen on Create isn't part of the preset.",
+    );
+    expect(
+      JSON.parse(
+        await readFile(
+          join(dir, "apps/web/better-supabase.config.json"),
+          "utf-8",
+        ),
+      ),
+    ).toEqual({ preset: encodePreset(namedPreset("minimal")) });
+    expect(
+      (
+        await run([
+          "apply",
+          "--preset",
+          "minimal",
+          "--package",
+          "apps/api",
+          "--cwd",
+          dir,
+        ])
+      ).code,
+    ).not.toBe(0);
+  });
+
   it("refuses what it can't apply", async () => {
     const config = resolveConfig({}, dir);
     const deps = { now, configFile: join(dir, "better-supabase.config.ts") };
@@ -523,6 +611,93 @@ describe("init --preset", () => {
         join(dir, "supabase/schemas/900_better_supabase_22_profiles.sql"),
       ),
     ).toBe(true);
+  });
+
+  it("re-encodes the preset with the convention flags", async () => {
+    await files({ "package.json": json({ name: "app" }) });
+
+    const result = await run([
+      "init",
+      "--preset",
+      "minimal",
+      "--casing",
+      "camel",
+      "--access",
+      "provider",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).toBe(0);
+
+    const config = await readFile(
+      join(dir, "better-supabase.config.ts"),
+      "utf-8",
+    );
+
+    const code = encodePreset({
+      ...namedPreset("minimal"),
+      casing: "camel",
+      access: "provider",
+    });
+
+    expect(config).toContain(`  preset: '${code}',\n  casing: 'camel',`);
+    expect(config).toContain("set `authorization` to its adapter");
+  });
+
+  it("writes the convention flags as config keys without a preset", async () => {
+    await files({ "package.json": json({ name: "app" }) });
+
+    const result = await run([
+      "init",
+      "--scope",
+      "tenant",
+      "--tenant-name",
+      "club",
+      "--access",
+      "catalog",
+      "--id-type",
+      "bigint",
+      "--workflow",
+      "migra",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.code).toBe(0);
+
+    const config = await readFile(
+      join(dir, "better-supabase.config.ts"),
+      "utf-8",
+    );
+
+    expect(config).toContain("  casing: 'snake',");
+    expect(config).not.toContain("preset:");
+    expect(config).toContain(
+      "  sql: { workflow: 'migra', naming: { tenant: 'club' } },",
+    );
+    expect(config).toContain(
+      "  blocks: { access: { model: 'catalog', idType: 'bigint' } },",
+    );
+    expect(
+      (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,
+    ).toBe(2);
+  });
+
+  it("writes into the package a Create URL's package= names", async () => {
+    await files({
+      "package.json": json({ name: "root" }),
+      "pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+      "apps/web/package.json": json({ name: "web" }),
+    });
+    const url = `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&package=apps/web`;
+
+    expect(
+      (await run(["init", "--preset", url, "--yes", "--cwd", dir])).code,
+    ).toBe(0);
+    expect(existsSync(join(dir, "apps/web/better-supabase.config.ts"))).toBe(
+      true,
+    );
   });
 
   it("writes a code for a selection, and refuses what can't install", async () => {

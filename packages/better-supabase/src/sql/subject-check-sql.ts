@@ -15,7 +15,7 @@ export function subjectInTenant(
   id: string,
   tenant: string,
 ): string {
-  const subjects = registeredSubjects(ctx.subjects).filter(
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) => subject.tenant !== undefined,
   );
 
@@ -46,7 +46,7 @@ export function subjectTenant(
   type: string,
   id: string,
 ): string {
-  const subjects = registeredSubjects(ctx.subjects).filter(
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) => subject.tenant !== undefined,
   );
 
@@ -75,7 +75,7 @@ export function subjectTitle(
   type: string,
   id: string,
 ): string {
-  const subjects = registeredSubjects(ctx.subjects).filter(
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) => subject.config.title !== undefined,
   );
 

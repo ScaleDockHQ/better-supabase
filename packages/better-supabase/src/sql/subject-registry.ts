@@ -2,8 +2,10 @@ import type {
   SubjectConfig,
   SubjectsConfig,
 } from "../config/types/subjects.ts";
+import type { TenantNames } from "../core/tenant-naming.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { tenantNames } from "../core/tenant-naming.ts";
 import { splitTable } from "./shared.ts";
 
 /** A `config.subjects` entry, checked, with its table split and quoted. */
@@ -34,9 +36,14 @@ function column(where: string, value: unknown): string {
   return value;
 }
 
-/** `config.subjects`, checked: every entry with its table split and quoted. */
+/**
+ * `config.subjects`, checked: every entry with its table split and quoted.
+ * A subject without `tenant` gets the tenant column `naming` names
+ * (`organization_id`, or `workspace_id` for `sql.naming.tenant: workspace`).
+ */
 export function registeredSubjects(
   subjects: SubjectsConfig,
+  naming: TenantNames = tenantNames(),
 ): readonly RegisteredSubject[] {
   return Object.entries(subjects).map(([type, entry]) => {
     const where = `subjects.${type}`;
@@ -69,7 +76,10 @@ export function registeredSubjects(
     const tenant =
       entry.tenant === false
         ? undefined
-        : column(`${where}.tenant`, entry.tenant ?? "organization_id");
+        : column(
+            `${where}.tenant`,
+            entry.tenant ?? naming.rename("organization_id"),
+          );
 
     if (entry.title !== undefined) {
       column(`${where}.title`, entry.title);

@@ -109,14 +109,14 @@ describe("the monorepo package", () => {
     expect(accepted).toEqual([]);
   });
 
-  test("adds --package to init and --config to apply", () => {
+  test("adds --package to init and apply", () => {
     const resolved = resolvePreset(minimal);
     const code = encodePreset(minimal);
     expect(withPackage(presetInstallCommand(resolved), "apps/web")).toBe(
       `npx better-supabase init --preset ${code} --package apps/web`,
     );
     expect(withPackage(presetApplyCommand(resolved), "apps/web")).toBe(
-      `npx better-supabase apply --preset ${code} --config apps/web/better-supabase.config.ts`,
+      `npx better-supabase apply --preset ${code} --package apps/web`,
     );
     expect(withPackage(presetInstallCommand(resolved), undefined)).toBe(
       presetInstallCommand(resolved),

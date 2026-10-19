@@ -1,4 +1,4 @@
-import type { Preset, PresetField, PresetFieldKey } from "./fields.ts";
+import type { Preset, PresetCodeField, PresetFieldKey } from "./fields.ts";
 
 import { PRESET_BLOCKS } from "./blocks.ts";
 import {
@@ -20,7 +20,7 @@ export interface DecodedPreset {
 
 /** The fields and blocks a code is read against; tests pass their own. */
 export interface PresetLayout {
-  readonly fields: readonly PresetField[];
+  readonly fields: readonly PresetCodeField[];
   readonly blocks: readonly (string | null)[];
   readonly version: number;
 }
@@ -79,7 +79,7 @@ function valueOf(
     : undefined;
 }
 
-function indexIn(field: PresetField, value: string): number {
+function indexIn(field: PresetCodeField, value: string): number {
   const index = field.values.indexOf(value);
 
   if (index === -1) {

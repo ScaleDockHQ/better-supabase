@@ -166,7 +166,7 @@ function bindings(ctx: ModuleContext): readonly SlaBinding[] {
     throw new TypeError("blocks.sla.options.subjects must be an object");
   }
 
-  const registry = registeredSubjects(ctx.subjects);
+  const registry = registeredSubjects(ctx.subjects, ctx.naming);
 
   return Object.entries(raw).map(([type, entry]) => {
     const where = `blocks.sla.options.subjects.${type}`;

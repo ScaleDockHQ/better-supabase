@@ -98,7 +98,7 @@ const SCOPES: readonly { readonly value: AppScope; readonly label: string }[] =
   [
     { value: "inherit", label: "Follow the preset" },
     { value: "user", label: "Per user" },
-    { value: "none", label: "Not scoped" },
+    { value: "none", label: "Shared" },
   ];
 
 function isScope(value: unknown): value is AppScope {

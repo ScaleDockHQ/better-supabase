@@ -6,6 +6,7 @@ import { computedOf, hasComputed } from "./app-computed.ts";
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ON_DELETE_ACTIONS,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
@@ -91,12 +92,7 @@ const REFERENCE_KEYS: ReadonlySet<string> = new Set([
 
 const SCOPES: ReadonlySet<string> = new Set(["inherit", "user", "none"]);
 
-const ON_DELETE: ReadonlySet<string> = new Set([
-  "cascade",
-  "restrict",
-  "set null",
-  "no action",
-]);
+const ON_DELETE: ReadonlySet<string> = new Set(APP_ON_DELETE_ACTIONS);
 
 const COLUMN_TYPES: ReadonlySet<string> = new Set(APP_COLUMN_TYPES);
 

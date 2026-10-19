@@ -22,6 +22,16 @@ export const APP_COLUMN_TYPES = [
 
 export type AppColumnType = (typeof APP_COLUMN_TYPES)[number];
 
+/** What a reference does when the row it points at is deleted (`references.onDelete`). */
+export const APP_ON_DELETE_ACTIONS = [
+  "cascade",
+  "restrict",
+  "set null",
+  "no action",
+] as const;
+
+export type AppOnDeleteAction = (typeof APP_ON_DELETE_ACTIONS)[number];
+
 /**
  * What a column references: another app table, `auth.users`
  * (`{ table: "auth.users" }`), or a logical table of an installed block
@@ -34,7 +44,7 @@ export type AppReferenceTarget =
 
 export type AppReference = AppReferenceTarget & {
   /** Defaults to `no action`. */
-  readonly onDelete?: "cascade" | "restrict" | "set null" | "no action";
+  readonly onDelete?: AppOnDeleteAction;
 };
 
 /**

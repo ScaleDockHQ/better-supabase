@@ -18,6 +18,12 @@ export function HomeHero() {
       className="flex w-full items-center justify-center bg-background px-4 py-16 sm:px-6 lg:px-20"
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-8">
+        <a
+          href={site.company.url}
+          className="inline-flex h-7 items-center rounded-full border border-border px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          Powered by {site.company.name}!
+        </a>
         <h1 className="max-w-3xl text-center text-4xl font-semibold text-balance text-foreground sm:text-5xl lg:text-6xl">
           The typed layer for Supabase{" "}
           <span className="text-muted-foreground">

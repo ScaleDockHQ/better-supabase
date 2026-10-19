@@ -78,7 +78,7 @@ function dimensionsOf(ctx: ModuleContext): number {
 
 /** The registered subjects with a `search` entry and a tenant column. */
 function searchedSubjects(ctx: ModuleContext): readonly RegisteredSubject[] {
-  return registeredSubjects(ctx.subjects).filter(
+  return registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) =>
       subject.config.search !== undefined &&
       subject.tenant !== undefined &&

@@ -8,7 +8,7 @@ import type {
 } from "./supabase-management";
 
 /** The name the deploy gives its migration in `supabase_migrations`. */
-export const MIGRATION_NAME = "better_supabase_create";
+export const MIGRATION_NAME = "better_supabase_blocks";
 
 /**
  * Why this preset can't be deployed, or `undefined` when it can. With

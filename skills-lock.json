@@ -35,7 +35,7 @@
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/ai-gateway/SKILL.md",
-      "computedHash": "091c29ad23ab073477b8e39a324cf3753dd3befa3a19f958568d94d236709f3e"
+      "computedHash": "2825ef76df8a32be7f592b8d9af68042ccfea152706867b6f84aad55596ba0dc"
     },
     "ai-sdk": {
       "source": "vercel/ai",
@@ -143,7 +143,7 @@
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/env-vars/SKILL.md",
-      "computedHash": "36af6e78946761e17aead0e88717741ad4278ddd74dc560007c6631254cd6248"
+      "computedHash": "b0fc7be55f34802bbdd82575a1893af5fd2c60ac2165abcd54a63d49b4748e8f"
     },
     "eu-ai-act": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -179,7 +179,7 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-dev-client/SKILL.md",
-      "computedHash": "9560a3f40e699af7b3317dbd3887cca646901d6addf7d78eb9429922e2d3baf3"
+      "computedHash": "a88abe00e809c33329aaa1b2ae5f9571270509a31344c5283d68dbfdfc676c03"
     },
     "expo-dom": {
       "source": "expo/skills",
@@ -203,7 +203,7 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-overview/SKILL.md",
-      "computedHash": "ae10834702315c887df298a220712bf5e89ab6a0d9088eb54c6d7fddddb3e8b3"
+      "computedHash": "455526d4186fe12897374e4af58ead6459ffe8c2819d0304d5210c6d8d8374bc"
     },
     "expo-project-structure": {
       "source": "expo/skills",
@@ -245,7 +245,7 @@
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/flags-sdk/SKILL.md",
-      "computedHash": "74dac700740c3fa969cb18e136daca70babd1099f11b4e81f2381b48489bf765"
+      "computedHash": "fb7d6081d40ae23ca4fdbf42adbcc7805bb70c71104f907761d9b1c5552133b7"
     },
     "gnap": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -515,7 +515,7 @@
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/queues/SKILL.md",
-      "computedHash": "74d527d1ed1066866f6fefc1f10878e9bd407a7a280f069e99827f139f29d0e2"
+      "computedHash": "75f313bffa8b7f212984688e65eedaf3637aee23b156f7991391db40f838b12d"
     },
     "ratelimit-headers": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -569,7 +569,7 @@
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
       "skillPath": "skills/scaledock-repo-standard/SKILL.md",
-      "computedHash": "00db4411bcf37c39bc417cad5fa8343aa159af3abf6c227fab0d9471b119c9ba"
+      "computedHash": "55c3781028aa1f7be9efc42c31f87a7a500d61063da96073ca85985c05c75e17"
     },
     "scim": {
       "source": "ScaleDockHQ/scaledock-skills",
@@ -725,13 +725,13 @@
       "source": "vercel/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/vercel-connect/SKILL.md",
-      "computedHash": "6972491885ef93f757facdea5620e2c4bec9c6bf24d85fb7826b04be81fef968"
+      "computedHash": "ca7865d6ef4e4a67b489765b2314d14dde916bcaf8bf1fae411123d9de995d9a"
     },
     "vercel-functions": {
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/vercel-functions/SKILL.md",
-      "computedHash": "e7dd4eb23a8b685bc7adf5b428c69ef5d197728d7e959c32fb9f875d4eee6a72"
+      "computedHash": "b0692cba405c5f7243ccf4223561794835b8c1d41513778ae9bd66a52ab16f71"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
@@ -749,13 +749,13 @@
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/vercel-sandbox/SKILL.md",
-      "computedHash": "6e5184439a31d771d0d15c64cd3d15c78479864ea50029fb5769922478663e92"
+      "computedHash": "48dc74e6e87339a4c787a3cfc0064664066b6ba29f819e9b0feaf3931bd3906b"
     },
     "vercel-services": {
       "source": "vercel-labs/vercel-plugin",
       "sourceType": "github",
       "skillPath": "skills/vercel-services/SKILL.md",
-      "computedHash": "c2a917917ef8232f85815f28f75db33947bf7d66f0e1d75d0d9b27d01cd9ba4c"
+      "computedHash": "8130754b0f4b86674ee11f1510af11346262ce44f9150edfea8772a7b24587ca"
     },
     "wai-aria": {
       "source": "ScaleDockHQ/scaledock-skills",

@@ -25,6 +25,14 @@ export const env = createEnv({
     SUPABASE_OAUTH_COOKIE_SECRET: v.optional(
       v.pipe(v.string(), v.minLength(32)),
     ),
+    // Sends the /contact form through Resend. The form shows a mailto
+    // fallback until the key is set.
+    RESEND_API_KEY: v.optional(v.pipe(v.string(), v.minLength(1))),
+    // A sender address on a domain verified in Resend.
+    CONTACT_FROM_EMAIL: v.optional(
+      v.pipe(v.string(), v.minLength(3)),
+      "better-supabase <contact@scaledock.com>",
+    ),
   },
   client: {
     NEXT_PUBLIC_SITE_URL: v.optional(
@@ -38,6 +46,8 @@ export const env = createEnv({
     SUPABASE_OAUTH_CLIENT_ID: process.env["SUPABASE_OAUTH_CLIENT_ID"],
     SUPABASE_OAUTH_CLIENT_SECRET: process.env["SUPABASE_OAUTH_CLIENT_SECRET"],
     SUPABASE_OAUTH_COOKIE_SECRET: process.env["SUPABASE_OAUTH_COOKIE_SECRET"],
+    RESEND_API_KEY: process.env["RESEND_API_KEY"],
+    CONTACT_FROM_EMAIL: process.env["CONTACT_FROM_EMAIL"],
     NEXT_PUBLIC_SITE_URL: process.env["NEXT_PUBLIC_SITE_URL"],
   },
   emptyStringAsUndefined: true,

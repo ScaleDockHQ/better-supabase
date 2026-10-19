@@ -57,7 +57,7 @@ export function activityReads(ctx: ModuleContext): ActivityReads {
     return none;
   }
 
-  const registry = registeredSubjects(ctx.subjects);
+  const registry = registeredSubjects(ctx.subjects, ctx.naming);
 
   if (registry.length === 0) {
     return none;

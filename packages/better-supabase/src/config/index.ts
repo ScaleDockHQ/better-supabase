@@ -1,6 +1,12 @@
 export { CONFIG_DEFAULTS } from "./defaults.ts";
 
-export { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "./names.ts";
+export {
+  GEN_TASKS,
+  INTEGRATION_INFO,
+  INTEGRATION_NAMES,
+  type IntegrationInfo,
+  SKILLS_AGENTS,
+} from "./names.ts";
 
 export { resolveJsonSchema } from "./json.ts";
 
@@ -51,10 +57,12 @@ export {
 export {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
+  type AppOnDeleteAction,
   type AppLookupConfig,
   type AppReference,
   type AppReferenceTarget,
