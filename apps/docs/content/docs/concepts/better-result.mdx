@@ -71,7 +71,8 @@ async function listCustomers(): Promise<Result<Customer[], AppError>> {
   return toBetterResult(db.customers.findMany(), Result, toAppError);
 }
 
-// And back: DbErrors pass through, other errors become `unexpected`
+// And back: DbErrors pass through, PostgREST errors are classified,
+// other errors become `unexpected`
 const result = fromBetterResult(Result.ok(42)); // Result<number>
 ```
 
@@ -88,8 +89,11 @@ fields (`BetterResultValue<T, E>`).
 Without the third argument, a result from a `db` of `betterSupabase.mapError(fn)`
 goes through `fn`, and its error is typed `unknown`; pass the mapper to
 type it. `fromBetterResult` reads the `status` field, so it works across
-better-result versions; pass a second argument to map non-`DbError`
-errors yourself.
+better-result versions. The default mapper, `toDbError`, classifies a
+PostgREST or Postgres error object (`code`, `message`, `details`, `hint`),
+or a thrown `PostgrestError`, the way `mapDbError` does, so a unique
+violation becomes a `conflict` and `PGRST116` becomes `not_found`. Pass a
+second argument to map non-`DbError` errors yourself.
 
 ## Tagged errors
 
