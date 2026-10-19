@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { uiPath } from "../../../src/cli/commands/spec.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { fails, formatDiagnostics } from "../../../src/cli/spec/diagnostics.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
 import { defineTopic } from "../../../src/realtime/topic.ts";
@@ -53,7 +53,7 @@ describe("spec emit", () => {
   it("writes the default OpenAPI output, then reuses the cache", async () => {
     const first = await spec("emit");
     expect(first.code).toBe(0);
-    expect(first.stdout).toContain("Wrote openapi.json (openapi 3.1)");
+    expect(first.stdout).toContain("Created openapi.json (openapi 3.1)");
     expect(await readJson("openapi.json")).toMatchObject({ openapi: "3.1.2" });
     const second = await spec("emit");
     expect(second.stdout).toContain(
@@ -79,7 +79,7 @@ describe("spec emit", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Wrote openapi-3.0.yaml");
+    expect(result.stdout).toContain("Created openapi-3.0.yaml");
     const text = await readFile(join(dir, "openapi-3.0.yaml"), "utf-8");
     expect(text).toMatch(/^openapi: 3\.0\.\d/m);
     const html = await readFile(join(dir, uiPath("openapi-3.0.yaml")), "utf-8");
@@ -136,9 +136,14 @@ describe("spec emit", () => {
   it("returns the manifest under --json", async () => {
     const result = await spec("emit", "--json");
     expect(JSON.parse(result.stdout)).toMatchObject({
-      $schema:
-        "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json",
-      outputs: [expect.objectContaining({ format: "openapi", version: "3.1" })],
+      status: "success",
+      data: {
+        $schema:
+          "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json",
+        outputs: [
+          expect.objectContaining({ format: "openapi", version: "3.1" }),
+        ],
+      },
     });
   });
 });
@@ -181,7 +186,7 @@ describe("spec emit --watch", () => {
       throw new Error(`no output matched ${pattern}: ${lines.join("")}`);
     };
 
-    await waitFor(/Wrote openapi\.json/);
+    await waitFor(/Created openapi\.json/);
     await new Promise((done) => {
       setTimeout(done, 30);
     });
@@ -195,7 +200,7 @@ describe("spec emit --watch", () => {
       join(dir, "api.mjs"),
       "export const api = globalThis.specApiFixture;\n",
     );
-    await waitFor(/Wrote next\.json/);
+    await waitFor(/Created next\.json/);
     controller.abort();
     expect((await watching).code).toBe(0);
   });
@@ -233,15 +238,15 @@ describe("spec diagnostics", () => {
   });
 });
 
-describe("spec check", () => {
+describe("spec emit --check", () => {
   it("passes when the file matches and fails when it drifts", async () => {
     await spec("emit");
-    expect((await spec("check")).code).toBe(0);
+    expect((await spec("emit", "--check")).code).toBe(0);
     const json = await readFile(join(dir, "openapi.json"), "utf-8");
     await writeFile(join(dir, "openapi.json"), json.replaceAll("\n", "\r\n"));
-    expect((await spec("check")).code).toBe(0);
+    expect((await spec("emit", "--check")).code).toBe(0);
     await writeFile(join(dir, "openapi.json"), "{}\n");
-    const stale = await spec("check");
+    const stale = await spec("emit", "--check");
     expect(stale.code).toBe(1);
     expect(stale.stdout).toContain("output-stale");
     expect(stale.stdout).toContain("--- openapi.json\ton disk");
@@ -250,7 +255,7 @@ describe("spec check", () => {
   });
 
   it("reports a missing file", async () => {
-    const missing = await spec("check");
+    const missing = await spec("emit", "--check");
     expect(missing.code).toBe(1);
     expect(missing.stdout).toContain("output-missing");
   });
@@ -288,7 +293,7 @@ describe("spec arguments", () => {
     expect((await spec("publish")).code).toBe(2);
     expect((await spec("emit", "--fail-on", "loud")).code).toBe(2);
     expect((await spec("emit", "--ui", "nope")).code).toBe(2);
-    expect((await spec("check", "--watch")).code).toBe(2);
+    expect((await spec("emit", "--check", "--watch")).code).toBe(2);
     expect((await spec("emit", "--watch", "--interval", "0")).code).toBe(2);
     const version = await spec("emit", "openapi", "--spec-version", "9.9");
     expect(version.code).toBe(1);
@@ -375,7 +380,7 @@ describe("spec arguments", () => {
       ),
     ).toBe(false);
 
-    const strict = await spec("check", "--fail-on", "warning");
+    const strict = await spec("emit", "--check", "--fail-on", "warning");
     expect(strict.code).toBe(1);
     expect(strict.stdout).toContain("asyncapi-topic-undocumented");
   });

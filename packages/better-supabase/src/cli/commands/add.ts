@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { TemplateContext } from "../templates.ts";
 import type { SqlDeps } from "./sql.ts";
@@ -16,7 +15,16 @@ import {
   PRESET_FRAMEWORKS,
   resolvePreset,
 } from "../../preset/index.ts";
-import { defineCliCommand, list } from "../command.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changeLines,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { readIfExists } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -25,10 +33,9 @@ import {
   packagesFor,
   parseIntegrations,
   templateContextFor,
-  writeFiles,
+  templatePlan,
 } from "../glue.ts";
-import { readIfExists } from "../io.ts";
-import { detectProject, installCommand } from "../project.ts";
+import { detectProject, installCommand } from "../project/detect.ts";
 import { addModules } from "../sql/add.ts";
 import { addBlocksToWiring } from "../sql/config-edit.ts";
 import {
@@ -39,15 +46,17 @@ import {
   resolveIntegrations,
   TEMPLATES,
 } from "../templates.ts";
+import { blockNames } from "./blocks.ts";
 
 const ADD_ARGS = {
   block: {
     type: "positional",
     required: false,
+    variadic: true,
     description:
-      "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --framework, sets up the integrations in the config that have no files yet",
+      "Blocks to install with what they require (`better-supabase blocks list`). Without blocks or --integration, sets up the integrations in the config that have no files yet",
   },
-  framework: {
+  integration: {
     type: "string",
     description:
       "Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react",
@@ -55,8 +64,12 @@ const ADD_ARGS = {
   },
   force: {
     type: "boolean",
+    description: "Overwrite files that exist",
+  },
+  "allow-hook-overlap": {
+    type: "boolean",
     description:
-      "Overwrite files that exist; with blocks, write modules a provider's hook would duplicate",
+      "With blocks: write modules whose claim the authorization provider's hook already writes",
   },
   "tests-dir": {
     type: "string",
@@ -64,10 +77,11 @@ const ADD_ARGS = {
       "With blocks: where the pgtap module goes. Defaults to sql.testsDir",
     valueHint: "dir",
   },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
-export type AddArgs = CliArgs<typeof ADD_ARGS>;
+export type AddArgs = CliArgs<
+  typeof ADD_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
 
 /**
  * Adds blocks: lists them in `blocks`, writes their modules and what they
@@ -129,9 +143,14 @@ async function addBlocks(
       current === undefined ? undefined : addBlocksToWiring(current, clients);
 
     if (edit?.ok === true && edit.text !== current) {
-      if (args["dry-run"] !== true) {
-        await writeFile(path, edit.text);
-      }
+      await applyPlan(
+        {
+          root: config.root,
+          regenerate: "better-supabase add",
+          files: [{ path, contents: edit.text, policy: "edit" }],
+        },
+        { "dry-run": args["dry-run"] },
+      );
 
       lines.push(
         "",
@@ -167,11 +186,22 @@ async function addBlocks(
       ),
   );
 
-  if (glue.length > 0) {
-    lines.push("", `Glue for ${frameworks.join(", ")}: ${glueCommand(glue)}`);
+  const glueLine = glue.length > 0 ? glueCommand(glue) : undefined;
+
+  if (glueLine !== undefined) {
+    lines.push("", `Glue for ${frameworks.join(", ")}: ${glueLine}`);
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: {
+      blocks: names,
+      modules: added.data,
+      clients: clients.map((client) => client.key),
+      ...(glueLine === undefined ? {} : { glue: glueLine }),
+    },
+  };
 }
 
 /** `lib/blocks.ts` next to `lib/supabase/`. */
@@ -196,14 +226,14 @@ export async function runAdd(
   prompts?: Prompter,
   deps: SqlDeps = SYSTEM_DEPS,
 ): Promise<CommandResult> {
-  if (args._.length > 0 && args.framework === undefined) {
+  if (args._.length > 0 && args.integration === undefined) {
     return addBlocks(config, args, args._, deps);
   }
 
-  if (args.framework !== undefined) {
+  if (args.integration !== undefined) {
     return addIntegrations(
       config,
-      { ...args, _: list(args.framework) },
+      { ...args, _: list(args.integration) },
       prompts,
     );
   }
@@ -230,6 +260,7 @@ async function addIntegrations(
     return {
       code: 0,
       output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
+      data: { integrations: [], files: [], packages: [], unlisted: [] },
     };
   }
 
@@ -244,16 +275,16 @@ async function addIntegrations(
   }
 
   if (named.length === 0) {
-    return {
-      code: 2,
-      error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
-    };
+    throw new CliError(
+      "usage",
+      `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
+    );
   }
 
   const requested = parseIntegrations(named);
 
   if (typeof requested === "string") {
-    return { code: 2, error: requested };
+    throw new CliError("usage", requested);
   }
 
   const integrations = resolveIntegrations(requested);
@@ -264,13 +295,24 @@ async function addIntegrations(
     return CANCELLED;
   }
 
-  const lines = await writeFiles(config.root, files, args, force);
+  const plan = templatePlan(config.root, files, "better-supabase add");
+  const applied = await applyPlan(plan, { ...args, force });
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(plan, applied);
+  }
+
+  const lines = changeLines(applied);
   const lib = libEntry(templateContext);
 
-  if (
+  const libMissing =
     !existsSync(resolve(config.root, lib)) &&
-    integrations.some((name) => needsLib([name]))
-  ) {
+    integrations.some((name) => needsLib([name]));
+
+  const next: NextStep[] = [];
+
+  if (libMissing) {
+    next.push({ command: "better-supabase init", when: `${lib} is missing` });
     lines.push(
       "",
       `Warning: ${lib} is missing. Run \`better-supabase init\` first.`,
@@ -281,11 +323,14 @@ async function addIntegrations(
     (name) => name !== "better-supabase" && name !== "@supabase/supabase-js",
   );
 
-  if (packages.length > 0) {
-    lines.push(
-      "",
-      `Install: ${installCommand(project.packageManager, packages)}`,
-    );
+  const install =
+    packages.length > 0
+      ? installCommand(project.packageManager, packages)
+      : undefined;
+
+  if (install !== undefined) {
+    lines.push("", `Install: ${install}`);
+    next.push({ command: install, when: "to install the packages they need" });
   }
 
   for (const name of integrations) {
@@ -306,17 +351,23 @@ async function addIntegrations(
     );
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: { integrations, files: applied.changes, packages, unlisted },
+    next,
+  };
 }
 
 export const addCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "add",
-    description:
-      "Adds blocks with what they require, or glue for an integration with --framework",
+  meta: commandMeta("add"),
+  args: {
+    ...ADD_ARGS,
+    "dry-run": PLAN_ARGS["dry-run"],
+    check: PLAN_ARGS.check,
   },
-  args: ADD_ARGS,
-  lists: ["framework"],
+  lists: ["integration"],
+  completions: { block: blockNames },
   run: (args, { config, configFile, io }) =>
     runAdd(config, args, io.prompts, {
       ...SYSTEM_DEPS,

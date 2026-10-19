@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
@@ -13,10 +13,10 @@ import {
   renderModules,
   sameModuleFile,
 } from "../../sql/index.ts";
+import { applyPlan, changeLines, planResult } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { writeLine } from "../files.ts";
-import { display, sameText } from "../io.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import {
   latestMigration,
@@ -26,7 +26,7 @@ import {
   writesMigrations,
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
-import { staleModuleTests, write } from "./write.ts";
+import { moduleFile, staleModuleTests, write } from "./write.ts";
 
 export async function syncModules(
   config: ResolvedConfig,
@@ -48,7 +48,11 @@ export async function syncModules(
     config.blockNames.length > 0 || Object.keys(config.appTables).length > 0;
 
   if (!hasSql && topics === undefined) {
-    return { code: 0, output: "blocks is empty; nothing to sync." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to sync.",
+      data: { blocks: [] },
+    };
   }
 
   if (await writesMigrations(config)) {
@@ -60,86 +64,61 @@ export async function syncModules(
 
     const lines = await write(config, args, config.blockNames, sqlLayout, now);
 
-    return { code: 0, output: lines.join("\n") };
-  }
-
-  if (args.check !== true) {
-    const lines = hasSql
-      ? await write(
-          config,
-          args,
-          config.blockNames,
-          await layoutFor(config, args, config.blockNames),
-          now,
-        )
-      : [];
-
-    if (topics !== undefined) {
-      const shown = display(config.root, topics.path);
-
-      if (args["dry-run"] === true) {
-        lines.push(`Would write ${shown} (topics)`);
-      } else {
-        lines.push(
-          (
-            await writeLine(
-              resolve(config.root, topics.path),
-              topics.contents,
-              shown,
-              " (topics)",
-            )
-          ).line,
-        );
-      }
-    }
-
-    return { code: 0, output: lines.join("\n") };
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { blocks: config.blockNames },
+    };
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
 
-  const files: { path: string; contents: string; topics?: true }[] = [
-    ...renderModules(config.blockNames, sqlLayout),
-    ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
-  ];
+  const topicsFile =
+    topics === undefined ? [] : [{ ...topics, note: "topics" }];
 
-  const stale: string[] = (
-    await staleModuleTests(
+  if (args.check !== true) {
+    const lines = hasSql
+      ? await write(config, args, config.blockNames, sqlLayout, now)
+      : [];
+
+    if (topics !== undefined) {
+      lines.push(
+        ...changeLines(
+          await applyPlan(
+            {
+              root: config.root,
+              regenerate: "better-supabase sql sync",
+              files: topicsFile,
+            },
+            { "dry-run": args["dry-run"] },
+          ),
+        ),
+      );
+    }
+
+    return {
+      code: 0,
+      output: lines.join("\n"),
+      data: { blocks: config.blockNames },
+    };
+  }
+
+  const rendered = renderModules(config.blockNames, sqlLayout);
+
+  const plan = sqlPlan(config, {
+    regenerate: "better-supabase sql sync",
+    files: [...rendered.map((file) => moduleFile(file)), ...topicsFile],
+    remove: await staleModuleTests(
       config,
       config.blockNames,
       sqlLayout,
-      renderModules(config.blockNames, sqlLayout),
-    )
-  ).map((path) => display(config.root, path));
+      rendered,
+    ),
+  });
 
-  const diffs: string[] = stale.map(
-    (path) => `${path} is no longer written; \`sql sync\` removes it.`,
-  );
-
-  for (const file of files) {
-    const current = await readFile(
-      resolve(config.root, file.path),
-      "utf-8",
-    ).catch(() => undefined);
-
-    if (
-      file.topics
-        ? !sameText(current, file.contents)
-        : !sameModuleFile(current, file.contents)
-    ) {
-      const shown = display(config.root, file.path);
-      stale.push(shown);
-      diffs.push(fileDiff(shown, current, file.contents, paint));
-    }
-  }
-
-  return stale.length === 0
-    ? { code: 0, output: "SQL module files are up to date." }
-    : {
-        code: 1,
-        output: diffs.join("\n\n"),
-        error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
-      };
+  return planResult(plan, await applyPlan(plan, { check: true }, paint), {
+    data: { blocks: config.blockNames },
+  });
 }
 
 /** `sql sync --check` under the migrations workflow: the newest module migration against what `sql sync` would write. */
@@ -188,10 +167,16 @@ async function checkModuleMigration(
   }
 
   return stale.length === 0
-    ? { code: 0, output: "SQL module migration is up to date." }
+    ? {
+        code: 0,
+        output: "SQL module migration is up to date.",
+        data: { stale },
+      }
     : {
         code: 1,
+        data: { stale },
         output: diffs.join("\n\n"),
         error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+        errorCode: "check_failed",
       };
 }

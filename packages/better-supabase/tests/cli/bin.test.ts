@@ -47,15 +47,15 @@ describe("the built bin", () => {
     });
     const usage = await spawn(["--help"], dir);
     expect(usage.code).toBe(0);
-    expect(usage.stdout).toContain("USAGE better-supabase");
+    expect(usage.stdout).toContain("Usage: better-supabase");
   });
 
   it("exits 2 with Problem Details for a mistyped command under --json", async () => {
     const result = await spawn(["genn", "--json"], dir);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      code: "unknown_command",
-      suggestion: "gen",
+      status: "error",
+      error: { code: "unknown_command", suggestion: "gen" },
     });
   });
 
@@ -63,8 +63,7 @@ describe("the built bin", () => {
     const result = await spawn(["seed", "--db-url-stdin", "--json"], dir);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      code: "missing_value",
-      flag: "--db-url-stdin",
+      error: { code: "missing_value", flag: "--db-url-stdin" },
     });
   });
 });

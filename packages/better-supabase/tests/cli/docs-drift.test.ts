@@ -2,8 +2,11 @@ import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { GLOBAL_ARGS } from "../../src/cli/command.ts";
-import { commandNames, help } from "../../src/cli/run.ts";
+import { GLOBAL_ARGS } from "../../src/cli/core/command.ts";
+import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
+import { effectsLine } from "../../src/cli/core/help.ts";
+import { findSpec, specPaths } from "../../src/cli/core/manifest.ts";
+import { commandNames, help } from "../../src/cli/core/run.ts";
 import {
   INTEGRATIONS,
   type TemplateContext,
@@ -25,7 +28,6 @@ const PAGES: Readonly<Record<string, string>> = {
   env: "cli/local.mdx",
   keys: "cli/local.mdx",
   seed: "cli/local.mdx",
-  openapi: "cli/local.mdx",
   spec: "cli/spec.mdx",
   scaffold: "cli/scaffold.mdx",
   gen: "cli/gen.mdx",
@@ -34,19 +36,82 @@ const PAGES: Readonly<Record<string, string>> = {
   sql: "blocks/sql.mdx",
   skills: "for-ai-agents.mdx",
   codemod: "cli/codemod.mdx",
+  completion: "cli/completion.mdx",
   config: "cli/config.mdx",
 };
 
-const globals = new Set(["help", "version", ...Object.keys(GLOBAL_ARGS)]);
+/** Each global option as help prints it: `--no-color` for a boolean that is on by default. */
+const globalFlags = Object.entries(GLOBAL_ARGS).map(([name, definition]) =>
+  definition.type === "boolean" && "default" in definition
+    ? `no-${name}`
+    : name,
+);
 
+const globals = new Set(["help", "version", ...globalFlags]);
+
+/** The flags of `command` and of every subcommand under it. */
 async function flagsOf(command: string): Promise<string[]> {
-  const usage = await help(command);
+  const paths = specPaths().filter((path) => path[0] === command);
+  const usages = await Promise.all(paths.map((path) => help(path.join(" "))));
 
-  const flags = [...usage.matchAll(/--([a-z][a-z0-9-]*)/g)].map(
-    (match) => match[1] ?? "",
+  const flags = usages.flatMap((usage) =>
+    [...usage.matchAll(/--([a-z][a-z0-9-]*)/g)].map((match) => match[1] ?? ""),
   );
 
   return [...new Set(flags)].filter((flag) => !globals.has(flag)).toSorted();
+}
+
+/** The commands each page documents. */
+function pagesByFile(): Record<string, string[]> {
+  const pages: Record<string, string[]> = {};
+
+  for (const [command, page] of Object.entries(PAGES)) {
+    (pages[page] ??= []).push(command);
+  }
+
+  return pages;
+}
+
+const slug = (heading: string): string =>
+  heading
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9 -]/g, "")
+    .trim()
+    .replaceAll(" ", "-");
+
+/** The text under the heading whose anchor is `anchor`, up to the next heading at its level or above. */
+function section(text: string, anchor: string): string {
+  const lines = text.split("\n");
+
+  const start = lines.findIndex((line) => {
+    const heading = /^(#{2,6}) (.+)$/.exec(line);
+
+    return heading?.[2] !== undefined && slug(heading[2]) === anchor;
+  });
+
+  if (start === -1) {
+    return "";
+  }
+
+  const level = /^#+/.exec(lines[start] ?? "")?.[0].length ?? 2;
+
+  const end = lines.findIndex(
+    (line, at) =>
+      at > start && (/^#+ /.exec(line)?.[0].length ?? 99) - 1 <= level,
+  );
+
+  return lines.slice(start, end === -1 ? undefined : end).join("\n");
+}
+
+/** Whether another leaf command links the same docs section. */
+function sharesSection(command: string): boolean {
+  const docs = findSpec(command.split(" "))?.docs;
+
+  return (
+    specPaths().filter(
+      (path) => !findSpec(path)?.subcommands && findSpec(path)?.docs === docs,
+    ).length > 1
+  );
 }
 
 describe("CLI docs", () => {
@@ -67,10 +132,59 @@ describe("CLI docs", () => {
     },
   );
 
+  it.each(Object.entries(pagesByFile()))(
+    "has no flag rows in %s that the commands lack",
+    async (page, commands) => {
+      const text = await readFile(join(docs, page), "utf-8");
+
+      const known = new Set(
+        (await Promise.all(commands.map(flagsOf)))
+          .flat()
+          .flatMap((flag) => [flag, flag.replace(/^no-/, "")]),
+      );
+
+      const rows = [...text.matchAll(/^\| `--([a-z][a-z0-9-]*)/gm)].map(
+        (match) => match[1] ?? "",
+      );
+
+      expect(
+        rows.filter((flag) => !known.has(flag) && !globals.has(flag)),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(
+    specPaths()
+      .filter((path) => !findSpec(path)?.subcommands)
+      .map((path) => path.join(" ")),
+  )("gives %s a Side effects line in its docs section", async (command) => {
+    const spec = findSpec(command.split(" "));
+    const [page = "", anchor] = (spec?.docs ?? "").split("#");
+
+    const text = await readFile(
+      join(docs, `${page.replace(/^\/docs\//, "")}.mdx`),
+      "utf-8",
+    );
+
+    const area = anchor ? section(text, anchor) : text;
+    const line = effectsLine(spec?.effects ?? []);
+    const lines = area.replaceAll("`", "").split("\n");
+
+    expect(area).not.toBe("");
+    expect(
+      lines.some(
+        (each) =>
+          each === `Side effects of ${command}: ${line}` ||
+          each.replaceAll(/ +/g, " ") === `| ${command} | ${line} |` ||
+          (!sharesSection(command) && each.startsWith(`Side effects: ${line}`)),
+      ),
+    ).toBe(true);
+  });
+
   it("documents the global options and every error code", async () => {
     const index = await readFile(join(docs, "cli/index.mdx"), "utf-8");
 
-    for (const flag of Object.keys(GLOBAL_ARGS)) {
+    for (const flag of globalFlags) {
       expect(index).toContain(`--${flag}`);
     }
 
@@ -80,16 +194,7 @@ describe("CLI docs", () => {
       (match) => match[1],
     );
 
-    expect(headings).toEqual([
-      "usage",
-      "unknown_command",
-      "missing_value",
-      "config_not_found",
-      "config_invalid",
-      "env_invalid",
-      "failed",
-      "internal",
-    ]);
+    expect(headings).toEqual(CLI_ERROR_CODES);
   });
 });
 

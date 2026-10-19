@@ -3,14 +3,23 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand } from "../command.ts";
-import { insideRoot, writeLine } from "../files.ts";
-import { display, readIfExists } from "../io.ts";
-import { detectProject, publicPrefix } from "../project.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changeLines,
+  type FilePlan,
+  insideRoot,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { display, readIfExists } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
+import { detectProject, publicPrefix } from "../project/detect.ts";
 import {
   parseStackStatus,
   readStackStatus,
@@ -20,7 +29,8 @@ import {
 const ARGS = {
   out: {
     type: "string",
-    description: "Env file to write. Defaults to env.output, then .env.local",
+    description:
+      "Env file to write, or - to print the variables. Defaults to env.output, then .env.local",
     valueHint: "file",
   },
   prefix: {
@@ -29,45 +39,56 @@ const ARGS = {
       'Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix',
     valueHint: "prefix",
   },
-  from: {
+  "status-file": {
     type: "string",
     description: "Read `supabase status -o json` output from a file",
     valueHint: "file",
   },
-  print: {
-    type: "boolean",
-    description: "Print the variables instead of writing them",
-  },
 } as const;
 
-export type EnvArgs = CliArgs<typeof ARGS>;
+const ENV_PLAN_ARGS = {
+  "dry-run": PLAN_ARGS["dry-run"],
+  check: PLAN_ARGS.check,
+};
 
-export type EnvFlags = CliOptions<typeof ARGS>;
+export type EnvArgs = CliArgs<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
+
+export type EnvFlags = CliOptions<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
 
 async function readStatus(
   config: ResolvedConfig,
   args: EnvFlags,
   env: CliEnv,
+  signal?: AbortSignal,
 ): Promise<StackStatus> {
-  const from = args.from;
+  const from = args["status-file"];
 
   if (from) {
     const status = parseStackStatus(
-      await readFile(insideRoot(config.root, from, "--from"), "utf-8"),
+      await readFile(insideRoot(config.root, from, "--status-file"), "utf-8"),
     );
 
     if (!status) {
-      throw new Error(`${from} holds no supabase status JSON.`);
+      throw new CliError(
+        "invalid_input",
+        `${from} holds no supabase status JSON.`,
+      );
     }
 
     return status;
   }
 
-  const result = await readStackStatus(config.root, env);
+  const result = await readStackStatus(config.root, env, { signal });
 
   if (!result.ok) {
-    throw new Error(
+    throw new CliError(
+      "supabase_cli_failed",
       `supabase status failed (${result.code}). Is the local stack running (supabase start)?`,
+      { suggestion: "supabase start" },
     );
   }
 
@@ -130,8 +151,9 @@ export async function runEnv(
   config: ResolvedConfig,
   args: EnvFlags,
   env: CliEnv,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
-  const status = await readStatus(config, args, env);
+  const status = await readStatus(config, args, env, signal);
   const project = await detectProject(config.root);
   const prefixFlag = args.prefix ?? config.env.prefix;
 
@@ -175,32 +197,48 @@ export async function runEnv(
     values["SUPABASE_JWT_SECRET"] = jwtSecret;
   }
 
-  if (args.print === true) {
+  if (args.out === "-") {
     return {
       code: 0,
       output: Object.entries(values)
         .map(([key, value]) => `${key}=${value}`)
         .join("\n"),
+      data: { values },
     };
   }
 
   const out = args.out ?? config.env.output;
   const path = insideRoot(config.root, out, args.out ? "--out" : "env.output");
   const current = (await readIfExists(path)) ?? "";
+  const file = display(config.root, out);
 
-  const { line } = await writeLine(
-    path,
-    mergeEnv(current, values),
-    display(config.root, out),
-    `: ${Object.keys(values).join(", ")}`,
-    { mode: 0o600 },
-  );
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase env",
+    files: [
+      {
+        path,
+        contents: mergeEnv(current, values),
+        mode: 0o600,
+        secret: true,
+        note: Object.keys(values).join(", "),
+      },
+    ],
+  };
 
-  const lines = [line];
+  const applied = await applyPlan(plan, args);
+
+  if (applied.mode !== "write") {
+    return planResult(plan, applied, {
+      data: { file, keys: Object.keys(values) },
+    });
+  }
+
+  const warnings: string[] = [];
 
   if (!text(status, "PUBLISHABLE_KEY")) {
-    lines.push(
-      "Warning: this Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
+    warnings.push(
+      "This Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
     );
   }
 
@@ -217,20 +255,26 @@ export async function runEnv(
       );
 
   if (!ignored) {
-    lines.push(
-      `Warning: add ${out} to .gitignore; it contains the secret key.`,
-    );
+    warnings.push(`Add ${out} to .gitignore; it contains the secret key.`);
   }
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: [
+      ...changeLines(applied),
+      ...warnings.map((warning) => `Warning: ${warning}`),
+    ].join("\n"),
+    data: {
+      file,
+      files: applied.changes,
+      keys: Object.keys(values),
+      warnings,
+    },
+  };
 }
 
 export const envCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "env",
-    description:
-      "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
-  },
-  args: ARGS,
-  run: (args, { config, env }) => runEnv(config, args, env),
+  meta: commandMeta("env"),
+  args: { ...ARGS, ...ENV_PLAN_ARGS },
+  run: (args, { config, env, signal }) => runEnv(config, args, env, signal),
 });

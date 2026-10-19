@@ -1,7 +1,7 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as v from "valibot";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 
 /** The environment variables the CLI reads, validated once per run. */
 export interface CliEnv {
@@ -21,7 +21,18 @@ export interface CliEnv {
   readonly CI?: string | undefined;
   /** The config environment to apply when `--env` is not passed. */
   readonly BETTER_SUPABASE_ENV?: string | undefined;
+  /** Agent mode when `--agent` is not passed: auto, yes or no. `run()` reads it before parsing. */
+  readonly BETTER_SUPABASE_AGENT?: string | undefined;
+  /** Every variable of the run, for the processes the CLI starts. */
+  readonly [PROCESS_ENV]?: Readonly<Record<string, string | undefined>>;
 }
+
+/** The key of the full environment on a `CliEnv`; a symbol, so JSON output never shows it. */
+export const PROCESS_ENV: unique symbol = Symbol("better-supabase.processEnv");
+
+/** Whether `$CI` is set to anything but `false` or `0`. */
+export const isCi = (env: CliEnv): boolean =>
+  env.CI !== undefined && env.CI !== "" && env.CI !== "false" && env.CI !== "0";
 
 /** `--env`, then `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set to anything but false. */
 export function configEnvironment(
@@ -36,9 +47,7 @@ export function configEnvironment(
     return env.BETTER_SUPABASE_ENV;
   }
 
-  return env.CI !== undefined && env.CI !== "false" && env.CI !== "0"
-    ? "ci"
-    : undefined;
+  return isCi(env) ? "ci" : undefined;
 }
 
 const optionalString = v.optional(v.string());
@@ -51,7 +60,7 @@ const optionalUrl = v.optional(
 export function parseEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): CliEnv {
-  return createEnv({
+  const parsed = createEnv({
     server: {
       DATABASE_URL: optionalUrl,
       SUPABASE_DB_URL: optionalUrl,
@@ -61,6 +70,7 @@ export function parseEnv(
       HOME: optionalString,
       CI: optionalString,
       BETTER_SUPABASE_ENV: optionalString,
+      BETTER_SUPABASE_AGENT: optionalString,
     },
     runtimeEnv: env,
     isServer: true,
@@ -78,4 +88,6 @@ export function parseEnv(
       );
     },
   });
+
+  return { ...parsed, [PROCESS_ENV]: env };
 }

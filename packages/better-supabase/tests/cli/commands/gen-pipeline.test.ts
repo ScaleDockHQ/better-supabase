@@ -18,7 +18,7 @@ import {
   selectTasks,
   stepInputs,
 } from "../../../src/cli/commands/gen-pipeline.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { plain } from "../../../src/cli/style.ts";
 import {
   type BetterSupabaseConfig,
@@ -135,7 +135,7 @@ describe("gen steps", () => {
   });
 
   it("returns one task's result unchanged", () => {
-    const result = { code: 0, output: "Wrote a.ts", data: { a: 1 } };
+    const result = { code: 0, output: "Created a.ts", data: { a: 1 } };
     expect(combineResults([{ task: "types", result }])).toBe(result);
   });
 
@@ -144,14 +144,15 @@ describe("gen steps", () => {
       combineResults([
         {
           task: "types",
-          result: { code: 0, output: "Wrote a.ts\nWrote b.ts" },
+          result: { code: 0, output: "Created a.ts\nCreated b.ts" },
         },
         { task: "sql", result: { code: 0 } },
         { task: "seed", result: { code: 1, error: "no seed" } },
       ]),
     ).toEqual({
       code: 1,
-      output: "[types]\n  Wrote a.ts\n  Wrote b.ts\n[sql] done\n[seed] done",
+      output:
+        "[types]\n  Created a.ts\n  Created b.ts\n[sql] done\n[seed] done",
       error: "[seed] no seed",
       data: {
         tasks: { types: { code: 0 }, sql: { code: 0 }, seed: { code: 1 } },
@@ -200,15 +201,15 @@ describe("gen spec step", () => {
   });
 });
 
-describe("gen --tasks", () => {
+describe("gen --only", () => {
   it("refuses an empty task list", async () => {
-    const result = await run(["gen", "--tasks", "", "--cwd", root]);
+    const result = await run(["gen", "--only", "", "--cwd", root]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("--tasks names no task.");
+    expect(result.stderr).toContain("--only names no task.");
   });
 
   it("rejects an unknown task before reading the schema", async () => {
-    const result = await run(["gen", "--tasks", "lint", "--cwd", root]);
+    const result = await run(["gen", "--only", "lint", "--cwd", root]);
     expect(result.code).toBe(2);
     expect(result.stderr).toContain('Unknown gen task "lint"');
   });

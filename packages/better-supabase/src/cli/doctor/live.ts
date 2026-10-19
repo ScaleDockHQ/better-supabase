@@ -1,7 +1,7 @@
 import type { CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 import { CLI_QUERY_TAG } from "../introspect/source.ts";
 import { PLATFORM_ROLES } from "./reserved-roles.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";

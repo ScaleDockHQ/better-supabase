@@ -16,7 +16,8 @@ Pass files or directories after the name to limit it (`codemod 0.4 src app`).
 Without them it walks the project and skips `node_modules`, build output
 (`dist`, `build`, `.next`, `.turbo`, `.vercel`, `coverage`) and `.d.ts` files.
 `--dry-run` prints a unified diff of each file it would change and writes
-nothing.
+nothing. `--check` writes nothing and exits 1 when a file still needs the
+codemod, so CI can tell the upgrade is done ([writing files](/docs/cli#writing-files)).
 
 The codemod runs even when the config file fails to load, because the config
 it migrates is often the one the new version rejects. It then walks the
@@ -28,6 +29,13 @@ directory that holds the discovered config file, or `--cwd` when there is none.
 | `0.5`   | `scopes` in `createMcp()` options becomes `advertisedScopes`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `0.6`   | Renames the `Kit` and `Org` exports to their `Block`, `Module` and `Organization` names and `maxUrlLength` to `urlLengthLimit`; lists every `$rpc` call (rows in the configured casing), `.publicUrl(` and `.path({` calls (a `Result`) and imports from the moved subpaths, for review                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `0.9`   | Moves `sql.modules` to the top-level `blocks` key in `better-supabase.config.*` and renames `ModulesConfig`, `ModuleConfig`, `AccessModuleConfig` and `ModuleMode` to their `Block` names; lists `supportSessions(` (denied without `authorize`, second approver), `canApprove` (now `isApprover`), `createWebhooks(` (CloudEvents), `gatewayOptions(`, `publish_webhook_event(` and the old generic problem types and titles, for review; also `token_scope_allows(` and the role helpers (the delegation cap), `workflowStarter(` and `startOnEvent(` (`runAs`), `createWorkflowBuilder(`, `createNotifications(`, `createReminders(` and `.fanOut(` (subject readers), agent `act` levels, `create_share_link`, `before_promotion_activate` and `comments` options |
+
+| Command       | Side effects  |
+| ------------- | ------------- |
+| `codemod 0.4` | Writes files. |
+| `codemod 0.5` | Writes files. |
+| `codemod 0.6` | Writes files. |
+| `codemod 0.9` | Writes files. |
 
 ## What it rewrites
 
@@ -66,7 +74,7 @@ Check these by hand:
 ```
 
 Run your type checker afterwards; a rename the codemod missed shows up there.
-With `--json`, the result is `{ codemod, dryRun, changed, review }`.
+With `--json`, the envelope's `data` is `{ codemod, dryRun, changed, review }`.
 
 SQL module renames are not source rewrites: `better-supabase sql upgrade`
 handles them, and doctor reports SQL that still uses an old name (BS309).

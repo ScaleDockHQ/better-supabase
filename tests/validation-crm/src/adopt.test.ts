@@ -58,9 +58,8 @@ describe("apply --adopt on the CRM schema", () => {
 
     expect(result.code).toBe(0);
 
-    const data = JSON.parse(result.stdout) as {
-      adopted: Record<string, { mode: string }>;
-      contents: string;
+    const { data } = JSON.parse(result.stdout) as {
+      data: { adopted: Record<string, { mode: string }>; contents: string };
     };
 
     expect(Object.keys(data.adopted)).toEqual([
@@ -114,9 +113,8 @@ describe("apply --adopt on the CRM schema", () => {
 
     expect(result.code).toBe(0);
 
-    const data = JSON.parse(result.stdout) as {
-      adopted: BlocksConfig;
-      contents: string;
+    const { data } = JSON.parse(result.stdout) as {
+      data: { adopted: BlocksConfig; contents: string };
     };
 
     const proposed = JSON.parse(data.contents) as { preset: string };

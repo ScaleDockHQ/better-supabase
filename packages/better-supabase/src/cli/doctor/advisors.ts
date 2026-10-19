@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 
 import type { Queryable } from "../introspect/source.ts";
 
+import { CliError } from "../core/errors.ts";
+import { request } from "../core/http.ts";
 import { type TomlTable, tomlGet } from "../supabase-toml.ts";
 
 /**
@@ -18,7 +20,6 @@ const SPLINTER_SHA256 =
   "d8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349";
 
 const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
-const REQUEST_TIMEOUT_MS = 30_000;
 
 export type AdvisorCategory = "security" | "performance";
 
@@ -73,31 +74,23 @@ export function managementAdvisors(
     "",
   );
 
-  const doFetch = options.fetch ?? fetch;
-
   return {
     describe: `project ${options.projectRef} advisors (Management API)`,
     async lints(category) {
       const url = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/advisors/${category}`;
 
-      const response = await doFetch(url, {
+      const text = await request(url, {
+        what: `Management API ${category} advisors`,
         headers: { authorization: `Bearer ${options.accessToken}` },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        ...(options.fetch ? { fetch: options.fetch } : {}),
       });
-
-      const text = await response.text();
-
-      if (!response.ok) {
-        throw new Error(
-          `Management API ${category} advisors failed (${response.status}): ${text.slice(0, 300)}`,
-        );
-      }
 
       // SAFETY: JSON.parse returns any, and lints is checked below.
       const body = JSON.parse(text) as { lints?: unknown };
 
       if (!Array.isArray(body.lints)) {
-        throw new TypeError(
+        throw new CliError(
+          "request_failed",
           `Management API ${category} advisors returned no "lints".`,
         );
       }
@@ -163,20 +156,14 @@ async function splinterSql(options: SplinterOptions): Promise<string> {
     }
   }
 
-  const response = await (options.fetch ?? fetch)(SPLINTER_URL, {
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  const text = await request(SPLINTER_URL, {
+    what: `Downloading splinter.sql from ${SPLINTER_URL}`,
+    ...(options.fetch ? { fetch: options.fetch } : {}),
   });
 
-  if (!response.ok) {
-    throw new Error(
-      `Downloading splinter.sql failed (${response.status}) from ${SPLINTER_URL}`,
-    );
-  }
-
-  const text = await response.text();
-
   if (sha256(text) !== SPLINTER_SHA256) {
-    throw new Error(
+    throw new CliError(
+      "integrity_failed",
       `splinter.sql from ${SPLINTER_URL} does not match the pinned hash; refusing to run it.`,
     );
   }

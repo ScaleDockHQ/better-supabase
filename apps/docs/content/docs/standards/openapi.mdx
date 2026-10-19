@@ -31,7 +31,7 @@ const { document, diagnostics } = api.openapi({ version: "3.2" });
 `api.openapi()` renders 3.1 when you pass no version. `createOpenApi` from
 `better-supabase/openapi` takes the same options plus `version` and returns
 the document directly; it throws when rendering finds an error. To write the
-documents to disk and check them in CI, run `better-supabase spec check`.
+documents to disk and check them in CI, run `better-supabase spec emit --check`.
 
 ## Versions
 

@@ -1,6 +1,6 @@
 ---
 title: Local development
-description: Env files, signing keys, typed seeds and OpenAPI files for the local stack.
+description: Env files, signing keys and typed seeds for the local stack.
 ---
 
 ## env
@@ -22,16 +22,18 @@ The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
 | `SUPABASE_DB_URL`                  | `DB_URL`                                                                               |
 | `SUPABASE_JWT_SECRET`              | `JWT_SECRET`, for HS256 [test tokens](/docs/testing) (`asUser(..., { alg: 'HS256' })`) |
 
-Values are never printed unless you pass `--print`. The file is readable by
+Values are never printed unless you pass `--out -`, which prints the
+variables on stdout instead of writing a file. The file is readable by
 your user only (mode `0600`), even when its contents didn't change. `env`
 warns when the file isn't in `.gitignore`, and when your Supabase CLI only
 prints legacy keys.
 `--out <file>` writes another file than `.env.local` (`env.output` in the
-config sets it for every run, and `env.prefix` the prefix), and `--from <file>`
-reads saved `supabase status -o json` output instead of running the
+config sets it for every run, and `env.prefix` the prefix), and
+`--status-file <file>` reads saved `supabase status -o json` output instead of running the
 Supabase CLI. Both paths must stay inside the project root: `env` refuses an
 absolute path elsewhere or one that climbs out with `..`, so the secret key
-never lands outside the project.
+never lands outside the project. `--dry-run` and `--check` name the file
+without showing the keys ([writing files](/docs/cli#writing-files)).
 
 The Supabase CLI's native stack (`[experimental] stack = true` in
 `supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a
@@ -39,6 +41,8 @@ Docker daemon and rejects `supabase status -o json`. `env` then reads
 `supabase status --env` instead. That output has no `JWT_SECRET`, so
 `SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
 secret.
+
+Side effects: Writes files.
 
 ## keys
 
@@ -52,7 +56,9 @@ your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `keys` refuses to overwrite an existing file
 unless you pass `--force`, and `--out <file>` (or `keys.output` in the
-config) writes somewhere else.
+config) writes somewhere else. `--dry-run` writes nothing.
+
+Side effects: Writes files.
 
 ## seed
 
@@ -83,7 +89,8 @@ pnpm better-supabase seed --apply  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `seed.entry` and
-`seed.output`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
+`seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
+`--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
 
@@ -100,22 +107,17 @@ Tests import the same rows: `seed.rows.customers.first`, and
 `await seed.insert(sql)` in a `beforeAll`. Node loads `seed.ts` directly,
 so use `.ts` extensions in its relative imports.
 
-## openapi emit
+Side effects: Writes files, writes to the database with `--apply`.
 
-```bash
-pnpm better-supabase openapi emit --check
-```
+## OpenAPI files
 
-This imports `openapi.entry` (default `src/lib/openapi.ts`), which exports
-the [`createOpenApi`](/docs/standards/openapi) document as `openapi` or
-default (or a function that returns it), and writes `openapi.json`.
-`--check` writes nothing and fails when the file is out of date; like
-[`spec check`](/docs/cli/spec), it compares the text and ignores line
-endings. `--entry <file>` and `--out <file>` override `openapi.entry` and
+`openapi emit` is now [`spec emit openapi`](/docs/cli/spec). It reads a
+module that exports a [`createOpenApi`](/docs/standards/openapi) document as
+`openapi` or default (or a function that returns it), as well as a
+`defineApi` module. The `openapi` config key is a deprecated alias of
+`specs`: when `specs` is unset, `spec` reads `openapi.entry` and
 `openapi.output`.
 
-`openapi emit` is kept for existing projects. [`spec`](/docs/cli/spec)
-writes the same document from a `defineApi` module, plus any other OpenAPI
-version, AsyncAPI and Arazzo, with overlays, a cache and validation. The
-`openapi` config key is a deprecated alias of `specs`: when `specs` is
-unset, `spec` reads `openapi.entry` and `openapi.output` too.
+```bash
+pnpm better-supabase spec emit openapi --check
+```

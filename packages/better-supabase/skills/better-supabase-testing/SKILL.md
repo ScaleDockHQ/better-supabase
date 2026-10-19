@@ -113,7 +113,7 @@ With the polyfill, `vi.useFakeTimers({ now })` drives `Temporal.Now` too.
 ## Doctor in CI
 
 Run `pnpm better-supabase doctor` against the reset stack and fail the job on
-a nonzero exit. `--json` prints the report with each finding's code,
+a nonzero exit. `--json` puts the report, with each finding's code, under `data`,
 `--format github` annotates the pull request, and
 `--format sarif --out doctor.sarif` feeds code scanning.
 

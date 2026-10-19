@@ -1,8 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Now } from "../sql/migrations.ts";
 
 import {
@@ -14,13 +14,16 @@ import {
   encodePreset,
   isPresetName,
   type Preset,
+  PRESET_NAMES,
   presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
-import { defineCliCommand } from "../command.ts";
 import { loadConfig } from "../config.ts";
-import { fileDiff } from "../diff.ts";
-import { display } from "../io.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
+import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,
@@ -38,7 +41,7 @@ import {
 } from "../sql/config-edit.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
 import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -68,6 +71,11 @@ const APPLY_ARGS = {
   "dry-run": {
     type: "boolean",
     description: "Show the config diff and write nothing",
+  },
+  check: {
+    type: "boolean",
+    description:
+      "Write nothing; exit 1 with the diff when the config lacks the preset",
   },
 } as const;
 
@@ -248,26 +256,25 @@ export async function runApply(
   const input = args.preset;
 
   if (input === undefined) {
-    return {
-      code: 2,
-      error:
-        "Pass --preset with a named preset, a code from /create or its URL.",
-    };
+    throw new CliError(
+      "usage",
+      "Pass --preset with a named preset, a code from /create or its URL.",
+    );
   }
 
   const only = args.only;
 
   if (only !== undefined && only !== "blocks" && only !== "conventions") {
-    return { code: 2, error: '--only must be "blocks" or "conventions"' };
+    throw new CliError("usage", '--only must be "blocks" or "conventions"');
   }
 
   const file = deps.configFile;
 
   if (file === undefined) {
-    return {
-      code: 2,
-      error: `No config file to apply the preset to. Start a project with \`better-supabase init --preset ${input}\`.`,
-    };
+    throw new CliError(
+      "config_not_found",
+      `No config file to apply the preset to. Start a project with \`better-supabase init --preset ${input}\`.`,
+    );
   }
 
   let preset: Preset;
@@ -275,10 +282,10 @@ export async function runApply(
   try {
     preset = presetOf(input);
   } catch (error) {
-    return {
-      code: 2,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    throw new CliError(
+      "usage",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   let design: CreateDesign | undefined;
@@ -289,10 +296,10 @@ export async function runApply(
         ? undefined
         : await designFor(config, input, preset);
   } catch (error) {
-    return {
-      code: 2,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    throw new CliError(
+      "usage",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   const conflict = describeConflicts(
@@ -300,7 +307,7 @@ export async function runApply(
   );
 
   if (conflict !== undefined) {
-    return { code: 2, error: conflict };
+    throw new CliError("usage", conflict);
   }
 
   const breaking =
@@ -355,13 +362,12 @@ export async function runApply(
 
   if (args.adopt === true) {
     if (only === "conventions" || deps.tables === undefined) {
-      return {
-        code: 2,
-        error:
-          only === "conventions"
-            ? "--adopt maps blocks, and --only conventions takes none."
-            : "--adopt needs the database or a snapshot to read the tables from.",
-      };
+      throw new CliError(
+        "usage",
+        only === "conventions"
+          ? "--adopt maps blocks, and --only conventions takes none."
+          : "--adopt needs the database or a snapshot to read the tables from.",
+      );
     }
 
     const adoption = adoptBlocks(
@@ -386,7 +392,7 @@ export async function runApply(
             ]),
           ),
         },
-        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --from <schema.table>\`, or leave the block out of the preset.`,
+        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --tables <schema.table>\`, or leave the block out of the preset.`,
       };
     }
 
@@ -414,9 +420,21 @@ export async function runApply(
     };
   }
 
-  lines.push(fileDiff(shown, source, text, paint));
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase apply",
+    files: [{ path: file, contents: text, policy: "edit" }],
+  };
 
-  if (args["dry-run"] === true) {
+  const applied = await applyPlan(plan, args, paint);
+
+  if (applied.mode === "check") {
+    return planResult(plan, applied, { data: { ...data, written: false } });
+  }
+
+  lines.push(...applied.diffs);
+
+  if (applied.mode === "dry-run") {
     lines.push(
       "",
       "Dry run: nothing written. Run without --dry-run to apply it.",
@@ -428,8 +446,6 @@ export async function runApply(
       data: { ...data, written: false },
     };
   }
-
-  await writeFile(file, text);
 
   const reload =
     deps.reload ?? ((root: string, path: string) => loadConfig(root, path));
@@ -446,16 +462,16 @@ export async function runApply(
 }
 
 export const applyCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "apply",
-    description:
-      "Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules",
-  },
+  meta: commandMeta("apply"),
   args: { ...APPLY_ARGS, ...SOURCE_ARGS },
-  run: async (args, { config, configFile, env, io, signal }) =>
+  completions: {
+    preset: () => PRESET_NAMES,
+    only: () => ["blocks", "conventions"],
+  },
+  run: async (args, { config, configFile, env, io, paint, signal }) =>
     runApply(config, args, {
       now: () => new Date(),
-      paint: painter(io.color),
+      paint,
       tables: snapshotTables(config, env, {
         ...(await sourceArgs(args, io)),
         ...(signal ? { signal } : {}),

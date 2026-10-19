@@ -1,21 +1,23 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { addModules } from "../sql/add.ts";
-import { SQL_ARGS, type SqlFlags, USAGE } from "../sql/args.ts";
+import { SQL_ARGS, type SqlFlags } from "../sql/args.ts";
 import { listModules } from "../sql/list.ts";
 import { dataMigration, type Now } from "../sql/migrations.ts";
 import { printModule } from "../sql/print.ts";
 import { syncModules } from "../sql/sync.ts";
 import { upgrade } from "../sql/upgrade.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
 
 export { migrationsDir };
 
-export type { SqlArgs, SqlFlags } from "../sql/args.ts";
+export type { SqlFlags } from "../sql/args.ts";
 
 /** What `runSql` reads from outside: the clock behind the migration stamps. */
 export interface SqlDeps {
@@ -26,6 +28,7 @@ export interface SqlDeps {
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
+/** Runs one `sql` subcommand: `args._` is the subcommand name, then its arguments. */
 export async function runSql(
   config: ResolvedConfig,
   args: SqlFlags,
@@ -60,28 +63,86 @@ export async function runSql(
     }
 
     case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
+      throw new CliError("usage", "Name a subcommand.");
     }
 
     default: {
-      return {
-        code: 2,
-        error: `Unknown sql action "${action}".\n${USAGE}`,
-      };
+      throw new CliError("usage", `Unknown sql subcommand "${action}".`);
     }
   }
 }
 
-export const sqlCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "sql",
-    description:
-      "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration",
+const MODULES_ARG = {
+  module: {
+    type: "positional",
+    required: false,
+    variadic: true,
+    description: "SQL modules (`better-supabase sql list`)",
   },
-  args: SQL_ARGS,
-  run: (args, { config, configFile, io }) =>
-    runSql(config, args, painter(io.color), {
+} as const;
+
+const MODULE_ARG = {
+  module: {
+    type: "positional",
+    required: false,
+    description: "The SQL module to print",
+  },
+} as const;
+
+const TESTS_DIR = { "tests-dir": SQL_ARGS["tests-dir"] } as const;
+
+export const sqlListCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql list"),
+  args: TESTS_DIR,
+  run: (args, { config }) => runSql(config, { ...args, _: ["list"] }),
+});
+
+export const sqlAddCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql add"),
+  args: {
+    ...MODULES_ARG,
+    ...TESTS_DIR,
+    "dry-run": SQL_ARGS["dry-run"],
+    "allow-hook-overlap": SQL_ARGS["allow-hook-overlap"],
+  },
+  run: (args, { config, configFile, paint }) =>
+    runSql(config, { ...args, _: ["add", ...args._] }, paint, {
       ...SYSTEM_DEPS,
       ...(configFile === undefined ? {} : { configFile }),
     }),
+});
+
+export const sqlSyncCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql sync"),
+  args: {
+    ...TESTS_DIR,
+    check: SQL_ARGS.check,
+    "dry-run": SQL_ARGS["dry-run"],
+  },
+  run: (args, { config, paint }) =>
+    runSql(config, { ...args, _: ["sync"] }, paint),
+});
+
+export const sqlUpgradeCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql upgrade"),
+  args: {
+    ...TESTS_DIR,
+    check: SQL_ARGS.check,
+    "dry-run": SQL_ARGS["dry-run"],
+  },
+  run: (args, { config, paint }) =>
+    runSql(config, { ...args, _: ["upgrade"] }, paint),
+});
+
+export const sqlDataCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql data"),
+  args: { ...TESTS_DIR, "dry-run": SQL_ARGS["dry-run"] },
+  run: (args, { config }) => runSql(config, { ...args, _: ["data"] }),
+});
+
+export const sqlPrintCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("sql print"),
+  args: { ...MODULE_ARG, ...TESTS_DIR },
+  run: (args, { config }) =>
+    runSql(config, { ...args, _: ["print", ...args._] }),
 });

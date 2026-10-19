@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 
@@ -17,9 +17,10 @@ import {
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { display, writeIfChanged } from "../io.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationStamp, type Now } from "./migrations.ts";
 import {
@@ -45,7 +46,11 @@ export async function upgrade(
   now: Now,
 ): Promise<CommandResult> {
   if (config.blockNames.length === 0) {
-    return { code: 0, output: "blocks is empty; nothing to upgrade." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to upgrade.",
+      data: { upgrades: [], stale: [] },
+    };
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
@@ -58,6 +63,11 @@ export async function upgrade(
 
   const plan = upgradePlan(installed, sqlLayout);
 
+  const data = {
+    upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
+    stale,
+  };
+
   const behind = plan.map(
     (entry) =>
       `${entry.module} is at version ${String(entry.from)}; the current version is ${String(entry.to)}`,
@@ -68,11 +78,14 @@ export async function upgrade(
       return {
         code: 0,
         output: "SQL modules are at their current versions.",
+        data,
       };
     }
 
     return {
       code: 1,
+      errorCode: "check_failed",
+      data,
       output: diffs.join("\n\n"),
       error: [
         ...behind,
@@ -86,6 +99,7 @@ export async function upgrade(
     return {
       code: 0,
       output: "SQL modules are at their current versions.",
+      data,
     };
   }
 
@@ -106,12 +120,15 @@ export async function upgrade(
     const path = `${migrationsDir(config)}/${migrationStamp(now())}_better_supabase_block_upgrade.sql`;
     const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
-    if (dryRun) {
-      lines.push(`Would write ${path}`);
-    } else {
-      await writeIfChanged(resolve(config.root, path), contents);
-      lines.push(`Wrote ${path}`);
-    }
+    const applied = await applyPlan(
+      sqlPlan(config, {
+        regenerate: "better-supabase sql upgrade",
+        files: [{ path, contents }],
+      }),
+      { "dry-run": dryRun },
+    );
+
+    lines.push(...changeLines(applied));
   }
 
   for (const entry of plan) {
@@ -131,11 +148,14 @@ export async function upgrade(
       undefined,
       migrations ? steps : [],
     )),
-    "",
-    await nextStep(config),
   );
 
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data,
+    next: [await nextStep(config)],
+  };
 }
 
 interface Installed {

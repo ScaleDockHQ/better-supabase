@@ -7,7 +7,7 @@ import type {
   SqlObject,
 } from "./rules.ts";
 
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 
 /** One request per advisor category, shared by the advisor rules and the rules that defer to them. */
 const fetched = new WeakMap<

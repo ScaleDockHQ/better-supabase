@@ -8,6 +8,14 @@ import type { ConfigEdit } from "./sql/config-edit.ts";
 
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
+import {
+  CLI_CALL_FILE,
+  type CliCallMigration,
+  cliCallHints,
+  rewriteCliCalls,
+  SHELL_FILE,
+} from "./codemod-calls.ts";
+import { migrateCliCall } from "./core/moved.ts";
 import { mask } from "./sql/config-edit.ts";
 import {
   moveSqlModulesToBlocks,
@@ -37,6 +45,8 @@ export interface Codemod {
   readonly review?: readonly ReviewHint[];
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
   readonly configFile?: (source: string, json: boolean) => ConfigEdit;
+  /** Renamed CLI calls, rewritten in `package.json` and workflows and listed in other shell files. */
+  readonly cliCalls?: CliCallMigration;
 }
 
 export interface MemberRename {
@@ -234,7 +244,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.9": {
     name: "0.9",
     description:
-      "Moves sql.modules to the top-level blocks key in better-supabase.config.*, renames the config types (ModulesConfig to BlocksConfig, ModuleConfig to BlockConfig, AccessModuleConfig to AccessBlockConfig, ModuleMode to BlockMode), pins pagination: 'offset' on lists and resources in files that read page numbers, and lists behaviour changes for review: support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects",
+      "Moves sql.modules to the top-level blocks key in better-supabase.config.*, rewrites CLI calls in package.json scripts and GitHub workflows to the new subcommands and flags (other shell files are listed), renames the config types (ModulesConfig to BlocksConfig, ModuleConfig to BlockConfig, AccessModuleConfig to AccessBlockConfig, ModuleMode to BlockMode), pins pagination: 'offset' on lists and resources in files that read page numbers, and lists behaviour changes for review: support sessions (denied without authorize, approved by a second admin), canApprove (now isApprover), outgoing webhook transforms and receivers (CloudEvents), gatewayOptions callers, generic problem types (about:blank), the delegation cap, role helpers, event and schedule starts (runAs), workflow builders, delivery and realtime fan-out, agent actors, share links, before_promotion_activate and comment subjects",
     imports: {
       ModulesConfig: "BlocksConfig",
       ModuleConfig: "BlockConfig",
@@ -245,6 +255,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       json
         ? moveSqlModulesToBlocksJson(source)
         : moveSqlModulesToBlocks(source),
+    cliCalls: migrateCliCall,
     pins: [
       { call: "defineListQuery", argument: 2, ...OFFSET_PIN },
       {
@@ -853,6 +864,19 @@ export function applyCodemod(
   source: string,
   file?: string,
 ): CodemodResult {
+  if (
+    file !== undefined &&
+    (CLI_CALL_FILE.test(file) || SHELL_FILE.test(file))
+  ) {
+    if (!codemod.cliCalls) {
+      return { text: source, review: [] };
+    }
+
+    return CLI_CALL_FILE.test(file)
+      ? { text: rewriteCliCalls(source, codemod.cliCalls), review: [] }
+      : { text: source, review: cliCallHints(source, codemod.cliCalls) };
+  }
+
   let text = source;
   const refused: { line: number; message: string }[] = [];
 

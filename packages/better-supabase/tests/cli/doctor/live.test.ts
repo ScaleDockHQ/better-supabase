@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { errorText } from "../../../src/cli/core/errors.ts";
 import { ident, literal, summarizePlan } from "../../../src/cli/doctor/live.ts";
 import {
   type DoctorContext,
   RULES,
   runRules,
 } from "../../../src/cli/doctor/rules.ts";
-import { errorText } from "../../../src/cli/errors.ts";
 import { CLI_QUERY_TAG } from "../../../src/cli/introspect/source.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";

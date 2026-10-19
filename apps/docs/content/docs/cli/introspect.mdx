@@ -4,7 +4,7 @@ description: Save a schema snapshot so codegen and doctor run without a database
 ---
 
 ```bash
-better-supabase introspect [--out <file>] [--format <snapshot|generator-metadata>] [--check]
+better-supabase introspect [--out <file>] [--kind <snapshot|generator-metadata>] [--check]
 ```
 
 `introspect` reads your database the way [`gen`](/docs/cli/gen) does and
@@ -12,21 +12,24 @@ writes what it found to `supabase/snapshot.json`. Commit the file, set
 `source.snapshot` in the config, and CI and contributors can run `gen` and
 `doctor` without a database.
 
+Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.
+
 ## Options
 
 | Option                | Effect                                                                                       |
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `--out <file>`        | Where to write. Defaults to `supabase/snapshot.json`, or `supabase/generator-metadata.json`. |
-| `--format <format>`   | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
+| `--kind <kind>`       | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
 | `--check`             | Writes nothing; exits 1 when the file no longer matches the database.                        |
-| `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--format`.               |
+| `--dry-run`           | Prints a diff of the file and writes nothing.                                                |
+| `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--kind`.                 |
 | `--db-url-stdin`      | Reads the connection string from stdin.                                                      |
 | `--project-ref <ref>` | Reads a hosted project through the Management API.                                           |
 
 The schema comes from the same places as for `gen`, in the
 [same order](/docs/cli/gen#where-the-schema-comes-from). With `--json`,
-`introspect` prints `{ "file", "written", "tables" }`, and `--check` prints
-`{ "file", "upToDate" }`. It always reads the full schema, without the
+the envelope's `data` is `{ "tables", "files" }`, plus `upToDate` for
+`--check`. It always reads the full schema, without the
 [introspection cache](/docs/cli/gen#introspection-cache) `gen` uses.
 
 ## What the snapshot holds

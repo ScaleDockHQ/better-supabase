@@ -1,6 +1,6 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import {
   decodePreset,
@@ -15,21 +15,17 @@ import {
   resolvePreset,
   type ResolvedPreset,
 } from "../../preset/index.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { commandMeta } from "../core/manifest.ts";
 
-const USAGE = `Usage:
-  better-supabase preset decode <name|code|url>   What a preset holds and what it installs
-  better-supabase preset info                     The config's preset and how the config differs from it`;
-
-const PRESET_ARGS = {
-  action: {
+const DECODE_ARGS = {
+  preset: {
     type: "positional",
     required: false,
-    description: "decode or info",
+    description: "A preset name, a preset code or a /create URL",
   },
 } as const;
-
-type PresetOptions = CliOptions<typeof PRESET_ARGS>;
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -96,12 +92,9 @@ function presetData(resolved: ResolvedPreset): PresetData {
   };
 }
 
-function decode(value: string | undefined): CommandResult {
+export function decodePresetInput(value: string | undefined): CommandResult {
   if (value === undefined) {
-    return {
-      code: 2,
-      error: `Name a preset, a code or a /create URL.\n${USAGE}`,
-    };
+    throw new CliError("usage", `Name a preset, a code or a /create URL.`);
   }
 
   let preset: Preset;
@@ -118,7 +111,7 @@ function decode(value: string | undefined): CommandResult {
       preset = presetOf(param);
     }
   } catch (error) {
-    return { code: 2, error: messageOf(error) };
+    throw new CliError("usage", messageOf(error));
   }
 
   const resolved = resolvePreset(preset);
@@ -170,7 +163,7 @@ function drift(
   return { added, changed };
 }
 
-function info(config: ResolvedConfig): CommandResult {
+export function presetInfo(config: ResolvedConfig): CommandResult {
   if (config.preset === undefined) {
     return {
       code: 0,
@@ -185,7 +178,7 @@ function info(config: ResolvedConfig): CommandResult {
   try {
     preset = presetOf(config.preset);
   } catch (error) {
-    return { code: 2, error: messageOf(error) };
+    throw new CliError("usage", messageOf(error));
   }
 
   const resolved = resolvePreset(preset);
@@ -210,37 +203,14 @@ function info(config: ResolvedConfig): CommandResult {
   };
 }
 
-export function runPreset(
-  config: ResolvedConfig,
-  args: PresetOptions,
-): CommandResult {
-  const [action, value] = args._ ?? [];
+export const presetDecodeCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("preset decode"),
+  args: DECODE_ARGS,
+  run: (args) => Promise.resolve(decodePresetInput(args.preset)),
+});
 
-  switch (action) {
-    case "decode": {
-      return decode(value);
-    }
-
-    case "info": {
-      return info(config);
-    }
-
-    case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
-    }
-
-    default: {
-      return { code: 2, error: `Unknown preset action "${action}".\n${USAGE}` };
-    }
-  }
-}
-
-export const presetCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "preset",
-    description:
-      "Decodes a preset code, or shows the config's preset and how the config differs from it",
-  },
-  args: PRESET_ARGS,
-  run: (args, { config }) => Promise.resolve(runPreset(config, args)),
+export const presetInfoCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("preset info"),
+  args: {},
+  run: (_args, { config }) => Promise.resolve(presetInfo(config)),
 });

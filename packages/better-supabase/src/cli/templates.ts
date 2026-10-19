@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 
 import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
-import type { Framework } from "./project.ts";
+import type { Framework } from "./project/detect.ts";
 
 import { INTEGRATIONS } from "./names.ts";
 

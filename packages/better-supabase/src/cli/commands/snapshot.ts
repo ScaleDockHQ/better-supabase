@@ -7,8 +7,9 @@ import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
+import { accessToken } from "../core/credentials.ts";
+import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { CliError, errorText } from "../errors.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";
@@ -67,11 +68,11 @@ export function managementTarget(
     return undefined;
   }
 
-  const accessToken = config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN;
+  const token = accessToken(config, env);
 
-  if (!accessToken) {
+  if (!token) {
     throw new CliError(
-      "missing_value",
+      "auth_required",
       `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN to a token scoped to this project (https://supabase.com/dashboard/account/tokens), or read the database with $DATABASE_URL, $SUPABASE_DB_URL or --db-url-stdin.`,
       { flag: "SUPABASE_ACCESS_TOKEN" },
     );
@@ -79,7 +80,7 @@ export function managementTarget(
 
   return {
     projectRef,
-    accessToken,
+    accessToken: token.value,
     ...(env.SUPABASE_API_URL ? { apiUrl: env.SUPABASE_API_URL } : {}),
   };
 }
@@ -196,7 +197,7 @@ async function readSnapshotFile(
   label: string = absolute,
 ): Promise<Snapshot> {
   if (!existsSync(absolute)) {
-    throw new Error(`Snapshot not found: ${label}`);
+    throw new CliError("not_found", `Snapshot not found: ${label}`);
   }
 
   return parseSnapshot(JSON.parse(await readFile(absolute, "utf-8")), label);
@@ -211,7 +212,8 @@ export async function parseSnapshot(
   const doc = data as Partial<Snapshot> | null;
 
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
-    throw new Error(
+    throw new CliError(
+      "invalid_input",
       `${label} is not a version 2 snapshot. Run \`better-supabase introspect\` to refresh it.`,
     );
   }
@@ -221,7 +223,10 @@ export async function parseSnapshot(
     !doc.extras ||
     !Array.isArray(doc.extras.tables)
   ) {
-    throw new Error(`${label} is missing "schemas" or "extras".`);
+    throw new CliError(
+      "invalid_input",
+      `${label} is missing "schemas" or "extras".`,
+    );
   }
 
   let generator;
@@ -233,7 +238,8 @@ export async function parseSnapshot(
       throw cause;
     }
 
-    throw new Error(
+    throw new CliError(
+      "invalid_input",
       `${label} has invalid "generator" metadata: ${errorText(cause)}`,
       { cause },
     );

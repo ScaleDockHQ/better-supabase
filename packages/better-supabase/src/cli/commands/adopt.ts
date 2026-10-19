@@ -1,16 +1,17 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
-import { defineCliCommand, list } from "../command.ts";
-import { fileDiff } from "../diff.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
+import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { toCatalog } from "../introspect/index.ts";
-import { display } from "../io.ts";
-import { withSpinner } from "../prompts.ts";
 import {
   type AdoptProposal,
   describeProposal,
@@ -23,7 +24,8 @@ import {
   setBlockInConfig,
   setBlockInJson,
 } from "../sql/config-edit.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
+import { blockNames } from "./blocks.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -33,7 +35,7 @@ const ADOPT_ARGS = {
     required: false,
     description: "The block to adopt existing tables for",
   },
-  from: {
+  tables: {
     type: "string",
     description:
       "The existing tables, as table or schema.table; the block's other tables are looked up by their default names",
@@ -43,6 +45,11 @@ const ADOPT_ARGS = {
     type: "boolean",
     description:
       "Show the proposed mapping and the config diff, and write nothing",
+  },
+  check: {
+    type: "boolean",
+    description:
+      "Write nothing; exit 1 with the diff when the config lacks this mapping",
   },
 } as const;
 
@@ -94,15 +101,14 @@ export async function runAdopt(
   const block = args.block;
 
   if (block === undefined) {
-    return {
-      code: 2,
-      error:
-        "Name the block to adopt, e.g. `better-supabase adopt teams --from public.teams`.",
-    };
+    throw new CliError(
+      "usage",
+      "Name the block to adopt, e.g. `better-supabase adopt teams --tables public.teams`.",
+    );
   }
 
   const proposal = proposeAdoption(block, await deps.tables(), {
-    from: list(args.from),
+    from: list(args.tables),
     blocks: config.blocks,
     schemas: adoptSchemas(config),
   });
@@ -157,16 +163,28 @@ export async function runAdopt(
 
   const paint = deps.paint ?? plain;
 
-  if (edit.text !== source) {
-    lines.push("", fileDiff(shown, source, edit.text, paint));
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase adopt",
+    files: [{ path: file, contents: edit.text, policy: "edit" }],
+  };
+
+  const applied = await applyPlan(plan, args, paint);
+
+  if (applied.mode === "check") {
+    return planResult(plan, applied, { data: { ...data, written: false } });
   }
 
-  if (args["dry-run"] === true || edit.text === source) {
+  if (applied.drift) {
+    lines.push("", ...applied.diffs);
+  }
+
+  if (applied.mode === "dry-run" || !applied.drift) {
     lines.push(
       "",
-      edit.text === source
-        ? `${shown} already holds this mapping.`
-        : "Dry run: nothing written. Run without --dry-run to write it.",
+      applied.drift
+        ? "Dry run: nothing written. Run without --dry-run to write it."
+        : `${shown} already holds this mapping.`,
     );
 
     return {
@@ -176,7 +194,6 @@ export async function runAdopt(
     };
   }
 
-  await writeFile(file, edit.text);
   lines.push(
     "",
     `Updated ${shown}. Run \`better-supabase sql sync\` to write the block's module over these tables.`,
@@ -190,22 +207,19 @@ export async function runAdopt(
 }
 
 export const adoptCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "adopt",
-    description:
-      "Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map",
-  },
+  meta: commandMeta("adopt"),
   args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
-  lists: ["from"],
-  run: async (args, { config, configFile, env, io, signal }) => {
+  lists: ["tables"],
+  completions: { block: blockNames },
+  run: async (args, { config, configFile, env, io, log, paint, signal }) => {
     const tables = snapshotTables(config, env, {
       ...(await sourceArgs(args, io)),
       ...(signal ? { signal } : {}),
     });
 
     return runAdopt(config, args, {
-      paint: painter(io.color),
-      tables: () => withSpinner(io.prompts, "Reading the schema", tables),
+      paint,
+      tables: () => log.progress("Reading the schema", tables),
       ...(configFile === undefined ? {} : { configFile }),
     });
   },

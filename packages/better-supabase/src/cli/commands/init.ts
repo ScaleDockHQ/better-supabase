@@ -6,8 +6,8 @@ import type {
   ResolvedConfig,
   SqlWorkflow,
 } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { TemplateFile } from "../templates.ts";
@@ -29,8 +29,16 @@ import {
   resolvePreset,
   type ResolvedPreset,
 } from "../../preset/index.ts";
-import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changeLines,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
@@ -40,7 +48,7 @@ import {
   packagesFor,
   parseIntegrations,
   templateContextFor,
-  writeFiles,
+  templatePlan,
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import {
@@ -48,7 +56,8 @@ import {
   installCommand,
   type InstallTarget,
   type Project,
-} from "../project.ts";
+} from "../project/detect.ts";
+import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
@@ -60,10 +69,9 @@ import {
   suggestedIntegrations,
   TEMPLATES,
 } from "../templates.ts";
-import { detectWorkspace, suggestedPackage } from "../workspace.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitArgs = CliArgs<typeof INIT_ARGS>;
+export type InitArgs = CliArgs<typeof INIT_ARGS & typeof PLAN_ARGS>;
 
 const SQL_WORKFLOWS: readonly SqlWorkflow[] = [
   "pg-delta",
@@ -81,7 +89,7 @@ const INIT_ARGS = {
       "Row keys in camelCase (camel, the default) or the database's snake_case (snake)",
     valueHint: "camel|snake",
   },
-  with: {
+  integration: {
     type: "string",
     description:
       "Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react",
@@ -109,8 +117,6 @@ const INIT_ARGS = {
     description:
       "Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps",
   },
-  force: { type: "boolean", description: "Overwrite files that exist" },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
 /** The minor of `@supabase/lite` the `backend: 'lite'` option targets. */
@@ -145,10 +151,10 @@ async function initTarget(
     const dir = posix.normalize(args.package.replaceAll("\\", "/"));
 
     if (!existsSync(join(cwd, dir, "package.json"))) {
-      return {
-        code: 2,
-        error: `--package ${args.package} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
-      };
+      throw new CliError(
+        "usage",
+        `--package ${args.package} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
+      );
     }
 
     return { dir: dir.replace(/\/$/, "") || "." };
@@ -163,10 +169,20 @@ async function initTarget(
   const suggested = suggestedPackage(workspace) ?? ".";
 
   if (!prompts) {
-    return {
-      code: 2,
-      error: `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
-    };
+    const others = workspace.packages
+      .map((entry) => entry.dir)
+      .filter((dir) => dir !== suggested);
+
+    throw new CliError(
+      "input_required",
+      `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
+      {
+        missing: ["--package"],
+        choices: {
+          "--package": [...new Set([suggested, ...others, "."])],
+        },
+      },
+    );
   }
 
   const dir = await prompts.select(
@@ -204,7 +220,7 @@ async function chosenPreset(
     value === undefined &&
     prompts &&
     args.casing === undefined &&
-    args.with === undefined
+    args.integration === undefined
   ) {
     const picked = await prompts.select(
       "Preset",
@@ -239,29 +255,29 @@ async function chosenPreset(
     preset = presetOf(value);
     design = isPresetName(value) ? undefined : await designOf(value);
   } catch (error) {
-    return {
-      code: 2,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    throw new CliError(
+      "usage",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   const resolved = resolvePreset(preset);
 
   if (resolved.conflicts.length > 0) {
-    return {
-      code: 2,
-      error: `The preset can't install: ${resolved.conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`,
-    };
+    throw new CliError(
+      "usage",
+      `The preset can't install: ${resolved.conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`,
+    );
   }
 
   if (design !== undefined) {
     try {
       designConfig(resolved, design);
     } catch (error) {
-      return {
-        code: 2,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      throw new CliError(
+        "usage",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
@@ -336,16 +352,16 @@ export async function runInit(
   }
 
   if (casing !== "camel" && casing !== "snake") {
-    return { code: 2, error: '--casing must be "camel" or "snake"' };
+    throw new CliError("usage", '--casing must be "camel" or "snake"');
   }
 
   const workflow = args.workflow ?? "pg-delta";
 
   if (!isSqlWorkflow(workflow)) {
-    return {
-      code: 2,
-      error: '--workflow must be "pg-delta", "migra" or "migrations"',
-    };
+    throw new CliError(
+      "usage",
+      '--workflow must be "pg-delta", "migra" or "migrations"',
+    );
   }
 
   const target = await initTarget(config.root, args, prompts);
@@ -371,10 +387,10 @@ export async function runInit(
     ? { dir: target.dir, name: project.name }
     : undefined;
 
-  const requested = parseIntegrations(list(args.with));
+  const requested = parseIntegrations(list(args.integration));
 
   if (typeof requested === "string") {
-    return { code: 2, error: requested };
+    throw new CliError("usage", requested);
   }
 
   const fromPreset = parseIntegrations(
@@ -389,7 +405,7 @@ export async function runInit(
   );
 
   if (typeof fromPreset === "string") {
-    return { code: 2, error: fromPreset };
+    throw new CliError("usage", fromPreset);
   }
 
   const detected = resolveIntegrations([
@@ -399,7 +415,7 @@ export async function runInit(
   ]);
 
   const picked =
-    args.with === undefined && prompts && chosen === null
+    args.integration === undefined && prompts && chosen === null
       ? await chooseIntegrations(prompts, detected)
       : detected;
 
@@ -458,12 +474,24 @@ export async function runInit(
 
   const where = inPackage ? ` in ${target.dir}` : "";
 
+  const applied = await applyPlan(
+    templatePlan(root, files, "better-supabase init", config.root),
+    { ...args, force },
+  );
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(
+      templatePlan(root, files, "better-supabase init", config.root),
+      applied,
+    );
+  }
+
   const lines = [
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
       : `No framework found${where}.`,
     "",
-    ...(await writeFiles(root, files, args, force, config.root)),
+    ...changeLines(applied),
     ...(workflow === "pg-delta"
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
@@ -502,56 +530,78 @@ export async function runInit(
   const packages = packagesFor(project, integrations);
   const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";
 
-  const steps = [
+  const install = (names: readonly string[], dev: boolean): string =>
+    installCommand(project.packageManager, names, dev, installTarget);
+
+  const next: NextStep[] = [
     ...(packages.length > 0
-      ? [installCommand(project.packageManager, packages, false, installTarget)]
+      ? [{ command: install(packages, false), when: "installs the packages" }]
       : []),
-    ...devPackages(project, lite).map((names) =>
-      installCommand(project.packageManager, names, true, installTarget),
-    ),
+    ...devPackages(project, lite).map((names) => ({
+      command: install(names, true),
+      when: "installs the dev tools",
+    })),
     ...(project.hasSupabase || workspaceProject.hasSupabase
       ? []
-      : [lite ? "npx lite init" : "supabase init"]),
+      : [
+          {
+            command: lite ? "npx lite init" : "supabase init",
+            when: "creates the supabase folder",
+          },
+        ]),
     ...(lite
-      ? [
-          'Set jwt_secret = "env(SUPABASE_JWT_SECRET)" under [auth] in supabase/config.toml, and add SUPABASE_URL=http://127.0.0.1:54321 and a SUPABASE_JWT_SECRET of 32 or more characters to .env',
-          "npx lite dev",
-        ]
-      : ["supabase start", `better-supabase env${cwdFlag}`]),
-    `better-supabase gen${cwdFlag}`,
+      ? [{ command: "npx lite dev", when: "starts the local stack" }]
+      : [
+          { command: "supabase start", when: "starts the local stack" },
+          {
+            command: `better-supabase env${cwdFlag}`,
+            when: "writes the stack's keys to .env",
+          },
+        ]),
+    {
+      command: `better-supabase gen${cwdFlag}`,
+      when: "generates the typed client",
+    },
+    {
+      command: "better-supabase skills install",
+      when: "installs the agent skills",
+    },
   ];
 
-  lines.push(
-    "",
-    "Next:",
-    ...steps.map((step, index) => `  ${index + 1}. ${step}`),
-  );
+  const hints = [
+    ...(lite
+      ? [
+          'Before npx lite dev, set jwt_secret = "env(SUPABASE_JWT_SECRET)" under [auth] in supabase/config.toml, and add SUPABASE_URL=http://127.0.0.1:54321 and a SUPABASE_JWT_SECRET of 32 or more characters to .env',
+          "Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
+        ]
+      : []),
+    ...integrations.flatMap((name) => TEMPLATES[name].next ?? []),
+  ];
 
-  if (lite) {
-    lines.push(
-      "  - Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
-    );
+  if (hints.length > 0) {
+    lines.push("", ...hints.map((hint) => `- ${hint}`));
   }
 
-  for (const name of integrations) {
-    for (const hint of TEMPLATES[name].next ?? []) {
-      lines.push(`  - ${hint}`);
-    }
-  }
-
-  lines.push("", "Agent skills: better-supabase skills install");
-
-  return { code: 0, output: lines.join("\n") };
+  return {
+    code: 0,
+    output: lines.join("\n"),
+    data: {
+      frameworks: project.frameworks,
+      ...(inPackage ? { package: target.dir } : {}),
+      integrations,
+      ...(chosen === null ? {} : { preset: chosen.value }),
+      files: applied.changes,
+      hints,
+    },
+    next,
+  };
 }
 
 export const initCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "init",
-    description:
-      "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
-  },
-  args: INIT_ARGS,
-  lists: ["with"],
+  meta: commandMeta("init"),
+  args: { ...INIT_ARGS, ...PLAN_ARGS },
+  lists: ["integration"],
+  completions: { preset: () => PRESET_NAMES },
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
 

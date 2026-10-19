@@ -1,22 +1,28 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig, ScaffoldApiConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
-import { defineCliCommand, list } from "../command.ts";
-import { fileDiff } from "../diff.ts";
-import { writeLine } from "../files.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  hasConflicts,
+  changeLines,
+  type FilePlan,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
 import { isRecord } from "../guards.ts";
-import { display, sameText } from "../io.ts";
-import { detectProject } from "../project.ts";
+import { detectProject } from "../project/detect.ts";
 import {
-  GENERATED_HEADER,
   SCAFFOLD_FRAMEWORKS,
   scaffoldApiFiles,
   scaffoldNextSteps,
@@ -24,16 +30,6 @@ import {
 import { ScreensError, scaffoldScreensFiles } from "../scaffold/screens.ts";
 
 const ARGS = {
-  kind: {
-    type: "positional",
-    required: false,
-    description: "api, or screens <table>",
-  },
-  table: {
-    type: "positional",
-    required: false,
-    description: "The app table `scaffold screens` writes pages for",
-  },
   framework: {
     type: "string",
     description: "hono or next. Defaults to the one in package.json",
@@ -53,15 +49,36 @@ const ARGS = {
   },
   "base-path": {
     type: "string",
-    description:
-      "Where the resources are served (default /api), or the route the screens live under (default /<table>)",
+    description: "Where the resources are served. Defaults to /api",
     valueHint: "path",
   },
 } as const;
 
-export type ScaffoldArgs = CliArgs<typeof ARGS>;
+const SCREENS_ARGS = {
+  table: {
+    type: "positional",
+    required: false,
+    description: "The app table to write pages for",
+  },
+  framework: {
+    type: "string",
+    description: "next. Defaults to next when package.json lists it",
+    valueHint: "name",
+  },
+  "base-path": {
+    type: "string",
+    description: "The route the pages live under. Defaults to /<table>",
+    valueHint: "path",
+  },
+} as const;
 
-export type ScaffoldFlags = CliOptions<typeof ARGS>;
+export type ScaffoldArgs = CliArgs<typeof ARGS & typeof PLAN_ARGS>;
+
+export type ScaffoldScreensFlags = CliOptions<
+  typeof SCREENS_ARGS & typeof PLAN_ARGS
+>;
+
+export type ScaffoldFlags = CliOptions<typeof ARGS & typeof PLAN_ARGS>;
 
 const isFramework = (value: unknown): value is ScaffoldFramework =>
   SCAFFOLD_FRAMEWORKS.some((framework) => framework === value);
@@ -100,24 +117,11 @@ export interface ScaffoldOptions {
   readonly check?: boolean;
 }
 
-export async function runScaffold(
+export async function runScaffoldApi(
   config: ResolvedConfig,
   args: ScaffoldFlags,
   options: ScaffoldOptions = {},
 ): Promise<CommandResult> {
-  const [kind, table] = args._ ?? [];
-
-  if (kind === "screens") {
-    return runScaffoldScreens(config, args, table);
-  }
-
-  if (kind !== "api") {
-    return {
-      code: 2,
-      error: `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\` or \`better-supabase scaffold screens <table>\`.`,
-    };
-  }
-
   const configured = config.scaffold.api ?? {};
   const project = await detectProject(config.root);
   const detected = project.frameworks.filter(isFramework);
@@ -125,22 +129,21 @@ export async function runScaffold(
   const framework = chosen ?? (detected.length === 1 ? detected[0] : undefined);
 
   if (!isFramework(framework)) {
-    return {
-      code: 2,
-      error:
-        chosen === undefined
-          ? "Pass --framework hono or --framework next, or set scaffold.api.framework."
-          : `--framework takes hono or next, got "${chosen}".`,
-    };
+    throw new CliError(
+      "usage",
+      chosen === undefined
+        ? "Pass --framework hono or --framework next, or set scaffold.api.framework."
+        : `--framework takes hono or next, got "${chosen}".`,
+    );
   }
 
   const name = args.name ?? configured.name ?? "api";
 
   if (!/^[a-z][\w-]*$/i.test(name)) {
-    return {
-      code: 2,
-      error: `--name must be a file name without a folder, got "${name}".`,
-    };
+    throw new CliError(
+      "usage",
+      `--name must be a file name without a folder, got "${name}".`,
+    );
   }
 
   const basePath = `/${(args["base-path"] ?? configured.basePath ?? "/api").replaceAll(/^\/+|\/+$/g, "")}`;
@@ -155,6 +158,7 @@ export async function runScaffold(
   if (requested.length === 0 && !known) {
     return {
       code: 1,
+      errorCode: "not_found",
       error: `No ${display(config.root, metaPaths(config.output).js)}. Run \`better-supabase gen\` first, or pass --tables.`,
     };
   }
@@ -188,56 +192,32 @@ export async function runScaffold(
     tables,
   };
 
-  const lines: string[] = [];
-  const stale: string[] = [];
-  const diffs: string[] = [];
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase scaffold api",
+    files: scaffoldApiFiles(context)
+      .filter((file) => options.generatedOnly !== true || file.generated)
+      .map((file) => ({
+        path: file.path,
+        contents: file.contents,
+        policy: file.generated ? "owned" : "create",
+      })),
+  };
 
-  for (const file of scaffoldApiFiles(context)) {
-    if (options.generatedOnly === true && !file.generated) {
-      continue;
-    }
+  const applied = await applyPlan(plan, {
+    ...args,
+    ...(options.check === true ? { check: true } : {}),
+  });
 
-    const path = resolve(config.root, file.path);
-    const exists = existsSync(path);
+  const files = applied.changes;
+  const lines = changeLines(applied);
 
-    if (!file.generated && exists) {
-      lines.push(`Kept ${file.path} (yours)`);
-      continue;
-    }
-
-    const current = exists ? await readFile(path, "utf-8") : undefined;
-
-    if (current !== undefined && !current.startsWith(GENERATED_HEADER)) {
-      return {
-        code: 1,
-        error: `${file.path} was not written by better-supabase scaffold. Move it, or pass another --name.`,
-      };
-    }
-
-    if (options.check === true) {
-      if (sameText(current, file.contents)) {
-        lines.push(`${file.path} is up to date.`);
-      } else {
-        stale.push(file.path);
-        diffs.push(fileDiff(file.path, current, file.contents));
-      }
-
-      continue;
-    }
-
-    lines.push((await writeLine(path, file.contents, file.path)).line);
-  }
-
-  if (stale.length > 0) {
-    return {
-      code: 1,
-      output: diffs.join("\n"),
-      error: `Out of date: ${stale.join(", ")}. Run \`better-supabase scaffold api\`.`,
-    };
-  }
-
-  if (options.generatedOnly === true || options.check === true) {
-    return { code: 0, output: lines.join("\n") };
+  if (
+    applied.mode !== "write" ||
+    options.generatedOnly === true ||
+    hasConflicts(applied)
+  ) {
+    return planResult(plan, applied, { data: { framework, tables } });
   }
 
   const steps = scaffoldNextSteps(context, config.specs.entry);
@@ -265,20 +245,22 @@ export async function runScaffold(
       ...steps.map((step) => `- ${step}`),
       ...save,
     ].join("\n"),
+    data: { framework, tables, files, steps },
   };
 }
 
 /** Writes list, create and detail pages for one app table, each once. */
-async function runScaffoldScreens(
+export async function runScaffoldScreens(
   config: ResolvedConfig,
-  args: ScaffoldFlags,
-  table: string | undefined,
+  args: ScaffoldScreensFlags,
 ): Promise<CommandResult> {
+  const { table } = args;
+
   if (table === undefined) {
-    return {
-      code: 2,
-      error: "Name the app table: `better-supabase scaffold screens <table>`.",
-    };
+    throw new CliError(
+      "usage",
+      "Name the app table: `better-supabase scaffold screens <table>`.",
+    );
   }
 
   const project = await detectProject(config.root);
@@ -288,13 +270,12 @@ async function runScaffoldScreens(
     (project.frameworks.includes("next") ? "next" : undefined);
 
   if (framework !== "next") {
-    return {
-      code: 2,
-      error:
-        framework === undefined
-          ? "Screens are Next.js pages, and package.json has no next. Pass --framework next."
-          : `Screens are Next.js pages; --framework ${framework} has none.`,
-    };
+    throw new CliError(
+      "usage",
+      framework === undefined
+        ? "Screens are Next.js pages, and package.json has no next. Pass --framework next."
+        : `Screens are Next.js pages; --framework ${framework} has none.`,
+    );
   }
 
   const basePath = `/${(args["base-path"] ?? table).replaceAll(/^\/+|\/+$/g, "")}`;
@@ -310,34 +291,42 @@ async function runScaffoldScreens(
     });
   } catch (error) {
     if (error instanceof ScreensError) {
-      return { code: 1, error: error.message };
+      return { code: 1, errorCode: "invalid_input", error: error.message };
     }
 
     throw error;
   }
 
-  const lines: string[] = [];
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase scaffold screens",
+    files: files.map((file) => ({
+      path: file.path,
+      contents: file.contents,
+      policy: "create",
+    })),
+  };
 
-  for (const file of files) {
-    const path = resolve(config.root, file.path);
+  const applied = await applyPlan(plan, args);
 
-    if (existsSync(path)) {
-      lines.push(`Kept ${file.path} (yours)`);
-      continue;
-    }
-
-    lines.push((await writeLine(path, file.contents, file.path)).line);
+  if (applied.mode !== "write" || hasConflicts(applied)) {
+    return planResult(plan, applied, { data: { table, basePath } });
   }
+
+  const steps = [
+    `Open ${basePath} in \`next dev\`. The pages call \`bs\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
+    "The files are yours. For search, saved views, a board or a calendar, start from the record-* recipes: https://bettersupabase.com/docs/registry/ui-recipes",
+  ];
 
   return {
     code: 0,
     output: [
-      ...lines,
+      ...changeLines(applied),
       "",
       "Next:",
-      `- Open ${basePath} in \`next dev\`. The pages call \`bs\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
-      "- The files are yours. For search, saved views, a board or a calendar, start from the record-* recipes: https://bettersupabase.com/docs/registry/ui-recipes",
+      ...steps.map((step) => `- ${step}`),
     ].join("\n"),
+    data: { table, basePath, files: applied.changes, steps },
   };
 }
 
@@ -351,13 +340,15 @@ const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
     )
     .join(", ")} }`;
 
-export const scaffoldCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "scaffold",
-    description:
-      "Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table",
-  },
-  args: ARGS,
+export const scaffoldApiCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("scaffold api"),
+  args: { ...ARGS, ...PLAN_ARGS },
   lists: ["tables"],
-  run: (args, { config }) => runScaffold(config, args),
+  run: (args, { config }) => runScaffoldApi(config, args),
+});
+
+export const scaffoldScreensCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("scaffold screens"),
+  args: { ...SCREENS_ARGS, ...PLAN_ARGS },
+  run: (args, { config }) => runScaffoldScreens(config, args),
 });

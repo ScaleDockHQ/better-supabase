@@ -17,7 +17,7 @@ migration.
 It also runs Supabase's own [Security and Performance
 Advisors](https://supabase.com/docs/guides/database/database-advisors) (BS100
 and BS200), so the dashboard's findings show up locally and in CI. It exits
-with 1 when there are errors, or with any warning under `--strict`.
+with 1 when there are errors, or with any warning under `--fail-on warning`.
 
 | Option                 | Description                                                                                                                                                                                                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -25,7 +25,7 @@ with 1 when there are errors, or with any warning under `--strict`.
 | `--out <file>`         | Write the report to a file; also `doctor.output`, which applies with `doctor.format`                                                                                                                                                                               |
 | `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`; also `doctor.only`                                                                                                                                                                                               |
 | `--ignore <codes>`     | Skip checks. Adds to `doctor.ignore` in the config                                                                                                                                                                                                                 |
-| `--strict`             | Fail on warnings. Same as `doctor.strict`                                                                                                                                                                                                                          |
+| `--fail-on <level>`    | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `doctor.strict`) or `never`                                                                                                                                                   |
 | `--snapshot <file>`    | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
 | `--metadata <path\|->` | Check a `GeneratorMetadata` document (`-` for stdin). Checks that need policies, grants, indexes, triggers or other data it lacks are skipped with an info finding; it exits 65 for a document it rejects ([gen](/docs/cli/gen#from-a-generatormetadata-document)) |
 | `--db-url-stdin`       | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
@@ -38,13 +38,15 @@ with 1 when there are errors, or with any warning under `--strict`.
 
 Doctor never prints env values, only variable names and line numbers.
 
+Side effects: Reads the database, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+
 ## In CI
 
 `--format github` writes workflow annotations, so findings show up on the pull
 request diff:
 
 ```yaml
-- run: pnpm better-supabase doctor --format github --strict
+- run: pnpm better-supabase doctor --format github --fail-on warning
 ```
 
 The `github` and `sarif` formats write file paths relative to the repository
@@ -72,8 +74,9 @@ export default defineConfig({
 });
 ```
 
-`doctor --json` prints one report that follows
-[`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json).
+`doctor --json` puts the report in the envelope's `data`. The report follows
+[`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json),
+and a run with errors has the `findings` error code.
 
 ## Ignoring checks
 

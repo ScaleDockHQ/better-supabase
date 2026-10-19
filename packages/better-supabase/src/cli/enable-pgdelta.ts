@@ -1,6 +1,7 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { display, writeIfChanged } from "./io.ts";
+import { applyPlan } from "./core/files.ts";
+import { display } from "./core/io.ts";
 import {
   diffEngine,
   findSupabaseRoot,
@@ -39,12 +40,8 @@ export async function enablePgDelta(
     toml.text.includes("pgdelta")
   ) {
     return [
-      `Kept    ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
+      `Skipped ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
     ];
-  }
-
-  if (dryRun) {
-    return [`Would enable pg-delta in ${shown}`];
   }
 
   const separator =
@@ -54,7 +51,20 @@ export async function enablePgDelta(
         ? "\n"
         : "\n\n";
 
-  await writeIfChanged(path, `${toml.text}${separator}${PGDELTA_TABLE}`);
+  await applyPlan(
+    {
+      root: dirname(path),
+      regenerate: "better-supabase init",
+      files: [
+        {
+          path,
+          contents: `${toml.text}${separator}${PGDELTA_TABLE}`,
+          policy: "edit",
+        },
+      ],
+    },
+    { "dry-run": dryRun },
+  );
 
-  return [`Enabled pg-delta in ${shown}`];
+  return [`${dryRun ? "Would enable" : "Enabled"} pg-delta in ${shown}`];
 }

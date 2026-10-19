@@ -6,6 +6,7 @@ import type {
 } from "../config/index.ts";
 import type { TopicInput } from "../spec/index.ts";
 
+import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 
 /** A `defineTopic` result, as `sql sync` and `spec` read it. */
@@ -65,7 +66,10 @@ export async function loadTopics(
     }
 
     if (count === 0) {
-      throw new Error(`${entry} exports no topic (defineTopic)`);
+      throw new CliError(
+        "invalid_input",
+        `${entry} exports no topic (defineTopic)`,
+      );
     }
   }
 

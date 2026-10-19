@@ -1,6 +1,6 @@
 import type { BlockCategory } from "../../blocks/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import {
   glueCommand,
@@ -8,12 +8,9 @@ import {
   type PresetCatalogBlock,
 } from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
-import { defineCliCommand } from "../command.ts";
-
-const USAGE = `Usage:
-  better-supabase blocks list [--category <name>]   Every block, by category
-  better-supabase blocks view <name>                One block: what it needs, works with and installs
-  better-supabase blocks search <text>              Blocks whose name, title or description match`;
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { commandMeta } from "../core/manifest.ts";
 
 const CATEGORIES: readonly BlockCategory[] = [
   "identity",
@@ -34,21 +31,31 @@ const CATEGORIES: readonly BlockCategory[] = [
   "database",
 ];
 
-const BLOCKS_ARGS = {
-  action: {
-    type: "positional",
-    required: false,
-    description: "list, view or search",
-  },
+const LIST_ARGS = {
   category: {
     type: "string",
     description:
-      "With list: one category (identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database)",
+      "One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database",
     valueHint: "name",
   },
 } as const;
 
-type BlocksOptions = CliOptions<typeof BLOCKS_ARGS>;
+const VIEW_ARGS = {
+  block: {
+    type: "positional",
+    required: false,
+    description: "The block to show",
+  },
+} as const;
+
+const SEARCH_ARGS = {
+  text: {
+    type: "positional",
+    required: false,
+    variadic: true,
+    description: "Words to find in block names, titles and descriptions",
+  },
+} as const;
 
 interface BlockEntry {
   readonly name: string;
@@ -84,6 +91,10 @@ function entryOf(block: PresetCatalogBlock): BlockEntry {
 
 const ENTRIES: readonly BlockEntry[] = PRESET_CATALOG.blocks.map(entryOf);
 
+/** Every block name, for completion. */
+export const blockNames = (): readonly string[] =>
+  ENTRIES.map((entry) => entry.name);
+
 function listing(entries: readonly BlockEntry[]): string[] {
   const width = Math.max(0, ...entries.map((entry) => entry.name.length));
 
@@ -102,12 +113,12 @@ function listing(entries: readonly BlockEntry[]): string[] {
   }).slice(1);
 }
 
-function list(category: string | undefined): CommandResult {
+export function listBlocks(category: string | undefined): CommandResult {
   if (category !== undefined && !CATEGORIES.some((each) => each === category)) {
-    return {
-      code: 2,
-      error: `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
+    );
   }
 
   const entries = ENTRIES.filter(
@@ -121,18 +132,18 @@ function list(category: string | undefined): CommandResult {
   };
 }
 
-function view(name: string | undefined): CommandResult {
+export function viewBlock(name: string | undefined): CommandResult {
   if (name === undefined) {
-    return { code: 2, error: `Name a block.\n${USAGE}` };
+    throw new CliError("usage", `Name a block.`);
   }
 
   const entry = ENTRIES.find((each) => each.name === name);
 
   if (entry === undefined) {
-    return {
-      code: 2,
-      error: `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
+    );
   }
 
   const glue = PRESET_CATALOG.glue.filter(
@@ -159,9 +170,9 @@ function view(name: string | undefined): CommandResult {
   return { code: 0, output: lines.join("\n"), data: { block: entry, glue } };
 }
 
-function search(text: string | undefined): CommandResult {
+export function searchBlocks(text: string | undefined): CommandResult {
   if (text === undefined || text.trim() === "") {
-    return { code: 2, error: `Pass the text to search for.\n${USAGE}` };
+    throw new CliError("usage", `Pass the text to search for.`);
   }
 
   const query = text.toLowerCase();
@@ -182,37 +193,22 @@ function search(text: string | undefined): CommandResult {
   };
 }
 
-export function runBlocks(args: BlocksOptions): CommandResult {
-  const [action, ...rest] = args._ ?? [];
+export const blocksListCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks list"),
+  args: LIST_ARGS,
+  completions: { category: () => CATEGORIES },
+  run: (args) => Promise.resolve(listBlocks(args.category)),
+});
 
-  switch (action) {
-    case "list": {
-      return list(args.category);
-    }
+export const blocksViewCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks view"),
+  args: VIEW_ARGS,
+  completions: { block: blockNames },
+  run: (args) => Promise.resolve(viewBlock(args.block)),
+});
 
-    case "view": {
-      return view(rest[0]);
-    }
-
-    case "search": {
-      return search(rest.join(" "));
-    }
-
-    case undefined: {
-      return { code: 2, error: `Name an action.\n${USAGE}` };
-    }
-
-    default: {
-      return { code: 2, error: `Unknown blocks action "${action}".\n${USAGE}` };
-    }
-  }
-}
-
-export const blocksCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "blocks",
-    description: "Lists, shows and searches the blocks you can add",
-  },
-  args: BLOCKS_ARGS,
-  run: (args) => Promise.resolve(runBlocks(args)),
+export const blocksSearchCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("blocks search"),
+  args: SEARCH_ARGS,
+  run: (args) => Promise.resolve(searchBlocks(args._.join(" "))),
 });

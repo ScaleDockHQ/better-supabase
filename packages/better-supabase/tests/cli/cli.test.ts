@@ -6,13 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
+import { run } from "../../src/cli/core/run.ts";
 import { emitMeta } from "../../src/cli/gen/emit.ts";
 import { buildModel } from "../../src/cli/gen/model.ts";
 import {
   parseCheckNotNull,
   parseCheckUnion,
 } from "../../src/cli/gen/shared.ts";
-import { run } from "../../src/cli/run.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import {
   stubProvider,
@@ -941,14 +941,14 @@ describe("gen", () => {
     );
   });
 
-  it("rejects an unknown introspect --format", async () => {
-    const result = await run(["introspect", "--format", "nope", "--cwd", dir]);
+  it("rejects an unknown introspect --kind", async () => {
+    const result = await run(["introspect", "--kind", "nope", "--cwd", dir]);
     expect(result.code).toBe(2);
   });
 
   it("prints help and version", async () => {
     const help = (await run(["--help"])).stdout;
-    expect(help).toContain("USAGE better-supabase [OPTIONS]");
+    expect(help).toContain("Usage: better-supabase <command> [options]");
 
     for (const command of ["init", "gen", "doctor", "sql"]) {
       expect(help).toMatch(new RegExp(`^ +${command} +\\S`, "m"));
@@ -977,7 +977,7 @@ describe("sql", () => {
     const added = await run(["sql", "add", "jobs", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
-      /Wrote supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
+      /Created supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
     );
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
@@ -1014,8 +1014,8 @@ describe("sql", () => {
     );
     const listed = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
-    expect(listed.stdout).toContain(
-      "Then create a migration: supabase db diff -f better_supabase_module",
+    expect(listed.stdout).toMatch(
+      /^Next:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
     );
   });
 
@@ -1028,7 +1028,7 @@ describe("sql", () => {
     const added = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
     expect(added.stdout).toContain(
-      "Then create a migration: supabase db schema declarative sync -f better_supabase_module",
+      "supabase db schema declarative sync -f better_supabase_module",
     );
   });
 
@@ -1061,7 +1061,16 @@ describe("sql", () => {
       /^ {2}tenant/m,
     );
     expect((await run(["sql", "add", "audit", "--cwd", dir])).code).toBe(0);
-    const forced = await run(["sql", "add", "tenant", "--force", "--cwd", dir]);
+
+    const forced = await run([
+      "sql",
+      "add",
+      "tenant",
+      "--allow-hook-overlap",
+      "--cwd",
+      dir,
+    ]);
+
     expect(forced.code).toBe(0);
     expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
   });
@@ -1107,7 +1116,7 @@ describe("sql", () => {
       "sql",
       "add",
       "entitlements",
-      "--force",
+      "--allow-hook-overlap",
       "--cwd",
       dir,
     ]);
@@ -1121,6 +1130,6 @@ describe("sql", () => {
     expect((await run(["sql", "add", "nope", "--cwd", dir])).code).toBe(2);
     expect(
       (await run(["sql", "add", "--dry-run", "audit", "--cwd", dir])).stdout,
-    ).toContain("Would write");
+    ).toContain("Would create");
   });
 });

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Choice, Prompter } from "../../src/cli/prompts.ts";
 
-import { run } from "../../src/cli/run.ts";
+import { run } from "../../src/cli/core/run.ts";
 
 const clack = vi.hoisted(() => ({
   cancel: Symbol("cancel"),
@@ -26,7 +26,7 @@ vi.mock("@clack/prompts", () => {
   };
 });
 
-const { createClackPrompter, withSpinner } =
+const { clackSpinner, createClackPrompter } =
   await import("../../src/cli/prompts.ts");
 
 const clackPrompter = createClackPrompter(process.stderr);
@@ -40,14 +40,11 @@ interface Asked {
 /** A prompter that answers from `answers` in order and records each question. */
 function fake(answers: unknown[]): Prompter & {
   readonly asked: Asked[];
-  readonly spun: string[];
 } {
   const asked: Asked[] = [];
-  const spun: string[] = [];
 
   return {
     asked,
-    spun,
     select: async <T extends string>(
       message: string,
       _choices: readonly Choice<T>[],
@@ -70,11 +67,6 @@ function fake(answers: unknown[]): Prompter & {
       asked.push({ kind: "confirm", message });
 
       return answers.shift() as boolean | undefined;
-    },
-    spinner: (message) => {
-      spun.push(message);
-
-      return () => spun.push(`done: ${message}`);
     },
   };
 }
@@ -153,7 +145,7 @@ describe("init prompts", () => {
     expect(
       (
         await runWith(
-          ["init", "--casing", "camel", "--with", "hono", "--force"],
+          ["init", "--casing", "camel", "--integration", "hono", "--force"],
           prompts,
         )
       ).code,
@@ -165,7 +157,9 @@ describe("init prompts", () => {
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
     const keep = fake(["none", "camel", [], false]);
     const kept = await runWith(["init"], keep);
-    expect(kept.stdout).toContain("Kept    better-supabase.config.ts (exists)");
+    expect(kept.stdout).toContain(
+      "Skipped better-supabase.config.ts (exists; pass --force to overwrite)",
+    );
     expect(keep.asked.at(-1)).toEqual({
       kind: "confirm",
       message: "better-supabase.config.ts exists. Overwrite?",
@@ -203,7 +197,7 @@ describe("init prompts", () => {
     expect(prompts.asked).toEqual([
       { kind: "select", message: "Preset", initial: "none" },
     ]);
-    expect(result.stdout).toContain("Would write lib/blocks.ts");
+    expect(result.stdout).toContain("Would create lib/blocks.ts");
     expect(result.stdout).toContain("(profiles)");
   });
 });
@@ -212,7 +206,7 @@ describe("add prompts", () => {
   it("asks for integrations when none are named", async () => {
     const prompts = fake([["orpc"]]);
     const result = await runWith(["add", "--dry-run"], prompts);
-    expect(result.stdout).toContain("Would write router.ts");
+    expect(result.stdout).toContain("Would create router.ts");
     expect(prompts.asked).toEqual([
       { kind: "multiselect", message: "Integrations", initial: [] },
     ]);
@@ -224,30 +218,13 @@ describe("add prompts", () => {
   });
 });
 
-describe("withSpinner", () => {
-  it("stops the spinner after the task, also when it throws", async () => {
-    const prompts = fake([]);
-    expect(await withSpinner(prompts, "Working", async () => 1)).toBe(1);
-    await expect(
-      withSpinner(prompts, "Failing", () => Promise.reject(new Error("x"))),
-    ).rejects.toThrow("x");
-    expect(prompts.spun).toEqual([
-      "Working",
-      "done: Working",
-      "Failing",
-      "done: Failing",
-    ]);
-    expect(await withSpinner(undefined, "Quiet", async () => 2)).toBe(2);
-  });
-});
-
 describe("clackPrompter", () => {
   const choices = [
     { value: "a", label: "A", hint: "first" },
     { value: "b", label: "B" },
   ] as const;
 
-  it("maps answers and cancels", async () => {
+  it("maps answers, and a cancel ends the run with exit code 130", async () => {
     clack.answers.push(
       "b",
       clack.cancel,
@@ -256,18 +233,23 @@ describe("clackPrompter", () => {
       true,
       clack.cancel,
     );
+    const cancelled = { code: "cancelled", exitCode: 130 };
     expect(await clackPrompter.select("Pick", choices, "a")).toBe("b");
-    expect(await clackPrompter.select("Pick", choices, "a")).toBeUndefined();
+    await expect(
+      clackPrompter.select("Pick", choices, "a"),
+    ).rejects.toMatchObject(cancelled);
     expect(await clackPrompter.multiselect("Pick", choices, [])).toEqual(["a"]);
-    expect(
-      await clackPrompter.multiselect("Pick", choices, []),
-    ).toBeUndefined();
+    await expect(
+      clackPrompter.multiselect("Pick", choices, []),
+    ).rejects.toMatchObject(cancelled);
     expect(await clackPrompter.confirm("Sure?")).toBe(true);
-    expect(await clackPrompter.confirm("Sure?")).toBeUndefined();
+    await expect(clackPrompter.confirm("Sure?")).rejects.toMatchObject(
+      cancelled,
+    );
   });
 
   it("clears the spinner when stopped", () => {
-    const stop = clackPrompter.spinner("Loading");
+    const stop = clackSpinner(process.stderr, "Loading");
     expect(clack.spinner.start).toHaveBeenCalledWith("Loading");
     stop();
     expect(clack.spinner.clear).toHaveBeenCalled();

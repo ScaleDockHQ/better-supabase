@@ -7,74 +7,165 @@ description: Codegen, SQL and diagnostics for better-supabase projects.
 pnpm better-supabase <command> [options]
 ```
 
-| Command                                                | What it does                                                                                    |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                 |
-| [`add`](/docs/cli/init#add)                            | Installs blocks with the modules they require, or glue for an integration with `--framework`    |
-| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up    |
-| [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                         |
-| [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                           |
-| [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                     |
-| [`seed`](/docs/cli/local#seed)                         | Renders typed fixtures to seed SQL                                                              |
-| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module |
-| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                  |
-| [`openapi emit`](/docs/cli/local#openapi-emit)         | Writes `openapi.json` from your `createOpenApi` module                                          |
-| [`sql`](/docs/blocks/sql)                              | Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files             |
-| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in                                        |
-| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                        |
-| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations  |
-| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                            |
+| Command                                                | What it does                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                  |
+| [`add`](/docs/cli/init#add)                            | Installs blocks with the modules they require, or glue for an integration with `--integration`   |
+| [`apply`](/docs/cli/presets#apply)                     | Applies a preset to an existing project: edits the config, shows the diff and writes the modules |
+| [`adopt`](/docs/cli/presets#adopt)                     | Maps a block onto tables the app already has, and reports what can't map                         |
+| [`preset`](/docs/cli/presets#preset)                   | Decodes a preset code, or shows how the config differs from its preset                           |
+| [`blocks`](/docs/cli/presets#blocks)                   | Lists, shows and searches the blocks you can add                                                 |
+| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up     |
+| [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                          |
+| [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                            |
+| [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                      |
+| [`seed`](/docs/cli/local#seed)                         | Renders typed fixtures to seed SQL                                                               |
+| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module  |
+| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                   |
+| [`sql`](/docs/blocks/sql)                              | Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files              |
+| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in                                         |
+| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                         |
+| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations   |
+| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                             |
+| [`completion`](/docs/cli/completion)                   | Prints the shell completion script for bash, zsh or fish                                         |
+
+The package also installs the short bin `bsb`, so `pnpm bsb gen` runs the same
+CLI as `pnpm better-supabase gen`.
 
 Options you would pass on every run belong in the
 [config](/docs/cli/config#flags-and-the-config): a flag wins for one run, then
 the active environment's block, then the config, then the default. With the
 config filled in, `better-supabase gen` is the whole build step.
 
-Every command takes `--help`. Commands that write files accept `--check`
-(exit 1 on drift, with a unified diff of each stale file) or `--dry-run`.
-In a terminal, output is colored (set `NO_COLOR` to turn it off), `init` and
-`add` ask what they need, and database work shows a spinner on stderr.
+Every command takes `--help`. Commands that write files take `--dry-run` and
+`--check` ([writing files](#writing-files)).
+In a terminal, output is colored (pass `--no-color` or set `NO_COLOR` to turn
+it off), `init` and `add` ask what they need, and database work shows a
+spinner on stderr. Outside a terminal the spinner is one plain line, such as
+`Reading the schema...`.
 A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
 ## Global options
 
-| Option            | Effect                                                                                                                                                                                   |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--cwd <dir>`     | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)). |
-| `--config <file>` | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                   |
-| `--env <name>`    | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                 |
-| `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.                                                                                                        |
-| `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
-| `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
-| `--version`       | Prints the version.                                                                                                                                                                      |
+| Option              | Effect                                                                                                                                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cwd <dir>`       | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)).                                                                                                             |
+| `--config <file>`   | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                                                                                                                               |
+| `--env <name>`      | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                                                                                                                             |
+| `--json`            | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                                                                                                                             |
+| `--agent <mode>`    | Agent mode: `auto` (the default) turns it on when a coding agent runs the CLI, `yes` and `no` decide. Defaults to `$BETTER_SUPABASE_AGENT`. In agent mode, `--json` is on unless you pass `--no-json`, prompts are off, and destructive work waits for consent ([agent mode](/docs/cli/agent-mode)). |
+| `--confirm <token>` | Runs destructive work that a `consent_required` result named, once the user agreed. The token covers that command line only.                                                                                                                                                                         |
+| `--yes`, `-y`       | Never prompts; uses the flags and the defaults.                                                                                                                                                                                                                                                      |
+| `--no-color`        | Prints no ANSI colors on either stream, like `NO_COLOR`.                                                                                                                                                                                                                                             |
+| `--debug`           | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                                                                                                                                         |
+| `--help`, `-h`      | Prints the usage of the CLI, or of one command.                                                                                                                                                                                                                                                      |
+| `--version`         | Prints the version.                                                                                                                                                                                                                                                                                  |
 
-Prompts only run in a terminal. In CI (`$CI` is set), and under `--json` or
-`--yes`, commands use their flags and defaults instead of asking.
+Prompts only run in a terminal. In CI (`$CI` is set), in agent mode, and
+under `--json` or `--yes`, commands use their flags and defaults instead of
+asking.
+
+## Writing files
+
+Every command that writes files prints one line per file:
+
+```txt
+Created src/lib/supabase/generated.ts
+Updated supabase/schemas/900_better_supabase_audit.sql (audit)
+Unchanged src/lib/supabase/database.types.ts
+Skipped src/proxy.ts (exists; pass --force to overwrite)
+Removed src/lib/supabase/old.ts
+```
+
+| Flag        | Effect                                                                                                    |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| `--dry-run` | Prints a unified diff of each file that would change, then the lines (`Would create`), and writes nothing |
+| `--check`   | Writes nothing, and exits 1 with the diffs when a file would change (`check_failed`)                      |
+| `--force`   | Overwrites files the CLI would skip                                                                       |
+
+The CLI writes a command's files together: it writes each one next to its
+target first, then renames them all, so a failed run leaves no file half
+written. It refuses a path outside the project root (`outside_root`). Files
+that hold secrets, such as `.env.local` and the signing keys, are named in a
+diff but never shown.
+
+Two kinds of file are skipped. A file the CLI creates once, like
+`lib/supabase/index.ts`, belongs to the app after that, so `init` and `add`
+skip it when it exists. A file the CLI regenerates carries a
+`Generated by better-supabase` header; when the file on disk has no header,
+the app wrote it, so the command skips it and fails with `file_conflict`.
+`--force` overwrites both. Under `--json`, `data.files` lists every file
+with its outcome (`create`, `update`, `unchanged`, `skip` or `remove`).
 
 ## Exit codes and JSON output
 
 The CLI exits with 0 on success, 1 when a command fails or finds a problem
-(`--check` drift, doctor errors), and 2 when the command line, the config or
-the environment needs a change. Every error has a code, listed on the
+(`--check` drift, doctor errors), 2 when the command line, the config or
+the environment needs a change, and 3 when a person has to act first: give
+a missing value (`input_required`) or agree to destructive work
+(`consent_required`). Every error has a code, listed on the
 [errors page](/docs/cli/errors).
 
-With `--json`, stdout holds exactly one JSON document: the command's result
-(`gen` prints `{ "tables", "written" }`, `doctor` its report), or a
-[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document when it
-fails. Progress and diagnostics go to stderr, so
-`better-supabase gen --check --json | jq .stale` stays parseable.
+With `--json`, stdout holds exactly one JSON document, the result envelope
+described by
+[`cli-result-v1.json`](https://unpkg.com/better-supabase/schemas/cli-result-v1.json):
+
+```json
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v1.json",
+  "status": "error",
+  "data": { "upToDate": false, "stale": ["src/lib/supabase/generated.ts"] },
+  "error": {
+    "type": "https://bettersupabase.com/docs/cli/errors#check_failed",
+    "title": "Out of date",
+    "detail": "Out of date: src/lib/supabase/generated.ts. Run `better-supabase gen`.",
+    "code": "check_failed",
+    "exitCode": 1
+  }
+}
+```
+
+| Field    | Holds                                                                                                                  |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `status` | `success` for exit code 0, `action_required` for exit code 3, and `error` otherwise                                    |
+| `data`   | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `sql list` the modules               |
+| `error`  | A [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document with a stable `code` ([errors](/docs/cli/errors)) |
+| `next`   | The commands to run next, each as `{ "command", "when" }`                                                              |
+
+A failed check keeps its `data`, so a script can read what is stale and the
+error together. Progress and the text output go to stderr, so
+`better-supabase gen --check --json | jq .data.stale` stays parseable. In a
+terminal the next commands print after the output, under `Next:`.
+
+Stdout only ever carries the command's output: its text, its envelope, or
+the one file `gen --metadata` prints. Prompts, spinners, warnings and
+`--debug` lines go to stderr, and each stream is colored only when it is a
+terminal.
+
+`gen --watch` and `spec emit --watch` run until stopped. With `--json` they
+print one envelope per run on its own line (NDJSON), so a script can read
+the stream line by line:
+
+```sh
+better-supabase gen --watch --json | while read -r line; do
+  echo "$line" | jq -r .status
+done
+```
+
+The same failure in a row prints once, and the watch retries every interval.
 
 ## Environment
 
-| Variable                | Used by                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set |
-| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                        |
-| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                    |
-| `SUPABASE_API_URL`      | Another Management API host                                                |
-| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `supabase` on the `PATH`           |
-| `CI`                    | Turns prompts off, and applies the config's `ci` environment               |
-| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                 |
+| Variable                | Used by                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set                       |
+| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                              |
+| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                                          |
+| `SUPABASE_API_URL`      | Another Management API host                                                                      |
+| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
+| `CI`                    | Turns prompts off, and applies the config's `ci` environment                                     |
+| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                       |
+| `BETTER_SUPABASE_AGENT` | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                   |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
@@ -97,49 +188,59 @@ const { code, stdout, stderr } = await run(["gen", "--check"], {
 ```
 
 `run` reads no process globals: it sees only the `env` you pass (none by
-default), and `--cwd` resolves against the `cwd` option. `help()` returns the
+default), and `--cwd` resolves against the `cwd` option. Pass `io` to
+receive the output as it is written; `io.color` and `io.stderrColor` color
+each stream, and `io.spinner` shows progress. `help()` returns the
 usage text, and `help(command)` the text for one command.
 
-Add your own commands with `defineCliCommand` and `registerCommand`. Commands
-are [citty](https://github.com/unjs/citty) definitions: `args` declares the
+Add your own commands with `defineCliCommand` and pass them to `createCli`,
+which returns a CLI with them next to the built-in ones. Commands are
+[citty](https://github.com/unjs/citty) definitions: `args` declares the
 options, and `run` gets the parsed arguments and the context (`cwd`,
-`config`, `io`, `env`, `json`, `signal`). Throw a `CliError` to report a
-coded error, and return `data` to give `--json` a document. Options listed in `lists` may repeat or
-take commas, and `list()` splits them. Set `runsWithInvalidConfig: true` on a
+`config`, `io`, `env`, `json`, `signal`, `log`, `paint` and `emit`). Throw a
+`CliError` to report a coded error, and return `data` to give `--json` a
+document. Write messages with `log.info`, `log.warn` and `log.debug`, and
+wrap slow work in `log.progress(message, task)`: all of it goes to stderr, so
+stdout keeps only the result. `paint` colors text for stdout and is plain
+under `--no-color`. A command that runs until stopped prints each result
+with `emit` and returns `{ code: 0, streamed: true }`. Options listed in
+`lists` may repeat or take commas, and `list()` splits them. Set `runsWithInvalidConfig: true` on a
 command that repairs the config: when the config file fails to load, it runs
 with the default config rooted at that file's directory instead of reporting
 `config_invalid`.
 
+`defineCliCommand` marks each command with `apiVersion: 1`, the command
+contract this release supports. `createCli` refuses a command without it, a
+name a built-in command already has, and the names kept free for account
+commands (`login`, `logout`, `whoami`, `link`, `projects`, `deploy` and
+`cloud`).
+
 ```ts title="scripts/cli.ts"
-import {
-  defineCliCommand,
-  list,
-  registerCommand,
-  run,
-} from "better-supabase/cli";
+import { createCli, defineCliCommand, list } from "better-supabase/cli";
 
-registerCommand(
-  "schemas",
-  defineCliCommand({
-    meta: { name: "schemas", description: "Prints the schemas codegen reads" },
-    args: { only: { type: "string", description: "Schemas to keep" } },
-    lists: ["only"],
-    run: async (args, { config }) => {
-      const only = list(args.only);
-      const schemas = config.schemas.filter(
-        (name) => only.length === 0 || only.includes(name),
-      );
-      return { code: 0, output: schemas.join("\n") };
-    },
-  }),
-);
+const cli = createCli({
+  commands: {
+    schemas: defineCliCommand({
+      meta: {
+        name: "schemas",
+        description: "Prints the schemas codegen reads",
+      },
+      args: { only: { type: "string", description: "Schemas to keep" } },
+      lists: ["only"],
+      run: async (args, { config }) => {
+        const only = list(args.only);
+        const schemas = config.schemas.filter(
+          (name) => only.length === 0 || only.includes(name),
+        );
+        return { code: 0, output: schemas.join("\n") };
+      },
+    }),
+  },
+});
 
-const { code } = await run(process.argv.slice(2), {
+const { code } = await cli.run(process.argv.slice(2), {
   cwd: process.cwd(),
   env: process.env,
 });
 process.exitCode = code;
 ```
-
-Commands written for 0.2, `(context) => CommandResult`, still register with
-`registerCommand(name, command, help)`. That overload is deprecated.

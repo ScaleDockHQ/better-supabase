@@ -161,6 +161,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0042: app table columns take a format, options and bounds; tables take composite keys and an id type.
 - 0043: an app table becomes a subject through `appTables.<name>.subject`.
 - 0044: app table rollups and lookups render as a `security_invoker` view, from structured keys only.
+- 0045: the CLI runs from one command tree, with one JSON envelope, agent mode and the `bsb` short name.
 
 ## Pre-release pins
 
@@ -185,7 +186,8 @@ Move each to its stable release when it ships, and update this list.
 | `maintainer-skills`                       | skills, `skills-lock.json`, plugin manifests |
 
 Agent notes, by topic: [`adapters`](docs/agents/adapters.md),
-[`blocks`](docs/agents/blocks.md), [`commands`](docs/agents/commands.md),
+[`blocks`](docs/agents/blocks.md), [`cli`](docs/agents/cli.md),
+[`commands`](docs/agents/commands.md),
 [`core`](docs/agents/core.md), [`database`](docs/agents/database.md),
 [`formatting`](docs/agents/formatting.md), [`nextjs`](docs/agents/nextjs.md)
 and [`tooling`](docs/agents/tooling.md).

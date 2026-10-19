@@ -12,7 +12,7 @@ import type {
 } from "./rules.ts";
 
 import { providerLabel } from "../authorization.ts";
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import {
   httpHooks,

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { printableConfig } from "../../../src/cli/commands/config.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 describe("config", () => {
@@ -30,9 +30,8 @@ describe("config", () => {
     const result = await run(["config", "--json", "--cwd", dir], { env: {} });
     expect(result.code).toBe(0);
 
-    const printed = JSON.parse(result.stdout) as {
-      file: string;
-      config: Record<string, unknown>;
+    const { data: printed } = JSON.parse(result.stdout) as {
+      data: { file: string; config: Record<string, unknown> };
     };
 
     expect(printed.file).toBe("better-supabase.config.mjs");
@@ -45,6 +44,21 @@ describe("config", () => {
       generators: [{ name: "tables", apiVersion: 1 }],
     });
     expect(result.stdout).not.toContain("secret");
+  });
+
+  it("redacts the Management API token", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      `export default { source: { accessToken: "sbp_0123456789abcdef0123456789abcdef" } };\n`,
+    );
+
+    for (const argv of [["config"], ["config", "--json"]]) {
+      const result = await run([...argv, "--cwd", dir], { env: {} });
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).not.toContain("sbp_0123456789abcdef");
+      expect(result.stdout).toContain("<redacted>");
+    }
   });
 
   it("says when there is no config file", async () => {

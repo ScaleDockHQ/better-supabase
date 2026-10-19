@@ -4,13 +4,14 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CODEMODS } from "../../../src/cli/codemod.ts";
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
-  type CodemodArgs,
   codemodCommand,
   runCodemod,
 } from "../../../src/cli/commands/codemod.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { findSpec } from "../../../src/cli/core/manifest.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 describe("runCodemod", () => {
   let root: string;
@@ -39,27 +40,23 @@ describe("runCodemod", () => {
   const codemod = (argv: string[]) =>
     runCodemod(
       resolveConfig({}, root),
-      // SAFETY: parseCommandArgs returns the declared args of codemodCommand.
-      parseCommandArgs(codemodCommand, argv) as CodemodArgs,
+      // SAFETY: every codemod subcommand declares the same args, so any one parses `argv`.
+      parseCommandArgs(codemodCommand("0.4"), argv),
     );
 
-  it("lists every registered codemod in --help", () => {
-    const { description } = codemodCommand.args.name;
-
-    for (const name of Object.keys(CODEMODS)) {
-      expect(description).toContain(name);
-    }
+  it("has a subcommand for every registered codemod", () => {
+    expect(
+      findSpec(["codemod"])?.subcommands?.map((spec) => spec.name),
+    ).toEqual(Object.keys(CODEMODS));
   });
 
   it("asks for a known codemod", async () => {
-    expect(await codemod([])).toMatchObject({
-      code: 2,
-      error: expect.stringContaining("Name a codemod:\n  0.4"),
-    });
-    expect(await codemod(["0.99"])).toMatchObject({
-      code: 2,
-      error: expect.stringContaining('Unknown codemod "0.99"'),
-    });
+    expect(await usageError(() => codemod([]))).toContain(
+      "Name a codemod:\n  0.4",
+    );
+    expect(await usageError(() => codemod(["0.99"]))).toContain(
+      'Unknown codemod "0.99"',
+    );
   });
 
   it("shows the changes with --dry-run and writes them without", async () => {
@@ -68,7 +65,7 @@ describe("runCodemod", () => {
     const dry = await codemod(["0.4", "--dry-run"]);
     expect(dry.code).toBe(0);
     expect(dry.output).toContain(
-      "Would update 1 of 2 files:\n  src/lib/client.ts",
+      "Would update src/lib/client.ts\nWould update 1 of 2 files.",
     );
     expect(dry.output).toContain(
       "Check these by hand:\n  src/lib/client.ts:3: `next.server()` is `bs.context()`",

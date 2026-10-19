@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -15,14 +15,17 @@ import {
 } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
 import { loadSnapshot, type SnapshotSource } from "../commands/snapshot.ts";
+import {
+  applyPlan,
+  hasConflicts,
+  changedFiles,
+  changeLines,
+  type FileChange,
+  type FilePlan,
+} from "../core/files.ts";
+import { type CommandResult, display, sameText } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { providerBucketKeys } from "../doctor/authorization.ts";
-import {
-  type CommandResult,
-  display,
-  sameText,
-  writeIfChanged,
-} from "../io.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import {
@@ -40,12 +43,16 @@ export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
   readonly env: CliEnv;
   readonly check: boolean;
+  /** Prints what would change and writes nothing. */
+  readonly dryRun?: boolean;
+  /** Overwrites generated paths that hold a file the CLI did not write. */
+  readonly force?: boolean;
   /** Colors the `--check` diffs. */
   readonly paint?: Paint;
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
   /**
-   * Writes only the generated files (`gen --metadata --out`): no read-set SQL
+   * Writes only the generated files (`gen --metadata --out-dir`): no read-set SQL
    * module, and the manifest that removes files an earlier run wrote is
    * neither read nor written.
    */
@@ -207,6 +214,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         code: 1,
         output: `${diffs.join("\n\n")}${notice}`,
         error: `Generated files are out of date:\n${lines.join("\n")}\nRun \`better-supabase gen\`.`,
+        errorCode: "check_failed",
         data: { upToDate: false, stale, leftovers, warnings },
       };
     }
@@ -218,13 +226,24 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     };
   }
 
-  const written: string[] = [];
+  const flags = { "dry-run": options.dryRun, force: options.force };
 
-  for (const file of files) {
-    if (await writeIfChanged(resolve(config.root, file.path), file.contents)) {
-      written.push(display(config.root, file.path));
-    }
-  }
+  const plan = (
+    entries: readonly ModuleFile[] | typeof files,
+    remove: readonly string[] = [],
+  ): FilePlan => ({
+    root: config.root,
+    regenerate: "better-supabase gen",
+    files: entries.map((file) => ({
+      path: file.path,
+      contents: file.contents,
+    })),
+    remove,
+  });
+
+  const changes: FileChange[] = [
+    ...(await applyPlan(plan(files), flags)).changes,
+  ];
 
   // Read-set modules import the generated module, so they load after it is written.
   const readSets = await readSetsOf();
@@ -234,31 +253,39 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       config,
       READ_SETS_SUFFIX,
       readSets.contents,
-      { now: new Date(), dryRun: false },
+      { now: new Date(), dryRun: options.dryRun === true },
     );
 
-    if (migration.wrote) {
-      written.push(migration.path);
-    }
-  } else if (
-    readSets &&
-    (await writeIfChanged(
-      resolve(config.root, readSets.path),
-      readSets.contents,
-    ))
-  ) {
-    written.push(display(config.root, readSets.path));
+    changes.push({
+      file: migration.path,
+      outcome: migration.line.startsWith("Unchanged ") ? "unchanged" : "create",
+    });
   }
 
   const generated = pathsOf(readSets);
-  const removed: string[] = [];
 
-  for (const path of await leftoversOf(generated)) {
-    await rm(resolve(config.root, path), { force: true });
-    removed.push(path);
-  }
+  changes.push(
+    ...(
+      await applyPlan(
+        plan(
+          readSets && !migrations ? [readSets] : [],
+          await leftoversOf(generated),
+        ),
+        flags,
+      )
+    ).changes,
+  );
 
-  if (!options.isolated) {
+  const applied = {
+    mode: options.dryRun === true ? ("dry-run" as const) : ("write" as const),
+    changes,
+    diffs: [],
+    drift: false,
+  };
+
+  const written = changedFiles(applied);
+
+  if (!options.isolated && options.dryRun !== true) {
     await writeManifest(config.root, generated);
   }
 
@@ -266,18 +293,26 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     config.schemas.includes(table.schema),
   ).length;
 
-  const changes = [
-    ...written.map((path) => `  ${path}`),
-    ...removed.map((path) => `  ${path} (removed, no longer generated)`),
-  ];
+  const lines = changeLines(applied).filter(
+    (line) => !line.startsWith("Unchanged "),
+  );
+
+  const conflict = hasConflicts(applied)
+    ? {
+        code: 1,
+        errorCode: "file_conflict" as const,
+        error:
+          "Some generated files were written by hand, so gen left them alone. Pass --force to overwrite them.",
+      }
+    : { code: 0 };
 
   return {
-    code: 0,
+    ...conflict,
     output: `${
-      changes.length === 0
+      lines.length === 0
         ? `No changes (${tables} tables).`
-        : `Generated ${tables} tables:\n${changes.join("\n")}`
+        : `${lines.join("\n")}\n${options.dryRun === true ? "Would generate" : "Generated"} ${tables} tables.`
     }${notice}`,
-    data: { tables, written, removed, warnings },
+    data: { tables, written, files: changes, warnings },
   };
 }

@@ -12,6 +12,8 @@
     "doctor",
     "config",
     "codemod",
+    "agent-mode",
+    "completion",
     "errors"
   ]
 }

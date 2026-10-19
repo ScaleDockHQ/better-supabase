@@ -7,6 +7,8 @@ import {
   spinner,
 } from "@clack/prompts";
 
+import { CliError } from "./core/errors.ts";
+
 export interface Choice<T extends string> {
   readonly value: T;
   readonly label: string;
@@ -14,9 +16,9 @@ export interface Choice<T extends string> {
 }
 
 /**
- * Questions and progress for a person at a terminal. `run()` only gets one
- * from the bin on a TTY outside CI; every method resolves `undefined` when the
- * person cancels.
+ * Questions for a person at a terminal. `run()` only gets one
+ * from the bin on a TTY outside CI. A method that resolves `undefined` gave
+ * no answer, and the command takes its default.
  */
 export interface Prompter {
   readonly select: <T extends string>(
@@ -30,8 +32,17 @@ export interface Prompter {
     initial: readonly T[],
   ) => Promise<T[] | undefined>;
   readonly confirm: (message: string) => Promise<boolean | undefined>;
-  /** Shows `message` with a spinner until the returned function is called. */
-  readonly spinner: (message: string) => () => void;
+}
+
+/** Ctrl-C or Escape at a prompt ends the run with exit code 130. */
+function answered<T extends boolean | string | string[]>(
+  answer: T | symbol,
+): T {
+  if (isCancel(answer) || typeof answer === "symbol") {
+    throw new CliError("cancelled", "Cancelled.");
+  }
+
+  return answer;
 }
 
 const options = (choices: readonly Choice<string>[]): Option<string>[] =>
@@ -41,63 +52,48 @@ const options = (choices: readonly Choice<string>[]): Option<string>[] =>
     ...(choice.hint ? { hint: choice.hint } : {}),
   }));
 
-/** The @clack/prompts implementation; spinners write to `output` (stderr in the bin) so stdout stays pipeable. */
+/** The @clack/prompts implementation; it writes to `output` (stderr in the bin) so stdout stays pipeable. */
 export const createClackPrompter = (output: NodeJS.WriteStream): Prompter => ({
   select: async (message, choices, initial) => {
-    const answer = await select<string>({
-      message,
-      options: options(choices),
-      initialValue: initial,
-    });
-
-    if (isCancel(answer)) {
-      return;
-    }
+    const answer = answered<string>(
+      await select<string>({
+        message,
+        options: options(choices),
+        initialValue: initial,
+        output,
+      }),
+    );
 
     return choices.find((choice) => choice.value === answer)?.value;
   },
   multiselect: async (message, choices, initial) => {
-    const answer = await multiselect<string>({
-      message,
-      options: options(choices),
-      initialValues: [...initial],
-      required: false,
-    });
-
-    if (isCancel(answer)) {
-      return;
-    }
+    const answer = answered<string[]>(
+      await multiselect<string>({
+        message,
+        options: options(choices),
+        initialValues: [...initial],
+        required: false,
+        output,
+      }),
+    );
 
     return choices
       .filter((choice) => answer.includes(choice.value))
       .map((choice) => choice.value);
   },
-  confirm: async (message) => {
-    const answer = await confirm({ message, initialValue: false });
-
-    return isCancel(answer) ? undefined : answer;
-  },
-  spinner: (message) => {
-    const spin = spinner({ output });
-    spin.start(message);
-
-    return () => {
-      spin.clear();
-    };
-  },
+  confirm: async (message) =>
+    answered<boolean>(await confirm({ message, initialValue: false, output })),
 });
 
-/** Runs `task` behind a spinner when `prompts` is set. */
-export async function withSpinner<T>(
-  prompts: Prompter | undefined,
+/** A @clack/prompts spinner on `output` until the returned function is called. */
+export function clackSpinner(
+  output: NodeJS.WriteStream,
   message: string,
-  task: () => Promise<T>,
-): Promise<T> {
-  const stop = prompts?.spinner(message);
+): () => void {
+  const spin = spinner({ output });
+  spin.start(message);
 
-  try {
-    return await task();
-  } finally {
-    stop?.();
-  }
+  return () => {
+    spin.clear();
+  };
 }

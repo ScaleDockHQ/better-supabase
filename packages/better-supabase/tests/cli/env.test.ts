@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CliError } from "../../src/cli/core/errors.ts";
 import { parseEnv } from "../../src/cli/env.ts";
-import { CliError } from "../../src/cli/errors.ts";
 
 describe("parseEnv", () => {
   it("keeps the variables the CLI reads and treats empty ones as unset", () => {

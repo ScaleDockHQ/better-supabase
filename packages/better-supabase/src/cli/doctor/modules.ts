@@ -14,7 +14,7 @@ import {
   sharedRolesProblems,
   subjectColumns,
 } from "../../sql/index.ts";
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";

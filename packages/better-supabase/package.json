@@ -28,7 +28,8 @@
     "directory": "packages/better-supabase"
   },
   "bin": {
-    "better-supabase": "./bin/better-supabase.js"
+    "better-supabase": "./bin/better-supabase.js",
+    "bsb": "./bin/better-supabase.js"
   },
   "files": [
     "bin",
@@ -2642,6 +2643,7 @@
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vercel/connect": "catalog:",
+    "@vercel/detect-agent": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
@@ -2654,6 +2656,7 @@
     "c12": "catalog:",
     "chat": "catalog:",
     "citty": "catalog:",
+    "confbox": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
     "elysia": "catalog:",

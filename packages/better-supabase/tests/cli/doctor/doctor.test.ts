@@ -15,6 +15,7 @@ import type {
 } from "../../../src/cli/introspect/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { formatReport } from "../../../src/cli/doctor/format.ts";
 import {
   hookGrantBlock,
@@ -30,7 +31,6 @@ import {
 } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
-import { run } from "../../../src/cli/run.ts";
 import {
   parseToml,
   pgFunctionHooks,
@@ -2290,8 +2290,8 @@ describe("doctor command", () => {
 
     expect(result.code).toBe(1);
 
-    const report = JSON.parse(result.stdout) as {
-      findings: { code: string; location?: unknown }[];
+    const { data: report } = JSON.parse(result.stdout) as {
+      data: { findings: { code: string; location?: unknown }[] };
     };
 
     expect(
@@ -2321,7 +2321,8 @@ describe("doctor command", () => {
           "snapshot.json",
           "--only",
           "BS204",
-          "--strict",
+          "--fail-on",
+          "warning",
           "--cwd",
           dir,
         ])
@@ -2366,7 +2367,7 @@ describe("doctor command", () => {
       dir,
     ]);
 
-    expect(sarif.stdout).toContain("Wrote doctor.sarif: 1 errors");
+    expect(sarif.stdout).toContain("Created doctor.sarif (1 errors");
     expect(
       JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf-8")),
     ).toMatchObject({ version: "2.1.0" });

@@ -7,13 +7,13 @@ import type {
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { errorText } from "../errors.ts";
+import { CliError, errorText } from "../core/errors.ts";
+import { importPath } from "../core/io.ts";
 import { cachedDatabaseTypes } from "../introspect/cache.ts";
 import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
-import { importPath } from "../io.ts";
 import { emitBlockConfig } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { buildModel, generatorModel } from "./model.ts";
@@ -122,7 +122,8 @@ export async function render(
         ...runtime,
       });
     } catch (cause) {
-      throw new Error(
+      throw new CliError(
+        "generator_failed",
         `generator "${generator.name}" failed: ${errorText(cause)}`,
         { cause },
       );
@@ -133,7 +134,8 @@ export async function render(
       const inside = relative(config.root, path);
 
       if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
-        throw new Error(
+        throw new CliError(
+          "generator_failed",
           `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
         );
       }
@@ -141,7 +143,8 @@ export async function render(
       const owner = owners.get(path);
 
       if (owner !== undefined) {
-        throw new Error(
+        throw new CliError(
+          "generator_failed",
           `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
         );
       }

@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CliIo } from "../../src/cli/io.ts";
+import type { CliIo } from "../../src/cli/core/io.ts";
 
 import { parseSnapshot } from "../../src/cli/commands/snapshot.ts";
+import { run } from "../../src/cli/core/run.ts";
 import { buildModel } from "../../src/cli/gen/model.ts";
 import { render } from "../../src/cli/gen/render.ts";
 import { fromMetadata } from "../../src/cli/introspect/from-metadata.ts";
 import { serializeGenerator } from "../../src/cli/introspect/typegen.ts";
-import { run } from "../../src/cli/run.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { snapshotFixture } from "./fixtures/library.ts";
 
@@ -148,13 +148,13 @@ describe("gen --metadata", () => {
       [["--metadata", "-", "--snapshot", "s.json"], /--snapshot/],
       [["--metadata", "-", "--emit", "sql"], /--emit must be one of/],
       [
-        ["--metadata", "-", "--emit", "types", "--out", "x"],
+        ["--metadata", "-", "--emit", "types", "--out-dir", "x"],
         /Pass one of them/,
       ],
       [["--metadata", "-", "--check"], /needs --out/],
       [["--metadata", "-", "--json"], /--json has nothing to print/],
       [["--emit", "types"], /--emit only applies with --metadata/],
-      [["--out", "x"], /--out only applies with --metadata/],
+      [["--out-dir", "x"], /--out-dir only applies with --metadata/],
     ] as const;
 
     for (const [args, reason] of cases as readonly (readonly [
@@ -171,7 +171,7 @@ describe("gen --metadata", () => {
   });
 
   it("writes the multi-file layout into --out, leaving the configured paths and the manifest alone", async () => {
-    const result = await gen(["--metadata", "-", "--out", "out"]);
+    const result = await gen(["--metadata", "-", "--out-dir", "out"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("out/generated.ts");
 
@@ -190,7 +190,7 @@ describe("gen --metadata", () => {
         join(root, "node_modules/.cache/better-supabase/gen-manifest.json"),
       ),
     ).toBe(false);
-    const check = await gen(["--metadata", "-", "--out", "out", "--check"]);
+    const check = await gen(["--metadata", "-", "--out-dir", "out", "--check"]);
     expect(check.code).toBe(0);
     expect(await readFile(join(root, "out/generated.ts"), "utf-8")).toContain(
       'import meta from "./generated.meta.js";',

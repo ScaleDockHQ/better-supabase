@@ -1,8 +1,20 @@
-import { readdir, readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
+import { run } from "../../src/cli/core/run.ts";
 import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
@@ -149,6 +161,8 @@ describe("shipped JSON Schemas", () => {
 
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "ai-message-v1.json",
+      "cli-commands-v1.json",
+      "cli-result-v1.json",
       "config-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
@@ -160,6 +174,120 @@ describe("shipped JSON Schemas", () => {
         `https://unpkg.com/better-supabase/schemas/${file}`,
       );
     }
+  });
+
+  it("describe the command tree that --help --json prints", async () => {
+    const root = await run(["--help", "--json"]);
+    expect(root.code).toBe(0);
+    expect(
+      await errorsFor("cli-commands-v1.json", JSON.parse(root.stdout)),
+    ).toEqual([]);
+
+    const gen = JSON.parse((await run(["gen", "--help", "--json"])).stdout);
+    expect(await errorsFor("cli-commands-v1.json", gen)).toEqual([]);
+    expect(
+      gen.commands.map((command: { name: string }) => command.name),
+    ).toEqual(["gen"]);
+  });
+
+  it.each([
+    [["--version", "--json"], 0, "success"],
+    [["gen", "--chek", "--json"], 2, "error"],
+    [["gne", "--json"], 2, "error"],
+    [["skills", "list", "--json"], 0, "success"],
+    [["sql", "list", "--json"], 0, "success"],
+    [["sql", "print", "mfa", "--json"], 0, "success"],
+    [["sql", "print", "--json"], 2, "error"],
+  ])("describe the result of %j", async (argv, code, status) => {
+    const result = await run(argv);
+    const envelope = JSON.parse(result.stdout) as { status: string };
+
+    expect(result.code).toBe(code);
+    expect(envelope.status).toBe(status);
+    expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+  });
+
+  describe("in a project", () => {
+    let dir = "";
+    let workspace = "";
+
+    const snapshot = fileURLToPath(
+      new URL("fixtures/module-snapshot.json", import.meta.url),
+    );
+
+    beforeAll(async () => {
+      dir = await mkdtemp(join(tmpdir(), "better-supabase-schemas-"));
+      await writeFile(
+        join(dir, "package.json"),
+        JSON.stringify({ name: "app", dependencies: { next: "16.0.0" } }),
+      );
+      await writeFile(join(dir, "better-supabase.config.json"), "{}\n");
+      workspace = await mkdtemp(join(tmpdir(), "better-supabase-schemas-ws-"));
+      await mkdir(join(workspace, "apps/web"), { recursive: true });
+      await writeFile(join(workspace, "package.json"), '{"name":"root"}');
+      await writeFile(
+        join(workspace, "pnpm-workspace.yaml"),
+        "packages:\n  - apps/*\n",
+      );
+      await writeFile(
+        join(workspace, "apps/web/package.json"),
+        JSON.stringify({ name: "web", dependencies: { next: "16.0.0" } }),
+      );
+    });
+
+    afterAll(async () => {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workspace, { recursive: true, force: true });
+    });
+
+    it.each([
+      [["init", "--dry-run", "--yes"], 0, "success"],
+      [["init", "--force", "--agent", "yes"], 3, "action_required"],
+      [["init", "--cwd", "WORKSPACE", "--agent", "yes"], 3, "action_required"],
+      [["add", "mfa", "--dry-run"], 0, "success"],
+      [["apply", "--preset", "saas", "--dry-run"], 0, "success"],
+      [["adopt", "audit", "--snapshot", "SNAPSHOT"], 1, "error"],
+      [["preset", "info"], 0, "success"],
+      [["preset", "decode", "nope"], 2, "error"],
+      [["blocks", "list"], 0, "success"],
+      [["blocks", "view", "audit"], 0, "success"],
+      [["blocks", "search", "audit"], 0, "success"],
+      [["skills", "install", "--for", "cursor", "--dry-run"], 0, "success"],
+      [["completion", "zsh"], 0, "success"],
+      [["gen", "--snapshot", "SNAPSHOT", "--dry-run"], 0, "success"],
+      [["spec", "validate"], 1, "error"],
+      [["scaffold", "api", "--dry-run"], 1, "error"],
+      [["keys", "--dry-run"], 0, "success"],
+      [["doctor", "--snapshot", "SNAPSHOT"], 1, "error"],
+      [["config"], 0, "success"],
+      [["sql", "add", "mfa", "--dry-run"], 0, "success"],
+      [["codemod", "0.9", "--dry-run"], 0, "success"],
+    ])("describe the result of %j", async (argv, code, status) => {
+      const result = await run(
+        [
+          ...argv.map(
+            (word) =>
+              ({ SNAPSHOT: snapshot, WORKSPACE: workspace })[word] ?? word,
+          ),
+          ...(argv.includes("--cwd") ? [] : ["--cwd", dir]),
+          "--json",
+        ],
+        { cwd: dir },
+      );
+
+      const envelope = JSON.parse(result.stdout) as { status: string };
+
+      expect([result.code, envelope.status]).toEqual([code, status]);
+      expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+    });
+  });
+
+  it("list every CLI error code in the result schema", async () => {
+    const schema = (await load("cli-result-v1.json")) as {
+      $defs: { problem: { properties: { code: { enum: string[] } } } };
+    };
+
+    expect(schema.$defs.problem.properties.code.enum).toEqual(CLI_ERROR_CODES);
   });
 
   it("describe the fixture snapshot", async () => {

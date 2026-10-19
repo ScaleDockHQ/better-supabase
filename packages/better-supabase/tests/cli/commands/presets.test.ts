@@ -5,9 +5,16 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { runApply } from "../../../src/cli/commands/apply.ts";
-import { runBlocks } from "../../../src/cli/commands/blocks.ts";
-import { runPreset } from "../../../src/cli/commands/preset.ts";
-import { run } from "../../../src/cli/run.ts";
+import {
+  listBlocks,
+  searchBlocks,
+  viewBlock,
+} from "../../../src/cli/commands/blocks.ts";
+import {
+  decodePresetInput,
+  presetInfo,
+} from "../../../src/cli/commands/preset.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   type CreateDesign,
@@ -15,6 +22,7 @@ import {
   encodePreset,
   namedPreset,
 } from "../../../src/preset/index.ts";
+import { usageError } from "../fixtures/usage.ts";
 
 let dir: string;
 
@@ -54,8 +62,7 @@ const APP_TABLES_FILE = "supabase/schemas/900_better_supabase_app_tables.sql";
 
 describe("preset decode", () => {
   it("prints a named preset, a code and a /create URL", () => {
-    const config = resolveConfig({}, dir);
-    const named = runPreset(config, { _: ["decode", "minimal"] });
+    const named = decodePresetInput("minimal");
     expect(named.code).toBe(0);
     expect(named.output).toContain(
       `Code: ${encodePreset(namedPreset("minimal"))}`,
@@ -63,9 +70,9 @@ describe("preset decode", () => {
     expect(named.output).toContain("  profiles");
     const code = encodePreset({ blocks: ["comments"], casing: "camel" });
 
-    const decoded = runPreset(config, {
-      _: ["decode", `https://bettersupabase.com/create?preset=${code}`],
-    });
+    const decoded = decodePresetInput(
+      `https://bettersupabase.com/create?preset=${code}`,
+    );
 
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
@@ -74,23 +81,17 @@ describe("preset decode", () => {
     expect(decoded.data).toMatchObject({ code, derived: [] });
   });
 
-  it("exits 1 on what can't install, and 2 on what isn't a preset", () => {
-    const config = resolveConfig({}, dir);
-
-    const conflict = runPreset(config, {
-      _: ["decode", encodePreset({ blocks: ["organizations"], scope: "user" })],
-    });
+  it("exits 1 on what can't install, and 2 on what isn't a preset", async () => {
+    const conflict = decodePresetInput(
+      encodePreset({ blocks: ["organizations"], scope: "user" }),
+    );
 
     expect(conflict.code).toBe(1);
     expect(conflict.output).toContain(
       'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
     );
-    expect(runPreset(config, { _: ["decode", "startup"] }).code).toBe(2);
-    expect(runPreset(config, { _: ["decode"] }).code).toBe(2);
-    expect(runPreset(config, { _: [] }).code).toBe(2);
-    expect(runPreset(config, { _: ["nope"] }).error).toContain(
-      'Unknown preset action "nope"',
-    );
+    await usageError(() => decodePresetInput("startup"));
+    await usageError(() => decodePresetInput(undefined));
   });
 });
 
@@ -105,7 +106,7 @@ describe("preset info", () => {
       dir,
     );
 
-    const info = runPreset(config, { _: ["info"] });
+    const info = presetInfo(config);
     expect(info.code).toBe(0);
     expect(info.output).toContain("Preset: minimal");
     expect(info.output).toContain("  + tags");
@@ -116,53 +117,44 @@ describe("preset info", () => {
 
   it("says when the config adds nothing, or names no preset", () => {
     expect(
-      runPreset(resolveConfig({ preset: "minimal" }, dir), { _: ["info"] })
-        .output,
+      presetInfo(resolveConfig({ preset: "minimal" }, dir)).output,
     ).toContain("The config adds nothing to the preset.");
-    expect(runPreset(resolveConfig({}, dir), { _: ["info"] }).output).toContain(
+    expect(presetInfo(resolveConfig({}, dir)).output).toContain(
       "The config names no preset.",
     );
   });
 });
 
 describe("blocks", () => {
-  it("lists every block by category, or one category", () => {
-    const all = runBlocks({ _: ["list"] });
+  it("lists every block by category, or one category", async () => {
+    const all = listBlocks(undefined);
     expect(all.output).toContain("identity:\n");
     expect(all.output).toContain("  comments");
-    const crm = runBlocks({ _: ["list"], category: "crm" });
+    const crm = listBlocks("crm");
     expect(crm.output).toMatch(/^crm:\n/);
     expect(crm.output).not.toContain("identity:");
-    expect(runBlocks({ _: ["list"], category: "nope" }).code).toBe(2);
+    await usageError(() => listBlocks("nope"));
   });
 
-  it("shows one block with its install command and glue", () => {
-    const view = runBlocks({ _: ["view", "outbox"] });
+  it("shows one block with its install command and glue", async () => {
+    const view = viewBlock("outbox");
     expect(view.code).toBe(0);
     expect(view.output).toContain("Install: better-supabase add outbox");
     expect(view.output).toContain("@better-supabase/outbox-relay-next");
     expect(view.output).toContain(
       "More: https://bettersupabase.com/blocks/outbox",
     );
-    expect(runBlocks({ _: ["view", "tenant"] }).output).toContain(
-      "Requires:   updated-at",
-    );
-    expect(runBlocks({ _: ["view"] }).code).toBe(2);
-    expect(runBlocks({ _: ["view", "nope"] }).error).toContain(
+    expect(viewBlock("tenant").output).toContain("Requires:   updated-at");
+    await usageError(() => viewBlock(undefined));
+    expect(await usageError(() => viewBlock("nope"))).toContain(
       "better-supabase blocks search nope",
     );
   });
 
-  it("searches names, titles and descriptions", () => {
-    expect(runBlocks({ _: ["search", "invoice"] }).output).toContain(
-      "  invoices",
-    );
-    expect(runBlocks({ _: ["search", "zzzz"] }).output).toContain(
-      'No block matches "zzzz"',
-    );
-    expect(runBlocks({ _: ["search"] }).code).toBe(2);
-    expect(runBlocks({ _: [] }).code).toBe(2);
-    expect(runBlocks({ _: ["nope"] }).code).toBe(2);
+  it("searches names, titles and descriptions", async () => {
+    expect(searchBlocks("invoice").output).toContain("  invoices");
+    expect(searchBlocks("zzzz").output).toContain('No block matches "zzzz"');
+    await usageError(() => searchBlocks(undefined));
   });
 });
 
@@ -253,24 +245,29 @@ describe("apply", () => {
   it("refuses what it can't apply", async () => {
     const config = resolveConfig({}, dir);
     const deps = { now, configFile: join(dir, "better-supabase.config.ts") };
-    expect((await runApply(config, {}, deps)).code).toBe(2);
+    await usageError(() => runApply(config, {}, deps));
     expect(
-      (await runApply(config, { preset: "saas", only: "all" }, deps)).error,
+      await usageError(() =>
+        runApply(config, { preset: "saas", only: "all" }, deps),
+      ),
     ).toBe('--only must be "blocks" or "conventions"');
+    await expect(
+      runApply(config, { preset: "saas" }, { now }),
+    ).rejects.toMatchObject({
+      code: "config_not_found",
+      message: expect.stringContaining("better-supabase init --preset saas"),
+    });
+    await usageError(() => runApply(config, { preset: "startup" }, deps));
     expect(
-      (await runApply(config, { preset: "saas" }, { now })).error,
-    ).toContain("better-supabase init --preset saas");
-    expect((await runApply(config, { preset: "startup" }, deps)).code).toBe(2);
-    expect(
-      (
-        await runApply(
+      await usageError(() =>
+        runApply(
           config,
           {
             preset: encodePreset({ blocks: ["organizations"], scope: "none" }),
           },
           deps,
-        )
-      ).error,
+        ),
+      ),
     ).toContain("The preset can't install: organizations");
     await files({ "better-supabase.config.ts": "export default config;\n" });
     expect((await runApply(config, { preset: "saas" }, deps)).error).toContain(
@@ -543,7 +540,7 @@ describe("init --preset", () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
-      "Would write supabase/functions/mcp/index.ts",
+      "Would create supabase/functions/mcp/index.ts",
     );
     expect(result.stdout).toContain("(tags)");
 

@@ -1,24 +1,18 @@
 import type { GenTask } from "../../config/index.ts";
-import type { AnyCommand, CliContext } from "../command.ts";
+import type { AnyCommand, CliContext } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand, list } from "../command.ts";
-import { errorText, failedResult } from "../errors.ts";
-import { runMetadataGen, EMITS } from "../gen/metadata.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { failedResult, CliError } from "../core/errors.ts";
+import { commandMeta } from "../core/manifest.ts";
+import { checkMetadataFlags, EMITS, runMetadataGen } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import { GEN_TASKS } from "../names.ts";
-import { withSpinner } from "../prompts.ts";
-import { painter, plain } from "../style.ts";
-import {
-  modifiedTime,
-  onceReporter,
-  parseInterval,
-  sleep,
-  stampFiles,
-} from "../watch.ts";
+import { plain } from "../style.ts";
+import { parseInterval, stampFiles, watchLoop } from "../watch.ts";
 import {
   combineResults,
   runSteps,
@@ -27,7 +21,7 @@ import {
   stepInputs,
 } from "./gen-pipeline.ts";
 import { loadSnapshot, openSource, snapshotFile } from "./snapshot.ts";
-import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
+import { SOURCE_ARGS, sourceArgs, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
   metadata: {
@@ -41,13 +35,13 @@ const ARGS = {
     description: `With --metadata, the file to print: ${EMITS.join(", ")}. Defaults to schema`,
     valueHint: "file",
   },
-  out: {
+  "out-dir": {
     type: "string",
     description:
       "With --metadata, write every generated file into this directory instead of printing one",
     valueHint: "dir",
   },
-  tasks: {
+  only: {
     type: "string",
     description: `Tasks to run: ${GEN_TASKS.join(", ")}. Defaults to gen.tasks, or every task the config sets up`,
     valueHint: "list",
@@ -55,6 +49,15 @@ const ARGS = {
   check: {
     type: "boolean",
     description: "Fail when a generated file is out of date",
+  },
+  "dry-run": {
+    type: "boolean",
+    description: "Print what would change and write nothing",
+  },
+  force: {
+    type: "boolean",
+    description:
+      "Overwrite a file at a generated path that the CLI did not write",
   },
   watch: {
     type: "boolean",
@@ -125,6 +128,7 @@ async function runTasks(
         config: options.config,
         env: options.env,
         check: options.check,
+        dryRun: options.dryRun === true,
         paint: options.paint ?? plain,
       },
       types,
@@ -140,172 +144,135 @@ async function runTasks(
  * source without a fingerprint is introspected each time and compared. The
  * schema is read only when `types` runs. A changed config file is loaded
  * again and forces a run; a changed input reruns the steps after `types`. A
- * failed run is retried every interval until it succeeds, and the same
- * error is printed once.
+ * failed run is retried every interval until it succeeds.
  */
 async function watch(
   initial: GenOptions,
   requested: readonly GenTask[] | undefined,
   interval: number,
-  { io, signal, configFile, reloadConfig }: CliContext,
+  context: CliContext,
 ): Promise<CommandResult> {
   let options = initial;
   let last = "";
   let inputs = "";
-  const fresh = onceReporter();
-  let stamp = await modifiedTime(configFile);
   let db: IntrospectionSource | undefined;
-  const aborted = (): boolean => signal?.aborted ?? false;
-
-  const report = (message: string): void => {
-    if (fresh(message)) {
-      io.stderr(`${message}\n`);
-    }
-  };
 
   const closeDb = async (): Promise<void> => {
     await db?.close().catch(() => undefined);
     db = undefined;
   };
 
-  try {
-    while (!aborted()) {
-      const changed = await modifiedTime(configFile);
+  const tick = async (): Promise<CommandResult | undefined> => {
+    const tasks = selectTasks(options.config, requested);
+    const current = await stampFiles(stepInputs(options.config, tasks));
+    let polled: { marker: string; snapshot?: Snapshot } | undefined;
 
-      if (reloadConfig && changed !== stamp) {
-        try {
-          options = { ...options, config: await reloadConfig() };
-          stamp = changed;
-          last = "";
-          inputs = "";
-          await closeDb();
-        } catch (cause) {
-          report(errorText(cause));
-          await sleep(interval, signal);
-          continue;
-        }
+    if (tasks.includes("types")) {
+      try {
+        db ??=
+          snapshotFile(options.config, options) === undefined
+            ? await openSource(options.config, options.env, options)
+            : undefined;
+        polled = await poll(options, db, last);
+      } catch (cause) {
+        await closeDb();
+        throw cause;
       }
-
-      const tasks = selectTasks(options.config, requested);
-      const current = await stampFiles(stepInputs(options.config, tasks));
-      let polled: { marker: string; snapshot?: Snapshot } | undefined;
-
-      if (tasks.includes("types")) {
-        try {
-          db ??=
-            snapshotFile(options.config, options) === undefined
-              ? await openSource(options.config, options.env, options)
-              : undefined;
-          polled = await poll(options, db, last);
-        } catch (cause) {
-          report(errorText(cause));
-          await closeDb();
-          await sleep(interval, signal);
-          continue;
-        }
-      }
-
-      const run: readonly GenTask[] | undefined = polled?.snapshot
-        ? tasks
-        : current === inputs
-          ? undefined
-          : tasks.filter((task) => task !== "types");
-
-      const result =
-        run && run.length > 0
-          ? await runTasks(run, {
-              ...options,
-              ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
-            })
-          : undefined;
-
-      if (result && result.code !== 0) {
-        report(result.error ?? `gen exited with code ${result.code}`);
-      } else {
-        if (result?.output) {
-          io.stdout(`${result.output}\n`);
-        }
-
-        if (polled) {
-          last = polled.marker;
-        }
-
-        inputs = current;
-        fresh("");
-      }
-
-      await sleep(interval, signal);
     }
+
+    const run: readonly GenTask[] | undefined = polled?.snapshot
+      ? tasks
+      : current === inputs
+        ? undefined
+        : tasks.filter((task) => task !== "types");
+
+    if (!run || run.length === 0) {
+      return undefined;
+    }
+
+    const result = await runTasks(run, {
+      ...options,
+      ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
+    });
+
+    if (result.code === 0) {
+      last = polled?.marker ?? last;
+      inputs = current;
+    }
+
+    return result;
+  };
+
+  try {
+    return await watchLoop({
+      interval,
+      context,
+      reload: async (config) => {
+        options = { ...options, config };
+        last = "";
+        inputs = "";
+        await closeDb();
+      },
+      tick,
+    });
   } finally {
     await closeDb();
   }
-
-  return { code: 0 };
 }
 
 export const genCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "gen",
-    description:
-      "Writes the typed client from the database, then every other generated file the config sets up",
-  },
+  meta: commandMeta("gen"),
   args: ARGS,
-  lists: ["tasks"],
+  lists: ["only"],
+  completions: { only: () => GEN_TASKS },
   run: async (args, context) => {
-    if (args.metadata !== undefined) {
-      const conflicting = [
+    checkMetadataFlags({
+      ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
+      ...(args.emit === undefined ? {} : { emit: args.emit }),
+      ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
+      check: args.check === true,
+      json: context.json,
+      conflicting: [
         ...(args.watch === true ? ["--watch"] : []),
-        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
-        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
-        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
-      ];
+        ...sourceFlags(args),
+      ],
+    });
 
-      if (conflicting.length > 0) {
-        return {
-          code: 2,
-          error: `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
-        };
-      }
-
+    if (args.metadata !== undefined) {
       return runMetadataGen({
         config: context.config,
         env: context.env,
         cwd: context.cwd,
         io: context.io,
+        log: context.log,
         metadata: args.metadata,
         check: args.check === true,
-        json: context.json,
-        paint: painter(context.io.color),
+        paint: context.paint,
         ...(args.emit === undefined ? {} : { emit: args.emit }),
-        ...(args.out === undefined ? {} : { out: args.out }),
+        ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
       });
     }
 
-    if (args.emit !== undefined || args.out !== undefined) {
-      return {
-        code: 2,
-        error: `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
-      };
-    }
-
     const requested =
-      args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
+      args.only === undefined ? undefined : parseTasks(list(args.only));
 
     if (typeof requested === "string") {
-      return { code: 2, error: requested };
+      throw new CliError("usage", requested);
     }
 
     const tasks = selectTasks(context.config, requested);
 
     if (tasks.length === 0) {
-      return { code: 2, error: "--tasks names no task." };
+      throw new CliError("usage", "--only names no task.");
     }
 
     const options: GenOptions = {
       config: context.config,
       env: context.env,
       check: args.check === true,
-      paint: painter(context.io.color),
+      dryRun: args["dry-run"] === true,
+      force: args.force === true,
+      paint: context.paint,
       ...(await sourceArgs(args, context.io)),
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
@@ -317,12 +284,12 @@ export const genCommand: AnyCommand = defineCliCommand({
     );
 
     if (typeof interval === "string") {
-      return { code: 2, error: interval };
+      throw new CliError("usage", interval);
     }
 
     return args.watch === true
       ? watch(options, requested, interval, context)
-      : withSpinner(context.io.prompts, "Generating from the schema", () =>
+      : context.log.progress("Generating from the schema", () =>
           runTasks(tasks, options),
         );
   },

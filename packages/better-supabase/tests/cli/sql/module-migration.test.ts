@@ -117,7 +117,7 @@ describe("writeLatestMigration", () => {
       }),
     ).toMatchObject({
       wrote: false,
-      line: expect.stringMatching(/^Would write /),
+      line: expect.stringMatching(/^Would create /),
     });
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(

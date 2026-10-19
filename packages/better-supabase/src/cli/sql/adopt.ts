@@ -228,7 +228,7 @@ function matchTables(
       chosen.set(logical, null);
     } else {
       errors.push(
-        `blocks.${block} needs a table for ${logical} (${table.name} by default) and none was found. Pass it with --from.`,
+        `blocks.${block} needs a table for ${logical} (${table.name} by default) and none was found. Pass it with --tables.`,
       );
     }
   }
@@ -241,7 +241,7 @@ const declaration = (table: ExistingTable): string =>
   `create table ${table.schema}.${table.name} (\n${table.columns.map((column) => `  "${column.name}" ${column.udt}`).join(",\n")}\n);`;
 
 export interface ProposeOptions {
-  /** Tables named with `--from`, as `table` or `schema.table`. */
+  /** Tables named with `--tables`, as `table` or `schema.table`. */
   readonly from?: readonly string[];
   /** The config's blocks, so the proposal is checked next to them. */
   readonly blocks?: AnyBlocksConfig;

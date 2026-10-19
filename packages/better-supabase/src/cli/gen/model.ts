@@ -15,6 +15,7 @@ import type { Catalog, CatalogTable, Snapshot } from "../introspect/types.ts";
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
 import { resolveProviderSql } from "../../sql/index.ts";
+import { CliError } from "../core/errors.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,
@@ -956,7 +957,8 @@ function realtimeMeta(
     );
 
     if (!table) {
-      throw new Error(
+      throw new CliError(
+        "config_invalid",
         `realtime.tables: unknown table "${name}". Check the name and \`schemas\`.`,
       );
     }
@@ -969,7 +971,10 @@ function realtimeMeta(
       )?.[0];
 
       if (user === undefined) {
-        throw new Error(`realtime.users: "${name}" has no column "${owner}".`);
+        throw new CliError(
+          "config_invalid",
+          `realtime.users: "${name}" has no column "${owner}".`,
+        );
       }
 
       out[table.key] = { user };

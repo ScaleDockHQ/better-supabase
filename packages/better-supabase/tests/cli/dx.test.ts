@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { mergeEnv } from "../../src/cli/commands/env.ts";
 import { loadSkills } from "../../src/cli/commands/skills.ts";
-import { run } from "../../src/cli/run.ts";
+import { run } from "../../src/cli/core/run.ts";
 import {
   baseFiles,
   INTEGRATIONS,
@@ -104,7 +104,9 @@ describe("init and add", () => {
     );
     const again = await run(["init", "--cwd", dir]);
     expect(again.stderr).toBe("");
-    expect(again.stdout).toContain("Kept    src/proxy.ts (exists)");
+    expect(again.stdout).toContain(
+      "Skipped src/proxy.ts (exists; pass --force to overwrite)",
+    );
     expect(await readFile(join(dir, "src/proxy.ts"), "utf-8")).toBe(
       "// mine\n",
     );
@@ -140,7 +142,7 @@ describe("init and add", () => {
       },
     );
     const refused = await run(["init", "--cwd", dir]);
-    expect(refused.code).toBe(2);
+    expect(refused.code).toBe(3);
     expect(refused.stderr).toContain(
       "pnpm-workspace.yaml makes this a workspace root. Pass --package with the package that owns the runtime (apps/web, packages/runtime)",
     );
@@ -151,7 +153,7 @@ describe("init and add", () => {
     const init = await run(["init", "--package", "apps/web/", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(init.stdout).toContain("Found next in apps/web.");
-    expect(init.stdout).toContain("Wrote   apps/web/better-supabase.config.ts");
+    expect(init.stdout).toContain("Created apps/web/better-supabase.config.ts");
     expect(existsSync(join(dir, "apps/web/src/lib/supabase/index.ts"))).toBe(
       true,
     );
@@ -193,7 +195,7 @@ describe("init and add", () => {
     ]);
 
     expect(here.code).toBe(0);
-    expect(here.stdout).toContain("Would write better-supabase.config.ts");
+    expect(here.stdout).toContain("Would create better-supabase.config.ts");
   });
 
   it("turns pg-delta on in supabase/config.toml", async () => {
@@ -239,7 +241,7 @@ describe("init and add", () => {
     const init = await run(["init", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(init.stdout).toContain(
-      "Kept    supabase/config.toml (pg-delta is off;",
+      "Skipped supabase/config.toml (pg-delta is off;",
     );
     expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
       off,
@@ -251,7 +253,7 @@ describe("init and add", () => {
 
     const add = await run([
       "add",
-      "--framework",
+      "--integration",
       "mcp,orpc",
       "--cwd",
       dir,
@@ -259,19 +261,21 @@ describe("init and add", () => {
     ]);
 
     expect(add.code).toBe(0);
-    expect(add.stdout).toContain("Would write supabase/functions/mcp/index.ts");
-    expect(add.stdout).toContain("Would write router.ts");
+    expect(add.stdout).toContain(
+      "Would create supabase/functions/mcp/index.ts",
+    );
+    expect(add.stdout).toContain("Would create router.ts");
     expect(add.stdout).toContain("pnpm add @orpc/server @supabase/server");
     expect(existsSync(join(dir, "router.ts"))).toBe(false);
-    expect((await run(["add", "--framework", "nope", "--cwd", dir])).code).toBe(
-      2,
-    );
+    expect(
+      (await run(["add", "--integration", "nope", "--cwd", dir])).code,
+    ).toBe(2);
     expect(resolveIntegrations(["react"])).toEqual(["client", "react"]);
   });
 
   it("skips the app definition for Edge Function projects", async () => {
     await project({});
-    const init = await run(["init", "--with", "mcp", "--cwd", dir]);
+    const init = await run(["init", "--integration", "mcp", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(
       existsSync(join(dir, "supabase/functions/_shared/supabase.ts")),
@@ -284,7 +288,7 @@ describe("init and add", () => {
 
   it("prints command help", async () => {
     const help = await run(["add", "--help"]);
-    expect(help.stdout).toContain("USAGE better-supabase add [OPTIONS]");
+    expect(help.stdout).toContain("Usage: better-supabase add [options]");
 
     for (const name of INTEGRATIONS) {
       expect(help.stdout).toContain(name);
@@ -439,7 +443,15 @@ describe("env", () => {
         ".gitignore": ".env*.local\n",
       },
     );
-    const result = await run(["env", "--from", "status.json", "--cwd", dir]);
+
+    const result = await run([
+      "env",
+      "--status-file",
+      "status.json",
+      "--cwd",
+      dir,
+    ]);
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
     expect(result.stdout).not.toContain("sb_secret_test");
@@ -453,7 +465,7 @@ describe("env", () => {
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
     await chmod(join(dir, ".env.local"), 0o644);
     expect(
-      (await run(["env", "--from", "status.json", "--cwd", dir])).stdout,
+      (await run(["env", "--status-file", "status.json", "--cwd", dir])).stdout,
     ).toContain("Unchanged");
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
   });
@@ -468,7 +480,7 @@ describe("env", () => {
     await chmod(bin, 0o755);
 
     const result = await run(
-      ["env", "--print", "--prefix", "VITE_", "--cwd", dir],
+      ["env", "--out", "-", "--prefix", "VITE_", "--cwd", dir],
       {
         env: { SUPABASE_BIN: bin },
         io: { stdout: () => {}, stderr: () => {} },
@@ -488,7 +500,7 @@ describe("env", () => {
     );
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--print", "--cwd", dir], {
+    const result = await run(["env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -500,9 +512,12 @@ describe("env", () => {
   it("rejects a --from file without status JSON", async () => {
     await project({}, { "status.txt": "Stopped\n" });
 
-    const result = await run(["env", "--from", "status.txt", "--cwd", dir], {
-      io: { stdout: () => {}, stderr: () => {} },
-    });
+    const result = await run(
+      ["env", "--status-file", "status.txt", "--cwd", dir],
+      {
+        io: { stdout: () => {}, stderr: () => {} },
+      },
+    );
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
@@ -513,20 +528,20 @@ describe("env", () => {
   it.each([
     ["--out", "../.env.local"],
     ["--out", "/tmp/better-supabase-escape.env"],
-    ["--from", "../status.json"],
+    ["--status-file", "../status.json"],
   ])("refuses %s %s outside the project root", async (flag, path) => {
     await project({}, { "status.json": JSON.stringify(status) });
 
     const args =
-      flag === "--from"
-        ? ["env", "--from", path, "--cwd", dir]
-        : ["env", "--from", "status.json", "--out", path, "--cwd", dir];
+      flag === "--status-file"
+        ? ["env", "--status-file", path, "--cwd", dir]
+        : ["env", "--status-file", "status.json", "--out", path, "--cwd", dir];
 
     const result = await run(args, {
       io: { stdout: () => {}, stderr: () => {} },
     });
 
-    expect(result.code).toBe(1);
+    expect(result.code).toBe(2);
     expect(result.stderr).toContain(
       `${flag} ${path} is outside the project root`,
     );
@@ -540,7 +555,7 @@ describe("env", () => {
     await writeFile(bin, "#!/bin/sh\nexit 2\n");
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--print", "--cwd", dir], {
+    const result = await run(["env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -674,7 +689,7 @@ export const seed = defineSeed(defineSupabase(schema), {
     const result = await run(["seed", "--cwd", dir]);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain(
-      "Wrote supabase/seeds/000_better_supabase.sql (2 tables)",
+      "Created supabase/seeds/000_better_supabase.sql (2 tables)",
     );
     expect(result.stdout).toContain(
       'sql_paths = ["./seed.sql", "./seeds/000_better_supabase.sql"]',
@@ -702,12 +717,12 @@ export const seed = defineSeed(defineSupabase(schema), {
     expect(drift.stdout).toContain("--- hand written");
     const refused = await run(["seed", "--cwd", dir]);
     expect(refused.code).toBe(1);
-    expect(refused.stderr).toContain("not written by better-supabase");
+    expect(refused.stderr).toContain("not generated by better-supabase");
   });
 });
 
-describe("openapi emit", () => {
-  it("writes the exported document and detects drift", async () => {
+describe("spec emit openapi", () => {
+  it("writes a createOpenApi() document and detects drift", async () => {
     await project(
       {},
       {
@@ -718,23 +733,25 @@ describe("openapi emit", () => {
     );
 
     const emit = await run([
-      "openapi",
+      "spec",
       "emit",
+      "openapi",
       "--entry",
       "openapi.mjs",
       "--cwd",
       dir,
     ]);
 
-    expect(emit.stdout).toContain("Wrote openapi.json");
+    expect(emit.stdout).toContain("Created openapi.json");
     expect(
       JSON.parse(await readFile(join(dir, "openapi.json"), "utf-8")),
     ).toMatchObject({ openapi: "3.1.0" });
     expect(
       (
         await run([
-          "openapi",
+          "spec",
           "emit",
+          "openapi",
           "--check",
           "--entry",
           "openapi.mjs",
@@ -746,8 +763,9 @@ describe("openapi emit", () => {
     await writeFile(join(dir, "openapi.json"), "{}\n");
 
     const drift = await run([
-      "openapi",
+      "spec",
       "emit",
+      "openapi",
       "--check",
       "--entry",
       "openapi.mjs",
@@ -759,9 +777,19 @@ describe("openapi emit", () => {
     expect(drift.stdout).toContain("-{}");
     expect(drift.stdout).toContain('+  "openapi": "3.1.0",');
     expect(
-      (await run(["openapi", "emit", "--entry", "bad.mjs", "--cwd", dir])).code,
-    ).toBe(1);
-    expect((await run(["openapi", "--cwd", dir])).code).toBe(2);
+      (
+        await run([
+          "spec",
+          "emit",
+          "openapi",
+          "--entry",
+          "bad.mjs",
+          "--cwd",
+          dir,
+        ])
+      ).code,
+    ).not.toBe(0);
+    expect((await run(["openapi", "emit", "--cwd", dir])).code).toBe(2);
   });
 });
 
@@ -788,13 +816,13 @@ describe("skills", () => {
     await project({}, { ".cursor/rules/.keep": "", ".claude/.keep": "" });
     const install = await run(["skills", "install", "--cwd", dir]);
     expect(install.stdout).toContain(
-      "Wrote .cursor/skills/better-supabase/SKILL.md",
+      "Created .cursor/skills/better-supabase/SKILL.md",
     );
     expect(install.stdout).toContain(
-      "Wrote .claude/skills/better-supabase-testing/SKILL.md",
+      "Created .claude/skills/better-supabase-testing/SKILL.md",
     );
     expect(install.stdout).toContain(
-      "Wrote .cursor/skills/better-supabase/references/troubleshooting.md",
+      "Created .cursor/skills/better-supabase/references/troubleshooting.md",
     );
     expect(install.stdout).not.toContain(".agents");
     expect(
@@ -814,7 +842,7 @@ describe("skills", () => {
     const agents = await run([
       "skills",
       "install",
-      "--agent",
+      "--for",
       "agents",
       "--cwd",
       dir,
@@ -824,7 +852,7 @@ describe("skills", () => {
       ".agents/skills/better-supabase-api/SKILL.md",
     );
     expect(
-      (await run(["skills", "install", "--agent", "vim", "--cwd", dir])).code,
+      (await run(["skills", "install", "--for", "vim", "--cwd", dir])).code,
     ).toBe(2);
   });
 });
@@ -847,7 +875,7 @@ describe("flags from the config", () => {
       env: { output: ".env.development.local", prefix: "VITE_" },
     });
     expect(
-      (await run(["env", "--from", "status.json", "--cwd", dir])).code,
+      (await run(["env", "--status-file", "status.json", "--cwd", dir])).code,
     ).toBe(0);
     expect(
       await readFile(join(dir, ".env.development.local"), "utf-8"),
@@ -855,7 +883,7 @@ describe("flags from the config", () => {
     expect(existsSync(join(dir, ".env.local"))).toBe(false);
     await run([
       "env",
-      "--from",
+      "--status-file",
       "status.json",
       "--prefix",
       "none",
@@ -884,7 +912,9 @@ describe("flags from the config", () => {
 
   it("init lists the integrations; add sets up the configured ones", async () => {
     await project({ hono: "4" });
-    expect((await run(["init", "--with", "mcp", "--cwd", dir])).code).toBe(0);
+    expect(
+      (await run(["init", "--integration", "mcp", "--cwd", dir])).code,
+    ).toBe(0);
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("integrations: ['hono', 'mcp'],");
@@ -902,7 +932,7 @@ describe("flags from the config", () => {
 
     const orpc = await run([
       "add",
-      "--framework",
+      "--integration",
       "orpc",
       "--dry-run",
       "--cwd",

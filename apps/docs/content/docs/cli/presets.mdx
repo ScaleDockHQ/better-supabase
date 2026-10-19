@@ -21,7 +21,8 @@ named preset or the code, replacing the one the config has, so
 keys keep winning. It prints the diff of the config file, then loads the
 config again and writes the module files of every block it now holds, as
 `better-supabase sql sync` does. `--dry-run` prints the diff and writes
-nothing.
+nothing, and `--check` exits 1 with the diff when the config doesn't hold the
+preset yet.
 
 | `--only`      | What `apply` changes                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------- |
@@ -35,6 +36,8 @@ same name and keeping the others, and each block's extra columns over the
 `options.extraColumns` it already has. Quote the URL. `--only conventions`
 leaves the design out. See [init](/docs/cli/init#a-design-from-create) for
 what a design holds and what to do when it's too large for a URL.
+
+Side effects: Writes files, reads the database with `--adopt`, calls the Supabase Management API with `--project-ref`.
 
 ### Breaking changes
 
@@ -93,13 +96,13 @@ isn't an object literal `apply` can follow, it changes nothing and prints the
 ## adopt
 
 ```bash
-pnpm better-supabase adopt teams --from public.squads --dry-run
-pnpm better-supabase adopt audit --from public.audit_logs
-pnpm better-supabase adopt tags --from app.labels,app.label_links --json
+pnpm better-supabase adopt teams --tables public.squads --dry-run
+pnpm better-supabase adopt audit --tables public.audit_logs
+pnpm better-supabase adopt tags --tables app.labels,app.label_links --json
 ```
 
 `adopt` maps one block onto tables the app already has and writes the
-proposed `blocks.<block>` entry in adopt mode. Each table in `--from`
+proposed `blocks.<block>` entry in adopt mode. Each table in `--tables`
 (`table` or `schema.table`, comma-separated or repeated) goes to the block's
 logical table whose columns it matches best; the block's other tables are
 looked up by their default names. Each logical column then takes the column
@@ -114,13 +117,16 @@ a report like doctor's: errors for what can't map (a missing table, a
 required column the table lacks, a value the module refuses) and warnings
 for the migration-only options the entry keeps. With an error `adopt` exits
 1 and writes nothing. Otherwise it prints the diff of the config and writes
-it; `--dry-run` writes nothing. Run `better-supabase sql sync` afterwards to
+it; `--dry-run` writes nothing, and `--check` exits 1 when the config doesn't
+hold the mapping yet. Run `better-supabase sql sync` afterwards to
 write the block's module over the adopted tables. `--json` prints the entry,
 the mapping and the report as data. The tables are read like `introspect`
 reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.
 
 Only blocks with an adopt mode can be adopted; `blocks view <name>` lists a
 block's modes.
+
+Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.
 
 ## preset
 
@@ -138,6 +144,11 @@ version also lists the fields it predates, which decode at their defaults.
 `preset info` reads the `preset` of the config and prints the same, then
 how the config differs from it: the blocks it adds (`+`), a casing that
 differs, and the preset blocks it gives settings of its own (`~`).
+
+| Command         | Side effects |
+| --------------- | ------------ |
+| `preset decode` | None.        |
+| `preset info`   | None.        |
 
 ## blocks
 
@@ -157,3 +168,9 @@ subpath, the `better-supabase add` command and its registry glue.
 `blocks search` matches the name, the title and the description. Each one
 reads the same catalog as [/blocks](https://bettersupabase.com/blocks) and
 `--json` prints it as data.
+
+| Command         | Side effects |
+| --------------- | ------------ |
+| `blocks list`   | None.        |
+| `blocks view`   | None.        |
+| `blocks search` | None.        |

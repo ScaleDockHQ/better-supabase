@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { CommandResult } from "./io.ts";
-import type { Project } from "./project.ts";
+import type { FilePlan } from "./core/files.ts";
+import type { CommandResult } from "./core/io.ts";
+import type { Project } from "./project/detect.ts";
 import type { Prompter } from "./prompts.ts";
 
-import { parseNames } from "./errors.ts";
-import { display, writeIfChanged } from "./io.ts";
+import { parseNames } from "./core/errors.ts";
+import { display } from "./core/io.ts";
 import {
   INTEGRATIONS,
   isIntegration,
@@ -53,42 +54,23 @@ export async function overwrite(
   );
 }
 
-export async function writeFiles(
+/** Template files as a plan: each is written once, and an existing file is the app's. */
+export function templatePlan(
   root: string,
   files: readonly TemplateFile[],
-  args: WriteFlags,
-  force: boolean,
+  regenerate: string,
   base: string = root,
-): Promise<string[]> {
-  const dryRun = args["dry-run"] === true;
-  const lines: string[] = [];
-  const seen = new Set<string>();
-
-  for (const file of files) {
-    if (seen.has(file.path)) {
-      continue;
-    }
-
-    seen.add(file.path);
-    const path = resolve(root, file.path);
-    const shown = display(base, path);
-
-    if (existsSync(path) && !force) {
-      lines.push(`Kept    ${shown} (exists)`);
-      continue;
-    }
-
-    if (dryRun) {
-      lines.push(`Would write ${shown}`);
-      continue;
-    }
-
-    lines.push(
-      `${(await writeIfChanged(path, file.contents)) ? "Wrote  " : "Same   "} ${shown}`,
-    );
-  }
-
-  return lines;
+): FilePlan {
+  return {
+    root,
+    base,
+    regenerate,
+    files: files.map((file) => ({
+      path: file.path,
+      contents: file.contents,
+      policy: "create",
+    })),
+  };
 }
 
 export function templateContextFor(

@@ -1,3 +1,4 @@
+import { parseArgs } from "citty";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
@@ -15,8 +16,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { parseCommandArgs } from "../../src/cli/command.ts";
-import { runSql, sqlCommand } from "../../src/cli/commands/sql.ts";
+import { runSql } from "../../src/cli/commands/sql.ts";
+import { SQL_ARGS } from "../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
@@ -113,10 +114,7 @@ describe.skipIf(!available)(
     let root = "";
 
     const sql = (argv: string[]) =>
-      runSql(
-        resolveConfig({ blocks: NAMES }, root),
-        parseCommandArgs(sqlCommand, argv),
-      );
+      runSql(resolveConfig({ blocks: NAMES }, root), parseArgs(argv, SQL_ARGS));
 
     beforeAll(async () => {
       root = await mkdtemp(join(tmpdir(), "bs-pgdelta-"));
@@ -154,7 +152,7 @@ declarative_schema_path = "./schemas"
       const synced = (await sql(["sync"])).output;
       expect(synced).toContain("run `better-supabase sql data`");
       expect(synced).toMatch(
-        /^Wrote supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
       );
       supabase(root, [
         "db",
@@ -167,7 +165,7 @@ declarative_schema_path = "./schemas"
         "block",
       ]);
       expect((await sql(["data"])).output).toMatch(
-        /^Wrote supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
       );
 
       const migrations = (

@@ -78,6 +78,7 @@ catalog:
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
   "@vercel/connect": 2.2.0
+  "@vercel/detect-agent": 1.2.5
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
   "@workflow/world": 5.0.4
@@ -101,6 +102,8 @@ catalog:
   citty: 0.2.2
   class-variance-authority: 0.7.1
   clsx: 2.1.1
+  # The version c12 resolves, so the CLI bundle holds one copy.
+  confbox: 0.3.1
   date-fns: 4.4.0
   diff: 9.0.0
   dotenv-cli: 11.0.0

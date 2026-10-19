@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { seedCommand, runSeed } from "../../../src/cli/commands/seed.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
@@ -43,6 +43,7 @@ describe("seed", () => {
     await write("supabase/seed.mjs", "export const seed = 1;\n");
     expect(await seed(["--entry", "supabase/seed.mjs"])).toEqual({
       code: 1,
+      errorCode: "invalid_input",
       error:
         "supabase/seed.mjs must export defineSeed(...) as `seed` or default.",
     });
@@ -60,8 +61,15 @@ describe("seed", () => {
 
     expect(result).toEqual({
       code: 0,
+      data: {
+        file: "db/seed.sql",
+        files: [{ file: "db/seed.sql", note: "2 tables", outcome: "create" }],
+        tables: 2,
+        applied: true,
+        listed: true,
+      },
       output:
-        "Wrote db/seed.sql (2 tables)\nInserted the fixtures (existing rows were kept).",
+        "Created db/seed.sql (2 tables)\nInserted the fixtures (existing rows were kept).",
     });
     expect(open.urls).toEqual(["postgresql://u:secret@db:5432/app"]);
     expect(db.texts()).toEqual([
@@ -89,6 +97,43 @@ describe("seed", () => {
     ).rejects.toThrow("duplicate key");
     expect(db.texts().at(-1)).toBe("rollback");
     expect(open.closed()).toBe(1);
+  });
+
+  it("asks for consent before inserting into a database that isn't local", async () => {
+    await write("supabase/seed.mjs", SEED);
+    const requests: unknown[] = [];
+
+    const run = (url: string, argv: string[]) =>
+      runSeed(
+        resolveConfig({}, root),
+        parseCommandArgs(seedCommand, [
+          "--entry",
+          "supabase/seed.mjs",
+          ...argv,
+        ]),
+        { DATABASE_URL: url },
+        fakeConnect(fakeSql().pg).connect,
+        undefined,
+        (request) => {
+          requests.push(request);
+        },
+      );
+
+    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
+      "--apply",
+    ]);
+    await run("postgresql://postgres@127.0.0.1:54322/postgres", ["--apply"]);
+    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
+      "--apply",
+      "--dry-run",
+    ]);
+
+    expect(requests).toEqual([
+      {
+        effect: "database-write",
+        detail: "seed --apply inserts rows into db.abc.supabase.co:5432",
+      },
+    ]);
   });
 
   it("asks for the seed in config.toml unless a glob already covers it", async () => {

@@ -1,3 +1,4 @@
+import { parseArgs } from "citty";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,9 +11,8 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
+import { runSql } from "../../../src/cli/commands/sql.ts";
 import {
   type DoctorContext,
   RULES,
@@ -21,6 +21,7 @@ import {
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
+import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import {
   type BetterSupabaseConfig,
@@ -563,10 +564,7 @@ describe("generated and module files (BS303, BS304)", () => {
     const missing = await run("BS304", ctx);
     expect(missing.length).toBeGreaterThanOrEqual(2);
 
-    const synced = await runSql(
-      ctx.config,
-      parseCommandArgs(sqlCommand, ["sync"]),
-    );
+    const synced = await runSql(ctx.config, parseArgs(["sync"], SQL_ARGS));
 
     expect(synced.code).toBe(0);
     expect(await run("BS304", ctx)).toEqual([]);

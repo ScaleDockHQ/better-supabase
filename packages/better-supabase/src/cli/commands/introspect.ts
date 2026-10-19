@@ -1,11 +1,16 @@
-import type { AnyCommand } from "../command.ts";
+import type { AnyCommand } from "../core/command.ts";
 
-import { defineCliCommand } from "../command.ts";
-import { fileDiff } from "../diff.ts";
-import { fileState, writeLine } from "../files.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  type FilePlan,
+  insideRoot,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
-import { withSpinner } from "../prompts.ts";
-import { painter } from "../style.ts";
 import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -16,38 +21,35 @@ const ARGS = {
       "Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
     valueHint: "file",
   },
-  format: {
+  kind: {
     type: "string",
     description:
       "snapshot (the default) or generator-metadata (postgrest-typegen's input)",
     valueHint: "snapshot|generator-metadata",
   },
-  check: {
-    type: "boolean",
-    description: "Fail when the file is out of date",
-  },
+  check: PLAN_ARGS.check,
+  "dry-run": PLAN_ARGS["dry-run"],
   ...SOURCE_ARGS,
 } as const;
 
 export const introspectCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "introspect",
-    description: "Saves the database schema as a snapshot for offline gen",
-  },
+  meta: commandMeta("introspect"),
   args: ARGS,
-  run: async (args, { config, env, io, signal }) => {
-    const format = args.format ?? "snapshot";
+  run: async (args, { config, env, io, log, paint, signal }) => {
+    const format = args.kind ?? "snapshot";
 
     if (format !== "snapshot" && format !== "generator-metadata") {
-      return {
-        code: 2,
-        error: '--format must be "snapshot" or "generator-metadata"',
-      };
+      throw new CliError(
+        "usage",
+        '--kind must be "snapshot" or "generator-metadata"',
+      );
     }
 
-    const { snapshotPath: _ignored, ...source } = await sourceArgs(args, io);
+    const source = await sourceArgs(args, io);
 
-    const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
+    // `--snapshot` converts a saved file; without it, introspect always reads
+    // the database, even when the config names a snapshot.
+    const snapshot = await log.progress("Reading the schema", () =>
       loadSnapshot(config, env, {
         ...source,
         live: true,
@@ -66,38 +68,22 @@ export const introspectCommand: AnyCommand = defineCliCommand({
         ? serializeSnapshot(snapshot)
         : `${await serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
 
-    const state = await fileState(config.root, out, contents);
-
-    if (args.check === true) {
-      const { file, current, upToDate } = state;
-
-      return upToDate
-        ? {
-            code: 0,
-            output: `${file} is up to date.`,
-            data: { file, upToDate: true },
-          }
-        : {
-            code: 1,
-            output: fileDiff(file, current, contents, painter(io.color)),
-            error: `${file} is out of date. Run \`better-supabase introspect\`.`,
-            data: { file, upToDate: false },
-          };
-    }
-
     const tables = snapshot.extras.tables.length;
 
-    const { wrote, line } = await writeLine(
-      state.path,
-      contents,
-      state.file,
-      ` (${tables} tables).`,
-    );
-
-    return {
-      code: 0,
-      output: line,
-      data: { file: state.file, written: wrote, tables },
+    const plan: FilePlan = {
+      root: config.root,
+      regenerate: "better-supabase introspect",
+      files: [
+        {
+          path: insideRoot(config.root, out, "--out"),
+          contents,
+          note: `${tables} tables`,
+        },
+      ],
     };
+
+    return planResult(plan, await applyPlan(plan, args, paint), {
+      data: { tables },
+    });
   },
 });

@@ -124,9 +124,9 @@ describe("managementSource", () => {
     await expect(source.close()).resolves.toBeUndefined();
   });
 
-  it("passes the abort signal to fetch", async () => {
-    const signals: unknown[] = [];
-    const signal = new AbortController().signal;
+  it("aborts the request when the run's signal aborts", async () => {
+    const signals: (AbortSignal | null | undefined)[] = [];
+    const controller = new AbortController();
 
     const source = managementSource({
       projectRef: "abc",
@@ -136,11 +136,13 @@ describe("managementSource", () => {
 
         return Response.json([]);
       },
-      signal,
+      signal: controller.signal,
     });
 
     await source.queryable.query("select 1");
-    expect(signals).toEqual([signal]);
+    expect(signals[0]?.aborted).toBe(false);
+    controller.abort();
+    expect(signals[0]?.aborted).toBe(true);
   });
 
   it("rejects a body that is not a row array", async () => {

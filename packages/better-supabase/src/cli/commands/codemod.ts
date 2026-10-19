@@ -2,29 +2,43 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
+import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
-import { defineCliCommand } from "../command.ts";
-import { fileDiff } from "../diff.ts";
-import { writeIfChanged } from "../io.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changedFiles,
+  changeLines,
+  type FilePlan,
+  type PlannedFile,
+  planResult,
+} from "../core/files.ts";
+import { commandMeta } from "../core/manifest.ts";
+import { type Paint, plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
-  name: {
+  path: {
     type: "positional",
     required: false,
-    description:
-      "The codemod (0.4, 0.5, 0.6 or 0.9), then the files or directories to rewrite (default: the project)",
+    variadic: true,
+    description: "Files or directories to rewrite (default: the project)",
   },
   "dry-run": {
     type: "boolean",
     description: "Show the changes without writing them",
   },
+  check: {
+    type: "boolean",
+    description: "Write nothing; exit 1 with a diff when a file would change",
+  },
 } as const;
 
-export type CodemodArgs = CliArgs<typeof CODEMOD_ARGS>;
+/** `_` is the codemod name, then the paths. */
+export type CodemodArgs = CliOptions<typeof CODEMOD_ARGS>;
 
 const SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([
   ".ts",
@@ -48,7 +62,7 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
-/** Source files under `path`, skipping dependencies, build output and `.d.ts` files. */
+/** Source, config and script files under `path`, skipping dependencies, build output and `.d.ts` files. */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 
@@ -72,7 +86,9 @@ async function sourceFiles(path: string): Promise<string[]> {
     } else if (
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
         !entry.name.endsWith(".d.ts")) ||
-      CONFIG_FILE.test(entry.name)
+      CONFIG_FILE.test(entry.name) ||
+      CLI_CALL_FILE.test(full) ||
+      SHELL_FILE.test(entry.name)
     ) {
       files.push(full);
     }
@@ -86,20 +102,23 @@ export async function runCodemod(
   args: CodemodArgs,
   paint: Paint = plain,
 ): Promise<CommandResult> {
-  const [name, ...paths] = args._;
+  const [name, ...paths] = args._ ?? [];
 
   const names = Object.entries(CODEMODS)
     .map(([key, codemod]) => `  ${key.padEnd(5)} ${codemod.description}`)
     .join("\n");
 
   if (name === undefined) {
-    return { code: 2, error: `Name a codemod:\n${names}` };
+    throw new CliError("usage", `Name a codemod:\n${names}`);
   }
 
   const codemod = CODEMODS[name];
 
   if (!codemod) {
-    return { code: 2, error: `Unknown codemod "${name}". Codemods:\n${names}` };
+    throw new CliError(
+      "usage",
+      `Unknown codemod "${name}". Codemods:\n${names}`,
+    );
   }
 
   const roots = (paths.length > 0 ? paths : ["."]).map((path) =>
@@ -111,8 +130,7 @@ export async function runCodemod(
   ];
 
   const dryRun = args["dry-run"] === true;
-  const changed: string[] = [];
-  const diffs: string[] = [];
+  const edits: PlannedFile[] = [];
   const review: { file: string; line: number; message: string }[] = [];
 
   for (const file of files) {
@@ -121,24 +139,32 @@ export async function runCodemod(
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
 
-    if (result.text === source) {
-      continue;
-    }
-
-    changed.push(path);
-
-    if (dryRun) {
-      diffs.push(fileDiff(path, source, result.text, paint));
-    } else {
-      await writeIfChanged(file, result.text);
+    if (result.text !== source) {
+      edits.push({ path: file, contents: result.text, policy: "edit" });
     }
   }
 
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: `better-supabase codemod ${codemod.name}`,
+    files: edits,
+  };
+
+  const applied = await applyPlan(plan, args, paint);
+  const changed = changedFiles(applied);
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(plan, applied, { data: { codemod: codemod.name } });
+  }
+
   const lines = [
-    ...diffs,
+    ...(applied.mode === "write" ? [] : applied.diffs),
     changed.length === 0
       ? `Nothing to change in ${String(files.length)} files.`
-      : `${dryRun ? "Would update" : "Updated"} ${String(changed.length)} of ${String(files.length)} files:\n${changed.map((path) => `  ${path}`).join("\n")}`,
+      : [
+          ...changeLines(applied),
+          `${applied.mode === "write" ? "Updated" : "Would update"} ${String(changed.length)} of ${String(files.length)} files.`,
+        ].join("\n"),
   ];
 
   if (review.length > 0) {
@@ -154,17 +180,23 @@ export async function runCodemod(
   return {
     code: 0,
     output: lines.join("\n"),
-    data: { codemod: codemod.name, dryRun, changed, review },
+    data: {
+      codemod: codemod.name,
+      dryRun,
+      changed,
+      files: applied.changes,
+      review,
+    },
   };
 }
 
-export const codemodCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "codemod",
-    description:
-      "Rewrites imports, calls and config keys for renamed better-supabase APIs",
-  },
-  args: CODEMOD_ARGS,
-  runsWithInvalidConfig: true,
-  run: (args, { config, io }) => runCodemod(config, args, painter(io.color)),
-});
+/** The `codemod <name>` subcommand for one codemod in `CODEMODS`. */
+export function codemodCommand(name: string): AnyCommand {
+  return defineCliCommand({
+    meta: commandMeta(`codemod ${name}`),
+    args: CODEMOD_ARGS,
+    runsWithInvalidConfig: true,
+    run: (args, { config, paint }) =>
+      runCodemod(config, { ...args, _: [name, ...args._] }, paint),
+  });
+}

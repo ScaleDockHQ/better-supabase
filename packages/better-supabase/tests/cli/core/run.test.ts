@@ -1,0 +1,934 @@
+import { existsSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { CliIo } from "../../../src/cli/core/io.ts";
+import type { Prompter } from "../../../src/cli/prompts.ts";
+
+import {
+  type CliCommand,
+  defineCliCommand,
+} from "../../../src/cli/core/command.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
+import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
+import { type Cli, createCli } from "../../../src/cli/core/run.ts";
+import { VERSION } from "../../../src/cli/version.ts";
+import { fakeFetch } from "../fixtures/fake-fetch.ts";
+
+const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
+
+let commands: Record<string, CliCommand> = {};
+
+const addCommand = (name: string, command: CliCommand): void => {
+  commands = { ...commands, [name]: command };
+};
+
+const run: Cli["run"] = (argv, options) =>
+  createCli({ commands }).run(argv, options);
+
+/** A Management API that answers every query with no rows. */
+const emptyProject = () => fakeFetch(() => ({ body: [] }));
+
+describe("run", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-run-"));
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const io = (overrides: Partial<CliIo> = {}): CliIo => ({
+    stdout: () => {},
+    stderr: () => {},
+    ...overrides,
+  });
+
+  it("rejects unknown commands and config files that do not exist", async () => {
+    const unknown = await run(["nope"]);
+    expect(unknown.code).toBe(2);
+    expect(unknown.stderr).toMatch(
+      /^Unknown command "nope"\.\n\nbetter-supabase v/,
+    );
+
+    const missing = await run([
+      "sql",
+      "list",
+      "--config",
+      "gone.json",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(missing).toEqual({
+      code: 2,
+      stdout: "",
+      stderr: `Config file not found: ${join(dir, "gone.json")}\n`,
+    });
+  });
+
+  it("runs the codemod command over the project", async () => {
+    await writeFile(join(dir, "a.ts"), "export const a = 1;\n");
+    expect(
+      await run(["codemod", "0.5", "--dry-run", "--cwd", dir]),
+    ).toMatchObject({ code: 0 });
+  });
+
+  it("runs codemod 0.9 on a config that still has sql.modules", async () => {
+    const path = join(dir, "better-supabase.config.ts");
+    await writeFile(
+      path,
+      "export default {\n  sql: {\n    modules: { tenant: true },\n  },\n};\n",
+    );
+
+    const before = await run(["sql", "list", "--cwd", dir]);
+    expect(before.code).toBe(2);
+    expect(before.stderr).toContain("better-supabase codemod 0.9");
+
+    const nested = join(dir, "src");
+    await mkdir(nested);
+
+    expect(await run(["codemod", "0.9", "--cwd", nested])).toMatchObject({
+      code: 0,
+      stdout: expect.stringContaining("better-supabase.config.ts"),
+    });
+    expect(await readFile(path, "utf-8")).toBe(
+      "export default {\n  blocks: { tenant: true },\n};\n",
+    );
+  });
+
+  it("prints the usage to stderr without a command and to stdout for help", async () => {
+    expect(await run([])).toMatchObject({ code: 2, stdout: "" });
+    expect((await run(["help"])).code).toBe(0);
+    expect((await run(["sql", "--help"])).stdout).toContain(
+      "Usage: better-supabase sql <command> [options]",
+    );
+    expect((await run(["help", "sql"])).stdout).toContain(
+      "Usage: better-supabase sql",
+    );
+  });
+
+  it("runs a registered citty command with the context and its parsed args", async () => {
+    addCommand(
+      "greet",
+      defineCliCommand({
+        meta: { name: "greet", description: "Says hello" },
+        args: {
+          name: { type: "string", required: true },
+          loud: { type: "boolean" },
+        },
+        run: (args, { config }) =>
+          Promise.resolve({
+            code: 0,
+            output: `${args.loud === true ? "HELLO" : "hello"} ${args.name} in ${config.root}`,
+          }),
+      }),
+    );
+    expect(
+      await run(["greet", "--name", "ada", "--loud", "--cwd", dir]),
+    ).toEqual({ code: 0, stdout: `HELLO ada in ${dir}\n`, stderr: "" });
+    expect((await run(["help"])).stdout).toMatch(/greet +Says hello/);
+
+    const missing = await run(["greet", "--cwd", dir]);
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toMatch(
+      /^Missing required argument: --name\n\nUsage: better-supabase greet/s,
+    );
+  });
+
+  it("finds the command after global options and reports bad actions and values", async () => {
+    expect(
+      (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
+    ).toContain("Usage: better-supabase <command> [options]");
+    expect((await run(["--", "gen"])).code).toBe(2);
+    expect(await run(["--cwd", dir, "openapi", "emit"])).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^"openapi emit" is now "spec emit openapi"\. Run: better-supabase spec emit openapi --cwd /,
+      ),
+    });
+    expect((await run(["spec", "check", "--cwd", dir])).stderr).toMatch(
+      /^"spec check" is now "spec emit --check"/,
+    );
+    expect((await run(["skills", "--cwd", dir])).stderr).toMatch(
+      /^Name a skills subcommand: list, install\.\n\nUsage: better-supabase skills /,
+    );
+    expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
+      /^Unknown command "skills remove"/,
+    );
+    expect(await run(["gen", "--tasks", "types", "--cwd", dir])).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^--tasks is now --only\. Run: better-supabase gen --only types --cwd /,
+      ),
+    });
+    expect(
+      (await run(["doctor", "--strict", "--json", "--cwd", dir])).stdout,
+    ).toContain(
+      '"suggestion": "better-supabase doctor --fail-on warning --json --cwd',
+    );
+    const skills = await run(["skills", "list", "--cwd", dir]);
+    expect(skills.code).toBe(0);
+    expect(skills.stdout).toMatch(/^better-supabase\n {2}\S/m);
+    expect(
+      await run(["init", "--casing", "pascal", "--cwd", dir]),
+    ).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^--casing must be "camel" or "snake"\n\nUsage: /,
+      ),
+    });
+    expect(
+      await run(["introspect", "--kind", "xml", "--cwd", dir]),
+    ).toMatchObject({
+      code: 2,
+      stderr: expect.stringMatching(
+        /^--kind must be "snapshot" or "generator-metadata"\n\nUsage: /,
+      ),
+    });
+  });
+
+  it("exits 0 for a command that returns no result", async () => {
+    addCommand(
+      "quiet",
+      defineCliCommand({
+        meta: { name: "quiet" },
+        args: {},
+        // SAFETY: a third-party command may resolve to nothing.
+        run: () => Promise.resolve(undefined as unknown as { code: number }),
+      }),
+    );
+    expect(await run(["quiet", "--cwd", dir])).toEqual({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
+  it("prints the version", async () => {
+    expect((await run(["version"])).stdout).toBe(`${VERSION}\n`);
+  });
+
+  it("turns a thrown error into exit code 1 and writes through a custom io", async () => {
+    addCommand(
+      "explode",
+      defineCliCommand({
+        meta: { name: "explode" },
+        args: {},
+        run: () => Promise.reject(new Error("boom")),
+      }),
+    );
+    const lines: string[] = [];
+
+    const result = await run(["explode", "--cwd", dir], {
+      env: ENV,
+      io: io({ stderr: (text) => lines.push(text) }),
+    });
+
+    expect(result).toEqual({ code: 1, stdout: "", stderr: "boom\n" });
+    expect(lines).toEqual(["boom\n"]);
+  });
+
+  it("introspects a hosted project and checks the saved snapshot", async () => {
+    const api = emptyProject();
+    vi.stubGlobal("fetch", api.fetch);
+
+    const introspect = (...argv: string[]) =>
+      run(["introspect", "--project-ref", "abc", ...argv, "--cwd", dir], {
+        env: ENV,
+        io: io(),
+      });
+
+    expect((await introspect()).stdout).toBe(
+      "Created supabase/snapshot.json (0 tables)\n",
+    );
+    expect(api.calls[0]!.url).toBe(
+      "https://api.supabase.com/v1/projects/abc/database/query/read-only",
+    );
+    expect((await introspect()).stdout).toBe(
+      "Unchanged supabase/snapshot.json (0 tables)\n",
+    );
+    expect(await introspect("--check")).toMatchObject({
+      code: 0,
+      stdout: "supabase/snapshot.json is up to date.\n",
+    });
+
+    const path = join(dir, "supabase/snapshot.json");
+    await writeFile(path, `${await readFile(path, "utf-8")} `);
+    expect(await introspect("--check")).toMatchObject({
+      code: 1,
+      stderr:
+        "supabase/snapshot.json is out of date. Run `better-supabase introspect`.\n",
+    });
+  });
+
+  it("writes generator metadata restricted to the configured schemas", async () => {
+    vi.stubGlobal("fetch", emptyProject().fetch);
+
+    const result = await run(
+      [
+        "introspect",
+        "--project-ref",
+        "abc",
+        "--kind",
+        "generator-metadata",
+        "--out",
+        "meta.json",
+        "--cwd",
+        dir,
+      ],
+      { env: ENV, io: io() },
+    );
+
+    expect(result.stdout).toBe("Created meta.json (0 tables)\n");
+
+    const meta = JSON.parse(
+      await readFile(join(dir, "meta.json"), "utf-8"),
+    ) as {
+      schemas: unknown[];
+    };
+
+    expect(meta.schemas).toEqual([]);
+  });
+
+  it("converts a saved snapshot with --snapshot, without a database", async () => {
+    const api = emptyProject();
+    vi.stubGlobal("fetch", api.fetch);
+
+    await run(["introspect", "--project-ref", "abc", "--cwd", dir], {
+      env: ENV,
+      io: io(),
+    });
+
+    const calls = api.calls.length;
+
+    const converted = await run(
+      [
+        "introspect",
+        "--snapshot",
+        "supabase/snapshot.json",
+        "--kind",
+        "generator-metadata",
+        "--out",
+        "meta.json",
+        "--cwd",
+        dir,
+      ],
+      { io: io() },
+    );
+
+    expect(converted.stdout).toBe("Created meta.json (0 tables)\n");
+    expect(api.calls).toHaveLength(calls);
+
+    const both = await run(
+      ["introspect", "--snapshot", "s.json", "--project-ref", "abc"],
+      { cwd: dir, env: ENV, io: io() },
+    );
+
+    expect(both.code).toBe(2);
+    expect(both.stderr).toContain("Pass one of them.");
+  });
+
+  it("watches: reports load errors, regenerates on change and stays quiet otherwise", async () => {
+    let failing = true;
+    let printed = false;
+    const controller = new AbortController();
+
+    const api = fakeFetch((call) => {
+      if (printed && call.body?.includes("t_enums")) {
+        controller.abort();
+      }
+
+      return failing ? { status: 500, text: "upstream down" } : { body: [] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: (text) => {
+            stdout.push(text);
+            printed = true;
+          },
+          stderr: (text) => {
+            stderr.push(text);
+            failing = false;
+          },
+        }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(stderr).toHaveLength(1);
+    expect(stderr[0]).toContain("500");
+    expect(stdout).toEqual([
+      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nGenerated 0 tables.\n",
+    ]);
+    expect(
+      api.calls.filter((call) => call.body?.includes("t_enums")).length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("watches the catalog fingerprint and reads the schema only when it changes", async () => {
+    const controller = new AbortController();
+    let polls = 0;
+
+    const api = fakeFetch((call) => {
+      if (!call.body?.includes("as fingerprint")) {
+        return { body: [] };
+      }
+
+      polls += 1;
+
+      if (polls === 6) {
+        controller.abort();
+      }
+
+      return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({ stdout: (text) => stdout.push(text) }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(
+      api.calls.filter((call) => call.body?.includes("t_enums")),
+    ).toHaveLength(2);
+  });
+
+  it("watches under --json: one envelope per run on its own line, and no final document", async () => {
+    const controller = new AbortController();
+    let polls = 0;
+
+    const api = fakeFetch((call) => {
+      if (!call.body?.includes("as fingerprint")) {
+        return { body: [] };
+      }
+
+      polls += 1;
+
+      if (polls === 6) {
+        controller.abort();
+      }
+
+      return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+
+    const result = await run(
+      ["gen", "--watch", "--json", "--interval", "1", "--project-ref", "abc"],
+      {
+        cwd: dir,
+        signal: controller.signal,
+        env: ENV,
+        io: io({ stdout: (text) => stdout.push(text) }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(stdout).toHaveLength(2);
+
+    for (const line of stdout) {
+      expect(line.endsWith("\n")).toBe(true);
+      expect(line.trimEnd()).not.toContain("\n");
+      expect(JSON.parse(line)).toMatchObject({
+        $schema: RESULT_SCHEMA_URL,
+        status: "success",
+      });
+    }
+  });
+
+  it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      `export default { generators: [{ name: "flaky", generate() {
+  globalThis.flakyGeneratorRuns = (globalThis.flakyGeneratorRuns ?? 0) + 1;
+  if (globalThis.flakyGeneratorRuns < 3) throw new Error("flaky failed");
+  return [];
+} }] };\n`,
+    );
+    const controller = new AbortController();
+
+    const api = fakeFetch((call) =>
+      call.body?.includes("as fingerprint")
+        ? { body: [{ fingerprint: "a" }] }
+        : { body: [] },
+    );
+
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: (text) => {
+            stdout.push(text);
+            controller.abort();
+          },
+          stderr: (text) => stderr.push(text),
+        }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
+    expect(stdout[0]).toContain("Generated 0 tables");
+    const counter = globalThis as { flakyGeneratorRuns?: number };
+    expect(counter.flakyGeneratorRuns).toBe(3);
+    delete counter.flakyGeneratorRuns;
+  });
+
+  it("watches: reloads a changed config, regenerates and removes the files it no longer writes", async () => {
+    const configPath = join(dir, "better-supabase.config.mjs");
+    await writeFile(
+      configPath,
+      `export default { output: "a/generated.ts" };\n`,
+    );
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      fakeFetch((call) =>
+        call.body?.includes("as fingerprint")
+          ? { body: [{ fingerprint: "a" }] }
+          : { body: [] },
+      ).fetch,
+    );
+    const stdout: string[] = [];
+
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: (text) => {
+            stdout.push(text);
+
+            if (stdout.length === 2) {
+              controller.abort();
+
+              return;
+            }
+
+            writeFileSync(
+              configPath,
+              `export default { output: "b/generated.ts" };\n`,
+            );
+            const later = new Date(Date.now() + 5000);
+            utimesSync(configPath, later, later);
+          },
+        }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(stdout[0]).toContain("a/generated.ts");
+    expect(stdout[1]).toContain("Created b/generated.ts\n");
+    expect(stdout[1]).toContain("Removed a/generated.ts\n");
+    expect(existsSync(join(dir, "a/generated.ts"))).toBe(false);
+    expect(existsSync(join(dir, "b/generated.ts"))).toBe(true);
+  });
+
+  it("refuses a watch interval that isn't a positive number", async () => {
+    for (const interval of ["abc", "0", "-5"]) {
+      const result = await run(
+        ["gen", "--watch", "--interval", interval, "--cwd", dir],
+        { env: ENV },
+      );
+
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain("--interval");
+    }
+  });
+
+  it("stops a watch while it sleeps", async () => {
+    vi.stubGlobal("fetch", emptyProject().fetch);
+    const controller = new AbortController();
+    const started = Date.now();
+
+    const result = await run(
+      ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: () =>
+            setTimeout(() => {
+              controller.abort();
+            }, 0),
+        }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("suggests the closest command for a typo", async () => {
+    const typo = await run(["genn"]);
+    expect(typo.code).toBe(2);
+    expect(typo.stderr).toMatch(
+      /^Unknown command "genn"\. Did you mean "gen"\?\n\n/,
+    );
+    expect((await run(["doctr"])).stderr).toMatch(/Did you mean "doctor"\?/);
+    expect((await run(["zzzzzzzz"])).stderr).toMatch(
+      /^Unknown command "zzzzzzzz"\.\n/,
+    );
+  });
+
+  it("prints one JSON document on stdout under --json, errors included", async () => {
+    const unknown = await run(["genn", "--json"]);
+    expect(unknown).toMatchObject({ code: 2, stderr: "" });
+    expect(JSON.parse(unknown.stdout)).toMatchObject({
+      error: {
+        type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+        code: "unknown_command",
+        suggestion: "gen",
+      },
+    });
+
+    expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
+      $schema: RESULT_SCHEMA_URL,
+      status: "success",
+      data: { version: VERSION },
+    });
+
+    const missing = await run([
+      "sql",
+      "list",
+      "--config",
+      "gone.json",
+      "--cwd",
+      dir,
+      "--json",
+    ]);
+
+    expect(missing.code).toBe(2);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      error: {
+        code: "config_not_found",
+      },
+    });
+  });
+
+  it("rejects an invalid environment and an invalid config", async () => {
+    const env = await run(["sql", "list", "--cwd", dir], {
+      env: { DATABASE_URL: "not a url" },
+    });
+
+    expect(env.code).toBe(2);
+    expect(env.stderr).toMatch(
+      /^Invalid environment variable:\n {2}DATABASE_URL: /,
+    );
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ casing: "pascal" }),
+    );
+    const config = await run(["sql", "list", "--cwd", dir, "--json"]);
+    expect(config.code).toBe(2);
+    expect(JSON.parse(config.stdout)).toMatchObject({
+      error: {
+        code: "config_invalid",
+        issues: [expect.stringMatching(/^casing: /)],
+      },
+    });
+  });
+
+  it("syncs a config whose expose names column privileges", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        expose: {
+          profiles: {
+            authenticated: ["select", "update(username, first_name)"],
+          },
+          notes: ["select", "insert(body)"],
+        },
+        blocks: ["grants"],
+      }),
+    );
+    const synced = await run(["sql", "sync", "--cwd", dir]);
+    expect(synced).toMatchObject({ code: 0, stderr: "" });
+    const path = /Created (\S+) \(grants\)/.exec(synced.stdout)?.[1];
+    const grants = await readFile(join(dir, path!), "utf-8");
+    expect(grants).toContain(
+      'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',
+    );
+    expect(grants).toContain(
+      'grant select, insert ("body") on table "public"."notes" to authenticated;',
+    );
+  });
+
+  it("drops the prompter under --json, --yes and CI", async () => {
+    addCommand(
+      "asks",
+      defineCliCommand({
+        meta: { name: "asks", description: "Reports whether it can prompt" },
+        args: {},
+        run: (_args, context) =>
+          Promise.resolve({
+            code: 0,
+            output: context.io.prompts ? "prompts" : "no prompts",
+            data: { prompts: context.io.prompts !== undefined },
+          }),
+      }),
+    );
+
+    const prompts: Prompter = {
+      confirm: () => Promise.resolve(true),
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+
+    const ask = async (argv: string[], env = {}) =>
+      (await run(["asks", "--cwd", dir, ...argv], { env, io: io({ prompts }) }))
+        .stdout;
+
+    expect(await ask([])).toBe("prompts\n");
+    expect(await ask(["--yes"])).toBe("no prompts\n");
+    expect(await ask(["-y"])).toBe("no prompts\n");
+    expect(await ask([], { CI: "true" })).toBe("no prompts\n");
+    expect(JSON.parse(await ask(["--json"]))).toMatchObject({
+      data: { prompts: false },
+    });
+  });
+
+  it("reads the connection string from stdin and refuses an empty pipe", async () => {
+    const empty = await run(["seed", "--db-url-stdin", "--cwd", dir], {
+      io: io({ stdin: () => Promise.resolve("  \n") }),
+    });
+
+    expect(empty.code).toBe(2);
+    expect(empty.stderr).toMatch(/^--db-url-stdin read nothing from stdin/);
+  });
+
+  it("fails at once when a stdin flag meets a terminal", async () => {
+    const stdin = vi.fn(() => Promise.resolve("postgresql://u@h/db"));
+
+    const result = await run(
+      ["seed", "--db-url-stdin", "--cwd", dir, "--json"],
+      { io: io({ stdin, stdinIsTty: true }) },
+    );
+
+    expect(result.code).toBe(2);
+    expect(stdin).not.toHaveBeenCalled();
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      error: {
+        code: "missing_value",
+        flag: "--db-url-stdin",
+      },
+    });
+  });
+
+  it("asks in CI=false and CI=0, and never in CI=1", async () => {
+    addCommand(
+      "asks-ci",
+      defineCliCommand({
+        meta: { name: "asks-ci", description: "Reports prompts" },
+        args: {},
+        run: (_args, { io: commandIo }) =>
+          Promise.resolve({
+            code: 0,
+            output: commandIo.prompts ? "prompts" : "no prompts",
+          }),
+      }),
+    );
+
+    const prompts: Prompter = {
+      confirm: () => Promise.resolve(true),
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+
+    const ask = async (CI: string) =>
+      (
+        await run(["asks-ci", "--cwd", dir], {
+          env: { CI },
+          io: io({ prompts }),
+        })
+      ).stdout;
+
+    expect(await ask("false")).toBe("prompts\n");
+    expect(await ask("0")).toBe("prompts\n");
+    expect(await ask("1")).toBe("no prompts\n");
+  });
+
+  it.each([
+    [["--cwd", ""], "missing_value"],
+    [["--cwd", "does-not-exist"], "usage"],
+  ])("rejects %j", async (flags, code) => {
+    const result = await run(["config", "--json", ...flags], {
+      cwd: dir,
+      io: io(),
+    });
+
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      error: { code, flag: "--cwd" },
+    });
+  });
+
+  it("exits 130 when the person cancels a prompt", async () => {
+    addCommand(
+      "cancels",
+      defineCliCommand({
+        meta: { name: "cancels", description: "Asks and is cancelled" },
+        args: {},
+        run: async (_args, { io: commandIo }) => ({
+          code: (await commandIo.prompts?.confirm("Sure?")) === true ? 0 : 1,
+        }),
+      }),
+    );
+
+    const prompts: Prompter = {
+      confirm: () => Promise.reject(new CliError("cancelled", "Cancelled.")),
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+
+    const result = await run(["cancels", "--cwd", dir], {
+      io: io({ prompts }),
+    });
+
+    expect(result.code).toBe(130);
+    expect(result.stderr).toContain("Cancelled.");
+  });
+
+  it("keeps messages and progress on stderr, colored per stream", async () => {
+    addCommand(
+      "talks",
+      defineCliCommand({
+        meta: { name: "talks", description: "Logs on every channel" },
+        args: {},
+        run: async (_args, { log, paint }) => {
+          log.info("note");
+          log.warn("careful");
+          log.debug("details");
+          await log.progress("Working", () => Promise.resolve());
+
+          return { code: 0, output: paint("bold", "done") };
+        },
+      }),
+    );
+
+    const spun: string[] = [];
+
+    const talk = (argv: readonly string[], overrides: Partial<CliIo> = {}) =>
+      run(["talks", "--cwd", dir, ...argv], {
+        io: io({
+          spinner: (message) => {
+            spun.push(message);
+
+            return () => spun.push(`done: ${message}`);
+          },
+          ...overrides,
+        }),
+      });
+
+    const plain = await talk([]);
+    expect(plain.stdout).toBe("done\n");
+    expect(plain.stderr).toBe("note\nWarning: careful\n");
+    expect(spun).toEqual(["Working", "done: Working"]);
+
+    const colored = await talk([], { color: true, stderrColor: false });
+    expect(colored.stdout).not.toBe("done\n");
+    expect(colored.stderr).toBe("note\nWarning: careful\n");
+
+    const noColor = await talk(["--no-color"], {
+      color: true,
+      stderrColor: true,
+    });
+
+    expect(noColor.stdout).toBe("done\n");
+    expect(noColor.stderr).toBe("note\nWarning: careful\n");
+
+    const debug = await talk(["--debug"]);
+    expect(debug.stdout).toBe("done\n");
+    expect(debug.stderr).toMatch(
+      /^note\nWarning: careful\ndebug details\ndebug Working: \d+ms\ndebug exit 0 after \d+ms\n$/,
+    );
+  });
+
+  it("prints stack traces and the child commands under --debug", async () => {
+    const result = await run(["env", "--out", "-", "--debug", "--cwd", dir], {
+      env: { SUPABASE_BIN: join(dir, "missing-supabase") },
+      io: io(),
+    });
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain(
+      `debug exec ${join(dir, "missing-supabase")} status`,
+    );
+    expect(result.stderr).toMatch(/debug CliError: .+\n\s+at /);
+
+    const quiet = await run(["env", "--out", "-", "--cwd", dir], {
+      env: { SUPABASE_BIN: join(dir, "missing-supabase") },
+      io: io(),
+    });
+
+    expect(quiet.stderr).not.toContain("debug");
+  });
+});

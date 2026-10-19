@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
 import {
@@ -11,8 +11,8 @@ import {
   moduleSchemaExtensions,
   renderModules,
 } from "../../sql/index.ts";
-import { writeIfChanged } from "../io.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
+import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { layoutFor } from "./providers.ts";
 
@@ -110,18 +110,26 @@ export async function writeExtensionsMigration(
 
   const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
 
-  if (dryRun) {
-    return [`Would write ${path}`];
-  }
-
-  await writeIfChanged(
-    resolve(config.root, path),
-    `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
+  const applied = await applyPlan(
+    sqlPlan(config, {
+      regenerate: "better-supabase sql sync",
+      files: [
+        {
+          path,
+          contents: `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
+        },
+      ],
+    }),
+    { "dry-run": dryRun },
   );
 
   return [
-    `Wrote ${path}`,
-    "It creates the extensions the module schemas need, so create the schema migration after it.",
+    ...changeLines(applied),
+    ...(dryRun
+      ? []
+      : [
+          "It creates the extensions the module schemas need, so create the schema migration after it.",
+        ]),
   ];
 }
 
@@ -141,7 +149,11 @@ export async function dataMigration(
   now: Now,
 ): Promise<CommandResult> {
   if (config.blockNames.length === 0) {
-    return { code: 0, output: "blocks is empty; nothing to write." };
+    return {
+      code: 0,
+      output: "blocks is empty; nothing to write.",
+      data: { wrote: false },
+    };
   }
 
   if (
@@ -151,6 +163,7 @@ export async function dataMigration(
       code: 0,
       output:
         "sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
+      data: { wrote: false },
     };
   }
 
@@ -190,16 +203,27 @@ export async function dataMigration(
     return {
       code: 0,
       output: `${dir}/${latest} already has these rows; nothing to write.`,
+      data: { file: `${dir}/${latest}`, wrote: false },
     };
   }
 
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
 
-  if (args["dry-run"] === true) {
-    return { code: 0, output: `Would write ${path}` };
-  }
+  const applied = await applyPlan(
+    sqlPlan(config, {
+      regenerate: "better-supabase sql data",
+      files: [{ path, contents }],
+    }),
+    { "dry-run": args["dry-run"] },
+  );
 
-  await writeIfChanged(resolve(config.root, path), contents);
-
-  return { code: 0, output: `Wrote ${path}` };
+  return {
+    code: 0,
+    output: changeLines(applied).join("\n"),
+    data: {
+      file: path,
+      wrote: applied.mode === "write",
+      files: applied.changes,
+    },
+  };
 }

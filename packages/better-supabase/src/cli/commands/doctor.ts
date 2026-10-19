@@ -1,13 +1,18 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 
-import { defineCliCommand, list } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { errorText, CliError } from "../core/errors.ts";
+import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
+import { display } from "../core/io.ts";
+import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
@@ -19,7 +24,11 @@ import {
 } from "../doctor/inputs.ts";
 import { LIVE_CODES, type OpenLive, openLive } from "../doctor/live-source.ts";
 import { locate } from "../doctor/locate.ts";
-import { explainClaims, reportFormat } from "../doctor/options.ts";
+import {
+  explainClaims,
+  FLAG_FORMATS,
+  reportFormat,
+} from "../doctor/options.ts";
 import {
   type DoctorContext,
   type Finding,
@@ -29,14 +38,14 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
-import { errorText } from "../errors.ts";
-import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
+import {
+  METADATA_REJECTED,
+  readMetadataSnapshot,
+  refuseWithMetadata,
+} from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
-import { display, writeIfChanged } from "../io.ts";
 import { peerVersions } from "../peers.ts";
-import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
-import { type Paint, painter } from "../style.ts";
 import {
   findRepoRoot,
   readSupabaseToml,
@@ -44,6 +53,7 @@ import {
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
+import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
   format: {
@@ -68,30 +78,17 @@ const ARGS = {
     description: "Skip checks; also doctor.ignore in the config",
     valueHint: "codes",
   },
-  strict: {
-    type: "boolean",
-    description: "Fail on warnings; also doctor.strict",
-  },
-  snapshot: {
+  "fail-on": {
     type: "string",
-    description: "Check a saved snapshot instead of the database",
-    valueHint: "file",
+    description:
+      "Exit 1 on findings at this level: error (the default), warning (the default with doctor.strict) or never",
+    valueHint: "level",
   },
   metadata: {
     type: "string",
     description:
       "Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped",
     valueHint: "path|-",
-  },
-  "db-url-stdin": {
-    type: "boolean",
-    description:
-      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
-  },
-  "project-ref": {
-    type: "string",
-    description: "Read a hosted project through the Management API",
-    valueHint: "ref",
   },
   stats: {
     type: "boolean",
@@ -121,7 +118,7 @@ const ARGS = {
   },
 } as const;
 
-export type DoctorArgs = CliArgs<typeof ARGS>;
+export type DoctorArgs = CliArgs<typeof ARGS & typeof SOURCE_ARGS>;
 
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
@@ -160,10 +157,10 @@ export async function runDoctor(
   );
 
   if (unknown.length > 0) {
-    return {
-      code: 2,
-      error: `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
-    };
+    throw new CliError(
+      "usage",
+      `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
+    );
   }
 
   const explainTables = list(args.explain);
@@ -171,14 +168,14 @@ export async function runDoctor(
   const claims = explainClaims(args);
 
   if ("error" in claims) {
-    return { code: 2, error: String(claims.error) };
+    throw new CliError("usage", String(claims.error));
   }
 
   if (args.claims !== undefined && explainTables.length === 0) {
-    return {
-      code: 2,
-      error: "--claims plans a query, so it needs --explain <table>.",
-    };
+    throw new CliError(
+      "usage",
+      "--claims plans a query, so it needs --explain <table>.",
+    );
   }
 
   // --stats and --explain ask for their checks even when --only leaves them out.
@@ -364,49 +361,77 @@ export async function runDoctor(
     (finding) => finding.severity === "warning",
   ).length;
 
-  const strict = args.strict === true || config.doctor.strict;
-  const code = errors > 0 || (strict && warnings > 0) ? 1 : 0;
+  const failOn =
+    args["fail-on"] ?? (config.doctor.strict ? "warning" : "error");
+
+  if (failOn !== "error" && failOn !== "warning" && failOn !== "never") {
+    throw new CliError(
+      "usage",
+      `--fail-on takes error, warning or never, got "${failOn}".`,
+    );
+  }
+
+  const code =
+    failOn !== "never" && (errors > 0 || (failOn === "warning" && warnings > 0))
+      ? 1
+      : 0;
+
+  const failure =
+    code === 0
+      ? {}
+      : {
+          errorCode: "findings" as const,
+          error: `Doctor found ${errors} errors and ${warnings} warnings${failOn === "warning" ? " (--fail-on warning)" : ""}.`,
+        };
 
   if (out) {
-    await writeIfChanged(resolve(config.root, out), `${report}\n`);
+    const applied = await applyPlan(
+      {
+        root: config.root,
+        regenerate: "better-supabase doctor",
+        files: [
+          {
+            path: insideRoot(config.root, out, "--out"),
+            contents: `${report}\n`,
+            note: `${errors} errors, ${warnings} warnings`,
+          },
+        ],
+      },
+      {},
+    );
 
     return {
       code,
-      output: `Wrote ${out}: ${errors} errors, ${warnings} warnings.`,
+      output: changeLines(applied).join("\n"),
       data: { out, errors, warnings },
+      ...failure,
     };
   }
 
   return format === "json"
-    ? { code, data: jsonReport(findings, VERSION) }
-    : { code, output: report };
+    ? { code, data: jsonReport(findings, VERSION), ...failure }
+    : { code, output: report, ...failure };
 }
 
+const ruleCodes = (): string[] => [...new Set([...RULE_CODES, ...LIVE_CODES])];
+
 export const doctorCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "doctor",
-    description:
-      "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
-  },
-  args: ARGS,
+  meta: commandMeta("doctor"),
+  args: { ...SOURCE_ARGS, ...ARGS },
   lists: ["only", "ignore", "explain"],
-  run: async (args, { config, cwd, env, io, signal }) => {
+  completions: {
+    format: () => FLAG_FORMATS,
+    only: ruleCodes,
+    ignore: ruleCodes,
+  },
+  run: async (args, { config, cwd, env, io, log, paint, signal }) => {
     if (args.metadata !== undefined) {
-      const conflicting = [
-        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
-        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
-        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
+      refuseWithMetadata([
+        ...sourceFlags(args),
         ...(args.stats === true ? ["--stats"] : []),
         ...(args.explain === undefined ? [] : ["--explain"]),
         ...(args.as === undefined ? [] : ["--as"]),
-      ];
-
-      if (conflicting.length > 0) {
-        return {
-          code: 2,
-          error: `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
-        };
-      }
+      ]);
 
       let snapshot: Snapshot;
 
@@ -414,7 +439,11 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
       } catch (cause) {
         if (cause instanceof MetadataRejectedError) {
-          return { code: METADATA_REJECTED, error: cause.message };
+          return {
+            code: METADATA_REJECTED,
+            errorCode: "invalid_input",
+            error: cause.message,
+          };
         }
 
         throw cause;
@@ -426,21 +455,21 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         snapshot,
         advisors: { skipped },
         database: { skipped },
-        paint: painter(io.color),
+        paint,
       });
     }
 
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
 
-    return withSpinner(
-      args.snapshot === undefined ? io.prompts : undefined,
-      "Checking the database",
-      () =>
-        runDoctor(config, args, env, {
-          paint: painter(io.color),
-          ...(dbUrl ? { dbUrl } : {}),
-          ...(signal ? { signal } : {}),
-        }),
-    );
+    const check = (): Promise<CommandResult> =>
+      runDoctor(config, args, env, {
+        paint,
+        ...(dbUrl ? { dbUrl } : {}),
+        ...(signal ? { signal } : {}),
+      });
+
+    return args.snapshot === undefined
+      ? log.progress("Checking the database", check)
+      : check();
   },
 });

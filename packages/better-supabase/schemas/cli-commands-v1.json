@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/cli-commands-v1.json",
+  "title": "better-supabase CLI commands",
+  "description": "Output of `better-supabase --help --json`: every command with its arguments, options, examples and side effects. `<command> --help --json` prints the same document with that command only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "name", "version", "options", "commands"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "name": {
+      "const": "better-supabase"
+    },
+    "version": {
+      "type": "string"
+    },
+    "options": {
+      "description": "The global options every command accepts.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "description", "arguments", "options"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The command names from the root, separated by spaces.",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "setup",
+            "generate",
+            "local",
+            "inspect",
+            "maintain",
+            "account"
+          ]
+        },
+        "docs": {
+          "type": "string",
+          "format": "uri"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["command", "description"],
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "effects": {
+          "description": "What the command changes or contacts. Missing for commands registered from outside the CLI.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "required", "variadic"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "variadic": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "enum": ["boolean", "string", "enum"]
+        },
+        "description": {
+          "type": "string"
+        },
+        "valueHint": {
+          "type": "string"
+        },
+        "default": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "list": {
+          "description": "Takes several values, comma-separated or repeated.",
+          "const": true
+        }
+      }
+    },
+    "effect": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "files"
+            },
+            "when": {
+              "description": "The flag that turns the effect on.",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "access"],
+          "properties": {
+            "kind": {
+              "const": "database"
+            },
+            "access": {
+              "enum": ["read", "write"]
+            },
+            "when": {
+              "description": "The flag that turns the effect on.",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "target"],
+          "properties": {
+            "kind": {
+              "const": "network"
+            },
+            "target": {
+              "enum": ["supabase-api", "github"]
+            },
+            "when": {
+              "description": "The flag that turns the effect on.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

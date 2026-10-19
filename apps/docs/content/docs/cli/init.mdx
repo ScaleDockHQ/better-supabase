@@ -40,10 +40,11 @@ pnpm better-supabase init --workflow migrations
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the
-prompt, and `--dry-run` shows what would be written. The names and the layout are described in [Naming](/docs/concepts/naming).
+prompt. `--dry-run` shows what would be written, and `--check` exits 1 when a
+file is missing or differs ([writing files](/docs/cli#writing-files)). The names and the layout are described in [Naming](/docs/concepts/naming).
 
 In a terminal, `init` asks for the casing (unless you pass `--casing`), the
-integrations, with the detected ones checked (unless you pass `--with`), and
+integrations, with the detected ones checked (unless you pass `--integration`), and
 whether to overwrite files that exist. `add` without names asks which
 integrations to add. It never asks in CI, when stdin or stdout is not a
 terminal, or with `--yes`, which takes the flags and the defaults.
@@ -53,12 +54,15 @@ terminal, or with `--yes`, which takes the flags and the defaults.
 | `next`                  | `next` (and `client`)  |
 | `hono`                  | `hono`                 |
 | `@orpc/server`          | `orpc`                 |
-| `vite`, `expo`          | `client`               |
+| `vite`                  | `client`               |
+| `expo`                  | `expo` (and `client`)  |
 | `@tanstack/react-query` | `react` (and `client`) |
 
-Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
+Add more with `--integration edge,mcp`. A project with only `edge` and `mcp` gets no
 `src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
+
+Side effects: Writes files.
 
 ## Starting from a preset
 
@@ -86,7 +90,7 @@ also:
 
 A preset that can't install, such as one whose blocks need tenants under
 scope `user`, stops `init` with the reason. In a terminal without
-`--preset`, `--casing` or `--with`, `init` first asks for a preset; None
+`--preset`, `--casing` or `--integration`, `init` first asks for a preset; None
 keeps the steps above out. To apply a preset to a project that already has
 a config, use [`apply`](/docs/cli/presets#apply).
 
@@ -156,12 +160,12 @@ packages.
 
 ```bash
 pnpm better-supabase add comments tags
-pnpm better-supabase add --framework hono,mcp
+pnpm better-supabase add --integration hono,mcp
 ```
 
 `add` with block names is how you install blocks. It lists them in `blocks`
 of the config and writes their module files and the modules they require
-(`--force`, `--dry-run` and `--tests-dir` work as in
+(`--allow-hook-overlap`, `--dry-run`, `--check` and `--tests-dir` work as in
 [`sql add`](/docs/blocks/sql#low-level-sql-add), the low-level command that
 stops after the SQL). It also wires the blocks that have a TypeScript client into
 `lib/blocks.ts`: an import and an entry in the object passed to
@@ -169,12 +173,13 @@ stops after the SQL). It also wires the blocks that have a TypeScript client int
 an object literal, `add` prints the lines to add instead. Last, it prints the
 `npx shadcn@latest add @better-supabase/...` command for the registry glue
 of those blocks that fits the frameworks in the config or `package.json`.
-`better-supabase blocks list` shows the names.
+`better-supabase blocks list` shows the names. `--force` overwrites files
+that exist.
 
-`--framework` adds glue for integrations instead. `add` without an argument
-or `--framework` sets up every integration in the config's
+`--integration` adds glue for integrations instead. `add` without an argument
+or `--integration` sets up every integration in the config's
 `integrations` list whose files are missing, which is how a fresh checkout
-or a new package in a workspace gets its glue. When `--framework` names
+or a new package in a workspace gets its glue. When `--integration` names
 integrations the config doesn't list yet, `add` prints the `integrations`
 entry to paste.
 
@@ -193,3 +198,5 @@ Relative imports follow your `tsconfig.json`: they keep `.ts` when
 Edge Functions always use `.ts` and get a `deno.json` import map. CI
 typechecks every template against the library, so the files compile as
 written. The names and the layout are described in [Naming](/docs/concepts/naming).
+
+Side effects: Writes files.

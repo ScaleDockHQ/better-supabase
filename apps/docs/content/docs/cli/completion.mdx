@@ -1,0 +1,54 @@
+---
+title: Shell completion
+description: Tab completion for bash, zsh and fish, for both better-supabase and bsb.
+---
+
+`better-supabase completion <shell>` prints a script that completes commands,
+subcommands, options and their values when you press Tab. It registers the
+completion for both bins, `better-supabase` and `bsb`.
+
+```bash
+better-supabase completion zsh
+```
+
+## Install
+
+Add the line for your shell to its startup file, then open a new shell.
+
+| Shell | File                         | Line                                        |
+| ----- | ---------------------------- | ------------------------------------------- |
+| bash  | `~/.bashrc`                  | `eval "$(better-supabase completion bash)"` |
+| zsh   | `~/.zshrc`, after `compinit` | `eval "$(better-supabase completion zsh)"`  |
+| fish  | `~/.config/fish/config.fish` | `better-supabase completion fish \| source` |
+
+The script calls the installed CLI for every completion, so it stays current
+when you upgrade better-supabase. When the bin is a project dependency
+instead of a global install, run the line from a shell where `better-supabase`
+is on the `PATH`, for example through `pnpm exec`.
+
+Side effects: None. The command prints the script and writes nothing.
+
+## What it completes
+
+Commands, subcommands and options come from the same command list that
+`--help` prints. Values come from the option itself:
+
+| Where                                      | Values                                      |
+| ------------------------------------------ | ------------------------------------------- |
+| `--agent` and other fixed choices          | The choices, such as `auto`, `yes` and `no` |
+| `gen --only`                               | The generate tasks; after a comma, the rest |
+| `doctor --format`, `--only` and `--ignore` | The report formats and the rule codes       |
+| `add`, `adopt` and `blocks view`           | Block names                                 |
+| `init --preset` and `apply --preset`       | Preset names                                |
+| `skills install --for`                     | The agents the skills install for           |
+| Paths, such as `--out-dir` and `--config`  | Files, from the shell                       |
+
+`--name=value` completes the same way as `--name value`.
+
+## How it works
+
+Each script runs `better-supabase __complete -- <words>` with the words on the
+command line. The hidden `__complete` command prints one candidate per line,
+the value and its description separated by a tab, and a `:files` line when the
+shell should offer file names. It loads no config and never fails: on any
+error it prints nothing.

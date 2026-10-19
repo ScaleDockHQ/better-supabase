@@ -2,9 +2,10 @@ import { readFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 
 import type { Generator, ResolvedConfig } from "../../config/index.ts";
+import type { CliIo, CommandResult } from "../core/io.ts";
+import type { CliLog } from "../core/log.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { CliIo, CommandResult } from "../io.ts";
 import type { Paint } from "../style.ts";
 
 import {
@@ -13,7 +14,8 @@ import {
   valibot,
   zod,
 } from "../../config/index.ts";
-import { errorText } from "../errors.ts";
+import { CliError, errorText } from "../core/errors.ts";
+import { readStdin } from "../core/io.ts";
 import { fromMetadata } from "../introspect/from-metadata.ts";
 import {
   MetadataRejectedError,
@@ -115,8 +117,9 @@ async function renderEmit(
   const [file] = picked;
 
   if (!file || picked.length > 1) {
-    throw new Error(
-      `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out <dir> to write them all.`,
+    throw new CliError(
+      "usage",
+      `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out-dir <dir> to write them all.`,
     );
   }
 
@@ -133,23 +136,73 @@ export async function readMetadataSnapshot(
   cwd: string,
   io: CliIo,
 ): Promise<Snapshot> {
+  if (source === "-") {
+    const piped = await readStdin(io, "--metadata -");
+
+    return fromMetadata(await parseMetadataDocument(piped));
+  }
+
   let text: string;
 
   try {
-    if (source !== "-") {
-      text = await readFile(resolve(cwd, source), "utf-8");
-    } else if (io.stdin) {
-      text = await io.stdin();
-    } else {
-      throw new Error("there is no stdin to read");
-    }
+    text = await readFile(resolve(cwd, source), "utf-8");
   } catch (cause) {
     throw new MetadataRejectedError(
-      `Could not read ${source === "-" ? "stdin" : source}: ${errorText(cause)}`,
+      `Could not read ${source}: ${errorText(cause)}`,
     );
   }
 
   return fromMetadata(await parseMetadataDocument(text));
+}
+
+/** The `gen` flags that decide whether `--metadata`, `--emit` and `--out-dir` fit together. */
+export interface MetadataFlags {
+  readonly metadata?: string;
+  readonly emit?: string;
+  readonly out?: string;
+  readonly check: boolean;
+  readonly json: boolean;
+  /** Flags that pick another schema source or mode, by name (`--watch`), when passed. */
+  readonly conflicting: readonly string[];
+}
+
+/** Refuses `--metadata` next to `conflicting`, the passed flags that read the schema from somewhere else. */
+export function refuseWithMetadata(conflicting: readonly string[]): void {
+  if (conflicting.length > 0) {
+    throw new CliError(
+      "usage",
+      `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
+    );
+  }
+}
+
+/** Throws the usage error for flags that don't combine with `--metadata`, or need it. */
+export function checkMetadataFlags(flags: MetadataFlags): void {
+  if (flags.metadata === undefined) {
+    if (flags.emit !== undefined || flags.out !== undefined) {
+      throw new CliError(
+        "usage",
+        `${flags.emit === undefined ? "--out-dir" : "--emit"} only applies with --metadata`,
+      );
+    }
+
+    return;
+  }
+
+  refuseWithMetadata(flags.conflicting);
+
+  const problem =
+    flags.out !== undefined && flags.emit !== undefined
+      ? "--emit picks the one file gen prints; --out-dir writes them all. Pass one of them."
+      : flags.out === undefined && flags.check
+        ? "--check with --metadata needs --out-dir <dir>"
+        : flags.out === undefined && flags.json
+          ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out-dir <dir> for the JSON summary."
+          : undefined;
+
+  if (problem !== undefined) {
+    throw new CliError("usage", problem);
+  }
 }
 
 export interface MetadataGenOptions {
@@ -157,12 +210,13 @@ export interface MetadataGenOptions {
   readonly env: CliEnv;
   readonly cwd: string;
   readonly io: CliIo;
+  /** Where the generation notices go when the code goes to stdout. */
+  readonly log: CliLog;
   /** `--metadata`: a path, or `-` for stdin. */
   readonly metadata: string;
   readonly emit?: string;
   readonly out?: string;
   readonly check: boolean;
-  readonly json: boolean;
   readonly paint?: Paint;
 }
 
@@ -171,8 +225,8 @@ export const METADATA_REJECTED = 65;
 
 /**
  * `gen --metadata`: the out-of-process generator contract of
- * `@supabase/typegen`. Without `--out` it prints one file on stdout and
- * everything else on stderr; with `--out` it writes the usual files there.
+ * `@supabase/typegen`. Without `--out-dir` it prints one file on stdout and
+ * everything else on stderr; with `--out-dir` it writes the usual files there.
  */
 export async function runMetadataGen(
   options: MetadataGenOptions,
@@ -181,30 +235,10 @@ export async function runMetadataGen(
   const emit = options.emit ?? "schema";
 
   if (!isEmit(emit)) {
-    return {
-      code: 2,
-      error: `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
-    };
-  }
-
-  if (options.out !== undefined && options.emit !== undefined) {
-    return {
-      code: 2,
-      error:
-        "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
-    };
-  }
-
-  if (options.out === undefined && options.check) {
-    return { code: 2, error: "--check with --metadata needs --out <dir>" };
-  }
-
-  if (options.out === undefined && options.json) {
-    return {
-      code: 2,
-      error:
-        "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
-    };
+    throw new CliError(
+      "usage",
+      `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
+    );
   }
 
   let snapshot: Snapshot;
@@ -213,7 +247,11 @@ export async function runMetadataGen(
     snapshot = await readMetadataSnapshot(options.metadata, options.cwd, io);
   } catch (cause) {
     if (cause instanceof MetadataRejectedError) {
-      return { code: METADATA_REJECTED, error: cause.message };
+      return {
+        code: METADATA_REJECTED,
+        errorCode: "invalid_input",
+        error: cause.message,
+      };
     }
 
     throw cause;
@@ -246,15 +284,14 @@ export async function runMetadataGen(
   }
 
   const { contents, warnings } = await renderEmit(config, snapshot, emit);
-  io.stdout(contents);
   const notices = await generationNotices(snapshot, warnings);
 
   const shown =
     emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);
 
   for (const line of shown) {
-    io.stderr(`${line}\n`);
+    options.log.info(line);
   }
 
-  return { code: 0 };
+  return { code: 0, raw: contents };
 }

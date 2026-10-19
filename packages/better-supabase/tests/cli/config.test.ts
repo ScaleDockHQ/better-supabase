@@ -9,8 +9,8 @@ import {
   discoverConfig,
   loadConfig,
 } from "../../src/cli/config.ts";
+import { run } from "../../src/cli/core/run.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
-import { run } from "../../src/cli/run.ts";
 import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 

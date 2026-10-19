@@ -146,7 +146,7 @@ describe("proposeAdoption", () => {
       proposeAdoption("teams", [MEMBERS], { from: ["public.nope"] }).errors,
     ).toEqual([
       "public.nope is not a table in the database.",
-      "blocks.teams needs a table for teams (teams by default) and none was found. Pass it with --from.",
+      "blocks.teams needs a table for teams (teams by default) and none was found. Pass it with --tables.",
     ]);
     const unrelated = table("invoices", { total: "numeric" });
     expect(

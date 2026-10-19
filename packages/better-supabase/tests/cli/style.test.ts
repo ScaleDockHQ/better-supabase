@@ -20,16 +20,16 @@ describe("painter", () => {
 
   it("highlights the verbs that start lines", () => {
     expect(
-      highlight("Wrote a\nWould write b\nKept    c (exists)\nother", tag),
+      highlight("Created a\nWould create b\nSkipped c (exists)\nother", tag),
     ).toBe(
       [
-        `${tag("green", "Wrote")} a`,
-        `${tag("yellow", "Would write")} b`,
-        `${tag("dim", "Kept")}    c (exists)`,
+        `${tag("green", "Created")} a`,
+        `${tag("yellow", "Would create")} b`,
+        `${tag("dim", "Skipped")} c (exists)`,
         "other",
       ].join("\n"),
     );
-    expect(highlight("Wrote a", plain)).toBe("Wrote a");
+    expect(highlight("Created a", plain)).toBe("Created a");
   });
 });
 

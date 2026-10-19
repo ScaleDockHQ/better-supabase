@@ -2,14 +2,14 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { GenTask, ResolvedConfig } from "../../config/index.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 import type { Paint } from "../style.ts";
 
-import { failedResult, parseNames } from "../errors.ts";
+import { failedResult, parseNames } from "../core/errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
 import { runEnv } from "./env.ts";
-import { runScaffold } from "./scaffold.ts";
+import { runScaffoldApi } from "./scaffold.ts";
 import { runSeed } from "./seed.ts";
 import { runSpec, specOptionsFromConfig } from "./spec.ts";
 import { runSql } from "./sql.ts";
@@ -24,6 +24,7 @@ export interface StepOptions {
   readonly config: ResolvedConfig;
   readonly env: CliEnv;
   readonly check: boolean;
+  readonly dryRun?: boolean;
   readonly paint: Paint;
 }
 
@@ -32,7 +33,7 @@ const ORDER: ReadonlyMap<GenTask, number> = new Map(
   GEN_TASKS.map((task, index) => [task, index]),
 );
 
-/** Checks `--tasks` names. Returns an error message for an unknown one. */
+/** Checks `--only` names. Returns an error message for an unknown one. */
 export function parseTasks(
   names: readonly string[],
 ): readonly GenTask[] | string {
@@ -40,7 +41,7 @@ export function parseTasks(
 }
 
 /**
- * The tasks `gen` runs, in pipeline order: `--tasks`, then `gen.tasks`, then
+ * The tasks `gen` runs, in pipeline order: `--only`, then `gen.tasks`, then
  * every task the config sets up.
  */
 export function selectTasks(
@@ -106,20 +107,29 @@ const STEPS: Readonly<
     (options: StepOptions) => Promise<CommandResult>
   >
 > = {
-  sql: ({ config, check, paint }) =>
-    runSql(config, { _: ["sync"], check }, paint),
-  spec: ({ config, check }) =>
-    runSpec(specOptionsFromConfig(config, check ? "check" : "emit")),
-  seed: ({ config, check, env }) => runSeed(config, { check }, env),
-  scaffold: ({ config, check }) =>
-    runScaffold(config, { _: ["api"] }, { generatedOnly: true, check }),
-  env: async ({ config, check, env }) =>
+  sql: ({ config, check, dryRun, paint }) =>
+    runSql(config, { _: ["sync"], check, "dry-run": dryRun }, paint),
+  spec: ({ config, check, dryRun }) =>
+    runSpec(
+      specOptionsFromConfig(config, check ? "check" : "emit", {
+        ...(dryRun === true ? { dryRun } : {}),
+      }),
+    ),
+  seed: ({ config, check, dryRun, env }) =>
+    runSeed(config, { check, "dry-run": dryRun }, env),
+  scaffold: ({ config, check, dryRun }) =>
+    runScaffoldApi(
+      config,
+      { "dry-run": dryRun },
+      { generatedOnly: true, check },
+    ),
+  env: async ({ config, check, dryRun, env }) =>
     check
       ? {
           code: 0,
           output: "Skipped: env writes local keys, so --check leaves it out.",
         }
-      : runEnv(config, {}, env),
+      : runEnv(config, { "dry-run": dryRun }, env),
 };
 
 /**

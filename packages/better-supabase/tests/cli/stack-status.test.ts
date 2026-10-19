@@ -1,8 +1,9 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { PROCESS_ENV, parseEnv } from "../../src/cli/env.ts";
 import {
   parseStackStatus,
   readStackStatus,
@@ -46,6 +47,26 @@ describe("readStackStatus", () => {
       ok: false,
       code: 3,
     });
+  });
+
+  it("runs the project's node_modules/.bin/supabase with the run's environment", async () => {
+    await mkdir(join(root, "node_modules", ".bin"), { recursive: true });
+    const bin = join(root, "node_modules", ".bin", "supabase");
+    await writeFile(bin, '#!/bin/sh\nprintf \'{"FROM":"%s"}\' "$BS_MARKER"\n');
+    await chmod(bin, 0o755);
+
+    const env = parseEnv({ ...process.env, BS_MARKER: "local" });
+    expect(env[PROCESS_ENV]?.["BS_MARKER"]).toBe("local");
+    expect(await readStackStatus(root, env)).toEqual({
+      ok: true,
+      status: { FROM: "local" },
+    });
+  });
+
+  it("fails with supabase_cli_missing instead of downloading one", async () => {
+    await expect(
+      readStackStatus(root, { SUPABASE_BIN: join(root, "missing") }),
+    ).rejects.toMatchObject({ code: "supabase_cli_missing" });
   });
 
   it("rejects a status that prints no JSON", async () => {

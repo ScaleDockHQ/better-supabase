@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`completion > keeps the scripts stable > bash 1`] = `
+"# better-supabase completion for bash. Add to ~/.bashrc:
+#   eval "$(better-supabase completion bash)"
+_better_supabase_complete() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}" line files=0 i
+  local -a args=()
+  # Bash 3.2 joins a quoted array slice into one word once IFS changes.
+  for ((i = 1; i <= COMP_CWORD; i++)); do
+    args+=("\${COMP_WORDS[i]}")
+  done
+  local IFS=$'\\n'
+  COMPREPLY=()
+  for line in $("\${COMP_WORDS[0]}" __complete -- "\${args[@]}" 2>/dev/null); do
+    if [[ $line == ":files" ]]; then
+      files=1
+    else
+      COMPREPLY+=("\${line%%$'\\t'*}")
+    fi
+  done
+  if [[ $files == 1 ]]; then
+    compopt -o filenames 2>/dev/null
+    COMPREPLY+=($(compgen -f -- "$cur"))
+  fi
+}
+complete -F _better_supabase_complete better-supabase bsb
+"
+`;
+
+exports[`completion > keeps the scripts stable > fish 1`] = `
+"# better-supabase completion for fish. Add to ~/.config/fish/config.fish:
+#   better-supabase completion fish | source
+function __better_supabase_complete
+    set -l words (commandline -opc) (commandline -ct)
+    for line in ($words[1] __complete -- $words[2..-1] 2>/dev/null)
+        if test "$line" = ":files"
+            __fish_complete_path (commandline -ct)
+        else
+            echo $line
+        end
+    end
+end
+complete -c better-supabase -f -a '(__better_supabase_complete)'
+complete -c bsb -f -a '(__better_supabase_complete)'
+"
+`;
+
+exports[`completion > keeps the scripts stable > zsh 1`] = `
+"#compdef better-supabase bsb
+# better-supabase completion for zsh. Add to ~/.zshrc:
+#   eval "$(better-supabase completion zsh)"
+_better_supabase() {
+  local -a values
+  local line files=0
+  for line in "\${(@f)$("\${words[1]}" __complete -- "\${(@)words[2,CURRENT]}" 2>/dev/null)}"; do
+    if [[ $line == ":files" ]]; then
+      files=1
+    elif [[ $line == *$'\\t'* ]]; then
+      values+=("\${\${line%%$'\\t'*}//:/\\\\:}:\${line#*$'\\t'}")
+    elif [[ -n $line ]]; then
+      values+=("\${line//:/\\\\:}")
+    fi
+  done
+  (( \${#values} )) && _describe -t values better-supabase values
+  (( files )) && _files
+}
+if [[ \${zsh_eval_context[-1]} == loadautofunc ]]; then
+  _better_supabase "$@"
+else
+  compdef _better_supabase better-supabase bsb
+fi
+"
+`;

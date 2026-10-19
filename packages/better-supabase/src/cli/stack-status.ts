@@ -1,6 +1,7 @@
 import type { CliEnv } from "./env.ts";
 
-import { supabaseCli } from "./exec.ts";
+import { CliError } from "./core/errors.ts";
+import { type ExecOptions, supabaseCli } from "./exec.ts";
 
 export interface StackStatus {
   readonly [key: string]: unknown;
@@ -33,14 +34,16 @@ export function parseStackStatus(stdout: string): StackStatus | undefined {
 export async function readStackStatus(
   root: string,
   env: CliEnv,
+  options: ExecOptions = {},
 ): Promise<StackStatusResult> {
-  let result = await supabaseCli(["status", "-o", "json"], root, env);
+  let result = await supabaseCli(["status", "-o", "json"], root, env, options);
 
   if (result.code !== 0) {
     const engine = await supabaseCli(
       ["status", "--env", "--output-format", "json"],
       root,
       env,
+      options,
     );
 
     if (engine.code === 0) {
@@ -55,7 +58,10 @@ export async function readStackStatus(
   const status = parseStackStatus(result.stdout);
 
   if (!status) {
-    throw new Error("supabase status printed no JSON.");
+    throw new CliError(
+      "supabase_cli_failed",
+      "supabase status printed no JSON.",
+    );
   }
 
   return { ok: true, status };
