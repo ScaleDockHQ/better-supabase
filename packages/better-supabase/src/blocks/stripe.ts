@@ -116,8 +116,10 @@ export interface StripeTaxId {
 }
 
 /**
- * A Stripe client, the secret key to create one from the `stripe` package,
- * or a function that returns a client. The function runs on every Stripe
+ * A Stripe client, a function that returns a client (`stripeFromKey()` from
+ * `better-supabase/stripe` in a bundled app), or the secret key to create one
+ * from the `stripe` package: the plain Node shortcut, which needs a runtime
+ * that resolves `stripe` when the call runs. The function runs on every Stripe
  * call, so it can create the client lazily, pick a per-request or per-tenant
  * client (Stripe Connect), or read a rotated key; cache inside it when needed.
  * `C` is the part of the SDK the caller uses (`StripeClient` for billing and
@@ -172,7 +174,7 @@ export async function stripeClient<C extends object = StripeClient>(
 
   if (!isModule(loaded)) {
     throw new TypeError(
-      "Stripe calls need the stripe package: pnpm add stripe, or pass a Stripe client as `stripe`",
+      "Stripe calls need the stripe package in a runtime that can resolve it: pnpm add stripe, and in a bundled app pass `stripe: stripeFromKey({ secretKey })` from better-supabase/stripe, or a Stripe client",
     );
   }
 

@@ -31,9 +31,10 @@ has `billing.*`. The other functions are granted to `service_role` only.
 
 ```ts title="src/lib/billing.ts"
 import { createBilling, sqlTransport } from "better-supabase/blocks/billing";
+import { stripeFromKey } from "better-supabase/stripe";
 
 export const billing = createBilling({
-  stripe: { secretKey: env.STRIPE_SECRET_KEY },
+  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
   transport: sqlTransport(postgres.admin),
   events: bs.events, // billing.* block events
   seatPrice: env.STRIPE_SEAT_PRICE,
@@ -44,12 +45,20 @@ export const billing = createBilling({
 });
 ```
 
-`stripe` takes a secret key, which loads the optional `stripe` package with
-its fetch HTTP client so it runs on every runtime, a Stripe client you
-created, or a function that returns a client. The function runs on every
-Stripe call, so it can create the client lazily, read a rotated key, or pick
-a per-request client (a Stripe Connect account); cache inside it when the
-client is the same each time:
+`stripeFromKey()` from `better-supabase/stripe` creates the client from the
+optional `stripe` package on the first Stripe call, once, with its fetch HTTP
+client so it runs on every runtime. It imports `stripe` by name, so Next.js,
+Vite and other bundlers resolve the package and include it in the server
+build. `stripe` also takes `{ secretKey }`, the plain Node shortcut: it loads
+the package at runtime with a native import that bundlers leave alone, so it
+works in Node, Bun and Deno and in apps that keep `stripe` external, but not
+in a bundle that leaves the package out. There it throws an error that names
+`stripeFromKey()`.
+
+`stripe` also takes a Stripe client you created, or a function that returns a
+client. The function runs on every Stripe call, so it can create the client
+lazily, read a rotated key, or pick a per-request client (a Stripe Connect
+account); cache inside it when the client is the same each time:
 
 ```ts
 let client: Stripe | undefined;

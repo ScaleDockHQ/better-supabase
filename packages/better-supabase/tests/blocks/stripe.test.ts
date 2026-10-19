@@ -51,7 +51,9 @@ describe("stripeClient", () => {
   it("explains how to install it when it is missing", async () => {
     await expect(
       stripeClient({ secretKey: "sk" }, () => Promise.resolve(undefined)),
-    ).rejects.toThrow(/pnpm add stripe/);
+    ).rejects.toThrow(
+      "Stripe calls need the stripe package in a runtime that can resolve it: pnpm add stripe, and in a bundled app pass `stripe: stripeFromKey({ secretKey })` from better-supabase/stripe, or a Stripe client",
+    );
   });
 
   it("loads the real package lazily, once", async () => {
