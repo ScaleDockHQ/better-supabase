@@ -1,0 +1,95 @@
+---
+title: MCP server
+description: Serve the CLI to a coding agent as an MCP server on stdio, read-only by default, with file writes behind the user's consent.
+---
+
+`better-supabase mcp` runs an MCP server on stdio for the project in the
+current directory. Each tool runs one CLI command in process with `--json`
+and returns its [result envelope](/docs/cli#exit-codes-and-json-output) as
+`structuredContent`, so an agent reads the same `status`, `data`, `error`
+and `next` it would get from the shell.
+
+```bash
+pnpm better-supabase mcp
+```
+
+Side effects: Reads the database, writes files with --allow-writes.
+
+This server is for development. To give an agent access to your app's data
+as the signed-in user, serve [`createMcp`](/docs/frameworks/mcp) from the
+app instead.
+
+## Add it to an agent
+
+In Cursor, add the server to `.cursor/mcp.json` in the project:
+
+```json title=".cursor/mcp.json"
+{
+  "mcpServers": {
+    "better-supabase": {
+      "command": "pnpm",
+      "args": ["exec", "better-supabase", "mcp"]
+    }
+  }
+}
+```
+
+In Claude Code, add it from the project directory:
+
+```bash
+claude mcp add better-supabase -- pnpm exec better-supabase mcp
+```
+
+The server runs every command in the directory the agent started it in, with
+the environment the agent gave it, and the config file and `--env` it found
+at start.
+
+## Tools
+
+The read-only tools run by default:
+
+| Tool            | Command                             |
+| --------------- | ----------------------------------- |
+| `doctor`        | `doctor`                            |
+| `blocks_list`   | `blocks list`, with `category`      |
+| `blocks_view`   | `blocks view <block>`               |
+| `blocks_search` | `blocks search <text>`              |
+| `config`        | `config`                            |
+| `preset_info`   | `preset info`                       |
+| `sql_list`      | `sql list`                          |
+| `gen_check`     | `gen --check`                       |
+| `apply_dry_run` | `apply --preset <preset> --dry-run` |
+
+`--allow-writes` adds the tools that write files: `gen`, `sql_sync` (`sql
+sync`), `apply` (with `preset` and `allow_breaking`) and `add` (with
+`blocks`).
+
+## Consent for writes
+
+A write tool never runs on its first call. It returns a `consent_required`
+error, the same one [agent mode](/docs/cli/agent-mode) uses, with a `token`
+and a `detail` to show the user. Once the user agrees, the agent calls the
+tool again with the same arguments and `confirm` set to the token. The token
+covers only those arguments, so a call with other blocks or another preset
+asks again.
+
+```json
+{
+  "status": "action_required",
+  "error": {
+    "code": "consent_required",
+    "detail": "add writes files in /app. Ask the user first, then call add again with confirm \"3f9c0a1b2d4e5f60\".",
+    "token": "3f9c0a1b2d4e5f60"
+  }
+}
+```
+
+The commands themselves run with agent mode off, so this one consent covers
+the call. No tool forces an overwrite or writes to the database.
+
+## Protocol
+
+The server answers `initialize` for clients on the 2025 revisions and
+`server/discover` for 2026-07-28 clients, then `tools/list` and
+`tools/call`, one JSON-RPC message per line. The CLI prints its own
+messages on stderr, so stdout carries only protocol messages.

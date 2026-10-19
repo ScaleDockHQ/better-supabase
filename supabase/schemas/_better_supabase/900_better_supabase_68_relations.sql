@@ -1,4 +1,4 @@
--- better-supabase module: relations (0.8.0)
+-- better-supabase module: relations (0.9.0)
 -- @bs-module relations@1 managed
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -189,14 +189,14 @@ begin
         returning * into v_old;
       if v_old."id" is not null then
         v_replaced := jsonb_build_object('targetType', v_old."target_type", 'targetId', v_old."target_id", 'data', v_old."data");
-        null;
+        perform "better_supabase".emit_event('subject.unlinked', jsonb_build_object('organizationId', link.tenant, 'id', v_old."id", 'kind', v_kind, 'subjectType', v_source_type, 'subjectId', v_source_id, 'targetType', v_old."target_type", 'targetId', v_old."target_id"), 'subjects/' || v_source_type || '/' || v_source_id, (link.tenant)::text, null, 'better-supabase/relations');
       end if;
     end if;
     insert into "better_supabase"."relations" ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id", "data", "created_by")
     values (link.tenant, v_kind, v_source_type, v_source_id, v_target_type, v_target_id, coalesce(link.data, '{}'::jsonb), auth.uid())
     returning "id" into v_id;
     v_created := true;
-    null;
+    perform "better_supabase".emit_event('subject.linked', jsonb_build_object('organizationId', link.tenant, 'id', v_id, 'kind', v_kind, 'subjectType', v_source_type, 'subjectId', v_source_id, 'targetType', v_target_type, 'targetId', v_target_id), 'subjects/' || v_source_type || '/' || v_source_id, (link.tenant)::text, null, 'better-supabase/relations');
   elsif link.data is not null then
     update "better_supabase"."relations" set "data" = link.data where "id" = v_id;
   end if;
@@ -302,7 +302,7 @@ begin
   if v_old."id" is null then
     return jsonb_build_object('removed', false, 'data', null);
   end if;
-  null;
+  perform "better_supabase".emit_event('subject.unlinked', jsonb_build_object('organizationId', unlink.tenant, 'id', v_old."id", 'kind', v_kind, 'subjectType', v_source_type, 'subjectId', v_source_id, 'targetType', v_target_type, 'targetId', v_target_id), 'subjects/' || v_source_type || '/' || v_source_id, (unlink.tenant)::text, null, 'better-supabase/relations');
   return jsonb_build_object('removed', true, 'data', v_old."data");
 end;
 $$;

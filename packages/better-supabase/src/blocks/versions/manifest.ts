@@ -20,5 +20,5 @@ export const versionsBlock: BlockOf<
   events: versionsEvents,
   create: createVersions,
   category: "content",
-  recipes: ["version-history"],
+  recipes: ["version-history", "record-history"],
 });

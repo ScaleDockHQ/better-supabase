@@ -1,4 +1,4 @@
--- better-supabase module: settings (0.8.0)
+-- better-supabase module: settings (0.9.0)
 -- @bs-module settings@1 managed
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -273,7 +273,8 @@ declare
 begin
   if tg_op = 'DELETE' then
     v_row := old;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('organization_setting.reset', jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key"), 'organizations/' || v_row."organization_id"::text || '/settings/' || v_row."key", (v_row."organization_id")::text, null, 'better-supabase/settings');
+  perform better_supabase.audit_event(
     event_type => 'organization_setting.reset',
     category => 'configuration',
     target_type => 'setting',
@@ -283,7 +284,8 @@ begin
   );
   else
     v_row := new;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('organization_setting.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key"), 'organizations/' || v_row."organization_id"::text || '/settings/' || v_row."key", (v_row."organization_id")::text, null, 'better-supabase/settings');
+  perform better_supabase.audit_event(
     event_type => 'organization_setting.updated',
     category => 'configuration',
     target_type => 'setting',
@@ -310,7 +312,8 @@ declare
 begin
   if tg_op = 'DELETE' then
     v_row := old;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('platform_setting.reset', jsonb_build_object('key', v_row."key"), 'settings/' || v_row."key", null, null, 'better-supabase/settings');
+  perform better_supabase.audit_event(
     event_type => 'platform_setting.reset',
     category => 'configuration',
     target_type => 'setting',
@@ -319,7 +322,8 @@ begin
   );
   else
     v_row := new;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('platform_setting.updated', jsonb_build_object('key', v_row."key"), 'settings/' || v_row."key", null, null, 'better-supabase/settings');
+  perform better_supabase.audit_event(
     event_type => 'platform_setting.updated',
     category => 'configuration',
     target_type => 'setting',

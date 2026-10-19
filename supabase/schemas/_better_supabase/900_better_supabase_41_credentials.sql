@@ -1,4 +1,4 @@
--- better-supabase module: credentials (0.8.0)
+-- better-supabase module: credentials (0.9.0)
 -- @bs-module credentials@1 managed
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -66,6 +66,7 @@ begin
   else
     perform vault.update_secret(v_id, credential_set.secret);
   end if;
+  perform "better_supabase".emit_event('credential.set', jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name), 'credentials/' || credential_set.provider || '/' || credential_set.name, null, null, 'better-supabase/credentials');
   perform better_supabase.audit_event(
     event_type => 'credential.set',
     category => 'security',
@@ -99,6 +100,7 @@ begin
   if not found then
     return false;
   end if;
+  perform "better_supabase".emit_event('credential.deleted', jsonb_build_object('provider', credential_delete.provider, 'name', credential_delete.name), 'credentials/' || credential_delete.provider || '/' || credential_delete.name, null, null, 'better-supabase/credentials');
   perform better_supabase.audit_event(
     event_type => 'credential.deleted',
     category => 'security',

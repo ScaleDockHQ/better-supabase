@@ -10,10 +10,12 @@ import type {
 import type { ParityPaths } from "./type-parity.ts";
 
 import {
+  APP_COLUMN_ACCESS,
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
+  APP_TABLE_EVENT_KINDS,
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
@@ -614,6 +616,9 @@ const ENTRIES = {
             group: v.optional(v.string()),
           }),
         ),
+        versions: v.optional(
+          v.strictObject({ columns: strings, auto: v.boolean() }),
+        ),
       }),
     ),
   ),
@@ -645,6 +650,7 @@ const ENTRIES = {
               max: v.optional(v.number()),
               comment: v.optional(v.string()),
               identity: v.optional(v.boolean()),
+              access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
             }),
           ),
         ),
@@ -673,6 +679,15 @@ const ENTRIES = {
               ]),
             ),
             softDelete: v.optional(v.boolean()),
+            versions: v.optional(
+              v.union([
+                v.literal(true),
+                v.strictObject({
+                  columns: v.optional(strings),
+                  auto: v.optional(v.boolean()),
+                }),
+              ]),
+            ),
           }),
         ),
         rollups: v.optional(
@@ -694,6 +709,15 @@ const ENTRIES = {
             v.string(),
             v.strictObject({ via: v.string(), column: v.string() }),
           ),
+        ),
+        events: v.optional(
+          v.union([
+            v.literal(true),
+            v.strictObject({
+              on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
+              include: v.optional(strings),
+            }),
+          ]),
         ),
       }),
     ),
@@ -776,6 +800,9 @@ const ENTRIES = {
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
       claimsLimit: v.optional(v.number()),
+      migrationSafety: v.optional(
+        v.strictObject({ since: v.optional(v.string()) }),
+      ),
     }),
   ),
   gen: v.optional(

@@ -179,7 +179,11 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
@@ -621,7 +625,11 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
@@ -1054,7 +1062,11 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
@@ -1485,7 +1497,11 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
@@ -1964,7 +1980,11 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;

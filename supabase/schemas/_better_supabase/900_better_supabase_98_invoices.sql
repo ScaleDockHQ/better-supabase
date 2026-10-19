@@ -1,4 +1,4 @@
--- better-supabase module: invoices (0.8.0)
+-- better-supabase module: invoices (0.9.0)
 -- @bs-module invoices@1 managed
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -199,7 +199,7 @@ begin
       where x."kind" = 'created_from' and x."source_type" = 'invoice' and x."source_id" = v_row."id"::text
     );
   end if;
-  null;
+  perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
@@ -408,7 +408,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('invoice.issued', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text, 'currency', v_row."currency", 'dueOn', v_row."due_on"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   if v_row."kind" = 'credit_note' then
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
@@ -426,9 +426,9 @@ begin
     "paid_at" = case when (x."total" - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_original;
-    null;
+    perform "better_supabase".emit_event('invoice.credited', jsonb_build_object('organizationId', v_original."tenant_id", 'invoiceId', v_original."id", 'subjectType', 'invoice', 'subjectId', v_original."id"::text, 'identifier', v_original."identifier", 'creditNoteId', v_row."id", 'amount', v_row."total"::text), 'invoices/' || v_original."id"::text, (v_original."tenant_id"::text)::text, null, 'better-supabase/invoices');
     if v_original."status" = 'paid' then
-      null;
+      perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_original."tenant_id", 'invoiceId', v_original."id", 'subjectType', 'invoice', 'subjectId', v_original."id"::text, 'identifier', v_original."identifier", 'total', v_original."total"::text), 'invoices/' || v_original."id"::text, (v_original."tenant_id"::text)::text, null, 'better-supabase/invoices');
     end if;
   end if;
   declare
@@ -521,9 +521,9 @@ begin
     "paid_at" = case when (x."total" - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('invoice.payment_recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   if v_row."status" = 'paid' and v_was <> 'paid' then
-    null;
+    perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_payment"(uuid, uuid)');
@@ -578,7 +578,7 @@ begin
   else
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
-  null;
+  perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
@@ -613,6 +613,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  perform "better_supabase".emit_event('invoice.voided', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'reason', v_row."void_reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.voided',
     category => 'billing',
@@ -652,6 +653,7 @@ begin
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
   end if;
+  perform "better_supabase".emit_event('invoice.uncollected', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.uncollected',
     category => 'billing',

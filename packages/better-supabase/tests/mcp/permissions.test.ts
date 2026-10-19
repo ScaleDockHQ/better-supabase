@@ -283,6 +283,53 @@ describe("createMcp authorizer", () => {
     expect(new Set(keyed)).toEqual(new Set(["purge", "invite"]));
   });
 
+  it("warns once, naming the tools a missing authorizer hides", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const bare = createMcp(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+    })
+      .tool({
+        name: "export",
+        description: "Exports.",
+        permission: "export",
+        run: () => ({ exported: true }),
+      })
+      .tool({ name: "open", description: "Open.", run: () => "ok" });
+
+    const list = async () =>
+      (await (
+        await bare.fetch(
+          new Request("https://tools.test/mcp", {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "tools/list",
+            }),
+          }),
+        )
+      ).json()) as { result: { tools: { name: string }[] } };
+
+    expect((await list()).result.tools.map((tool) => tool.name)).toEqual([
+      "open",
+    ]);
+    await list();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain(
+      "createMcp: export has a permission",
+    );
+    warn.mockRestore();
+  });
+
   it("types permissions from the authorizer", () => {
     mcp.tool({
       name: "x",

@@ -27,6 +27,20 @@ describe("bulk module", () => {
     expect(full).toContain('perform "better_supabase"."transition"(');
   });
 
+  it("knows appTables.set when the app has tables", () => {
+    const sql = renderModules(["bulk"], {
+      appTables: { tasks: { subject: { type: "task" } } },
+    })
+      .filter((file) => file.module === "bulk")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("array['appTables.set']");
+    expect(sql).toContain(
+      'perform public."app_table_set"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);',
+    );
+  });
+
   it("calls an app's own actions", () => {
     const sql = sqlOf(["bulk"], {
       actions: { "tasks.archive": "app.archive_task" },

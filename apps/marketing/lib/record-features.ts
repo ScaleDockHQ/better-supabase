@@ -1,6 +1,7 @@
 import { type Preset, resolvePreset } from "better-supabase/preset";
 
-import type { AppSubject, AppTable, Design } from "./design";
+import type { AppTable, Design } from "./design";
+import type { AppSubject } from "./design-subject";
 
 import { singular, updateTable } from "./design";
 
@@ -21,7 +22,7 @@ export interface RecordFeatureInfo {
   /** The block that serves it. */
   readonly block: string;
   /** The subject key it sets, when it is per table; the others reach every subject. */
-  readonly key?: "search" | "rank" | "softDelete";
+  readonly key?: "search" | "rank" | "softDelete" | "versions";
   /** The column the subject adds for it. */
   readonly column?: string;
 }
@@ -48,8 +49,10 @@ export const RECORD_FEATURES: readonly RecordFeatureInfo[] = [
   {
     feature: "versions",
     label: "Versions",
-    description: "Numbered snapshots of each row you can restore.",
+    description:
+      "Snapshots each change to a row; restore a whole version or one field.",
     block: "versions",
+    key: "versions",
   },
   {
     feature: "search",
@@ -114,6 +117,10 @@ function hasKey(subject: AppSubject, info: RecordFeatureInfo): boolean {
       return subject.softDelete === true;
     }
 
+    case "versions": {
+      return subject.versions !== undefined;
+    }
+
     default: {
       const unreachable: never = info.key;
 
@@ -171,7 +178,8 @@ function withKey(
     }
 
     case "rank":
-    case "softDelete": {
+    case "softDelete":
+    case "versions": {
       return { ...rest, [info.key]: true };
     }
 
@@ -235,4 +243,29 @@ export function setFeature(
 /** The blocks the preset installs, its own and the ones they require. */
 export function installedBlocks(preset: Preset): ReadonlySet<string> {
   return new Set(resolvePreset(preset).blocks.map((block) => block.name));
+}
+
+/** The block app table events go through. */
+export const EVENTS_BLOCK = "outbox";
+
+/**
+ * Turns outbox events on or off for app table `name`. On sets `events` and
+ * adds the outbox block; off removes the key and keeps the block, which
+ * other blocks may write to.
+ */
+export function setEvents(
+  design: Design,
+  blocks: readonly string[],
+  name: string,
+  on: boolean,
+): FeatureChange {
+  if (design.appTables?.[name] === undefined) {
+    return { design, blocks };
+  }
+
+  return {
+    design: updateTable(design, name, { events: on ? true : undefined }),
+    blocks:
+      on && !blocks.includes(EVENTS_BLOCK) ? [...blocks, EVENTS_BLOCK] : blocks,
+  };
 }

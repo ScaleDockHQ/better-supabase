@@ -1,6 +1,9 @@
 import "server-only";
+import type { JsonValue } from "better-supabase/blocks/versions";
+
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
+import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
@@ -8,11 +11,15 @@ import { bs } from "@/lib/supabase/server";
 
 import {
   type MemberOption,
+  type ProjectHistoryField,
   type ProjectOption,
+  type ProjectVersion,
   type TaskQuery,
   type TaskRow,
   type TaskStatus,
   type TaskViewOption,
+  PROJECT_HISTORY_FIELDS,
+  PROJECT_SUBJECT,
   TASK_LIST,
   parseTaskQuery,
 } from "./project-types";
@@ -153,6 +160,69 @@ export async function getProject(
     .orThrow();
 
   return project ?? undefined;
+}
+
+const HISTORY_LIMIT = 10;
+
+const Cell = v.optional(
+  v.nullable(v.union([v.string(), v.pipe(v.number(), v.transform(String))])),
+);
+
+/** A version's content: the columns `subject.versions` keeps. */
+const HistoryContent = v.fallback(
+  v.object({ name: Cell, budget_minor: Cell, currency: Cell }),
+  {},
+);
+
+function historyFields(
+  content: JsonValue | undefined,
+): ProjectVersion["fields"] {
+  const parsed = v.parse(HistoryContent, content);
+  const fields: Partial<Record<ProjectHistoryField, string>> = {};
+
+  for (const field of PROJECT_HISTORY_FIELDS) {
+    const value = parsed[field];
+
+    if (value !== null && value !== undefined) {
+      fields[field] = value;
+    }
+  }
+
+  return fields;
+}
+
+/**
+ * The project's latest versions with their content, newest first. The
+ * versions block keeps one on every change to the configured columns.
+ */
+export async function getProjectHistory(
+  projectId: string,
+): Promise<readonly ProjectVersion[] | null> {
+  "use cache: private";
+  const { session, supabase } = await bs.cached();
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const { versions } = blocks(supabase);
+
+  const listed = await versions
+    .list(tenant, PROJECT_SUBJECT, projectId, { pageSize: HISTORY_LIMIT })
+    .orThrow();
+
+  const loaded = await Promise.all(
+    listed.map((version) => versions.get(version.id).orThrow()),
+  );
+
+  return loaded.map((version) => ({
+    id: version.id,
+    number: version.number,
+    source: version.source,
+    createdAt: version.createdAt.epochMilliseconds,
+    fields: historyFields(version.content),
+  }));
 }
 
 export async function getMemberOptions(

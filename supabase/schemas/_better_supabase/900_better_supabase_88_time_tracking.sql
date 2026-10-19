@@ -1,4 +1,4 @@
--- better-supabase module: time-tracking (0.8.0)
+-- better-supabase module: time-tracking (0.9.0)
 -- @bs-module time-tracking@2 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -247,7 +247,7 @@ begin
     where x."tenant_id" = start_timer.tenant and x."user_id" = v_me and x."ended_at" is null
     returning * into v_row;
   if found then
-    null;
+    perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   end if;
   v_row := null;
   v_row."id" := gen_random_uuid();
@@ -278,7 +278,7 @@ begin
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "billable", "rate", "rate_currency", "note")
   values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('time_entry.started', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -317,7 +317,7 @@ begin
   update "better_supabase"."time_entries" x set "ended_at" = v_at, "updated_at" = v_at
     where x."id" = v_row."id"
     returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -434,7 +434,7 @@ begin
   insert into "better_supabase"."time_entries" ("id", "tenant_id", "user_id", "subject_type", "subject_id", "started_at", "ended_at", "billable", "rate", "rate_currency", "note")
   values (v_row."id", v_row."tenant_id", v_row."user_id", v_row."subject_type", v_row."subject_id", v_row."started_at", v_row."ended_at", v_row."billable", v_row."rate", v_row."rate_currency", v_row."note")
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('time_entry.recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -554,7 +554,7 @@ begin
       "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('time_entry.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'previousStartedAt', v_previous_started_at), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_time_entry_save"(uuid)');
   begin
@@ -590,7 +590,7 @@ begin
     raise exception 'not allowed to delete this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   delete from "better_supabase"."time_entries" x where x."id" = v_row."id";
-  null;
+  perform "better_supabase".emit_event('time_entry.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'userId', v_row."user_id", 'startedAt', v_row."started_at"), 'time-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/time-tracking');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -753,6 +753,7 @@ begin
   where s."id" = v_sheet."id"
   returning * into v_sheet;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_sheet."approval_id";
+  perform "better_supabase".emit_event('timesheet.submitted', jsonb_build_object('organizationId', v_sheet."tenant_id", 'id', v_sheet."id", 'userId', v_sheet."user_id", 'week', v_sheet."week", 'approvalId', v_sheet."approval_id"), 'timesheets/' || v_sheet."id"::text, (v_sheet."tenant_id")::text, null, 'better-supabase/time-tracking');
   perform better_supabase.audit_event(
     event_type => 'timesheet.submitted',
     category => 'data',
@@ -791,7 +792,8 @@ begin
     where s."id" = approve_timesheet.timesheet_id and s."approved_at" is null
     returning * into v_sheet;
   if found then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('timesheet.approved', jsonb_build_object('organizationId', v_sheet."tenant_id", 'id', v_sheet."id", 'userId', v_sheet."user_id", 'week', v_sheet."week", 'approvalId', v_sheet."approval_id"), 'timesheets/' || v_sheet."id"::text, (v_sheet."tenant_id")::text, null, 'better-supabase/time-tracking');
+  perform better_supabase.audit_event(
     event_type => 'timesheet.approved',
     category => 'data',
     target_type => 'timesheet',
@@ -832,6 +834,7 @@ begin
   update "better_supabase"."timesheets" s set "approved_at" = null, "approval_id" = null, "submitted_at" = null
     where s."id" = v_sheet."id"
     returning * into v_sheet;
+  perform "better_supabase".emit_event('timesheet.reopened', jsonb_build_object('organizationId', v_sheet."tenant_id", 'id', v_sheet."id", 'userId', v_sheet."user_id", 'week', v_sheet."week", 'approvalId', v_sheet."approval_id"), 'timesheets/' || v_sheet."id"::text, (v_sheet."tenant_id")::text, null, 'better-supabase/time-tracking');
   perform better_supabase.audit_event(
     event_type => 'timesheet.reopened',
     category => 'data',

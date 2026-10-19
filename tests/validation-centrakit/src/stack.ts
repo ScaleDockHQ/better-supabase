@@ -218,6 +218,10 @@ export async function withCentraKit(
     // lock. Taking it before inserting users makes a concurrent sign-in wait
     // for this transaction instead of deadlocking with it.
     await client.query("lock table auth.users in access exclusive mode");
+    // The stack holds the root fixture's blocks. Their triggers would outlive
+    // this install on the tables both share and emit with the fixture's
+    // config, so CentraKit starts from an empty schema.
+    await client.query("drop schema if exists better_supabase cascade");
 
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(

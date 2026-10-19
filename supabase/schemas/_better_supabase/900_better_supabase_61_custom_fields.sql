@@ -1,4 +1,4 @@
--- better-supabase module: custom-fields (0.8.0)
+-- better-supabase module: custom-fields (0.9.0)
 -- @bs-module custom-fields@2 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -122,7 +122,7 @@ begin
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id" into v_id;
-  null;
+  perform "better_supabase".emit_event('custom_field.saved', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -167,7 +167,7 @@ begin
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
   returning "id" into v_id;
-  null;
+  perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', set_field_value.tenant, 'id', v_id, 'subjectType', set_field_value.subject_type, 'subjectId', set_field_value.subject_id), 'field-values/' || v_id::text, (set_field_value.tenant)::text, null, 'better-supabase/custom-fields');
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -194,7 +194,7 @@ begin
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
   delete from "better_supabase"."field_definitions" where "id" = delete_field_definition.definition;
-  null;
+  perform "better_supabase".emit_event('custom_field.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
   return true;
 end;
 $$;

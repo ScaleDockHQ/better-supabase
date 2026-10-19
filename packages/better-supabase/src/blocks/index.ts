@@ -61,6 +61,8 @@ export {
   onBlockEvent,
 } from "../core/block-events.ts";
 
+export type { AppTableEventData } from "./app-table-events.ts";
+
 export type {
   BlockEmit,
   EventMap,

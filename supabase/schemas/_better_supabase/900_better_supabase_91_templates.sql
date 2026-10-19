@@ -1,4 +1,4 @@
--- better-supabase module: templates (0.8.0)
+-- better-supabase module: templates (0.9.0)
 -- @bs-module templates@1 managed
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -485,6 +485,7 @@ begin
     raise exception 'This template has no draft to publish' using errcode = 'P0002', hint = 'TEMPLATE_NO_DRAFT';
   end if;
   update "better_supabase"."templates" x set "updated_at" = now() where x."id" = publish_template_version.template_id;
+  perform "better_supabase".emit_event('template.published', jsonb_build_object('organizationId', v_tpl."tenant_id", 'id', v_tpl."id", 'versionId', v_row."id", 'version', v_row."version", 'type', v_tpl."type"), 'templates/' || v_tpl."id"::text, (v_tpl."tenant_id")::text, null, 'better-supabase/templates');
   perform better_supabase.audit_event(
     event_type => 'template.published',
     category => 'configuration',
@@ -683,7 +684,7 @@ begin
       )
       returning * into v_version;
       v_count := v_count + 1;
-      null;
+      perform "better_supabase".emit_event('template.published', jsonb_build_object('organizationId', null, 'id', v_row."id", 'versionId', v_version."id", 'version', v_version."version", 'type', v_row."type"), 'templates/' || v_row."id"::text, null, null, 'better-supabase/templates');
     end if;
   end loop;
   return v_count;
@@ -818,6 +819,7 @@ begin
   values (v_tpl."id", record_template_application.version_id, record_template_application.tenant,
     record_template_application.subject_type, record_template_application.subject_id, (select auth.uid()))
   returning * into v_row;
+  perform "better_supabase".emit_event('template.applied', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'templateId', v_row."template_id", 'versionId', v_row."version_id"), 'template-applications/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/templates');
   perform better_supabase.audit_event(
     event_type => 'template.applied',
     category => 'data',

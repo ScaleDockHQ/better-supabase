@@ -55,13 +55,22 @@ Side effects: Writes files, reads the database with `--adopt`, calls the Supabas
 
 ### Breaking changes
 
-Before it writes a design, `apply` compares each of its tables with the one
-of the same name in `appTables`. Adding a table or an optional column is
-safe. Dropping or renaming a column, changing its type or the table's id
-type, and making a column required without a default break rows already in
-the database or app code that reads them. `apply` lists each breaking
-change with the expand-and-contract steps that make it safe, writes
-nothing and exits 1:
+Before it writes a design, `apply` compares its tables with `appTables`.
+Adding a table, an optional column, an index, a comment or a subject title
+is safe, and so is a looser rule or a new `onDelete`. These break rows
+already in the database or app code that reads them:
+
+- renaming a table or column, dropping a column, or changing its type or
+  the table's id type;
+- making a column required without a default;
+- a new or tighter rule that existing rows may fail: `unique`, a removed
+  option, a raised `min` or lowered `max`, a checked format (`email`,
+  `url`, `rating`, `percent`), a new reference target or a new unique set;
+- a new `scope`, or removing `timestamps`, `rank` or `softDelete`, which
+  drops the columns they add.
+
+`apply` lists each breaking change with the expand-and-contract steps that
+make it safe, writes nothing and exits 1:
 
 ```txt
 Breaking changes to app tables:
@@ -72,7 +81,14 @@ Breaking changes to app tables:
 ```
 
 Pass `--allow-breaking` to write the design anyway, for example on a project
-without data. `--dry-run` prints the list and the diff without it.
+without data. `--dry-run` prints the list and the diff without it. A table
+or column with the same definition under a new name counts as a rename.
+With `--allow-breaking`, `apply` prints the `alter table ... rename`
+statements to run in a migration before `sql sync`, so the rows move to the
+new name (`data.renames` under `--json`).
+
+A table in `appTables` that the design doesn't name is kept, and `apply`
+reports it (`data.kept`). Remove it from `appTables` yourself to drop it.
 `diffAppTables` and `diffDesigns` from `better-supabase/preset` return the
 same changes, and Create shows them on the Changes tab of Get code.
 [Doctor's BS228](/docs/cli/doctor#bs228) reports a column whose type or

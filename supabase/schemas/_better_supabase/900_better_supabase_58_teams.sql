@@ -1,4 +1,4 @@
--- better-supabase module: teams (0.8.0)
+-- better-supabase module: teams (0.9.0)
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -160,6 +160,7 @@ begin
   insert into "better_supabase"."teams" ("tenant_id", "name", "slug", "description", "created_by")
   values (create_team.tenant, create_team.name, v_slug, create_team.description, auth.uid())
   returning "id" into v_id;
+  perform "better_supabase".emit_event('team.created', jsonb_build_object('organizationId', create_team.tenant, 'id', v_id, 'name', create_team.name), 'teams/' || (v_id)::text, (create_team.tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team.created',
     category => 'membership',
@@ -207,6 +208,7 @@ begin
       "description" = coalesce(update_team.description, t."description"),
       "updated_at" = now()
   where t."id" = update_team.team;
+  perform "better_supabase".emit_event('team.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_team.team, 'name', update_team.name), 'teams/' || (update_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team.updated',
     category => 'membership',
@@ -241,6 +243,7 @@ begin
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   update "better_supabase"."teams" set "status" = 'archived', "updated_at" = now() where "id" = archive_team.team;
+  perform "better_supabase".emit_event('team.archived', jsonb_build_object('organizationId', v_tenant, 'id', archive_team.team), 'teams/' || (archive_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team.archived',
     category => 'membership',
@@ -275,6 +278,7 @@ begin
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   delete from "better_supabase"."teams" where "id" = delete_team.team;
+  perform "better_supabase".emit_event('team.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_team.team), 'teams/' || (delete_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team.deleted',
     category => 'membership',
@@ -318,6 +322,7 @@ begin
   insert into "better_supabase"."team_members" ("team_id", "user_id", "tenant_id")
   values (add_team_member.team, add_team_member.member, v_tenant)
   on conflict do nothing;
+  perform "better_supabase".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', add_team_member.member), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team_member.added',
     category => 'membership',
@@ -353,6 +358,7 @@ begin
   end if;
   delete from "better_supabase"."team_members"
   where "team_id" = remove_team_member.team and "user_id" = remove_team_member.member;
+  perform "better_supabase".emit_event('team_member.removed', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team_member.removed',
     category => 'membership',

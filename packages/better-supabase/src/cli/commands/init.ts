@@ -52,6 +52,7 @@ import {
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
+import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
@@ -444,6 +445,12 @@ export async function runInit(
 
   const templateContext = templateContextFor(project, generated);
 
+  const migrationSince =
+    (await latestMigrationVersion(root)) ??
+    (await latestMigrationVersion(config.root));
+
+  const since = migrationSince === undefined ? {} : { migrationSince };
+
   const files = withDesign(
     [
       ...baseFiles(
@@ -458,8 +465,9 @@ export async function runInit(
               ...(keys.sql === undefined ? {} : { sql: keys.sql }),
               ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
               provider: conventions.access === "provider",
+              ...since,
             }
-          : { provider: conventions.access === "provider" },
+          : { provider: conventions.access === "provider", ...since },
       ),
       ...integrationFiles(integrations, templateContext),
       ...(chosen === null

@@ -49,7 +49,12 @@ import {
 
 import type { InspectorTab } from "./schema-nodes";
 
-import { BoundsFields, KindSelect, OptionsEditor } from "./column-fields";
+import {
+  AccessSelect,
+  BoundsFields,
+  KindSelect,
+  OptionsEditor,
+} from "./column-fields";
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
 import { ComputedSection } from "./inspector-computed";
@@ -170,6 +175,9 @@ function AppColumnRow({
 
   const kind = kindOf(column);
 
+  const setsNull =
+    column.references?.onDelete === "set null" && column.nullable !== false;
+
   return (
     <li className="flex flex-col gap-3 rounded-lg border border-border p-3">
       <div className="flex items-start gap-2">
@@ -218,7 +226,8 @@ function AppColumnRow({
         <Field orientation="horizontal" className="w-auto">
           <Switch
             id={`${id}-required`}
-            disabled={column.identity === true}
+            disabled={column.identity === true || setsNull}
+            aria-describedby={setsNull ? `${id}-required-reason` : undefined}
             size="sm"
             checked={column.nullable === false}
             onCheckedChange={(checked) => {
@@ -227,6 +236,15 @@ function AppColumnRow({
           />
           <FieldLabel htmlFor={`${id}-required`}>Required</FieldLabel>
         </Field>
+        {setsNull ? (
+          <p
+            id={`${id}-required-reason`}
+            className="text-xs text-muted-foreground"
+          >
+            Deleting the linked row sets this column to null, so it can&apos;t
+            be required.
+          </p>
+        ) : null}
         <Field orientation="horizontal" className="w-auto">
           <Switch
             id={`${id}-unique`}
@@ -255,7 +273,7 @@ function AppColumnRow({
             label="Default"
             value={column.default ?? ""}
             placeholder="now(), 0, 'draft'"
-            validate={(next) => defaultError(column.type, next)}
+            validate={(next) => defaultError(column, next)}
             onCommit={(next) => {
               const { default: _drop, ...rest } = column;
               replace(
@@ -270,6 +288,13 @@ function AppColumnRow({
       column.identity !== true ? (
         <BoundsFields column={column} onChange={replace} />
       ) : null}
+      <AccessSelect
+        value={column.access}
+        onChange={(access) => {
+          const { access: _drop, ...rest } = column;
+          replace(access === undefined ? rest : { ...rest, access });
+        }}
+      />
       <Field>
         <FieldLabel htmlFor={`${id}-comment`}>Description</FieldLabel>
         <CommitInput

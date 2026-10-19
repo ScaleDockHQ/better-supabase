@@ -1,4 +1,4 @@
--- better-supabase module: work-items (0.8.0)
+-- better-supabase module: work-items (0.9.0)
 -- @bs-module work-items@1 managed
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -186,11 +186,11 @@ begin
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
-      null;
+      perform "better_supabase".emit_event('work_item.closed', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'work_item', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/work-items');
     elsif not (new."state" in ('completed', 'canceled')) and old."state" in ('completed', 'canceled') then
       new."closed_at" := null;
       new."close_reason" := null;
-      null;
+      perform "better_supabase".emit_event('work_item.reopened', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'work_item', 'subjectId', new."id"::text, 'title', new."title"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/work-items');
     end if;
   end if;
   new."updated_at" := now();
@@ -255,7 +255,7 @@ begin
     perform "better_supabase"."set_work_item_assignees"(v_id, create_work_item.assignees);
   end if;
   select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
-  null;
+  perform "better_supabase".emit_event('work_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_work_item_create"(uuid)');
   begin
@@ -359,7 +359,7 @@ begin
     end;
   end loop;
   for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
-    null;
+    perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row."id")), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -417,7 +417,7 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
-  null;
+  perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   return cardinality(v_users);
 end;
 $$;
@@ -443,7 +443,7 @@ begin
     return false;
   end if;
   if archive_work_item.archived then
-    null;
+    perform "better_supabase".emit_event('work_item.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   end if;
   return true;
 end;
@@ -471,7 +471,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  null;
+  perform "better_supabase".emit_event('work_item.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   return true;
 end;
 $$;

@@ -1,4 +1,4 @@
--- better-supabase module: hiring (0.8.0)
+-- better-supabase module: hiring (0.9.0)
 -- @bs-module hiring@1 managed
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -157,9 +157,9 @@ begin
     new."rejection_reason" := null;
   end if;
   case new."state"
-    when 'hired' then null;
-    when 'rejected' then null;
-    when 'withdrawn' then null;
+    when 'hired' then perform "better_supabase".emit_event('application.hired', jsonb_build_object('organizationId', new."tenant_id", 'applicationId', new."id", 'subjectType', 'application', 'subjectId', new."id"::text, 'jobId', new."job_id", 'candidateType', new."candidate_type", 'candidateId', new."candidate_id"), 'applications/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/hiring');
+    when 'rejected' then perform "better_supabase".emit_event('application.rejected', jsonb_build_object('organizationId', new."tenant_id", 'applicationId', new."id", 'subjectType', 'application', 'subjectId', new."id"::text, 'jobId', new."job_id", 'candidateType', new."candidate_type", 'candidateId', new."candidate_id", 'reason', new."rejection_reason"), 'applications/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/hiring');
+    when 'withdrawn' then perform "better_supabase".emit_event('application.retracted', jsonb_build_object('organizationId', new."tenant_id", 'applicationId', new."id", 'subjectType', 'application', 'subjectId', new."id"::text, 'jobId', new."job_id", 'candidateType', new."candidate_type", 'candidateId', new."candidate_id"), 'applications/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/hiring');
     else null;
   end case;
   new."updated_at" := now();
@@ -223,10 +223,10 @@ begin
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
       update "better_supabase"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
-      null;
+      perform "better_supabase".emit_event('job.opened', jsonb_build_object('organizationId', v_job."tenant_id", 'jobId', v_job."id", 'title', v_job."title"), 'jobs/' || v_job."id"::text, (v_job."tenant_id"::text)::text, null, 'better-supabase/hiring');
     elsif v_job."status" = 'closed' then
       update "better_supabase"."jobs" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
-      null;
+      perform "better_supabase".emit_event('job.closed', jsonb_build_object('organizationId', v_job."tenant_id", 'jobId', v_job."id", 'title', v_job."title"), 'jobs/' || v_job."id"::text, (v_job."tenant_id"::text)::text, null, 'better-supabase/hiring');
     end if;
   end if;
   return to_jsonb(v_job);
@@ -284,7 +284,7 @@ begin
   insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
-  null;
+  perform "better_supabase".emit_event('application.created', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_row);
 end;
 $$;
@@ -399,7 +399,7 @@ begin
   exception when check_violation or not_null_violation then
     raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
-  null;
+  perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_user_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_card);
 end;
 $$;
@@ -433,7 +433,7 @@ begin
   exception when check_violation or not_null_violation then
     raise exception 'an interview needs a start before its end' using errcode = '22023', hint = 'HIRING_INTERVIEW_INVALID';
   end;
-  null;
+  perform "better_supabase".emit_event('interview.scheduled', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'interviewId', v_interview."id", 'startsAt', v_interview."starts_at"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_interview);
 end;
 $$;

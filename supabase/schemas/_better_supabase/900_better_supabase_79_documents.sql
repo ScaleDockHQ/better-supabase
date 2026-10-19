@@ -1,4 +1,4 @@
--- better-supabase module: documents (0.8.0)
+-- better-supabase module: documents (0.9.0)
 -- @bs-module documents@1 managed
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, and saved states through the versions module.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -254,7 +254,8 @@ begin
     on conflict ("subject_type", "subject_id", "name") do nothing
     returning * into v_doc;
     if found then
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('document.created', jsonb_build_object('organizationId', v_doc."tenant_id"::text, 'subjectType', v_doc."subject_type", 'subjectId', v_doc."subject_id", 'id', v_doc."id", 'name', v_doc."name"), 'documents/' || v_doc."id"::text, (v_doc."tenant_id")::text, null, 'better-supabase/documents');
+  perform better_supabase.audit_event(
     event_type => 'document.created',
     category => 'data',
     target_type => 'document',

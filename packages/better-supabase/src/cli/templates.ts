@@ -147,6 +147,8 @@ export interface ConventionKeys {
   readonly blocks?: object;
   /** Writes the comment that points the provider access model at `authorization`. */
   readonly provider?: boolean;
+  /** The newest migration, written to `doctor.migrationSafety.since`. */
+  readonly migrationSince?: string;
 }
 
 const quote = (text: string): string =>
@@ -206,7 +208,11 @@ export default defineConfig({${
   // sql, spec, seed and scaffold when they are configured. Pin the list with:
   // gen: { tasks: ['types', 'sql', 'spec'] },
   // env: { output: '.env.local' },
-  // doctor: { format: 'sarif', output: 'doctor.sarif' },
+  ${
+    keys.migrationSince === undefined
+      ? "// doctor: { format: 'sarif', output: 'doctor.sarif' },"
+      : `// Doctor checks the migrations after this one for statements that lock tables.\n  doctor: { migrationSafety: { since: ${quote(keys.migrationSince)} } },`
+  }
 });
 `,
   };

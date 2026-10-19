@@ -142,6 +142,75 @@ describe("number sequences", () => {
     );
   });
 
+  it("numbers by month and without a period", () => {
+    const sql = sqlOf({
+      "number-sequences": {
+        options: {
+          entities: {
+            ticket: { period: "month", format: "T-{yyyy}-{mm}-{n}" },
+            quote: {
+              period: "none",
+              format: "Q-{n}",
+              table: "public.quotes",
+              column: "number",
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain("'YYYY-MM'");
+    expect(sql).toContain("Q-{n}");
+  });
+
+  it.each([
+    ["entities that are not an object", ["invoice"], /must be an object of/],
+    ["an entity name with capitals", { Invoice: {} }, /lowercase letters/],
+    [
+      "an entity that is not an object",
+      { invoice: "year" },
+      /must be an object/,
+    ],
+    ["an unknown period", { invoice: { period: "week" } }, /period must be/],
+    [
+      "a fiscal month out of range",
+      { invoice: { period: { fiscalYearStartMonth: 13 }, format: "{n}" } },
+      /fiscalYearStartMonth/,
+    ],
+    ["a missing format", { invoice: { period: "year" } }, /format/],
+    [
+      "a table that is not text",
+      { invoice: { period: "year", format: "{n}", table: 1, column: "n" } },
+      /table must be/,
+    ],
+    [
+      "a column that is not a name",
+      {
+        invoice: {
+          period: "year",
+          format: "{n}",
+          table: "public.invoices",
+          column: "Number",
+        },
+      },
+      /column must be/,
+    ],
+    [
+      "a table without a column",
+      { invoice: { period: "year", format: "{n}", table: "public.invoices" } },
+      /both table and column/,
+    ],
+    [
+      "a tenant column that is not a name",
+      { invoice: { period: "year", format: "{n}", tenantColumn: "Org" } },
+      /tenantColumn/,
+    ],
+  ])("refuses %s", (_label, entities, message) => {
+    expect(() =>
+      sqlOf({ "number-sequences": { options: { entities } } }),
+    ).toThrow(message);
+  });
+
   it("refuses a periodColumn that is not a column name", () => {
     expect(() =>
       sqlOf({

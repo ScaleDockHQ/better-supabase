@@ -1,4 +1,4 @@
--- better-supabase module: forms (0.8.0)
+-- better-supabase module: forms (0.9.0)
 -- @bs-module forms@1 managed
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -333,6 +333,7 @@ begin
   insert into "better_supabase"."forms" ("tenant_id", "key", "title", "description", "created_by")
   values (create_form.tenant, create_form.key, create_form.title, create_form.description, auth.uid())
   returning * into v_row;
+  perform "better_supabase".emit_event('form.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'forms/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
   perform better_supabase.audit_event(
     event_type => 'form.created',
     category => 'configuration',
@@ -431,6 +432,7 @@ begin
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
     "updated_at" = now()
   where x."id" = v_form."id";
+  perform "better_supabase".emit_event('form_version.published', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number"), 'forms/' || v_row."form_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
   perform better_supabase.audit_event(
     event_type => 'form_version.published',
     category => 'configuration',
@@ -593,7 +595,7 @@ begin
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
-    null;
+    perform "better_supabase".emit_event('form_submission.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'source', v_row."source"), 'form-submissions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_form_submission"(uuid)');
   begin
@@ -675,6 +677,7 @@ begin
     and k."subject_type" = 'form'
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
+    and (k."max_uses" is null or k."use_count" < k."max_uses")
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
@@ -715,6 +718,7 @@ begin
     and k."subject_type" = 'form'
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
+    and (k."max_uses" is null or k."use_count" < k."max_uses")
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
@@ -841,6 +845,7 @@ begin
     "updated_at" = now()
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
+  perform "better_supabase".emit_event('form_submission.reviewed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id", 'status', v_row."status"), 'form-submissions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
   perform better_supabase.audit_event(
     event_type => 'form_submission.reviewed',
     category => 'data',
@@ -877,6 +882,7 @@ begin
     raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
+  perform "better_supabase".emit_event('form_submission.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id"), 'form-submissions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
   perform better_supabase.audit_event(
     event_type => 'form_submission.deleted',
     category => 'data',

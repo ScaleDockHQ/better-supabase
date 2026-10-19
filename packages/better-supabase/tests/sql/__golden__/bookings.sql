@@ -1537,7 +1537,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_booking_service.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -1594,7 +1595,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_available_slots.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -1650,7 +1652,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_hold_booking.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;

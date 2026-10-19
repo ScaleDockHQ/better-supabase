@@ -2,7 +2,7 @@
 
 import type { ListQueryInput } from "better-supabase/list";
 
-import { ok } from "better-supabase";
+import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
@@ -12,6 +12,8 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bs } from "@/lib/supabase/server";
 
 import {
+  PROJECT_HISTORY_FIELDS,
+  PROJECT_SUBJECT,
   TASK_LIST,
   TASK_SUBJECT,
   TASK_VIEWS,
@@ -160,6 +162,44 @@ export const runTaskBulkAction = bs.action(
   },
 );
 
+/**
+ * Sets one field on the selected tasks through the bulk block's
+ * `appTables.set`. Each row runs as the caller, so the policies and column
+ * grants decide what changes, and a failing row leaves the others.
+ */
+export const setTaskField = bs.action(
+  {
+    input: v.object({
+      ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
+      values: v.union([
+        v.object({ due_on: v.nullable(v.pipe(v.string(), v.isoDate())) }),
+        v.object({ assignee_id: v.nullable(Id) }),
+      ]),
+    }),
+    requireTenant: true,
+    authorize: (session) => can(session, "bulk.run"),
+  },
+  async ({ ids, values }, { tenant, supabase, auth }) => {
+    const applied = await blocks(supabase).bulk.apply({
+      organizationId: tenant,
+      subjectType: TASK_SUBJECT,
+      rows: ids,
+      action: "appTables.set",
+      args: { values },
+    });
+
+    if (!applied.ok) {
+      return applied;
+    }
+
+    refreshCaller(auth);
+
+    return ok(
+      applied.data.mode === "now" ? applied.data.succeeded : applied.data.total,
+    );
+  },
+);
+
 type TaskViewQuery = {
   -readonly [
     K in keyof ListQueryInput<string, "status" | "project">
@@ -233,6 +273,74 @@ export const deleteTaskView = bs.action(
     refreshCaller(auth);
 
     return ok(deleted.data);
+  },
+);
+
+/** Keeps the project's name, budget and currency as a version now. */
+export const saveProjectVersion = bs.action(
+  {
+    input: v.object({ projectId: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "versions.create"),
+  },
+  async ({ projectId }, { tenant, supabase, auth }) => {
+    const saved = await blocks(supabase).versions.snapshot({
+      organizationId: tenant,
+      subjectType: PROJECT_SUBJECT,
+      subjectId: projectId,
+    });
+
+    if (!saved.ok) {
+      return saved;
+    }
+
+    refreshCaller(auth);
+
+    return ok(null);
+  },
+);
+
+/**
+ * Writes the chosen fields of a version back to the project and leaves the
+ * rest as they are (`versions.restoreFields`). The snapshot trigger already
+ * kept the current values, so the restore can be undone from the history.
+ */
+export const restoreProjectFields = bs.action(
+  {
+    input: v.object({
+      projectId: Id,
+      versionId: Id,
+      fields: v.pipe(
+        v.array(v.picklist(PROJECT_HISTORY_FIELDS)),
+        v.minLength(1),
+      ),
+    }),
+    requireTenant: true,
+    authorize: (session) => can(session, "versions.restore"),
+  },
+  async ({ projectId, versionId, fields }, { supabase, auth }) => {
+    const { versions } = blocks(supabase);
+    const version = await versions.get(versionId);
+
+    if (!version.ok) {
+      return version;
+    }
+
+    if (version.data.subjectId !== projectId) {
+      return err(
+        dbError("not_found", "This version belongs to another record"),
+      );
+    }
+
+    const restored = await versions.restoreFields(versionId, fields);
+
+    if (!restored.ok) {
+      return restored;
+    }
+
+    refreshCaller(auth);
+
+    return ok(null);
   },
 );
 

@@ -30,16 +30,6 @@ import { toast } from "sonner";
 import type { SchemaData, SchemaTable } from "@/lib/schema";
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   APP_MODULE,
   appTableId,
   connect,
@@ -82,6 +72,7 @@ import {
   ZoomControls,
 } from "./canvas-toolbar";
 import { type ConnectDrop, ConnectDropMenu } from "./connect-drop-menu";
+import { DeleteTablesDialog, type PendingDelete } from "./delete-tables-dialog";
 import { useDesign } from "./design-provider";
 import {
   MARKER_MANY,
@@ -123,11 +114,6 @@ const FLOW_THEME = [
 const SNAP_GRID: [number, number] = [12, 12];
 
 type CanvasPreset = Pick<Preset, "scope" | "tenantName" | "idType">;
-
-interface PendingDelete {
-  readonly name: string;
-  readonly referencedBy: readonly string[];
-}
 
 interface CanvasProps {
   readonly code: string;
@@ -483,43 +469,67 @@ function CanvasInner({
     setInspector({ id, tab });
   }, []);
 
-  const removeAppTable = useCallback(
-    (name: string) => {
-      actions.apply(deleteTable(design, name));
-      setInspector((current) =>
-        current?.id === appTableId(name) ? null : current,
+  const removeAppTables = useCallback(
+    (names: readonly string[]) => {
+      const ids = new Set(names.map(appTableId));
+
+      actions.apply(
+        names.reduce((next, name) => deleteTable(next, name), design),
       );
-      setSelected((current) => (current === appTableId(name) ? null : current));
-      undoToast(`Deleted ${name}.`);
+      setInspector((current) =>
+        current !== null && ids.has(current.id) ? null : current,
+      );
+      setSelected((current) =>
+        current !== null && ids.has(current) ? null : current,
+      );
+      undoToast(
+        names.length === 1
+          ? `Deleted ${names[0]}.`
+          : `Deleted ${String(names.length)} tables.`,
+      );
     },
     [actions, design, undoToast],
   );
 
-  const requestDelete = useCallback(
-    (id: string, confirm = false) => {
-      const table = byId.get(id);
+  const requestDeleteAll = useCallback(
+    (ids: readonly string[], confirm = false) => {
+      const tables = ids.flatMap((id) => {
+        const table = byId.get(id);
 
-      if (table === undefined || !isAppTable(table)) {
+        return table !== undefined && isAppTable(table) ? [table] : [];
+      });
+
+      if (tables.length === 0) {
         return;
       }
+
+      const chosen = new Set(tables.map((table) => table.id));
+      const names = tables.map((table) => table.name);
 
       const referencedBy = data.tables
         .filter(
           (each) =>
-            each.id !== id &&
-            each.foreignKeys.some(
-              (key) => `${key.target.schema}.${key.target.table}` === id,
+            !chosen.has(each.id) &&
+            each.foreignKeys.some((key) =>
+              chosen.has(`${key.target.schema}.${key.target.table}`),
             ),
         )
         .map((each) => each.name);
 
       if (referencedBy.length === 0 && !confirm) {
-        removeAppTable(table.name);
+        removeAppTables(names);
       } else {
-        setPendingDelete({ name: table.name, referencedBy });
+        setPendingDelete({ names, referencedBy });
       }
     },
-    [byId, data.tables, removeAppTable],
+    [byId, data.tables, removeAppTables],
+  );
+
+  const requestDelete = useCallback(
+    (id: string, confirm = false) => {
+      requestDeleteAll([id], confirm);
+    },
+    [requestDeleteAll],
   );
 
   const expect = usePlacement(data, input.data, layout.tables);
@@ -799,11 +809,17 @@ function CanvasInner({
         } else if (selected !== null && !isControl(event.target)) {
           open(selected);
         }
-      } else if (
-        (key === "delete" || key === "backspace") &&
-        selected !== null
-      ) {
-        requestDelete(selected);
+      } else if (key === "delete" || key === "backspace") {
+        const chosen = flow
+          .getNodes()
+          .filter((node) => node.type === "table" && node.selected === true)
+          .map((node) => node.id);
+
+        if (chosen.length > 0) {
+          requestDeleteAll(chosen);
+        } else if (selected !== null) {
+          requestDelete(selected);
+        }
       } else if (key === "escape") {
         setFocus(false);
         setSelected(null);
@@ -822,6 +838,7 @@ function CanvasInner({
     flow,
     open,
     requestDelete,
+    requestDeleteAll,
     selected,
     state.canRedo,
     state.canUndo,
@@ -1076,44 +1093,13 @@ function CanvasInner({
         data={data}
         preset={preset}
       />
-      <AlertDialog
-        open={pendingDelete !== null}
-        onOpenChange={(next) => {
-          if (!next) {
-            setPendingDelete(null);
-          }
+      <DeleteTablesDialog
+        pending={pendingDelete}
+        onCancel={() => {
+          setPendingDelete(null);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {pendingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDelete === null || pendingDelete.referencedBy.length === 0
-                ? "Undo brings it back."
-                : `${pendingDelete.referencedBy.join(", ")} ${
-                    pendingDelete.referencedBy.length === 1
-                      ? "references"
-                      : "reference"
-                  } this table. Deleting it also removes those columns.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (pendingDelete !== null) {
-                  removeAppTable(pendingDelete.name);
-                }
-
-                setPendingDelete(null);
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={removeAppTables}
+      />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </CanvasActionsProvider>
   );

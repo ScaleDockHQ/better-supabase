@@ -1,4 +1,4 @@
--- better-supabase module: data-lifecycle (0.8.0)
+-- better-supabase module: data-lifecycle (0.9.0)
 -- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -276,6 +276,7 @@ begin
   insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
   values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
   returning * into v_row;
+  perform "better_supabase".emit_event('legal_hold.placed', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'legal_hold.placed',
     category => 'data',
@@ -307,6 +308,7 @@ begin
   if v_row."id" is null then
     return null;
   end if;
+  perform "better_supabase".emit_event('legal_hold.released', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'legal_hold.released',
     category => 'data',
@@ -476,6 +478,7 @@ as $$
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
     ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.outbox_events', '"better_supabase"."outbox_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_events', '"better_supabase"."notification_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_recipients', '"better_supabase"."notification_recipients"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_deliveries', '"better_supabase"."notification_deliveries"', 'organization_id', true, '{}'::text[], true),
@@ -794,7 +797,8 @@ begin
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
     if v_row."id" is null then
       insert into "better_supabase"."data_exports" ("subject", "organization_id") values ('organization', request_data_export.tenant) returning * into v_row;
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
     event_type => 'data_export.requested',
     category => 'data',
     target_type => 'data_export',
@@ -807,7 +811,8 @@ begin
     select * into v_row from "better_supabase"."data_exports" x where x."user_id" = auth.uid() and x."subject" = 'user' and x."status" in ('pending', 'running');
     if v_row."id" is null then
       insert into "better_supabase"."data_exports" ("subject", "user_id") values ('user', auth.uid()) returning * into v_row;
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
+  perform better_supabase.audit_event(
     event_type => 'data_export.requested',
     category => 'data',
     target_type => 'data_export',
@@ -939,6 +944,7 @@ begin
   if v_row."id" is null then
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
   end if;
+  perform "better_supabase".emit_event('data_export.completed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'files', to_jsonb(v_row."files"), 'expiresAt', v_row."expires_at"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, 'data_export.completed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'data_export.completed',
     category => 'data',
@@ -970,6 +976,7 @@ begin
   if v_row."id" is null then
     return null;
   end if;
+  perform "better_supabase".emit_event('data_export.failed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'error', v_row."error"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, 'data_export.failed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'data_export.failed',
     category => 'data',
@@ -1017,6 +1024,7 @@ begin
     "previously_disabled" = case when x."cancelled_at" is null then x."previously_disabled" else excluded."previously_disabled" end,
     "cancelled_at" = null
   returning * into v_row;
+  perform "better_supabase".emit_event('organization.deletion_requested', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_requested',
     category => 'data',
@@ -1057,6 +1065,7 @@ begin
   where x."organization_id" = v_row."organization_id"
   returning * into v_row;
   
+  perform "better_supabase".emit_event('organization.deletion_cancelled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_cancelled',
     category => 'data',
@@ -1184,6 +1193,7 @@ begin
     raise exception 'Rows still reference the organization: %', sqlerrm
       using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
   end;
+  perform "better_supabase".emit_event('organization.purged', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (null)::text, 'organization.purged:' || v_row."organization_id"::text, 'better-supabase/data-lifecycle');
   perform better_supabase.audit_event(
     event_type => 'organization.purged',
     category => 'data',

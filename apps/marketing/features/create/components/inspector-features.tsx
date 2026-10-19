@@ -19,19 +19,20 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { updateTable } from "@/lib/design";
+import { subjectTypeError } from "@/lib/design-subject";
 import {
+  EVENTS_BLOCK,
   featureBlocker,
   newSubject,
   RECORD_FEATURES,
   type RecordFeatureInfo,
+  setEvents,
   setFeature,
   tableFeatures,
 } from "@/lib/record-features";
 
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
-
-const SUBJECT_TYPE = /^[a-z][a-z0-9_]*$/u;
 
 /**
  * Why `info`'s switch is off limits: a column in the way, a block the
@@ -115,9 +116,7 @@ export function FeaturesTab({ table }: { table: SchemaTable }): ReactElement {
             value={subject.type}
             placeholder={newSubject(table.name, config).type}
             validate={(next) =>
-              SUBJECT_TYPE.test(next)
-                ? undefined
-                : "Use lowercase letters, digits and underscores, starting with a letter."
+              subjectTypeError(state.design, table.name, next)
             }
             onCommit={(next) => {
               actions.apply(
@@ -196,6 +195,71 @@ export function FeaturesTab({ table }: { table: SchemaTable }): ReactElement {
           })}
         </ul>
       </section>
+      <EventsSection
+        table={table.name}
+        on={config.events !== undefined}
+        eventType={subject?.type ?? table.name}
+        installed={installed.has(EVENTS_BLOCK)}
+      />
     </div>
+  );
+}
+
+/** The outbox events switch: inserts, updates and deletes emit events that rules and workflows react to. */
+function EventsSection({
+  table,
+  on,
+  eventType,
+  installed,
+}: {
+  readonly table: string;
+  readonly on: boolean;
+  readonly eventType: string;
+  readonly installed: boolean;
+}): ReactElement {
+  const { state, actions } = useDesign();
+  const id = useId();
+
+  const conflict =
+    on || installed
+      ? undefined
+      : presetBlockConflict(state.preset, EVENTS_BLOCK);
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium">Automations</h3>
+      <p className="text-xs text-muted-foreground">
+        Rules and workflows start from these events through outbox consumers.
+      </p>
+      <div className="flex flex-col gap-1 rounded-lg border border-border px-3 py-2">
+        <Field orientation="horizontal">
+          <Switch
+            id={`${id}-events`}
+            checked={on}
+            disabled={conflict !== undefined}
+            onCheckedChange={(checked) => {
+              const next = setEvents(
+                state.design,
+                state.preset.blocks,
+                table,
+                checked,
+              );
+
+              actions.step(next.design, next.blocks);
+            }}
+          />
+          <FieldLabel htmlFor={`${id}-events`}>Emit events</FieldLabel>
+          {installed ? null : (
+            <Badge variant="info-light" className="ml-auto">
+              Adds {EVENTS_BLOCK}
+            </Badge>
+          )}
+        </Field>
+        <p className="text-xs text-muted-foreground">
+          {conflict ??
+            `Writes ${eventType}.created, ${eventType}.updated and ${eventType}.deleted to the outbox.`}
+        </p>
+      </div>
+    </section>
   );
 }

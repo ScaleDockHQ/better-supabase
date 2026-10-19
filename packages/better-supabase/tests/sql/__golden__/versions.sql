@@ -225,8 +225,11 @@ grant execute on function "better_supabase"."get_version"(uuid) to authenticated
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "better_supabase"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "better_supabase"."restore_version"(uuid);
+create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -238,6 +241,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select "tenant_id", "subject_type", "subject_id", "number", "content"
@@ -251,6 +255,21 @@ begin
   end if;
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
@@ -274,8 +293,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "better_supabase"."restore_version"(uuid) from public, anon;
-grant execute on function "better_supabase"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "better_supabase"."label_version"(version_id uuid, label text)
@@ -639,11 +658,12 @@ revoke execute on function "better_supabase"."get_version"(uuid) from public, an
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
 
 -- A share link pinned to a version (create_share_link's version_id) reads
--- that version with the token alone, for anon.
+-- that version with the token alone, for anon. Volatile: resolving the link
+-- counts a use.
 create or replace function "better_supabase"."get_shared_version"(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
@@ -673,8 +693,11 @@ grant execute on function "better_supabase"."get_shared_version"(text) to anon, 
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "better_supabase"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "better_supabase"."restore_version"(uuid);
+create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -686,6 +709,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select "tenant_id", "subject_type", "subject_id", "number", "content"
@@ -700,6 +724,21 @@ begin
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
   end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
   begin
@@ -710,7 +749,7 @@ begin
   end;
   raise exception 'this subject type has no columns or apply function to restore into' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
   v_result := "better_supabase"."version_insert"(v_tenant, v_subject_type, v_subject_id, v_content, null, null, 'restore', false, auth.uid());
-  perform "better_supabase".emit_event('version.restored', jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number), 'versions/' || (v_result ->> 'id'), (v_tenant)::text, null, 'better-supabase/versions');
+  perform "better_supabase".emit_event('version.restored', jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number, 'fields', to_jsonb(restore_version.fields)), 'versions/' || (v_result ->> 'id'), (v_tenant)::text, null, 'better-supabase/versions');
   perform better_supabase.audit_event(
     event_type => 'version.restored',
     category => 'data',
@@ -718,7 +757,7 @@ begin
     record_id => restore_version.version_id::text,
     summary => 'restored version ' || v_number::text,
     tenant => (v_tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number, 'fields', to_jsonb(restore_version.fields))
   );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_version_restore"(uuid, uuid)');
@@ -731,8 +770,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "better_supabase"."restore_version"(uuid) from public, anon;
-grant execute on function "better_supabase"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "better_supabase"."label_version"(version_id uuid, label text)
@@ -1108,8 +1147,11 @@ grant execute on function "app_private"."get_version"(uuid) to authenticated, se
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "app_private"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "app_private"."restore_version"(uuid);
+create or replace function "app_private"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1121,6 +1163,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select "tenant_id", "subject_type", "subject_id", "number", "content"
@@ -1134,6 +1177,21 @@ begin
   end if;
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
@@ -1157,8 +1215,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "app_private"."restore_version"(uuid) from public, anon;
-grant execute on function "app_private"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "app_private"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "app_private"."label_version"(version_id uuid, label text)
@@ -1523,8 +1581,11 @@ grant execute on function "better_supabase"."get_version"(uuid) to authenticated
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "better_supabase"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "better_supabase"."restore_version"(uuid);
+create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1536,6 +1597,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select "tenant_id", "subject_type", "subject_id", "number", "content"
@@ -1549,6 +1611,21 @@ begin
   end if;
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
@@ -1572,8 +1649,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "better_supabase"."restore_version"(uuid) from public, anon;
-grant execute on function "better_supabase"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "better_supabase"."label_version"(version_id uuid, label text)
@@ -1691,6 +1768,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
+drop function if exists "api"."restore_version"(uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1746,14 +1824,14 @@ as $$ select "better_supabase"."get_version"($1) $$;
 revoke execute on function "api"."get_version"(uuid) from public, anon;
 grant execute on function "api"."get_version"(uuid) to authenticated, service_role;
 
-create or replace function "api"."restore_version"(version_id uuid)
+create or replace function "api"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."restore_version"($1) $$;
-revoke execute on function "api"."restore_version"(uuid) from public, anon;
-grant execute on function "api"."restore_version"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."restore_version"($1, $2) $$;
+revoke execute on function "api"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "api"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "api"."label_version"(version_id uuid, label text)
 returns boolean
@@ -2000,8 +2078,11 @@ grant execute on function "better_supabase"."get_version"(uuid) to authenticated
 
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function "better_supabase"."restore_version"(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists "better_supabase"."restore_version"(uuid);
+create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2013,6 +2094,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select "tenant_id", "subject_type", "subject_id", "number", "content"
@@ -2026,6 +2108,21 @@ begin
   end if;
   if v_content is null then
     raise exception 'a version kept in Storage is restored by the app' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+  end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      raise exception 'list at least one field to restore, or pass null to restore the whole version' using errcode = '22023', hint = 'VERSION_FIELDS_EMPTY';
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      raise exception 'a field to restore is not in this version' using errcode = '22023', hint = 'VERSION_FIELD_UNKNOWN';
+    end if;
+    if v_current is null then
+      raise exception 'this subject type has no columns to keep, so it restores whole versions only' using errcode = '22023', hint = 'VERSION_RESTORE_UNSUPPORTED';
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_version_restore"(uuid)');
@@ -2049,8 +2146,8 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-revoke execute on function "better_supabase"."restore_version"(uuid) from public, anon;
-grant execute on function "better_supabase"."restore_version"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."restore_version"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."restore_version"(uuid, text[]) to authenticated, service_role;
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function "better_supabase"."label_version"(version_id uuid, label text)

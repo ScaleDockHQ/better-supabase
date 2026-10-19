@@ -5,10 +5,15 @@ import type { ReactElement } from "react";
 import { XIcon } from "lucide-react";
 import { useId, useState } from "react";
 
-import type { AppColumn } from "@/lib/design";
+import type { AppColumn, AppColumnAccess } from "@/lib/design";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -86,6 +91,74 @@ export function KindSelect({
         })}
       </SelectContent>
     </Select>
+  );
+}
+
+const ACCESS_CHOICES = [
+  {
+    value: "write",
+    label: "Members read and write",
+    description:
+      "Signed-in members read and write it, within the row policies.",
+  },
+  {
+    value: "read",
+    label: "Members read only",
+    description:
+      "Signed-in members read it; only server code with the service role writes it.",
+  },
+  {
+    value: "server",
+    label: "Server only",
+    description:
+      "Signed-in members can't read or write it; only server code with the service role can.",
+  },
+] as const;
+
+type AccessChoice = (typeof ACCESS_CHOICES)[number]["value"];
+
+const choiceOf = (value: string) =>
+  ACCESS_CHOICES.find((each) => each.value === value);
+
+/** Who reads and writes a column, as column grants: everyone, read only, or server only. */
+export function AccessSelect({
+  value,
+  onChange,
+}: {
+  value: AppColumnAccess | undefined;
+  onChange: (access: AppColumnAccess | undefined) => void;
+}): ReactElement {
+  const id = useId();
+  const current: AccessChoice = value ?? "write";
+
+  return (
+    <Field>
+      <FieldLabel htmlFor={`${id}-access`}>Access</FieldLabel>
+      <Select
+        value={current}
+        onValueChange={(next) => {
+          const choice = next === null ? undefined : choiceOf(next);
+
+          if (choice !== undefined) {
+            onChange(choice.value === "write" ? undefined : choice.value);
+          }
+        }}
+      >
+        <SelectTrigger id={`${id}-access`} size="sm" className="w-full">
+          <SelectValue>
+            {(next: string) => choiceOf(next)?.label ?? next}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {ACCESS_CHOICES.map((each) => (
+            <SelectItem key={each.value} value={each.value}>
+              {each.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>{choiceOf(current)?.description}</FieldDescription>
+    </Field>
   );
 }
 

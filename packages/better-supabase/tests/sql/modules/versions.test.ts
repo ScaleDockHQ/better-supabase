@@ -143,4 +143,45 @@ describe("versions module", () => {
   ])("rejects bad %s", (_name, subjects, options, message) => {
     expect(() => sqlOf(withSubjects(subjects, options))).toThrow(message);
   });
+
+  it("restores only the named fields over the row's current values", () => {
+    const sql = sqlOf(
+      withSubjects({
+        doc: { table: "public.docs", idType: "uuid", columns: ["title"] },
+      }),
+    );
+
+    expect(sql).toContain(
+      'restore_version"(version_id uuid, fields text[] default null)',
+    );
+    expect(sql).toContain("VERSION_FIELD_UNKNOWN");
+    expect(sql).toContain("VERSION_FIELDS_EMPTY");
+    expect(sql).toContain(
+      "v_content := v_current || (\n      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e\n      where e.key = any (restore_version.fields)",
+    );
+  });
+
+  it("keeps app tables with subject.versions next to the listed subjects", () => {
+    const sql = sqlOf({
+      subjects: {
+        project: {
+          table: "public.projects",
+          idType: "uuid",
+          versions: { columns: ["name"], auto: true },
+        },
+      },
+      modules: {
+        versions: {
+          options: {
+            subjects: { doc: { table: "public.docs", columns: ["title"] } },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(`update "public"."projects" s set "name" = r."name"`);
+    expect(sql).toContain(
+      `after insert or update of "name" on "public"."projects"`,
+    );
+  });
 });
