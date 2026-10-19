@@ -1265,13 +1265,44 @@ describe("trigger", () => {
       `vals := jsonb_build_object('userId', (rec."owner_id")::text);`,
     );
     expect(sql).toContain("where i.indrelid = tg_relid and i.indisprimary");
-    expect(() =>
-      board.trigger("cards", {
-        // @ts-expect-error a lookup without betterSupabase
-        values: { boardId: { from: "boards", via: "id", select: "id" } },
-        topics: [{ topic: owner }],
-      }),
-    ).toThrow("a lookup for {boardId} needs betterSupabase");
+  });
+
+  it("looks up values by database names without betterSupabase", () => {
+    const org = defineTopic("org:{orgId}:inbox");
+    const thread = defineTopic("thread:{threadId}");
+
+    const sql = org.trigger("inbox.messages", {
+      values: {
+        orgId: { from: "inbox.threads", via: "thread_id", select: "org_id" },
+      },
+      event: { insert: "created", delete: "deleted" },
+      payload: {
+        operation: { sql: "lower(tg_op)" },
+        thread_id: "thread_id",
+        record_id: "id",
+        owner: {
+          from: "users",
+          key: "user_id",
+          via: { from: "inbox.threads", via: "thread_id", select: "owner" },
+          select: "email",
+        },
+      },
+      topics: [{ topic: thread, values: { threadId: "thread_id" } }],
+    });
+
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."bs_broadcast_org_inbox_inbox_messages"()',
+    );
+    expect(sql).toContain(
+      `vals := jsonb_build_object('orgId', ((select j0."org_id" from "inbox"."threads" j0 where j0."id" = rec."thread_id" limit 1))::text);`,
+    );
+    expect(sql).toContain(
+      `vals := jsonb_build_object('threadId', (rec."thread_id")::text);`,
+    );
+    expect(sql).toContain(
+      `perform realtime.send(jsonb_build_object('operation', (lower(tg_op)), 'thread_id', rec."thread_id", 'record_id', rec."id", 'owner', (select j0."email" from "public"."users" j0 where j0."user_id" = (select j1."owner" from "inbox"."threads" j1 where j1."id" = rec."thread_id" limit 1) limit 1)), case tg_op when 'INSERT' then 'created' when 'DELETE' then 'deleted' else tg_op end, 'org:' || (vals ->> 'orgId') || ':inbox', true);`,
+    );
+    expect(sql).not.toContain("broadcast_topic(");
   });
 
   it("names the function after the schema, so tables in two schemas don't collide", () => {

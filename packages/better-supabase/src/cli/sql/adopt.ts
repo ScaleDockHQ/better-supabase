@@ -22,7 +22,12 @@ import {
 export interface ExistingTable {
   readonly schema: string;
   readonly name: string;
-  readonly columns: readonly { readonly name: string; readonly udt: string }[];
+  readonly columns: readonly {
+    readonly name: string;
+    readonly udt: string;
+    readonly isEnum?: boolean;
+    readonly typeSchema?: string;
+  }[];
 }
 
 /** How a logical column found its physical column. */
@@ -236,9 +241,17 @@ function matchTables(
   return chosen;
 }
 
-/** A `create table` per adopted table, for `adoptedColumnProblems`. */
+const enumType = (column: ExistingTable["columns"][number]): string =>
+  `"${column.typeSchema ?? "public"}"."${column.udt}"`;
+
+/** A `create table` per adopted table, with its enum types, for `adoptedColumnProblems`. */
 const declaration = (table: ExistingTable): string =>
-  `create table ${table.schema}.${table.name} (\n${table.columns.map((column) => `  "${column.name}" ${column.udt}`).join(",\n")}\n);`;
+  [
+    ...table.columns
+      .filter((column) => column.isEnum === true)
+      .map((column) => `create type ${enumType(column)} as enum ();`),
+    `create table ${table.schema}.${table.name} (\n${table.columns.map((column) => `  "${column.name}" ${column.isEnum === true ? enumType(column) : column.udt}`).join(",\n")}\n);`,
+  ].join("\n");
 
 export interface ProposeOptions {
   /** Tables named with `--tables`, as `table` or `schema.table`. */

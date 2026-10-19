@@ -114,10 +114,31 @@ export interface RealtimeConfig {
   readonly policies?: TopicPoliciesConfig;
   /**
    * Broadcast triggers that `sql sync` writes to `policies.output` next to
-   * the policies: each one calls `better_supabase.broadcast_topic()` (the
-   * `realtime-tables` module) for a topic that `policies.from` exports.
+   * the policies, through the topic's `trigger()`, for topics that
+   * `policies.from` exports. A trigger with column values, one topic, a
+   * `keys` or `row` payload and one event name calls
+   * `better_supabase.broadcast_topic()` (the `realtime-tables` module);
+   * any other gets a generated function.
    */
   readonly triggers?: readonly TopicTriggerConfig[];
+}
+
+export interface TopicTriggerLookupConfig {
+  readonly from: string;
+  readonly via: TopicTriggerValueConfig;
+  readonly select: string;
+  readonly key?: string;
+}
+
+export type TopicTriggerValueConfig = string | TopicTriggerLookupConfig;
+
+export type TopicTriggerPayloadValueConfig =
+  | TopicTriggerValueConfig
+  | { readonly sql: string };
+
+export interface TopicTriggerTopicConfig {
+  readonly topic: string;
+  readonly values?: Readonly<Record<string, TopicTriggerValueConfig>>;
 }
 
 /** One `realtime.triggers` entry: a table whose row changes go to a topic. */
@@ -126,17 +147,36 @@ export interface TopicTriggerConfig {
   readonly topic: string;
   /** `table` or `schema.table`. */
   readonly table: string;
-  /** The column per placeholder. Defaults to the placeholder in snake_case. */
-  readonly values?: Readonly<Record<string, string>>;
+  /**
+   * The column or lookup per placeholder. Defaults to the placeholder in
+   * snake_case. A row whose topic comes out null is not sent to it.
+   */
+  readonly values?: Readonly<Record<string, TopicTriggerValueConfig>>;
   /** Defaults to all three. */
   readonly events?: readonly ("insert" | "update" | "delete")[];
-  /** The broadcast event name. Defaults to the operation. */
-  readonly event?: string;
+  /**
+   * The broadcast event name, or one per operation
+   * (`{ insert: "created", delete: "deleted" }`). Defaults to the operation.
+   */
+  readonly event?:
+    | string
+    | {
+        readonly insert?: string;
+        readonly update?: string;
+        readonly delete?: string;
+      };
   /**
    * `"keys"` (default) sends the primary key and the placeholder values.
-   * `"row"` sends the whole row, which bypasses column grants.
+   * `"row"` sends the whole row, which bypasses column grants. An object
+   * is the payload itself: each key is a column, a lookup, or `{ sql }`,
+   * an expression on the row `{row}` (`tg_op` is the operation).
    */
-  readonly payload?: "keys" | "row";
+  readonly payload?:
+    | "keys"
+    | "row"
+    | Readonly<Record<string, TopicTriggerPayloadValueConfig>>;
+  readonly topics?: readonly TopicTriggerTopicConfig[];
+  readonly functionSchema?: string;
 }
 
 /** `realtime.policies`: where topic policies come from and go. */

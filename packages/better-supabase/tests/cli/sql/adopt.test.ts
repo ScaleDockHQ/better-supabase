@@ -116,6 +116,51 @@ describe("proposeAdoption", () => {
     );
   });
 
+  it("reports an enum column the block computes text for, and takes one it casts or writes literals to", () => {
+    const enumColumn = (
+      existing: ExistingTable,
+      name: string,
+      udt: string,
+    ): ExistingTable => ({
+      ...existing,
+      columns: existing.columns.map((column) =>
+        column.name === name
+          ? { name, udt, isEnum: true, typeSchema: "public" }
+          : column,
+      ),
+    });
+
+    const sequences = table("number_sequences", {
+      tenant_id: "uuid",
+      entity: "text",
+      period: "text",
+      last_number: "int8",
+      created_at: "timestamptz",
+      updated_at: "timestamptz",
+    });
+
+    expect(
+      proposeAdoption("number-sequences", [
+        enumColumn(sequences, "period", "fiscal_period"),
+      ]).errors,
+    ).toEqual([
+      expect.stringContaining(
+        "public.number_sequences.period (sequences.period), which is the enum public.fiscal_period",
+      ),
+    ]);
+    expect(
+      proposeAdoption("number-sequences", [
+        enumColumn(sequences, "entity", "subject_type"),
+      ]).errors,
+    ).toEqual([]);
+    expect(
+      proposeAdoption("teams", [
+        enumColumn(TEAMS, "status", "team_status"),
+        MEMBERS,
+      ]).errors,
+    ).toEqual([]);
+  });
+
   it("takes the id type from the tenant column", () => {
     const proposal = proposeAdoption("teams", [
       {

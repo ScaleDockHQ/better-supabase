@@ -4,8 +4,10 @@
 // `lib/supabase/*` code block in the docs and skills follows the Naming page,
 // and no doc, skill, example or rule uses a name the Naming page retired.
 // The CLI commands
-// and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, which
-// runs with the package's unit tests. Run with `node scripts/docs-drift.ts`.
+// and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, and the
+// `tables.*` and `columns.*` keys on the blocks pages by
+// `packages/better-supabase/tests/sql/docs-drift.test.ts`; both run with the package's unit
+// tests. Run with `node scripts/docs-drift.ts`.
 import {
   existsSync,
   globSync,

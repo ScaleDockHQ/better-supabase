@@ -39,6 +39,7 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      typed: ["entity"],
     },
   },
 };
@@ -55,6 +56,7 @@ interface SequenceEntity {
   readonly column?: string;
   readonly tenantColumn: string;
   readonly assignOn: string;
+  readonly periodColumn?: string;
 }
 
 function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
@@ -148,6 +150,15 @@ function entity(name: string, entry: unknown): SequenceEntity {
     throw new TypeError(`${where}.tenantColumn must be a column name`);
   }
 
+  const periodColumn = record["periodColumn"];
+
+  if (
+    periodColumn !== undefined &&
+    (typeof periodColumn !== "string" || !ENTITY.test(periodColumn))
+  ) {
+    throw new TypeError(`${where}.periodColumn must be a column name`);
+  }
+
   const assignOn = record["assignOn"] ?? "true";
 
   if (typeof assignOn !== "string" || !PREDICATE.test(assignOn)) {
@@ -166,6 +177,7 @@ function entity(name: string, entry: unknown): SequenceEntity {
       : {}),
     tenantColumn,
     assignOn,
+    ...(typeof periodColumn === "string" ? { periodColumn } : {}),
   };
 }
 
@@ -205,6 +217,187 @@ function periodSql(item: SequenceEntity, at: string): string {
       return never;
     }
   }
+}
+
+const TOKEN = /\{(yyyy|yy|mm|dd|n(?::[0-9]+)?)\}/g;
+
+const TOKEN_PATTERN: Readonly<Record<string, string>> = {
+  yyyy: "([0-9]{4})",
+  yy: "([0-9]{2})",
+  mm: "([0-9]{2})",
+  dd: "([0-9]{2})",
+  n: "([0-9]+)",
+};
+
+function formatPattern(format: string): {
+  readonly pattern: string;
+  readonly groups: ReadonlyMap<string, number>;
+} {
+  const groups = new Map<string, number>();
+  let pattern = "";
+  let cursor = 0;
+  let index = 0;
+
+  for (const match of format.matchAll(TOKEN)) {
+    const token = match[1]!.startsWith("n") ? "n" : match[1]!;
+    index += 1;
+    pattern += escapeRegex(format.slice(cursor, match.index));
+    pattern += TOKEN_PATTERN[token]!;
+    cursor = match.index + match[0].length;
+
+    if (!groups.has(token)) {
+      groups.set(token, index);
+    }
+  }
+
+  return {
+    pattern: `^${pattern}${escapeRegex(format.slice(cursor))}$`,
+    groups,
+  };
+}
+
+const escapeRegex = (text: string): string =>
+  text.replaceAll(/[\\^$.|?*+()[\]{}]/g, "\\$&");
+
+function syncPeriod(
+  item: SequenceEntity,
+  groups: ReadonlyMap<string, number>,
+): string | undefined {
+  if (item.period === "none") {
+    return "''";
+  }
+
+  if (item.periodColumn !== undefined) {
+    return periodSql(item, `t.${sqlIdent(item.periodColumn)}`);
+  }
+
+  const part = (token: string): string | undefined => {
+    const group = groups.get(token);
+
+    return group === undefined ? undefined : `m.parts[${String(group)}]`;
+  };
+
+  const yy = part("yy");
+  const year = part("yyyy") ?? (yy === undefined ? undefined : `'20' || ${yy}`);
+  const month = part("mm");
+
+  switch (item.period) {
+    case "year": {
+      return year;
+    }
+
+    case "month": {
+      return year === undefined || month === undefined
+        ? undefined
+        : `${year} || '-' || ${month}`;
+    }
+
+    case "fiscal": {
+      return year === undefined || month === undefined
+        ? undefined
+        : `case when ${month}::int >= ${String(item.fiscalMonth)} then ${year} else ((${year})::int - 1)::text end`;
+    }
+
+    default: {
+      const never: never = item.period;
+
+      return never;
+    }
+  }
+}
+
+function syncEntity(
+  ctx: ModuleContext,
+  item: SequenceEntity & { readonly table: string; readonly column: string },
+): string {
+  const { pattern, groups } = formatPattern(item.format);
+  const period = syncPeriod(item, groups);
+  const number = groups.get("n");
+  const where = `p_entity is null or p_entity = ${sqlString(item.name)}`;
+
+  if (period === undefined || number === undefined) {
+    const problem =
+      number === undefined
+        ? `the ${item.name} format has no {n} to read a number from`
+        : `the ${item.name} format holds no period; set options.entities.${item.name}.periodColumn`;
+
+    return `  if ${where} then
+    ${fail("NUMBER_SYNC_UNSUPPORTED", problem, "22023")}
+  end if;`;
+  }
+
+  const table = ctx.table("sequences");
+  const tenant = ctx.col("sequences", "tenant");
+  const entity = ctx.col("sequences", "entity");
+  const periodCol = ctx.col("sequences", "period");
+  const last = ctx.col("sequences", "lastNumber");
+  const updatedAt = ctx.col("sequences", "updatedAt");
+  const owner = `t.${sqlIdent(item.tenantColumn)}`;
+
+  return `  if ${where} then
+    insert into ${table} (${tenant}, ${entity}, ${periodCol}, ${last})
+    select s.tenant, ${ctx.cast("sequences", "entity", sqlString(item.name))}, s.period, max(s.n)
+    from (
+      select ${owner} as tenant, ${period} as period, (m.parts[${String(number)}])::bigint as n
+      from ${quotedTable(item.table)} t
+      cross join lateral regexp_match(t.${sqlIdent(item.column)}::text, ${sqlString(pattern)}) as m(parts)
+      where m.parts is not null
+        and (p_tenant is null or ${owner} = p_tenant)
+    ) s
+    where s.tenant is not null and s.period is not null
+    group by s.tenant, s.period
+    on conflict (${tenant}, ${entity}, ${periodCol})
+    do update set ${last} = greatest(${table}.${last}, excluded.${last}), ${updatedAt} = now();
+    get diagnostics v_count = row_count;
+    v_rows := v_rows + v_count;
+  end if;`;
+}
+
+function syncFunction(
+  ctx: ModuleContext,
+  items: readonly SequenceEntity[],
+): string {
+  const fn = ctx.fn("sync_number_sequences");
+
+  const synced = items.filter(
+    (
+      item,
+    ): item is SequenceEntity & {
+      readonly table: string;
+      readonly column: string;
+    } => item.table !== undefined && item.column !== undefined,
+  );
+
+  const known =
+    synced.length === 0
+      ? "false"
+      : `p_entity in (${synced.map((item) => sqlString(item.name)).join(", ")})`;
+
+  return `
+-- Raises each sequence to the highest number its table already holds, per
+-- tenant and period, for rows numbered outside next_number: seeds, imports
+-- and restores. A null tenant or entity syncs every one.
+create or replace function ${fn}(p_tenant ${ctx.idType} default null, p_entity text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows integer := 0;
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    ${fail("ACTOR_READ_ONLY", "This session is read-only")}
+  end if;
+  if p_entity is not null and not (${known}) then
+    ${fail("NUMBER_ENTITY_UNKNOWN", "no numbered table for this sequence", "22023")}
+  end if;
+${synced.map((item) => syncEntity(ctx, item)).join("\n")}
+  return v_rows;
+end;
+$$;
+${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
 }
 
 function build(ctx: ModuleContext): string {
@@ -306,7 +499,7 @@ begin
   ])}
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || v_period, 0));
   insert into ${table} (${tenant}, ${entityCol}, ${period}, ${last})
-  values (next_number.tenant, p_entity, v_period, 1)
+  values (next_number.tenant, ${ctx.cast("sequences", "entity", "p_entity")}, v_period, 1)
   on conflict (${tenant}, ${entityCol}, ${period})
   do update set ${last} = ${table}.${last} + 1, ${updatedAt} = now()
   returning ${last} into v_n;
@@ -331,6 +524,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}
+${syncFunction(ctx, items)}
 ${triggers}`;
 }
 

@@ -1,8 +1,24 @@
--- better-supabase module: number-sequences (0.8.0)
+-- better-supabase module: number-sequences (0.9.0)
 -- @bs-module number-sequences@1 adopt
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -98,7 +114,7 @@ begin
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(next_number.tenant::text || ':' || p_entity || ':' || v_period, 0));
   insert into "centrakit"."organization_number_sequences" ("tenant_id", "entity", "period", "last_number")
-  values (next_number.tenant, p_entity, v_period, 1)
+  values (next_number.tenant, better_supabase.as_column_type(p_entity, (null::"centrakit"."organization_number_sequences")."entity"), v_period, 1)
   on conflict ("tenant_id", "entity", "period")
   do update set "last_number" = "centrakit"."organization_number_sequences"."last_number" + 1, "updated_at" = now()
   returning "last_number" into v_n;
@@ -125,6 +141,32 @@ end;
 $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
+
+-- Raises each sequence to the highest number its table already holds, per
+-- tenant and period, for rows numbered outside next_number: seeds, imports
+-- and restores. A null tenant or entity syncs every one.
+create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows integer := 0;
+  v_count integer;
+begin
+  if not ((centrakit.authz_actor_may_write())) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if p_entity is not null and not (false) then
+    raise exception 'no numbered table for this sequence' using errcode = '22023', hint = 'NUMBER_ENTITY_UNKNOWN';
+  end if;
+
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."sync_number_sequences"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."sync_number_sequences"(uuid, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

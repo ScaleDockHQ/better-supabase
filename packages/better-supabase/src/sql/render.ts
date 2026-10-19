@@ -10,6 +10,7 @@ import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
+import { withColumnTypeFunction } from "./column-type.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";
@@ -44,7 +45,9 @@ function moduleSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ) {
-  return applyActorWriteGuards(module.build(ctx, layout), layout);
+  return withColumnTypeFunction(
+    applyActorWriteGuards(module.build(ctx, layout), layout),
+  );
 }
 
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */

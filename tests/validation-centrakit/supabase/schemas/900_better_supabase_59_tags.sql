@@ -1,8 +1,24 @@
--- better-supabase module: tags (0.8.0)
+-- better-supabase module: tags (0.9.0)
 -- @bs-module tags@2 adopt
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -62,7 +78,7 @@ begin
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   insert into "centrakit"."organization_tags" ("tenant_id", "kind", "name", "slug", "color", "description", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())
+  values (create_tag.tenant, better_supabase.as_column_type(create_tag.kind, (null::"centrakit"."organization_tags")."kind"), create_tag.name, v_slug, create_tag.color, create_tag.description, now())
   returning "id" into v_id;
   perform "better_supabase".emit_event('tag.created', jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name), 'tags/' || v_id::text, (create_tag.tenant)::text, null, 'domain');
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
@@ -236,7 +252,7 @@ begin
     select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description") order by t."name", t."id")
     from "centrakit"."organization_tags" t
     where t."tenant_id" = list_tags.tenant
-      and (list_tags.kind is null or t."kind" = list_tags.kind)
+      and (list_tags.kind is null or t."kind" = better_supabase.as_column_type(list_tags.kind, (null::"centrakit"."organization_tags")."kind"))
   ), '[]'::jsonb);
 end;
 $$;

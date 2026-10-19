@@ -72,6 +72,7 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
       optional: ["rank"],
+      typed: ["kind"],
     },
     taggings: {
       name: "taggings",
@@ -84,6 +85,7 @@ const NAMES: ModuleNames = {
         subjectId: "subject_id",
         createdAt: "created_at",
       },
+      typed: ["subjectType"],
     },
   },
 };
@@ -143,7 +145,7 @@ function untagBody(
       : `delete from ${taggings} g
       where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "untag.tenant")}
         and g.${ctx.col("taggings", "tag")} = untag.tag_id
-        and g.${ctx.col("taggings", "subjectType")} = untag.subject_type
+        and g.${ctx.col("taggings", "subjectType")} = ${ctx.cast("taggings", "subjectType", "untag.subject_type")}
         and g.${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
 
   if (bound.length === 0) {
@@ -277,12 +279,12 @@ begin
 ${
   ranked
     ? `  select max(t.${rank} collate "C") into v_last from ${tags} t
-    where ${ctx.scope.eq(`t.${tenant}`, "create_tag.tenant")} and t.${kind} = create_tag.kind;
+    where ${ctx.scope.eq(`t.${tenant}`, "create_tag.tenant")} and t.${kind} = ${ctx.cast("tags", "kind", "create_tag.kind")};
   v_rank := ${rankAfter("v_last")};
   insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${rank}, ${createdAt})
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())`
+  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())`
     : `  insert into ${tags} (${tenant}, ${kind}, ${name}, ${slug}, ${color}, ${description}, ${createdAt})
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
+  values (create_tag.tenant, ${ctx.cast("tags", "kind", "create_tag.kind")}, create_tag.name, v_slug, create_tag.color, create_tag.description, now())`
 }
   returning ${id} into v_id;${writeExtraColumns(tags, extras, "create_tag.fields", `x.${id} = v_id`)}
   ${ctx.record({
@@ -334,7 +336,7 @@ ${apply === "" ? "    when '' then null;" : apply}
       ${
         ctx.hasTable("taggings")
           ? `insert into ${taggings} (${ctx.col("taggings", "tenant")}, ${ctx.col("taggings", "tag")}, ${ctx.col("taggings", "subjectType")}, ${ctx.col("taggings", "subjectId")})
-      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      values (tag.tenant, tag.tag_id, ${ctx.cast("taggings", "subjectType", "tag.subject_type")}, tag.subject_id)
       on conflict do nothing;`
           : fail(
               "TAG_SUBJECT_UNKNOWN",
@@ -461,7 +463,7 @@ begin
     select jsonb_agg(${tagJson(ctx, "t", extras)} order by ${ranked ? `t.${rank} collate "C", ` : ""}t.${name}, t.${id})
     from ${tags} t
     where ${ctx.scope.eq(`t.${tenant}`, "list_tags.tenant")}
-      and (list_tags.kind is null or t.${kind} = list_tags.kind)
+      and (list_tags.kind is null or t.${kind} = ${ctx.cast("tags", "kind", "list_tags.kind")})
   ), '[]'::jsonb);
 end;
 $$;
@@ -520,7 +522,7 @@ function subjectTagIds(
       ? fail("TAG_SUBJECT_UNKNOWN", "this subject has no link table", "22023")
       : `select array_agg(g.${ctx.col("taggings", "tag")}) into v_ids from ${taggings} g
       where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "subject_tags.tenant")}
-        and g.${ctx.col("taggings", "subjectType")} = subject_tags.subject_type
+        and g.${ctx.col("taggings", "subjectType")} = ${ctx.cast("taggings", "subjectType", "subject_tags.subject_type")}
         and g.${ctx.col("taggings", "subjectId")} = subject_tags.subject_id;`;
 
   if (bound.length === 0) {

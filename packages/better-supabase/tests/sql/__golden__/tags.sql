@@ -1552,6 +1552,22 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.as_column_type(value text, target anyelement)
+returns anyelement
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return value;
+end;
+$$;
+revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
+grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
+
 create or replace function better_supabase.actor_may_write()
 returns boolean
 language sql
@@ -1610,14 +1626,14 @@ begin
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   select max(t."rank" collate "C") into v_last from "better_supabase"."tags" t
-    where t."tenant_id" = create_tag.tenant and t."kind" = create_tag.kind;
+    where t."tenant_id" = create_tag.tenant and t."kind" = better_supabase.as_column_type(create_tag.kind, (null::"better_supabase"."tags")."kind");
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
-  values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
+  values (create_tag.tenant, better_supabase.as_column_type(create_tag.kind, (null::"better_supabase"."tags")."kind"), create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
@@ -1666,7 +1682,7 @@ begin
     when '' then null;
     else
       insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
-      values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
+      values (tag.tenant, tag.tag_id, better_supabase.as_column_type(tag.subject_type, (null::"better_supabase"."taggings")."subject_type"), tag.subject_id)
       on conflict do nothing;
   end case;
   null;
@@ -1788,7 +1804,7 @@ begin
   delete from "better_supabase"."taggings" g
       where g."tenant_id" = untag.tenant
         and g."tag_id" = untag.tag_id
-        and g."subject_type" = untag.subject_type
+        and g."subject_type" = better_supabase.as_column_type(untag.subject_type, (null::"better_supabase"."taggings")."subject_type")
         and g."subject_id" = untag.subject_id;
   null;
   return true;
@@ -1813,7 +1829,7 @@ begin
     select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")
     from "better_supabase"."tags" t
     where t."tenant_id" = list_tags.tenant
-      and (list_tags.kind is null or t."kind" = list_tags.kind)
+      and (list_tags.kind is null or t."kind" = better_supabase.as_column_type(list_tags.kind, (null::"better_supabase"."tags")."kind"))
   ), '[]'::jsonb);
 end;
 $$;
@@ -1839,7 +1855,7 @@ begin
   end if;
   select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g
       where g."tenant_id" = subject_tags.tenant
-        and g."subject_type" = subject_tags.subject_type
+        and g."subject_type" = better_supabase.as_column_type(subject_tags.subject_type, (null::"better_supabase"."taggings")."subject_type")
         and g."subject_id" = subject_tags.subject_id;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', t."id", 'kind', t."kind", 'name', t."name", 'slug', t."slug", 'color', t."color", 'description', t."description", 'rank', t."rank") order by t."rank" collate "C", t."name", t."id")

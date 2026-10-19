@@ -67,6 +67,26 @@ describe("saas block clients", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("calls next_number with the SQL parameter names", async () => {
+    const calls: unknown[] = [];
+
+    const numbers = createNumberSequences({
+      schema: "app",
+      transport: {
+        call(_schema: string, _fn: string, args: unknown) {
+          calls.push(args);
+
+          return Promise.resolve(1);
+        },
+      },
+    });
+
+    await numbers.next("org", "invoice", "2026-01-01").orThrow();
+    expect(calls).toEqual([
+      { at: "2026-01-01", p_entity: "invoice", tenant: "org" },
+    ]);
+  });
+
   it("transitions a subject", async () => {
     const machine = createStateMachine(options({ transition: true }));
     expect(await machine.transition("quotes", "q1", "sent").orThrow()).toBe(

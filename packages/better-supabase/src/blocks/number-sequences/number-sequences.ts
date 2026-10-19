@@ -39,7 +39,7 @@ export function createNumberSequences(
     next: (organizationId, entity, at) =>
       call(
         "next_number",
-        { tenant: organizationId, entity, at: at ?? null },
+        { tenant: organizationId, p_entity: entity, at: at ?? null },
         (value) => {
           if (typeof value === "number" || typeof value === "bigint") {
             return String(value);

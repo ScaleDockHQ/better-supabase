@@ -141,6 +141,8 @@ tags: {
 
 `links` columns are `subject`, `tag` and optional `tenant` and `createdAt`.
 
+The adopted `kind` and `subjectType` columns may be enums, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
+
 ## Order
 
 Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). `create` appends a tag after the last one of its kind, and `reorder(id, { previous, next })` moves it between the tags with those keys. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. In adopt mode `rank` is optional; map it to `null` when the table has no such column.

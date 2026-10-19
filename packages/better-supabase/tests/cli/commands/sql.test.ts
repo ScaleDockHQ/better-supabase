@@ -272,6 +272,111 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     );
   });
 
+  it("writes lookups, custom payloads and extra topics of realtime.triggers as topic.trigger() does", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const inbox = defineTopic("organization:{organizationId}:inbox");
+export const thread = defineTopic("thread:{threadId}");
+`,
+    );
+    const { defineTopic } = await import(realtime);
+    const output = "supabase/schemas/905_topics.sql";
+    const policies = { from: ["topics.ts"], output };
+
+    const options = {
+      values: {
+        organizationId: {
+          from: "public.threads",
+          via: "thread_id",
+          select: "organization_id",
+        },
+      },
+      event: { insert: "created", update: "updated", delete: "deleted" },
+      payload: {
+        operation: { sql: "lower(tg_op)" },
+        thread_id: "thread_id",
+        record_id: "id",
+      },
+      functionSchema: "private",
+    } as const;
+
+    await sql(["sync"], {
+      realtime: {
+        policies,
+        triggers: [
+          {
+            topic: "organization:{organizationId}:inbox",
+            table: "public.messages",
+            ...options,
+            topics: [{ topic: "thread:{threadId}" }],
+          },
+        ],
+      },
+    });
+    const written = await readFile(join(root, output), "utf-8");
+
+    const expected = defineTopic("organization:{organizationId}:inbox").trigger(
+      "public.messages",
+      {
+        ...options,
+        topics: [{ topic: defineTopic("thread:{threadId}") }],
+      },
+    );
+
+    expect(written).toContain(expected);
+    expect(written).toContain(
+      `vals := jsonb_build_object('organizationId', ((select j0."organization_id" from "public"."threads" j0 where j0."id" = rec."thread_id" limit 1))::text);`,
+    );
+    expect(written).toContain(
+      `vals := jsonb_build_object('threadId', (rec."thread_id")::text);`,
+    );
+    expect(written).toContain(
+      "jsonb_build_object('operation', (lower(tg_op)), 'thread_id', rec.\"thread_id\", 'record_id', rec.\"id\")",
+    );
+    expect(written).toContain(
+      "case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' when 'DELETE' then 'deleted' else tg_op end",
+    );
+    await expect(
+      sql(["sync"], {
+        realtime: {
+          policies,
+          triggers: [
+            {
+              topic: "thread:{threadId}",
+              table: "messages",
+              topics: [{ topic: "board:{boardId}" }],
+            },
+          ],
+        },
+      }),
+    ).rejects.toThrow(
+      'realtime.triggers[0].topics: no topic "board:{boardId}" in topics.ts',
+    );
+    await expect(
+      sql(["sync"], {
+        realtime: {
+          policies,
+          triggers: [
+            {
+              topic: "thread:{threadId}",
+              table: "messages",
+              values: { boardId: "board_id" },
+              payload: { id: "id" },
+            },
+          ],
+        },
+      }),
+    ).rejects.toThrow(
+      'realtime.triggers[0]: defineTopic(thread:{threadId}).trigger: "boardId" is not a placeholder of thread:{threadId}',
+    );
+  });
+
   it("skips the topics whose receive policy a module writes", async () => {
     const realtime = resolve(
       import.meta.dirname,

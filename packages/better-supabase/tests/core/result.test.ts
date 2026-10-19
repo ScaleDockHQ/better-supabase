@@ -7,6 +7,7 @@ import {
   dbError,
   dbErrorOf,
   isConflict,
+  mapDbError,
 } from "../../src/core/errors.ts";
 import {
   AsyncResult,
@@ -15,6 +16,7 @@ import {
   fromBetterResult,
   ok,
   toBetterResult,
+  toDbError,
 } from "../../src/core/result.ts";
 import { settle } from "../../src/server/respond.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -185,6 +187,78 @@ describe("fromBetterResult", () => {
     expect(fromBetterResult(toBetterResult(original, Result))).toEqual(
       original,
     );
+  });
+});
+
+describe("toDbError", () => {
+  it("classifies PostgREST error objects like mapDbError", () => {
+    const raw = {
+      code: "23505",
+      message:
+        'duplicate key value violates unique constraint "customers_email_key"',
+      details: "Key (email)=(a@b.co) already exists.",
+      hint: null,
+    };
+
+    expect(toDbError(raw)).toEqual(mapDbError(raw));
+    expect(toDbError(raw)).toMatchObject({
+      kind: "conflict",
+      constraint: "customers_email_key",
+      columns: ["email"],
+    });
+  });
+
+  it.each([
+    ["PGRST116", "JSON object requested, 0 rows returned", "not_found"],
+    ["42501", "new row violates row-level security policy", "forbidden"],
+    ["23514", 'violates check constraint "price_positive"', "check"],
+    [
+      "23503",
+      'violates foreign key constraint "orders_customer_fkey"',
+      "foreign_key",
+    ],
+  ])("maps code %s to %s", (code, message, kind) => {
+    expect(toDbError({ code, message, details: null, hint: null }).kind).toBe(
+      kind,
+    );
+  });
+
+  it("classifies a thrown PostgrestError", () => {
+    const thrown = Object.assign(new Error("duplicate key"), {
+      name: "PostgrestError",
+      code: "23505",
+      details: "",
+      hint: "",
+    });
+
+    expect(toDbError(thrown).kind).toBe("conflict");
+  });
+
+  it("keeps DbErrors and DbExceptions", () => {
+    const failure = dbError("conflict", "taken");
+
+    expect(toDbError(failure)).toBe(failure);
+    expect(toDbError(new DbException(failure))).toBe(failure);
+  });
+
+  it("keeps other errors and unknown values unexpected", () => {
+    const withCode = Object.assign(new Error("connect failed"), {
+      code: "ECONNREFUSED",
+    });
+
+    const aborted = Object.assign(new Error("stop"), { name: "AbortError" });
+
+    expect(toDbError(withCode)).toMatchObject({
+      kind: "unexpected",
+      message: "connect failed",
+    });
+    expect(toDbError(aborted).kind).toBe("aborted");
+    expect(toDbError("nope")).toMatchObject({
+      kind: "unexpected",
+      message: "nope",
+    });
+    expect(toDbError({ message: "no code" }).kind).toBe("unexpected");
+    expect(toDbError(null).kind).toBe("unexpected");
   });
 });
 

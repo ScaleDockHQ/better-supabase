@@ -169,7 +169,28 @@ export function declaredTableColumns(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): ReadonlyMap<string, ReadonlySet<string>> {
-  const found = new Map<string, Set<string>>();
+  return new Map(
+    [...declaredColumnTypes(files, schemas)].map(([table, columns]) => [
+      table,
+      new Set(columns.keys()),
+    ]),
+  );
+}
+
+const COLUMN_OPTION =
+  /\s+(?:not\s+null|null|default|constraint|check|unique|primary\s+key|references|generated|collate)\b/i;
+
+/**
+ * The declared type of each column of each `create table` in `files`, as
+ * `schema.table` to unquoted column name to type. A type is lower-cased with
+ * its spacing normalised, and a quoted part keeps its case without quotes.
+ * Only tables in `schemas` are kept.
+ */
+export function declaredColumnTypes(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  const found = new Map<string, Map<string, string>>();
 
   for (const file of files) {
     const text = withoutComments(file.text);
@@ -188,16 +209,23 @@ export function declaredTableColumns(
         continue;
       }
 
-      const columns = found.get(table) ?? new Set<string>();
+      const columns = found.get(table) ?? new Map<string, string>();
 
       for (const part of splitTopLevel(text.slice(open + 1, close))) {
-        const first = new RegExp(NAME).exec(part)?.[0];
+        const definition = part.trim();
+        const first = new RegExp(`^${NAME}`).exec(definition)?.[0];
 
-        if (first === undefined || TABLE_CONSTRAINT.test(part)) {
+        if (first === undefined || TABLE_CONSTRAINT.test(definition)) {
           continue;
         }
 
-        columns.add(unquote(first));
+        const rest = definition.slice(first.length);
+        const option = COLUMN_OPTION.exec(rest);
+
+        columns.set(
+          unquote(first),
+          typeName(option === null ? rest : rest.slice(0, option.index)),
+        );
       }
 
       found.set(table, columns);
@@ -205,6 +233,31 @@ export function declaredTableColumns(
   }
 
   return found;
+}
+
+function typeName(text: string): string {
+  return text
+    .trim()
+    .replaceAll(/\s+/g, " ")
+    .replaceAll(new RegExp(NAME, "g"), (part) => unquote(part));
+}
+
+const ENUM = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+type\s+(${NAME}(?:\s*\.\s*${NAME})?)\s+as\s+enum\b`,
+  "gi",
+);
+
+/** The enum types `files` create (`create type ... as enum`), as `schema.type`. */
+export function declaredEnums(
+  files: readonly { readonly text: string }[],
+): ReadonlySet<string> {
+  return new Set(
+    files.flatMap((file) =>
+      [...withoutComments(file.text).matchAll(ENUM)].map((match) =>
+        qualified(match[1]!),
+      ),
+    ),
+  );
 }
 
 export function closingParen(text: string, open: number): number {

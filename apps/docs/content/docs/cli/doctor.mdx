@@ -1138,6 +1138,19 @@ exports with `export: false` or `autoTables.exclude`, or set
 `blocks.data-lifecycle.options.omitPattern`. See
 [data lifecycle](/docs/blocks/data-lifecycle).
 
+### BS342
+
+**Error: an adopted enum column that the module writes as text.** A module
+in adopt mode writes a text parameter or a computed text value into a column
+that the snapshot declares as an enum; string literals are fine. Postgres has
+no implicit cast from text to an enum, so the module's functions fail when
+they run. Change the column to text with a check constraint on its values.
+The columns the module casts to their declared type may stay enums: the tags
+`kind` and `subjectType`, and the number-sequences `entity`. `sql sync` and
+`better-supabase adopt` refuse the same columns when the schema files declare
+the enum. See
+[existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
+
 ## Auth config
 
 ### BS401
