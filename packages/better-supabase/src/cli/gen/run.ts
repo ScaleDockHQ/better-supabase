@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
@@ -265,16 +265,26 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const generated = pathsOf(readSets);
 
   changes.push(
-    ...(
-      await applyPlan(
-        plan(
-          readSets && !migrations ? [readSets] : [],
-          await leftoversOf(generated),
-        ),
-        flags,
-      )
-    ).changes,
+    ...(await applyPlan(plan([], await leftoversOf(generated)), flags)).changes,
   );
+
+  // `sql.dir` may sit outside the project, as in a monorepo's shared stack.
+  if (readSets && !migrations) {
+    const path = resolve(config.root, readSets.path);
+
+    changes.push(
+      ...(
+        await applyPlan(
+          {
+            ...plan([{ ...readSets, path }]),
+            root: dirname(path),
+            base: config.root,
+          },
+          flags,
+        )
+      ).changes,
+    );
+  }
 
   const applied = {
     mode: options.dryRun === true ? ("dry-run" as const) : ("write" as const),

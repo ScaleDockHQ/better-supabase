@@ -179,6 +179,34 @@ describe("gen", () => {
     );
   });
 
+  it("writes the read-sets module into an sql.dir outside the project", async () => {
+    const app = join(root, "app");
+    await mkdir(join(app, "src"), { recursive: true });
+    await writeFile(join(app, "src/read-sets.ts"), READ_SETS);
+
+    const config = resolveConfig(
+      {
+        casing: "camel",
+        output: "src/db/generated.ts",
+        readSets: ["src/read-sets.ts"],
+        sql: { dir: "../stack/schemas" },
+      },
+      app,
+    );
+
+    const result = await runGen({ config, env: {}, check: false, snapshot });
+    expect(result.code).toBe(0);
+    expect(
+      await readFile(
+        join(root, "stack/schemas/900_better_supabase_14_read_sets.sql"),
+        "utf-8",
+      ),
+    ).toContain("create or replace function public.rs_chrome(p jsonb)");
+    expect(
+      (await runGen({ config, env: {}, check: true, snapshot })).code,
+    ).toBe(0);
+  });
+
   it("writes the read sets into a migration under the migrations workflow", async () => {
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
