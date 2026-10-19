@@ -99,7 +99,7 @@ which `encodeDesign` writes only for a design that needs it:
 after the first release (`format`, `options`, `min`, `max`, `comment`,
 `identity`, or a table's `id`, `unique`, `indexes` or `comment`), `2` when
 a table has a `subject`, `3` when a table has `rollups` or `lookups`, `4`
-when a table has `events`, and `0` otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
+when a table has `events` or its subject keeps `versions`, and `0` otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
 the newest format this release reads; a code with a higher `version` fails
 with a message to update better-supabase instead of losing keys.
 
@@ -126,8 +126,9 @@ has a `kind`, the `table` and `column`, a one-sentence `summary`, and
 made required without a default are breaking, and their `steps` give the
 expand-and-contract migration that makes them safe. A change to a table's
 rollups or lookups is the safe `table.computed`, because their view keeps
-no rows, and a change to its `events` is the safe `table.events`, because it
-only replaces a trigger:
+no rows. A change to its `events` is the safe `table.events` and a change to
+its subject's `versions` is the safe `table.versions`, because each only
+replaces a trigger:
 
 ```ts
 import { diffAppTables } from "better-supabase/preset";

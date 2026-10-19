@@ -19,6 +19,7 @@ export type DesignChangeKind =
   | "table.changed"
   | "table.computed"
   | "table.events"
+  | "table.versions"
   | "column.added"
   | "column.dropped"
   | "column.renamed"
@@ -316,6 +317,10 @@ function tableChanges(
     rollups: undefined,
     lookups: undefined,
     events: undefined,
+    subject:
+      config.subject === undefined
+        ? undefined
+        : { ...config.subject, versions: undefined },
   });
 
   if (!same(before.events, after.events)) {
@@ -328,8 +333,21 @@ function tableChanges(
     );
   }
 
+  if (!same(before.subject?.versions, after.subject?.versions)) {
+    changes.push(
+      safe(
+        "table.versions",
+        name,
+        `Changes the versions ${name} keeps, which replaces its snapshot trigger; existing versions stay.`,
+      ),
+    );
+  }
+
   if (
-    changes.every((change) => change.kind === "table.events") &&
+    changes.every(
+      (change) =>
+        change.kind === "table.events" || change.kind === "table.versions",
+    ) &&
     !same(rest(before), rest(after))
   ) {
     changes.push(safe("table.changed", name, `Changes table ${name}.`));

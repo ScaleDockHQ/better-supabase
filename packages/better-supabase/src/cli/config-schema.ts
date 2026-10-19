@@ -615,6 +615,9 @@ const ENTRIES = {
             group: v.optional(v.string()),
           }),
         ),
+        versions: v.optional(
+          v.strictObject({ columns: strings, auto: v.boolean() }),
+        ),
       }),
     ),
   ),
@@ -674,6 +677,15 @@ const ENTRIES = {
               ]),
             ),
             softDelete: v.optional(v.boolean()),
+            versions: v.optional(
+              v.union([
+                v.literal(true),
+                v.strictObject({
+                  columns: v.optional(strings),
+                  auto: v.optional(v.boolean()),
+                }),
+              ]),
+            ),
           }),
         ),
         rollups: v.optional(

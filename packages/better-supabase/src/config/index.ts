@@ -76,6 +76,7 @@ export {
   type AppTableConfig,
   type AppTableEventKind,
   type AppTableEvents,
+  type AppTableVersions,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";

@@ -1,5 +1,22 @@
-import type { AppSubject, Design } from "./design";
+import type { AppTableVersions } from "better-supabase/config";
+
+import type { Design } from "./design";
 import type { SchemaColumn } from "./schema";
+
+/** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
+export interface AppSubject {
+  readonly type: string;
+  readonly title?: string;
+  readonly url?: string;
+  readonly search?: {
+    readonly title?: string;
+    readonly body?: readonly string[];
+  };
+  readonly permissions?: Readonly<Record<string, string>>;
+  readonly rank?: true | { readonly group?: string };
+  readonly softDelete?: boolean;
+  readonly versions?: true | AppTableVersions;
+}
 
 /** Which writes emit an event and the columns its payload carries. */
 export interface AppEvents {
@@ -43,7 +60,7 @@ export function subjectColumnsEdited(
   subject: AppSubject,
   edit: (columns: readonly string[]) => readonly string[],
 ): AppSubject {
-  const { title, search, rank, ...rest } = subject;
+  const { title, search, rank, versions, ...rest } = subject;
   const next: Draft<AppSubject> = { ...rest };
   const [nextTitle] = title === undefined ? [] : edit([title]);
 
@@ -68,6 +85,18 @@ export function subjectColumnsEdited(
     }
 
     next.search = nextSearch;
+  }
+
+  if (versions === true) {
+    next.versions = true;
+  } else if (versions !== undefined) {
+    const { columns, ...options } = versions;
+    const kept = columns === undefined ? undefined : edit(columns);
+
+    next.versions =
+      kept === undefined || kept.length === 0
+        ? options
+        : { ...options, columns: kept };
   }
 
   if (rank === true) {

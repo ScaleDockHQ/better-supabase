@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { appTablesOf, isAppDefault } from "../../src/config/app-tables.ts";
+import {
+  appTablesOf,
+  isAppDefault,
+  withAppTableSubjects,
+} from "../../src/config/app-tables.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 describe("resolveConfig appTables", () => {
@@ -708,5 +712,52 @@ describe("appTablesOf events", () => {
     expect(() =>
       appTablesOf({ tasks: { events: { include: ["missing"] } } }),
     ).toThrow(/appTables.tasks.events.include\[0\] must name a column/u);
+  });
+});
+
+describe("appTablesOf subject versions", () => {
+  it("keeps true or the columns and auto, and registers them", () => {
+    const tables = appTablesOf({
+      projects: {
+        columns: { name: { type: "text" }, notes: { type: "text" } },
+        subject: {
+          type: "project",
+          versions: { columns: ["name", "name"], auto: false },
+        },
+      },
+      tasks: {
+        columns: { title: { type: "text" } },
+        subject: { type: "task", versions: true },
+      },
+    });
+
+    expect(tables["projects"]?.subject?.versions).toEqual({
+      columns: ["name"],
+      auto: false,
+    });
+    expect(withAppTableSubjects({}, tables, "tenant")).toMatchObject({
+      project: { versions: { columns: ["name"], auto: false } },
+      task: { versions: { columns: ["title"], auto: true } },
+    });
+  });
+
+  it("refuses columns a restore must not write", () => {
+    expect(() =>
+      appTablesOf({
+        projects: {
+          columns: { name: { type: "text" } },
+          subject: { type: "project", versions: { columns: ["id"] } },
+        },
+      }),
+    ).toThrow(
+      /appTables.projects.subject.versions.columns\[0\] must name a column/u,
+    );
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", versions: "all" } },
+      }),
+    ).toThrow(
+      "appTables.projects.subject.versions must be true or { columns, auto }",
+    );
   });
 });

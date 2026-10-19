@@ -176,6 +176,20 @@ describe("design codes", () => {
     expect(await decodeDesign(await encodeDesign(events))).toEqual(events);
   });
 
+  it("writes format 4 for subject versions", async () => {
+    const versions: CreateDesign = {
+      appTables: {
+        tasks: {
+          columns: { status: { type: "text" } },
+          subject: { type: "task", versions: { columns: ["status"] } },
+        },
+      },
+    };
+
+    expect(designFormat(versions)).toBe(4);
+    expect(await decodeDesign(await encodeDesign(versions))).toEqual(versions);
+  });
+
   it("encodes an empty design to an empty code", async () => {
     expect(await encodeDesign({})).toBe("");
     expect(

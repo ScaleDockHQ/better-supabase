@@ -15,6 +15,40 @@ import { defineImport, runImport } from "better-supabase/blocks/imports";
 
 The row key makes a rerun skip a row that already imported.
 
+## Upsert into an app table
+
+`appTableImport` builds an import that updates the rows a file already has
+instead of skipping them. It takes the table's repository and `key`, one of
+the table's `unique` sets (or its primary key), and throws when the key is
+not one. `previewImport` validates the file like `dryRun` and counts the
+rows it would create, change and leave unchanged, without writing:
+
+```ts
+import {
+  appTableImport,
+  previewImport,
+  runImport,
+} from "better-supabase/blocks/imports";
+
+const tasks = appTableImport({
+  table: "tasks",
+  columns: TaskRow,
+  repository: db.tasks,
+  key: ["projectId", "title"],
+  update: "fill",
+});
+
+const { preview, errors } = await previewImport(tasks, csv, mapping);
+// preview: { created: 12, changed: 3, unchanged: 40 }
+```
+
+`update` decides what happens to a row that exists. `fill`, the default,
+writes only the fields that are empty in the database, so a rerun never
+overwrites an edit. `overwrite` writes every field the file has. Pass the
+definition to `runImport` without `importedKeys`, so a rerun updates rows
+instead of skipping them. The [upsert import](/recipes) recipe maps the
+columns, shows the preview and runs the import.
+
 ## Adopt mode
 
 Map `tables.runs` onto the app's import table. Optional columns can be `null`.

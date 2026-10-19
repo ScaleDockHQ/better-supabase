@@ -12,6 +12,7 @@ import {
   APP_DELETED_AT_COLUMN,
   APP_RANK_COLUMN,
   appTableEventKinds,
+  appTableVersions,
   AUTH_USERS,
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
@@ -19,6 +20,7 @@ import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import { appTableSetSql, settableColumns } from "./app-table-set.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
@@ -706,6 +708,53 @@ function emitsEvents(table: AppTable): boolean {
   );
 }
 
+/** pgTAP checks, run as a signed-in user, that `app_table_set` refuses a column it may not set. */
+function setRefusals(table: AppTable): readonly string[] {
+  const subject = table.config.subject;
+
+  if (
+    !table.ctx.installed("bulk") ||
+    subject === undefined ||
+    settableColumns(table.config).length === 0
+  ) {
+    return [];
+  }
+
+  const call = (values: string): string =>
+    `$$select public.app_table_set(${FOREIGN_ID[table.ctx.idType]}, ${sqlString(subject.type)}, '1', '{"values": ${values}}'::jsonb)$$`;
+
+  return [
+    `select extensions.throws_ok(${call('{"id": "1"}')}, '22023', null, ${sqlString(`appTables.set refuses the id of ${SCHEMA}.${table.name}`)});`,
+    `select extensions.throws_ok(${call("{}")}, '22023', null, ${sqlString(`appTables.set on ${SCHEMA}.${table.name} needs values`)});`,
+  ];
+}
+
+/** pgTAP checks for the auto snapshot trigger; `seeded` adds one for the seeded row's version. */
+function versionChecks(table: AppTable, seeded: boolean): readonly string[] {
+  const subject = table.config.subject;
+  const versions = appTableVersions(table.config);
+
+  if (!subject || !versions?.auto || versions.columns.length === 0) {
+    return [];
+  }
+
+  const trigger = table.ctx.trigger(`versions_${subject.type}_auto`);
+
+  const checks = [
+    `select extensions.has_trigger('${SCHEMA}'::name, ${sqlString(table.name)}::name, ${sqlString(trigger.replaceAll('"', ""))}::name, ${sqlString(`${SCHEMA}.${table.name} snapshots a version on each change`)});`,
+  ];
+
+  if (seeded) {
+    const versions = table.ctx.of("versions");
+
+    checks.push(
+      `select extensions.ok(exists (select 1 from ${versions.table("versions")} v where v.${versions.col("versions", "subjectType")} = ${sqlString(subject.type)}), ${sqlString(`an insert into ${SCHEMA}.${table.name} snapshots a ${subject.type} version`)});`,
+    );
+  }
+
+  return checks;
+}
+
 /** pgTAP checks for the events trigger; `seeded` adds one that the seeded row emitted. */
 function eventChecks(table: AppTable, seeded: boolean): readonly string[] {
   if (!emitsEvents(table)) {
@@ -737,6 +786,15 @@ const TRIGGER_OPERATIONS: Readonly<Record<AppTableEventKind, string>> = {
 };
 
 function tableSql(table: AppTable): string {
+  if (
+    table.config.subject?.versions !== undefined &&
+    !table.ctx.installed("versions")
+  ) {
+    throw new TypeError(
+      `appTables.${table.name}.subject.versions needs the versions block; add it to blocks`,
+    );
+  }
+
   return [
     `alter table ${qualified(table.name)} enable row level security;`,
     grantsSql(table),
@@ -1007,13 +1065,17 @@ function testSql(table: AppTable): string {
       ];
 
   const seededSql = table.scope && seeded !== undefined ? seeded : undefined;
-  const emitted = eventChecks(table, seededSql !== undefined);
+
+  const emitted = [
+    ...eventChecks(table, seededSql !== undefined),
+    ...versionChecks(table, seededSql !== undefined),
+  ];
 
   return `${[...checks, ...(seededSql === undefined ? emitted : [])].join("\n")}
 ${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-${[...behaviour, ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}
+${[...behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}
 reset role;`;
 }
 
@@ -1109,6 +1171,17 @@ export function appTablesFiles(
       .join("\n\n"),
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
+      : "",
+    installed.includes("bulk") && tables[0]
+      ? appTableSetSql(
+          tables.map((table) => ({
+            name: table.name,
+            config: table.config,
+            tenant:
+              table.ctx.scope.kind === "tenant" ? table.scope?.name : undefined,
+          })),
+          tables[0].ctx.idType,
+        )
       : "",
   ]
     .filter((part) => part !== "")

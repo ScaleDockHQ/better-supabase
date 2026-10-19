@@ -229,6 +229,7 @@ appTables: {
 | `permissions` | the permission per action, as in `subjects`                                                        |
 | `rank`        | adds a `rank` column for manual order (`text collate "C"`, ADR 0021); `{ group }` ranks per column |
 | `softDelete`  | adds a `deleted_at` column, which hides the row from subject readers and search                    |
+| `versions`    | keeps a version on every change; see [History](#history)                                           |
 
 The subject's tenant column is the table's tenant column when the table is
 scoped to the tenant, and none otherwise. A user column named `rank` or
@@ -278,6 +279,45 @@ To react to the events, consume them with
 [`createRuleSink`](/docs/blocks/rules#run-rules-from-events) or
 [`workflows.sink()`](/docs/blocks/workflow-builder#start-from-outbox-events).
 The decision is ADR 0048.
+
+## History
+
+Set `subject.versions` and the [versions](/docs/blocks/versions) block keeps a
+version of the row each time one of its columns changes, through a trigger on
+the table. The table needs the versions block; `sql sync` names it when it is
+missing. On [Create](/create), the Versions feature of a table sets it.
+
+```ts title="better-supabase.config.ts"
+appTables: {
+  projects: {
+    columns: {
+      name: { type: "text", nullable: false },
+      budget_minor: { type: "bigint", nullable: false, default: "0" },
+    },
+    subject: {
+      type: "project",
+      title: "name",
+      versions: { columns: ["name", "budget_minor"] },
+    },
+  },
+},
+```
+
+`versions: true` keeps every column the config declares. `columns` narrows
+the list, and `auto: false` leaves out the trigger, so versions are kept
+only when the app calls `versions.snapshot`. `versions.restoreFields(id,
+fields)` writes some fields of a version back and leaves the rest of the row
+as it is. The [record history](/recipes) recipe lists the versions with the
+fields each one changed and a restore per field.
+
+## Imports and bulk edits
+
+`appTableImport` from `better-supabase/blocks/imports` imports a CSV into an
+app table and updates the rows that already exist, matched on one of the
+table's `unique` sets. See [imports](/docs/blocks/imports#upsert-into-an-app-table).
+With the [bulk](/docs/blocks/bulk) block installed, `sql sync` also writes
+`app_table_set`, which the built-in `appTables.set` bulk action calls to set
+columns on the selected rows of any app table that is a subject.
 
 ## Rollups and lookups
 

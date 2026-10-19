@@ -217,6 +217,19 @@ export interface AppTableSubject {
   readonly rank?: true | { readonly group?: string };
   /** Adds a `deleted_at timestamptz` column that blocks treat as the soft-delete time. */
   readonly softDelete?: boolean;
+  /**
+   * Registers the table with the versions block: `true` snapshots every
+   * column of the table on each change; `columns` and `auto` narrow it.
+   */
+  readonly versions?: true | AppTableVersions;
+}
+
+/** What the versions block keeps of an app table's rows. */
+export interface AppTableVersions {
+  /** The columns a snapshot copies and a restore writes back; every column of the table by default. */
+  readonly columns?: readonly string[];
+  /** Snapshot on each change to `columns`, debounced; `true` by default. */
+  readonly auto?: boolean;
 }
 
 export type AppTablesConfig = Readonly<Record<string, AppTableConfig>>;

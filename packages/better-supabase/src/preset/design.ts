@@ -48,7 +48,8 @@ const DESIGN_VERSION = "0";
  * Format 1 adds column `format`, `options`, `min`, `max`, `comment` and
  * `identity`, and table `id`, `unique`, `indexes` and `comment`. Format 2
  * adds table `subject` (ADR 0043). Format 3 adds table `rollups` and
- * `lookups` (ADR 0044). Format 4 adds table `events` (ADR 0048).
+ * `lookups` (ADR 0044). Format 4 adds table `events` (ADR 0048) and
+ * subject `versions`.
  */
 export const DESIGN_FORMAT = 4;
 
@@ -67,7 +68,12 @@ const FORMAT_1_COLUMN_KEYS = [
 export function designFormat(design: CreateDesign): number {
   const tables = Object.values(design.appTables ?? {});
 
-  if (tables.some((table) => table.events !== undefined)) {
+  if (
+    tables.some(
+      (table) =>
+        table.events !== undefined || table.subject?.versions !== undefined,
+    )
+  ) {
     return 4;
   }
 

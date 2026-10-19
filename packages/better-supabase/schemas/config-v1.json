@@ -1362,6 +1362,22 @@
             "required": ["column"],
             "additionalProperties": false,
             "description": "The rank key column and the column it is grouped by, for `move()`."
+          },
+          "versions": {
+            "type": "object",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "auto": {
+                "type": "boolean"
+              }
+            },
+            "required": ["columns", "auto"],
+            "additionalProperties": false
           }
         },
         "required": ["table"],
@@ -1585,6 +1601,28 @@
               "softDelete": {
                 "type": "boolean",
                 "description": "Adds a deleted_at column that blocks treat as the soft-delete time."
+              },
+              "versions": {
+                "anyOf": [
+                  {
+                    "const": true
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "auto": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
               }
             },
             "required": ["type"],

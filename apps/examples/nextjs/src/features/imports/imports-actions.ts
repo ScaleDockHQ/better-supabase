@@ -1,7 +1,6 @@
 "use server";
 
-import { DbException, dbError, err, ok, type Result } from "better-supabase";
-import { rpcTransport } from "better-supabase/blocks";
+import { DbException, err, ok, type Result } from "better-supabase";
 import {
   defineImport,
   dryRun,
@@ -11,14 +10,12 @@ import {
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
+import { importRunHooks } from "./import-run";
 import { CUSTOMER_IMPORT_FIELDS } from "./imports-fields";
 
-const API_SCHEMA = blockConfig.imports.api;
 const PREVIEW_ROWS = 20;
 
 /** An empty cell is a left-out value, so the column default applies. */
@@ -140,63 +137,19 @@ export const runCustomerImport = bs.action(
       return existing;
     }
 
-    const service = rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
-
-    const finish = async (
-      id: string,
-      status: "completed" | "failed",
-      count: number,
-      error: string | null,
-    ) => {
-      try {
-        await service.call(API_SCHEMA, "finish_import", {
-          id,
-          status,
-          count,
-          error,
-        });
-      } catch (cause) {
-        throw new DbException(
-          dbError(
-            "unexpected",
-            `Could not finish the import: ${String(cause)}`,
-          ),
-        );
-      }
-    };
-
     const definition = customerImport((rows) =>
       db.customers.createMany(rows, { returning: false }),
     );
 
     const { rows: valid } = await dryRun(definition, csv, mapping);
-    let runId: string | undefined;
+    const hooks = importRunHooks(supabase, tenant, "customers", mapping);
 
     try {
       const result = await runImport(definition, csv, mapping, {
-        organizationId: tenant,
+        ...hooks,
         importedKeys: new Set(
           existing.data.map((row) => row.name.toLowerCase()),
         ),
-        start: async () => {
-          const run = await blocks(supabase).imports.start(
-            tenant,
-            "customers",
-            mapping,
-          );
-
-          if (!run.ok) {
-            throw new DbException(run.error);
-          }
-
-          runId = run.data.id;
-
-          return run.data.id;
-        },
-        running: async (id) => {
-          await service.call(API_SCHEMA, "mark_import_running", { id });
-        },
-        finish,
       });
 
       refreshCaller(auth);
@@ -214,9 +167,7 @@ export const runCustomerImport = bs.action(
         throw error;
       }
 
-      if (runId !== undefined) {
-        await finish(runId, "failed", 0, error.message).catch(() => null);
-      }
+      await hooks.fail(error.message);
 
       return err(error.error);
     }

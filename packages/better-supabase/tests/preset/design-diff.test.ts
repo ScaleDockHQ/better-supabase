@@ -149,6 +149,22 @@ describe("diffAppTables", () => {
     expect(kinds(emitting, projects)).toEqual(["table.events projects"]);
   });
 
+  test("keeping versions or changing their columns is safe", () => {
+    const versioned: AppTablesConfig = {
+      projects: {
+        ...projects["projects"],
+        subject: { type: "project", versions: true },
+      },
+    };
+
+    const subject: AppTablesConfig = {
+      projects: { ...projects["projects"], subject: { type: "project" } },
+    };
+
+    expect(kinds(subject, versioned)).toEqual(["table.versions projects"]);
+    expect(kinds(versioned, subject)).toEqual(["table.versions projects"]);
+  });
+
   test("a new or tighter column constraint is breaking", () => {
     const status: AppTablesConfig = {
       tasks: {

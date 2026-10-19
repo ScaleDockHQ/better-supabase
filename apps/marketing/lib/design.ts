@@ -25,6 +25,7 @@ import {
 } from "./design-computed";
 import {
   type AppEvents,
+  type AppSubject,
   eventsColumnsEdited,
   subjectColumns,
   subjectColumnsEdited,
@@ -58,20 +59,6 @@ export interface AppColumn {
 export type AppScope = "inherit" | "user" | "none";
 
 export type AppTableId = "uuid" | "bigint";
-
-/** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
-export interface AppSubject {
-  readonly type: string;
-  readonly title?: string;
-  readonly url?: string;
-  readonly search?: {
-    readonly title?: string;
-    readonly body?: readonly string[];
-  };
-  readonly permissions?: Readonly<Record<string, string>>;
-  readonly rank?: true | { readonly group?: string };
-  readonly softDelete?: boolean;
-}
 
 export interface AppTable {
   readonly columns?: Readonly<Record<string, AppColumn>>;

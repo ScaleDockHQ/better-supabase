@@ -72,6 +72,14 @@ A frozen version can't be relabeled or deleted, so a quote keeps what was sent. 
 
 `restore(id)` writes the version back to the subject through its `apply` function or `columns`, then records the result as a new version with source `restore`. The auto and freeze triggers skip the write a restore makes. A version kept in Storage (`storagePath` without content) is restored by the app.
 
+`restoreFields(id, fields)` writes back only the named fields and keeps the subject's current values for the others, so a history can undo one field without reverting the rest:
+
+```ts
+await versions.restoreFields(versionId, ["budget_minor"]).orThrow();
+```
+
+It needs a type with `columns`; a type with only `apply` fails with `VERSION_RESTORE_UNSUPPORTED`. An empty list fails with `VERSION_FIELDS_EMPTY`, and a field outside `columns` with `VERSION_FIELD_UNKNOWN`. An app table whose subject sets `versions` is registered here without an entry in `subjects` (see [app tables](/docs/blocks/app-tables#history)).
+
 ## Share a version
 
 Install [share links](/docs/blocks/share-links) next to versions to send one version of a subject, such as the quote a customer approved. Pass `versionId` when you create the link; the version must belong to the link's subject, and the caller must be able to read it. `getShared(token)` reads that version and its content without a session, through `get_shared_version`, which is granted to `anon`. It returns `null` for an unknown, revoked or expired token and for a link without a version, and it leaves out `createdBy`.

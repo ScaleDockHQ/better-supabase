@@ -9,6 +9,29 @@ export const TASK_SUBJECT = "task";
 /** The subject type `appTables.projects.subject` registers. */
 export const PROJECT_SUBJECT = "project";
 
+/** The columns `appTables.projects.subject.versions` keeps, by database name. */
+export const PROJECT_HISTORY_FIELDS = [
+  "name",
+  "budget_minor",
+  "currency",
+] as const;
+
+export type ProjectHistoryField = (typeof PROJECT_HISTORY_FIELDS)[number];
+
+/** One kept version of a project, its fields as text. */
+export interface ProjectVersion {
+  readonly id: string;
+  readonly number: number;
+  readonly source: "manual" | "auto" | "restore";
+  readonly createdAt: number;
+  readonly fields: Readonly<Partial<Record<ProjectHistoryField, string>>>;
+}
+
+/** The task fields a CSV column can map to. `title` is required. */
+export const TASK_IMPORT_FIELDS = ["title", "status", "dueOn"] as const;
+
+export type TaskImportField = (typeof TASK_IMPORT_FIELDS)[number];
+
 export const TASK_STATUSES = ["todo", "doing", "done"] as const;
 
 export const TaskStatusSchema = v.picklist(TASK_STATUSES);

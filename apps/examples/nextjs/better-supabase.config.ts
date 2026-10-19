@@ -135,12 +135,15 @@ export default defineConfig({
         },
       },
       // Comments, attachments, tags, versions and search reach projects.
+      // Each change to the name, budget or currency keeps a version, which
+      // the record history restores field by field.
       subject: {
         type: "project",
         title: "name",
         url: "/projects/{id}",
         search: {},
         softDelete: true,
+        versions: { columns: ["name", "budget_minor", "currency"] },
       },
       // Read through `public.projects_view`, with the caller's row level
       // security on projects and tasks.
@@ -194,6 +197,8 @@ export default defineConfig({
         rank: { group: "status" },
       },
       lookups: { project_name: { via: "project_id", column: "name" } },
+      // The task import updates the task with the same title in a project.
+      unique: [["project_id", "title"]],
     },
     saved_views: {
       scope: "user",

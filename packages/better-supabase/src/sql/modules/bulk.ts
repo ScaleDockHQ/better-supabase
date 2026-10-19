@@ -25,7 +25,11 @@ export const BULK_ACTIONS = {
   "relations.link": "relations",
   "trash.trash": "trash",
   "collections.add": "collections",
+  "appTables.set": "app-tables",
 } as const;
+
+/** The app-tables function `appTables.set` calls, created with the app tables in `public`. */
+export const APP_TABLE_SET = "app_table_set";
 
 const ACTION_NAME: RegExp = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*$/;
 const FUNCTION_NAME: RegExp = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
@@ -138,6 +142,11 @@ function dispatch(
       perform ${ctx.of("collections").fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`);
   }
 
+  if (ctx.appTables.size > 0) {
+    arms.push(`    when 'appTables.set' then
+      perform public.${sqlIdent(APP_TABLE_SET)}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`);
+  }
+
   for (const [name, target] of custom) {
     arms.push(`    when ${sqlString(name)} then
       perform ${quotedTable(target)}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`);
@@ -202,7 +211,11 @@ function build(ctx: ModuleContext): string {
 
   const known = [
     ...Object.entries(BULK_ACTIONS)
-      .filter(([, module]) => ctx.installed(module))
+      .filter(([, module]) =>
+        module === "app-tables"
+          ? ctx.appTables.size > 0
+          : ctx.installed(module),
+      )
       .map(([name]) => name),
     ...custom.keys(),
   ];

@@ -37,6 +37,7 @@ describe("bulk client", () => {
       "relations.link",
       "trash.trash",
       "collections.add",
+      "appTables.set",
     ];
 
     expect(Object.keys(BULK_ACTIONS)).toEqual(actions);

@@ -253,6 +253,7 @@
       "AppTableEvents",
       "AppTablesConfig",
       "AppTableSubject",
+      "AppTableVersions",
       "AuthorizationFunctions",
       "AuthorizationMembership",
       "AuthorizationOperation",
@@ -5251,23 +5252,31 @@
   },
   "./blocks/imports": {
     "values": [
+      "appTableImport",
       "createImports",
       "defineImport",
       "dryRun",
       "importsBlock",
       "importsEvents",
       "parseCsv",
+      "previewImport",
       "runImport",
       "suggestMapping"
     ],
     "types": [
+      "AppTableImport",
+      "AppTableImportOptions",
+      "AppTableImportRepository",
+      "AppTableImportUpdate",
       "DryRunResult",
       "ImportColumn",
       "ImportDefinition",
+      "ImportPreview",
       "ImportRowError",
       "Imports",
       "ImportsEvents",
       "ImportsOptions",
+      "PreviewImportResult",
       "RunImportResult"
     ]
   },

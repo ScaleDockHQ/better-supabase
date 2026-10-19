@@ -536,6 +536,58 @@ describe("appTables SQL errors", () => {
     ).toMatchFileSnapshot("__golden__/app-tables/events.sql");
   });
 
+  it("checks the auto snapshot trigger of a versioned subject", () => {
+    const test = render([...BLOCKS, "versions"], {
+      appTables: {
+        tasks: {
+          columns: { title: { type: "text" } },
+          subject: { type: "task", versions: true },
+        },
+      },
+    }).find((file) => file.kind === "test");
+
+    expect(test?.contents).toContain(
+      "select extensions.has_trigger('public'::name, 'tasks'::name, 'bs_versions_task_auto'::name, 'public.tasks snapshots a version on each change');",
+    );
+  });
+
+  it("renders app_table_set for the bulk action over subject tables", () => {
+    const schema = render([...BLOCKS, "access", "bulk"], {
+      appTables: {
+        tasks: {
+          columns: {
+            title: { type: "text" },
+            number: { type: "bigint", identity: true },
+          },
+          subject: { type: "task" },
+        },
+        notes: { columns: { body: { type: "text" } } },
+      },
+    }).find((file) => file.kind === "schema")?.contents;
+
+    expect(schema).toContain(
+      'create or replace function public."app_table_set"(tenant uuid, subject_type text, subject_id text, args jsonb)',
+    );
+    expect(schema).toContain("only these columns of tasks can be set: title");
+    expect(schema).toContain(
+      `"title" = case when v_values ? 'title' then r."title" else t."title" end`,
+    );
+    expect(schema).toContain(
+      `where t.id = app_table_set.subject_id::uuid\n        and t."organization_id" = app_table_set.tenant;`,
+    );
+    expect(schema).not.toContain("'note' then");
+  });
+
+  it("refuses subject versions without the versions block", () => {
+    expect(() =>
+      render(BLOCKS, {
+        appTables: { tasks: { subject: { type: "task", versions: true } } },
+      }),
+    ).toThrow(
+      "appTables.tasks.subject.versions needs the versions block; add it to blocks",
+    );
+  });
+
   it("refuses events without the outbox block", () => {
     expect(() =>
       render(BLOCKS, { appTables: { tasks: { events: true } } }),

@@ -15,6 +15,7 @@ import {
   type AppTableConfig,
   type AppTableEventKind,
   type AppTableEvents,
+  type AppTableVersions,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
@@ -58,6 +59,7 @@ const SUBJECT_KEYS: ReadonlySet<string> = new Set([
   "permissions",
   "rank",
   "softDelete",
+  "versions",
 ]);
 
 /** The columns `subject.rank` and `subject.softDelete` add. */
@@ -809,13 +811,73 @@ function rankOf(
 }
 
 /**
+ * `subject.versions` checked: `true`, or `columns` from the table's own
+ * columns (not its id, scope or timestamps, which a restore must not
+ * write) and `auto`.
+ */
+function versionsOf(
+  where: string,
+  value: unknown,
+  editable: ReadonlySet<string>,
+): true | AppTableVersions | undefined {
+  if (value === undefined || value === true) {
+    return value;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be true or { columns, auto }`);
+  }
+
+  checkKeys(where, value, new Set(["columns", "auto"]));
+  const { columns } = value;
+
+  if (
+    columns !== undefined &&
+    (!Array.isArray(columns) || columns.length === 0)
+  ) {
+    throw new TypeError(`${where}.columns must list one or more columns`);
+  }
+
+  const listed = columns?.map((name: unknown, index: number) =>
+    namedColumn(`${where}.columns[${index}]`, name, editable),
+  );
+
+  const auto = optionalBoolean(`${where}.auto`, value["auto"]);
+
+  return {
+    ...(listed === undefined ? {} : { columns: [...new Set(listed)] }),
+    ...(auto === undefined ? {} : { auto }),
+  };
+}
+
+/** The columns and snapshot mode `subject.versions` registers with the versions block. */
+export function appTableVersions(
+  table: AppTableConfig,
+): { readonly columns: readonly string[]; readonly auto: boolean } | undefined {
+  const versions = table.subject?.versions;
+
+  if (versions === undefined) {
+    return undefined;
+  }
+
+  const options = versions === true ? {} : versions;
+
+  return {
+    columns: options.columns ?? Object.keys(table.columns ?? {}),
+    auto: options.auto ?? true,
+  };
+}
+
+/**
  * `subject` checked against the table's columns. `columns` holds every
- * column the table has, the ones `rank` and `softDelete` add included.
+ * column the table has, the ones `rank` and `softDelete` add included;
+ * `editable` holds the table's own columns.
  */
 function subjectOf(
   where: string,
   value: unknown,
   columns: ReadonlySet<string>,
+  editable: ReadonlySet<string>,
 ): AppTableSubject | undefined {
   if (value === undefined) {
     return undefined;
@@ -858,6 +920,8 @@ function subjectOf(
     value["softDelete"],
   );
 
+  const versions = versionsOf(`${where}.versions`, value["versions"], editable);
+
   return {
     type,
     ...(title === undefined
@@ -868,6 +932,7 @@ function subjectOf(
     ...(permissions === undefined ? {} : { permissions }),
     ...(rank === undefined ? {} : { rank }),
     ...(softDelete === undefined ? {} : { softDelete }),
+    ...(versions === undefined ? {} : { versions }),
   };
 }
 
@@ -1016,6 +1081,7 @@ function tableOf(
     `${where}.subject`,
     value["subject"],
     new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
+    new Set(resolved.map(([name]) => name)),
   );
 
   const events = eventsOf(
@@ -1163,6 +1229,7 @@ export function withAppTableSubjects(
       ...(subject.softDelete === true
         ? { deletedAt: APP_DELETED_AT_COLUMN }
         : {}),
+      ...versionsEntry(table),
       ...(subject.rank === undefined
         ? {}
         : {
@@ -1177,4 +1244,10 @@ export function withAppTableSubjects(
   }
 
   return merged;
+}
+
+function versionsEntry(table: AppTableConfig): Pick<SubjectConfig, "versions"> {
+  const versions = appTableVersions(table);
+
+  return versions === undefined ? {} : { versions };
 }
