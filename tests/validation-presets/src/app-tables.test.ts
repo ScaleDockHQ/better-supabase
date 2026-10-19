@@ -11,7 +11,7 @@ import { dbUrl, installAndRollBack, reachable } from "./stack.ts";
 // `appTables` (ADR 0040) on top of the tenant and organizations blocks, installed as one
 // migration: the generated pgTAP checks pass, and RLS keeps one tenant's
 // rows from another tenant's members. The table names stay clear of the
-// fixture's own app tables (`projects`, `saved_views`): the install uses
+// fixture's own app tables (`projects`, `tasks`, `saved_views`): the install uses
 // `create table if not exists`, so a shared name would test the fixture's table.
 
 const live = await reachable();
@@ -23,7 +23,7 @@ const config = resolveConfig(
       boards: {
         columns: { name: { type: "text", nullable: false } },
       },
-      tasks: {
+      cards: {
         columns: {
           board_id: {
             type: "uuid",
