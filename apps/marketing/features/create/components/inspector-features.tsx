@@ -19,6 +19,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { updateTable } from "@/lib/design";
+import { subjectTypeError } from "@/lib/design-subject";
 import {
   featureBlocker,
   newSubject,
@@ -30,8 +31,6 @@ import {
 
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
-
-const SUBJECT_TYPE = /^[a-z][a-z0-9_]*$/u;
 
 /**
  * Why `info`'s switch is off limits: a column in the way, a block the
@@ -115,9 +114,7 @@ export function FeaturesTab({ table }: { table: SchemaTable }): ReactElement {
             value={subject.type}
             placeholder={newSubject(table.name, config).type}
             validate={(next) =>
-              SUBJECT_TYPE.test(next)
-                ? undefined
-                : "Use lowercase letters, digits and underscores, starting with a letter."
+              subjectTypeError(state.design, table.name, next)
             }
             onCommit={(next) => {
               actions.apply(

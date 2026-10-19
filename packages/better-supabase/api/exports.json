@@ -335,6 +335,10 @@
   "./preset": {
     "values": [
       "APP_COLUMN_FORMATS",
+      "APP_NAME_MAX",
+      "appDefaultError",
+      "appIdentifierError",
+      "appNameLengthError",
       "appReservedColumns",
       "conventionConfig",
       "decodeDesign",

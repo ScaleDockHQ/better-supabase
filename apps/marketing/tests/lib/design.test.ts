@@ -8,6 +8,7 @@ import {
   connect,
   deleteColumn,
   deleteExtraColumn,
+  defaultError,
   deleteTable,
   type Design,
   designIssues,
@@ -29,6 +30,7 @@ import {
   userConnection,
   withDesign,
 } from "../../lib/design";
+import { subjectTypeError } from "../../lib/design-subject";
 import { presetSchema } from "./schema-fixture";
 
 const { preset, data } = presetSchema("saas");
@@ -42,7 +44,8 @@ describe("names", () => {
     expect(identifierError("projects")).toBeUndefined();
     expect(identifierError("")).toBe("Enter a name.");
     expect(identifierError("Projects")).toMatch(/lower-case/u);
-    expect(identifierError("a".repeat(64))).toMatch(/63/u);
+    expect(identifierError("a".repeat(59))).toMatch(/58/u);
+    expect(identifierError("pg_things")).toMatch(/pg_/u);
   });
 
   test("finds a free table name", () => {
@@ -87,6 +90,50 @@ describe("edits", () => {
 
     expect(next.appTables?.["projects"]).toBeUndefined();
     expect(next.appTables?.["tasks"]?.columns).toEqual({});
+  });
+
+  test("deleting a table drops its references from unique and index sets", () => {
+    const linked = updateTable(
+      setColumn(
+        setColumn(addTable(projects, "tasks"), "tasks", "title", {
+          type: "text",
+        }),
+        "tasks",
+        "project_id",
+        { type: "uuid", references: { table: "projects" } },
+      ),
+      "tasks",
+      {
+        unique: [["project_id", "title"], ["project_id"]],
+        indexes: [["project_id"]],
+      },
+    );
+
+    const tasks = deleteTable(linked, "projects").appTables?.["tasks"];
+
+    expect(tasks?.unique).toEqual([["title"]]);
+    expect(tasks?.indexes).toBeUndefined();
+  });
+
+  test("checks defaults against options and bounds", () => {
+    expect(defaultError({ type: "text", options: ["open"] }, "'open'")).toBe(
+      undefined,
+    );
+    expect(
+      defaultError({ type: "text", options: ["open"] }, "'closed'"),
+    ).toBeDefined();
+    expect(defaultError({ type: "integer", min: 1 }, "0")).toBeDefined();
+    expect(defaultError({ type: "integer" }, "")).toBeUndefined();
+  });
+
+  test("refuses a subject type another table uses", () => {
+    const design = updateTable(projects, "projects", {
+      subject: { type: "project" },
+    });
+
+    expect(subjectTypeError(design, "projects", "project")).toBeUndefined();
+    expect(subjectTypeError(design, "tasks", "project")).toMatch(/projects/u);
+    expect(subjectTypeError(design, "tasks", "Task")).toBeDefined();
   });
 
   test("renaming a table follows its references and position", () => {
@@ -367,6 +414,29 @@ describe("designIssues", () => {
     expect(
       designIssues(design, data, preset).map((issue) => issue.table),
     ).toEqual(["projects", "projects", blockName, "not-a-block"]);
+  });
+
+  test("flags duplicate subject types and names Postgres would truncate", () => {
+    const design = updateTable(
+      updateTable(addTable(projects, "boards"), "boards", {
+        subject: { type: "item" },
+      }),
+      "projects",
+      { subject: { type: "item" } },
+    );
+
+    expect(designIssues(design, data, preset).length).toBeGreaterThan(0);
+
+    const long = setColumn(projects, "projects", "x".repeat(50), {
+      type: "text",
+      options: ["a"],
+    });
+
+    expect(
+      designIssues(long, data, preset).some((issue) =>
+        /63/u.test(issue.message),
+      ),
+    ).toBe(true);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { AppSubject } from "./design";
+import type { AppSubject, Design } from "./design";
 import type { SchemaColumn } from "./schema";
 
 /** The columns `subject` adds: `rank` for manual order and `deleted_at` for trash. */
@@ -73,4 +73,25 @@ export function subjectColumnsEdited(
   }
 
   return next;
+}
+
+const SUBJECT_TYPE = /^[a-z][a-z0-9_]*$/u;
+
+/** Why `type` can't be the subject type of the app table `table`, or `undefined` when it can. */
+export function subjectTypeError(
+  design: Design,
+  table: string,
+  type: string,
+): string | undefined {
+  if (!SUBJECT_TYPE.test(type)) {
+    return "Use lowercase letters, digits and underscores, starting with a letter.";
+  }
+
+  const owner = Object.entries(design.appTables ?? {}).find(
+    ([name, each]) => name !== table && each.subject?.type === type,
+  )?.[0];
+
+  return owner === undefined
+    ? undefined
+    : `${owner} already has the subject type ${type}.`;
 }

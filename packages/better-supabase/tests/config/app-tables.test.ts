@@ -56,9 +56,54 @@ describe("appTablesOf", () => {
   it("refuses a table name that isn't lower snake", () => {
     fails(
       { Projects: {} },
-      'appTables.Projects: "Projects" is not a lower snake',
+      'appTables.Projects: "Projects" is not a table name. Use lower-case',
     );
-    fails({ pg_things: {} }, "appTables.pg_things");
+    fails({ pg_things: {} }, "reserved by Postgres");
+    fails({ [`t${"a".repeat(58)}`]: {} }, "Use at most 58 characters");
+  });
+
+  it("refuses a derived constraint name past 63 characters", () => {
+    fails(
+      {
+        [`t${"a".repeat(40)}`]: {
+          columns: {
+            [`c${"b".repeat(20)}`]: { type: "text", options: ["x"] },
+          },
+        },
+      },
+      "is longer than 63 characters",
+    );
+  });
+
+  it("refuses a default outside the options or bounds", () => {
+    fails(
+      {
+        a: {
+          columns: {
+            stage: { type: "text", options: ["lead"], default: "'won'" },
+          },
+        },
+      },
+      "appTables.a.columns.stage.default: The default must be one of the options",
+    );
+    fails(
+      { a: { columns: { score: { type: "integer", max: 5, default: "9" } } } },
+      "above the maximum of 5",
+    );
+    fails(
+      {
+        a: {
+          columns: {
+            stars: { type: "integer", format: "rating", default: "0" },
+          },
+        },
+      },
+      "below the minimum of 1",
+    );
+    fails(
+      { a: { columns: { code: { type: "text", min: 3, default: "'ab'" } } } },
+      "The default's length is below the minimum of 3",
+    );
   });
 
   it("refuses unknown keys", () => {

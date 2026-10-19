@@ -370,6 +370,141 @@ export function appReservedColumns(tenant = "organization"): readonly string[] {
   return ["id", "created_at", "updated_at", "user_id", `${tenant}_id`];
 }
 
+/** Postgres truncates identifiers past 63 bytes, so longer generated names collide. */
+const MAX_IDENTIFIER = 63;
+
+/** The longest app table or column name: `<table>_view` still fits in 63 bytes. */
+export const APP_NAME_MAX: number = MAX_IDENTIFIER - "_view".length;
+
+/**
+ * Why `name` can't name an app table or column, or `undefined` when it can:
+ * lower snake case starting with a letter, not `pg_`, and at most
+ * `APP_NAME_MAX` characters.
+ */
+export function appIdentifierError(name: string): string | undefined {
+  if (name === "") {
+    return "Enter a name.";
+  }
+
+  if (name.length > APP_NAME_MAX) {
+    return `Use at most ${String(APP_NAME_MAX)} characters.`;
+  }
+
+  if (!IDENT.test(name)) {
+    return "Use lower-case letters, digits and underscores, starting with a letter.";
+  }
+
+  if (name.startsWith("pg_")) {
+    return "Names starting with pg_ are reserved by Postgres.";
+  }
+
+  return undefined;
+}
+
+/**
+ * The first constraint or index name the SQL derives for `table` that is
+ * longer than 63 bytes, which Postgres would truncate into a collision, as
+ * a message; `undefined` when every name fits.
+ */
+export function appNameLengthError(
+  table: string,
+  config: Pick<AppTableConfig, "columns" | "unique" | "indexes">,
+): string | undefined {
+  const names = [
+    ...Object.entries(config.columns ?? {}).flatMap(([column, each]) =>
+      each.references !== undefined ||
+      each.format !== undefined ||
+      each.options !== undefined ||
+      each.min !== undefined ||
+      each.max !== undefined
+        ? [`${table}_${column}_check`]
+        : [],
+    ),
+    ...(config.unique ?? []).map((set) => `${table}_${set.join("_")}_key`),
+    ...(config.indexes ?? []).map((set) => `${table}_${set.join("_")}_idx`),
+  ];
+
+  const long = names.find((name) => name.length > MAX_IDENTIFIER);
+
+  return long === undefined
+    ? undefined
+    : `${long} is longer than ${String(MAX_IDENTIFIER)} characters; use shorter table or column names`;
+}
+
+/** The defaults `isAppDefault` accepts, per type, as a message names them. */
+const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
+  text: "a 'quoted' text",
+  integer: "a whole number",
+  bigint: "a whole number",
+  numeric: "a number",
+  boolean: "true or false",
+  uuid: "gen_random_uuid(), auth.uid() or a 'quoted' value",
+  timestamptz: "now() or a 'quoted' value",
+  date: "now() or a 'quoted' value",
+  jsonb: "'{}' or '[]'",
+  "text[]": "'{}'",
+};
+
+/**
+ * Why `value` can't be the default of `column`, or `undefined` when it can:
+ * it must be on the `isAppDefault` allowlist, one of the column's
+ * `options`, and inside its bounds (`min`, `max`, or those of its format).
+ */
+export function appDefaultError(
+  column: Pick<AppColumnConfig, "type" | "options" | "min" | "max" | "format">,
+  value: string,
+): string | undefined {
+  const { type } = column;
+
+  if (!isAppDefault(type, value)) {
+    return `A ${type} column takes ${DEFAULT_EXAMPLES[type]} as its default.`;
+  }
+
+  const literal = TEXT_LITERAL.test(value)
+    ? value.slice(1, -1).replaceAll("''", "'")
+    : undefined;
+
+  if (
+    type === "text" &&
+    column.options !== undefined &&
+    literal !== undefined &&
+    !column.options.includes(literal)
+  ) {
+    return `The default must be one of the options: ${column.options.join(", ")}.`;
+  }
+
+  const bounds =
+    column.format === undefined
+      ? undefined
+      : FIELD_FORMATS[column.format].bounds;
+
+  const min = column.min ?? bounds?.[0];
+  const max = column.max ?? bounds?.[1];
+
+  const size =
+    type === "text"
+      ? literal?.length
+      : NUMBER.test(value)
+        ? Number(value)
+        : undefined;
+
+  if (size === undefined) {
+    return undefined;
+  }
+
+  const what = type === "text" ? "length" : "value";
+
+  if (min !== undefined && size < min) {
+    return `The default's ${what} is below the minimum of ${String(min)}.`;
+  }
+
+  if (max !== undefined && size > max) {
+    return `The default's ${what} is above the maximum of ${String(max)}.`;
+  }
+
+  return undefined;
+}
+
 /** Whether `value` is a default `type` accepts; see `AppColumnConfig.default`. */
 export function isAppDefault(type: AppColumnType, value: string): boolean {
   switch (value) {
@@ -546,6 +681,24 @@ function columnOf(
     throw new TypeError(
       `${where}: min ${String(min)} is above max ${String(max)}`,
     );
+  }
+
+  const outside =
+    typeof fallback === "string"
+      ? appDefaultError(
+          {
+            type,
+            ...(options === undefined ? {} : { options }),
+            ...(min === undefined ? {} : { min }),
+            ...(max === undefined ? {} : { max }),
+            ...(format === undefined ? {} : { format }),
+          },
+          fallback,
+        )
+      : undefined;
+
+  if (outside !== undefined) {
+    throw new TypeError(`${where}.default: ${outside}`);
   }
 
   return {
@@ -765,10 +918,10 @@ function tableOf(
   const resolved = Object.entries(columns ?? {}).map(([name, column]) => {
     const at = `${where}.columns.${name}`;
 
-    if (!IDENT.test(name)) {
-      throw new TypeError(
-        `${at}: "${name}" is not a lower snake identifier (a-z, 0-9 and _, starting with a letter)`,
-      );
+    const invalid = appIdentifierError(name);
+
+    if (invalid !== undefined) {
+      throw new TypeError(`${at}: "${name}" is not a column name. ${invalid}`);
     }
 
     if (reserved.has(name)) {
@@ -832,13 +985,22 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
 
   const resolved: AppTablesConfig = Object.fromEntries(
     Object.entries(value).map(([name, table]) => {
-      if (!IDENT.test(name) || name.startsWith("pg_")) {
+      const invalid = appIdentifierError(name);
+
+      if (invalid !== undefined) {
         throw new TypeError(
-          `appTables.${name}: "${name}" is not a lower snake identifier (a-z, 0-9 and _, starting with a letter)`,
+          `appTables.${name}: "${name}" is not a table name. ${invalid}`,
         );
       }
 
-      return [name, tableOf(`appTables.${name}`, table, tables, reserved)];
+      const checked = tableOf(`appTables.${name}`, table, tables, reserved);
+      const long = appNameLengthError(name, checked);
+
+      if (long !== undefined) {
+        throw new TypeError(`appTables.${name}: ${long}`);
+      }
+
+      return [name, checked];
     }),
   );
 

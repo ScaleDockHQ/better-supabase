@@ -9,3 +9,4 @@ Fix block findings from the no-code research review.
 - A number sequence refuses a number set by hand unless the service role sets it (`NUMBER_MANUAL`).
 - `save_view` drops `isDefault` when the view moves to another scope, list or team.
 - The app tables pgTAP file inserts a row of another tenant or user before it checks that a signed-in user can't read it, so the check fails when a policy leaks rows.
+- App table and column names are at most 58 characters, and a table is refused when a constraint or index name it derives would pass Postgres's 63-character limit. A column default must fit the column's options and bounds. `better-supabase/preset` exports these checks (`appIdentifierError`, `appNameLengthError`, `appDefaultError`, `isAppDefault`, `appReservedColumns`, `APP_NAME_MAX`) so builders validate with the same rules.

@@ -5,8 +5,10 @@ import type {
 
 import {
   type AppColumnFormat,
+  appDefaultError,
+  appIdentifierError,
+  appNameLengthError,
   appReservedColumns,
-  isAppDefault,
   type Preset,
 } from "better-supabase/preset";
 
@@ -103,10 +105,6 @@ export const APP_MODULE = "app-tables";
 /** Column names every app table creates itself. */
 const IMPLICIT_COLUMNS = new Set(["id", "created_at", "updated_at"]);
 
-const IDENTIFIER = /^[a-z_][a-z0-9_]*$/u;
-
-const MAX_IDENTIFIER = 63;
-
 export function appTableId(name: string): string {
   return `${APP_SCHEMA}.${name}`;
 }
@@ -157,21 +155,9 @@ function scopeColumnOf(
   return null;
 }
 
-/** Why `name` can't be an identifier, or `undefined` when it can. */
+/** Why `name` can't name an app table or column, by the library's rules. */
 export function identifierError(name: string): string | undefined {
-  if (name === "") {
-    return "Enter a name.";
-  }
-
-  if (name.length > MAX_IDENTIFIER) {
-    return `Use at most ${MAX_IDENTIFIER} characters.`;
-  }
-
-  if (!IDENTIFIER.test(name)) {
-    return "Use lower-case letters, digits and underscores, starting with a letter.";
-  }
-
-  return undefined;
+  return appIdentifierError(name);
 }
 
 /** The names of an app table's columns, its implicit ones included. */
@@ -216,33 +202,18 @@ export function columnError(
   return undefined;
 }
 
-/** Why `value` can't be the default of a `type` column, or `undefined` when it can. */
+/**
+ * Why `value` can't be the default of `column` (its type, options and
+ * bounds), or `undefined` when it can or is empty.
+ */
 export function defaultError(
-  type: AppColumnType,
+  column: Pick<AppColumn, "type" | "options" | "min" | "max" | "format">,
   value: string,
 ): string | undefined {
   const trimmed = value.trim();
 
-  if (trimmed === "" || isAppDefault(type, trimmed)) {
-    return undefined;
-  }
-
-  return `A ${type} column takes ${DEFAULT_EXAMPLES[type]} as its default.`;
+  return trimmed === "" ? undefined : appDefaultError(column, trimmed);
 }
-
-/** The defaults `isAppDefault` accepts, per type, as the inspector explains them. */
-const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
-  text: "a 'quoted' text",
-  integer: "a whole number",
-  bigint: "a whole number",
-  numeric: "a number",
-  boolean: "true or false",
-  uuid: "gen_random_uuid(), auth.uid() or a 'quoted' value",
-  timestamptz: "now() or a 'quoted' value",
-  date: "now() or a 'quoted' value",
-  jsonb: "'{}' or '[]'",
-  "text[]": "'{}'",
-};
 
 /** A column with its type changed, dropping the keys the new type can't take. */
 function retyped(column: AppColumn, type: AppColumnType): AppColumn {
@@ -317,25 +288,42 @@ export function addTable(
       });
 }
 
-/** Removes an app table and every app table column that references it. */
+/**
+ * Removes an app table, every app table column that references it (and
+ * those columns from key sets), and the rollups and lookups that read it.
+ */
 export function deleteTable(design: Design, name: string): Design {
   const rest = omitKey(design.appTables, name);
 
   const appTables = Object.fromEntries(
-    Object.entries(rest).map(([key, table]) => [
-      key,
-      {
-        ...table,
-        columns: Object.fromEntries(
-          Object.entries(table.columns ?? {}).filter(
+    Object.entries(rest).map(([key, table]) => {
+      const dropped = new Set(
+        Object.entries(table.columns ?? {})
+          .filter(
             ([, column]) =>
-              column.references === undefined ||
-              column.references.block !== undefined ||
-              column.references.table !== name,
-          ),
-        ),
-      },
-    ]),
+              column.references?.block === undefined &&
+              column.references?.table === name,
+          )
+          .map(([column]) => column),
+      );
+
+      return [
+        key,
+        dropped.size === 0
+          ? table
+          : withKeySets(
+              {
+                ...table,
+                columns: Object.fromEntries(
+                  Object.entries(table.columns ?? {}).filter(
+                    ([column]) => !dropped.has(column),
+                  ),
+                ),
+              },
+              (columns) => columns.filter((column) => !dropped.has(column)),
+            ),
+      ];
+    }),
   );
 
   return withPositions(
@@ -951,6 +939,16 @@ export function designIssues(
       .map((table) => table.module),
   );
 
+  const subjectTypes = new Map<string, string>();
+
+  for (const [name, table] of Object.entries(design.appTables ?? {})) {
+    const type = table.subject?.type;
+
+    if (type !== undefined && !subjectTypes.has(type)) {
+      subjectTypes.set(type, name);
+    }
+  }
+
   for (const [name, table] of Object.entries(design.appTables ?? {})) {
     const invalid = identifierError(name);
 
@@ -966,6 +964,32 @@ export function designIssues(
         table: name,
         message: `A block already creates a ${name} table. Rename this one.`,
       });
+    }
+
+    const long = appNameLengthError(name, table);
+
+    if (long !== undefined) {
+      issues.push({ table: name, message: `${long}.` });
+    }
+
+    const type = table.subject?.type;
+
+    if (type !== undefined && subjectTypes.get(type) !== name) {
+      issues.push({
+        table: name,
+        message: `${subjectTypes.get(type)} already has the subject type ${type}. Choose another.`,
+      });
+    }
+
+    for (const [column, config] of Object.entries(table.columns ?? {})) {
+      const fallback =
+        config.default === undefined
+          ? undefined
+          : defaultError(config, config.default);
+
+      if (fallback !== undefined) {
+        issues.push({ table: name, message: `${name}.${column}: ${fallback}` });
+      }
     }
 
     for (const column of subjectColumns(table.subject)) {
