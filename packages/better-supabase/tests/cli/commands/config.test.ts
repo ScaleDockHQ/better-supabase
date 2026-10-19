@@ -47,6 +47,21 @@ describe("config", () => {
     expect(result.stdout).not.toContain("secret");
   });
 
+  it("redacts the Management API token", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      `export default { source: { accessToken: "sbp_0123456789abcdef0123456789abcdef" } };\n`,
+    );
+
+    for (const argv of [["config"], ["config", "--json"]]) {
+      const result = await run([...argv, "--cwd", dir], { env: {} });
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).not.toContain("sbp_0123456789abcdef");
+      expect(result.stdout).toContain("<redacted>");
+    }
+  });
+
   it("says when there is no config file", async () => {
     const result = await run(["config", "--cwd", dir], { env: {} });
     expect(result.stdout).toMatch(/^# no config file, defaults only\n\{/);

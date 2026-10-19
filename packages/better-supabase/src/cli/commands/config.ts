@@ -2,28 +2,12 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand } from "../command.ts";
 
 import { defineCliCommand } from "../command.ts";
+import { redact, redactUrl } from "../core/redact.ts";
 import { display } from "../io.ts";
 
-/** A connection string with its password replaced, so the printed config is safe to share. */
-function redactUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-
-    if (parsed.password === "") {
-      return url;
-    }
-
-    parsed.password = "redacted";
-
-    return parsed.toString();
-  } catch {
-    return "<redacted>";
-  }
-}
-
-/** The resolved config as JSON: generators by name and version, the database password redacted. */
+/** The resolved config as JSON: generators by name and version, every credential redacted. */
 export function printableConfig(config: ResolvedConfig): unknown {
-  return {
+  return redact({
     ...config,
     source: {
       ...config.source,
@@ -33,7 +17,7 @@ export function printableConfig(config: ResolvedConfig): unknown {
       name: generator.name,
       apiVersion: generator.apiVersion ?? null,
     })),
-  };
+  });
 }
 
 export const configCommand: AnyCommand = defineCliCommand({
