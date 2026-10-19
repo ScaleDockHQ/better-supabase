@@ -358,6 +358,26 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [],
   },
   {
+    name: "mcp",
+    description:
+      "Serves the CLI to coding agents as an MCP server on stdio: read-only tools, and file writes with --allow-writes and the user's consent",
+    group: "inspect",
+    docs: "/docs/cli/mcp",
+    examples: [
+      {
+        command: "better-supabase mcp",
+        description:
+          "Starts the read-only server; add it to the agent's MCP config",
+      },
+      {
+        command: "better-supabase mcp --allow-writes",
+        description:
+          "Adds gen, sql_sync, apply and add, each behind a consent token",
+      },
+    ],
+    effects: [READS_DATABASE, { kind: "files", when: "--allow-writes" }],
+  },
+  {
     name: "sql",
     description:
       "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration",

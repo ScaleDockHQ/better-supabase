@@ -25,13 +25,12 @@ import type {
 import type { Json, JsonRpcRequest } from "./json-rpc.ts";
 
 import { type DbError, dbError } from "../core/errors.ts";
-import { jsonReplacer, jsonResponse } from "../core/json.ts";
+import { jsonResponse } from "../core/json.ts";
 import {
   methodNotAllowed,
   problemResponse,
   toProblem,
 } from "../core/problem.ts";
-import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
@@ -63,7 +62,6 @@ import {
   INVALID_PARAMS,
   INVALID_REQUEST,
   META_CAPABILITIES,
-  META_SERVER_INFO,
   META_VERSION,
   METHOD_NOT_FOUND,
   PARSE_ERROR,
@@ -82,20 +80,24 @@ import {
   type RequiredRoles,
   toolPermission,
 } from "./permissions.ts";
-
-export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
-
-/** Revisions before 2026-07-28 open with an `initialize` handshake. */
-const LEGACY_VERSIONS: readonly string[] = [
-  "2025-11-25",
-  "2025-06-18",
-  "2025-03-26",
-];
-
-const SUPPORTED_VERSIONS: readonly string[] = [
+import {
+  discoverResult,
+  initializeResult,
+  isModernMessage,
+  LIST_TTL_MS,
   MCP_PROTOCOL_VERSION,
-  ...LEGACY_VERSIONS,
-];
+  modernResult,
+  type ServerDescription,
+  SUPPORTED_VERSIONS,
+  textResult,
+  type ToolAnnotations,
+  type ToolInfo,
+  type ToolResult,
+} from "./protocol.ts";
+
+export { MCP_PROTOCOL_VERSION } from "./protocol.ts";
+
+export type { ToolAnnotations, ToolInfo, ToolResult } from "./protocol.ts";
 
 /** The host's hostname is in the list; a missing or malformed host is not. */
 function hostAllowed(host: string | null, allowed: readonly string[]): boolean {
@@ -108,25 +110,6 @@ function hostAllowed(host: string | null, allowed: readonly string[]): boolean {
   } catch {
     return false;
   }
-}
-
-/** MCP tool annotations (hints for clients, not guarantees). */
-export interface ToolAnnotations {
-  readonly title?: string;
-  readonly readOnlyHint?: boolean;
-  readonly destructiveHint?: boolean;
-  readonly idempotentHint?: boolean;
-  readonly openWorldHint?: boolean;
-}
-
-/** A tool as listed by `tools/list`. */
-export interface ToolInfo {
-  readonly name: string;
-  readonly title?: string;
-  readonly description?: string;
-  readonly inputSchema: Json;
-  readonly outputSchema?: Json;
-  readonly annotations?: ToolAnnotations;
 }
 
 export interface ToolContext<
@@ -368,12 +351,6 @@ export interface BetterMcp<
   ): Promise<ToolResult>;
 }
 
-export interface ToolResult {
-  readonly content: readonly { readonly type: "text"; readonly text: string }[];
-  readonly structuredContent?: Json;
-  readonly isError?: boolean;
-}
-
 /** A custom tool. Pass it in `createMcp({ tools: [...] })`. */
 export function defineTool<
   M extends AnyModels,
@@ -586,33 +563,8 @@ function tableTools(
   return tools;
 }
 
-/** How long clients may cache `tools/list` and `server/discover` (per token). */
-const LIST_TTL_MS = 300_000;
-
 /** Callers whose visible tool lists are kept; the oldest goes first. */
 const VISIBLE_LISTS_MAX = 1000;
-
-function textResult(value: unknown, isError = false): ToolResult {
-  // SAFETY: the check above narrows value to a non-array object, which is a JSON object.
-  const structured =
-    typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Json)
-      : undefined;
-
-  return {
-    content: [
-      {
-        type: "text",
-        text:
-          typeof value === "string"
-            ? value
-            : JSON.stringify(value ?? null, jsonReplacer),
-      },
-    ],
-    ...(structured ? { structuredContent: structured } : {}),
-    ...(isError ? { isError: true } : {}),
-  };
-}
 
 /**
  * An MCP server (Streamable HTTP, stateless) whose tools run as the caller:
@@ -838,6 +790,26 @@ export function createMcp<
     { readonly entries: Entry[]; readonly generation: number }
   >({ max: VISIBLE_LISTS_MAX });
 
+  let warned = false;
+
+  /** A tool with a permission and no authorizer to check it is never listed, which is easy to miss. */
+  const warnHidden = (all: readonly Entry[]): void => {
+    if (warned || options.authorizer) {
+      return;
+    }
+
+    const hidden = all
+      .filter((entry) => entry.permission !== undefined)
+      .map((entry) => entry.info.name);
+
+    if (hidden.length > 0) {
+      warned = true;
+      console.warn(
+        `createMcp: ${hidden.join(", ")} ${hidden.length === 1 ? "has" : "have"} a permission but no authorizer is set, so tools/list hides ${hidden.length === 1 ? "it" : "them"}. Pass authorizer to createMcp, or drop the permission.`,
+      );
+    }
+  };
+
   /** Without a `visible` hook or permissions every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
@@ -849,6 +821,8 @@ export function createMcp<
     if (!options.visible && !gated) {
       return listFor(target);
     }
+
+    warnHidden(all);
 
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
@@ -921,13 +895,14 @@ export function createMcp<
     (scope) => scope !== "offline_access",
   );
 
-  const serverInfo = {
-    name: options.name,
-    version: options.version,
-    ...(options.title ? { title: options.title } : {}),
+  const description: ServerDescription = {
+    info: {
+      name: options.name,
+      version: options.version,
+      ...(options.title ? { title: options.title } : {}),
+    },
+    ...(options.instructions ? { instructions: options.instructions } : {}),
   };
-
-  const capabilities = { tools: { listChanged: false } };
 
   const unauthorized = (request: Request): Response => {
     const response = unauthorizedResponse(request, {
@@ -1121,11 +1096,7 @@ export function createMcp<
       );
     }
 
-    const meta = message.params?.["_meta"];
-
-    const modern =
-      (isObject(meta) && meta[META_VERSION] !== undefined) ||
-      header === MCP_PROTOCOL_VERSION;
+    const modern = isModernMessage(message) || header === MCP_PROTOCOL_VERSION;
 
     if (modern) {
       const invalid = checkModern(message, header, request.headers);
@@ -1146,13 +1117,7 @@ export function createMcp<
       jsonResponse({
         jsonrpc: "2.0",
         id: message.id,
-        result: modern
-          ? {
-              ...result,
-              resultType: "complete",
-              _meta: { [META_SERVER_INFO]: serverInfo },
-            }
-          : result,
+        result: modern ? modernResult(result, description) : result,
       });
 
     const notFound = (): Response =>
@@ -1165,35 +1130,18 @@ export function createMcp<
 
     switch (message.method) {
       case "server/discover": {
-        return reply({
-          supportedVersions: [...SUPPORTED_VERSIONS],
-          capabilities,
-          ...(options.instructions
-            ? { instructions: options.instructions }
-            : {}),
-          ttlMs: LIST_TTL_MS,
-          cacheScope: "private",
-        });
+        return reply(discoverResult(description));
       }
 
       case "initialize": {
-        if (modern) {
-          return notFound();
-        }
-
-        const requested = message.params?.["protocolVersion"];
-
-        return reply({
-          protocolVersion:
-            typeof requested === "string" && LEGACY_VERSIONS.includes(requested)
-              ? requested
-              : LEGACY_VERSIONS[0],
-          capabilities,
-          serverInfo,
-          ...(options.instructions
-            ? { instructions: options.instructions }
-            : {}),
-        });
+        return modern
+          ? notFound()
+          : reply(
+              initializeResult(
+                message.params?.["protocolVersion"],
+                description,
+              ),
+            );
       }
 
       case "ping": {

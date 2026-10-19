@@ -13,6 +13,7 @@
     "config",
     "codemod",
     "agent-mode",
+    "mcp",
     "completion",
     "errors"
   ]

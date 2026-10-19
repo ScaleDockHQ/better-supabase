@@ -1584,6 +1584,8 @@
   },
   "./mcp": {
     "values": [
+      "answerLine",
+      "answerMessage",
       "createMcp",
       "defineTool",
       "MCP_PROTOCOL_VERSION"
@@ -1593,7 +1595,9 @@
       "GuardOptions",
       "McpOptions",
       "McpTool",
+      "ProtocolServer",
       "ResourceRouteOptions",
+      "ServerDescription",
       "ToolAnnotations",
       "ToolContext",
       "ToolDecision",
