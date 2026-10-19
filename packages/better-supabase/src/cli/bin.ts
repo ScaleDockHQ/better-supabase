@@ -45,18 +45,26 @@ const spinner = (message: string): (() => void) => {
   };
 };
 
+/** How long a signalled run may take to clean up before the process exits. */
+const GRACE_MS = 2000;
+
 const controller = new AbortController();
 let signalExit: 130 | 143 | undefined;
 
-process.once("SIGINT", () => {
-  signalExit = 130;
-  controller.abort();
-});
+// A second signal, or a run still busy after the grace period, exits at once.
+const onSignal = (code: 130 | 143) => (): void => {
+  if (controller.signal.aborted) {
+    process.exit(code);
+  }
 
-process.once("SIGTERM", () => {
-  signalExit = 143;
+  signalExit = code;
   controller.abort();
-});
+  setTimeout(() => process.exit(code), GRACE_MS).unref();
+};
+
+process.on("SIGINT", onSignal(130));
+
+process.on("SIGTERM", onSignal(143));
 
 // A symlinked bin keeps the typed name in argv[1]; shims that run the file
 // directly (pnpm, Windows) report better-supabase.

@@ -236,7 +236,7 @@ export async function runMetadataGen(
 
   if (!isEmit(emit)) {
     throw new CliError(
-      "usage",
+      "invalid_value",
       `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
     );
   }

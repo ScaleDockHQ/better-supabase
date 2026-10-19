@@ -210,7 +210,10 @@ describe("shipped JSON Schemas", () => {
     [["skills", "list", "--json"], 0, "success"],
     [["sql", "list", "--json"], 0, "success"],
     [["sql", "print", "mfa", "--json"], 0, "success"],
-    [["sql", "print", "--json"], 2, "error"],
+    [["sql", "print", "--json"], 3, "action_required"],
+    [["sql", "print", "nope", "--json"], 2, "error"],
+    [["--json"], 2, "error"],
+    [["blocks", "--json"], 2, "error"],
   ])("describe the result of %j", async (argv, code, status) => {
     const result = await run(argv);
     const envelope = JSON.parse(result.stdout) as { status: string };

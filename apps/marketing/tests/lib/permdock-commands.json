@@ -1,0 +1,1054 @@
+{
+  "$comment": "The leaf commands of `permdock --help --json` (cli-commands-v1), trimmed to paths, arguments and options. Refresh it when the Create page names a new PermDock command or flag.",
+  "name": "permdock",
+  "version": "0.4.0",
+  "options": [
+    {
+      "name": "cwd",
+      "type": "string"
+    },
+    {
+      "name": "config",
+      "type": "string"
+    },
+    {
+      "name": "json",
+      "type": "boolean"
+    },
+    {
+      "name": "format",
+      "type": "enum",
+      "choices": ["text", "json", "github", "sarif"]
+    },
+    {
+      "name": "yes",
+      "type": "boolean"
+    },
+    {
+      "name": "confirm",
+      "type": "string"
+    },
+    {
+      "name": "agent",
+      "type": "enum",
+      "choices": ["auto", "yes", "no"]
+    },
+    {
+      "name": "debug",
+      "type": "boolean"
+    },
+    {
+      "name": "color",
+      "type": "boolean"
+    },
+    {
+      "name": "help",
+      "type": "boolean"
+    }
+  ],
+  "commands": [
+    {
+      "path": "init",
+      "arguments": [],
+      "options": [
+        {
+          "name": "preset",
+          "type": "string"
+        },
+        {
+          "name": "archetype",
+          "type": "enum",
+          "choices": [
+            "b2b",
+            "agent",
+            "marketplace",
+            "api",
+            "internal",
+            "consumer"
+          ]
+        },
+        {
+          "name": "framework",
+          "type": "enum",
+          "choices": ["next", "hono", "express", "none"]
+        },
+        {
+          "name": "auth",
+          "type": "enum",
+          "choices": ["custom", "supabase", "better-auth", "clerk", "jwt"]
+        },
+        {
+          "name": "backend",
+          "type": "enum",
+          "choices": ["memory", "supabase", "drizzle", "prisma"]
+        },
+        {
+          "name": "feature",
+          "type": "enum",
+          "choices": [
+            "tenancy",
+            "custom-roles",
+            "approvals",
+            "operations",
+            "decision-log",
+            "limits",
+            "plans",
+            "ownership",
+            "api-keys",
+            "rls"
+          ]
+        },
+        {
+          "name": "integration",
+          "type": "enum",
+          "choices": ["ai-sdk", "mcp", "shadcn", "react-native"]
+        },
+        {
+          "name": "service",
+          "type": "enum",
+          "choices": [
+            "cloud-decision-log",
+            "cloud-approvals",
+            "cloud-snapshots",
+            "cloud-hosted-grants"
+          ]
+        },
+        {
+          "name": "out-dir",
+          "type": "string"
+        },
+        {
+          "name": "dry-run",
+          "type": "boolean"
+        },
+        {
+          "name": "force",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "preset decode",
+      "arguments": ["code"],
+      "options": []
+    },
+    {
+      "path": "preset url",
+      "arguments": ["code"],
+      "options": []
+    },
+    {
+      "path": "skills install",
+      "arguments": [],
+      "options": [
+        {
+          "name": "for",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "skills update",
+      "arguments": [],
+      "options": [
+        {
+          "name": "for",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "skills list",
+      "arguments": [],
+      "options": []
+    },
+    {
+      "path": "doctor",
+      "arguments": [],
+      "options": [
+        {
+          "name": "only",
+          "type": "string"
+        },
+        {
+          "name": "fix",
+          "type": "boolean"
+        },
+        {
+          "name": "fail-on",
+          "type": "enum",
+          "choices": ["error", "warning"]
+        }
+      ]
+    },
+    {
+      "path": "completion",
+      "arguments": ["shell"],
+      "options": []
+    },
+    {
+      "path": "collect",
+      "arguments": [],
+      "options": [
+        {
+          "name": "check",
+          "type": "boolean"
+        },
+        {
+          "name": "src",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "watch",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "catalog",
+      "arguments": [],
+      "options": [
+        {
+          "name": "kind",
+          "type": "enum",
+          "choices": ["catalog", "json-schema", "markdown"]
+        },
+        {
+          "name": "permissions",
+          "type": "string"
+        },
+        {
+          "name": "include",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "usage",
+      "arguments": [],
+      "options": [
+        {
+          "name": "fail-on",
+          "type": "enum",
+          "choices": ["error", "warning"]
+        },
+        {
+          "name": "ignore",
+          "type": "string"
+        },
+        {
+          "name": "dynamic-as-used",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "diff",
+      "arguments": ["before", "after"],
+      "options": [
+        {
+          "name": "impact",
+          "type": "boolean"
+        },
+        {
+          "name": "fixtures",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "config",
+      "arguments": [],
+      "options": [
+        {
+          "name": "print",
+          "type": "boolean"
+        },
+        {
+          "name": "fail-on",
+          "type": "enum",
+          "choices": ["error", "warning"]
+        }
+      ]
+    },
+    {
+      "path": "rls generate",
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "type": "enum",
+          "choices": ["sql", "drizzle", "prisma"]
+        },
+        {
+          "name": "dialect",
+          "type": "enum",
+          "choices": ["supabase", "neon", "guc"]
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        },
+        {
+          "name": "memberships",
+          "type": "string"
+        },
+        {
+          "name": "rbac",
+          "type": "enum",
+          "choices": ["supabase"]
+        },
+        {
+          "name": "rbac-schema",
+          "type": "string"
+        },
+        {
+          "name": "authorize",
+          "type": "enum",
+          "choices": ["database", "jwt"]
+        },
+        {
+          "name": "skip-closures",
+          "type": "boolean"
+        },
+        {
+          "name": "inline-functions",
+          "type": "boolean"
+        },
+        {
+          "name": "force-rls",
+          "type": "boolean"
+        },
+        {
+          "name": "guc-prefix",
+          "type": "string"
+        },
+        {
+          "name": "policy-per-role",
+          "type": "boolean"
+        },
+        {
+          "name": "policy-name",
+          "type": "string"
+        },
+        {
+          "name": "tenant-type",
+          "type": "string"
+        },
+        {
+          "name": "custom-roles",
+          "type": "boolean"
+        },
+        {
+          "name": "capabilities",
+          "type": "boolean"
+        },
+        {
+          "name": "fields",
+          "type": "enum",
+          "choices": ["views"]
+        },
+        {
+          "name": "revoke-columns",
+          "type": "boolean"
+        },
+        {
+          "name": "helpers-only",
+          "type": "boolean"
+        },
+        {
+          "name": "shims",
+          "type": "boolean"
+        },
+        {
+          "name": "schemas",
+          "type": "enum",
+          "choices": ["pg-delta", "migra", "migrations"]
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        },
+        {
+          "name": "project",
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "split",
+          "type": "string"
+        },
+        {
+          "name": "grants-out",
+          "type": "string"
+        },
+        {
+          "name": "seeds-out",
+          "type": "string"
+        },
+        {
+          "name": "backfill-out",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "rls import",
+      "arguments": [],
+      "options": [
+        {
+          "name": "sql",
+          "type": "string"
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "validator",
+          "type": "enum",
+          "choices": ["zod", "valibot", "arktype"]
+        },
+        {
+          "name": "memberships",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "rls verify",
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "type": "enum",
+          "choices": ["sql", "drizzle", "prisma"]
+        },
+        {
+          "name": "dialect",
+          "type": "enum",
+          "choices": ["supabase", "neon", "guc"]
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        },
+        {
+          "name": "memberships",
+          "type": "string"
+        },
+        {
+          "name": "rbac",
+          "type": "enum",
+          "choices": ["supabase"]
+        },
+        {
+          "name": "rbac-schema",
+          "type": "string"
+        },
+        {
+          "name": "authorize",
+          "type": "enum",
+          "choices": ["database", "jwt"]
+        },
+        {
+          "name": "skip-closures",
+          "type": "boolean"
+        },
+        {
+          "name": "inline-functions",
+          "type": "boolean"
+        },
+        {
+          "name": "force-rls",
+          "type": "boolean"
+        },
+        {
+          "name": "guc-prefix",
+          "type": "string"
+        },
+        {
+          "name": "policy-per-role",
+          "type": "boolean"
+        },
+        {
+          "name": "policy-name",
+          "type": "string"
+        },
+        {
+          "name": "tenant-type",
+          "type": "string"
+        },
+        {
+          "name": "custom-roles",
+          "type": "boolean"
+        },
+        {
+          "name": "capabilities",
+          "type": "boolean"
+        },
+        {
+          "name": "fields",
+          "type": "enum",
+          "choices": ["views"]
+        },
+        {
+          "name": "revoke-columns",
+          "type": "boolean"
+        },
+        {
+          "name": "helpers-only",
+          "type": "boolean"
+        },
+        {
+          "name": "shims",
+          "type": "boolean"
+        },
+        {
+          "name": "schemas",
+          "type": "enum",
+          "choices": ["pg-delta", "migra", "migrations"]
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "fixtures",
+          "type": "string"
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "choices": ["node", "pgtap"]
+        },
+        {
+          "name": "tree",
+          "type": "boolean"
+        },
+        {
+          "name": "introspect",
+          "type": "boolean"
+        },
+        {
+          "name": "advisors",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "rls migrate",
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "type": "enum",
+          "choices": ["sql", "drizzle", "prisma"]
+        },
+        {
+          "name": "dialect",
+          "type": "enum",
+          "choices": ["supabase", "neon", "guc"]
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        },
+        {
+          "name": "memberships",
+          "type": "string"
+        },
+        {
+          "name": "rbac",
+          "type": "enum",
+          "choices": ["supabase"]
+        },
+        {
+          "name": "rbac-schema",
+          "type": "string"
+        },
+        {
+          "name": "authorize",
+          "type": "enum",
+          "choices": ["database", "jwt"]
+        },
+        {
+          "name": "skip-closures",
+          "type": "boolean"
+        },
+        {
+          "name": "inline-functions",
+          "type": "boolean"
+        },
+        {
+          "name": "force-rls",
+          "type": "boolean"
+        },
+        {
+          "name": "guc-prefix",
+          "type": "string"
+        },
+        {
+          "name": "policy-per-role",
+          "type": "boolean"
+        },
+        {
+          "name": "policy-name",
+          "type": "string"
+        },
+        {
+          "name": "tenant-type",
+          "type": "string"
+        },
+        {
+          "name": "custom-roles",
+          "type": "boolean"
+        },
+        {
+          "name": "capabilities",
+          "type": "boolean"
+        },
+        {
+          "name": "fields",
+          "type": "enum",
+          "choices": ["views"]
+        },
+        {
+          "name": "revoke-columns",
+          "type": "boolean"
+        },
+        {
+          "name": "helpers-only",
+          "type": "boolean"
+        },
+        {
+          "name": "shims",
+          "type": "boolean"
+        },
+        {
+          "name": "schemas",
+          "type": "enum",
+          "choices": ["pg-delta", "migra", "migrations"]
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "sql",
+          "type": "string"
+        },
+        {
+          "name": "dry-run",
+          "type": "boolean"
+        },
+        {
+          "name": "force",
+          "type": "boolean"
+        },
+        {
+          "name": "retire-out",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "supabase hook generate",
+      "arguments": [],
+      "options": [
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "active-from",
+          "type": "string"
+        },
+        {
+          "name": "budget",
+          "type": "string"
+        },
+        {
+          "name": "schema",
+          "type": "string"
+        },
+        {
+          "name": "schemas",
+          "type": "enum",
+          "choices": ["pg-delta", "migra", "migrations"]
+        },
+        {
+          "name": "grants-out",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "supabase inspect",
+      "arguments": [],
+      "options": [
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "powersync generate",
+      "arguments": [],
+      "options": [
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "powersync verify",
+      "arguments": [],
+      "options": [
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "db-url-stdin",
+          "type": "boolean"
+        },
+        {
+          "name": "fixtures",
+          "type": "string"
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "openapi emit",
+      "arguments": [],
+      "options": [
+        {
+          "name": "doc",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "check",
+          "type": "boolean"
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "enum",
+          "choices": ["3.1", "3.2", "3.3"]
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "choices": ["document", "overlay"]
+        },
+        {
+          "name": "overlay",
+          "type": "enum",
+          "choices": ["1.1", "1.2"]
+        },
+        {
+          "name": "profile",
+          "type": "enum",
+          "choices": ["fapi2"]
+        },
+        {
+          "name": "profile-scheme",
+          "type": "string"
+        },
+        {
+          "name": "scheme",
+          "type": "string"
+        },
+        {
+          "name": "metadata-url",
+          "type": "string"
+        },
+        {
+          "name": "device-flow",
+          "type": "boolean"
+        },
+        {
+          "name": "arity",
+          "type": "boolean"
+        },
+        {
+          "name": "authorization-url",
+          "type": "string"
+        },
+        {
+          "name": "token-url",
+          "type": "string"
+        },
+        {
+          "name": "device-authorization-url",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "openapi import",
+      "arguments": [],
+      "options": [
+        {
+          "name": "doc",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        },
+        {
+          "name": "validator",
+          "type": "enum",
+          "choices": ["zod", "valibot", "arktype"]
+        },
+        {
+          "name": "map",
+          "type": "string"
+        },
+        {
+          "name": "annotate",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "arazzo check",
+      "arguments": [],
+      "options": [
+        {
+          "name": "doc",
+          "type": "string"
+        },
+        {
+          "name": "openapi",
+          "type": "string"
+        },
+        {
+          "name": "workflow",
+          "type": "string"
+        },
+        {
+          "name": "permissions",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "scan",
+      "arguments": [],
+      "options": [
+        {
+          "name": "pattern",
+          "type": "string"
+        },
+        {
+          "name": "src",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "casl import",
+      "arguments": [],
+      "options": [
+        {
+          "name": "rules",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "casbin import",
+      "arguments": [],
+      "options": [
+        {
+          "name": "model",
+          "type": "string"
+        },
+        {
+          "name": "policy",
+          "type": "string"
+        },
+        {
+          "name": "out",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "login",
+      "arguments": [],
+      "options": [
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "loopback",
+          "type": "boolean"
+        },
+        {
+          "name": "scope",
+          "type": "enum",
+          "choices": ["catalog:write"]
+        },
+        {
+          "name": "open",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "logout",
+      "arguments": [],
+      "options": [
+        {
+          "name": "url",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "whoami",
+      "arguments": [],
+      "options": [
+        {
+          "name": "url",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "path": "cloud push",
+      "arguments": [],
+      "options": [
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "manifest",
+          "type": "string"
+        },
+        {
+          "name": "project",
+          "type": "string"
+        },
+        {
+          "name": "dry-run",
+          "type": "boolean"
+        },
+        {
+          "name": "key-stdin",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "cloud pull",
+      "arguments": [],
+      "options": [
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "manifest",
+          "type": "string"
+        },
+        {
+          "name": "project",
+          "type": "string"
+        },
+        {
+          "name": "token-stdin",
+          "type": "boolean"
+        }
+      ]
+    },
+    {
+      "path": "codemod",
+      "arguments": ["version", "paths"],
+      "options": [
+        {
+          "name": "dry-run",
+          "type": "boolean"
+        },
+        {
+          "name": "force",
+          "type": "boolean"
+        }
+      ]
+    }
+  ]
+}

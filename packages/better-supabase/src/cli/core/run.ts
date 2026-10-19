@@ -97,7 +97,12 @@ function isCommandResult(value: unknown): value is CommandResult {
   );
 }
 
-const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
+const SHOWS_USAGE = new Set<CliErrorCode>([
+  "usage",
+  "unknown_command",
+  "unknown_flag",
+  "invalid_value",
+]);
 
 /** The stack of `cause` and of each error in its `cause` chain, for `--debug`. */
 function stackText(cause: unknown): string {
@@ -127,7 +132,7 @@ function projectDirectory(base: string, flag: string | undefined): string {
   const directory = resolve(base, flag);
 
   if (!statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
-    throw new CliError("usage", `--cwd ${flag} is not a directory.`, {
+    throw new CliError("invalid_value", `--cwd ${flag} is not a directory.`, {
       flag: "--cwd",
     });
   }
@@ -408,6 +413,9 @@ export function cliFromTree(
               ...(error.problem.suggestion
                 ? { suggestion: error.problem.suggestion }
                 : {}),
+              ...(error.problem.choices
+                ? { choices: error.problem.choices }
+                : {}),
             })
           : error;
 
@@ -493,6 +501,18 @@ export function cliFromTree(
         return printHelp();
       }
 
+      if (agentError !== undefined) {
+        return reportError(agentError);
+      }
+
+      if (json) {
+        return reportError(
+          new CliError("usage", "Name a command.", {
+            choices: { "<command>": [...tree.keys()] },
+          }),
+        );
+      }
+
       fail(await usage());
 
       return finish(2);
@@ -505,12 +525,13 @@ export function cliFromTree(
     }
 
     if (!node.load) {
-      const names = [...node.children.keys()].join(", ");
+      const names = [...node.children.keys()];
 
       return reportError(
         new CliError(
           "usage",
-          `Name a ${node.path.join(" ")} subcommand: ${names}.`,
+          `Name a ${node.path.join(" ")} subcommand: ${names.join(", ")}.`,
+          { choices: { "<command>": names } },
         ),
       );
     }

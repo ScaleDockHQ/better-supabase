@@ -163,6 +163,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0044: app table rollups and lookups render as a `security_invoker` view, from structured keys only.
 - 0045: the CLI runs from one command tree, with one JSON envelope, agent mode and the `bsb` short name.
 - 0046: tenant rules are filter trees with `{ kind, config }` action references, evaluated in TS and SQL.
+- 0047: the CLI contract is published for other CLIs: codes, envelope, help document, consent.
 
 ## Pre-release pins
 

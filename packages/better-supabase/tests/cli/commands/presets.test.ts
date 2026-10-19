@@ -22,7 +22,7 @@ import {
   encodePreset,
   namedPreset,
 } from "../../../src/preset/index.ts";
-import { usageError } from "../fixtures/usage.ts";
+import { inputRequired, usageError } from "../fixtures/usage.ts";
 
 let dir: string;
 
@@ -91,7 +91,9 @@ describe("preset decode", () => {
       'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
     );
     await usageError(() => decodePresetInput("startup"));
-    await usageError(() => decodePresetInput(undefined));
+    expect(
+      (await inputRequired(() => decodePresetInput(undefined))).problem.missing,
+    ).toEqual(["<preset>"]);
   });
 });
 
@@ -145,7 +147,10 @@ describe("blocks", () => {
       "More: https://bettersupabase.com/blocks/outbox",
     );
     expect(viewBlock("tenant").output).toContain("Requires:   updated-at");
-    await usageError(() => viewBlock(undefined));
+    const missing = await inputRequired(() => viewBlock(undefined));
+
+    expect(missing.problem.missing).toEqual(["<block>"]);
+    expect(missing.problem.choices?.["<block>"]).toContain("outbox");
     expect(await usageError(() => viewBlock("nope"))).toContain(
       "better-supabase blocks search nope",
     );

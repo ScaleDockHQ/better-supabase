@@ -17,7 +17,15 @@ export async function printModule(
   names: readonly string[],
 ): Promise<CommandResult> {
   const [name] = names;
-  const module = name ? SQL_MODULES[name] : undefined;
+
+  if (name === undefined) {
+    throw new CliError("input_required", "Name one module.", {
+      missing: ["<module>"],
+      choices: { "<module>": Object.keys(SQL_MODULES) },
+    });
+  }
+
+  const module = SQL_MODULES[name];
 
   if (!module) {
     throw new CliError(

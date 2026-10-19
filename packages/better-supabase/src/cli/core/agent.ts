@@ -102,7 +102,7 @@ function settingOf(value: string, source: string): AgentSetting {
 
   if (!setting) {
     throw new CliError(
-      "usage",
+      "invalid_value",
       `${source} takes auto, yes or no, got "${value}".`,
       source.startsWith("--") ? { flag: source } : {},
     );
@@ -214,17 +214,19 @@ export function nextCommand(
 
 /**
  * The step that answers an `input_required` error: the run again with the
- * first choice of each missing flag (or a placeholder) and `--yes`.
+ * first choice of each missing flag or `<positional>` (or a placeholder) and
+ * `--yes`.
  */
 export function missingInputNext(
   argv: readonly string[],
   missing: readonly string[],
   choices: Readonly<Record<string, readonly string[]>> = {},
 ): NextStep {
-  const filled = missing.flatMap((flag) => [
-    flag,
-    choices[flag]?.[0] ?? `<${flag.replace(/^-+/, "")}>`,
-  ]);
+  const filled = missing.flatMap((name) =>
+    name.startsWith("<")
+      ? [choices[name]?.[0] ?? name]
+      : [name, choices[name]?.[0] ?? `<${name.replace(/^-+/, "")}>`],
+  );
 
   const yes = argv.includes("--yes") || argv.includes("-y") ? [] : ["--yes"];
 

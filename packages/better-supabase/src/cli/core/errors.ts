@@ -3,16 +3,19 @@ import type { CommandResult, NextStep } from "./io.ts";
 /**
  * `1` for a failure or a failed check, `2` for a usage error the caller can
  * fix by changing the command, `3` when the user has to act (give an input,
- * consent, log in), `130` when the run was interrupted or a prompt cancelled.
- * The bin also exits `143` on SIGTERM, and `gen --metadata` exits `65` when
- * it rejects its input.
+ * consent, log in), `130` when the run was interrupted or a prompt cancelled,
+ * `143` when it was terminated (SIGTERM), and `65` when `gen --metadata`
+ * rejects its input.
  */
-export type ExitCode = 1 | 2 | 3 | 130;
+export type ExitCode = 1 | 2 | 3 | 65 | 130 | 143;
 
 export type CliErrorCode =
   | "usage"
   | "unknown_command"
+  | "unknown_flag"
+  | "invalid_value"
   | "command_moved"
+  | "flag_renamed"
   | "missing_value"
   | "outside_root"
   | "config_not_found"
@@ -46,7 +49,10 @@ const ERRORS: {
 } = {
   usage: ["Invalid arguments", 2],
   unknown_command: ["Unknown command", 2],
+  unknown_flag: ["Unknown flag", 2],
+  invalid_value: ["Invalid value", 2],
   command_moved: ["Command moved", 2],
+  flag_renamed: ["Flag renamed", 2],
   missing_value: ["Missing value", 2],
   outside_root: ["Path outside the project", 2],
   config_not_found: ["Config file not found", 2],
@@ -156,10 +162,28 @@ function isCittyUsageError(cause: unknown): cause is Error {
   return cause instanceof Error && cause.name === "CLIError";
 }
 
-/** Any thrown value as a `CliError`: citty's argument errors become `usage`, the rest `internal`. */
+const MISSING_POSITIONAL = /^Missing required positional argument: (\S+)$/;
+
+/**
+ * Any thrown value as a `CliError`: a missing required positional becomes
+ * `input_required`, citty's other argument errors `usage`, the rest
+ * `internal`.
+ */
 export function toCliError(cause: unknown): CliError {
   if (cause instanceof CliError) {
     return cause;
+  }
+
+  const positional = isCittyUsageError(cause)
+    ? MISSING_POSITIONAL.exec(cause.message)?.[1]
+    : undefined;
+
+  if (positional !== undefined) {
+    const name = positional.toLowerCase();
+
+    return new CliError("input_required", `<${name}> is required.`, {
+      missing: [`<${name}>`],
+    });
   }
 
   if (isCittyUsageError(cause)) {

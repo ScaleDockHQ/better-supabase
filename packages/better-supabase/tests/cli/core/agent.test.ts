@@ -340,7 +340,7 @@ describe("agent mode in run()", () => {
 
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "command_moved" },
+      error: { code: "flag_renamed" },
     });
   });
 

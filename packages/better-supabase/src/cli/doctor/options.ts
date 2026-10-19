@@ -34,7 +34,7 @@ export function reportFormat(
 
   if (!format) {
     throw new CliError(
-      "usage",
+      "invalid_value",
       `--format must be one of ${FLAG_FORMATS.join(", ")}`,
     );
   }

@@ -189,12 +189,12 @@ Docs: https://bettersupabase.com/docs/cli/presets#blocks
 `;
 
 exports[`help > documents blocks view 1`] = `
-"Usage: better-supabase blocks view [options] [block]
+"Usage: better-supabase blocks view [options] <block>
 
 Shows a block: its tables, the blocks it requires and its options
 
 Arguments
-  [block]  The block to show
+  <block>  The block to show
 
 Global options
   --cwd <dir>            Project directory
@@ -651,12 +651,12 @@ Docs: https://bettersupabase.com/docs/cli/presets#preset
 `;
 
 exports[`help > documents preset decode 1`] = `
-"Usage: better-supabase preset decode [options] [preset]
+"Usage: better-supabase preset decode [options] <preset>
 
 Prints the blocks, auth and settings a preset code or Create URL holds
 
 Arguments
-  [preset]  A preset name, a preset code or a /create URL
+  <preset>  A preset name, a preset code or a /create URL
 
 Global options
   --cwd <dir>            Project directory
@@ -1027,12 +1027,12 @@ Docs: https://bettersupabase.com/docs/blocks/sql
 `;
 
 exports[`help > documents sql add 1`] = `
-"Usage: better-supabase sql add [options] [module...]
+"Usage: better-supabase sql add [options] <module...>
 
 Writes module files and their pgTAP tests, and adds the modules to the config
 
 Arguments
-  [module...]  SQL modules (\`better-supabase sql list\`)
+  <module...>  SQL modules (\`better-supabase sql list\`)
 
 Options
   --tests-dir <dir>     Where the pgtap module goes. Defaults to sql.testsDir
@@ -1108,12 +1108,12 @@ Docs: https://bettersupabase.com/docs/blocks/sql
 `;
 
 exports[`help > documents sql print 1`] = `
-"Usage: better-supabase sql print [options] [module]
+"Usage: better-supabase sql print [options] <module>
 
 Prints a module's SQL on stdout
 
 Arguments
-  [module]  The SQL module to print
+  <module>  The SQL module to print
 
 Options
   --tests-dir <dir>  Where the pgtap module goes. Defaults to sql.testsDir

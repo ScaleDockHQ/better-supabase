@@ -25,6 +25,14 @@ never gains a PermDock value. The page keeps the choice in the URL as
 commands and writes `authorization: authorizationProvider(...)` into the
 config it shows.
 
+There is no handshake between the two CLIs. `init` and `apply` read
+`&authz=` from a Create URL only to print that the library is not part of
+the preset (`AUTHZ_NOTE` in `src/cli/create-url.ts`), and PermDock's `init`
+does not read the URL. The setup commands the dialog shows are tested
+against a checked-in copy of PermDock's `cli-commands-v1`
+(`apps/marketing/tests/lib/permdock-commands.json`), so a renamed command
+or flag fails a test (0047).
+
 Invariant 15 now reads: better-supabase never depends on an authorization
 library; the Create page may name PermDock as one optional choice. The
 check allows exactly the Create page's option module, its test, the Get

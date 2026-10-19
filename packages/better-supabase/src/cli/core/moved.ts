@@ -150,7 +150,7 @@ export function movedCommand(
   return undefined;
 }
 
-/** A `command_moved` error when `rest` (the argv after the command path) passes a renamed flag. */
+/** A `flag_renamed` error when `rest` (the argv after the command path) passes a renamed flag. */
 export function movedFlag(
   path: readonly string[],
   rest: readonly string[],
@@ -189,7 +189,7 @@ export function movedFlag(
   const next = [bin, ...path, ...rewritten].join(" ");
 
   return new CliError(
-    "command_moved",
+    "flag_renamed",
     `--${name} is now --${replacement}. Run: ${next}`,
     { suggestion: next, flag: `--${replacement.split(" ")[0]}` },
   );

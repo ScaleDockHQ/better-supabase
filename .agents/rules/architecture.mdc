@@ -66,6 +66,7 @@ alwaysApply: true
     examples still don't name it. `pnpm check:no-permdock` fails on the name
     or one of its shapes (`pdk_` keys, `permitted_*` helpers,
     `permissions.catalog`) in the library and its tests, skills, READMEs,
-    plugin manifests, the docs, marketing, the examples, `tests/*` and
-    `supabase`; the provider page, the 0.5 to 0.6 guide and the Create
-    page's option files are the exceptions.
+    plugin manifests, changesets, the docs, the ADRs, the agent rules,
+    `scripts`, marketing, the examples, `tests/*` and `supabase`; the
+    provider page, the 0.5 to 0.6 guide, the Create page's option files,
+    the changelogs and the texts that state this rule are the exceptions.

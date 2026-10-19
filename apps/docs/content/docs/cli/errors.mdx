@@ -36,10 +36,15 @@ The exit code tells a script what to do next:
 | 130       | The run was interrupted (Ctrl-C) or a prompt was cancelled.                                 |
 | 143       | The process received SIGTERM.                                                               |
 
+On SIGINT or SIGTERM the run gets 2 seconds to clean up, then the process
+exits with 130 or 143. A second signal exits at once.
+
 ## `usage`
 
-An option is missing, unknown or has the wrong value. The message names the
-option, and the text output adds the command's usage. Exit code 2.
+The arguments don't fit the command in a way no more specific code covers,
+such as an extra positional or a group named without a subcommand. For a
+group, or no command at all under `--json`, `choices["<command>"]` lists the
+subcommands. The text output adds the command's usage. Exit code 2.
 
 ## `unknown_command`
 
@@ -47,10 +52,28 @@ The first argument isn't a command. When one is close enough to be a typo,
 `suggestion` names it. Run `better-supabase --help` for the list. Exit
 code 2.
 
+## `unknown_flag`
+
+The command does not take the option. `flag` names it, and when a declared
+option is close enough to be a typo, `suggestion` names that one. Run the
+command with `--help` for its options. Exit code 2.
+
+## `invalid_value`
+
+An option or environment variable has a value the CLI does not accept, such
+as `--format xml`, `--agent=maybe` or a `--cwd` that is not a directory.
+`flag` names the option when there is one, and the message lists the values
+it takes. Exit code 2.
+
 ## `command_moved`
 
-The command or flag was renamed. `suggestion` holds the new form, which you
-can run as is. Exit code 2.
+The command was renamed. `suggestion` holds the new form, which you can run
+as is. Exit code 2.
+
+## `flag_renamed`
+
+The flag was renamed. `suggestion` holds the command with the new flag,
+which you can run as is, and `flag` names the new flag. Exit code 2.
 
 ## `missing_value`
 
@@ -164,8 +187,9 @@ A check such as `doctor` or `spec validate` found problems at or above the
 ## `input_required`
 
 The command needs an answer it would prompt for, and it can't prompt (in CI,
-under `--json` or for an agent). `missing` lists the flags it needs,
-`choices` the values each one takes when there is a fixed set, and `next`
+under `--json` or for an agent), or a required positional such as
+`blocks view <block>` is missing. `missing` lists the flags and positionals
+it needs, `choices` the values each one takes when there is a fixed set, and `next`
 holds the command to run with the answer filled in. Exit code 3. See
 [agent mode](/docs/cli/agent-mode#missing-input).
 
@@ -194,3 +218,13 @@ Something the CLI didn't expect went wrong. `detail` has the underlying
 message. Exit code 1. If it looks like a bug,
 [open an issue](https://github.com/ScaleDockHQ/better-supabase/issues) with
 the command and the message.
+
+## Codes from other CLIs
+
+The exit codes, the envelope and the code names on this page are a contract
+other CLIs can share. A CLI that adopts it keeps each code's name, title and
+exit code, and adds codes of its own only under new names, such as
+`dirty_worktree` (exit 3) for a rewrite that finds uncommitted changes, or
+`write_failed` (exit 1). better-supabase never reuses one of those names for
+another meaning, so a script can match a code without knowing which CLI
+printed it.
