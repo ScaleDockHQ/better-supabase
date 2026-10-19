@@ -236,12 +236,86 @@ scoped to the tenant, and none otherwise. A user column named `rank` or
 triggers for app tables are written into the app tables file, which runs
 after the `search` block.
 
+## Rollups and lookups
+
+A rollup aggregates the rows of another app table that reference this one,
+such as a project's open tasks. A lookup reads a column of the row a
+reference points at, such as a task's project name. Both are built from
+structured keys, never from SQL, so a design link can't carry a query (ADR
+0044).
+
+```ts title="better-supabase.config.ts"
+appTables: {
+  projects: {
+    columns: { name: { type: "text", nullable: false } },
+    rollups: {
+      open_tasks: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "count",
+        where: { column: "status", equals: "todo" },
+      },
+      next_due_on: {
+        table: "tasks",
+        via: "project_id",
+        aggregate: "min",
+        column: "due_on",
+      },
+    },
+  },
+  tasks: {
+    columns: {
+      project_id: { type: "uuid", references: { table: "projects" } },
+      status: { type: "text", options: ["todo", "done"] },
+      due_on: { type: "date" },
+    },
+    lookups: { project_name: { via: "project_id", column: "name" } },
+  },
+},
+```
+
+| Key                   | What it does                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `rollups.*.table`     | the app table to aggregate                                                                                                |
+| `rollups.*.via`       | the column of that table that references this one                                                                         |
+| `rollups.*.aggregate` | `count`, `sum`, `min`, `max` or `avg`                                                                                     |
+| `rollups.*.column`    | the column to aggregate: a number for `sum` and `avg`, a number, date, time or text for `min` and `max`, none for `count` |
+| `rollups.*.where`     | `{ column, equals }`: only the rows whose select column (a text column with `options`) equals one option                  |
+| `lookups.*.via`       | a column of this table that references another app table                                                                  |
+| `lookups.*.column`    | the column of the referenced row to read, including `created_at` and `updated_at`                                         |
+
+`sql sync` writes `public.<table>_view`: every column of the table, then one
+column per rollup and lookup. The view is `security_invoker`, so it reads
+the table and the linked tables with the caller's row level security, and a
+rollup counts only the rows the caller can read. `authenticated` can read it
+and `anon` can't. `sum` returns 0 when there are no rows, and the other
+aggregates return null. `count` and `sum` over `integer` or `bigint` return
+`bigint`.
+
+`better-supabase gen` reads the view as a read-only model, so
+`db.projectsView.findMany()` lists projects with their rollups and the
+repository has no insert or update. Write through the table, then read
+through the view:
+
+```ts
+const projects = await db.projectsView
+  .findMany({ orderBy: { nextDueOn: "asc" } })
+  .orThrow();
+```
+
+A name already used by a column of the table, or a table named
+`<table>_view`, fails `sql sync`. Each rollup runs one subquery per row read,
+using the index on the reference column, so page long lists. Adding or
+removing a rollup or lookup is a safe change on the Changes tab, since the
+view keeps no rows. For a formula these keys can't express, write your own
+view.
+
 ## The files
 
-| File                                                     | What it holds                                                                                                                             |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase/schemas/900_better_supabase_app_tables.sql`    | the tables, the columns (`add column if not exists`), RLS, policies, grants, checks, unique keys, indexes, comments and triggers          |
-| `supabase/tests/900_better_supabase_app_tables.test.sql` | pgTAP: each table exists, has RLS, its policies, checks, unique keys and indexes, and a stranger can't read or insert outside their scope |
+| File                                                     | What it holds                                                                                                                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase/schemas/900_better_supabase_app_tables.sql`    | the tables, the columns (`add column if not exists`), RLS, policies, grants, checks, unique keys, indexes, comments, triggers and the `<table>_view` of each table with rollups or lookups            |
+| `supabase/tests/900_better_supabase_app_tables.test.sql` | pgTAP: each table exists, has RLS, its policies, checks, unique keys and indexes, and a stranger can't read or insert outside their scope; each view runs as the invoker and shows a stranger no rows |
 
 `sql sync --check` fails when the files are stale, and removing the last
 app table removes them. A table listed in `expose` keeps the grants
