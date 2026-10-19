@@ -245,7 +245,7 @@ export async function checkArgs(
     const suggestion = await closestName(option, [...long.keys()]);
 
     throw new CliError(
-      "usage",
+      "unknown_flag",
       `Unknown option --${option} for ${usage}.${suggestion ? ` Did you mean --${suggestion}?` : ""}`,
       {
         flag: `--${option}`,
@@ -269,7 +269,7 @@ export async function checkArgs(
     }
 
     throw new CliError(
-      "usage",
+      "invalid_value",
       `--${name} takes ${definition.options.join(", ")}, not "${value}".`,
       { flag: `--${name}` },
     );
@@ -318,7 +318,7 @@ export async function checkArgs(
 
         if (!found) {
           throw new CliError(
-            "usage",
+            "unknown_flag",
             `Unknown option -${letter} for ${usage}.`,
             { flag: `-${letter}` },
           );

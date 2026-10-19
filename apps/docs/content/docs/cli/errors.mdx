@@ -36,10 +36,14 @@ The exit code tells a script what to do next:
 | 130       | The run was interrupted (Ctrl-C) or a prompt was cancelled.                                 |
 | 143       | The process received SIGTERM.                                                               |
 
+On SIGINT or SIGTERM the run gets 2 seconds to clean up, then the process
+exits with 130 or 143. A second signal exits at once.
+
 ## `usage`
 
-An option is missing, unknown or has the wrong value. The message names the
-option, and the text output adds the command's usage. Exit code 2.
+The arguments don't fit the command in a way no more specific code covers,
+such as an extra positional or a group named without a subcommand. The text
+output adds the command's usage. Exit code 2.
 
 ## `unknown_command`
 
@@ -47,10 +51,28 @@ The first argument isn't a command. When one is close enough to be a typo,
 `suggestion` names it. Run `better-supabase --help` for the list. Exit
 code 2.
 
+## `unknown_flag`
+
+The command does not take the option. `flag` names it, and when a declared
+option is close enough to be a typo, `suggestion` names that one. Run the
+command with `--help` for its options. Exit code 2.
+
+## `invalid_value`
+
+An option or environment variable has a value the CLI does not accept, such
+as `--format xml`, `--agent=maybe` or a `--cwd` that is not a directory.
+`flag` names the option when there is one, and the message lists the values
+it takes. Exit code 2.
+
 ## `command_moved`
 
-The command or flag was renamed. `suggestion` holds the new form, which you
-can run as is. Exit code 2.
+The command was renamed. `suggestion` holds the new form, which you can run
+as is. Exit code 2.
+
+## `flag_renamed`
+
+The flag was renamed. `suggestion` holds the command with the new flag,
+which you can run as is, and `flag` names the new flag. Exit code 2.
 
 ## `missing_value`
 

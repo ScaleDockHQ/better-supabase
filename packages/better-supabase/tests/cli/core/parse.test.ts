@@ -145,7 +145,7 @@ describe("strict parsing", () => {
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
       error: {
-        code: "usage",
+        code: "unknown_flag",
         flag: "--chek",
         suggestion: "--check",
       },

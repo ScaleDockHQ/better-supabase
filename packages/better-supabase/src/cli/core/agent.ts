@@ -102,7 +102,7 @@ function settingOf(value: string, source: string): AgentSetting {
 
   if (!setting) {
     throw new CliError(
-      "usage",
+      "invalid_value",
       `${source} takes auto, yes or no, got "${value}".`,
       source.startsWith("--") ? { flag: source } : {},
     );

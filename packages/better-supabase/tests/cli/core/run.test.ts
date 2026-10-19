@@ -818,7 +818,7 @@ describe("run", () => {
 
   it.each([
     [["--cwd", ""], "missing_value"],
-    [["--cwd", "does-not-exist"], "usage"],
+    [["--cwd", "does-not-exist"], "invalid_value"],
   ])("rejects %j", async (flags, code) => {
     const result = await run(["config", "--json", ...flags], {
       cwd: dir,

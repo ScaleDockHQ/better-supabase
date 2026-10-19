@@ -111,7 +111,7 @@ export function conventionFlags(args: {
       }
     } else if (!presetField(key).values.some((each) => each === value)) {
       throw new CliError(
-        "usage",
+        "invalid_value",
         `--${flag} must be one of ${presetField(key).values.join(", ")}.`,
       );
     }
