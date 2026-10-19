@@ -38,32 +38,59 @@ export function presetOf(input: PresetInput): Preset {
   );
 }
 
+/** The conventions that map onto config keys; `tenantName` takes any name `sql.naming.tenant` allows. */
+export type ConfigConventions = Pick<
+  Preset,
+  "casing" | "idType" | "scope" | "access" | "api"
+> & { readonly tenantName: string };
+
+/** `blocks.access` for the conventions: the model and id type that differ from the defaults. */
+function accessEntry(conventions: ConfigConventions): AccessBlockConfig {
+  return {
+    ...(conventions.access === "roles" ? {} : { model: conventions.access }),
+    ...(conventions.idType === "uuid" ? {} : { idType: conventions.idType }),
+  };
+}
+
 /** The `blocks` entry each block gets from the preset's conventions. */
 function conventionEntry(
   name: string,
   preset: Preset,
 ): BlockConfig | AccessBlockConfig {
-  if (name !== "access") {
-    return {};
-  }
-
-  return {
-    ...(preset.access === "roles" ? {} : { model: preset.access }),
-    ...(preset.idType === "uuid" ? {} : { idType: preset.idType }),
-  };
+  return name === "access" ? accessEntry(preset) : {};
 }
 
-/** `sql` for the preset's conventions, or undefined when they are the defaults. */
-function sqlOf(preset: Preset): BetterSupabaseConfig["sql"] {
+/** `sql` for the conventions, or undefined when they are the defaults. */
+function sqlOf(conventions: ConfigConventions): BetterSupabaseConfig["sql"] {
   const sql = {
-    ...(preset.api === "none" ? {} : { api: preset.api }),
-    ...(preset.scope === "tenant" ? {} : { scope: preset.scope }),
-    ...(preset.tenantName === "organization"
+    ...(conventions.api === "none" ? {} : { api: conventions.api }),
+    ...(conventions.scope === "tenant" ? {} : { scope: conventions.scope }),
+    ...(conventions.tenantName === "organization"
       ? {}
-      : { naming: { tenant: preset.tenantName } }),
+      : { naming: { tenant: conventions.tenantName } }),
   };
 
   return Object.keys(sql).length === 0 ? undefined : sql;
+}
+
+/**
+ * The config keys conventions set without a preset: `casing`, `sql`, and
+ * `blocks.access` when the access model or id type differ from the defaults.
+ */
+export function conventionConfig(conventions: ConfigConventions): Pick<
+  BetterSupabaseConfig,
+  "casing" | "sql"
+> & {
+  readonly blocks?: { readonly access: AccessBlockConfig };
+} {
+  const sql = sqlOf(conventions);
+  const access = accessEntry(conventions);
+
+  return {
+    casing: conventions.casing,
+    ...(sql === undefined ? {} : { sql }),
+    ...(Object.keys(access).length === 0 ? {} : { blocks: { access } }),
+  };
 }
 
 /** The config keys a resolved preset sets: its blocks and the conventions that differ from the defaults. */

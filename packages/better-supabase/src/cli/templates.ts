@@ -3,6 +3,8 @@ import { posix } from "node:path";
 import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
 import type { Framework } from "./project/detect.ts";
 
+import { INTEGRATION_INFO } from "../config/index.ts";
+import { PROVIDER_COMMENT } from "../preset/index.ts";
 import { INTEGRATIONS } from "./names.ts";
 
 export type Integration = IntegrationName;
@@ -25,8 +27,6 @@ export interface TemplateFile {
 }
 
 export interface IntegrationTemplate {
-  readonly description: string;
-  readonly requires: readonly Integration[];
   readonly packages: readonly string[];
   readonly files: (context: TemplateContext) => TemplateFile[];
   readonly next?: readonly string[];
@@ -141,6 +141,35 @@ function functionServer(
 export const needsLib = (names: readonly Integration[]): boolean =>
   names.length === 0 || names.some((name) => name !== "edge" && name !== "mcp");
 
+/** The config keys `init` writes next to `preset`, from the convention flags and prompts. */
+export interface ConventionKeys {
+  readonly sql?: object;
+  readonly blocks?: object;
+  /** Writes the comment that points the provider access model at `authorization`. */
+  readonly provider?: boolean;
+}
+
+const quote = (text: string): string =>
+  `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+
+/** A JSON value as a one-line TypeScript literal with single quotes. */
+function literal(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(literal).join(", ")}]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value).map(
+      ([name, each]) =>
+        `${/^[a-z_$][a-z0-9_$]*$/i.test(name) ? name : quote(name)}: ${literal(each)}`,
+    );
+
+    return entries.length === 0 ? "{}" : `{ ${entries.join(", ")} }`;
+  }
+
+  return typeof value === "string" ? quote(value) : JSON.stringify(value);
+}
+
 /** The files `init` writes: the config and, unless `lib` is false, the isomorphic definition. */
 export function baseFiles(
   context: TemplateContext,
@@ -149,7 +178,13 @@ export function baseFiles(
   integrations: readonly Integration[] = [],
   workflow: SqlWorkflow = "pg-delta",
   preset?: string,
+  keys: ConventionKeys = {},
 ): TemplateFile[] {
+  const sql = {
+    ...(workflow === "pg-delta" ? {} : { workflow }),
+    ...keys.sql,
+  };
+
   const config: TemplateFile = {
     path: "better-supabase.config.ts",
     contents: `import { defineConfig } from 'better-supabase/config';
@@ -164,7 +199,9 @@ export default defineConfig({${
     integrations.length > 0
       ? `\n  integrations: [${integrations.map((name) => `'${name}'`).join(", ")}],`
       : ""
-  }${workflow === "pg-delta" ? "" : `\n  sql: { workflow: '${workflow}' },`}
+  }${Object.keys(sql).length === 0 ? "" : `\n  sql: ${literal(sql)},`}${
+    keys.provider === true ? `\n${PROVIDER_COMMENT.join("\n")}` : ""
+  }${keys.blocks === undefined ? "" : `\n  blocks: ${literal(keys.blocks)},`}
   // \`better-supabase gen\` runs every task this file sets up: types, then
   // sql, spec, seed and scaffold when they are configured. Pin the list with:
   // gen: { tasks: ['types', 'sql', 'spec'] },
@@ -201,8 +238,6 @@ export const betterSupabase = defineSupabase(schema${expo ? ", { temporal: Tempo
 
 export const TEMPLATES: Readonly<Record<Integration, IntegrationTemplate>> = {
   client: {
-    description: "Browser client with cookie sessions shared with the server",
-    requires: [],
     packages: ["@supabase/ssr"],
     files: (context) => {
       const path = join(supabaseDir(context), "client.ts");
@@ -227,8 +262,6 @@ export const bs = createClient(betterSupabase, {
     },
   },
   next: {
-    description: "Next.js proxy, Server Components, route handlers and actions",
-    requires: ["client"],
     packages: ["@supabase/ssr", "@supabase/server", "server-only"],
     files: (context) => {
       const server = join(supabaseDir(context), "server.ts");
@@ -266,8 +299,6 @@ export const config = {
     ],
   },
   react: {
-    description: "React provider and typed hooks with TanStack Query",
-    requires: ["client"],
     packages: ["@tanstack/react-query"],
     files: (context) => {
       const client = join(supabaseDir(context), "client.ts");
@@ -313,8 +344,6 @@ export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof bs
     next: ["Wrap your app in <Providers>."],
   },
   hono: {
-    description: "Hono middleware, handlers and REST resources",
-    requires: [],
     packages: ["hono", "@supabase/server"],
     files: (context) => {
       const path = join(context.srcDir, "server.ts");
@@ -341,8 +370,6 @@ export default app;
     },
   },
   orpc: {
-    description: "oRPC middleware with typed context and ORPCError mapping",
-    requires: [],
     packages: ["@orpc/server", "@supabase/server"],
     files: (context) => {
       const path = join(context.srcDir, "router.ts");
@@ -369,8 +396,6 @@ export const router = {
     },
   },
   edge: {
-    description: "A Supabase Edge Function with CORS and Problem Details",
-    requires: [],
     packages: [],
     files: (context) => [
       shared(context),
@@ -395,9 +420,6 @@ Deno.serve(bs.handler((_request, { auth }) => ({ kind: auth.kind })));
     next: ["Serve it locally with `supabase functions serve api`."],
   },
   expo: {
-    description:
-      "Expo Router server loaders, API routes and middleware, and a native client",
-    requires: ["client"],
     packages: [
       "expo-server",
       "expo-secure-store",
@@ -458,8 +480,6 @@ export default bs.middleware();
     ],
   },
   mcp: {
-    description: "An MCP server (Streamable HTTP) as an Edge Function",
-    requires: [],
     packages: [],
     files: (context) => [
       shared(context),
@@ -503,7 +523,7 @@ export function resolveIntegrations(
       return;
     }
 
-    for (const dependency of TEMPLATES[name].requires) {
+    for (const dependency of INTEGRATION_INFO[name].requires) {
       visit(dependency);
     }
 

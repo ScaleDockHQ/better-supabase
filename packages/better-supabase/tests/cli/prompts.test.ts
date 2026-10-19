@@ -85,24 +85,57 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+/** The answers that keep every convention at its default. */
+const DEFAULT_ANSWERS = [
+  "snake",
+  "tenant",
+  "organization",
+  "roles",
+  "uuid",
+  "none",
+];
+
 const runWith = (argv: readonly string[], prompts: Prompter) =>
   run([...argv, "--cwd", dir], {
     io: { stdout: () => {}, stderr: () => {}, prompts },
   });
 
 describe("init prompts", () => {
-  it("asks for the casing and the integrations, pre-checking detected ones", async () => {
-    const prompts = fake(["none", "snake", ["mcp"]]);
+  it("asks for the conventions in /create's order and the integrations, pre-checking detected ones", async () => {
+    const prompts = fake([
+      "none",
+      "camel",
+      "tenant",
+      "workspace",
+      "roles",
+      "text",
+      "api",
+      ["mcp"],
+    ]);
+
     const result = await runWith(["init"], prompts);
     expect(result.code).toBe(0);
     expect(prompts.asked).toEqual([
       { kind: "select", message: "Preset", initial: "none" },
-      { kind: "select", message: "Row keys", initial: "camel" },
+      { kind: "select", message: "Casing", initial: "snake" },
+      { kind: "select", message: "Row ownership", initial: "tenant" },
+      { kind: "select", message: "Tenant name", initial: "organization" },
+      { kind: "select", message: "Auth and permissions", initial: "roles" },
+      { kind: "select", message: "ID type", initial: "uuid" },
+      { kind: "select", message: "API schema", initial: "none" },
       { kind: "multiselect", message: "Integrations", initial: ["hono"] },
     ]);
-    expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain("snake");
+
+    const config = await readFile(
+      join(dir, "better-supabase.config.ts"),
+      "utf-8",
+    );
+
+    expect(config).toContain("casing: 'camel'");
+    expect(config).toContain(
+      "sql: { api: 'api', naming: { tenant: 'workspace' } },",
+    );
+    expect(config).toContain("blocks: { access: { idType: 'text' } },");
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
   });
 
@@ -116,12 +149,27 @@ describe("init prompts", () => {
       join(dir, "apps/api/package.json"),
       JSON.stringify({ name: "api", dependencies: { hono: "4" } }),
     );
-    const prompts = fake(["none", "camel", "apps/api", ["hono"]]);
+
+    const prompts = fake([
+      "none",
+      "snake",
+      "user",
+      "roles",
+      "uuid",
+      "none",
+      "apps/api",
+      ["hono"],
+    ]);
+
     const result = await runWith(["init"], prompts);
     expect(result.code).toBe(0);
     expect(prompts.asked).toEqual([
       { kind: "select", message: "Preset", initial: "none" },
-      { kind: "select", message: "Row keys", initial: "camel" },
+      { kind: "select", message: "Casing", initial: "snake" },
+      { kind: "select", message: "Row ownership", initial: "tenant" },
+      { kind: "select", message: "Auth and permissions", initial: "roles" },
+      { kind: "select", message: "ID type", initial: "uuid" },
+      { kind: "select", message: "API schema", initial: "none" },
       {
         kind: "select",
         message: "Package that owns the runtime",
@@ -133,7 +181,7 @@ describe("init prompts", () => {
       true,
     );
     expect(
-      (await runWith(["init"], fake(["none", "camel", undefined]))).code,
+      (await runWith(["init"], fake(["none", "snake", undefined]))).code,
     ).toBe(1);
   });
 
@@ -155,7 +203,7 @@ describe("init prompts", () => {
 
   it("confirms before overwriting existing files", async () => {
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
-    const keep = fake(["none", "camel", [], false]);
+    const keep = fake(["none", ...DEFAULT_ANSWERS, [], false]);
     const kept = await runWith(["init"], keep);
     expect(kept.stdout).toContain(
       "Skipped better-supabase.config.ts (exists; pass --force to overwrite)",
@@ -165,7 +213,7 @@ describe("init prompts", () => {
       message: "better-supabase.config.ts exists. Overwrite?",
     });
 
-    const replace = fake(["none", "camel", [], true]);
+    const replace = fake(["none", ...DEFAULT_ANSWERS, [], true]);
     await runWith(["init"], replace);
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
@@ -186,7 +234,12 @@ describe("init prompts", () => {
 
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
     expect(
-      (await runWith(["init"], fake(["none", "camel", [], undefined]))).code,
+      (
+        await runWith(
+          ["init"],
+          fake(["none", ...DEFAULT_ANSWERS, [], undefined]),
+        )
+      ).code,
     ).toBe(1);
   });
 

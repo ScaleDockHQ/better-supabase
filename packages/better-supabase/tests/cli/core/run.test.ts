@@ -180,7 +180,7 @@ describe("run", () => {
     ).toMatchObject({
       code: 2,
       stderr: expect.stringMatching(
-        /^--casing must be "camel" or "snake"\n\nUsage: /,
+        /^--casing must be one of snake, camel.\n\nUsage: /,
       ),
     });
     expect(

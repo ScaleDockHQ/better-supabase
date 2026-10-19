@@ -78,15 +78,22 @@ exports[`help > documents apply 1`] = `
 Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules
 
 Options
-  --preset <name|code|url>     A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns
-  --only <blocks|conventions>  blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
-  --adopt                      Map the preset's blocks onto tables the database already has under their default names (adopt mode)
-  --allow-breaking             Write a design that drops, renames or retypes app table columns, or makes one required without a default
-  --dry-run                    Show the config diff and write nothing
-  --check                      Write nothing; exit 1 with the diff when the config lacks the preset
-  --snapshot <file>            Read a saved snapshot instead of the database
-  --db-url-stdin               Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>          Read a hosted project through the Management API
+  --preset <name|code|url>                  A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns
+  --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
+  --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
+  --adopt                                   Map the preset's blocks onto tables the database already has under their default names (adopt mode)
+  --allow-breaking                          Write a design that drops, renames or retypes app table columns, or makes one required without a default
+  --dry-run                                 Show the config diff and write nothing
+  --check                                   Write nothing; exit 1 with the diff when the config lacks the preset
+  --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
+  --scope <tenant|user|none>                Row ownership (sql.scope): tenant (the default), user or none for one shared space
+  --tenant-name <name>                      What a tenant is called (sql.naming.tenant): organization (the default), workspace, team or another lowercase name
+  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
+  --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
+  --api <none|api>                          API schema (sql.api): none (the default) or api for security invoker wrappers in an api schema
+  --snapshot <file>                         Read a saved snapshot instead of the database
+  --db-url-stdin                            Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --project-ref <ref>                       Read a hosted project through the Management API
 
 Global options
   --cwd <dir>            Project directory
@@ -137,7 +144,7 @@ exports[`help > documents blocks list 1`] = `
 Lists the blocks, optionally in one category
 
 Options
-  --category <name>  One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database
+  --category <name>  One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin, database
 
 Global options
   --cwd <dir>            Project directory
@@ -521,15 +528,20 @@ exports[`help > documents init 1`] = `
 Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
 
 Options
-  --casing <camel|snake>                  Row keys in camelCase (camel, the default) or the database's snake_case (snake)
-  --integration <integration,...>         Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
-  --package <dir>                         Workspace package to write to, relative to --cwd
-  --workflow <pg-delta|migra|migrations>  How the SQL modules reach the database: pg-delta (the default), migra or migrations
-  --preset <name|code|url>                A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts
-  --lite                                  Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
-  --dry-run                               Print what would change, with a diff, and write nothing
-  --check                                 Write nothing; exit 1 with a diff when a file would change
-  --force                                 Overwrite files the CLI did not generate
+  --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
+  --scope <tenant|user|none>                Row ownership (sql.scope): tenant (the default), user or none for one shared space
+  --tenant-name <name>                      What a tenant is called (sql.naming.tenant): organization (the default), workspace, team or another lowercase name
+  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
+  --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
+  --api <none|api>                          API schema (sql.api): none (the default) or api for security invoker wrappers in an api schema
+  --integration <integration,...>           Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
+  --package <dir>                           Workspace package to write to, relative to --cwd
+  --workflow <pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations
+  --preset <name|code|url>                  A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts
+  --lite                                    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
+  --dry-run                                 Print what would change, with a diff, and write nothing
+  --check                                   Write nothing; exit 1 with a diff when a file would change
+  --force                                   Overwrite files the CLI did not generate
 
 Global options
   --cwd <dir>            Project directory

@@ -18,7 +18,12 @@ export {
 
 export type { DecodedPreset } from "./code.ts";
 
-export { expandPreset, presetConfig, presetOf } from "./config.ts";
+export {
+  conventionConfig,
+  expandPreset,
+  presetConfig,
+  presetOf,
+} from "./config.ts";
 
 export { appReservedColumns, isAppDefault } from "../config/app-tables.ts";
 
@@ -52,13 +57,17 @@ export type {
   DiffOptions,
 } from "./design-diff.ts";
 
-export type { PresetInput } from "./config.ts";
+export type { ConfigConventions, PresetInput } from "./config.ts";
 
 export {
   DEFAULT_CONVENTIONS,
+  integrationsForFramework,
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
+  PRESET_TENANT_NAMES,
   PRESET_VERSION,
+  presetField,
+  presetValueLabel,
 } from "./fields.ts";
 
 export type {
@@ -67,9 +76,11 @@ export type {
   PresetConventions,
   PresetField,
   PresetFieldKey,
+  PresetFieldValue,
   PresetFramework,
   PresetPlatforms,
   PresetScope,
+  PresetValueInfo,
 } from "./fields.ts";
 
 export {
@@ -89,6 +100,7 @@ export {
   presetGlue,
   presetConfigSource,
   presetInstallCommand,
+  PROVIDER_COMMENT,
 } from "./render.ts";
 
 export { listNames, presetBlockConflict, resolvePreset } from "./resolve.ts";

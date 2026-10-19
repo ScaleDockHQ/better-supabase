@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { BLOCK_CATEGORIES } from "../../../src/blocks/index.ts";
 import { completionScript, SHELLS } from "../../../src/cli/core/completion.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { GEN_TASKS } from "../../../src/cli/names.ts";
-import { PRESET_NAMES } from "../../../src/preset/index.ts";
+import {
+  PRESET_NAMES,
+  PRESET_TENANT_NAMES,
+} from "../../../src/preset/index.ts";
 
 /** The values `__complete` offers for `words`, the last one being typed. */
 async function values(...words: string[]): Promise<string[]> {
@@ -76,6 +80,32 @@ describe("__complete", () => {
     expect(await values("skills", "install", "--for", "c")).toEqual([
       "cursor",
       "claude",
+    ]);
+  });
+
+  it("offers the convention values for init and apply, and block categories", async () => {
+    for (const command of ["init", "apply"]) {
+      expect(await values(command, "--casing", "")).toEqual(["snake", "camel"]);
+      expect(await values(command, "--scope", "")).toEqual([
+        "tenant",
+        "user",
+        "none",
+      ]);
+      expect(await values(command, "--tenant-name", "")).toEqual([
+        ...PRESET_TENANT_NAMES,
+      ]);
+      expect(await values(command, "--access", "r")).toEqual(["roles"]);
+      expect(await values(command, "--id-type", "u")).toEqual(["uuid"]);
+      expect(await values(command, "--api", "")).toEqual(["none", "api"]);
+    }
+
+    expect(await values("apply", "--preset", "")).toEqual([...PRESET_NAMES]);
+    expect(await values("apply", "--only", "")).toEqual([
+      "blocks",
+      "conventions",
+    ]);
+    expect(await values("blocks", "list", "--category", "")).toEqual([
+      ...BLOCK_CATEGORIES,
     ]);
   });
 
