@@ -14,7 +14,7 @@ const qualified = (table: string): string =>
   `${sqlIdent(SCHEMA)}.${sqlIdent(table)}`;
 
 /** The view that holds the rollups and lookups of an app table. */
-export const appViewName = (table: string): string => `${table}_view`;
+const appViewName = (table: string): string => `${table}_view`;
 
 function rollupJoin(alias: string, rollup: AppRollupConfig): string {
   const read =
