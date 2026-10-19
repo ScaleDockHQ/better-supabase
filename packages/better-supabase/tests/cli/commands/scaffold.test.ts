@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   copyFile,
   mkdir,
@@ -450,5 +451,22 @@ describe("scaffold screens", () => {
   it("needs Next.js", async () => {
     await project({ hono: "4.0.0" }, false);
     await expect(screens("tasks")).rejects.toThrow("Screens are Next.js pages");
+    await expect(screens("tasks", {}, { framework: "hono" })).rejects.toThrow(
+      "--framework hono has none",
+    );
+  });
+
+  it("prints the pages under --dry-run and writes nothing", async () => {
+    await project({ next: "16.0.0" }, false);
+
+    const result = await runScaffoldScreens(
+      resolveConfig({ casing: "camel", appTables: APP_TABLES }, dir),
+      { table: "tasks", "dry-run": true },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("Would create src/app/tasks/page.tsx");
+    expect(result.data).toMatchObject({ table: "tasks", basePath: "/tasks" });
+    expect(existsSync(join(dir, "src/app/tasks/page.tsx"))).toBe(false);
   });
 });
