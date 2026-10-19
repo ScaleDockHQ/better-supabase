@@ -1,7 +1,8 @@
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { PlannedFile } from "../core/files.ts";
 import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
@@ -14,9 +15,9 @@ import {
   moduleTopics,
   renderModules,
   resolveModules,
+  sameModuleFile,
 } from "../../sql/index.ts";
-import { writeLine } from "../core/files.ts";
-import { display } from "../core/io.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   migrationCommand,
@@ -104,6 +105,14 @@ async function staleAppTablesSchema(
   return text.split("\n").includes(APP_TABLES_MARKER) ? [path] : [];
 }
 
+/** A rendered module file as a plan entry, compared without its module version. */
+export const moduleFile = (file: ModuleFile): PlannedFile => ({
+  path: file.path,
+  contents: file.contents,
+  note: file.module,
+  same: sameModuleFile,
+});
+
 export async function write(
   config: ResolvedConfig,
   args: SqlFlags,
@@ -117,57 +126,39 @@ export async function write(
   const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
-  let data = false;
   const rendered = renderModules(names, sqlLayout);
 
   const files = rendered.filter(
     (file) => only === undefined || only.includes(file.module),
   );
 
-  for (const path of await staleModuleTests(
-    config,
-    only ?? names,
-    sqlLayout,
-    files,
-    only === undefined,
-  )) {
-    const shown = display(config.root, path);
+  const written = files.filter((file) => !migrations || file.kind === "test");
 
-    if (dryRun) {
-      lines.push(`Would remove ${shown}`);
-      continue;
-    }
+  const applied = await applyPlan(
+    {
+      root: config.root,
+      regenerate: "better-supabase sql sync",
+      files: written.map((file) => moduleFile(file)),
+      remove: await staleModuleTests(
+        config,
+        only ?? names,
+        sqlLayout,
+        files,
+        only === undefined,
+      ),
+    },
+    { "dry-run": dryRun },
+  );
 
-    await rm(resolve(config.root, path));
-    lines.push(`Removed ${shown}`);
-  }
+  lines.push(...changeLines(applied));
 
-  for (const file of files) {
-    if (migrations && file.kind !== "test") {
-      continue;
-    }
-
-    const path = resolve(config.root, file.path);
-    const shown = display(config.root, file.path);
-
-    if (dryRun) {
-      lines.push(`Would write ${shown} (${file.module})`);
-      continue;
-    }
-
-    const { wrote, line } = await writeLine(
-      path,
-      file.contents,
-      shown,
-      ` (${file.module})`,
+  const data =
+    !dryRun &&
+    applied.changes.some(
+      (change, index) =>
+        (change.outcome === "create" || change.outcome === "update") &&
+        written[index]?.kind === "data",
     );
-
-    if (wrote && file.kind === "data") {
-      data = true;
-    }
-
-    lines.push(line);
-  }
 
   if (migrations) {
     const topics = await topicPolicyFile(

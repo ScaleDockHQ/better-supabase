@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -18,6 +17,12 @@ import {
 } from "../../preset/index.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changeLines,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import {
@@ -28,8 +33,7 @@ import {
   packagesFor,
   parseIntegrations,
   templateContextFor,
-  writeFiles,
-  writtenLines,
+  templatePlan,
 } from "../glue.ts";
 import { detectProject, installCommand } from "../project/detect.ts";
 import { addModules } from "../sql/add.ts";
@@ -68,10 +72,11 @@ const ADD_ARGS = {
       "With blocks: where the pgtap module goes. Defaults to sql.testsDir",
     valueHint: "dir",
   },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
-export type AddArgs = CliArgs<typeof ADD_ARGS>;
+export type AddArgs = CliArgs<
+  typeof ADD_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
 
 /**
  * Adds blocks: lists them in `blocks`, writes their modules and what they
@@ -133,9 +138,14 @@ async function addBlocks(
       current === undefined ? undefined : addBlocksToWiring(current, clients);
 
     if (edit?.ok === true && edit.text !== current) {
-      if (args["dry-run"] !== true) {
-        await writeFile(path, edit.text);
-      }
+      await applyPlan(
+        {
+          root: config.root,
+          regenerate: "better-supabase add",
+          files: [{ path, contents: edit.text, policy: "edit" }],
+        },
+        { "dry-run": args["dry-run"] },
+      );
 
       lines.push(
         "",
@@ -269,8 +279,14 @@ async function addIntegrations(
     return CANCELLED;
   }
 
-  const written = await writeFiles(config.root, files, args, force);
-  const lines = writtenLines(written);
+  const plan = templatePlan(config.root, files, "better-supabase add");
+  const applied = await applyPlan(plan, { ...args, force });
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(plan, applied);
+  }
+
+  const lines = changeLines(applied);
   const lib = libEntry(templateContext);
 
   const libMissing =
@@ -322,14 +338,18 @@ async function addIntegrations(
   return {
     code: 0,
     output: lines.join("\n"),
-    data: { integrations, files: written, packages, unlisted },
+    data: { integrations, files: applied.changes, packages, unlisted },
     next,
   };
 }
 
 export const addCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("add"),
-  args: ADD_ARGS,
+  args: {
+    ...ADD_ARGS,
+    "dry-run": PLAN_ARGS["dry-run"],
+    check: PLAN_ARGS.check,
+  },
   lists: ["framework"],
   run: (args, { config, configFile, io }) =>
     runAdd(config, args, io.prompts, {

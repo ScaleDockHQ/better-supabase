@@ -9,7 +9,14 @@ import type { CliEnv } from "../env.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { insideRoot, writeLine } from "../core/files.ts";
+import {
+  applyPlan,
+  changeLines,
+  type FilePlan,
+  insideRoot,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { display, readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
@@ -42,9 +49,18 @@ const ARGS = {
   },
 } as const;
 
-export type EnvArgs = CliArgs<typeof ARGS>;
+const ENV_PLAN_ARGS = {
+  "dry-run": PLAN_ARGS["dry-run"],
+  check: PLAN_ARGS.check,
+};
 
-export type EnvFlags = CliOptions<typeof ARGS>;
+export type EnvArgs = CliArgs<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
+
+export type EnvFlags = CliOptions<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
 
 async function readStatus(
   config: ResolvedConfig,
@@ -197,14 +213,29 @@ export async function runEnv(
   const out = args.out ?? config.env.output;
   const path = insideRoot(config.root, out, args.out ? "--out" : "env.output");
   const current = (await readIfExists(path)) ?? "";
+  const file = display(config.root, out);
 
-  const { line, wrote } = await writeLine(
-    path,
-    mergeEnv(current, values),
-    display(config.root, out),
-    `: ${Object.keys(values).join(", ")}`,
-    { mode: 0o600 },
-  );
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase env",
+    files: [
+      {
+        path,
+        contents: mergeEnv(current, values),
+        mode: 0o600,
+        secret: true,
+        note: Object.keys(values).join(", "),
+      },
+    ],
+  };
+
+  const applied = await applyPlan(plan, args);
+
+  if (applied.mode !== "write") {
+    return planResult(plan, applied, {
+      data: { file, keys: Object.keys(values) },
+    });
+  }
 
   const warnings: string[] = [];
 
@@ -232,12 +263,13 @@ export async function runEnv(
 
   return {
     code: 0,
-    output: [line, ...warnings.map((warning) => `Warning: ${warning}`)].join(
-      "\n",
-    ),
+    output: [
+      ...changeLines(applied),
+      ...warnings.map((warning) => `Warning: ${warning}`),
+    ].join("\n"),
     data: {
-      file: display(config.root, out),
-      wrote,
+      file,
+      files: applied.changes,
       keys: Object.keys(values),
       warnings,
     },
@@ -246,6 +278,6 @@ export async function runEnv(
 
 export const envCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("env"),
-  args: ARGS,
+  args: { ...ARGS, ...ENV_PLAN_ARGS },
   run: (args, { config, env, signal }) => runEnv(config, args, env, signal),
 });

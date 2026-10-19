@@ -10,7 +10,8 @@ import type { Paint } from "../style.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { errorText, CliError } from "../core/errors.ts";
-import { display, writeIfChanged } from "../core/io.ts";
+import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
@@ -376,11 +377,24 @@ export async function runDoctor(
         };
 
   if (out) {
-    await writeIfChanged(resolve(config.root, out), `${report}\n`);
+    const applied = await applyPlan(
+      {
+        root: config.root,
+        regenerate: "better-supabase doctor",
+        files: [
+          {
+            path: insideRoot(config.root, out, "--out"),
+            contents: `${report}\n`,
+            note: `${errors} errors, ${warnings} warnings`,
+          },
+        ],
+      },
+      {},
+    );
 
     return {
       code,
-      output: `Wrote ${out}: ${errors} errors, ${warnings} warnings.`,
+      output: changeLines(applied).join("\n"),
       data: { out, errors, warnings },
       ...failure,
     };

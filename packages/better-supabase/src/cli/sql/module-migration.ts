@@ -5,7 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { ModuleFile } from "../../sql/index.ts";
 
 import { moduleSchemaExtensions } from "../../sql/index.ts";
-import { writeIfChanged } from "../core/io.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { stampAfter } from "./migrations.ts";
@@ -159,7 +159,7 @@ export async function writeLatestMigration(
     return {
       path: latest.path,
       wrote: false,
-      line: `Kept    ${latest.path} (it has these statements)`,
+      line: `Unchanged ${latest.path} (it has these statements)`,
     };
   }
 
@@ -171,11 +171,18 @@ export async function writeLatestMigration(
 
   const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
 
-  if (options.dryRun) {
-    return { path, wrote: false, line: `Would write ${path}` };
-  }
+  const applied = await applyPlan(
+    {
+      root: config.root,
+      regenerate: "better-supabase sql sync",
+      files: [{ path, contents }],
+    },
+    { "dry-run": options.dryRun },
+  );
 
-  await writeIfChanged(resolve(config.root, path), contents);
-
-  return { path, wrote: true, line: `Wrote ${path}` };
+  return {
+    path,
+    wrote: applied.mode === "write",
+    line: changeLines(applied).join("\n"),
+  };
 }

@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig, ScaffoldApiConfig } from "../../config/index.ts";
@@ -9,16 +8,21 @@ import type { ScaffoldFramework } from "../scaffold/api.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { writeLine } from "../core/files.ts";
-import { display, sameText } from "../core/io.ts";
+import {
+  applyPlan,
+  hasConflicts,
+  changeLines,
+  type FilePlan,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
 import { isRecord } from "../guards.ts";
 import { detectProject } from "../project/detect.ts";
 import {
-  GENERATED_HEADER,
   SCAFFOLD_FRAMEWORKS,
   scaffoldApiFiles,
   scaffoldNextSteps,
@@ -54,9 +58,9 @@ const ARGS = {
   },
 } as const;
 
-export type ScaffoldArgs = CliArgs<typeof ARGS>;
+export type ScaffoldArgs = CliArgs<typeof ARGS & typeof PLAN_ARGS>;
 
-export type ScaffoldFlags = CliOptions<typeof ARGS>;
+export type ScaffoldFlags = CliOptions<typeof ARGS & typeof PLAN_ARGS>;
 
 const isFramework = (value: unknown): value is ScaffoldFramework =>
   SCAFFOLD_FRAMEWORKS.some((framework) => framework === value);
@@ -179,70 +183,32 @@ export async function runScaffold(
     tables,
   };
 
-  const lines: string[] = [];
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase scaffold api",
+    files: scaffoldApiFiles(context)
+      .filter((file) => options.generatedOnly !== true || file.generated)
+      .map((file) => ({
+        path: file.path,
+        contents: file.contents,
+        policy: file.generated ? "owned" : "create",
+      })),
+  };
 
-  const files: { path: string; action: "kept" | "written" | "unchanged" }[] =
-    [];
+  const applied = await applyPlan(plan, {
+    ...args,
+    ...(options.check === true ? { check: true } : {}),
+  });
 
-  const stale: string[] = [];
-  const diffs: string[] = [];
+  const files = applied.changes;
+  const lines = changeLines(applied);
 
-  for (const file of scaffoldApiFiles(context)) {
-    if (options.generatedOnly === true && !file.generated) {
-      continue;
-    }
-
-    const path = resolve(config.root, file.path);
-    const exists = existsSync(path);
-
-    if (!file.generated && exists) {
-      lines.push(`Kept ${file.path} (yours)`);
-      files.push({ path: file.path, action: "kept" });
-      continue;
-    }
-
-    const current = exists ? await readFile(path, "utf-8") : undefined;
-
-    if (current !== undefined && !current.startsWith(GENERATED_HEADER)) {
-      return {
-        code: 1,
-        error: `${file.path} was not written by better-supabase scaffold. Move it, or pass another --name.`,
-      };
-    }
-
-    if (options.check === true) {
-      if (sameText(current, file.contents)) {
-        lines.push(`${file.path} is up to date.`);
-        files.push({ path: file.path, action: "unchanged" });
-      } else {
-        stale.push(file.path);
-        diffs.push(fileDiff(file.path, current, file.contents));
-      }
-
-      continue;
-    }
-
-    const { line, wrote } = await writeLine(path, file.contents, file.path);
-    lines.push(line);
-    files.push({ path: file.path, action: wrote ? "written" : "unchanged" });
-  }
-
-  if (stale.length > 0) {
-    return {
-      code: 1,
-      output: diffs.join("\n"),
-      data: { framework, tables, files, stale },
-      error: `Out of date: ${stale.join(", ")}. Run \`better-supabase scaffold api\`.`,
-      errorCode: "check_failed",
-    };
-  }
-
-  if (options.generatedOnly === true || options.check === true) {
-    return {
-      code: 0,
-      output: lines.join("\n"),
-      data: { framework, tables, files, stale },
-    };
+  if (
+    applied.mode !== "write" ||
+    options.generatedOnly === true ||
+    hasConflicts(applied)
+  ) {
+    return planResult(plan, applied, { data: { framework, tables } });
   }
 
   const steps = scaffoldNextSteps(context, config.specs.entry);
@@ -270,7 +236,7 @@ export async function runScaffold(
       ...steps.map((step) => `- ${step}`),
       ...save,
     ].join("\n"),
-    data: { framework, tables, files, stale, steps },
+    data: { framework, tables, files, steps },
   };
 }
 
@@ -286,7 +252,7 @@ const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
 
 export const scaffoldCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("scaffold"),
-  args: ARGS,
+  args: { ...ARGS, ...PLAN_ARGS },
   lists: ["tables"],
   run: (args, { config }) => runScaffold(config, args),
 });

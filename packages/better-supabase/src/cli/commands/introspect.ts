@@ -2,9 +2,14 @@ import type { AnyCommand } from "../core/command.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { fileState, writeLine } from "../core/files.ts";
+import {
+  applyPlan,
+  type FilePlan,
+  insideRoot,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
@@ -22,10 +27,8 @@ const ARGS = {
       "snapshot (the default) or generator-metadata (postgrest-typegen's input)",
     valueHint: "snapshot|generator-metadata",
   },
-  check: {
-    type: "boolean",
-    description: "Fail when the file is out of date",
-  },
+  check: PLAN_ARGS.check,
+  "dry-run": PLAN_ARGS["dry-run"],
   ...SOURCE_ARGS,
 } as const;
 
@@ -65,39 +68,22 @@ export const introspectCommand: AnyCommand = defineCliCommand({
         ? serializeSnapshot(snapshot)
         : `${await serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
 
-    const state = await fileState(config.root, out, contents);
-
-    if (args.check === true) {
-      const { file, current, upToDate } = state;
-
-      return upToDate
-        ? {
-            code: 0,
-            output: `${file} is up to date.`,
-            data: { file, upToDate: true },
-          }
-        : {
-            code: 1,
-            output: fileDiff(file, current, contents, paint),
-            error: `${file} is out of date. Run \`better-supabase introspect\`.`,
-            errorCode: "check_failed",
-            data: { file, upToDate: false },
-          };
-    }
-
     const tables = snapshot.extras.tables.length;
 
-    const { wrote, line } = await writeLine(
-      state.path,
-      contents,
-      state.file,
-      ` (${tables} tables).`,
-    );
-
-    return {
-      code: 0,
-      output: line,
-      data: { file: state.file, written: wrote, tables },
+    const plan: FilePlan = {
+      root: config.root,
+      regenerate: "better-supabase introspect",
+      files: [
+        {
+          path: insideRoot(config.root, out, "--out"),
+          contents,
+          note: `${tables} tables`,
+        },
+      ],
     };
+
+    return planResult(plan, await applyPlan(plan, args, paint), {
+      data: { tables },
+    });
   },
 });

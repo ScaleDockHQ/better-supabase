@@ -15,12 +15,15 @@ pnpm better-supabase scaffold api --framework hono --tables customers,tags
 
 ## Options
 
-| Option               | Default                                                | Effect                                                         |
-| -------------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
-| `--framework <name>` | The one framework (`hono` or `next`) in `package.json` | Which files to write. With both or neither installed, pass it  |
-| `--tables <list>`    | Every table and view in the `public` schema            | The tables to serve, comma-separated or repeated               |
-| `--name <name>`      | `api`                                                  | The module name: `lib/<name>.ts` and `lib/<name>.generated.ts` |
-| `--base-path <path>` | `/api`                                                 | Where the resources are served                                 |
+| Option               | Default                                                | Effect                                                                  |
+| -------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `--framework <name>` | The one framework (`hono` or `next`) in `package.json` | Which files to write. With both or neither installed, pass it           |
+| `--tables <list>`    | Every table and view in the `public` schema            | The tables to serve, comma-separated or repeated                        |
+| `--name <name>`      | `api`                                                  | The module name: `lib/<name>.ts` and `lib/<name>.generated.ts`          |
+| `--base-path <path>` | `/api`                                                 | Where the resources are served                                          |
+| `--dry-run`          |                                                        | Prints a diff of each file that would change and writes nothing         |
+| `--check`            |                                                        | Writes nothing; exits 1 when a file would change                        |
+| `--force`            |                                                        | Overwrites `lib/<name>.ts` and the routes, which are yours once written |
 
 Each option falls back to the same key under `scaffold.api` in the config
 (`framework`, `tables`, `name`, `basePath`) before its default. Without a

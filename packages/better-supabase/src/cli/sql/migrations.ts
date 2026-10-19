@@ -11,7 +11,7 @@ import {
   moduleSchemaExtensions,
   renderModules,
 } from "../../sql/index.ts";
-import { writeIfChanged } from "../core/io.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { layoutFor } from "./providers.ts";
@@ -110,18 +110,27 @@ export async function writeExtensionsMigration(
 
   const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
 
-  if (dryRun) {
-    return [`Would write ${path}`];
-  }
-
-  await writeIfChanged(
-    resolve(config.root, path),
-    `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
+  const applied = await applyPlan(
+    {
+      root: config.root,
+      regenerate: "better-supabase sql sync",
+      files: [
+        {
+          path,
+          contents: `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
+        },
+      ],
+    },
+    { "dry-run": dryRun },
   );
 
   return [
-    `Wrote ${path}`,
-    "It creates the extensions the module schemas need, so create the schema migration after it.",
+    ...changeLines(applied),
+    ...(dryRun
+      ? []
+      : [
+          "It creates the extensions the module schemas need, so create the schema migration after it.",
+        ]),
   ];
 }
 
@@ -201,19 +210,22 @@ export async function dataMigration(
 
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
 
-  if (args["dry-run"] === true) {
-    return {
-      code: 0,
-      output: `Would write ${path}`,
-      data: { file: path, wrote: false },
-    };
-  }
-
-  await writeIfChanged(resolve(config.root, path), contents);
+  const applied = await applyPlan(
+    {
+      root: config.root,
+      regenerate: "better-supabase sql data",
+      files: [{ path, contents }],
+    },
+    { "dry-run": args["dry-run"] },
+  );
 
   return {
     code: 0,
-    output: `Wrote ${path}`,
-    data: { file: path, wrote: true },
+    output: changeLines(applied).join("\n"),
+    data: {
+      file: path,
+      wrote: applied.mode === "write",
+      files: applied.changes,
+    },
   };
 }

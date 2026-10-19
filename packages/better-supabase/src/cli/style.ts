@@ -20,12 +20,12 @@ export function colorEnabled(stream: NodeJS.WritableStream): boolean {
 }
 
 const VERBS: readonly (readonly [RegExp, Format])[] = [
-  [/^(?:Wrote|Updated)\b/, "green"],
-  [/^Would write\b/, "yellow"],
-  [/^(?:Unchanged|Kept|Same)\b/, "dim"],
+  [/^(?:Wrote|Created|Updated|Removed)\b/, "green"],
+  [/^Would (?:write|create|update|remove)\b/, "yellow"],
+  [/^(?:Unchanged|Kept|Same|Skipped)\b/, "dim"],
 ];
 
-/** Colors the verb that starts each `Wrote`, `Kept`, `Unchanged` or `Would write` line. */
+/** Colors the verb that starts each `Created`, `Updated`, `Skipped`, `Unchanged` or `Would create` line. */
 export function highlight(text: string, paint: Paint): string {
   if (paint === plain) {
     return text;

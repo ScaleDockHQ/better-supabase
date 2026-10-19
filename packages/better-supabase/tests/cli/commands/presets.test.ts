@@ -549,7 +549,7 @@ describe("init --preset", () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
-      "Would write supabase/functions/mcp/index.ts",
+      "Would create supabase/functions/mcp/index.ts",
     );
     expect(result.stdout).toContain("(tags)");
 

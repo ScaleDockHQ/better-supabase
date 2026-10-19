@@ -32,6 +32,12 @@ import {
 import { findConfig, loadConfig } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
+import {
+  applyPlan,
+  changeLines,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
@@ -42,8 +48,7 @@ import {
   packagesFor,
   parseIntegrations,
   templateContextFor,
-  writeFiles,
-  writtenLines,
+  templatePlan,
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import {
@@ -66,7 +71,7 @@ import {
 } from "../templates.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitArgs = CliArgs<typeof INIT_ARGS>;
+export type InitArgs = CliArgs<typeof INIT_ARGS & typeof PLAN_ARGS>;
 
 const SQL_WORKFLOWS: readonly SqlWorkflow[] = [
   "pg-delta",
@@ -112,8 +117,6 @@ const INIT_ARGS = {
     description:
       "Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps",
   },
-  force: { type: "boolean", description: "Overwrite files that exist" },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
 /** The minor of `@supabase/lite` the `backend: 'lite'` option targets. */
@@ -461,14 +464,24 @@ export async function runInit(
 
   const where = inPackage ? ` in ${target.dir}` : "";
 
-  const written = await writeFiles(root, files, args, force, config.root);
+  const applied = await applyPlan(
+    templatePlan(root, files, "better-supabase init", config.root),
+    { ...args, force },
+  );
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(
+      templatePlan(root, files, "better-supabase init", config.root),
+      applied,
+    );
+  }
 
   const lines = [
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
       : `No framework found${where}.`,
     "",
-    ...writtenLines(written),
+    ...changeLines(applied),
     ...(workflow === "pg-delta"
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
@@ -567,7 +580,7 @@ export async function runInit(
       ...(inPackage ? { package: target.dir } : {}),
       integrations,
       ...(chosen === null ? {} : { preset: chosen.value }),
-      files: written,
+      files: applied.changes,
       hints,
     },
     next,
@@ -576,7 +589,7 @@ export async function runInit(
 
 export const initCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("init"),
-  args: INIT_ARGS,
+  args: { ...INIT_ARGS, ...PLAN_ARGS },
   lists: ["with"],
   run: (args, { config, io }) => runInit(config, args, io.prompts),
 });

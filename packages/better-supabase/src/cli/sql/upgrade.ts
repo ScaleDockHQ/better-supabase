@@ -17,7 +17,8 @@ import {
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
-import { display, writeIfChanged } from "../core/io.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
@@ -119,12 +120,16 @@ export async function upgrade(
     const path = `${migrationsDir(config)}/${migrationStamp(now())}_better_supabase_block_upgrade.sql`;
     const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
-    if (dryRun) {
-      lines.push(`Would write ${path}`);
-    } else {
-      await writeIfChanged(resolve(config.root, path), contents);
-      lines.push(`Wrote ${path}`);
-    }
+    const applied = await applyPlan(
+      {
+        root: config.root,
+        regenerate: "better-supabase sql upgrade",
+        files: [{ path: resolve(config.root, path), contents }],
+      },
+      { "dry-run": dryRun },
+    );
+
+    lines.push(...changeLines(applied));
   }
 
   for (const entry of plan) {

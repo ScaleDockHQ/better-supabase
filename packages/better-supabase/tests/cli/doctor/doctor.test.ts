@@ -2366,7 +2366,7 @@ describe("doctor command", () => {
       dir,
     ]);
 
-    expect(sarif.stdout).toContain("Wrote doctor.sarif: 1 errors");
+    expect(sarif.stdout).toContain("Created doctor.sarif (1 errors");
     expect(
       JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf-8")),
     ).toMatchObject({ version: "2.1.0" });

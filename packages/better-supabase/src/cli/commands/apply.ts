@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
@@ -20,9 +20,9 @@ import {
 import { loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
+import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,
@@ -70,6 +70,11 @@ const APPLY_ARGS = {
   "dry-run": {
     type: "boolean",
     description: "Show the config diff and write nothing",
+  },
+  check: {
+    type: "boolean",
+    description:
+      "Write nothing; exit 1 with the diff when the config lacks the preset",
   },
 } as const;
 
@@ -414,9 +419,21 @@ export async function runApply(
     };
   }
 
-  lines.push(fileDiff(shown, source, text, paint));
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase apply",
+    files: [{ path: file, contents: text, policy: "edit" }],
+  };
 
-  if (args["dry-run"] === true) {
+  const applied = await applyPlan(plan, args, paint);
+
+  if (applied.mode === "check") {
+    return planResult(plan, applied, { data: { ...data, written: false } });
+  }
+
+  lines.push(...applied.diffs);
+
+  if (applied.mode === "dry-run") {
     lines.push(
       "",
       "Dry run: nothing written. Run without --dry-run to apply it.",
@@ -428,8 +445,6 @@ export async function runApply(
       data: { ...data, written: false },
     };
   }
-
-  await writeFile(file, text);
 
   const reload =
     deps.reload ?? ((root: string, path: string) => loadConfig(root, path));

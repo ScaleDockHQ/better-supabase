@@ -53,7 +53,7 @@ describe("spec emit", () => {
   it("writes the default OpenAPI output, then reuses the cache", async () => {
     const first = await spec("emit");
     expect(first.code).toBe(0);
-    expect(first.stdout).toContain("Wrote openapi.json (openapi 3.1)");
+    expect(first.stdout).toContain("Created openapi.json (openapi 3.1)");
     expect(await readJson("openapi.json")).toMatchObject({ openapi: "3.1.2" });
     const second = await spec("emit");
     expect(second.stdout).toContain(
@@ -79,7 +79,7 @@ describe("spec emit", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Wrote openapi-3.0.yaml");
+    expect(result.stdout).toContain("Created openapi-3.0.yaml");
     const text = await readFile(join(dir, "openapi-3.0.yaml"), "utf-8");
     expect(text).toMatch(/^openapi: 3\.0\.\d/m);
     const html = await readFile(join(dir, uiPath("openapi-3.0.yaml")), "utf-8");
@@ -186,7 +186,7 @@ describe("spec emit --watch", () => {
       throw new Error(`no output matched ${pattern}: ${lines.join("")}`);
     };
 
-    await waitFor(/Wrote openapi\.json/);
+    await waitFor(/Created openapi\.json/);
     await new Promise((done) => {
       setTimeout(done, 30);
     });
@@ -200,7 +200,7 @@ describe("spec emit --watch", () => {
       join(dir, "api.mjs"),
       "export const api = globalThis.specApiFixture;\n",
     );
-    await waitFor(/Wrote next\.json/);
+    await waitFor(/Created next\.json/);
     controller.abort();
     expect((await watching).code).toBe(0);
   });

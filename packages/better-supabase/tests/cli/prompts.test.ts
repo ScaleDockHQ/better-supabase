@@ -157,7 +157,9 @@ describe("init prompts", () => {
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
     const keep = fake(["none", "camel", [], false]);
     const kept = await runWith(["init"], keep);
-    expect(kept.stdout).toContain("Kept    better-supabase.config.ts (exists)");
+    expect(kept.stdout).toContain(
+      "Skipped better-supabase.config.ts (exists; pass --force to overwrite)",
+    );
     expect(keep.asked.at(-1)).toEqual({
       kind: "confirm",
       message: "better-supabase.config.ts exists. Overwrite?",
@@ -195,7 +197,7 @@ describe("init prompts", () => {
     expect(prompts.asked).toEqual([
       { kind: "select", message: "Preset", initial: "none" },
     ]);
-    expect(result.stdout).toContain("Would write lib/blocks.ts");
+    expect(result.stdout).toContain("Would create lib/blocks.ts");
     expect(result.stdout).toContain("(profiles)");
   });
 });
@@ -204,7 +206,7 @@ describe("add prompts", () => {
   it("asks for integrations when none are named", async () => {
     const prompts = fake([["orpc"]]);
     const result = await runWith(["add", "--dry-run"], prompts);
-    expect(result.stdout).toContain("Would write router.ts");
+    expect(result.stdout).toContain("Would create router.ts");
     expect(prompts.asked).toEqual([
       { kind: "multiselect", message: "Integrations", initial: [] },
     ]);

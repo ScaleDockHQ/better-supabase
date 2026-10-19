@@ -150,7 +150,7 @@ describe("gen", () => {
     expect(first.code).toBe(0);
     expect(first.output).toMatch(
       new RegExp(
-        `^Generated \\d+ tables:\\n  src/db/database.types.ts\\n  src/db/generated.ts\\n  src/db/generated.meta.js\\n  src/db/generated.meta.d.ts\\n  ${READ_SET_FILE}$`,
+        `^Created src/db/database.types.ts\\nCreated src/db/generated.ts\\nCreated src/db/generated.meta.js\\nCreated src/db/generated.meta.d.ts\\nCreated ${READ_SET_FILE}\\nGenerated \\d+ tables.$`,
       ),
     );
     const sql = await readFile(join(root, READ_SET_FILE), "utf-8");
@@ -337,9 +337,7 @@ describe("gen", () => {
       snapshot,
     });
 
-    expect(written.output).toContain(
-      "  src/db/extra.ts (removed, no longer generated)",
-    );
+    expect(written.output).toContain("Removed src/db/extra.ts");
     expect(existsSync(join(root, "src/db/extra.ts"))).toBe(false);
     expect(existsSync(join(root, "src/db/mine.ts"))).toBe(true);
     expect(

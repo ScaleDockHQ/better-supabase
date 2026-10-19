@@ -51,14 +51,14 @@ describe("sql upgrade with forward steps", () => {
       "supabase/migrations/20261003080910_better_supabase_block_upgrade.sql";
 
     const dry = await sql(["upgrade", "--dry-run"]);
-    expect(dry.output).toContain(`Would write ${path}`);
+    expect(dry.output).toContain(`Would create ${path}`);
     await expect(readdir(join(root, "supabase"))).resolves.not.toContain(
       "migrations",
     );
 
     const done = await sql(["upgrade"]);
     expect(done.code).toBe(0);
-    expect(done.output).toContain(`Wrote ${path}`);
+    expect(done.output).toContain(`Created ${path}`);
     expect(done.output).toContain("tenant: version 1 to 3");
     expect(done.output).toContain("  Renames org_id to tenant_id.");
     const migration = await readFile(join(root, path), "utf-8");

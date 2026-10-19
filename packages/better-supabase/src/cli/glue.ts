@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import type { FilePlan } from "./core/files.ts";
 import type { CommandResult } from "./core/io.ts";
 import type { Project } from "./project/detect.ts";
 import type { Prompter } from "./prompts.ts";
 
 import { parseNames } from "./core/errors.ts";
-import { display, writeIfChanged } from "./core/io.ts";
+import { display } from "./core/io.ts";
 import {
   INTEGRATIONS,
   isIntegration,
@@ -53,81 +54,24 @@ export async function overwrite(
   );
 }
 
-/** What `writeFiles` did with one file. */
-export type FileAction = "kept" | "planned" | "written" | "unchanged";
-
-export interface WrittenFile {
-  /** The path relative to the base directory, with forward slashes. */
-  readonly path: string;
-  readonly action: FileAction;
-}
-
-export async function writeFiles(
+/** Template files as a plan: each is written once, and an existing file is the app's. */
+export function templatePlan(
   root: string,
   files: readonly TemplateFile[],
-  args: WriteFlags,
-  force: boolean,
+  regenerate: string,
   base: string = root,
-): Promise<WrittenFile[]> {
-  const dryRun = args["dry-run"] === true;
-  const written: WrittenFile[] = [];
-  const seen = new Set<string>();
-
-  for (const file of files) {
-    if (seen.has(file.path)) {
-      continue;
-    }
-
-    seen.add(file.path);
-    const path = resolve(root, file.path);
-    const shown = display(base, path);
-
-    if (existsSync(path) && !force) {
-      written.push({ path: shown, action: "kept" });
-    } else if (dryRun) {
-      written.push({ path: shown, action: "planned" });
-    } else {
-      written.push({
-        path: shown,
-        action: (await writeIfChanged(path, file.contents))
-          ? "written"
-          : "unchanged",
-      });
-    }
-  }
-
-  return written;
+): FilePlan {
+  return {
+    root,
+    base,
+    regenerate,
+    files: files.map((file) => ({
+      path: file.path,
+      contents: file.contents,
+      policy: "create",
+    })),
+  };
 }
-
-function writtenLine({ path, action }: WrittenFile): string {
-  switch (action) {
-    case "kept": {
-      return `Kept    ${path} (exists)`;
-    }
-
-    case "planned": {
-      return `Would write ${path}`;
-    }
-
-    case "written": {
-      return `Wrote   ${path}`;
-    }
-
-    case "unchanged": {
-      return `Same    ${path}`;
-    }
-
-    default: {
-      const unknown: never = action;
-
-      return unknown;
-    }
-  }
-}
-
-/** One line per file, the way the text output lists them. */
-export const writtenLines = (files: readonly WrittenFile[]): string[] =>
-  files.map(writtenLine);
 
 export function templateContextFor(
   project: Project,

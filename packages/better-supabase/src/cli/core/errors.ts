@@ -29,6 +29,7 @@ export type CliErrorCode =
   | "integrity_failed"
   | "generator_failed"
   | "check_failed"
+  | "file_conflict"
   | "findings"
   | "input_required"
   | "consent_required"
@@ -61,6 +62,7 @@ const ERRORS: {
   integrity_failed: ["Integrity check failed", 1],
   generator_failed: ["Generator failed", 1],
   check_failed: ["Out of date", 1],
+  file_conflict: ["File not written by better-supabase", 1],
   findings: ["Checks failed", 1],
   input_required: ["Input required", 3],
   consent_required: ["Consent required", 3],

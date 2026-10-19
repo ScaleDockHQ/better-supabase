@@ -21,7 +21,8 @@ named preset or the code, replacing the one the config has, so
 keys keep winning. It prints the diff of the config file, then loads the
 config again and writes the module files of every block it now holds, as
 `better-supabase sql sync` does. `--dry-run` prints the diff and writes
-nothing.
+nothing, and `--check` exits 1 with the diff when the config doesn't hold the
+preset yet.
 
 | `--only`      | What `apply` changes                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------- |
@@ -114,7 +115,8 @@ a report like doctor's: errors for what can't map (a missing table, a
 required column the table lacks, a value the module refuses) and warnings
 for the migration-only options the entry keeps. With an error `adopt` exits
 1 and writes nothing. Otherwise it prints the diff of the config and writes
-it; `--dry-run` writes nothing. Run `better-supabase sql sync` afterwards to
+it; `--dry-run` writes nothing, and `--check` exits 1 when the config doesn't
+hold the mapping yet. Run `better-supabase sql sync` afterwards to
 write the block's module over the adopted tables. `--json` prints the entry,
 the mapping and the report as data. The tables are read like `introspect`
 reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.

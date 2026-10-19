@@ -31,7 +31,8 @@ config sets it for every run, and `env.prefix` the prefix), and `--from <file>`
 reads saved `supabase status -o json` output instead of running the
 Supabase CLI. Both paths must stay inside the project root: `env` refuses an
 absolute path elsewhere or one that climbs out with `..`, so the secret key
-never lands outside the project.
+never lands outside the project. `--dry-run` and `--check` name the file
+without showing the keys ([writing files](/docs/cli#writing-files)).
 
 The Supabase CLI's native stack (`[experimental] stack = true` in
 `supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a
@@ -52,7 +53,7 @@ your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `keys` refuses to overwrite an existing file
 unless you pass `--force`, and `--out <file>` (or `keys.output` in the
-config) writes somewhere else.
+config) writes somewhere else. `--dry-run` writes nothing.
 
 ## seed
 
@@ -83,7 +84,8 @@ pnpm better-supabase seed --apply  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `seed.entry` and
-`seed.output`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
+`seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
+`--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
 
@@ -111,8 +113,8 @@ the [`createOpenApi`](/docs/standards/openapi) document as `openapi` or
 default (or a function that returns it), and writes `openapi.json`.
 `--check` writes nothing and fails when the file is out of date; like
 [`spec check`](/docs/cli/spec), it compares the text and ignores line
-endings. `--entry <file>` and `--out <file>` override `openapi.entry` and
-`openapi.output`.
+endings. `--dry-run` prints the diff and writes nothing. `--entry <file>`
+and `--out <file>` override `openapi.entry` and `openapi.output`.
 
 `openapi emit` is kept for existing projects. [`spec`](/docs/cli/spec)
 writes the same document from a `defineApi` module, plus any other OpenAPI

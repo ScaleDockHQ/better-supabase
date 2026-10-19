@@ -45,7 +45,7 @@ describe("renderResult", () => {
     const rendered = renderResult(
       {
         code: 0,
-        output: "Wrote 2 files.",
+        output: "Created 2 files.",
         data: { written: 2 },
         next: [{ command: "better-supabase gen", when: "next" }],
       },
@@ -58,7 +58,7 @@ describe("renderResult", () => {
       data: { written: 2 },
       next: [{ command: "better-supabase gen", when: "next" }],
     });
-    expect(rendered.stderr).toBe("Wrote 2 files.");
+    expect(rendered.stderr).toBe("Created 2 files.");
     expect(parse(renderResult({ code: 0 }, json).stdout)).toEqual({
       $schema: RESULT_SCHEMA_URL,
       status: "success",

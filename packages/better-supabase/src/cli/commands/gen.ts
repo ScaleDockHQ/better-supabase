@@ -50,6 +50,15 @@ const ARGS = {
     type: "boolean",
     description: "Fail when a generated file is out of date",
   },
+  "dry-run": {
+    type: "boolean",
+    description: "Print what would change and write nothing",
+  },
+  force: {
+    type: "boolean",
+    description:
+      "Overwrite a file at a generated path that the CLI did not write",
+  },
   watch: {
     type: "boolean",
     description:
@@ -119,6 +128,7 @@ async function runTasks(
         config: options.config,
         env: options.env,
         check: options.check,
+        dryRun: options.dryRun === true,
         paint: options.paint ?? plain,
       },
       types,
@@ -261,6 +271,8 @@ export const genCommand: AnyCommand = defineCliCommand({
       config: context.config,
       env: context.env,
       check: args.check === true,
+      dryRun: args["dry-run"] === true,
+      force: args.force === true,
       paint: context.paint,
       ...(await sourceArgs(args, context.io)),
       ...(context.signal ? { signal: context.signal } : {}),

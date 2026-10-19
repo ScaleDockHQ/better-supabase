@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -17,9 +15,14 @@ import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { errorText, failedResult, CliError } from "../core/errors.ts";
-import { display, sameText, writeIfChanged } from "../core/io.ts";
+import {
+  applyPlan,
+  changedFiles,
+  changeLines,
+  type FilePlan,
+} from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import { writeAtomic } from "../introspect/cache.ts";
 import { SPEC_CACHE_DIR, sha256 } from "../spec/cache.ts";
 import {
@@ -116,6 +119,10 @@ const ARGS = {
       "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000",
     valueHint: "ms",
   },
+  "dry-run": {
+    type: "boolean",
+    description: "With emit, print what would change and write nothing",
+  },
 } as const;
 
 export type SpecArgs = CliArgs<typeof ARGS>;
@@ -128,6 +135,8 @@ export interface SpecRunOptions {
   readonly failOn: FailOn;
   readonly cache: boolean;
   readonly manifest?: string;
+  /** With `emit`: prints what would change and writes nothing. */
+  readonly dryRun?: boolean;
 }
 
 /** The options for running the spec step from the config alone, as `gen` does (no filter, the config's `failOn`, cache on). */
@@ -135,7 +144,10 @@ export function specOptionsFromConfig(
   config: ResolvedConfig,
   action: SpecAction,
   overrides: Partial<
-    Pick<SpecRunOptions, "filter" | "entry" | "failOn" | "cache" | "manifest">
+    Pick<
+      SpecRunOptions,
+      "filter" | "entry" | "failOn" | "cache" | "manifest" | "dryRun"
+    >
   > = {},
 ): SpecRunOptions {
   const manifest = overrides.manifest ?? config.specs.manifest;
@@ -146,6 +158,7 @@ export function specOptionsFromConfig(
     filter: overrides.filter ?? {},
     failOn: overrides.failOn ?? config.specs.failOn,
     cache: overrides.cache ?? true,
+    ...(overrides.dryRun === true ? { dryRun: true } : {}),
     ...(overrides.entry === undefined ? {} : { entry: overrides.entry }),
     ...(manifest === undefined ? {} : { manifest }),
   };
@@ -177,14 +190,11 @@ interface Settled {
   readonly stale: boolean;
 }
 
-async function onDisk(path: string): Promise<string | undefined> {
-  return existsSync(path) ? readFile(path, "utf-8") : undefined;
-}
-
 async function settle(
   action: SpecAction,
   root: string,
   rendered: RenderedTarget,
+  dryRun: boolean,
 ): Promise<Settled> {
   const { target } = rendered;
   const shown = display(root, target.output);
@@ -210,69 +220,63 @@ async function settle(
     }
   }
 
-  const label = `(${target.format.id} ${target.version}${rendered.cached ? ", cached" : ""})`;
+  const label = `${target.format.id} ${target.version}${rendered.cached ? ", cached" : ""}`;
+
+  const plan: FilePlan = {
+    root,
+    regenerate: "better-supabase spec emit",
+    files: files.map((file) => ({
+      path: file.path,
+      contents: file.text,
+      ...(file.path === target.output ? { note: label } : {}),
+    })),
+  };
 
   switch (action) {
     case "emit": {
-      const lines: string[] = [];
-      let wrote = false;
-
-      for (const file of files) {
-        const changed = await writeIfChanged(
-          resolve(root, file.path),
-          file.text,
-        );
-
-        wrote ||= changed;
-        lines.push(
-          `${changed ? "Wrote" : "Unchanged"} ${display(root, file.path)}${file.path === target.output ? ` ${label}` : ""}`,
-        );
-      }
+      const applied = await applyPlan(plan, { "dry-run": dryRun });
 
       return {
-        status: wrote ? "written" : "unchanged",
-        lines,
+        status: changedFiles(applied).length > 0 ? "written" : "unchanged",
+        lines: [...(dryRun ? applied.diffs : []), ...changeLines(applied)],
         diagnostics,
         stale: false,
       };
     }
 
     case "check": {
+      const applied = await applyPlan(plan, { check: true });
       const lines: string[] = [];
-      let stale = false;
+      let index = 0;
 
-      for (const file of files) {
-        const path = resolve(root, file.path);
-        const name = display(root, file.path);
-        const current = await onDisk(path);
-
-        if (sameText(current, file.text)) {
-          lines.push(`${name} is up to date.`);
+      for (const change of applied.changes) {
+        if (change.outcome === "unchanged") {
+          lines.push(`${change.file} is up to date.`);
           continue;
         }
 
-        stale = true;
-        lines.push(fileDiff(name, current, file.text));
-        const missing = current === undefined;
+        lines.push(applied.diffs[index] ?? "");
+        index += 1;
+        const missing = change.outcome === "create";
         diagnostics.push({
           code: missing ? "output-missing" : "output-stale",
           severity: "error",
-          message: `${name} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
+          message: `${change.file} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
         });
       }
 
       return {
-        status: stale ? "stale" : "up-to-date",
+        status: applied.drift ? "stale" : "up-to-date",
         lines,
         diagnostics,
-        stale,
+        stale: applied.drift,
       };
     }
 
     case "validate": {
       return {
         status: "validated",
-        lines: [`Checked ${shown} ${label}`],
+        lines: [`Checked ${shown} (${label})`],
         diagnostics,
         stale: false,
       };
@@ -366,7 +370,13 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   let stale = false;
 
   for (const result of rendered) {
-    const settled = await settle(options.action, root, result);
+    const settled = await settle(
+      options.action,
+      root,
+      result,
+      options.dryRun === true,
+    );
+
     stale ||= settled.stale;
     lines.push(...settled.lines);
     outputs.push({
@@ -398,8 +408,15 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     manifestText,
   ).catch(() => undefined);
 
-  if (options.manifest) {
-    await writeIfChanged(resolve(root, options.manifest), manifestText);
+  if (options.manifest && options.dryRun !== true) {
+    await applyPlan(
+      {
+        root,
+        regenerate: "better-supabase spec emit",
+        files: [{ path: options.manifest, contents: manifestText }],
+      },
+      {},
+    );
   }
 
   const findings = formatDiagnostics(outputs);
@@ -525,6 +542,7 @@ export const specCommand: AnyCommand = defineCliCommand({
     const options = specOptionsFromConfig(context.config, action, {
       failOn,
       cache: args.cache,
+      ...(args["dry-run"] === true ? { dryRun: true } : {}),
       ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
       ...(args.entry === undefined ? {} : { entry: args.entry }),
       filter: {

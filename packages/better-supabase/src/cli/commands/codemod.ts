@@ -8,9 +8,15 @@ import type { CommandResult } from "../core/io.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { writeIfChanged } from "../core/io.ts";
+import {
+  applyPlan,
+  changedFiles,
+  changeLines,
+  type FilePlan,
+  type PlannedFile,
+  planResult,
+} from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import { type Paint, plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
@@ -24,6 +30,10 @@ const CODEMOD_ARGS = {
   "dry-run": {
     type: "boolean",
     description: "Show the changes without writing them",
+  },
+  check: {
+    type: "boolean",
+    description: "Write nothing; exit 1 with a diff when a file would change",
   },
 } as const;
 
@@ -117,8 +127,7 @@ export async function runCodemod(
   ];
 
   const dryRun = args["dry-run"] === true;
-  const changed: string[] = [];
-  const diffs: string[] = [];
+  const edits: PlannedFile[] = [];
   const review: { file: string; line: number; message: string }[] = [];
 
   for (const file of files) {
@@ -127,24 +136,32 @@ export async function runCodemod(
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
 
-    if (result.text === source) {
-      continue;
-    }
-
-    changed.push(path);
-
-    if (dryRun) {
-      diffs.push(fileDiff(path, source, result.text, paint));
-    } else {
-      await writeIfChanged(file, result.text);
+    if (result.text !== source) {
+      edits.push({ path: file, contents: result.text, policy: "edit" });
     }
   }
 
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: `better-supabase codemod ${codemod.name}`,
+    files: edits,
+  };
+
+  const applied = await applyPlan(plan, args, paint);
+  const changed = changedFiles(applied);
+
+  if (applied.mode === "check" && applied.drift) {
+    return planResult(plan, applied, { data: { codemod: codemod.name } });
+  }
+
   const lines = [
-    ...diffs,
+    ...(applied.mode === "write" ? [] : applied.diffs),
     changed.length === 0
       ? `Nothing to change in ${String(files.length)} files.`
-      : `${dryRun ? "Would update" : "Updated"} ${String(changed.length)} of ${String(files.length)} files:\n${changed.map((path) => `  ${path}`).join("\n")}`,
+      : [
+          ...changeLines(applied),
+          `${applied.mode === "write" ? "Updated" : "Would update"} ${String(changed.length)} of ${String(files.length)} files.`,
+        ].join("\n"),
   ];
 
   if (review.length > 0) {
@@ -160,7 +177,13 @@ export async function runCodemod(
   return {
     code: 0,
     output: lines.join("\n"),
-    data: { codemod: codemod.name, dryRun, changed, review },
+    data: {
+      codemod: codemod.name,
+      dryRun,
+      changed,
+      files: applied.changes,
+      review,
+    },
   };
 }
 

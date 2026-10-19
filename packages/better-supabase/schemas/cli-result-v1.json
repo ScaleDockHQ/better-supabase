@@ -66,6 +66,7 @@
             "integrity_failed",
             "generator_failed",
             "check_failed",
+            "file_conflict",
             "findings",
             "input_required",
             "consent_required",

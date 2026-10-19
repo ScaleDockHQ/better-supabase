@@ -121,7 +121,7 @@ describe("runSql", () => {
     expect(added.output).toContain("(billing)");
     expect(added.output).not.toContain("(organizations)");
 
-    const path = /Wrote (supabase\/schemas\/\S+) \(billing\)/.exec(
+    const path = /Created (supabase\/schemas\/\S+) \(billing\)/.exec(
       added.output ?? "",
     )?.[1];
 
@@ -193,7 +193,7 @@ export const notATopic = { template: "x" };
     };
 
     expect((await sql(["sync"], config)).output).toBe(
-      "Wrote supabase/schemas/905_topics.sql (topics)",
+      "Created supabase/schemas/905_topics.sql (topics)",
     );
 
     const written = await readFile(
@@ -412,16 +412,16 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
 
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(
-      "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
+      "Created supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
     );
     expect(synced.output).toContain("run `better-supabase sql data`");
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
 
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
-      /^Would write supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
+      /^Would create supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
     const wrote = await sql(["data"], config);
-    const path = wrote.output!.replace("Wrote ", "");
+    const path = wrote.output!.replace("Created ", "");
     expect(path).toMatch(
       /^supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
@@ -458,7 +458,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "supabase/tests/900_better_supabase_audit_public_customers.test.sql";
 
     const synced = await sql(["sync"], config);
-    expect(synced.output).toContain(`Wrote ${test} (audit)`);
+    expect(synced.output).toContain(`Created ${test} (audit)`);
     expect(synced.output).not.toContain("public_notes");
     expect(await readFile(join(root, test), "utf-8")).toContain(
       `'{"updated_at"}'::text[]`,
@@ -489,7 +489,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "supabase/tests/900_better_supabase_audit_public_notes.test.sql";
 
     expect((await sql(["sync"], config)).output).toContain(
-      `Wrote ${test} (audit)`,
+      `Created ${test} (audit)`,
     );
     await writeFile(
       join(migrations, "20260201000000_drop_notes.sql"),
@@ -751,10 +751,10 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     });
 
     expect(synced.output).toContain(
-      "Wrote supabase/declarative/module/900_better_supabase_04_tenant.sql (tenant)",
+      "Created supabase/declarative/module/900_better_supabase_04_tenant.sql (tenant)",
     );
     expect(synced.output).toContain(
-      "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
+      "Created supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
     );
   });
 
@@ -769,12 +769,12 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "create extension if not exists pgmq;\n",
     );
     expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
-      /^Would write supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
+      /^Would create supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
     );
     const synced = await sql(["sync"], config);
 
     const path =
-      /^Wrote (supabase\/migrations\/\d{14}_better_supabase_extensions\.sql)$/m.exec(
+      /^Created (supabase\/migrations\/\d{14}_better_supabase_extensions\.sql)$/m.exec(
         synced.output ?? "",
       )?.[1];
 
@@ -787,7 +787,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "_better_supabase_extensions.sql",
     );
     expect((await sql(["data"], config)).output).toMatch(
-      /^Wrote supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
+      /^Created supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
   });
 
@@ -829,7 +829,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       "",
     );
     expect((await sql(["data"], config)).output).toBe(
-      "Wrote supabase/migrations/30000101000000_better_supabase_module_data.sql",
+      "Created supabase/migrations/30000101000000_better_supabase_module_data.sql",
     );
   });
 
@@ -843,7 +843,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
     await writeFile(join(root, "supabase/migrations/40000101000000.sql"), "");
     expect((await sql(["data"], config)).output).toBe(
-      "Wrote supabase/migrations/40000101000001_better_supabase_module_data.sql",
+      "Created supabase/migrations/40000101000001_better_supabase_module_data.sql",
     );
   });
 
@@ -976,11 +976,11 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     it("writes the modules into one migration and nothing into sql.dir", async () => {
       const config = migrations(["jobs", "jsonb-schemas"]);
       expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
-        /^Would write supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+        /^Would create supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
       );
       const synced = await sql(["sync"], config);
       expect(synced.output).toMatch(
-        /^Wrote supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
       );
       expect(synced.output).not.toContain("sql data");
       expect(
@@ -1001,7 +1001,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       ).toBeLessThan(text.indexOf("-- @bs-module jobs@"));
 
       expect((await sql(["sync"], config)).output).toContain(
-        `Kept    supabase/migrations/${name!} (it has these statements)`,
+        `Unchanged supabase/migrations/${name!} (it has these statements)`,
       );
       expect(await moduleMigrations()).toHaveLength(1);
       expect(await sql(["sync", "--check"], config)).toEqual({
@@ -1057,7 +1057,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     it("adds a module into the migration and says to apply it", async () => {
       const added = await sql(["add", "mfa"], migrations([]));
       expect(added.output).toMatch(
-        /^Wrote supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
+        /^Created supabase\/migrations\/\d{14}_better_supabase_modules\.sql$/m,
       );
       expect(added.next).toEqual([
         { command: "supabase migration up", when: "applies the migration" },
@@ -1127,7 +1127,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       expect((await sql(["upgrade"], config)).output).toBe(
         "SQL modules are at their current versions.",
       );
-      expect((await sql(["sync"], config)).output).toContain("Kept    ");
+      expect((await sql(["sync"], config)).output).toContain("Unchanged ");
     });
   });
 

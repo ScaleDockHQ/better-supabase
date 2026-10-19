@@ -19,14 +19,15 @@ writes what it found to `supabase/snapshot.json`. Commit the file, set
 | `--out <file>`        | Where to write. Defaults to `supabase/snapshot.json`, or `supabase/generator-metadata.json`. |
 | `--format <format>`   | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
 | `--check`             | Writes nothing; exits 1 when the file no longer matches the database.                        |
+| `--dry-run`           | Prints a diff of the file and writes nothing.                                                |
 | `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--format`.               |
 | `--db-url-stdin`      | Reads the connection string from stdin.                                                      |
 | `--project-ref <ref>` | Reads a hosted project through the Management API.                                           |
 
 The schema comes from the same places as for `gen`, in the
 [same order](/docs/cli/gen#where-the-schema-comes-from). With `--json`,
-the envelope's `data` is `{ "file", "written", "tables" }`, and
-`{ "file", "upToDate" }` for `--check`. It always reads the full schema, without the
+the envelope's `data` is `{ "tables", "files" }`, plus `upToDate` for
+`--check`. It always reads the full schema, without the
 [introspection cache](/docs/cli/gen#introspection-cache) `gen` uses.
 
 ## What the snapshot holds

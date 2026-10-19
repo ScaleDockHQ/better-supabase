@@ -1,5 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SqlDeps } from "../commands/sql.ts";
@@ -9,6 +9,7 @@ import type { SqlFlags } from "./args.ts";
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
+import { applyPlan } from "../core/files.ts";
 import { addBlocksToConfig, addBlocksToJson, keyText } from "./config-edit.ts";
 import {
   layoutFor,
@@ -136,13 +137,20 @@ async function listInConfig(
     ];
   }
 
+  await applyPlan(
+    {
+      root: dirname(file),
+      regenerate: "better-supabase sql add",
+      files: [{ path: file, contents: edit.text, policy: "edit" }],
+    },
+    { "dry-run": args["dry-run"] },
+  );
+
   if (args["dry-run"] === true) {
     return [
       `Would add ${untracked.join(", ")} to blocks in ${basename(file)}.`,
     ];
   }
-
-  await writeFile(file, edit.text);
 
   return [`Added ${untracked.join(", ")} to blocks in ${basename(file)}.`];
 }

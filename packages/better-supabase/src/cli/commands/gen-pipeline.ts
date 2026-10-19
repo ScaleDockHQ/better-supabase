@@ -24,6 +24,7 @@ export interface StepOptions {
   readonly config: ResolvedConfig;
   readonly env: CliEnv;
   readonly check: boolean;
+  readonly dryRun?: boolean;
   readonly paint: Paint;
 }
 
@@ -106,20 +107,29 @@ const STEPS: Readonly<
     (options: StepOptions) => Promise<CommandResult>
   >
 > = {
-  sql: ({ config, check, paint }) =>
-    runSql(config, { _: ["sync"], check }, paint),
-  spec: ({ config, check }) =>
-    runSpec(specOptionsFromConfig(config, check ? "check" : "emit")),
-  seed: ({ config, check, env }) => runSeed(config, { check }, env),
-  scaffold: ({ config, check }) =>
-    runScaffold(config, { _: ["api"] }, { generatedOnly: true, check }),
-  env: async ({ config, check, env }) =>
+  sql: ({ config, check, dryRun, paint }) =>
+    runSql(config, { _: ["sync"], check, "dry-run": dryRun }, paint),
+  spec: ({ config, check, dryRun }) =>
+    runSpec(
+      specOptionsFromConfig(config, check ? "check" : "emit", {
+        ...(dryRun === true ? { dryRun } : {}),
+      }),
+    ),
+  seed: ({ config, check, dryRun, env }) =>
+    runSeed(config, { check, "dry-run": dryRun }, env),
+  scaffold: ({ config, check, dryRun }) =>
+    runScaffold(
+      config,
+      { _: ["api"], "dry-run": dryRun },
+      { generatedOnly: true, check },
+    ),
+  env: async ({ config, check, dryRun, env }) =>
     check
       ? {
           code: 0,
           output: "Skipped: env writes local keys, so --check leaves it out.",
         }
-      : runEnv(config, {}, env),
+      : runEnv(config, { "dry-run": dryRun }, env),
 };
 
 /**

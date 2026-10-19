@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -12,10 +12,13 @@ import type { CliEnv } from "../env.ts";
 import { byCodePoint } from "../compare.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { writeLine } from "../core/files.ts";
-import { display, readIfExists, sameText } from "../core/io.ts";
+import {
+  applyPlan,
+  type FilePlan,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 
 const ARGS = {
   action: {
@@ -33,10 +36,6 @@ const ARGS = {
     type: "boolean",
     description: "Install into your home directory instead of the project",
   },
-  check: {
-    type: "boolean",
-    description: "Fail when installed skills differ from this version",
-  },
   from: {
     type: "string",
     description: "Read skills from this folder instead of the package",
@@ -44,7 +43,9 @@ const ARGS = {
   },
 } as const;
 
-export type SkillsArgs = CliArgs<typeof ARGS>;
+export type SkillsArgs = CliArgs<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
+>;
 
 const AGENT_DIRS = {
   cursor: ".cursor/skills",
@@ -187,62 +188,32 @@ export async function runSkills(
         ? detected
         : ["agents"];
 
-  const check = args.check === true;
-  const lines: string[] = [];
-  const files: { path: string; wrote: boolean }[] = [];
-  const stale: string[] = [];
-  const diffs: string[] = [];
-
-  const targets = agents.flatMap((agent) =>
-    skills.flatMap((skill) =>
-      skill.files.map((file) => ({
-        file,
-        relativePath: join(AGENT_DIRS[agent], skill.name, file.path),
-      })),
+  const plan: FilePlan = {
+    root: base,
+    regenerate: `better-supabase skills install${global ? " --global" : ""}`,
+    files: agents.flatMap((agent) =>
+      skills.flatMap((skill) =>
+        skill.files.map((file) => ({
+          path: join(AGENT_DIRS[agent], skill.name, file.path),
+          contents: file.contents,
+        })),
+      ),
     ),
-  );
+  };
 
-  for (const { file, relativePath } of targets) {
-    const path = resolve(base, relativePath);
-
-    const shown = global
-      ? `~/${relativePath}`
-      : display(config.root, relativePath);
-
-    if (check) {
-      const current = await readIfExists(path);
-
-      if (!sameText(current, file.contents)) {
-        stale.push(shown);
-        diffs.push(fileDiff(shown, current, file.contents));
-      }
-
-      continue;
-    }
-
-    const { line, wrote } = await writeLine(path, file.contents, shown);
-    lines.push(line);
-    files.push({ path: shown, wrote });
-  }
-
-  if (check) {
-    return stale.length === 0
-      ? { code: 0, output: "Skills are up to date.", data: { agents, stale } }
-      : {
-          code: 1,
-          data: { agents, stale },
-          output: diffs.join("\n"),
-          error: `Out of date: ${stale.join(", ")}. Run \`better-supabase skills install\`.`,
-          errorCode: "check_failed",
-        };
-  }
-
-  return { code: 0, output: lines.join("\n"), data: { agents, files } };
+  return planResult(plan, await applyPlan(plan, args), {
+    ...(global ? { summary: `Installed under ${base}.` } : {}),
+    data: { agents },
+  });
 }
 
 export const skillsCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("skills"),
-  args: ARGS,
+  args: {
+    ...ARGS,
+    check: PLAN_ARGS.check,
+    "dry-run": PLAN_ARGS["dry-run"],
+  },
   lists: ["agent"],
   run: (args, { config, env }) => runSkills(config, args, env),
 });

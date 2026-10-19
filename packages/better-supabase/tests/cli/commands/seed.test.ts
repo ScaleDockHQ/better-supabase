@@ -63,13 +63,13 @@ describe("seed", () => {
       code: 0,
       data: {
         file: "db/seed.sql",
-        wrote: true,
+        files: [{ file: "db/seed.sql", note: "2 tables", outcome: "create" }],
         tables: 2,
         applied: true,
         listed: true,
       },
       output:
-        "Wrote db/seed.sql (2 tables)\nInserted the fixtures (existing rows were kept).",
+        "Created db/seed.sql (2 tables)\nInserted the fixtures (existing rows were kept).",
     });
     expect(open.urls).toEqual(["postgresql://u:secret@db:5432/app"]);
     expect(db.texts()).toEqual([

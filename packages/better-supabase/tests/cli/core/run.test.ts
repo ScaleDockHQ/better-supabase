@@ -271,13 +271,13 @@ describe("run", () => {
       });
 
     expect((await introspect()).stdout).toBe(
-      "Wrote supabase/snapshot.json (0 tables).\n",
+      "Created supabase/snapshot.json (0 tables)\n",
     );
     expect(api.calls[0]!.url).toBe(
       "https://api.supabase.com/v1/projects/abc/database/query/read-only",
     );
     expect((await introspect()).stdout).toBe(
-      "Unchanged supabase/snapshot.json (0 tables).\n",
+      "Unchanged supabase/snapshot.json (0 tables)\n",
     );
     expect(await introspect("--check")).toMatchObject({
       code: 0,
@@ -311,7 +311,7 @@ describe("run", () => {
       { env: ENV, io: io() },
     );
 
-    expect(result.stdout).toBe("Wrote meta.json (0 tables).\n");
+    expect(result.stdout).toBe("Created meta.json (0 tables)\n");
 
     const meta = JSON.parse(
       await readFile(join(dir, "meta.json"), "utf-8"),
@@ -348,7 +348,7 @@ describe("run", () => {
       { io: io() },
     );
 
-    expect(converted.stdout).toBe("Wrote meta.json (0 tables).\n");
+    expect(converted.stdout).toBe("Created meta.json (0 tables)\n");
     expect(api.calls).toHaveLength(calls);
 
     const both = await run(
@@ -408,7 +408,7 @@ describe("run", () => {
     expect(stderr).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
-      "Generated 0 tables:\n  src/lib/supabase/database.types.ts\n  src/lib/supabase/generated.ts\n  src/lib/supabase/generated.meta.js\n  src/lib/supabase/generated.meta.d.ts\n",
+      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nGenerated 0 tables.\n",
     ]);
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")).length,
@@ -611,10 +611,8 @@ describe("run", () => {
 
     expect(result.code).toBe(0);
     expect(stdout[0]).toContain("a/generated.ts");
-    expect(stdout[1]).toContain("  b/generated.ts\n");
-    expect(stdout[1]).toContain(
-      "  a/generated.ts (removed, no longer generated)",
-    );
+    expect(stdout[1]).toContain("Created b/generated.ts\n");
+    expect(stdout[1]).toContain("Removed a/generated.ts\n");
     expect(existsSync(join(dir, "a/generated.ts"))).toBe(false);
     expect(existsSync(join(dir, "b/generated.ts"))).toBe(true);
   });
@@ -740,7 +738,7 @@ describe("run", () => {
     );
     const synced = await run(["sql", "sync", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
-    const path = /Wrote (\S+) \(grants\)/.exec(synced.stdout)?.[1];
+    const path = /Created (\S+) \(grants\)/.exec(synced.stdout)?.[1];
     const grants = await readFile(join(dir, path!), "utf-8");
     expect(grants).toContain(
       'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',

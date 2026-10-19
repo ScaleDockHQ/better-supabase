@@ -40,7 +40,8 @@ pnpm better-supabase init --workflow migrations
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the
-prompt, and `--dry-run` shows what would be written. The names and the layout are described in [Naming](/docs/concepts/naming).
+prompt. `--dry-run` shows what would be written, and `--check` exits 1 when a
+file is missing or differs ([writing files](/docs/cli#writing-files)). The names and the layout are described in [Naming](/docs/concepts/naming).
 
 In a terminal, `init` asks for the casing (unless you pass `--casing`), the
 integrations, with the detected ones checked (unless you pass `--with`), and
@@ -162,7 +163,7 @@ pnpm better-supabase add --framework hono,mcp
 
 `add` with block names is how you install blocks. It lists them in `blocks`
 of the config and writes their module files and the modules they require
-(`--force`, `--dry-run` and `--tests-dir` work as in
+(`--force`, `--dry-run`, `--check` and `--tests-dir` work as in
 [`sql add`](/docs/blocks/sql#low-level-sql-add), the low-level command that
 stops after the SQL). It also wires the blocks that have a TypeScript client into
 `lib/blocks.ts`: an import and an entry in the object passed to

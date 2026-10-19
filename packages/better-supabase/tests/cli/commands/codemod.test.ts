@@ -67,7 +67,7 @@ describe("runCodemod", () => {
     const dry = await codemod(["0.4", "--dry-run"]);
     expect(dry.code).toBe(0);
     expect(dry.output).toContain(
-      "Would update 1 of 2 files:\n  src/lib/client.ts",
+      "Would update src/lib/client.ts\nWould update 1 of 2 files.",
     );
     expect(dry.output).toContain(
       "Check these by hand:\n  src/lib/client.ts:3: `next.server()` is `bs.context()`",

@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
+import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { supabaseDir } from "../supabase-toml.ts";
@@ -23,6 +24,10 @@ const ARGS = {
       "Put a new key first (it signs) and keep the old ones (they still verify)",
   },
   force: { type: "boolean", description: "Replace the file" },
+  "dry-run": {
+    type: "boolean",
+    description: "Print what would change and write nothing",
+  },
 } as const;
 
 export type KeysArgs = CliArgs<typeof ARGS>;
@@ -95,15 +100,30 @@ export async function runKeys(
   }
 
   const key = await createSigningKey();
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify([key, ...previous], null, 2)}\n`, {
-    mode: 0o600,
-  });
-  await chmod(path, 0o600);
 
-  const lines = [
-    `Wrote ${display(config.root, out)} with key ${key.kid}${previous.length > 0 ? ` (${previous.length} older key${previous.length === 1 ? "" : "s"} kept for verification)` : ""}.`,
-  ];
+  const applied = await applyPlan(
+    {
+      // The supabase folder can sit above the package in a monorepo.
+      root:
+        args.out === undefined && config.keys.output === undefined
+          ? resolve(config.root, dir, "..")
+          : config.root,
+      base: config.root,
+      regenerate: "better-supabase keys --rotate",
+      files: [
+        {
+          path,
+          contents: `${JSON.stringify([key, ...previous], null, 2)}\n`,
+          mode: 0o600,
+          secret: true,
+          note: `key ${key.kid}${previous.length > 0 ? `, ${previous.length} older key${previous.length === 1 ? "" : "s"} kept for verification` : ""}`,
+        },
+      ],
+    },
+    { "dry-run": args["dry-run"] },
+  );
+
+  const lines = changeLines(applied);
 
   const toml = resolve(config.root, dir, "config.toml");
 
@@ -152,6 +172,7 @@ export async function runKeys(
     output: lines.join("\n"),
     data: {
       file: display(config.root, out),
+      files: applied.changes,
       kid: key.kid,
       kept: previous.length,
       configured,

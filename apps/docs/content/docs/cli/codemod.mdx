@@ -16,7 +16,8 @@ Pass files or directories after the name to limit it (`codemod 0.4 src app`).
 Without them it walks the project and skips `node_modules`, build output
 (`dist`, `build`, `.next`, `.turbo`, `.vercel`, `coverage`) and `.d.ts` files.
 `--dry-run` prints a unified diff of each file it would change and writes
-nothing.
+nothing. `--check` writes nothing and exits 1 when a file still needs the
+codemod, so CI can tell the upgrade is done ([writing files](/docs/cli#writing-files)).
 
 The codemod runs even when the config file fails to load, because the config
 it migrates is often the one the new version rejects. It then walks the

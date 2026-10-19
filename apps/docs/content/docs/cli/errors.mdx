@@ -142,6 +142,13 @@ another generator writes. The message names the generator. Exit code 1.
 `--check` found files that are out of date. Run the command without
 `--check` to write them. Exit code 1.
 
+## `file_conflict`
+
+A file the command generates already exists without the better-supabase
+header, so the app wrote it by hand. The command leaves it alone and lists it
+as Skipped. Move your code elsewhere, or pass `--force` to overwrite it. Exit
+code 1.
+
 ## `findings`
 
 A check such as `doctor` or `spec validate` found problems at or above the

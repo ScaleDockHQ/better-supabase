@@ -12,7 +12,8 @@ Options
   --framework <integration,...>  Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react
   --force                        Overwrite files that exist; with blocks, write modules a provider's hook would duplicate
   --tests-dir <dir>              With blocks: where the pgtap module goes. Defaults to sql.testsDir
-  --dry-run                      Show what would be written
+  --dry-run                      Print what would change, with a diff, and write nothing
+  --check                        Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>      Project directory
@@ -46,6 +47,7 @@ Arguments
 Options
   --from <schema.table,...>  The existing tables, as table or schema.table; the block's other tables are looked up by their default names
   --dry-run                  Show the proposed mapping and the config diff, and write nothing
+  --check                    Write nothing; exit 1 with the diff when the config lacks this mapping
   --snapshot <file>          Read a saved snapshot instead of the database
   --db-url-stdin             Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
   --project-ref <ref>        Read a hosted project through the Management API
@@ -75,6 +77,7 @@ Options
   --only <blocks|conventions>  blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
   --adopt                      Map the preset's blocks onto tables the database already has under their default names (adopt mode)
   --dry-run                    Show the config diff and write nothing
+  --check                      Write nothing; exit 1 with the diff when the config lacks the preset
   --snapshot <file>            Read a saved snapshot instead of the database
   --db-url-stdin               Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
   --project-ref <ref>          Read a hosted project through the Management API
@@ -130,6 +133,7 @@ Arguments
 
 Options
   --dry-run  Show the changes without writing them
+  --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>      Project directory
@@ -218,6 +222,8 @@ Options
   --prefix <prefix>  Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix
   --from <file>      Read \`supabase status -o json\` output from a file
   --print            Print the variables instead of writing them
+  --dry-run          Print what would change, with a diff, and write nothing
+  --check            Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>      Project directory
@@ -245,6 +251,8 @@ Options
   --out <dir>          With --metadata, write every generated file into this directory instead of printing one
   --tasks <list,...>   Tasks to run: types, sql, spec, seed, scaffold, env. Defaults to gen.tasks, or every task the config sets up
   --check              Fail when a generated file is out of date
+  --dry-run            Print what would change and write nothing
+  --force              Overwrite a file at a generated path that the CLI did not write
   --watch              Run again whenever the schema, the config file or a task's input changes
   --interval <ms>      Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
   --snapshot <file>    Read a saved snapshot instead of the database
@@ -284,8 +292,9 @@ Options
   --workflow <pg-delta|migra|migrations>  How the SQL modules reach the database: pg-delta (the default), migra or migrations
   --preset <name|code|url>                A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts
   --lite                                  Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
-  --force                                 Overwrite files that exist
-  --dry-run                               Show what would be written
+  --dry-run                               Print what would change, with a diff, and write nothing
+  --check                                 Write nothing; exit 1 with a diff when a file would change
+  --force                                 Overwrite files the CLI did not generate
 
 Global options
   --cwd <dir>      Project directory
@@ -316,7 +325,8 @@ Saves the database schema as a snapshot for offline gen
 Options
   --out <file>                            Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
   --format <snapshot|generator-metadata>  snapshot (the default) or generator-metadata (postgrest-typegen's input)
-  --check                                 Fail when the file is out of date
+  --check                                 Write nothing; exit 1 with a diff when a file would change
+  --dry-run                               Print what would change, with a diff, and write nothing
   --snapshot <file>                       Read a saved snapshot instead of the database
   --db-url-stdin                          Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
   --project-ref <ref>                     Read a hosted project through the Management API
@@ -345,6 +355,7 @@ Options
   --out <file>  Defaults to keys.output, then supabase/signing_keys.json
   --rotate      Put a new key first (it signs) and keep the old ones (they still verify)
   --force       Replace the file
+  --dry-run     Print what would change and write nothing
 
 Global options
   --cwd <dir>      Project directory
@@ -370,9 +381,10 @@ Arguments
   [action]  emit
 
 Options
-  --check         Fail when the file differs from the document
   --entry <file>  Defaults to openapi.entry. Exports \`openapi\` or default: a document or a function returning one
   --out <file>    Defaults to openapi.output
+  --check         Write nothing; exit 1 with a diff when a file would change
+  --dry-run       Print what would change, with a diff, and write nothing
 
 Global options
   --cwd <dir>      Project directory
@@ -425,6 +437,9 @@ Options
   --tables <list,...>  Tables to serve. Defaults to every table and view in the public schema
   --name <name>        The API module's name: lib/<name>.ts and lib/<name>.generated.ts. Defaults to api
   --base-path <path>   Where the resources are served. Defaults to /api
+  --dry-run            Print what would change, with a diff, and write nothing
+  --check              Write nothing; exit 1 with a diff when a file would change
+  --force              Overwrite files the CLI did not generate
 
 Global options
   --cwd <dir>      Project directory
@@ -447,11 +462,13 @@ exports[`help > documents seed 1`] = `
 Renders the fixtures from defineSeed() (better-supabase/testing) to SQL
 
 Options
-  --check         Fail when the SQL file is out of date
   --apply         Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
   --entry <file>  Defaults to seed.entry (supabase/seed.ts)
   --out <file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)
   --db-url-stdin  Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --dry-run       Print what would change, with a diff, and write nothing
+  --check         Write nothing; exit 1 with a diff when a file would change
+  --force         Overwrite files the CLI did not generate
 
 Global options
   --cwd <dir>      Project directory
@@ -479,8 +496,9 @@ Arguments
 Options
   --agent <names,...>  cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents
   --global             Install into your home directory instead of the project
-  --check              Fail when installed skills differ from this version
   --from <dir>         Read skills from this folder instead of the package
+  --check              Write nothing; exit 1 with a diff when a file would change
+  --dry-run            Print what would change, with a diff, and write nothing
 
 Global options
   --cwd <dir>      Project directory
@@ -517,6 +535,7 @@ Options
   --no-cache                Render every output again
   --watch                   With emit, render again whenever the entry, the config, an overlay or a topic module changes
   --interval <ms>           Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
+  --dry-run                 With emit, print what would change and write nothing
 
 Global options
   --cwd <dir>      Project directory

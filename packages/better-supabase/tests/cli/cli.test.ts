@@ -977,7 +977,7 @@ describe("sql", () => {
     const added = await run(["sql", "add", "jobs", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
-      /Wrote supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
+      /Created supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
     );
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
@@ -1121,6 +1121,6 @@ describe("sql", () => {
     expect((await run(["sql", "add", "nope", "--cwd", dir])).code).toBe(2);
     expect(
       (await run(["sql", "add", "--dry-run", "audit", "--cwd", dir])).stdout,
-    ).toContain("Would write");
+    ).toContain("Would create");
   });
 });

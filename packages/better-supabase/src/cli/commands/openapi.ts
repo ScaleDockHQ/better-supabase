@@ -7,7 +7,13 @@ import type { CommandResult } from "../core/io.ts";
 import { importExport } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { fileState, staleResult, writeLine } from "../core/files.ts";
+import {
+  applyPlan,
+  type FilePlan,
+  insideRoot,
+  PLAN_ARGS,
+  planResult,
+} from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 
@@ -16,10 +22,6 @@ const ARGS = {
     type: "positional",
     required: false,
     description: "emit",
-  },
-  check: {
-    type: "boolean",
-    description: "Fail when the file differs from the document",
   },
   entry: {
     type: "string",
@@ -34,7 +36,9 @@ const ARGS = {
   },
 } as const;
 
-export type OpenApiArgs = CliArgs<typeof ARGS>;
+export type OpenApiArgs = CliArgs<
+  typeof ARGS & Pick<typeof PLAN_ARGS, "check" | "dry-run">
+>;
 
 export async function runOpenApi(
   config: ResolvedConfig,
@@ -72,19 +76,18 @@ export async function runOpenApi(
   }
 
   const contents = `${JSON.stringify(document, null, 2)}\n`;
-  const state = await fileState(config.root, out, contents);
 
-  if (args.check === true) {
-    return staleResult(state, "better-supabase openapi emit");
-  }
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase openapi emit",
+    files: [{ path: insideRoot(config.root, out, "--out"), contents }],
+  };
 
-  const { line, wrote } = await writeLine(state.path, contents, state.file);
-
-  return { code: 0, output: line, data: { file: state.file, wrote } };
+  return planResult(plan, await applyPlan(plan, args));
 }
 
 export const openapiCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("openapi"),
-  args: ARGS,
+  args: { ...ARGS, check: PLAN_ARGS.check, "dry-run": PLAN_ARGS["dry-run"] },
   run: (args, { config }) => runOpenApi(config, args),
 });

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
@@ -8,9 +8,9 @@ import type { SnapshotSource } from "./snapshot.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
+import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { fileDiff } from "../diff.ts";
 import { toCatalog } from "../introspect/index.ts";
 import {
   type AdoptProposal,
@@ -44,6 +44,11 @@ const ADOPT_ARGS = {
     type: "boolean",
     description:
       "Show the proposed mapping and the config diff, and write nothing",
+  },
+  check: {
+    type: "boolean",
+    description:
+      "Write nothing; exit 1 with the diff when the config lacks this mapping",
   },
 } as const;
 
@@ -157,16 +162,28 @@ export async function runAdopt(
 
   const paint = deps.paint ?? plain;
 
-  if (edit.text !== source) {
-    lines.push("", fileDiff(shown, source, edit.text, paint));
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase adopt",
+    files: [{ path: file, contents: edit.text, policy: "edit" }],
+  };
+
+  const applied = await applyPlan(plan, args, paint);
+
+  if (applied.mode === "check") {
+    return planResult(plan, applied, { data: { ...data, written: false } });
   }
 
-  if (args["dry-run"] === true || edit.text === source) {
+  if (applied.drift) {
+    lines.push("", ...applied.diffs);
+  }
+
+  if (applied.mode === "dry-run" || !applied.drift) {
     lines.push(
       "",
-      edit.text === source
-        ? `${shown} already holds this mapping.`
-        : "Dry run: nothing written. Run without --dry-run to write it.",
+      applied.drift
+        ? "Dry run: nothing written. Run without --dry-run to write it."
+        : `${shown} already holds this mapping.`,
     );
 
     return {
@@ -176,7 +193,6 @@ export async function runAdopt(
     };
   }
 
-  await writeFile(file, edit.text);
   lines.push(
     "",
     `Updated ${shown}. Run \`better-supabase sql sync\` to write the block's module over these tables.`,

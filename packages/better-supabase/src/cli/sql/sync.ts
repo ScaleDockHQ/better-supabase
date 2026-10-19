@@ -13,8 +13,8 @@ import {
   renderModules,
   sameModuleFile,
 } from "../../sql/index.ts";
-import { writeLine } from "../core/files.ts";
-import { display, sameText } from "../core/io.ts";
+import { applyPlan, changeLines, planResult } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
@@ -26,7 +26,7 @@ import {
   writesMigrations,
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
-import { staleModuleTests, write } from "./write.ts";
+import { moduleFile, staleModuleTests, write } from "./write.ts";
 
 export async function syncModules(
   config: ResolvedConfig,
@@ -71,34 +71,29 @@ export async function syncModules(
     };
   }
 
+  const sqlLayout = await layoutFor(config, args, config.blockNames);
+
+  const topicsFile =
+    topics === undefined ? [] : [{ ...topics, note: "topics" }];
+
   if (args.check !== true) {
     const lines = hasSql
-      ? await write(
-          config,
-          args,
-          config.blockNames,
-          await layoutFor(config, args, config.blockNames),
-          now,
-        )
+      ? await write(config, args, config.blockNames, sqlLayout, now)
       : [];
 
     if (topics !== undefined) {
-      const shown = display(config.root, topics.path);
-
-      if (args["dry-run"] === true) {
-        lines.push(`Would write ${shown} (topics)`);
-      } else {
-        lines.push(
-          (
-            await writeLine(
-              resolve(config.root, topics.path),
-              topics.contents,
-              shown,
-              " (topics)",
-            )
-          ).line,
-        );
-      }
+      lines.push(
+        ...changeLines(
+          await applyPlan(
+            {
+              root: config.root,
+              regenerate: "better-supabase sql sync",
+              files: topicsFile,
+            },
+            { "dry-run": args["dry-run"] },
+          ),
+        ),
+      );
     }
 
     return {
@@ -108,52 +103,23 @@ export async function syncModules(
     };
   }
 
-  const sqlLayout = await layoutFor(config, args, config.blockNames);
+  const rendered = renderModules(config.blockNames, sqlLayout);
 
-  const files: { path: string; contents: string; topics?: true }[] = [
-    ...renderModules(config.blockNames, sqlLayout),
-    ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
-  ];
-
-  const stale: string[] = (
-    await staleModuleTests(
+  const plan = {
+    root: config.root,
+    regenerate: "better-supabase sql sync",
+    files: [...rendered.map((file) => moduleFile(file)), ...topicsFile],
+    remove: await staleModuleTests(
       config,
       config.blockNames,
       sqlLayout,
-      renderModules(config.blockNames, sqlLayout),
-    )
-  ).map((path) => display(config.root, path));
+      rendered,
+    ),
+  };
 
-  const diffs: string[] = stale.map(
-    (path) => `${path} is no longer written; \`sql sync\` removes it.`,
-  );
-
-  for (const file of files) {
-    const current = await readFile(
-      resolve(config.root, file.path),
-      "utf-8",
-    ).catch(() => undefined);
-
-    if (
-      file.topics
-        ? !sameText(current, file.contents)
-        : !sameModuleFile(current, file.contents)
-    ) {
-      const shown = display(config.root, file.path);
-      stale.push(shown);
-      diffs.push(fileDiff(shown, current, file.contents, paint));
-    }
-  }
-
-  return stale.length === 0
-    ? { code: 0, output: "SQL module files are up to date.", data: { stale } }
-    : {
-        code: 1,
-        data: { stale },
-        output: diffs.join("\n\n"),
-        error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
-        errorCode: "check_failed",
-      };
+  return planResult(plan, await applyPlan(plan, { check: true }, paint), {
+    data: { blocks: config.blockNames },
+  });
 }
 
 /** `sql sync --check` under the migrations workflow: the newest module migration against what `sql sync` would write. */
