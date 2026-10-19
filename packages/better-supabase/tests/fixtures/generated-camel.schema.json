@@ -1303,6 +1303,96 @@
       },
       "additionalProperties": false
     },
+    "projectsViewRow": {
+      "title": "Projects view",
+      "description": "The rollups and lookups of public.projects, read with the caller's row level security.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "budgetMinor": {
+          "type": "integer"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "leadId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "deletedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "openTasks": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "doneTasks": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "nextDueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "name",
+        "budgetMinor",
+        "currency",
+        "leadId",
+        "labelId",
+        "deletedAt",
+        "openTasks",
+        "doneTasks",
+        "nextDueOn"
+      ],
+      "additionalProperties": false
+    },
     "savedViewsRow": {
       "title": "Saved views",
       "type": "object",
@@ -1860,6 +1950,86 @@
           "type": "string"
         }
       },
+      "additionalProperties": false
+    },
+    "tasksViewRow": {
+      "title": "Tasks view",
+      "description": "The rollups and lookups of public.tasks, read with the caller's row level security.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "startsOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "dueOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "assigneeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rank": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "title",
+        "status",
+        "startsOn",
+        "dueOn",
+        "assigneeId",
+        "projectId",
+        "rank",
+        "projectName"
+      ],
       "additionalProperties": false
     }
   }

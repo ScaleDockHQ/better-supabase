@@ -47,9 +47,10 @@ const DESIGN_VERSION = "0";
  * so a design without format 1 keys still opens in an older release.
  * Format 1 adds column `format`, `options`, `min`, `max`, `comment` and
  * `identity`, and table `id`, `unique`, `indexes` and `comment`. Format 2
- * adds table `subject` (ADR 0043).
+ * adds table `subject` (ADR 0043). Format 3 adds table `rollups` and
+ * `lookups` (ADR 0044).
  */
-export const DESIGN_FORMAT = 2;
+export const DESIGN_FORMAT = 3;
 
 const FORMAT_1_TABLE_KEYS = ["id", "unique", "indexes", "comment"] as const;
 
@@ -65,6 +66,14 @@ const FORMAT_1_COLUMN_KEYS = [
 /** The lowest design format that reads `design`. */
 export function designFormat(design: CreateDesign): number {
   const tables = Object.values(design.appTables ?? {});
+
+  if (
+    tables.some(
+      (table) => table.rollups !== undefined || table.lookups !== undefined,
+    )
+  ) {
+    return 3;
+  }
 
   if (tables.some((table) => table.subject !== undefined)) {
     return 2;

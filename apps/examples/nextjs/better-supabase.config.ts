@@ -142,6 +142,28 @@ export default defineConfig({
         search: {},
         softDelete: true,
       },
+      // Read through `public.projects_view`, with the caller's row level
+      // security on projects and tasks.
+      rollups: {
+        open_tasks: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "count",
+          where: { column: "status", equals: "todo" },
+        },
+        done_tasks: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "count",
+          where: { column: "status", equals: "done" },
+        },
+        next_due_on: {
+          table: "tasks",
+          via: "project_id",
+          aggregate: "min",
+          column: "due_on",
+        },
+      },
     },
     tasks: {
       columns: {
@@ -171,6 +193,7 @@ export default defineConfig({
         url: "/projects/{project_id}",
         rank: { group: "status" },
       },
+      lookups: { project_name: { via: "project_id", column: "name" } },
     },
     saved_views: {
       scope: "user",

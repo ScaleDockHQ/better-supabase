@@ -283,6 +283,22 @@ export const projectsUpdate: v.GenericSchema<UpdateOf<'projects'>> = v.pipe(v.ob
   deletedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
 }), v.title("Projects update"));
 
+export const projectsViewRow: v.GenericSchema<RowOf<'projectsView'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  name: v.string(),
+  budgetMinor: v.pipe(v.number(), v.integer()),
+  currency: v.string(),
+  leadId: v.nullable(v.pipe(v.string(), v.uuid())),
+  labelId: v.nullable(v.pipe(v.string(), v.uuid())),
+  deletedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+  openTasks: v.nullable(v.pipe(v.number(), v.integer())),
+  doneTasks: v.nullable(v.pipe(v.number(), v.integer())),
+  nextDueOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+}), v.title("Projects view"), v.description("The rollups and lookups of public.projects, read with the caller's row level security."));
+
 export const savedViewsRow: v.GenericSchema<RowOf<'savedViews'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
@@ -394,6 +410,21 @@ export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
   projectId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   rank: v.exactOptional(v.string()),
 }), v.title("Tasks update"));
+
+export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  title: v.string(),
+  status: v.string(),
+  startsOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  dueOn: v.nullable(v.pipe(v.string(), v.isoDate())),
+  assigneeId: v.nullable(v.pipe(v.string(), v.uuid())),
+  projectId: v.pipe(v.string(), v.uuid()),
+  rank: v.string(),
+  projectName: v.nullable(v.string()),
+}), v.title("Tasks view"), v.description("The rollups and lookups of public.tasks, read with the caller's row level security."));
 
 /** Write validators for the validation plugin. */
 export const validators: {

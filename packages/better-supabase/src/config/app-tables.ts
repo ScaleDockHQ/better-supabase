@@ -2,6 +2,7 @@ import type { BlockScope } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
+import { computedOf, hasComputed } from "./app-computed.ts";
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
@@ -40,6 +41,8 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "indexes",
   "comment",
   "subject",
+  "rollups",
+  "lookups",
 ]);
 
 const SUBJECT_KEYS: ReadonlySet<string> = new Set([
@@ -831,7 +834,7 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
 
   const reserved = new Set(appReservedColumns(tenant));
 
-  return Object.fromEntries(
+  const resolved: AppTablesConfig = Object.fromEntries(
     Object.entries(value).map(([name, table]) => {
       if (!IDENT.test(name) || name.startsWith("pg_")) {
         throw new TypeError(
@@ -840,6 +843,37 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
       }
 
       return [name, tableOf(`appTables.${name}`, table, tables, reserved)];
+    }),
+  );
+
+  return Object.fromEntries(
+    Object.entries(resolved).map(([name, table]) => {
+      const where = `appTables.${name}`;
+
+      const computed = computedOf(
+        where,
+        value[name],
+        name,
+        resolved,
+        new Set([
+          ...reserved,
+          ...Object.keys(table.columns ?? {}),
+          ...subjectColumnsOf(table.subject),
+        ]),
+      );
+
+      const withComputed = { ...table, ...computed };
+
+      if (
+        hasComputed(withComputed) &&
+        Object.hasOwn(resolved, `${name}_view`)
+      ) {
+        throw new TypeError(
+          `${where}: its rollups and lookups go in the view ${name}_view, which is also an app table; rename one`,
+        );
+      }
+
+      return [name, withComputed];
     }),
   );
 }

@@ -580,11 +580,84 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["organization_id", "id"]
           },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["organization_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "projects_view"
+            referencedColumns: ["organization_id", "id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      projects_view: {
+        Row: {
+          budget_minor: number
+          created_at: string
+          currency: string
+          deleted_at: string | null
+          done_tasks: number | null
+          id: string
+          label_id: string | null
+          lead_id: string | null
+          name: string
+          next_due_on: string | null
+          open_tasks: number | null
+          organization_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks_view: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          due_on: string | null
+          id: string
+          organization_id: string
+          project_id: string
+          project_name: string | null
+          rank: string
+          starts_on: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["organization_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["organization_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "projects_view"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Functions: {
       customer_note_counts: {

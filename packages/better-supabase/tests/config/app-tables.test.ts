@@ -328,6 +328,214 @@ describe("appTablesOf formats and keys", () => {
   });
 });
 
+describe("appTablesOf rollups and lookups", () => {
+  const tables = (
+    projects: Record<string, unknown>,
+    tasks: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    projects: { columns: { name: { type: "text" } }, ...projects },
+    tasks: {
+      columns: {
+        project_id: { type: "uuid", references: { table: "projects" } },
+        status: { type: "text", options: ["todo", "done"] },
+        estimate: { type: "integer" },
+        title: { type: "text" },
+        flagged: { type: "boolean" },
+      },
+      ...tasks,
+    },
+  });
+
+  const fails = (value: unknown, message: string): void => {
+    expect(() => appTablesOf(value)).toThrow(
+      expect.objectContaining({
+        name: "TypeError",
+        message: expect.stringContaining(message),
+      }),
+    );
+  };
+
+  it("keeps valid rollups and lookups", () => {
+    const resolved = appTablesOf(
+      tables(
+        {
+          rollups: {
+            open_tasks: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "count",
+              where: { column: "status", equals: "todo" },
+            },
+            estimate_avg: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "avg",
+              column: "estimate",
+            },
+            last_task: {
+              table: "tasks",
+              via: "project_id",
+              aggregate: "max",
+              column: "created_at",
+            },
+          },
+        },
+        { lookups: { project_name: { via: "project_id", column: "name" } } },
+      ),
+    );
+
+    expect(resolved["projects"]?.rollups?.["open_tasks"]).toEqual({
+      table: "tasks",
+      via: "project_id",
+      aggregate: "count",
+      where: { column: "status", equals: "todo" },
+    });
+    expect(resolved["tasks"]?.lookups).toEqual({
+      project_name: { via: "project_id", column: "name" },
+    });
+  });
+
+  it("refuses a child table or link that doesn't exist", () => {
+    fails(
+      tables({
+        rollups: { n: { table: "nope", via: "x", aggregate: "count" } },
+      }),
+      "appTables.projects.rollups.n.table must name an app table (projects, tasks)",
+    );
+    fails(
+      tables({
+        rollups: { n: { table: "tasks", via: "title", aggregate: "count" } },
+      }),
+      "rollups.n.via must name a column of tasks that references projects (project_id)",
+    );
+  });
+
+  it("refuses a column that doesn't fit the aggregate", () => {
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            column: "estimate",
+          },
+        },
+      }),
+      "count counts rows; drop column",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "sum",
+            column: "title",
+          },
+        },
+      }),
+      "sum needs a number column of tasks (estimate)",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "min",
+            column: "flagged",
+          },
+        },
+      }),
+      "min needs a number, date, time or text column",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: { table: "tasks", via: "project_id", aggregate: "median" },
+        },
+      }),
+      "aggregate must be one of count, sum, min, max, avg",
+    );
+  });
+
+  it("filters only on a select column and one of its options", () => {
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            where: { column: "title", equals: "x" },
+          },
+        },
+      }),
+      "where.column must name a select column of tasks (status)",
+    );
+    fails(
+      tables({
+        rollups: {
+          n: {
+            table: "tasks",
+            via: "project_id",
+            aggregate: "count",
+            where: { column: "status", equals: "late" },
+          },
+        },
+      }),
+      "where.equals must be an option of tasks.status (todo, done)",
+    );
+  });
+
+  it("refuses a lookup through a column that references no app table", () => {
+    fails(
+      tables({}, { lookups: { x: { via: "title", column: "name" } } }),
+      "lookups.x.via must name a column of tasks that references another app table (project_id)",
+    );
+    fails(
+      tables({}, { lookups: { x: { via: "project_id", column: "budget" } } }),
+      "lookups.x.column must name a column of projects (name, created_at, updated_at)",
+    );
+  });
+
+  it("refuses a computed name the table already uses", () => {
+    fails(
+      tables({
+        rollups: {
+          name: { table: "tasks", via: "project_id", aggregate: "count" },
+        },
+      }),
+      'appTables.projects.rollups.name: "name" is already a column of projects',
+    );
+    fails(
+      tables(
+        {},
+        {
+          rollups: {},
+          lookups: { id: { via: "project_id", column: "name" } },
+        },
+      ),
+      '"id" is already a column of tasks',
+    );
+  });
+
+  it("refuses a view name another app table has", () => {
+    fails(
+      {
+        ...tables({
+          rollups: {
+            n: { table: "tasks", via: "project_id", aggregate: "count" },
+          },
+        }),
+        projects_view: {},
+      },
+      "projects_view",
+    );
+  });
+});
+
 describe("isAppDefault", () => {
   it.each([
     ["timestamptz", "now()", true],

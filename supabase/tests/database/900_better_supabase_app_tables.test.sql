@@ -5,18 +5,23 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(24);
+select extensions.plan(34);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
 select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bs_session_active'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.projects');
+select extensions.has_view('public', 'projects_view', 'public.projects_view exists');
+select extensions.ok((select coalesce('security_invoker=true' = any(c.reloptions), false) from pg_catalog.pg_class c where c.oid = '"public"."projects_view"'::regclass), 'public.projects_view runs with the caller''s row level security');
+select extensions.table_privs_are('public', 'projects_view', 'anon', array[]::text[], 'anon has no privileges on public.projects_view');
+select extensions.table_privs_are('public', 'projects_view', 'authenticated', array['SELECT'], 'authenticated only reads public.projects_view');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.is((select count(*)::integer from "public"."projects" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.projects their scope reaches');
 select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
+select extensions.is((select count(*)::integer from "public"."projects_view"), 0, 'a stranger sees no rows of public.projects_view');
 reset role;
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
@@ -27,11 +32,16 @@ select extensions.col_has_check('public'::name, 'tasks'::name, 'status'::name, '
 select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."tasks"'::regclass and k.conname = 'tasks_project_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.tasks.project_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'tasks', 'anon', array[]::text[], 'anon has no privileges on public.tasks');
 select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.tasks');
+select extensions.has_view('public', 'tasks_view', 'public.tasks_view exists');
+select extensions.ok((select coalesce('security_invoker=true' = any(c.reloptions), false) from pg_catalog.pg_class c where c.oid = '"public"."tasks_view"'::regclass), 'public.tasks_view runs with the caller''s row level security');
+select extensions.table_privs_are('public', 'tasks_view', 'anon', array[]::text[], 'anon has no privileges on public.tasks_view');
+select extensions.table_privs_are('public', 'tasks_view', 'authenticated', array['SELECT'], 'authenticated only reads public.tasks_view');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.is((select count(*)::integer from "public"."tasks" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.tasks their scope reaches');
 select extensions.throws_ok($$insert into "public"."tasks" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope');
+select extensions.is((select count(*)::integer from "public"."tasks_view"), 0, 'a stranger sees no rows of public.tasks_view');
 reset role;
 
 select extensions.has_table('public', 'saved_views', 'public.saved_views exists');

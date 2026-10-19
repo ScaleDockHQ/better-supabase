@@ -3297,7 +3297,7 @@
         "comment": null
       },
       {
-        "id": 1000252,
+        "id": 1000253,
         "schema": "public",
         "name": "saved_views",
         "rls_enabled": true,
@@ -3310,7 +3310,7 @@
         "comment": null
       },
       {
-        "id": 1000253,
+        "id": 1000254,
         "schema": "public",
         "name": "subscriptions",
         "rls_enabled": true,
@@ -3323,7 +3323,7 @@
         "comment": null
       },
       {
-        "id": 1000254,
+        "id": 1000255,
         "schema": "public",
         "name": "tags",
         "rls_enabled": true,
@@ -3336,7 +3336,7 @@
         "comment": null
       },
       {
-        "id": 1000255,
+        "id": 1000256,
         "schema": "public",
         "name": "tasks",
         "rls_enabled": true,
@@ -3350,7 +3350,26 @@
       }
     ],
     "foreignTables": [],
-    "views": [],
+    "views": [
+      {
+        "id": 1000252,
+        "schema": "public",
+        "name": "projects_view",
+        "is_updatable": false,
+        "is_insert_enabled": false,
+        "is_update_enabled": false,
+        "comment": "The rollups and lookups of public.projects, read with the caller's row level security."
+      },
+      {
+        "id": 1000257,
+        "schema": "public",
+        "name": "tasks_view",
+        "is_updatable": false,
+        "is_insert_enabled": false,
+        "is_update_enabled": false,
+        "comment": "The rollups and lookups of public.tasks, read with the caller's row level security."
+      }
+    ],
     "materializedViews": [],
     "columns": [
       {
@@ -23971,7 +23990,7 @@
         "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
-        "check": "type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'bool'::text, 'option'::text, 'json'::text])",
+        "check": "type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'bool'::text, 'option'::text, 'json'::text, 'email'::text, 'url'::text, 'multi_option'::text, 'user'::text, 'rating'::text, 'currency'::text])",
         "enums": [],
         "comment": null
       },
@@ -55944,8 +55963,281 @@
       {
         "table_id": 1000252,
         "schema": "public",
-        "table": "saved_views",
+        "table": "projects_view",
+        "id": "1000252.6",
+        "ordinal_position": 6,
+        "name": "budget_minor",
+        "default_value": null,
+        "data_type": "bigint",
+        "format": "int8",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.3",
+        "ordinal_position": 3,
+        "name": "created_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.7",
+        "ordinal_position": 7,
+        "name": "currency",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.10",
+        "ordinal_position": 10,
+        "name": "deleted_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.12",
+        "ordinal_position": 12,
+        "name": "done_tasks",
+        "default_value": null,
+        "data_type": "bigint",
+        "format": "int8",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.9",
+        "ordinal_position": 9,
+        "name": "label_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.8",
+        "ordinal_position": 8,
+        "name": "lead_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.5",
+        "ordinal_position": 5,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.13",
+        "ordinal_position": 13,
+        "name": "next_due_on",
+        "default_value": null,
+        "data_type": "date",
+        "format": "date",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.11",
+        "ordinal_position": 11,
+        "name": "open_tasks",
+        "default_value": null,
+        "data_type": "bigint",
+        "format": "int8",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
         "id": "1000252.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000252,
+        "schema": "public",
+        "table": "projects_view",
+        "id": "1000252.4",
+        "ordinal_position": 4,
+        "name": "updated_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000253,
+        "schema": "public",
+        "table": "saved_views",
+        "id": "1000253.2",
         "ordinal_position": 2,
         "name": "created_at",
         "default_value": "now()",
@@ -55963,10 +56255,10 @@
         "comment": null
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table": "saved_views",
-        "id": "1000252.5",
+        "id": "1000253.5",
         "ordinal_position": 5,
         "name": "filters",
         "default_value": "'{}'::jsonb",
@@ -55984,10 +56276,10 @@
         "comment": null
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table": "saved_views",
-        "id": "1000252.1",
+        "id": "1000253.1",
         "ordinal_position": 1,
         "name": "id",
         "default_value": "gen_random_uuid()",
@@ -56005,10 +56297,10 @@
         "comment": null
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table": "saved_views",
-        "id": "1000252.4",
+        "id": "1000253.4",
         "ordinal_position": 4,
         "name": "name",
         "default_value": null,
@@ -56026,10 +56318,10 @@
         "comment": null
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table": "saved_views",
-        "id": "1000252.3",
+        "id": "1000253.3",
         "ordinal_position": 3,
         "name": "updated_at",
         "default_value": "now()",
@@ -56047,10 +56339,10 @@
         "comment": null
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table": "saved_views",
-        "id": "1000252.6",
+        "id": "1000253.6",
         "ordinal_position": 6,
         "name": "user_id",
         "default_value": "auth.uid()",
@@ -56068,10 +56360,10 @@
         "comment": null
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table": "subscriptions",
-        "id": "1000253.4",
+        "id": "1000254.4",
         "ordinal_position": 4,
         "name": "current_period_end",
         "default_value": null,
@@ -56089,10 +56381,10 @@
         "comment": null
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table": "subscriptions",
-        "id": "1000253.1",
+        "id": "1000254.1",
         "ordinal_position": 1,
         "name": "organization_id",
         "default_value": null,
@@ -56110,10 +56402,10 @@
         "comment": null
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table": "subscriptions",
-        "id": "1000253.2",
+        "id": "1000254.2",
         "ordinal_position": 2,
         "name": "plan_key",
         "default_value": null,
@@ -56131,10 +56423,10 @@
         "comment": null
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table": "subscriptions",
-        "id": "1000253.3",
+        "id": "1000254.3",
         "ordinal_position": 3,
         "name": "status",
         "default_value": "'active'::text",
@@ -56152,10 +56444,10 @@
         "comment": null
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table": "subscriptions",
-        "id": "1000253.5",
+        "id": "1000254.5",
         "ordinal_position": 5,
         "name": "updated_at",
         "default_value": "now()",
@@ -56173,10 +56465,10 @@
         "comment": null
       },
       {
-        "table_id": 1000254,
+        "table_id": 1000255,
         "schema": "public",
         "table": "tags",
-        "id": "1000254.4",
+        "id": "1000255.4",
         "ordinal_position": 4,
         "name": "color",
         "default_value": "'gray'::text",
@@ -56194,10 +56486,10 @@
         "comment": null
       },
       {
-        "table_id": 1000254,
+        "table_id": 1000255,
         "schema": "public",
         "table": "tags",
-        "id": "1000254.5",
+        "id": "1000255.5",
         "ordinal_position": 5,
         "name": "created_at",
         "default_value": "now()",
@@ -56215,156 +56507,9 @@
         "comment": null
       },
       {
-        "table_id": 1000254,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000254.1",
-        "ordinal_position": 1,
-        "name": "id",
-        "default_value": "gen_random_uuid()",
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000254,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000254.3",
-        "ordinal_position": 3,
-        "name": "name",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000254,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000254.2",
-        "ordinal_position": 2,
-        "name": "organization_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000254,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000254.6",
-        "ordinal_position": 6,
-        "name": "updated_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
         "table_id": 1000255,
         "schema": "public",
-        "table": "tasks",
-        "id": "1000255.9",
-        "ordinal_position": 9,
-        "name": "assignee_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000255,
-        "schema": "public",
-        "table": "tasks",
-        "id": "1000255.3",
-        "ordinal_position": 3,
-        "name": "created_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000255,
-        "schema": "public",
-        "table": "tasks",
-        "id": "1000255.8",
-        "ordinal_position": 8,
-        "name": "due_on",
-        "default_value": null,
-        "data_type": "date",
-        "format": "date",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000255,
-        "schema": "public",
-        "table": "tasks",
+        "table": "tags",
         "id": "1000255.1",
         "ordinal_position": 1,
         "name": "id",
@@ -56385,7 +56530,28 @@
       {
         "table_id": 1000255,
         "schema": "public",
-        "table": "tasks",
+        "table": "tags",
+        "id": "1000255.3",
+        "ordinal_position": 3,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000255,
+        "schema": "public",
+        "table": "tags",
         "id": "1000255.2",
         "ordinal_position": 2,
         "name": "organization_id",
@@ -56406,8 +56572,134 @@
       {
         "table_id": 1000255,
         "schema": "public",
+        "table": "tags",
+        "id": "1000255.6",
+        "ordinal_position": 6,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
         "table": "tasks",
-        "id": "1000255.10",
+        "id": "1000256.9",
+        "ordinal_position": 9,
+        "name": "assignee_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
+        "table": "tasks",
+        "id": "1000256.3",
+        "ordinal_position": 3,
+        "name": "created_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
+        "table": "tasks",
+        "id": "1000256.8",
+        "ordinal_position": 8,
+        "name": "due_on",
+        "default_value": null,
+        "data_type": "date",
+        "format": "date",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
+        "table": "tasks",
+        "id": "1000256.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
+        "table": "tasks",
+        "id": "1000256.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000256,
+        "schema": "public",
+        "table": "tasks",
+        "id": "1000256.10",
         "ordinal_position": 10,
         "name": "project_id",
         "default_value": null,
@@ -56425,10 +56717,10 @@
         "comment": null
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table": "tasks",
-        "id": "1000255.11",
+        "id": "1000256.11",
         "ordinal_position": 11,
         "name": "rank",
         "default_value": "'V'::text",
@@ -56446,10 +56738,10 @@
         "comment": null
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table": "tasks",
-        "id": "1000255.7",
+        "id": "1000256.7",
         "ordinal_position": 7,
         "name": "starts_on",
         "default_value": null,
@@ -56467,10 +56759,10 @@
         "comment": null
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table": "tasks",
-        "id": "1000255.6",
+        "id": "1000256.6",
         "ordinal_position": 6,
         "name": "status",
         "default_value": "'todo'::text",
@@ -56488,10 +56780,10 @@
         "comment": null
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table": "tasks",
-        "id": "1000255.5",
+        "id": "1000256.5",
         "ordinal_position": 5,
         "name": "title",
         "default_value": null,
@@ -56509,10 +56801,10 @@
         "comment": null
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table": "tasks",
-        "id": "1000255.4",
+        "id": "1000256.4",
         "ordinal_position": 4,
         "name": "updated_at",
         "default_value": "now()",
@@ -56524,6 +56816,258 @@
         "is_generated": false,
         "is_nullable": false,
         "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.9",
+        "ordinal_position": 9,
+        "name": "assignee_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.3",
+        "ordinal_position": 3,
+        "name": "created_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.8",
+        "ordinal_position": 8,
+        "name": "due_on",
+        "default_value": null,
+        "data_type": "date",
+        "format": "date",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.10",
+        "ordinal_position": 10,
+        "name": "project_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.12",
+        "ordinal_position": 12,
+        "name": "project_name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.11",
+        "ordinal_position": 11,
+        "name": "rank",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.7",
+        "ordinal_position": 7,
+        "name": "starts_on",
+        "default_value": null,
+        "data_type": "date",
+        "format": "date",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.6",
+        "ordinal_position": 6,
+        "name": "status",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.5",
+        "ordinal_position": 5,
+        "name": "title",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000257,
+        "schema": "public",
+        "table": "tasks_view",
+        "id": "1000257.4",
+        "ordinal_position": 4,
+        "name": "updated_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": false,
         "is_unique": false,
         "check": null,
         "enums": [],
@@ -58482,25 +59026,25 @@
         "name": "id"
       },
       {
-        "table_id": 1000252,
+        "table_id": 1000253,
         "schema": "public",
         "table_name": "saved_views",
         "name": "id"
       },
       {
-        "table_id": 1000253,
+        "table_id": 1000254,
         "schema": "public",
         "table_name": "subscriptions",
         "name": "organization_id"
       },
       {
-        "table_id": 1000254,
+        "table_id": 1000255,
         "schema": "public",
         "table_name": "tags",
         "name": "id"
       },
       {
-        "table_id": 1000255,
+        "table_id": 1000256,
         "schema": "public",
         "table_name": "tasks",
         "name": "id"
@@ -61408,6 +61952,20 @@
         "is_one_to_one": false
       },
       {
+        "foreign_key_name": "projects_label_id_fkey",
+        "schema": "public",
+        "relation": "projects_view",
+        "columns": [
+          "label_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "better_supabase",
+        "referenced_relation": "tags",
+        "referenced_columns": [
+          "id"
+        ]
+      },
+      {
         "foreign_key_name": "projects_lead_id_fkey",
         "schema": "public",
         "relation": "projects",
@@ -61422,6 +61980,20 @@
         "is_one_to_one": false
       },
       {
+        "foreign_key_name": "projects_lead_id_fkey",
+        "schema": "public",
+        "relation": "projects_view",
+        "columns": [
+          "lead_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "auth",
+        "referenced_relation": "users",
+        "referenced_columns": [
+          "id"
+        ]
+      },
+      {
         "foreign_key_name": "projects_organization_id_fkey",
         "schema": "public",
         "relation": "projects",
@@ -61434,6 +62006,20 @@
           "id"
         ],
         "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "projects_organization_id_fkey",
+        "schema": "public",
+        "relation": "projects_view",
+        "columns": [
+          "organization_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "organizations",
+        "referenced_columns": [
+          "id"
+        ]
       },
       {
         "foreign_key_name": "promotion_codes_promotion_id_fkey",
@@ -61982,6 +62568,20 @@
         "is_one_to_one": false
       },
       {
+        "foreign_key_name": "tasks_assignee_id_fkey",
+        "schema": "public",
+        "relation": "tasks_view",
+        "columns": [
+          "assignee_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "auth",
+        "referenced_relation": "users",
+        "referenced_columns": [
+          "id"
+        ]
+      },
+      {
         "foreign_key_name": "tasks_organization_id_fkey",
         "schema": "public",
         "relation": "tasks",
@@ -61994,6 +62594,20 @@
           "id"
         ],
         "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "tasks_organization_id_fkey",
+        "schema": "public",
+        "relation": "tasks_view",
+        "columns": [
+          "organization_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "organizations",
+        "referenced_columns": [
+          "id"
+        ]
       },
       {
         "foreign_key_name": "tasks_project_id_fkey",
@@ -62010,6 +62624,54 @@
           "id"
         ],
         "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "tasks_project_id_fkey",
+        "schema": "public",
+        "relation": "tasks_view",
+        "columns": [
+          "organization_id",
+          "project_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "projects",
+        "referenced_columns": [
+          "organization_id",
+          "id"
+        ]
+      },
+      {
+        "foreign_key_name": "tasks_project_id_fkey",
+        "schema": "public",
+        "relation": "tasks",
+        "columns": [
+          "organization_id",
+          "project_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "projects_view",
+        "referenced_columns": [
+          "organization_id",
+          "id"
+        ]
+      },
+      {
+        "foreign_key_name": "tasks_project_id_fkey",
+        "schema": "public",
+        "relation": "tasks_view",
+        "columns": [
+          "organization_id",
+          "project_id"
+        ],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "projects_view",
+        "referenced_columns": [
+          "organization_id",
+          "id"
+        ]
       },
       {
         "foreign_key_name": "team_members_membership_fkey",
@@ -75658,8 +76320,8 @@
         "schema": "better_supabase",
         "name": "form_resolve",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_errors text[];\n  v_problem text;\n  v_steps jsonb := '[]'::jsonb;\n  v_fields jsonb;\n  v_step jsonb;\n  v_field jsonb;\n  v_custom jsonb;\n  v_options jsonb;\n  v_step_keys text[] := '{}';\n  v_keys text[] := '{}';\nbegin\n  v_errors := extensions.jsonschema_validation_errors('{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"required\":[\"steps\"],\"additionalProperties\":false,\"properties\":{\"steps\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":50,\"items\":{\"type\":\"object\",\"required\":[\"key\",\"fields\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"title\":{\"type\":\"string\",\"maxLength\":200},\"description\":{\"type\":\"string\",\"maxLength\":2000},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"fields\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":200,\"items\":{\"type\":\"object\",\"required\":[\"key\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"type\":{\"enum\":[\"text\",\"textarea\",\"email\",\"url\",\"number\",\"integer\",\"date\",\"bool\",\"consent\",\"option\",\"multi\",\"json\"]},\"required\":{\"type\":\"boolean\"},\"help\":{\"type\":\"string\",\"maxLength\":1000},\"placeholder\":{\"type\":\"string\",\"maxLength\":200},\"options\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500,\"items\":{\"type\":\"object\",\"required\":[\"value\",\"label\"],\"additionalProperties\":false,\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200}}}},\"min\":{\"type\":\"number\"},\"max\":{\"type\":\"number\"},\"minLength\":{\"type\":\"integer\",\"minimum\":0},\"maxLength\":{\"type\":\"integer\",\"minimum\":1},\"pattern\":{\"type\":\"string\",\"maxLength\":500},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"customField\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"}}}}}}}}}'::json, definition::json);\n  if cardinality(v_errors) > 0 then\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  <<steps>>\n  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop\n    if (v_step ->> 'key') = any (v_step_keys) then\n      v_problem := format('step %s is listed twice', v_step ->> 'key');\n      exit;\n    end if;\n    v_step_keys := v_step_keys || (v_step ->> 'key');\n    if v_step ? 'showIf' and not ((v_step -> 'showIf' ->> 'field') = any (v_keys)) then\n      v_problem := format('step %s: showIf names %s, which isn''t an earlier field', v_step ->> 'key', v_step -> 'showIf' ->> 'field');\n      exit;\n    end if;\n    v_fields := '[]'::jsonb;\n    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop\n      if (v_field ->> 'key') = any (v_keys) then\n        v_problem := format('field %s is listed twice', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'showIf' and not ((v_field -> 'showIf' ->> 'field') = any (v_keys)) then\n        v_problem := format('field %s: showIf names %s, which isn''t an earlier field', v_field ->> 'key', v_field -> 'showIf' ->> 'field');\n        exit steps;\n      end if;\n      v_keys := v_keys || (v_field ->> 'key');\n      v_custom := null;\n      if v_field ? 'customField' then\n        select jsonb_strip_nulls(jsonb_build_object('label', d.\"label\", 'type', d.\"type\", 'required', d.\"required\"))\n          into v_custom\n          from \"better_supabase\".\"field_definitions\" d\n          where d.\"id\" = (v_field ->> 'customField')::uuid and d.\"tenant_id\" = form_resolve.tenant;\n        if v_custom is null then\n          v_problem := format('field %s: customField %s is not a field definition in this organization', v_field ->> 'key', v_field ->> 'customField');\n        exit steps;\n        end if;\n        if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass('\"better_supabase\".\"field_options\"') is not null then\n          execute format('select jsonb_agg(jsonb_build_object(''value'', o.\"value\", ''label'', o.\"label\") order by o.\"value\") from %s o where o.\"definition_id\" = $1', to_regclass('\"better_supabase\".\"field_options\"'))\n            into v_options using (v_field ->> 'customField')::uuid;\n          v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));\n        end if;\n        v_field := v_custom || v_field;\n      end if;\n      if not (v_field ? 'label' and v_field ? 'type') then\n        v_problem := format('field %s needs a label and a type, or a customField', v_field ->> 'key');\n        exit steps;\n      end if;\n      if (v_field ->> 'type') in ('option', 'multi') and coalesce(jsonb_array_length(v_field -> 'options'), 0) = 0 then\n        v_problem := format('field %s needs options', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'pattern' then\n        begin\n          perform '' ~ (v_field ->> 'pattern');\n        exception when invalid_regular_expression then\n          v_problem := format('field %s: pattern is not a valid regular expression', v_field ->> 'key');\n        end;\n        exit steps when v_problem is not null;\n      end if;\n      v_fields := v_fields || jsonb_build_array(v_field);\n    end loop;\n    v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));\n  end loop;\n  if v_problem is not null then\n    v_errors := array[v_problem];\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  return jsonb_build_object('steps', v_steps);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.form_resolve(tenant uuid, definition jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_errors text[];\n  v_problem text;\n  v_steps jsonb := '[]'::jsonb;\n  v_fields jsonb;\n  v_step jsonb;\n  v_field jsonb;\n  v_custom jsonb;\n  v_options jsonb;\n  v_step_keys text[] := '{}';\n  v_keys text[] := '{}';\nbegin\n  v_errors := extensions.jsonschema_validation_errors('{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"required\":[\"steps\"],\"additionalProperties\":false,\"properties\":{\"steps\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":50,\"items\":{\"type\":\"object\",\"required\":[\"key\",\"fields\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"title\":{\"type\":\"string\",\"maxLength\":200},\"description\":{\"type\":\"string\",\"maxLength\":2000},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"fields\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":200,\"items\":{\"type\":\"object\",\"required\":[\"key\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"type\":{\"enum\":[\"text\",\"textarea\",\"email\",\"url\",\"number\",\"integer\",\"date\",\"bool\",\"consent\",\"option\",\"multi\",\"json\"]},\"required\":{\"type\":\"boolean\"},\"help\":{\"type\":\"string\",\"maxLength\":1000},\"placeholder\":{\"type\":\"string\",\"maxLength\":200},\"options\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500,\"items\":{\"type\":\"object\",\"required\":[\"value\",\"label\"],\"additionalProperties\":false,\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200}}}},\"min\":{\"type\":\"number\"},\"max\":{\"type\":\"number\"},\"minLength\":{\"type\":\"integer\",\"minimum\":0},\"maxLength\":{\"type\":\"integer\",\"minimum\":1},\"pattern\":{\"type\":\"string\",\"maxLength\":500},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"customField\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"}}}}}}}}}'::json, definition::json);\n  if cardinality(v_errors) > 0 then\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  <<steps>>\n  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop\n    if (v_step ->> 'key') = any (v_step_keys) then\n      v_problem := format('step %s is listed twice', v_step ->> 'key');\n      exit;\n    end if;\n    v_step_keys := v_step_keys || (v_step ->> 'key');\n    if v_step ? 'showIf' and not ((v_step -> 'showIf' ->> 'field') = any (v_keys)) then\n      v_problem := format('step %s: showIf names %s, which isn''t an earlier field', v_step ->> 'key', v_step -> 'showIf' ->> 'field');\n      exit;\n    end if;\n    v_fields := '[]'::jsonb;\n    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop\n      if (v_field ->> 'key') = any (v_keys) then\n        v_problem := format('field %s is listed twice', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'showIf' and not ((v_field -> 'showIf' ->> 'field') = any (v_keys)) then\n        v_problem := format('field %s: showIf names %s, which isn''t an earlier field', v_field ->> 'key', v_field -> 'showIf' ->> 'field');\n        exit steps;\n      end if;\n      v_keys := v_keys || (v_field ->> 'key');\n      v_custom := null;\n      if v_field ? 'customField' then\n        select jsonb_strip_nulls(jsonb_build_object('label', d.\"label\", 'type', d.\"type\", 'required', d.\"required\"))\n          into v_custom\n          from \"better_supabase\".\"field_definitions\" d\n          where d.\"id\" = (v_field ->> 'customField')::uuid and d.\"tenant_id\" = form_resolve.tenant;\n        if v_custom is null then\n          v_problem := format('field %s: customField %s is not a field definition in this organization', v_field ->> 'key', v_field ->> 'customField');\n        exit steps;\n        end if;\n        if v_custom ->> 'type' = 'option' and not v_field ? 'options' and to_regclass('\"better_supabase\".\"field_options\"') is not null then\n          execute format('select jsonb_agg(jsonb_build_object(''value'', o.\"value\", ''label'', o.\"label\") order by o.\"value\") from %s o where o.\"definition_id\" = $1', to_regclass('\"better_supabase\".\"field_options\"'))\n            into v_options using (v_field ->> 'customField')::uuid;\n          v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));\n        end if;\n        v_field := v_custom || v_field;\n      end if;\n      if not (v_field ? 'label' and v_field ? 'type') then\n        v_problem := format('field %s needs a label and a type, or a customField', v_field ->> 'key');\n        exit steps;\n      end if;\n      if (v_field ->> 'type') in ('option', 'multi') and coalesce(jsonb_array_length(v_field -> 'options'), 0) = 0 then\n        v_problem := format('field %s needs options', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'pattern' then\n        begin\n          perform '' ~ (v_field ->> 'pattern');\n        exception when invalid_regular_expression then\n          v_problem := format('field %s: pattern is not a valid regular expression', v_field ->> 'key');\n        end;\n        exit steps when v_problem is not null;\n      end if;\n      v_fields := v_fields || jsonb_build_array(v_field);\n    end loop;\n    v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));\n  end loop;\n  if v_problem is not null then\n    v_errors := array[v_problem];\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  return jsonb_build_object('steps', v_steps);\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_errors text[];\n  v_problem text;\n  v_steps jsonb := '[]'::jsonb;\n  v_fields jsonb;\n  v_step jsonb;\n  v_field jsonb;\n  v_custom jsonb;\n  v_options jsonb;\n  v_step_keys text[] := '{}';\n  v_keys text[] := '{}';\nbegin\n  v_errors := extensions.jsonschema_validation_errors('{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"required\":[\"steps\"],\"additionalProperties\":false,\"properties\":{\"steps\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":50,\"items\":{\"type\":\"object\",\"required\":[\"key\",\"fields\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"title\":{\"type\":\"string\",\"maxLength\":200},\"description\":{\"type\":\"string\",\"maxLength\":2000},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"fields\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":200,\"items\":{\"type\":\"object\",\"required\":[\"key\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"type\":{\"enum\":[\"text\",\"textarea\",\"email\",\"url\",\"number\",\"integer\",\"date\",\"bool\",\"consent\",\"option\",\"multi\",\"json\"]},\"required\":{\"type\":\"boolean\"},\"help\":{\"type\":\"string\",\"maxLength\":1000},\"placeholder\":{\"type\":\"string\",\"maxLength\":200},\"options\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500,\"items\":{\"type\":\"object\",\"required\":[\"value\",\"label\"],\"additionalProperties\":false,\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200}}}},\"min\":{\"type\":\"number\"},\"max\":{\"type\":\"number\"},\"minLength\":{\"type\":\"integer\",\"minimum\":0},\"maxLength\":{\"type\":\"integer\",\"minimum\":1},\"pattern\":{\"type\":\"string\",\"maxLength\":500},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"customField\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"}}}}}}}}}'::json, definition::json);\n  if cardinality(v_errors) > 0 then\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  <<steps>>\n  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop\n    if (v_step ->> 'key') = any (v_step_keys) then\n      v_problem := format('step %s is listed twice', v_step ->> 'key');\n      exit;\n    end if;\n    v_step_keys := v_step_keys || (v_step ->> 'key');\n    if v_step ? 'showIf' and not ((v_step -> 'showIf' ->> 'field') = any (v_keys)) then\n      v_problem := format('step %s: showIf names %s, which isn''t an earlier field', v_step ->> 'key', v_step -> 'showIf' ->> 'field');\n      exit;\n    end if;\n    v_fields := '[]'::jsonb;\n    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop\n      if (v_field ->> 'key') = any (v_keys) then\n        v_problem := format('field %s is listed twice', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'showIf' and not ((v_field -> 'showIf' ->> 'field') = any (v_keys)) then\n        v_problem := format('field %s: showIf names %s, which isn''t an earlier field', v_field ->> 'key', v_field -> 'showIf' ->> 'field');\n        exit steps;\n      end if;\n      v_keys := v_keys || (v_field ->> 'key');\n      v_custom := null;\n      if v_field ? 'customField' then\n        select jsonb_strip_nulls(jsonb_build_object('label', d.\"label\", 'type', case d.\"type\" when 'multi_option' then 'multi' when 'user' then 'text' when 'rating' then 'integer' when 'currency' then 'integer' else d.\"type\" end, 'required', d.\"required\"))\n            || case when d.\"type\" = 'rating' then jsonb_build_object('min', 1, 'max', 5) else '{}'::jsonb end\n          into v_custom\n          from \"better_supabase\".\"field_definitions\" d\n          where d.\"id\" = (v_field ->> 'customField')::uuid and d.\"tenant_id\" = form_resolve.tenant;\n        if v_custom is null then\n          v_problem := format('field %s: customField %s is not a field definition in this organization', v_field ->> 'key', v_field ->> 'customField');\n        exit steps;\n        end if;\n        if v_custom ->> 'type' in ('option', 'multi') and not v_field ? 'options' and to_regclass('\"better_supabase\".\"field_options\"') is not null then\n          execute format('select jsonb_agg(jsonb_build_object(''value'', o.\"value\", ''label'', o.\"label\") order by o.\"value\") from %s o where o.\"definition_id\" = $1', to_regclass('\"better_supabase\".\"field_options\"'))\n            into v_options using (v_field ->> 'customField')::uuid;\n          v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));\n        end if;\n        v_field := v_custom || v_field;\n      end if;\n      if not (v_field ? 'label' and v_field ? 'type') then\n        v_problem := format('field %s needs a label and a type, or a customField', v_field ->> 'key');\n        exit steps;\n      end if;\n      if (v_field ->> 'type') in ('option', 'multi') and coalesce(jsonb_array_length(v_field -> 'options'), 0) = 0 then\n        v_problem := format('field %s needs options', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'pattern' then\n        begin\n          perform '' ~ (v_field ->> 'pattern');\n        exception when invalid_regular_expression then\n          v_problem := format('field %s: pattern is not a valid regular expression', v_field ->> 'key');\n        end;\n        exit steps when v_problem is not null;\n      end if;\n      v_fields := v_fields || jsonb_build_array(v_field);\n    end loop;\n    v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));\n  end loop;\n  if v_problem is not null then\n    v_errors := array[v_problem];\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  return jsonb_build_object('steps', v_steps);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.form_resolve(tenant uuid, definition jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_errors text[];\n  v_problem text;\n  v_steps jsonb := '[]'::jsonb;\n  v_fields jsonb;\n  v_step jsonb;\n  v_field jsonb;\n  v_custom jsonb;\n  v_options jsonb;\n  v_step_keys text[] := '{}';\n  v_keys text[] := '{}';\nbegin\n  v_errors := extensions.jsonschema_validation_errors('{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"required\":[\"steps\"],\"additionalProperties\":false,\"properties\":{\"steps\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":50,\"items\":{\"type\":\"object\",\"required\":[\"key\",\"fields\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"title\":{\"type\":\"string\",\"maxLength\":200},\"description\":{\"type\":\"string\",\"maxLength\":2000},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"fields\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":200,\"items\":{\"type\":\"object\",\"required\":[\"key\"],\"additionalProperties\":false,\"properties\":{\"key\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"type\":{\"enum\":[\"text\",\"textarea\",\"email\",\"url\",\"number\",\"integer\",\"date\",\"bool\",\"consent\",\"option\",\"multi\",\"json\"]},\"required\":{\"type\":\"boolean\"},\"help\":{\"type\":\"string\",\"maxLength\":1000},\"placeholder\":{\"type\":\"string\",\"maxLength\":200},\"options\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500,\"items\":{\"type\":\"object\",\"required\":[\"value\",\"label\"],\"additionalProperties\":false,\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200},\"label\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":200}}}},\"min\":{\"type\":\"number\"},\"max\":{\"type\":\"number\"},\"minLength\":{\"type\":\"integer\",\"minimum\":0},\"maxLength\":{\"type\":\"integer\",\"minimum\":1},\"pattern\":{\"type\":\"string\",\"maxLength\":500},\"showIf\":{\"type\":\"object\",\"required\":[\"field\"],\"minProperties\":2,\"maxProperties\":2,\"additionalProperties\":false,\"properties\":{\"field\":{\"type\":\"string\",\"pattern\":\"^[a-z][a-zA-Z0-9_]{0,62}$\"},\"equals\":{},\"in\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":500},\"filled\":{\"const\":true}}},\"customField\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"}}}}}}}}}'::json, definition::json);\n  if cardinality(v_errors) > 0 then\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  <<steps>>\n  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop\n    if (v_step ->> 'key') = any (v_step_keys) then\n      v_problem := format('step %s is listed twice', v_step ->> 'key');\n      exit;\n    end if;\n    v_step_keys := v_step_keys || (v_step ->> 'key');\n    if v_step ? 'showIf' and not ((v_step -> 'showIf' ->> 'field') = any (v_keys)) then\n      v_problem := format('step %s: showIf names %s, which isn''t an earlier field', v_step ->> 'key', v_step -> 'showIf' ->> 'field');\n      exit;\n    end if;\n    v_fields := '[]'::jsonb;\n    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop\n      if (v_field ->> 'key') = any (v_keys) then\n        v_problem := format('field %s is listed twice', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'showIf' and not ((v_field -> 'showIf' ->> 'field') = any (v_keys)) then\n        v_problem := format('field %s: showIf names %s, which isn''t an earlier field', v_field ->> 'key', v_field -> 'showIf' ->> 'field');\n        exit steps;\n      end if;\n      v_keys := v_keys || (v_field ->> 'key');\n      v_custom := null;\n      if v_field ? 'customField' then\n        select jsonb_strip_nulls(jsonb_build_object('label', d.\"label\", 'type', case d.\"type\" when 'multi_option' then 'multi' when 'user' then 'text' when 'rating' then 'integer' when 'currency' then 'integer' else d.\"type\" end, 'required', d.\"required\"))\n            || case when d.\"type\" = 'rating' then jsonb_build_object('min', 1, 'max', 5) else '{}'::jsonb end\n          into v_custom\n          from \"better_supabase\".\"field_definitions\" d\n          where d.\"id\" = (v_field ->> 'customField')::uuid and d.\"tenant_id\" = form_resolve.tenant;\n        if v_custom is null then\n          v_problem := format('field %s: customField %s is not a field definition in this organization', v_field ->> 'key', v_field ->> 'customField');\n        exit steps;\n        end if;\n        if v_custom ->> 'type' in ('option', 'multi') and not v_field ? 'options' and to_regclass('\"better_supabase\".\"field_options\"') is not null then\n          execute format('select jsonb_agg(jsonb_build_object(''value'', o.\"value\", ''label'', o.\"label\") order by o.\"value\") from %s o where o.\"definition_id\" = $1', to_regclass('\"better_supabase\".\"field_options\"'))\n            into v_options using (v_field ->> 'customField')::uuid;\n          v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));\n        end if;\n        v_field := v_custom || v_field;\n      end if;\n      if not (v_field ? 'label' and v_field ? 'type') then\n        v_problem := format('field %s needs a label and a type, or a customField', v_field ->> 'key');\n        exit steps;\n      end if;\n      if (v_field ->> 'type') in ('option', 'multi') and coalesce(jsonb_array_length(v_field -> 'options'), 0) = 0 then\n        v_problem := format('field %s needs options', v_field ->> 'key');\n        exit steps;\n      end if;\n      if v_field ? 'pattern' then\n        begin\n          perform '' ~ (v_field ->> 'pattern');\n        exception when invalid_regular_expression then\n          v_problem := format('field %s: pattern is not a valid regular expression', v_field ->> 'key');\n        end;\n        exit steps when v_problem is not null;\n      end if;\n      v_fields := v_fields || jsonb_build_array(v_field);\n    end loop;\n    v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));\n  end loop;\n  if v_problem is not null then\n    v_errors := array[v_problem];\n    raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')\n      using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';\n  end if;\n  return jsonb_build_object('steps', v_steps);\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -101535,7 +102197,7 @@
         ],
         "argument_types": "p_status text, p_limit integer DEFAULT 50",
         "identity_argument_types": "p_status text, p_limit integer",
-        "return_type_id": 2000530,
+        "return_type_id": 2000532,
         "return_type": "SETOF customers",
         "return_type_relation_id": 1000244,
         "is_set_returning_function": true,
@@ -101841,7 +102503,7 @@
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
         "identity_argument_types": "query vector, k integer",
-        "return_type_id": 2000534,
+        "return_type_id": 2000536,
         "return_type": "SETOF notes",
         "return_type_relation_id": 1000247,
         "is_set_returning_function": true,
@@ -107198,6 +107860,16 @@
       },
       {
         "id": 2000524,
+        "name": "_projects_view",
+        "schema": "public",
+        "format": "projects_view[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000525,
         "name": "_saved_views",
         "schema": "public",
         "format": "saved_views[]",
@@ -107207,7 +107879,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000525,
+        "id": 2000526,
         "name": "_subscriptions",
         "schema": "public",
         "format": "subscriptions[]",
@@ -107217,7 +107889,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000526,
+        "id": 2000527,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -107227,7 +107899,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000527,
+        "id": 2000528,
         "name": "_tasks",
         "schema": "public",
         "format": "tasks[]",
@@ -107237,7 +107909,17 @@
         "type_relation_id": null
       },
       {
-        "id": 2000528,
+        "id": 2000529,
+        "name": "_tasks_view",
+        "schema": "public",
+        "format": "tasks_view[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000530,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
@@ -107247,7 +107929,7 @@
         "type_relation_id": 1000242
       },
       {
-        "id": 2000529,
+        "id": 2000531,
         "name": "customer_tags",
         "schema": "public",
         "format": "customer_tags",
@@ -107257,7 +107939,7 @@
         "type_relation_id": 1000243
       },
       {
-        "id": 2000530,
+        "id": 2000532,
         "name": "customers",
         "schema": "public",
         "format": "customers",
@@ -107267,7 +107949,7 @@
         "type_relation_id": 1000244
       },
       {
-        "id": 2000531,
+        "id": 2000533,
         "name": "locations",
         "schema": "public",
         "format": "locations",
@@ -107277,7 +107959,7 @@
         "type_relation_id": 1000245
       },
       {
-        "id": 2000532,
+        "id": 2000534,
         "name": "memberships",
         "schema": "public",
         "format": "memberships",
@@ -107287,7 +107969,7 @@
         "type_relation_id": 1000246
       },
       {
-        "id": 2000533,
+        "id": 2000535,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -107301,7 +107983,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000534,
+        "id": 2000536,
         "name": "notes",
         "schema": "public",
         "format": "notes",
@@ -107311,7 +107993,7 @@
         "type_relation_id": 1000247
       },
       {
-        "id": 2000535,
+        "id": 2000537,
         "name": "organizations",
         "schema": "public",
         "format": "organizations",
@@ -107321,7 +108003,7 @@
         "type_relation_id": 1000248
       },
       {
-        "id": 2000536,
+        "id": 2000538,
         "name": "plan_features",
         "schema": "public",
         "format": "plan_features",
@@ -107331,7 +108013,7 @@
         "type_relation_id": 1000249
       },
       {
-        "id": 2000537,
+        "id": 2000539,
         "name": "plans",
         "schema": "public",
         "format": "plans",
@@ -107341,7 +108023,7 @@
         "type_relation_id": 1000250
       },
       {
-        "id": 2000538,
+        "id": 2000540,
         "name": "projects",
         "schema": "public",
         "format": "projects",
@@ -107351,44 +108033,64 @@
         "type_relation_id": 1000251
       },
       {
-        "id": 2000539,
-        "name": "saved_views",
+        "id": 2000541,
+        "name": "projects_view",
         "schema": "public",
-        "format": "saved_views",
+        "format": "projects_view",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000252
       },
       {
-        "id": 2000540,
-        "name": "subscriptions",
+        "id": 2000542,
+        "name": "saved_views",
         "schema": "public",
-        "format": "subscriptions",
+        "format": "saved_views",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000253
       },
       {
-        "id": 2000541,
-        "name": "tags",
+        "id": 2000543,
+        "name": "subscriptions",
         "schema": "public",
-        "format": "tags",
+        "format": "subscriptions",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000254
       },
       {
-        "id": 2000542,
+        "id": 2000544,
+        "name": "tags",
+        "schema": "public",
+        "format": "tags",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000255
+      },
+      {
+        "id": 2000545,
         "name": "tasks",
         "schema": "public",
         "format": "tasks",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000255
+        "type_relation_id": 1000256
+      },
+      {
+        "id": 2000546,
+        "name": "tasks_view",
+        "schema": "public",
+        "format": "tasks_view",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000257
       }
     ]
   },
@@ -117572,8 +118274,8 @@
         "foreignKeys": [],
         "checks": [
           {
-            "name": "field_definitions_type_check",
-            "definition": "CHECK ((type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'bool'::text, 'option'::text, 'json'::text])))"
+            "name": "bs_field_definitions_type",
+            "definition": "CHECK ((type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'bool'::text, 'option'::text, 'json'::text, 'email'::text, 'url'::text, 'multi_option'::text, 'user'::text, 'rating'::text, 'currency'::text])))"
           }
         ],
         "indexes": [
@@ -135097,6 +135799,36 @@
       {
         "id": 1000252,
         "schema": "public",
+        "name": "projects_view",
+        "primaryKey": [],
+        "uniques": [],
+        "foreignKeys": [],
+        "checks": [],
+        "indexes": [],
+        "policies": [],
+        "triggers": [],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": [
+              "SELECT"
+            ]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE"
+            ]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000253,
+        "schema": "public",
         "name": "saved_views",
         "primaryKey": [
           "id"
@@ -135238,7 +135970,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000253,
+        "id": 1000254,
         "schema": "public",
         "name": "subscriptions",
         "primaryKey": [
@@ -135379,7 +136111,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000254,
+        "id": 1000255,
         "schema": "public",
         "name": "tags",
         "primaryKey": [
@@ -135513,7 +136245,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000255,
+        "id": 1000256,
         "schema": "public",
         "name": "tasks",
         "primaryKey": [
@@ -135607,6 +136339,19 @@
         ],
         "policies": [
           {
+            "name": "bs_session_active",
+            "command": "all",
+            "roles": [
+              "authenticated"
+            ],
+            "permissive": false,
+            "using": "( SELECT better_supabase.session_active() AS session_active)",
+            "check": "( SELECT better_supabase.session_active() AS session_active)",
+            "functions": [
+              "better_supabase.session_active"
+            ]
+          },
+          {
             "name": "tasks_delete",
             "command": "delete",
             "roles": [
@@ -135690,6 +136435,36 @@
               "TRIGGER",
               "TRUNCATE",
               "UPDATE"
+            ]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000257,
+        "schema": "public",
+        "name": "tasks_view",
+        "primaryKey": [],
+        "uniques": [],
+        "foreignKeys": [],
+        "checks": [],
+        "indexes": [],
+        "policies": [],
+        "triggers": [],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": [
+              "SELECT"
+            ]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE"
             ]
           }
         ],

@@ -12,6 +12,7 @@ export type DesignChangeKind =
   | "table.renamed"
   | "table.id"
   | "table.changed"
+  | "table.computed"
   | "column.added"
   | "column.dropped"
   | "column.renamed"
@@ -299,10 +300,28 @@ export function diffAppTables(
         ...config,
         columns: undefined,
         id: undefined,
+        rollups: undefined,
+        lookups: undefined,
       });
 
       if (!same(rest(table), rest(now))) {
         changes.push(safe("table.changed", name, `Changes table ${name}.`));
+      }
+
+      const computed = (config: AppTableConfig): unknown => ({
+        rollups: config.rollups,
+        lookups: config.lookups,
+      });
+
+      // The view keeps no rows and is created again on every sync.
+      if (!same(computed(table), computed(now))) {
+        changes.push(
+          safe(
+            "table.computed",
+            name,
+            `Changes the rollups and lookups of ${name}, read through ${name}_view.`,
+          ),
+        );
       }
     }
   }
