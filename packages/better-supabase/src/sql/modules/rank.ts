@@ -24,7 +24,7 @@ const RANK_REBALANCE_LENGTH = 24;
 const ALPHABET = sqlString(RANK_ALPHABET);
 
 function ranked(ctx: ModuleContext): readonly RegisteredSubject[] {
-  return registeredSubjects(ctx.subjects).filter(
+  return registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) => subject.config.rank !== undefined,
   );
 }

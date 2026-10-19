@@ -204,7 +204,7 @@ using (${fa("user")} = (select auth.uid())
 function cascading(
   ctx: ModuleContext,
 ): readonly (readonly [string, Subject])[] {
-  return registeredSubjects(ctx.subjects)
+  return registeredSubjects(ctx.subjects, ctx.naming)
     .filter((subject) => subject.config.cascade === true)
     .map((subject) => [
       subject.type,
@@ -228,7 +228,7 @@ function build(ctx: ModuleContext): string {
     ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
     : "";
 
-  const subjectTypes = registeredSubjects(ctx.subjects)
+  const subjectTypes = registeredSubjects(ctx.subjects, ctx.naming)
     .filter((subject) => subject.tenant !== undefined)
     .map((subject) => subject.type);
 

@@ -91,6 +91,7 @@ export interface SoftDeleteConfig {
 }
 
 export interface TenantConfig {
+  /** Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant is renamed. */
   readonly column?: string;
 }
 
