@@ -37,6 +37,20 @@ same name and keeping the others, and each block's extra columns over the
 leaves the design out. See [init](/docs/cli/init#a-design-from-create) for
 what a design holds and what to do when it's too large for a URL.
 
+The [convention flags](/docs/cli/init#conventions) (`--casing`, `--scope`,
+`--tenant-name`, `--access`, `--id-type` and `--api`) override that
+convention of the preset, and `apply` writes the changed code. `--only
+blocks` takes none of them.
+
+In a workspace, `--package <dir>` edits the config of that package instead
+of the one at `--cwd`; a Create URL with `&package=` sets it too. A URL with
+`&authz=` makes `apply` print a note: the authorization library you picked on
+Create isn't part of the preset, so set it up from Get code.
+
+```bash
+pnpm better-supabase apply --preset crm --scope user --api api
+```
+
 Side effects: Writes files, reads the database with `--adopt`, calls the Supabase Management API with `--project-ref`.
 
 ### Breaking changes

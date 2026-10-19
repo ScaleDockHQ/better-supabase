@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { posix, resolve } from "node:path";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
@@ -18,12 +19,20 @@ import {
   presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
-import { loadConfig } from "../config.ts";
+import { findConfig, loadConfig } from "../config.ts";
+import {
+  CONVENTION_ARGS,
+  CONVENTION_COMPLETIONS,
+  conventionFlags,
+  hasConventionFlags,
+  withConventions,
+} from "../conventions.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,
@@ -52,6 +61,12 @@ const APPLY_ARGS = {
       "A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns",
     valueHint: "name|code|url",
   },
+  package: {
+    type: "string",
+    description:
+      "Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too",
+    valueHint: "dir",
+  },
   only: {
     type: "string",
     description:
@@ -79,7 +94,7 @@ const APPLY_ARGS = {
   },
 } as const;
 
-type ApplyOptions = CliOptions<typeof APPLY_ARGS>;
+type ApplyOptions = CliOptions<typeof APPLY_ARGS & typeof CONVENTION_ARGS>;
 
 /** What `runApply` reads from outside. */
 export interface ApplyDeps {
@@ -217,7 +232,7 @@ function describeBreaking(changes: readonly DesignChange[]): string[] {
 function edited(
   file: string,
   source: string,
-  input: string,
+  name: string | undefined,
   preset: Preset,
   only: string | undefined,
 ): ConfigEdit {
@@ -234,13 +249,42 @@ function edited(
   const value =
     only === "conventions"
       ? encodePreset({ ...preset, blocks: [] })
-      : isPresetName(input)
-        ? input
-        : encodePreset(preset);
+      : (name ?? encodePreset(preset));
 
   return json
     ? setPresetInJson(source, value)
     : setPresetInConfig(source, value);
+}
+
+/**
+ * The config of the workspace package `pkg` names, relative to the root
+ * config's directory, and its file; the root config without one.
+ */
+async function packageTarget(
+  config: ResolvedConfig,
+  deps: ApplyDeps,
+  pkg: string | undefined,
+  reload: (root: string, file: string) => Promise<ResolvedConfig>,
+): Promise<{ readonly config: ResolvedConfig; readonly deps: ApplyDeps }> {
+  if (pkg === undefined) {
+    return { config, deps };
+  }
+
+  const root = resolve(config.root, posix.normalize(pkg.replaceAll("\\", "/")));
+
+  const file = findConfig(root);
+
+  if (file === undefined) {
+    throw new CliError(
+      "config_not_found",
+      `--package ${pkg} has no better-supabase config. Start one with \`better-supabase init --package ${pkg}\`.`,
+    );
+  }
+
+  return {
+    config: await reload(root, file),
+    deps: { ...deps, configFile: file },
+  };
 }
 
 /**
@@ -249,9 +293,9 @@ function edited(
  * module files of every block the config now holds.
  */
 export async function runApply(
-  config: ResolvedConfig,
+  rootConfig: ResolvedConfig,
   args: ApplyOptions,
-  deps: ApplyDeps,
+  rootDeps: ApplyDeps,
 ): Promise<CommandResult> {
   const input = args.preset;
 
@@ -267,6 +311,25 @@ export async function runApply(
   if (only !== undefined && only !== "blocks" && only !== "conventions") {
     throw new CliError("usage", '--only must be "blocks" or "conventions"');
   }
+
+  const flags = conventionFlags(args);
+
+  if (only === "blocks" && hasConventionFlags(flags)) {
+    throw new CliError(
+      "usage",
+      "--only blocks leaves the conventions, so it takes no convention flags.",
+    );
+  }
+
+  const reload =
+    rootDeps.reload ?? ((root: string, path: string) => loadConfig(root, path));
+
+  const { config, deps } = await packageTarget(
+    rootConfig,
+    rootDeps,
+    args.package ?? createUrlParam(input, "package"),
+    reload,
+  );
 
   const file = deps.configFile;
 
@@ -287,6 +350,11 @@ export async function runApply(
       error instanceof Error ? error.message : String(error),
     );
   }
+
+  preset = withConventions(preset, flags);
+
+  const name =
+    isPresetName(input) && !hasConventionFlags(flags) ? input : undefined;
 
   let design: CreateDesign | undefined;
 
@@ -333,7 +401,7 @@ export async function runApply(
   }
 
   const source = await readFile(file, "utf-8");
-  const edit = edited(file, source, input, preset, only);
+  const edit = edited(file, source, name, preset, only);
 
   if (!edit.ok) {
     return {
@@ -357,6 +425,10 @@ export async function runApply(
 
   const lines: string[] =
     breaking.length === 0 ? [] : [...describeBreaking(breaking), ""];
+
+  if (createUrlParam(input, "authz") !== undefined) {
+    lines.push(AUTHZ_NOTE, "");
+  }
 
   let adopted: Readonly<Record<string, BlockConfig>> = {};
 
@@ -447,9 +519,6 @@ export async function runApply(
     };
   }
 
-  const reload =
-    deps.reload ?? ((root: string, path: string) => loadConfig(root, path));
-
   const next = await reload(config.root, file);
   const synced = await syncModules(next, {}, paint, deps.now);
   lines.push("", `Updated ${shown}.`, "", synced.output ?? synced.error ?? "");
@@ -463,8 +532,9 @@ export async function runApply(
 
 export const applyCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("apply"),
-  args: { ...APPLY_ARGS, ...SOURCE_ARGS },
+  args: { ...APPLY_ARGS, ...CONVENTION_ARGS, ...SOURCE_ARGS },
   completions: {
+    ...CONVENTION_COMPLETIONS,
     preset: () => PRESET_NAMES,
     only: () => ["blocks", "conventions"],
   },

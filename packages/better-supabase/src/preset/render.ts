@@ -8,6 +8,12 @@ import { presetConfig } from "./config.ts";
 
 const CREATE_URL = "https://bettersupabase.com/create";
 
+/** The comment a config with the provider access model gets above `blocks`. */
+export const PROVIDER_COMMENT: readonly string[] = [
+  "  // The provider access model reads roles from your authorization",
+  "  // library: set `authorization` to its adapter.",
+];
+
 const key = (name: string): string =>
   /^[a-z_$][a-z0-9_$]*$/i.test(name) ? name : JSON.stringify(name);
 
@@ -74,10 +80,7 @@ export function configSource(
   }
 
   if (resolved.preset.access === "provider") {
-    lines.push(
-      "  // The provider access model reads roles from your authorization",
-      "  // library: set `authorization` to its adapter.",
-    );
+    lines.push(...PROVIDER_COMMENT);
   }
 
   lines.push("  blocks: {");

@@ -3,24 +3,27 @@ import type { BlockContext } from "./create-blocks.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
-/** Where a block sits in the catalog and in presets. */
-export type BlockCategory =
-  | "identity"
-  | "tenancy"
-  | "collaboration"
-  | "messaging"
-  | "growth"
-  | "crm"
-  | "work"
-  | "people"
-  | "commerce"
-  | "scheduling"
-  | "content"
-  | "ai"
-  | "automation"
-  | "developer"
-  | "admin"
-  | "database";
+/** Where a block sits in the catalog and in presets, in catalog order. */
+export const BLOCK_CATEGORIES = [
+  "identity",
+  "tenancy",
+  "collaboration",
+  "messaging",
+  "growth",
+  "crm",
+  "work",
+  "people",
+  "commerce",
+  "scheduling",
+  "content",
+  "ai",
+  "automation",
+  "developer",
+  "admin",
+  "database",
+] as const;
+
+export type BlockCategory = (typeof BLOCK_CATEGORIES)[number];
 
 /** The ports a block consumes: `required` fails `createBlocks` without a provider. */
 export type BlockConsumes = {

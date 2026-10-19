@@ -2,6 +2,7 @@ import type { BlockCategory } from "../../blocks/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
+import { BLOCK_CATEGORIES } from "../../blocks/index.ts";
 import {
   glueCommand,
   PRESET_CATALOG,
@@ -12,30 +13,10 @@ import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 
-const CATEGORIES: readonly BlockCategory[] = [
-  "identity",
-  "tenancy",
-  "collaboration",
-  "messaging",
-  "growth",
-  "crm",
-  "work",
-  "people",
-  "commerce",
-  "scheduling",
-  "content",
-  "ai",
-  "automation",
-  "developer",
-  "admin",
-  "database",
-];
-
 const LIST_ARGS = {
   category: {
     type: "string",
-    description:
-      "One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin or database",
+    description: `One category: ${BLOCK_CATEGORIES.join(", ")}`,
     valueHint: "name",
   },
 } as const;
@@ -98,7 +79,7 @@ export const blockNames = (): readonly string[] =>
 function listing(entries: readonly BlockEntry[]): string[] {
   const width = Math.max(0, ...entries.map((entry) => entry.name.length));
 
-  return CATEGORIES.flatMap((category) => {
+  return BLOCK_CATEGORIES.flatMap((category) => {
     const rows = entries.filter((entry) => entry.category === category);
 
     if (rows.length === 0) {
@@ -114,10 +95,13 @@ function listing(entries: readonly BlockEntry[]): string[] {
 }
 
 export function listBlocks(category: string | undefined): CommandResult {
-  if (category !== undefined && !CATEGORIES.some((each) => each === category)) {
+  if (
+    category !== undefined &&
+    !BLOCK_CATEGORIES.some((each) => each === category)
+  ) {
     throw new CliError(
       "usage",
-      `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
+      `Unknown category "${category}". Categories: ${BLOCK_CATEGORIES.join(", ")}`,
     );
   }
 
@@ -196,7 +180,7 @@ export function searchBlocks(text: string | undefined): CommandResult {
 export const blocksListCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("blocks list"),
   args: LIST_ARGS,
-  completions: { category: () => CATEGORIES },
+  completions: { category: () => BLOCK_CATEGORIES },
   run: (args) => Promise.resolve(listBlocks(args.category)),
 });
 

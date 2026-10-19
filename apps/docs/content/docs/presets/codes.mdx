@@ -172,7 +172,7 @@ disables a block.
 | Function               | Writes                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason         |
-| `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `createBlocks`               |
+| `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `defineBlocks`               |
 | `presetInstallCommand` | `npx better-supabase init --preset <code>`, which starts a project from the preset            |
 | `presetApplyCommand`   | `npx better-supabase apply --preset <code>`, which applies it to an existing project          |
 | `presetGlue`           | the registry glue items for the preset's framework and platforms; `glueCommand` installs them |

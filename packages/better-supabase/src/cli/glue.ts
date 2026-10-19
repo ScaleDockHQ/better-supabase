@@ -6,6 +6,7 @@ import type { CommandResult } from "./core/io.ts";
 import type { Project } from "./project/detect.ts";
 import type { Prompter } from "./prompts.ts";
 
+import { INTEGRATION_INFO } from "../config/index.ts";
 import { parseNames } from "./core/errors.ts";
 import { display } from "./core/io.ts";
 import {
@@ -114,8 +115,8 @@ export function chooseIntegrations(
     "Integrations",
     INTEGRATIONS.map((name) => ({
       value: name,
-      label: name,
-      hint: TEMPLATES[name].description,
+      label: INTEGRATION_INFO[name].title,
+      hint: INTEGRATION_INFO[name].description,
     })),
     initial,
   );
