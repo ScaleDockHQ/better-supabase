@@ -38,7 +38,7 @@ working `env`.
   migration would keep diverging from what new Supabase projects do.
 - Commit `[experimental] stack = true`: on CLI 2.119.0 the native stack's
   Realtime refuses or times out private-channel joins that the Docker backend
-  accepts (the Realtime kit and PermDock topic integration tests), so the CI
+  accepts (the Realtime kit and authorization topic integration tests), so the CI
   `stack` job would fail.
 
 ## Consequences

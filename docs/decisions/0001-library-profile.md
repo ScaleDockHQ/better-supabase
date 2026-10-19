@@ -23,7 +23,7 @@ do not apply, and the repo does not add them:
   The OpenAPI snapshot and Problem Details for a product API go with them.
 - Section 6: `packages/ai`. The only AI feature is Ask AI in the docs, which
   calls the AI Gateway from one route handler.
-- Sections 8, 10 and 11: i18n, multi-tenancy, PermDock, Stripe, the audit log
+- Sections 8, 10 and 11: i18n, multi-tenancy, an authorization library, Stripe, the audit log
   and the Supabase OAuth server. The fixture schema has tenants and RBAC
   because the library supports them, not because the repo is multi-tenant.
 - Sentry and Resend. Docs and marketing are static sites that send no email.

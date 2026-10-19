@@ -216,3 +216,13 @@ Something the CLI didn't expect went wrong. `detail` has the underlying
 message. Exit code 1. If it looks like a bug,
 [open an issue](https://github.com/ScaleDockHQ/better-supabase/issues) with
 the command and the message.
+
+## Codes from other CLIs
+
+The exit codes, the envelope and the code names on this page are a contract
+other CLIs can share. A CLI that adopts it keeps each code's name, title and
+exit code, and adds codes of its own only under new names, such as
+`dirty_worktree` (exit 3) for a rewrite that finds uncommitted changes, or
+`write_failed` (exit 1). better-supabase never reuses one of those names for
+another meaning, so a script can match a code without knowing which CLI
+printed it.
