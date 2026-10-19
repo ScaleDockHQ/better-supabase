@@ -473,7 +473,8 @@ function onlyWrapped(
  * Whether every permissive policy that lets `role` run `command` holds
  * `column` to a tenant the caller acts in, with no `or` around it: equal to
  * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in
- * `(select tenant_ids_with(...))`. A write can't name another tenant then.
+ * `(select tenant_ids_with(...))` or `(select member_<tenant>_ids())`. A
+ * write can't name a tenant the caller isn't in then.
  */
 function pinnedToTenant(
   table: CatalogTable,
@@ -491,7 +492,7 @@ function pinnedToTenant(
     [
       `(?<![\\w."])${col}\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
       `better_supabase\\.can\\(\\s*'tenant'(?:::text)?\\s*,\\s*${col}\\s*,`,
-      `(?<![\\w."])${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.tenant_ids_with\\(`,
+      `(?<![\\w."])${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.(?:tenant_ids_with|member_\\w+_ids)\\(`,
     ].join("|"),
     "i",
   );
@@ -718,7 +719,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)` or `tenant_ids_with(...)`), a subject's `deletedAt` column in `config.subjects` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)` or the membership helper `member_organization_ids()`), a subject's `deletedAt` column in `config.subjects` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

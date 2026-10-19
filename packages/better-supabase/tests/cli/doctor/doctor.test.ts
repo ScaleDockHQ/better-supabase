@@ -380,6 +380,7 @@ describe("doctor rules", () => {
     it.each([
       "COALESCE(better_supabase.can('tenant'::text, org_id, 'members.manage'::text), false)",
       "(org_id IN ( SELECT better_supabase.tenant_ids_with('members.manage'::text) AS tenant_ids_with))",
+      "(org_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
     ])(
       "leaves out a tenant column a permission check pins: %s",
       async (pinned) => {
@@ -724,6 +725,18 @@ describe("doctor rules", () => {
 
     // Without the index, the foreign key to organizations has none either.
     expect(await codes(context(snap))).toEqual(["BS204", "BS216"]);
+  });
+
+  it("leaves a view's tenant column out of the index check", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.indexes = notes.indexes.filter(
+        (index) => index.columns[0] !== "organization_id",
+      );
+      notes.kind = "view";
+    });
+
+    expect(await codes(context(snap))).not.toContain("BS204");
   });
 
   it("flags aggregates while PostgREST disables them", async () => {

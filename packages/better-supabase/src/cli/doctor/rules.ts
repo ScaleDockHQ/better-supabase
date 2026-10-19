@@ -551,7 +551,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant column without an index",
     description:
-      "The tenant plugin and tenant policies filter every query on this column.",
+      "The tenant plugin and tenant policies filter every query on this column. A view is left out: a query on it uses the indexes of its tables.",
     check: (context) => {
       const tenant = context.config.plugins.tenant;
 
@@ -562,6 +562,7 @@ const OWN_RULES: readonly Rule[] = [
       return exposed(context)
         .filter(
           (table) =>
+            table.kind === "table" &&
             table.columns.some((column) => column.name === tenant.column) &&
             !table.indexes.some(
               (index) => !index.partial && index.columns[0] === tenant.column,
