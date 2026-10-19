@@ -115,4 +115,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "domains",
   "reviews",
   "leave",
+  "rules",
 ];

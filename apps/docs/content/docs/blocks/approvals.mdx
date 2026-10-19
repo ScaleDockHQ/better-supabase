@@ -63,6 +63,8 @@ blocks: {
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
+Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/rules#actions) choose it: `approvalsAction` from `better-supabase/blocks/rules` files the request for the action in the matching rule's `config.action`.
+
 ## Run the approved action
 
 With `run: { transition }`, the final approval calls `transition()` for the subject. Mark the edge with `requiresApproval` on the machine so nobody can skip the request:

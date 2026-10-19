@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-rule-editor",
+  "title": "useRuleEditor",
+  "description": "The editor state of one rule in the active organization: its condition tree, validation, dirty state and save, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.8.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-rule-editor.ts",
+      "content": "import type { RuleBuilderState } from \"better-supabase/blocks/rules/react\";\nimport type { FilterQuery } from \"better-supabase/list\";\n\nimport { generatedOptions } from \"better-supabase/blocks\";\nimport { useRuleBuilder } from \"better-supabase/blocks/rules/react\";\nimport { tenantOf, useAuth } from \"better-supabase/react\";\n\nimport { blockConfig } from \"@/lib/supabase/blocks.generated\";\n\nexport interface RuleEditorOptions {\n  /** The rule to edit; `null` edits a new one. */\n  readonly rule: string | null;\n  /** The record type whose fields the rules test, such as `expense`. */\n  readonly subjectType: string;\n  /** A new rule's trigger, such as `expense.submitted`. */\n  readonly trigger?: string;\n  /** The tree a new rule starts with. */\n  readonly initial?: FilterQuery;\n  /** Node ids the editor may not change, such as a fixed first condition. */\n  readonly locked?: readonly string[];\n}\n\nexport interface RuleEditor extends RuleBuilderState {\n  /** The active organization; `undefined` until the session has a tenant claim, so keep Save disabled. */\n  readonly organizationId: string | undefined;\n}\n\n/**\n * The editor state of one rule in the active organization: its fields, its\n * condition tree, validation, dirty state and save. Works in React DOM and\n * React Native; render the rows with your own components.\n */\nexport function useRuleEditor(options: RuleEditorOptions): RuleEditor {\n  const organizationId = tenantOf(useAuth());\n\n  const builder = useRuleBuilder({\n    ...options,\n    organizationId: organizationId ?? \"\",\n    schema: generatedOptions(blockConfig.rules).schema,\n  });\n\n  return { ...builder, organizationId };\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-rule-editor.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "rules",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the rules block (`npx better-supabase add rules`), a field catalog synced with `createRulesAdmin().syncFields()`, `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. The Rule builder recipe renders it. See https://bettersupabase.com/docs/blocks/rules#editor.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

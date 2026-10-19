@@ -196,6 +196,7 @@ import {
   type ReviewsSqlOptions,
   reviewsSqlOptions,
 } from "./reviews/options.ts";
+import { type RulesSqlOptions, rulesSqlOptions } from "./rules/options.ts";
 import {
   type SavedViewsSqlOptions,
   savedViewsSqlOptions,
@@ -371,6 +372,7 @@ export interface BlockOptionsRegistry {
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
+  readonly rules: RulesSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
   readonly "service-principals": ServicePrincipalsSqlOptions;
@@ -489,6 +491,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
+  rules: rulesSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
   "service-principals": servicePrincipalsSqlOptions,

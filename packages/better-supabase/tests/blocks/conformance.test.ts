@@ -84,6 +84,9 @@ const NO_FIELDS: readonly string[] = [
   "outbox",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
+  // Rules hold a filter tree and action references the editor writes; the
+  // app's data lives on the subjects the rules test.
+  "rules",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
   // Values of app-defined keys, typed by `defineSettings` schemas.

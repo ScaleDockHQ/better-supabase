@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+New block `better-supabase/blocks/rules` (`better-supabase add rules`): saved, versioned condition trees over the fields you register per subject type. `defineRuleFields()` declares each field's type, column type and operators, and `createRulesAdmin().syncFields()` stores them for the database. A rule has a trigger, a `FilterQuery` condition, ordered actions, a rank and `stopProcessing`. `matching()` evaluates every enabled rule for a subject in Postgres (`better_supabase.rule_matches`), and `test()` evaluates one rule locally with `evaluateFilterQuery`; both give the same answer for every operator. `createRuleDispatcher()` runs the matched actions through your handlers, and `approvalsAction()` opens an approval request from a rule. Every save keeps a version, every evaluation can be logged, and `rule.saved`, `rule.enabled`, `rule.disabled`, `rule.removed` and `rule.matched` go to the outbox. The `access` module adds `rules.read` (members), `rules.edit`, `rules.publish` and `rules.admin` (admins); re-run `better-supabase sql sync` to pick up the new default permissions.

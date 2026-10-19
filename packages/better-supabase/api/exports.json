@@ -2123,6 +2123,7 @@
       "decodeFilterQuery",
       "defineListQuery",
       "encodeFilterQuery",
+      "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",
       "FILTER_OPERATORS",
       "UNSET"
@@ -2134,6 +2135,7 @@
       "FilterClock",
       "FilterCombinator",
       "FilterDateValue",
+      "FilterEvaluation",
       "FilterField",
       "FilterFieldInfo",
       "FilterFieldLabels",
@@ -2143,6 +2145,7 @@
       "FilterOperatorArity",
       "FilterOperatorSpec",
       "FilterQuery",
+      "FilterRecordField",
       "FilterRelativeDate",
       "FilterRule",
       "ListDefinition",
@@ -3361,11 +3364,14 @@
       "durationMs",
       "evaluateCondition",
       "executeGraph",
+      "filterConditionOf",
       "graphRunFields",
+      "matchesFilter",
       "rpcTransport",
       "sqlTransport",
       "startNodeOf",
       "topologicalOrder",
+      "triggerMatches",
       "validateGraph",
       "workflowBuilderBlock",
       "workflowBuilderEvents"
@@ -3391,6 +3397,7 @@
       "PublishOptions",
       "RunInput",
       "TestRunInput",
+      "TriggerEvent",
       "TriggerInput",
       "VersionSaveOptions",
       "WorkflowAlert",
@@ -3411,12 +3418,15 @@
       "WorkflowDefinition",
       "WorkflowDefinitionGrant",
       "WorkflowDefinitionScope",
+      "WorkflowFilterCondition",
+      "WorkflowFilterField",
       "WorkflowGrantAction",
       "WorkflowGrantPrincipal",
       "WorkflowGraph",
       "WorkflowGraphDiff",
       "WorkflowGraphEdge",
       "WorkflowGraphNode",
+      "WorkflowNodeCondition",
       "WorkflowNodeKind",
       "WorkflowNodeRun",
       "WorkflowNodeRunStatus",
@@ -4899,6 +4909,123 @@
       "HostnameRecord",
       "RpcClient",
       "TxtResolver"
+    ]
+  },
+  "./blocks/rules": {
+    "values": [
+      "approvalsAction",
+      "checkRuleConditions",
+      "contains",
+      "createRuleBuilderController",
+      "createRuleDispatcher",
+      "createRules",
+      "createRulesAdmin",
+      "dbTransport",
+      "defineRuleFields",
+      "emptyConditions",
+      "evaluateRule",
+      "extendBlock",
+      "findNode",
+      "insertNode",
+      "moveNode",
+      "parentOf",
+      "removeNode",
+      "rpcTransport",
+      "RULE_LIMITS",
+      "ruleFilterFieldInfo",
+      "ruleFilterFields",
+      "ruleOf",
+      "ruleOperators",
+      "ruleRecordFields",
+      "rulesBlock",
+      "rulesEvents",
+      "setCombinator",
+      "setRuleField",
+      "setRuleOperator",
+      "sqlTransport",
+      "updateNode",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Rule",
+      "RuleAction",
+      "RuleActionCall",
+      "RuleActionHandler",
+      "RuleActionOutcome",
+      "RuleApprovals",
+      "RuleBuilderActions",
+      "RuleBuilderController",
+      "RuleBuilderControllerOptions",
+      "RuleBuilderSnapshot",
+      "RuleDispatcher",
+      "RuleDispatcherOptions",
+      "RuleEvaluationEntry",
+      "RuleEventData",
+      "RuleField",
+      "RuleFieldCatalog",
+      "RuleFieldDefinition",
+      "RuleInput",
+      "RuleListOptions",
+      "RuleMatch",
+      "RuleMatchedEventData",
+      "Rules",
+      "RulesAdmin",
+      "RulesAdminOptions",
+      "RulesEvents",
+      "RulesOptions",
+      "RuleSubject",
+      "RuleSubjectContext",
+      "RuleVersion"
+    ]
+  },
+  "./blocks/rules/react": {
+    "values": [
+      "useRuleBuilder"
+    ],
+    "types": [
+      "RuleBuilderState",
+      "UseRuleBuilderOptions"
+    ]
+  },
+  "./blocks/rules/vue": {
+    "values": [
+      "useRuleBuilder"
+    ],
+    "types": [
+      "BlockOptions",
+      "RuleBuilderActions",
+      "RuleBuilderControllerOptions",
+      "RuleBuilderSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/rules/svelte": {
+    "values": [
+      "useRuleBuilder"
+    ],
+    "types": [
+      "BlockOptions",
+      "RuleBuilderActions",
+      "RuleBuilderControllerOptions",
+      "RuleBuilderSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/rules/solid": {
+    "values": [
+      "useRuleBuilder"
+    ],
+    "types": [
+      "BlockOptions",
+      "RuleBuilderActions",
+      "RuleBuilderControllerOptions",
+      "RuleBuilderSnapshot",
+      "SolidController"
     ]
   },
   "./blocks/reviews": {

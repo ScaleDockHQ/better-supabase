@@ -87,6 +87,7 @@ import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { REVIEWS } from "./modules/reviews.ts";
+import { RULES } from "./modules/rules.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
@@ -303,6 +304,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(DOMAINS),
       built(REVIEWS),
       built(LEAVE),
+      built(RULES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

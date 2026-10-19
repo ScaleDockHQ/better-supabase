@@ -67,6 +67,7 @@ import { rankBlock } from "better-supabase/blocks/rank";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { remindersBlock } from "better-supabase/blocks/reminders";
+import { rulesBlock } from "better-supabase/blocks/rules";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
@@ -160,6 +161,7 @@ export const blockSet = defineBlocks(blockConfig, {
   reactions: reactionsBlock,
   relations: relationsBlock,
   reminders: remindersBlock,
+  rules: rulesBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
   servicePrincipals: servicePrincipalsBlock,

@@ -1,3 +1,14 @@
+import type { ValidationIssue } from "../../core/errors.ts";
+import type {
+  FilterFieldInfo,
+  FilterFieldType,
+  FilterQuery,
+} from "../../list/filter-query.ts";
+
+import { optionalTemporal } from "../../core/temporal.ts";
+import { evaluateFilterQuery } from "../../list/filter-evaluate.ts";
+import { checkFilterQuery, FILTER_OPERATORS } from "../../list/filter-query.ts";
+
 /** Kept local: the static executor runs this file inside the workflow VM. */
 export const isGraphRecord = (
   value: unknown,
@@ -49,11 +60,35 @@ export interface WorkflowCondition {
   readonly value?: unknown;
 }
 
+/** A field a filter tests: `id` is the dotted path it reads, such as `input.amount`. */
+export interface WorkflowFilterField {
+  readonly id: string;
+  readonly type: FilterFieldType;
+  /**
+   * The Postgres type the value compares as. Only dates use it: `date`
+   * compares calendar days, `timestamptz` (the default) instants.
+   */
+  readonly columnType?: string;
+}
+
+/**
+ * A `FilterQuery` tree (the rule builder's and the list filters' format)
+ * over the fields its rules name.
+ */
+export interface WorkflowFilterCondition {
+  readonly filter: FilterQuery;
+  readonly fields: readonly WorkflowFilterField[];
+}
+
+/** What a `condition` node tests: one comparison or a filter tree. */
+export type WorkflowNodeCondition = WorkflowCondition | WorkflowFilterCondition;
+
 /**
  * One node of a graph. A `step` node calls the library step `step` with its
  * `config`; a `sleep` node waits `config.duration` (milliseconds, or `30s`,
  * `5m`, `2h`, `1d`); an `approval` node waits for its hook to be resumed;
- * a `condition` node tests `config` (a `WorkflowCondition`).
+ * a `condition` node tests `config`: a `WorkflowCondition`, or a
+ * `WorkflowFilterCondition` (`{ filter, fields }`).
  */
 export interface WorkflowGraphNode {
   readonly id: string;
@@ -117,14 +152,187 @@ export function durationMs(value: unknown): number | undefined {
 
 const CONDITION_PATH = /^(input|results|subject)(\.[^.]+)*$/;
 
+const FILTER_LIMITS = {
+  maxDepth: 4,
+  maxRules: 50,
+  maxValueLength: 10_000,
+  maxValues: 100,
+} as const;
+
+const MAX_FILTER_FIELDS = 100;
+
+const isFilterType = (value: unknown): value is FilterFieldType =>
+  typeof value === "string" && Object.hasOwn(FILTER_OPERATORS, value);
+
+function filterFieldOf(
+  value: unknown,
+  pattern: RegExp,
+): WorkflowFilterField | undefined {
+  if (!isGraphRecord(value)) {
+    return undefined;
+  }
+
+  const { id, type, columnType } = value;
+
+  if (
+    typeof id !== "string" ||
+    !pattern.test(id) ||
+    !isFilterType(type) ||
+    (columnType !== undefined && typeof columnType !== "string")
+  ) {
+    return undefined;
+  }
+
+  return {
+    id,
+    type,
+    ...(columnType === undefined ? {} : { columnType }),
+  };
+}
+
+const columnTypeOf = (field: WorkflowFilterField): string =>
+  field.columnType ?? (field.type === "date" ? "timestamptz" : "text");
+
+function fieldInfoOf(field: WorkflowFilterField): FilterFieldInfo {
+  return {
+    id: field.id,
+    type: field.type,
+    column: field.id,
+    columnMeta: {
+      db: field.id,
+      type: columnTypeOf(field),
+      nullable: true,
+      hasDefault: false,
+    },
+    label: field.id,
+    operators: FILTER_OPERATORS[field.type],
+  };
+}
+
+/**
+ * `{ filter, fields }` as a checked filter condition whose field ids match
+ * `pattern`; `undefined` when it isn't one or the tree has no finished rule.
+ */
+export function filterConditionOf(
+  value: unknown,
+  pattern: RegExp = CONDITION_PATH,
+): WorkflowFilterCondition | undefined {
+  if (
+    !isGraphRecord(value) ||
+    !Array.isArray(value["fields"]) ||
+    value["fields"].length > MAX_FILTER_FIELDS
+  ) {
+    return undefined;
+  }
+
+  const fields: WorkflowFilterField[] = [];
+
+  for (const entry of value["fields"]) {
+    const field = filterFieldOf(entry, pattern);
+
+    if (field === undefined) {
+      return undefined;
+    }
+
+    fields.push(field);
+  }
+
+  const issues: ValidationIssue[] = [];
+
+  const filter = checkFilterQuery(
+    value["filter"],
+    fields.map(fieldInfoOf),
+    FILTER_LIMITS,
+    issues,
+  );
+
+  return filter === undefined || issues.length > 0
+    ? undefined
+    : { filter, fields };
+}
+
+/**
+ * Whether a filter condition holds for `record`. Relative dates resolve
+ * against `Date.now()`, which the workflow runtime keeps deterministic.
+ */
+export function matchesFilter(
+  condition: WorkflowFilterCondition,
+  record: unknown,
+): boolean {
+  const T = optionalTemporal();
+
+  return evaluateFilterQuery(
+    condition.filter,
+    record,
+    condition.fields.map((field) => ({
+      id: field.id,
+      type: field.type,
+      column: field.id,
+      columnMeta: { type: columnTypeOf(field), nullable: true },
+    })),
+    T === undefined ? {} : { now: T.Instant.fromEpochMilliseconds(Date.now()) },
+  ).matched;
+}
+
+const EVENT_PATH = /^(type|tenant|payload)(\.[^.]+)*$/;
+
+/** The event an event trigger's `config.when` reads: `type`, `tenant` and `payload...`. */
+export interface TriggerEvent {
+  readonly type: string;
+  readonly tenant?: string | null | undefined;
+  readonly payload?: unknown;
+}
+
+/**
+ * Whether an event trigger's `config.when` (a `WorkflowFilterCondition`
+ * over `type`, `tenant` and `payload...`) lets `event` start a run. True
+ * without a `when`; false when `when` isn't a valid one.
+ */
+export function triggerMatches(
+  config: Readonly<Record<string, unknown>>,
+  event: TriggerEvent,
+): boolean {
+  const when = config["when"];
+
+  if (when === undefined) {
+    return true;
+  }
+
+  const condition = filterConditionOf(when, EVENT_PATH);
+
+  return (
+    condition !== undefined &&
+    matchesFilter(condition, {
+      type: event.type,
+      tenant: event.tenant ?? null,
+      payload: event.payload ?? {},
+    })
+  );
+}
+
+/** Why an event trigger's `config.when` can't be used, or `undefined` when it can. */
+export function triggerWhenProblem(
+  config: Readonly<Record<string, unknown>>,
+): string | undefined {
+  const when = config["when"];
+
+  return when === undefined || filterConditionOf(when, EVENT_PATH) !== undefined
+    ? undefined
+    : "config.when is a { filter, fields } filter with at least one finished rule over type, tenant or payload fields";
+}
+
 /** The node's condition, or `undefined` when its config isn't one. */
 export function conditionOf(
   node: WorkflowGraphNode,
-): WorkflowCondition | undefined {
+): WorkflowNodeCondition | undefined {
   const config = node.config;
 
   if (config === undefined) {
     return undefined;
+  }
+
+  if (config["filter"] !== undefined) {
+    return filterConditionOf(config);
   }
 
   const path = config["path"];
@@ -175,9 +383,13 @@ export function readPath(scope: GraphScope, path: string): unknown {
 
 /** Whether `condition` holds for the run's data. */
 export function evaluateCondition(
-  condition: WorkflowCondition,
+  condition: WorkflowNodeCondition,
   scope: GraphScope,
 ): boolean {
+  if ("filter" in condition) {
+    return matchesFilter(condition, scope);
+  }
+
   const actual = readPath(scope, condition.path);
   const expected = condition.value;
 

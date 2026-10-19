@@ -1798,6 +1798,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests"
     },
     {
+      "name": "rules",
+      "title": "Rules",
+      "category": "automation",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [],
+      "manifest": "rules",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2769,6 +2783,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
+      "name": "rules",
+      "sql": [
+        "rules"
+      ],
+      "category": "automation",
+      "client": {
+        "export": "rulesBlock",
+        "subpath": "better-supabase/blocks/rules"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
       "name": "saved-views",
       "sql": [
         "saved-views"
@@ -3368,6 +3395,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "@hooks/use-current-organization.ts"
+      ]
+    },
+    {
+      "name": "use-rule-editor",
+      "title": "useRuleEditor",
+      "blocks": [
+        "rules"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-rule-editor.ts"
       ]
     },
     {

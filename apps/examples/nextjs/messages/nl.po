@@ -332,6 +332,36 @@ msgctxt "people.eYLQ7a"
 msgid "Log your hours for the week and send them for approval."
 msgstr "Registreer je uren voor de week en stuur ze ter goedkeuring in."
 
+#: src/app/[locale]/(app)/projects/[id]/page.tsx
+msgctxt "projects.NZLQi1"
+msgid "All projects"
+msgstr "Alle projecten"
+
+#: src/app/[locale]/(app)/projects/page.tsx
+msgctxt "projects.UxTJRa"
+msgid "Projects"
+msgstr "Projecten"
+
+#: src/app/[locale]/(app)/projects/page.tsx
+msgctxt "projects.1eG-hs"
+msgid "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
+msgstr "Eén takentabel als raster, bord, agenda, tijdlijn en Gantt-diagram."
+
+#: src/app/[locale]/(app)/rules/[rule]/page.tsx
+msgctxt "rules.XkosHt"
+msgid "All rules"
+msgstr "Alle regels"
+
+#: src/app/[locale]/(app)/rules/page.tsx
+msgctxt "rules.kAAlGL"
+msgid "Rules"
+msgstr "Regels"
+
+#: src/app/[locale]/(app)/rules/page.tsx
+msgctxt "rules.S0Fieh"
+msgid "Conditions on customer fields, tested in the database when a customer is saved."
+msgstr "Voorwaarden op klantvelden, getest in de database wanneer een klant wordt opgeslagen."
+
 #: src/app/[locale]/(app)/settings/layout.tsx
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.D3idYv"
@@ -3219,6 +3249,36 @@ msgid "JSON"
 msgstr "JSON"
 
 #: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.JBWS0c"
+msgid "Link"
+msgstr "Link"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.NDV5Mq"
+msgid "Options"
+msgstr "Opties"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.1mnmBr"
+msgid "Person"
+msgstr "Persoon"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.ETRyBL"
+msgid "Rating"
+msgstr "Beoordeling"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields._0TOL5"
+msgid "Amount"
+msgstr "Bedrag"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
 msgctxt "custom-fields.QbUmZX"
 msgid "Record type"
 msgstr "Recordtype"
@@ -5584,6 +5644,116 @@ msgid "Customers"
 msgstr "Klanten"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.GcPFLS"
+msgid "Work"
+msgstr "Werk"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.5fijhK"
+msgid "Work grid"
+msgstr "Werkraster"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.UxTJRa"
+msgid "Projects"
+msgstr "Projecten"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.nFa1Ms"
+msgid "Approvals"
+msgstr "Goedkeuringen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.kAAlGL"
+msgid "Rules"
+msgstr "Regels"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Tpy00S"
+msgid "People"
+msgstr "Mensen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.XuEwXv"
+msgid "Hiring"
+msgstr "Werving"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.ug01Mk"
+msgid "Time"
+msgstr "Tijd"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Coy6SH"
+msgid "Calendar"
+msgstr "Agenda"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.hOxIeP"
+msgid "Availability"
+msgstr "Beschikbaarheid"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.4S241U"
+msgid "Contacts"
+msgstr "Contacten"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.CQa3R9"
+msgid "Deals"
+msgstr "Deals"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.epJ5ty"
+msgid "Quotes"
+msgstr "Offertes"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Dxd1uB"
+msgid "Shop"
+msgstr "Winkel"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.MlzEfB"
+msgid "Inventory"
+msgstr "Voorraad"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.X7jl6w"
+msgid "Orders"
+msgstr "Bestellingen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.1YAWJ3"
+msgid "Drive"
+msgstr "Drive"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.vBlT6y"
+msgid "Documents"
+msgstr "Documenten"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.yGsZm0"
+msgid "Forms"
+msgstr "Formulieren"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.A3ptul"
+msgid "Templates"
+msgstr "Sjablonen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.ofHC1Q"
+msgid "Imports"
+msgstr "Imports"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.j_I5tV"
+msgid "Trash"
+msgstr "Prullenbak"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.HNBpJ4"
 msgid "Metrics"
 msgstr "Statistieken"
@@ -6734,6 +6904,409 @@ msgctxt "privacy.Py189G"
 msgid "Security"
 msgstr "Beveiliging"
 
+#: src/features/projects/components/project-form-dialog.tsx
+msgctxt "projects.k2ovm-"
+msgid "Project created"
+msgstr "Project aangemaakt"
+
+#: src/features/projects/components/project-form-dialog.tsx
+msgctxt "projects.lJMkin"
+msgid "New project"
+msgstr "Nieuw project"
+
+#: src/features/projects/components/project-form-dialog.tsx
+msgctxt "projects.-d--d0"
+msgid "Add its tasks once it exists."
+msgstr "Voeg de taken toe zodra het bestaat."
+
+#: src/features/projects/components/project-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/projects/components/project-form-dialog.tsx
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/projects/components/project-form-dialog.tsx
+msgctxt "projects.VUN1K7"
+msgid "Create project"
+msgstr "Project aanmaken"
+
+#: src/features/projects/components/project-load-error.tsx
+msgctxt "projects.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/projects/components/project-load-error.tsx
+msgctxt "projects.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.tHZRp4"
+msgid "The project didn't load"
+msgstr "Het project is niet geladen"
+
+#: src/features/projects/components/project-page.tsx
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-timeline.tsx
+msgctxt "projects.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.goQBbA"
+msgid "Created {date}"
+msgstr "Aangemaakt op {date}"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.yhU1et"
+msgid "Tasks"
+msgstr "Taken"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.3-KNWt"
+msgid "{count, plural, one {# task} other {# tasks}}"
+msgstr "{count, plural, one {# taak} other {# taken}}"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.nANOlv"
+msgid "No tasks yet. Add the first one with New task."
+msgstr "Nog geen taken. Voeg de eerste toe met Nieuwe taak."
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.fuDOf0"
+msgid "due {date}"
+msgstr "deadline {date}"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.wCgTu5"
+msgid "Comments"
+msgstr "Reacties"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.0KKXrH"
+msgid "Budget"
+msgstr "Budget"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.bhfSJZ"
+msgid "Lead"
+msgstr "Leider"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.2cVj2C"
+msgid "Open tasks"
+msgstr "Open taken"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.1EYCdR"
+msgid "Tags"
+msgstr "Tags"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.IrAvDh"
+msgid "Open this project's board"
+msgstr "Open het bord van dit project"
+
+#: src/features/projects/components/task-board.tsx
+msgctxt "projects.jy6a7A"
+msgid "Drop a task here."
+msgstr "Zet hier een taak neer."
+
+#: src/features/projects/components/task-calendar.tsx
+msgctxt "projects.vYOhgo"
+msgid "{count, plural, =0 {Every task has a due date.} one {# task has no due date.} other {# tasks have no due date.}}"
+msgstr "{count, plural, =0 {Elke taak heeft een deadline.} one {# taak heeft geen deadline.} other {# taken hebben geen deadline.}}"
+
+#: src/features/projects/components/task-calendar.tsx
+msgctxt "projects.8mRNBD"
+msgid "Previous month"
+msgstr "Vorige maand"
+
+#: src/features/projects/components/task-calendar.tsx
+#: src/features/projects/components/window-header.tsx
+msgctxt "projects.zWgbGg"
+msgid "Today"
+msgstr "Vandaag"
+
+#: src/features/projects/components/task-calendar.tsx
+msgctxt "projects.PqmLVn"
+msgid "Next month"
+msgstr "Volgende maand"
+
+#: src/features/projects/components/task-calendar.tsx
+msgctxt "projects.VQ4jYD"
+msgid "{count} more"
+msgstr "nog {count}"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.991WgJ"
+msgid "Task created"
+msgstr "Taak aangemaakt"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.K4O03z"
+msgid "New task"
+msgstr "Nieuwe taak"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.7ALUeF"
+msgid "It goes to the end of its status column."
+msgstr "Hij komt onderaan de statuskolom."
+
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.k36uSw"
+msgid "Project"
+msgstr "Project"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.vD25Mv"
+msgid "Pick a project"
+msgstr "Kies een project"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.5mIGxJ"
+msgid "No projects match."
+msgstr "Geen projecten gevonden."
+
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/projects/components/task-form-dialog.tsx
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.8YigMc"
+msgid "No members match."
+msgstr "Geen leden gevonden."
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.nwnCWi"
+msgid "Starts on"
+msgstr "Begint op"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.Cct7HT"
+msgid "Due on"
+msgstr "Deadline"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.7X1tNR"
+msgid "Create task"
+msgstr "Taak aanmaken"
+
+#: src/features/projects/components/task-gantt.tsx
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.hq2DEA"
+msgid "Gantt"
+msgstr "Gantt"
+
+#: src/features/projects/components/task-gantt.tsx
+msgctxt "projects.MO_PQg"
+msgid "Every task by project, with its planned dates."
+msgstr "Elke taak per project, met de geplande data."
+
+#: src/features/projects/components/task-gantt.tsx
+msgctxt "projects.FB4s-S"
+msgid "No dates"
+msgstr "Geen data"
+
+#: src/features/projects/components/task-gantt.tsx
+msgctxt "projects.bnL41w"
+msgid "{start} to {end}"
+msgstr "{start} tot {end}"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.esuNEd"
+msgid "Search tasks"
+msgstr "Taken zoeken"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.xmcVZ0"
+msgid "Search"
+msgstr "Zoeken"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.49m_TX"
+msgid "Saved views"
+msgstr "Opgeslagen weergaven"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.ZA91bs"
+msgid "Delete view {name}"
+msgstr "Weergave {name} verwijderen"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.JAYugF"
+msgid "Save view"
+msgstr "Weergave opslaan"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.FrIr1g"
+msgid "View saved"
+msgstr "Weergave opgeslagen"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.WM0aGV"
+msgid "Keeps the screen, the search and the filters."
+msgstr "Bewaart het scherm, de zoekopdracht en de filters."
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.8zverq"
+msgid "{count, plural, one {# task} other {# tasks}} changed"
+msgstr "{count, plural, one {# taak} other {# taken}} gewijzigd"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.g9pEhE"
+msgid "Due"
+msgstr "Deadline"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.AZvexA"
+msgid "{count, plural, one {# selected} other {# selected}}"
+msgstr "{count, plural, one {# geselecteerd} other {# geselecteerd}}"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.rYKxgY"
+msgid "Mark {status}"
+msgstr "Markeer als {status}"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/projects/components/task-timeline.tsx
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/features/projects/components/task-timeline.tsx
+msgctxt "projects.6xGo2h"
+msgid "Tasks with a start or due date in these four weeks, by assignee."
+msgstr "Taken met een begin- of einddatum in deze vier weken, per persoon."
+
+#: src/features/projects/components/task-timeline.tsx
+msgctxt "projects.-xQ1Zt"
+msgid "No tasks fall in these weeks."
+msgstr "Er vallen geen taken in deze weken."
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.Iiiu0z"
+msgid "The tasks didn't load"
+msgstr "De taken zijn niet geladen"
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.cgsmc-"
+msgid "The saved views didn't load"
+msgstr "De opgeslagen weergaven zijn niet geladen"
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.OPwHPj"
+msgid "No tasks match"
+msgstr "Geen taken gevonden"
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.ZXH44s"
+msgid "No tasks yet"
+msgstr "Nog geen taken"
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.VuNMpM"
+msgid "Change the search or the filters."
+msgstr "Pas de zoekopdracht of de filters aan."
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.HjdxyX"
+msgid "Create a project first, then add its tasks."
+msgstr "Maak eerst een project aan en voeg dan de taken toe."
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.-BdCvs"
+msgid "Add the first task to a project."
+msgstr "Voeg de eerste taak aan een project toe."
+
+#: src/features/projects/components/task-views.tsx
+msgctxt "projects.F4gyn3"
+msgid "Clear filters"
+msgstr "Filters wissen"
+
+#: src/features/projects/components/view-links.tsx
+msgctxt "projects.iwp2S0"
+msgid "Screens"
+msgstr "Schermen"
+
+#: src/features/projects/components/window-header.tsx
+msgctxt "projects.0AmuRl"
+msgid "Earlier"
+msgstr "Eerder"
+
+#: src/features/projects/components/window-header.tsx
+msgctxt "projects.uQDRsY"
+msgid "Later"
+msgstr "Later"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.vwqEeH"
+msgid "To do"
+msgstr "Te doen"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.P8kzkB"
+msgid "Doing"
+msgstr "Bezig"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.HzfrYu"
+msgid "Grid"
+msgstr "Raster"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.5hUPMv"
+msgid "Board"
+msgstr "Bord"
+
+#: src/features/projects/use-task-labels.ts
+msgctxt "projects.Coy6SH"
+msgid "Calendar"
+msgstr "Agenda"
+
 #: src/features/push/components/push-opt-in.tsx
 msgctxt "push.Awq32I"
 msgid "Push notifications"
@@ -6813,6 +7386,272 @@ msgstr "Controleer je verbinding en probeer het opnieuw."
 msgctxt "push.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.Z8IqfA"
+msgid "The rule didn't load"
+msgstr "De regel is niet geladen"
+
+#: src/features/rules/components/rule-builder.tsx
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.Bk2Tdf"
+msgid "When a lead is saved"
+msgstr "Wanneer een lead wordt opgeslagen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.RUS5Ag"
+msgid "The rule matches when its conditions hold for the saved customer."
+msgstr "De regel komt overeen wanneer de voorwaarden gelden voor de opgeslagen klant."
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.8NfP_E"
+msgid "Follow up on large leads"
+msgstr "Opvolgen van grote leads"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.67stzV"
+msgid "The rule wasn't saved"
+msgstr "De regel is niet opgeslagen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.V52jNn"
+msgid "Enabled"
+msgstr "Ingeschakeld"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.6_ePDY"
+msgid "Enabled (needs publish rights)"
+msgstr "Ingeschakeld (vereist publicatierechten)"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.nmpevl"
+msgid "Discard"
+msgstr "Verwerpen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.QLkzoS"
+msgid "Saving"
+msgstr "Opslaan"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.eN-yub"
+msgid "Save rule"
+msgstr "Regel opslaan"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.eI1LWw"
+msgid "No conditions"
+msgstr "Geen voorwaarden"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.oBgXBk"
+msgid "Without conditions the rule matches every saved customer."
+msgstr "Zonder voorwaarden komt de regel overeen met elke opgeslagen klant."
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.fg8dzN"
+msgid "Add condition"
+msgstr "Voorwaarde toevoegen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.RZJPnT"
+msgid "Add group"
+msgstr "Groep toevoegen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.UDgnmp"
+msgid "This condition is fixed"
+msgstr "Deze voorwaarde staat vast"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.kGQJcD"
+msgid "Reorder"
+msgstr "Verplaatsen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.BdWj9O"
+msgid "And"
+msgstr "En"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.4wpUNc"
+msgid "Or"
+msgstr "Of"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.ujaB7H"
+msgid "Where"
+msgstr "Waar"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.o7zqzA"
+msgid "Combine with"
+msgstr "Combineren met"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.Q_QcbO"
+msgid "Remove group"
+msgstr "Groep verwijderen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.r6kxSi"
+msgid "KvK number"
+msgstr "KvK-nummer"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.fXdkiI"
+msgid "is"
+msgstr "is"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.alA913"
+msgid "is not"
+msgstr "is niet"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.f19YrE"
+msgid "contains"
+msgstr "bevat"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.OsorgC"
+msgid "does not contain"
+msgstr "bevat niet"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.AVoifw"
+msgid "starts with"
+msgstr "begint met"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.KCWBWz"
+msgid "is empty"
+msgstr "is leeg"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.dgaJBL"
+msgid "is not empty"
+msgstr "is niet leeg"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.CHxonJ"
+msgid "is before"
+msgstr "is vóór"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.gf085n"
+msgid "is after"
+msgstr "is na"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.AbvQFb"
+msgid "Field"
+msgstr "Veld"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.3yf2ND"
+msgid "Operator"
+msgstr "Operator"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.WGSprq"
+msgid "Remove condition"
+msgstr "Voorwaarde verwijderen"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.a5msuh"
+msgid "Yes"
+msgstr "Ja"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.oUWADl"
+msgid "No"
+msgstr "Nee"
+
+#: src/features/rules/components/rule-builder.tsx
+msgctxt "rules.GufXy5"
+msgid "Value"
+msgstr "Waarde"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.FoikIK"
+msgid "New rule"
+msgstr "Nieuwe regel"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.IJ99mD"
+msgid "Customer rules"
+msgstr "Klantregels"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.w3S5rb"
+msgid "Rules run in this order each time a customer is saved."
+msgstr "Regels draaien in deze volgorde telkens wanneer een klant wordt opgeslagen."
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.MO29tf"
+msgid "The rules didn't load"
+msgstr "De regels zijn niet geladen"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.tePZ-F"
+msgid "No rules yet"
+msgstr "Nog geen regels"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.W6EiTe"
+msgid "Add a rule to act on leads that match its conditions."
+msgstr "Voeg een regel toe om te reageren op leads die aan de voorwaarden voldoen."
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.qiu-jg"
+msgid "Rules your admins add show up here."
+msgstr "Regels die je beheerders toevoegen verschijnen hier."
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.mSS92b"
+msgid "Untitled rule"
+msgstr "Naamloze regel"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.YGuNCJ"
+msgid "{count, plural, one {# condition} other {# conditions}}"
+msgstr "{count, plural, one {# voorwaarde} other {# voorwaarden}}"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.Zh-5A6"
+msgid "On"
+msgstr "Aan"
+
+#: src/features/rules/components/rule-list.tsx
+msgctxt "rules.OvzONl"
+msgid "Off"
+msgstr "Uit"
 
 #: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"

@@ -146,6 +146,10 @@ export const PERMISSIONS = [
   "webhooks.read",
   "webhooks.manage",
   "organization.export",
+  "rules.read",
+  "rules.edit",
+  "rules.publish",
+  "rules.admin",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -292,6 +296,10 @@ const grants = {
     "webhooks.read",
     "webhooks.manage",
     "organization.export",
+    "rules.read",
+    "rules.edit",
+    "rules.publish",
+    "rules.admin",
   ],
   member: [
     "customers.read",
@@ -363,6 +371,7 @@ const grants = {
     "targets.read",
     "hiring.read",
     "employees.read",
+    "rules.read",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 

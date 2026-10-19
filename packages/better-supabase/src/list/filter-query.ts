@@ -661,8 +661,8 @@ export interface FilterClock {
 }
 
 /** Resolves date values to bounds in the column's own representation. */
-function dateBounds(
-  field: FilterFieldInfo,
+export function dateBounds(
+  field: { readonly columnMeta: { readonly type: string } },
   value: FilterDateValue,
   clock: FilterClock,
 ): { readonly start: string; readonly end: string } {
@@ -847,7 +847,7 @@ function positive(
 }
 
 /** Negative operators and the positive operator they negate. */
-const NEGATIVE: Readonly<Record<string, string>> = {
+export const NEGATIVE: Readonly<Record<string, string>> = {
   not_empty: "empty",
   not_contains: "contains",
   is_not: "is",

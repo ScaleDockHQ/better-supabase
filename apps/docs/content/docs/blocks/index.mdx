@@ -171,6 +171,7 @@ expose the module schema itself.
 | [Custom domains](/docs/blocks/domains)                      | `better-supabase/blocks/domains`                                                                                                   | `domains`                              |
 | [Reviews](/docs/blocks/reviews)                             | `better-supabase/blocks/reviews`                                                                                                   | `reviews`                              |
 | [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                                                                     | `leave`                                |
+| [Rules](/docs/blocks/rules)                                 | `better-supabase/blocks/rules`                                                                                                     | `rules`                                |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
 ## SDK adapters
@@ -305,6 +306,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `domains`            | `tenant`, `access`                          | `reserved-slugs`                                                                                                                                 |
 | `reviews`            | `tenant`, `access`                          | `catalog`, `orders`, `subjects`, `notifications`, `outbox`, `audit`                                                                              |
 | `leave`              | `tenant`, `access`, `approvals`             | `outbox`, `audit`                                                                                                                                |
+| `rules`              | `tenant`, `access`                          | none                                                                                                                                             |
 | `ensure-rls`         | none                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

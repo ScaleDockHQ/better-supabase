@@ -82,13 +82,13 @@ const graph: WorkflowGraph = {
 };
 ```
 
-| Kind        | Does                                                                                                                                                |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trigger`   | Passes the run's input on                                                                                                                           |
-| `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                                   |
-| `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                                   |
-| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch                |
-| `condition` | Tests `config.path` (under `input`, `results` or `subject`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
+| Kind        | Does                                                                                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trigger`   | Passes the run's input on                                                                                                                                                                |
+| `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                                                                        |
+| `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                                                                        |
+| `approval`  | Files an approvals request (with the engine's `requestApproval`) and waits on its id; `{ approved: false }` takes the `false` branch                                                     |
+| `condition` | Tests `config.path` (under `input`, `results` or `subject`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains`, or a filter tree in `config.filter` |
 
 An edge without a `branch` runs its target when its source ran. From a
 condition or an approval, `branch: "true"` or `"false"` picks the outcome
@@ -99,6 +99,56 @@ branches can join again.
 an invalid condition. The database runs the same checks when it saves a
 draft and when it publishes one. `diffGraphs(from, to)` lists the nodes and
 edges that were added, removed or changed.
+
+### Filter conditions
+
+A `condition` node can test a whole tree instead of one path: the
+`FilterQuery` format of [list filters](/docs/platform/list) and the
+[rules](/docs/blocks/rules) block, with And and Or groups and every
+operator of its field types. `config.fields` declares each field the rules
+name; its `id` is the path it reads under `input`, `results` or `subject`.
+A date field compares instants unless its `columnType` is `date`.
+
+```ts
+const node = {
+  id: "large",
+  kind: "condition",
+  config: {
+    fields: [
+      { id: "input.amount", type: "number" },
+      { id: "subject.type", type: "select" },
+    ],
+    filter: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "amount",
+          type: "rule",
+          path: ["input", "amount"],
+          operator: "gt",
+          value: 500,
+        },
+        {
+          id: "type",
+          type: "rule",
+          path: ["subject", "type"],
+          operator: "is",
+          value: "expense",
+        },
+      ],
+    },
+  },
+};
+```
+
+`conditionOf` checks the tree against the fields with the
+[list limits](/docs/platform/list) (depth 4, 50 rules), and
+`validateGraph` reports a tree without a finished rule as an invalid
+condition. The single-path form keeps working. Relative dates such as
+"7 days ago" resolve against `Date.now()`, which the workflow runtime
+replays deterministically.
 
 ## Editing and publishing
 
@@ -385,6 +435,42 @@ disabled token and `405` for a method other than `POST`. A body that is not
 JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
 header keys the start, so a retried delivery starts one run. Only the
 token's SHA-256 is stored; rotating it ends the old one.
+
+An event trigger's `config.when` narrows which events start it. It is a
+filter condition (see [Filter conditions](#filter-conditions)) whose field
+ids start at `type`, `tenant` or `payload`:
+
+```ts
+await builder.triggers
+  .save({
+    definition: id,
+    kind: "event",
+    config: {
+      type: "expense.submitted",
+      when: {
+        fields: [{ id: "payload.amount", type: "number" }],
+        filter: {
+          id: "root",
+          type: "group",
+          combinator: "and",
+          rules: [
+            {
+              id: "large",
+              type: "rule",
+              path: ["payload", "amount"],
+              operator: "gt",
+              value: 500,
+            },
+          ],
+        },
+      },
+    },
+  })
+  .orThrow();
+```
+
+`onEvent` skips a trigger whose `when` doesn't match the event, and
+`triggers.save` refuses a `when` it can't use (`invalid_input`).
 
 `syncSchedule` writes through the `workflows` option, the workflows block
 built with a transport that may create schedules (the service role);

@@ -123,6 +123,7 @@ const SUBJECT_EVENTS = [
   "review.rejected",
   "review.replied",
   "review.deleted",
+  "rule.matched",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /** Subject events that only the TypeScript block emits, so no SQL catalog lists them. */

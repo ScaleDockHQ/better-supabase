@@ -225,6 +225,34 @@ In the URL, the tree is one `filter` parameter holding base64url JSON, which
 describes it as a query parameter, and `jsonSchema` describes the tree under
 `$defs`.
 
+### Test a tree on one record
+
+`evaluateFilterQuery(query, record, fields, clock)` from
+`better-supabase/list` answers whether one record matches a tree, without a
+query. It uses the same operators, case rules, relative dates and null
+handling as the compiled filter, so a rule that selects a row also matches
+that row in memory. Pass the list's checked fields (`customerList.filters`),
+or your own `FilterRecordField` list, whose `column` may be dotted to read a
+nested value such as `submitter.seniority`:
+
+```ts
+import { evaluateFilterQuery } from "better-supabase/list";
+
+const { matched, results } = evaluateFilterQuery(
+  query.filter,
+  customer,
+  customerList.filters,
+  { timeZone: "Europe/Amsterdam" },
+);
+```
+
+`results` holds every rule and group that took part, by node id: `true`,
+`false`, or `null` when a comparison met a missing value (SQL's unknown,
+which never matches). Unfinished rules, unknown fields and empty groups
+take no part, and a tree with nothing left matches. The
+[rules block](/docs/blocks/rules) stores trees like this per organization
+and runs them on events.
+
 The operator table above was checked against the ReUI registry items
 `filters` and `c-filters-5` (date operators) as published on 2026-10-13, in a
 fixture that the tests compare with `FILTER_OPERATORS`. ReUI publishes no
