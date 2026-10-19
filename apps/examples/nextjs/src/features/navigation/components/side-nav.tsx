@@ -40,6 +40,7 @@ import {
   UsersIcon,
   UsersRoundIcon,
   WaypointsIcon,
+  ListFilterIcon,
   WorkflowIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -69,6 +70,7 @@ const ICONS = {
   workGrid: TableIcon,
   projects: FolderKanbanIcon,
   approvals: ShieldCheckIcon,
+  rules: ListFilterIcon,
   contacts: ContactRoundIcon,
   deals: KanbanIcon,
   quotes: FileTextIcon,
@@ -126,6 +128,10 @@ function useNavLabel() {
 
       case "approvals": {
         return t("Approvals");
+      }
+
+      case "rules": {
+        return t("Rules");
       }
 
       case "people": {
