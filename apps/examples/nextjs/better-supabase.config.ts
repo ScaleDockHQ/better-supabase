@@ -279,6 +279,8 @@ export default defineConfig({
     "workflow-sdk-world": { api: false },
     // Workflows tenants build on a canvas at /workflows/builder.
     "workflow-builder": {},
+    // Tenant rules for expenses, edited with the rule builder at /rules.
+    rules: {},
     // Vault-backed secrets behind the builder's credential references.
     credentials: {},
     // The support inbox behind /inbox and the Help sheet: jobs carry bot

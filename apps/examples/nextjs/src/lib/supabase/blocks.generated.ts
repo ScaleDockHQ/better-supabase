@@ -308,6 +308,11 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  rules: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   "saved-views": {
     schema: "better_supabase",
     api: "api",
