@@ -32,7 +32,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
-import { activityReads } from "./comments-activity.ts";
+import { type ActivitySourceName, activityReads } from "./comments-activity.ts";
 import { commentWrites } from "./comments-writes.ts";
 
 const EVENTS: ModuleEvents<CommentsEvents> = {
@@ -816,7 +816,7 @@ grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
 ${reads.readable}drop policy if exists "activity_entries_read" on ${activity};
 create policy "activity_entries_read" on ${activity} for select to authenticated
-  using (${ctx.scope.check(a("tenant"), permission("activity"))}${reads.rowCheck});${reads.dropReadable}
+  using (${ctx.scope.check(a("tenant"), permission("activity"))}${reads.rowCheck});${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -846,15 +846,19 @@ begin
 end;
 $$;
 
+drop function if exists ${fn("list_activity")}(${id}, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry${reads.auditBranch === "" ? "" : ", audit for an\n-- audit log entry on the subject's row"}.${reads.gate === "" ? "" : "\n-- A registered subject's timeline is empty unless can_subject grants read."}
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: ${sourcesComment(reads.sources)}.${reads.gate === "" ? "" : "\n-- A registered subject's timeline is empty unless can_subject grants read."}
 create or replace function ${fn("list_activity")}(
   tenant ${id},
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -874,11 +878,12 @@ begin${reads.gate}${reads.auditSetup}
       y.${a("occurredAt")} as at, y.${a("id")}::text as id
     from ${activity} y
     where ${ctx.scope.eq(`y.${a("tenant")}`, ctx.scope.value("list_activity.tenant"))}
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y.${a("subjectType")} = list_activity.subject_type)
       and (list_activity.subject_id is null or y.${a("subjectId")} = list_activity.subject_id)
       and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)
     order by y.${a("occurredAt")} desc, y.${a("id")} desc
-    limit v_limit)${reads.auditBranch}
+    limit v_limit)${reads.auditBranch}${reads.sourceBranches}
     ) u
     order by u.at desc, u.id desc
     limit v_limit
@@ -891,7 +896,7 @@ revoke execute on function ${fn("comment_subject_readable")}(text, text, ${id}) 
 revoke execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) from public, anon;
 revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) from public, anon;
 revoke execute on function ${fn("copy_comments")}(${id}, text, text, text, text) from public, anon, authenticated;
-revoke execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) from public, anon;
+revoke execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function ${fn("delete_comment")}(uuid) from public, anon;
 revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function ${fn("comment_counts")}(${id}, text, text[]) from public, anon;
@@ -900,11 +905,22 @@ grant execute on function ${fn("comment_subject_readable")}(text, text, ${id}) t
 grant execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) to authenticated, service_role;
 grant execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) to authenticated, service_role;
 grant execute on function ${fn("copy_comments")}(${id}, text, text, text, text) to service_role;
-grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function ${fn("delete_comment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function ${fn("comment_counts")}(${id}, text, text[]) to authenticated, service_role;
 grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
+}
+
+const SOURCE_COMMENTS: Readonly<Record<ActivitySourceName, string>> = {
+  event: "event for an activity entry",
+  audit: "audit for an audit log entry on the subject's row",
+  delivery: "delivery for a notification delivery about the subject",
+  run: "run for a workflow run on the subject",
+};
+
+function sourcesComment(sources: readonly ActivitySourceName[]): string {
+  return sources.map((source) => SOURCE_COMMENTS[source]).join(",\n-- ");
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -942,7 +958,14 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     {
       name: "list_activity",
-      args: ["{id}", "text", "text", "timestamp with time zone", "integer"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "timestamp with time zone",
+        "integer",
+        "text[]",
+      ],
       returns: "jsonb",
     },
     { name: "delete_comment", args: ["uuid"], returns: "boolean" },
@@ -969,20 +992,30 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 }
 
 export const COMMENTS: ModuleDefinition = {
-  internal: ["comment_subject_readable", "activity_subject_readable"],
+  internal: [
+    "comment_subject_readable",
+    "activity_subject_readable",
+    "activity_subject_deliveries",
+  ],
   // comments_before_write refuses any update to a deleted comment.
   hidingColumns: ["comments.deletedAt"],
   name: "comments",
   scopes: ["tenant", "user", "none"],
   title: "Comments and activity",
   description:
-    "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.",
+    "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.",
   requires: ["tenant", "access"],
-  integrates: ["jsonb-schemas", "notifications", "subjects", "audit"],
+  integrates: [
+    "jsonb-schemas",
+    "notifications",
+    "subjects",
+    "audit",
+    "workflows",
+  ],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -1009,6 +1042,13 @@ export const COMMENTS: ModuleDefinition = {
         "list_comments takes after_id, so a cursor page doesn't skip comments created in the same instant.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer, integer);`,
+    },
+    {
+      from: 5,
+      description:
+        "list_activity takes sources and returns a registered subject's notification deliveries and workflow runs.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("list_activity")}(${ctx.idType}, text, text, timestamptz, integer);`,
     },
   ],
   names: NAMES,

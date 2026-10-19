@@ -52,6 +52,7 @@ import type {
 } from "../../src/blocks/jobs/manifest.ts";
 import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.ts";
 import type { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
+import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
 import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
 import type { mfaBlock } from "../../src/blocks/mfa/manifest.ts";
@@ -76,6 +77,7 @@ import type { realtimeTablesBlock } from "../../src/blocks/realtime-tables/manif
 import type { relationsBlock } from "../../src/blocks/relations/manifest.ts";
 import type { remindersBlock } from "../../src/blocks/reminders/manifest.ts";
 import type { reservedSlugsBlock } from "../../src/blocks/reserved-slugs/manifest.ts";
+import type { reviewsBlock } from "../../src/blocks/reviews/manifest.ts";
 import type { savedViewsBlock } from "../../src/blocks/saved-views/manifest.ts";
 import type { searchBlock } from "../../src/blocks/search/manifest.ts";
 import type { servicePrincipalsBlock } from "../../src/blocks/service-principals/manifest.ts";
@@ -163,6 +165,7 @@ export type AllBlocks = {
   readonly webhookInbox: typeof webhookInboxBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
+  readonly leave: typeof leaveBlock;
   readonly memory: typeof memoryBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;
@@ -187,6 +190,7 @@ export type AllBlocks = {
   readonly relations: typeof relationsBlock;
   readonly reminders: typeof remindersBlock;
   readonly reservedSlugs: typeof reservedSlugsBlock;
+  readonly reviews: typeof reviewsBlock;
   readonly savedViews: typeof savedViewsBlock;
   readonly search: typeof searchBlock;
   readonly servicePrincipals: typeof servicePrincipalsBlock;

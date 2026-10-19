@@ -50,3 +50,5 @@ targets
 hiring
 employees
 collections
+reviews
+leave

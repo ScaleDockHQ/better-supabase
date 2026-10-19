@@ -1,6 +1,6 @@
 -- better-supabase module: comments (0.8.0)
--- @bs-module comments@5 managed
--- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries when subjects and audit are installed.
+-- @bs-module comments@6 managed
+-- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -421,6 +421,37 @@ create policy "activity_entries_read" on "better_supabase"."activity_entries" fo
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
+-- The deliveries of the notifications about a registered subject, for
+-- list_activity. Deliveries are readable only by their recipient, so this
+-- runs as definer and needs activity read and notification send in tenant.
+create or replace function "better_supabase"."activity_subject_deliveries"(tenant uuid, subject_type text, subject_id text, before timestamptz, max_rows integer)
+returns table (entry jsonb, at timestamptz, id text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  select jsonb_build_object('id', d."id"::text, 'organization_id', ev."organization_id", 'event_id', null::text, 'type', 'delivery.' || d."status", 'actor_id', null::uuid, 'subject_type', activity_subject_deliveries.subject_type, 'subject_id', activity_subject_deliveries.subject_id, 'summary', ev."summary", 'data', jsonb_strip_nulls(jsonb_build_object('notificationId', ev."id", 'notificationType', ev."type", 'channel', d."channel", 'status', d."status", 'userId', rc."user_id", 'providerStatus', d."provider_status", 'templateKey', d."template_key", 'error', d."error", 'deliveredAt', d."delivered_at")), 'occurred_at', d."created_at", 'source', 'delivery'),
+    d."created_at", d."id"::text
+  from "better_supabase"."notification_deliveries" d
+  join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
+  join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
+  where activity_subject_deliveries.subject_type = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project,task}'::text[])
+    and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+      or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'activity.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
+    and ev."organization_id" = activity_subject_deliveries.tenant
+    and ev."subject_type" = activity_subject_deliveries.subject_type
+    and ev."subject_id" = activity_subject_deliveries.subject_id
+    and (activity_subject_deliveries.before is null or d."created_at" < activity_subject_deliveries.before)
+  order by d."created_at" desc, d."id" desc
+  limit least(greatest(coalesce(activity_subject_deliveries.max_rows, 50), 1), 500);
+end;
+$$;
+revoke execute on function "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -450,17 +481,23 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer);
+
 -- A tenant's activity, newest first, or one subject's timeline with
--- subject_type and subject_id; before pages back. Runs as the caller, and
--- each entry carries source: event for an activity entry, audit for an
--- audit log entry on the subject's row.
+-- subject_type and subject_id; before pages back, and sources (null for
+-- all) picks the kinds of entry. Runs as the caller, and each entry carries
+-- source: event for an activity entry,
+-- audit for an audit log entry on the subject's row,
+-- delivery for a notification delivery about the subject,
+-- run for a workflow run on the subject.
 -- A registered subject's timeline is empty unless can_subject grants read.
 create or replace function "better_supabase"."list_activity"(
   tenant uuid,
   subject_type text default null,
   subject_id text default null,
   before timestamptz default null,
-  max_rows integer default 50
+  max_rows integer default 50,
+  sources text[] default null
 )
 returns jsonb
 language plpgsql
@@ -501,6 +538,7 @@ begin
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."activity_entries" y
     where y."organization_id" = list_activity.tenant
+      and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
@@ -511,12 +549,31 @@ begin
       l."occurred_at" as at, l."id"::text as id
     from "better_supabase"."audit_events" l
     where v_table is not null
+      and (list_activity.sources is null or 'audit' = any (list_activity.sources))
       and l."table_name" = v_table
       and l."record_id" = list_activity.subject_id
       and l."organization_id" = list_activity.tenant
       and (list_activity.before is null or l."occurred_at" < list_activity.before)
     order by l."occurred_at" desc, l."id" desc
     limit v_limit)
+    union all
+    (select jsonb_build_object('id', r."id"::text, 'organization_id', r."tenant_id", 'event_id', null::text, 'type', 'run.' || r."status", 'actor_id', r."actor_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', null::text, 'data', jsonb_strip_nulls(jsonb_build_object('runId', r."id", 'definition', r."definition", 'engine', r."engine", 'status', r."status", 'mode', r."mode", 'error', r."error"::text, 'completedAt', r."completed_at")), 'occurred_at', r."created_at", 'source', 'run') as entry,
+      r."created_at" as at, r."id"::text as id
+    from "better_supabase"."workflow_runs" r
+    where list_activity.subject_id is not null
+      and list_activity.subject_type = any ('{customer,company,person,deal,work_item,employee,product,product_variant,drive_node,application,project,task}'::text[])
+      and (list_activity.sources is null or 'run' = any (list_activity.sources))
+      and r."tenant_id" = list_activity.tenant
+      and r."subject_type" = list_activity.subject_type
+      and r."subject_id" = list_activity.subject_id
+      and (list_activity.before is null or r."created_at" < list_activity.before)
+    order by r."created_at" desc, r."id" desc
+    limit v_limit)
+    union all
+    (select d.entry, d.at, d.id
+    from "better_supabase"."activity_subject_deliveries"(list_activity.tenant, list_activity.subject_type, list_activity.subject_id, list_activity.before, v_limit) d
+    where list_activity.subject_id is not null
+      and (list_activity.sources is null or 'delivery' = any (list_activity.sources)))
     ) u
     order by u.at desc, u.id desc
     limit v_limit
@@ -556,7 +613,7 @@ revoke execute on function "better_supabase"."comment_subject_readable"(text, te
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
@@ -565,7 +622,7 @@ grant execute on function "better_supabase"."comment_subject_readable"(text, tex
 grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
-grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
@@ -577,6 +634,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."activity_subject_readable"(text, text);
+drop function if exists "api"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 drop function if exists "api"."comment_subject_readable"(text, text, uuid);
 
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid);
@@ -585,6 +643,7 @@ drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], u
 drop function if exists "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean, jsonb);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
 drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer, integer);
+drop function if exists "api"."list_activity"(uuid, text, text, timestamptz, integer);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -631,14 +690,14 @@ as $$ select "better_supabase"."copy_comments"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."copy_comments"(uuid, text, text, text, text) to service_role;
 
-create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50)
+create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50, sources text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
-grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer, text[]) from public, anon;
+grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer, text[]) to authenticated, service_role;
 
 create or replace function "api"."delete_comment"(id uuid)
 returns boolean

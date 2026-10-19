@@ -40,3 +40,4 @@ time-tracking
 service-principals
 employees
 domains
+leave

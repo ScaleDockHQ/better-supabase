@@ -60,6 +60,7 @@ import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { LEAVE } from "./modules/leave.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
@@ -85,6 +86,7 @@ import { REALTIME_TABLES } from "./modules/realtime-tables.ts";
 import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
+import { REVIEWS } from "./modules/reviews.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
@@ -299,6 +301,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SHARED_SIGNALS),
       built(OAUTH_SERVER),
       built(DOMAINS),
+      built(REVIEWS),
+      built(LEAVE),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

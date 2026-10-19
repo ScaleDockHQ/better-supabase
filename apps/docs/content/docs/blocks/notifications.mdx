@@ -420,7 +420,7 @@ blocks: {
     options: {
       subjects: {
         expense: { table: "expenses", cascade: true },
-        "time-off-request": { table: "time_off_requests", cascade: true },
+        "support-ticket": { table: "support_tickets", cascade: true },
       },
     },
   },
@@ -434,6 +434,9 @@ with `cascade: true` cleans up its notifications too. A list of registered
 type names (`subjects: ["expense"]`) limits it to those. The subject tables
 must exist before the module file, and the events table needs its
 `subjectType` and `subjectId` columns.
+
+Time off doesn't need a table of your own: the [leave](/docs/blocks/leave)
+block keeps requests, their approvals and each member's balance.
 
 ## Email, push and other channels
 

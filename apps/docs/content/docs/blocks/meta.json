@@ -91,6 +91,8 @@
     "signing-keys",
     "shared-signals",
     "oauth-server",
-    "domains"
+    "domains",
+    "reviews",
+    "leave"
   ]
 }

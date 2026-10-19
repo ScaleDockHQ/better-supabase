@@ -453,7 +453,7 @@ replayed batch writes nothing twice. The actor is the event's `actorId`,
 (or the CloudEvents `subject`). `describe` can set the summary, actor,
 subject and data, or return `null` to skip an event.
 
-`comments.history(organizationId, subject?, { before, limit })` reads the
+`comments.history(organizationId, subject?, { before, limit, sources })` reads the
 feed through `list_activity`, which runs as the caller: the tenant's entries
 newest first, or one subject's timeline when you pass `{ type, id }`. It works
 over `rpcTransport` too, without exposing the module schema.
@@ -464,8 +464,19 @@ const timeline = await comments
   .orThrow();
 ```
 
-Each entry carries a `source`: `event` for a row of `activity_entries`, or
-`audit` for an audit log entry (see below).
+Each entry carries a `source`: `event` for a row of `activity_entries`,
+`audit` for an audit log entry, `delivery` for a notification delivery and
+`run` for a workflow run (see below). Pass `sources` to keep some of them:
+
+```ts
+const sent = await comments
+  .history(
+    organizationId,
+    { type: "quote", id: quoteId },
+    { sources: ["delivery"] },
+  )
+  .orThrow();
+```
 
 ### Visibility per record
 
@@ -490,6 +501,28 @@ gates them, so only callers who hold `audit.read` (by default `admin` and
 as `id`, no `eventId`, the audit event type as `type` (`audit.<op>` when it
 has none), and `op`, `changed` and `table` in `data`. The tenant feed and
 `activityListQuery` list no audit entries.
+
+### Deliveries and workflow runs in a timeline
+
+With the subject registry and the [notifications](/docs/blocks/notifications)
+module, a subject's timeline also returns the deliveries of notifications
+about the subject: one entry per channel and recipient, with
+`source: "delivery"`, `delivery.<status>` as `type` and `channel`, `status`,
+`userId`, `notificationId` and `notificationType` (plus `providerStatus` and
+`templateKey` when tracked) in `data`. A recipient can read only their own
+deliveries, so `list_activity` reads them through the security definer
+function `activity_subject_deliveries`, which returns them to callers who
+hold both `activity.read` and `notifications.send`, the same bar as
+`list_subject_deliveries`.
+
+With the [workflows](/docs/blocks/workflows) module, it returns the
+subject's workflow runs with `source: "run"`, `run.<status>` as `type` and
+`runId`, `definition`, `status` and `error` in `data`. Runs are read as the
+caller, so the run's read policy applies: its actor, or members with
+`workflow.read` (by default only `owner`).
+
+Both need `can_subject` read on the subject, and the tenant feed lists
+neither.
 
 Or read the feed with `activityListQuery`, a cursor-paged
 [list query](/docs/platform/list) filtered by type, actor and

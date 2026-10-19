@@ -409,7 +409,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "jsonb-schemas",
         "notifications",
         "subjects",
-        "audit"
+        "audit",
+        "workflows"
       ],
       "manifest": "comments",
       "scopes": [
@@ -1160,6 +1161,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "state-machine",
         "access-requests",
         "time-tracking",
+        "leave",
         "ai-chat",
         "support-sessions"
       ],
@@ -1755,6 +1757,47 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "reviews",
+      "title": "Reviews",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "catalog",
+        "orders",
+        "subjects",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "reviews",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "reviews"
+    },
+    {
+      "name": "leave",
+      "title": "Leave",
+      "category": "people",
+      "requires": [
+        "tenant",
+        "access",
+        "approvals"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "leave",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "requests"
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2121,6 +2164,32 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "domainsBlock",
         "subpath": "better-supabase/blocks/domains"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "reviews",
+      "sql": [
+        "reviews"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "reviewsBlock",
+        "subpath": "better-supabase/blocks/reviews"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "leave",
+      "sql": [
+        "leave"
+      ],
+      "category": "people",
+      "client": {
+        "export": "leaveBlock",
+        "subpath": "better-supabase/blocks/leave"
       },
       "consumes": {},
       "provides": []

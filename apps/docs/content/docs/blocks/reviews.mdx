@@ -1,0 +1,94 @@
+---
+title: Reviews
+description: Ratings and reviews of catalog products and other records, one per user and subject, verified against paid orders, moderated before or after publishing, with an aggregate a public storefront can read.
+---
+
+`reviews` lets signed-in users rate and review a catalog product or another record they can read. Each user writes one review per subject and can replace it. A review is marked verified when the [orders](/docs/blocks/orders) module shows the reviewer paid for the product, and a moderator publishes or rejects it before or after it goes live.
+
+Moderating, replying and reading the queue need `reviews.manage`. Admins get it. Writing a review needs no permission: any signed-in user who can read the subject can review it.
+
+```bash
+better-supabase add reviews
+```
+
+The module needs `tenant` and `access`. With [catalog](/docs/blocks/catalog) installed, products are reviewable (subject type `product`); with `orders` installed, reviews of a product carry `verified`.
+
+```ts
+import { createReviews } from "better-supabase/blocks/reviews";
+
+const reviews = createReviews({ transport });
+
+await reviews
+  .submit(organizationId, "product", productId, {
+    rating: 5,
+    title: "Fits well",
+    body: "True to size and the fabric holds up.",
+    authorName: "Ada",
+  })
+  .orThrow();
+```
+
+## Who can review
+
+A product can be reviewed while it is active and either listed on a published public storefront or readable by the caller through `catalog.read`. Any other subject type must be named in `options.subjects` (or the [subject registry](/docs/blocks/sql#subject-registry)), and the reviewer must be a member of the subject's organization who can read the row.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    reviews: {
+      options: {
+        subjects: { course: { table: "public.courses" } },
+        moderation: "post",
+        requirePurchase: true,
+      },
+    },
+  },
+});
+```
+
+| Option            | Default | What it does                                                              |
+| ----------------- | ------- | ------------------------------------------------------------------------- |
+| `subjects`        | none    | Subject types besides `product`, each with its table                      |
+| `scale`           | `5`     | The highest rating, from 2 to 10                                          |
+| `maxBodyLength`   | `5000`  | The longest body and reply                                                |
+| `moderation`      | `pre`   | `pre` waits for `publish`; `post` publishes at once and moderators reject |
+| `requirePurchase` | `false` | Only customers with a paid, uncancelled order for the product can review  |
+| `extraColumns`    | none    | Your own columns on `reviews`, typed with the client's `fields` schema    |
+
+`requirePurchase` needs the `orders` block with its tables. Submitting again replaces the caller's review and, under pre-moderation, sends it back to `pending`.
+
+## The product page
+
+`list` returns a subject's published reviews, newest first, without author ids. Anonymous visitors can call it for products on a public storefront. `summary` returns the count, mean rating and histogram of up to 200 subjects of one type, read from the `review_stats` table the module keeps current, so a product grid costs one call.
+
+```ts
+const page = await reviews
+  .list(organizationId, "product", productId, { pageSize: 20, verified: true })
+  .orThrow();
+
+const stats = await reviews
+  .summary(organizationId, "product", productIds)
+  .orThrow();
+// stats[productId]: { count: 12, average: 4.25, histogram: { 5: 7, 4: 3, 3: 2 } }
+```
+
+Subjects without a published review are left out of `summary`. `mine` returns the caller's own review in any status, with the rejection reason, so the product page can show it next to the form.
+
+## Moderation
+
+`queue(organizationId)` lists pending reviews for moderators; pass `status: null` for every status, or `subjectType` and `subjectId` for one subject. `publish`, `reject(reviewId, reason)` and `reply(reviewId, text)` need `reviews.manage`. The author sees the rejection reason, and everyone sees the reply under the review. With the [notifications](/docs/blocks/notifications) module installed, the author is notified when their review is published, rejected or answered. `remove` deletes a review for its author or a moderator.
+
+## Errors
+
+| Hint                       | Cause                                                                    |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `REVIEW_FORBIDDEN`         | the caller can't read the subject, or lacks `reviews.manage`             |
+| `REVIEW_INVALID`           | a rating outside the scale, or a body or reply over `maxBodyLength`      |
+| `REVIEW_NOT_FOUND`         | no review the caller can see has this id                                 |
+| `REVIEW_PURCHASE_REQUIRED` | `requirePurchase` is on and the caller has no paid order for the product |
+
+## Events
+
+The block records `review.submitted`, `review.published`, `review.rejected`, `review.replied` and `review.deleted` with `organizationId`, `id`, `subjectType`, `subjectId`, `authorId`, `rating`, `status` and `verified`. See [events](/docs/extending/events).
+
+The block takes `hooks` around its methods, and `before_review_submit` and `after_review_submit` run in the database; see [extending blocks](/docs/extending/blocks).
