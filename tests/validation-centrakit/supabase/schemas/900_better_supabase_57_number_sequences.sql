@@ -142,6 +142,32 @@ $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
 
+-- Raises each sequence to the highest number its table already holds, per
+-- tenant and period, for rows numbered outside next_number: seeds, imports
+-- and restores. A null tenant or entity syncs every one.
+create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows integer := 0;
+  v_count integer;
+begin
+  if not ((centrakit.authz_actor_may_write())) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if p_entity is not null and not (false) then
+    raise exception 'no numbered table for this sequence' using errcode = '22023', hint = 'NUMBER_ENTITY_UNKNOWN';
+  end if;
+
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."sync_number_sequences"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."sync_number_sequences"(uuid, text) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

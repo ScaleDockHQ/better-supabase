@@ -17,7 +17,42 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 | ------------------ | ----------------------------------------------- |
 | `number_sequences` | The last number for a tenant, entity and period |
 
-Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `periodColumn` is only read by `sync_number_sequences` (see [existing numbers](#existing-numbers)).
+
+## Existing numbers
+
+`next_number` counts from `last_number`, so rows that got their number another way leave the counter behind: seed data, an import, a restore, or a table adopted with its documents already numbered. The next number then repeats one that exists. `sync_number_sequences` raises each counter to the highest number its table holds, per tenant and period, and never lowers one:
+
+```sql
+-- every entity with a table and column, for every tenant
+select better_supabase.sync_number_sequences();
+
+-- one tenant, one entity
+select better_supabase.sync_number_sequences('6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69', 'invoice');
+```
+
+It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC:
+
+```ts title="better-supabase.config.ts"
+"number-sequences": {
+  options: {
+    entities: {
+      invoice: {
+        period: "year",
+        format: "{n}",
+        table: "public.invoices",
+        column: "number",
+        tenantColumn: "organization_id",
+        periodColumn: "issued_at",
+      },
+    },
+  },
+},
+```
+
+Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
+
+Run it after anything that writes numbered rows directly. After seeding, end `supabase/seed.sql` with `select better_supabase.sync_number_sequences();`, so `supabase db reset` leaves the counters past the seeded documents. After an import, call it in the same transaction as the import. After adopting tables whose documents already have numbers, run it once in a data migration.
 
 ## Hooks
 

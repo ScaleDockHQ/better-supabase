@@ -32,6 +32,12 @@ create table public.org_sequences (
   primary key (organization_id, entity, period)
 );
 
+create table public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  number text
+);
+
 create table public.org_tags (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
@@ -59,7 +65,17 @@ const BLOCKS: AnyBlocksConfig = {
     mode: "adopt",
     tables: { sequences: "public.org_sequences" },
     columns: { sequences: { tenant: "organization_id" } },
-    options: { entities: { invoice: { period: "none", format: "INV-{n}" } } },
+    options: {
+      entities: {
+        invoice: {
+          period: "none",
+          format: "INV-{n}",
+          table: "public.invoices",
+          column: "number",
+          tenantColumn: "organization_id",
+        },
+      },
+    },
   },
   tags: {
     mode: "adopt",
@@ -115,6 +131,23 @@ begin
   v_second := better_supabase.next_number('${TENANT}', 'invoice');
   if v_first <> 1 or v_second <> 2 then
     raise exception 'numbered % and %', v_first, v_second;
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("syncs an enum entity column from the numbers a table holds", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_number text;
+begin
+  insert into public.invoices (organization_id, number) values ('${TENANT}', 'INV-41');
+  perform better_supabase.sync_number_sequences();
+  insert into public.invoices (organization_id) values ('${TENANT}') returning number into v_number;
+  if v_number <> 'INV-42' then
+    raise exception 'numbered %', v_number;
   end if;
 end;
 $$;`),
