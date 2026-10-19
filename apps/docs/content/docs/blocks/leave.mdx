@@ -1,0 +1,108 @@
+---
+title: Leave
+description: Leave types in days or hours, requests approved through the approvals module, and a balance ledger per member and year with grants, accruals, adjustments and a year-end carryover.
+---
+
+`leave` keeps time off per organization: the types an organization offers (vacation, sick leave, a day off in lieu), the requests members file, and a ledger that every balance is computed from. A request opens an approval request in the [approvals](/docs/blocks/approvals) module, and the final approval books it.
+
+Requesting leave needs `leave.request`, reading other members' requests and balances needs `leave.read`, approving needs `leave.approve` (the default approval step), and managing types, adjusting balances and closing a year needs `leave.manage`. Admins get every permission and members get `leave.request`.
+
+```bash
+better-supabase add leave
+```
+
+The module needs `tenant`, `access` and `approvals`.
+
+```ts
+import { createLeave } from "better-supabase/blocks/leave";
+
+const leave = createLeave({ transport });
+
+const vacation = await leave
+  .saveType(organizationId, {
+    key: "vacation",
+    name: "Vacation",
+    allowance: 25,
+    carryoverMax: 5,
+  })
+  .orThrow();
+await leave
+  .accrue(organizationId, { typeId: vacation.id, period: 2026 })
+  .orThrow();
+
+const request = await leave
+  .request(organizationId, {
+    typeId: vacation.id,
+    startsOn: Temporal.PlainDate.from("2026-10-19"),
+    endsOn: Temporal.PlainDate.from("2026-10-23"),
+  })
+  .orThrow();
+// request.amount: 5 (working days), request.status: "pending"
+```
+
+## Types
+
+`saveType` creates a type, or updates the one with the same `key`. A type counts in `days` (the default) or `hours`, is paid or not, and is tracked against a balance unless `tracked: false` (sick leave, for example, often isn't). `allowance` is what `accrue` grants when it names no amount, and `carryoverMax` caps what `closePeriod` carries into the next year. `archiveType` hides a type from new requests and keeps its history, and `types` lists the active ones (`archived: true` for all).
+
+## Requests
+
+`request` books working days between `startsOn` and `endsOn`, inclusive: the days in `workingDays` (Monday to Friday by default), so a request over a weekend counts five days for a full week. `partial: "morning"` or `"afternoon"` books half a day and needs one date. An hours type takes `hours` instead.
+
+A request can't overlap another pending or approved request of the member (`LEAVE_OVERLAP`). For a tracked type it can't exceed the available balance (`LEAVE_BALANCE_EXCEEDED`) unless `allowNegative` is on. A request counts toward the year it starts in.
+
+| Status      | Meaning                                                    |
+| ----------- | ---------------------------------------------------------- |
+| `pending`   | its approval request is open; it counts as `pending`       |
+| `approved`  | the final step approved it; the ledger has a `taken` entry |
+| `rejected`  | the approval request was rejected or expired               |
+| `cancelled` | the requester or a manager cancelled it                    |
+
+Approvers decide with the approvals client, where the request's subject type is `leave_request`:
+
+```ts
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const approvals = createApprovals({ transport });
+await approvals.approve(request.approvalId!).orThrow();
+```
+
+`cancel(requestId)` cancels a pending request, or an approved one before the leave starts, for its requester, and any request for a member with `leave.manage`. It cancels a pending approval request with it. Cancelling an approved request writes an entry that gives the days back. `list` returns the caller's requests, earliest first, and `userId` or `everyone: true` read other members' with `leave.read`; `status`, `from` and `to` narrow it.
+
+## Balances
+
+Every change to a balance is a ledger entry: `grant`, `accrual`, `adjustment`, `taken`, `carryover` or `expiry`, with a signed amount and the year it counts toward. `balances(organizationId)` returns the caller's balance of each tracked type this year (pass `userId` and `period` for others), with `granted`, `taken`, `pending` and `available`, which is the ledger total less pending requests. `ledger` lists the entries behind it.
+
+`adjust` writes a grant or a correction for one member. `accrue` grants an amount, or the type's allowance, to every member or to `userIds`; give it an `idempotencyKey` and a member gets that accrual once, so a monthly cron can call it safely. `closePeriod(organizationId, 2026)` carries each member's remaining balance, up to `carryoverMax`, into 2027 and expires the rest. Running it twice writes nothing the second time.
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  leave: {
+    options: {
+      workingDays: ["mon", "tue", "wed", "thu"],
+      policy: { steps: [{ approvers: { role: "admin" } }], expiresIn: "P14D" },
+    },
+  },
+},
+```
+
+`policy` is an [approvals policy](/docs/blocks/approvals) without `run`, since the final approval books the leave. `extraColumns` adds your own columns to requests, typed with the client's `fields` schema.
+
+## Errors
+
+| Hint                      | Cause                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `LEAVE_FORBIDDEN`         | the caller lacks the permission for this                                                            |
+| `LEAVE_INVALID`           | dates out of order, a half day over several dates, missing hours, a zero amount, or no working days |
+| `LEAVE_OVERLAP`           | the member has a pending or approved request on these dates                                         |
+| `LEAVE_BALANCE_EXCEEDED`  | the request is more than the available balance                                                      |
+| `LEAVE_TYPE_NOT_FOUND`    | no active type has this id                                                                          |
+| `LEAVE_REQUEST_NOT_FOUND` | no request the caller can see has this id                                                           |
+| `LEAVE_REQUEST_CLOSED`    | the request is already cancelled                                                                    |
+
+## Events
+
+The block records `leave.requested`, `leave.approved` and `leave.cancelled` with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
+
+The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).

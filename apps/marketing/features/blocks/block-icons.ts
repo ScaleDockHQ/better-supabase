@@ -88,6 +88,7 @@ import {
   SmartphoneIcon,
   SmilePlusIcon,
   SquareCheckBigIcon,
+  StarIcon,
   StampIcon,
   TagIcon,
   TargetIcon,
@@ -95,6 +96,7 @@ import {
   TextCursorInputIcon,
   TicketPercentIcon,
   TimerIcon,
+  TreePalmIcon,
   Trash2Icon,
   UserPenIcon,
   UserPlusIcon,
@@ -170,6 +172,7 @@ export const BLOCK_ICONS = {
   collections: LibraryIcon,
   // People
   "time-tracking": TimerIcon,
+  leave: TreePalmIcon,
   hiring: UserPlusIcon,
   employees: IdCardIcon,
   // Billing & commerce
@@ -177,6 +180,7 @@ export const BLOCK_ICONS = {
   usage: GaugeIcon,
   billing: CreditCardIcon,
   catalog: PackageIcon,
+  reviews: StarIcon,
   inventory: WarehouseIcon,
   orders: ShoppingCartIcon,
   promotions: TicketPercentIcon,

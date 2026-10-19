@@ -113,4 +113,6 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "shared-signals",
   "oauth-server",
   "domains",
+  "reviews",
+  "leave",
 ];

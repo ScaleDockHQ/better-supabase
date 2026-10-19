@@ -42,6 +42,8 @@ const PURE_BARRELS = [
   "blocks/signing-keys",
   "blocks/oauth-server",
   "blocks/domains",
+  "blocks/reviews",
+  "blocks/leave",
   "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",

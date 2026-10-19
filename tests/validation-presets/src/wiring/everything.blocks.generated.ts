@@ -129,6 +129,14 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  reviews: {
+    schema: "better_supabase",
+    options: {},
+  },
+  leave: {
+    schema: "better_supabase",
+    options: {},
+  },
   drive: {
     schema: "better_supabase",
     options: {},

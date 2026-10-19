@@ -28,6 +28,8 @@ import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock } from "better-supabase/blocks/deals";
 import { documentsBlock } from "better-supabase/blocks/documents";
 import { domainsBlock } from "better-supabase/blocks/domains";
+import { reviewsBlock } from "better-supabase/blocks/reviews";
+import { leaveBlock } from "better-supabase/blocks/leave";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -119,6 +121,8 @@ export const blockSet = defineBlocks(blockConfig, {
   deals: dealsBlock,
   documents: documentsBlock,
   domains: domainsBlock,
+  reviews: reviewsBlock,
+  leave: leaveBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

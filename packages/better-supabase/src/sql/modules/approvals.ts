@@ -41,6 +41,9 @@ export const ACCESS_REQUEST_SUBJECT = "access_request";
 /** Requests the time-tracking module files; their subject is a timesheet. */
 export const TIMESHEET_SUBJECT = "timesheet";
 
+/** Requests the leave module files; their subject is a leave request. */
+export const LEAVE_REQUEST_SUBJECT = "leave_request";
+
 /** Tool calls the ai-chat module files; their subject is its approval row, action `run`. */
 export const AI_TOOL_SUBJECT = "ai_tool_approval";
 
@@ -167,10 +170,18 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ? ctx.of("time-tracking")
       : undefined;
 
-  const ownSubjects =
-    timesheets === undefined
-      ? sqlString(ACCESS_REQUEST_SUBJECT)
-      : `${sqlString(ACCESS_REQUEST_SUBJECT)}, ${sqlString(TIMESHEET_SUBJECT)}`;
+  const leave =
+    ctx.installed("leave") && ctx.of("leave").mode !== "custom"
+      ? ctx.of("leave")
+      : undefined;
+
+  const own = [
+    ACCESS_REQUEST_SUBJECT,
+    ...(timesheets === undefined ? [] : [TIMESHEET_SUBJECT]),
+    ...(leave === undefined ? [] : [LEAVE_REQUEST_SUBJECT]),
+  ];
+
+  const ownSubjects = own.map((type) => sqlString(type)).join(", ");
 
   const aiChat =
     ctx.installed("ai-chat") && ctx.of("ai-chat").mode !== "custom"
@@ -197,7 +208,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
 
   const declared = (row: string): string =>
-    `(${row}.${c("subjectType")} ${timesheets === undefined ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
+    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
       ctx,
       subjects,
       {
@@ -323,6 +334,14 @@ ${queues
       : `
   if v_req.${c("subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} then
     perform ${timesheets.fn("approve_timesheet")}(v_req.${c("subjectId")}::uuid);
+  end if;`;
+
+  const leaveRun =
+    leave === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(LEAVE_REQUEST_SUBJECT)} then
+    perform ${leave.fn("approve_leave_request")}(v_req.${c("subjectId")}::uuid);
   end if;`;
 
   const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
@@ -582,7 +601,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${aiRun}${supportRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${aiRun}${supportRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -1022,6 +1041,7 @@ export const APPROVALS: ModuleDefinition = {
     "state-machine",
     "access-requests",
     "time-tracking",
+    "leave",
     "ai-chat",
     "support-sessions",
   ],

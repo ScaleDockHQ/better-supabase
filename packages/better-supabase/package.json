@@ -842,6 +842,16 @@
       "types": "./dist/blocks/domains/index.d.ts",
       "default": "./dist/blocks/domains/index.js"
     },
+    "./blocks/reviews": {
+      "@better-supabase/source": "./src/blocks/reviews/index.ts",
+      "types": "./dist/blocks/reviews/index.d.ts",
+      "default": "./dist/blocks/reviews/index.js"
+    },
+    "./blocks/leave": {
+      "@better-supabase/source": "./src/blocks/leave/index.ts",
+      "types": "./dist/blocks/leave/index.d.ts",
+      "default": "./dist/blocks/leave/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2079,6 +2089,14 @@
       "./blocks/domains": {
         "types": "./dist/blocks/domains/index.d.ts",
         "default": "./dist/blocks/domains/index.js"
+      },
+      "./blocks/reviews": {
+        "types": "./dist/blocks/reviews/index.d.ts",
+        "default": "./dist/blocks/reviews/index.js"
+      },
+      "./blocks/leave": {
+        "types": "./dist/blocks/leave/index.d.ts",
+        "default": "./dist/blocks/leave/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

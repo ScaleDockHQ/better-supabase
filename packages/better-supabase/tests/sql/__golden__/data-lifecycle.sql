@@ -1402,6 +1402,9 @@ as $$
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.favorites', '"better_supabase"."favorites"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.reviews', '"better_supabase"."reviews"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.leave_ledger', '"better_supabase"."leave_ledger"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -1597,7 +1600,12 @@ as $$
     ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.favorites', '"better_supabase"."favorites"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.organization_hostnames', '"better_supabase"."organization_hostnames"', 'organization_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.organization_hostnames', '"better_supabase"."organization_hostnames"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.reviews', '"better_supabase"."reviews"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.review_stats', '"better_supabase"."review_stats"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.leave_types', '"better_supabase"."leave_types"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.leave_ledger', '"better_supabase"."leave_ledger"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 

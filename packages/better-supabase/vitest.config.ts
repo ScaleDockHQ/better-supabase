@@ -45,7 +45,7 @@ export default defineConfig({
       // own line.
       thresholds: {
         statements: 97,
-        lines: 96,
+        lines: 97,
         functions: 98,
         branches: 91,
         "src/cli/**": {

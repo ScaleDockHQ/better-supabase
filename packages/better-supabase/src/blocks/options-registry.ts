@@ -131,6 +131,7 @@ import {
   type KnowledgeSqlOptions,
   knowledgeSqlOptions,
 } from "./knowledge/options.ts";
+import { type LeaveSqlOptions, leaveSqlOptions } from "./leave/options.ts";
 import { type MemorySqlOptions, memorySqlOptions } from "./memory/options.ts";
 import {
   type MetricsSqlOptions,
@@ -191,6 +192,10 @@ import {
   type ReservedSlugsSqlOptions,
   reservedSlugsSqlOptions,
 } from "./reserved-slugs/options.ts";
+import {
+  type ReviewsSqlOptions,
+  reviewsSqlOptions,
+} from "./reviews/options.ts";
 import {
   type SavedViewsSqlOptions,
   savedViewsSqlOptions,
@@ -340,6 +345,7 @@ export interface BlockOptionsRegistry {
   readonly jobs: JobsSqlOptions;
   readonly "jsonb-schemas": None;
   readonly knowledge: KnowledgeSqlOptions;
+  readonly leave: LeaveSqlOptions;
   readonly memory: MemorySqlOptions;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -364,6 +370,7 @@ export interface BlockOptionsRegistry {
   readonly relations: RelationsSqlOptions;
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
+  readonly reviews: ReviewsSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
   readonly "service-principals": ServicePrincipalsSqlOptions;
@@ -456,6 +463,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   jobs: jobsSqlOptions,
   "jsonb-schemas": NO_OPTIONS,
   knowledge: knowledgeSqlOptions,
+  leave: leaveSqlOptions,
   memory: memorySqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,
@@ -480,6 +488,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   relations: relationsSqlOptions,
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,
+  reviews: reviewsSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
   "service-principals": servicePrincipalsSqlOptions,

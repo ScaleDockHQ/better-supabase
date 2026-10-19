@@ -50,6 +50,7 @@ import {
 } from "./jobs/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
+import { leaveBlock } from "./leave/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
@@ -74,6 +75,7 @@ import { realtimeTablesBlock } from "./realtime-tables/manifest.ts";
 import { relationsBlock } from "./relations/manifest.ts";
 import { remindersBlock } from "./reminders/manifest.ts";
 import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
+import { reviewsBlock } from "./reviews/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
 import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
@@ -140,6 +142,8 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   dealsBlock,
   documentsBlock,
   domainsBlock,
+  reviewsBlock,
+  leaveBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

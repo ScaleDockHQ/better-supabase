@@ -4881,6 +4881,72 @@
       "TxtResolver"
     ]
   },
+  "./blocks/reviews": {
+    "values": [
+      "createReviews",
+      "dbTransport",
+      "extendBlock",
+      "reviewsBlock",
+      "reviewsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Review",
+      "ReviewEventData",
+      "ReviewInput",
+      "ReviewListOptions",
+      "ReviewQueueOptions",
+      "Reviews",
+      "ReviewsEvents",
+      "ReviewsOptions",
+      "ReviewStatus",
+      "ReviewSummary",
+      "RpcClient"
+    ]
+  },
+  "./blocks/leave": {
+    "values": [
+      "createLeave",
+      "dbTransport",
+      "extendBlock",
+      "leaveBlock",
+      "leaveEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Leave",
+      "LeaveAccrual",
+      "LeaveAdjustedEventData",
+      "LeaveAdjustment",
+      "LeaveBalance",
+      "LeaveEvents",
+      "LeaveLedgerEntry",
+      "LeaveLedgerKind",
+      "LeaveOptions",
+      "LeavePartial",
+      "LeaveRequest",
+      "LeaveRequestEventData",
+      "LeaveRequestInput",
+      "LeaveRequestListOptions",
+      "LeaveStatus",
+      "LeaveType",
+      "LeaveTypeInput",
+      "LeaveUnit",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",
