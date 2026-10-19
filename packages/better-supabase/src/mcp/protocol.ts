@@ -24,7 +24,7 @@ import {
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
 
 /** Revisions before 2026-07-28 open with an `initialize` handshake. */
-export const LEGACY_VERSIONS: readonly string[] = [
+const LEGACY_VERSIONS: readonly string[] = [
   "2025-11-25",
   "2025-06-18",
   "2025-03-26",
@@ -73,7 +73,7 @@ export interface ServerDescription {
   readonly instructions?: string;
 }
 
-export const CAPABILITIES: Json = { tools: { listChanged: false } };
+const CAPABILITIES: Json = { tools: { listChanged: false } };
 
 /** A tool result: the value as text, and as `structuredContent` when it is an object. */
 export function textResult(value: unknown, isError = false): ToolResult {

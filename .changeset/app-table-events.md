@@ -8,3 +8,5 @@ App tables emit outbox events, and rules and the workflow builder react to them 
 - `createRuleSink` runs the rules for each outbox event and dispatches their actions, and `WorkflowBuilder.sink()` starts the event triggers that match.
 - Rules get the built-in handlers `notifyAction`, `setFieldAction`, `webhookAction` and `workflowAction`.
 - A change to `events` is the safe design change `table.events`, and a design with `events` is format 4.
+
+`gen` tags `appTableEvents` and `appTableEventSchemas` with `@public`, so Knip doesn't report the one an app leaves unused.
