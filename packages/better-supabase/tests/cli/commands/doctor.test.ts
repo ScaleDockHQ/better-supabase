@@ -3,15 +3,15 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CommandResult } from "../../../src/cli/io.ts";
+import type { CommandResult } from "../../../src/cli/core/io.ts";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
   doctorCommand,
   type DoctorArgs,
   runDoctor,
 } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import {
   type BetterSupabaseConfig,
   resolveConfig,

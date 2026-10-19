@@ -1,13 +1,15 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand, list } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { errorText } from "../core/errors.ts";
+import { display, writeIfChanged } from "../core/io.ts";
 import { connect } from "../db.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
@@ -29,10 +31,8 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
-import { errorText } from "../errors.ts";
 import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
-import { display, writeIfChanged } from "../io.ts";
 import { peerVersions } from "../peers.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";

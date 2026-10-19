@@ -7,7 +7,7 @@ import type {
   RenderResult,
 } from "../../spec/index.ts";
 
-import { CliError } from "../errors.ts";
+import { CliError } from "../core/errors.ts";
 import { importFresh } from "../fresh-import.ts";
 import { isRecord } from "../guards.ts";
 import { isDocumentFormat } from "./formats.ts";

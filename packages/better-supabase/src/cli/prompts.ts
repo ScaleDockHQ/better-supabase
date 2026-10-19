@@ -7,7 +7,7 @@ import {
   spinner,
 } from "@clack/prompts";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 
 export interface Choice<T extends string> {
   readonly value: T;

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { commandDescriptions, commandNames, help } from "../../src/cli/run.ts";
+import {
+  commandDescriptions,
+  commandNames,
+  help,
+} from "../../src/cli/core/run.ts";
 import { VERSION } from "../../src/cli/version.ts";
 
 // The snapshots must survive a release, which bumps VERSION.

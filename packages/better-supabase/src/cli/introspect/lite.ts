@@ -5,8 +5,8 @@ import { join } from "node:path";
 import type { LiteDriver } from "../../server/index.ts";
 import type { IntrospectionSource } from "./source.ts";
 
+import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { CliError, errorText } from "../errors.ts";
 import { LITE_DRIVERS, loadCliLite } from "../lite.ts";
 import { schemaPaths, type SupabaseToml, tomlGet } from "../supabase-toml.ts";
 import { pgSource } from "./source.ts";

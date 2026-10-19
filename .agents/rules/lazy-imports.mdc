@@ -36,7 +36,7 @@ Imports stay at the top of the module. The exceptions are optional
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
     the class is defined (an install message; ADR 0014). CLI startup work
     also loads on demand, each with a comment: the commands, config loading
-    and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
+    and env validation in `src/cli/core/run.ts`, `fastest-levenshtein` for the
     unknown-command suggestion in the same file, the prompts in
     `src/cli/bin.ts`, the arktype-backed typegen entries in
     `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas

@@ -1,6 +1,6 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import {
   decodePreset,
@@ -15,7 +15,7 @@ import {
   resolvePreset,
   type ResolvedPreset,
 } from "../../preset/index.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
 
 const USAGE = `Usage:
   better-supabase preset decode <name|code|url>   What a preset holds and what it installs

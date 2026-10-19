@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 
@@ -17,8 +17,8 @@ import {
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
+import { display, writeIfChanged } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { display, writeIfChanged } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationStamp, type Now } from "./migrations.ts";

@@ -1,4 +1,4 @@
-import type { AnyCommand } from "./command.ts";
+import type { AnyCommand } from "./core/command.ts";
 
 export type Loader = () => Promise<AnyCommand>;
 

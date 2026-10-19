@@ -14,9 +14,9 @@ import {
   renderModules,
   resolveModules,
 } from "../../sql/index.ts";
+import { writeLine } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
-import { writeLine } from "../files.ts";
-import { display } from "../io.ts";
 import {
   migrationCommand,
   readSupabaseToml,

@@ -7,8 +7,8 @@ import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
+import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { CliError, errorText } from "../errors.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";

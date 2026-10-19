@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 
 import type { Generator, ResolvedConfig } from "../../config/index.ts";
+import type { CliIo, CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { CliIo, CommandResult } from "../io.ts";
 import type { Paint } from "../style.ts";
 
 import {
@@ -13,13 +13,13 @@ import {
   valibot,
   zod,
 } from "../../config/index.ts";
-import { CliError, errorText } from "../errors.ts";
+import { CliError, errorText } from "../core/errors.ts";
+import { readStdin } from "../core/io.ts";
 import { fromMetadata } from "../introspect/from-metadata.ts";
 import {
   MetadataRejectedError,
   parseMetadataDocument,
 } from "../introspect/typegen.ts";
-import { readStdin } from "../io.ts";
 import { metaPaths } from "./emit.ts";
 import { generationNotices, UNFORMATTED } from "./notices.ts";
 import { type Rendered, render } from "./render.ts";

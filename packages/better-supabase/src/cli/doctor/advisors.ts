@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 
 import type { Queryable } from "../introspect/source.ts";
 
-import { CliError } from "../errors.ts";
+import { CliError } from "../core/errors.ts";
 import { type TomlTable, tomlGet } from "../supabase-toml.ts";
 
 /**

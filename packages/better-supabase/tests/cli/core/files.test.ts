@@ -3,8 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { fileState, staleResult, writeLine } from "../../src/cli/files.ts";
-import { readIfExists } from "../../src/cli/io.ts";
+import {
+  fileState,
+  staleResult,
+  writeLine,
+} from "../../../src/cli/core/files.ts";
+import { readIfExists } from "../../../src/cli/core/io.ts";
 
 describe("cli files", () => {
   it("compares a missing, equal and different file", async () => {

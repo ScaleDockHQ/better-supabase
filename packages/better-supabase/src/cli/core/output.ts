@@ -1,7 +1,7 @@
 import type { CommandResult } from "./io.ts";
 
+import { highlight, type Paint } from "../style.ts";
 import { CliError } from "./errors.ts";
-import { highlight, type Paint } from "./style.ts";
 
 /** What one run writes: text, or under `--json` exactly one JSON document on stdout. */
 export interface Rendered {

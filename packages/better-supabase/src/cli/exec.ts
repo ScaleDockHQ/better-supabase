@@ -4,8 +4,8 @@ import { x } from "tinyexec";
 
 import type { CliEnv } from "./env.ts";
 
+import { CliError, errorText } from "./core/errors.ts";
 import { PROCESS_ENV } from "./env.ts";
-import { CliError, errorText } from "./errors.ts";
 import { findUp } from "./supabase-toml.ts";
 
 export interface ExecResult {

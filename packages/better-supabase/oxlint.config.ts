@@ -148,7 +148,7 @@ export default defineConfig({
         "src/server/respond.ts",
         "src/core/events.ts",
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
-        "src/cli/run.ts",
+        "src/cli/core/run.ts",
         "src/cli/bin.ts",
         // The Supabase World reads its options as the Workflow SDK's worlds do.
         "src/workflow-sdk/world/world.ts",

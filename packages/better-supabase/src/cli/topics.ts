@@ -6,7 +6,7 @@ import type {
 } from "../config/index.ts";
 import type { TopicInput } from "../spec/index.ts";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 
 /** A `defineTopic` result, as `sql sync` and `spec` read it. */

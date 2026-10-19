@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
-import type { Prompter } from "./prompts.ts";
+import type { Prompter } from "../prompts.ts";
 
 import { CliError } from "./errors.ts";
 

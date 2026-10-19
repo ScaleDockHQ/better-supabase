@@ -9,7 +9,7 @@ import {
   type PackageManager,
   type Project,
   publicPrefix,
-} from "../../src/cli/project.ts";
+} from "../../../src/cli/project/detect.ts";
 
 describe("detectProject", () => {
   let root: string;

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { uiPath } from "../../../src/cli/commands/spec.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { fails, formatDiagnostics } from "../../../src/cli/spec/diagnostics.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
 import { defineTopic } from "../../../src/realtime/topic.ts";

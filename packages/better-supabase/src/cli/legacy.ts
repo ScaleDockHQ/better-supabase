@@ -1,9 +1,9 @@
 import { type CommandDef, defineCommand } from "citty";
 
 import type { ResolvedConfig } from "../config/index.ts";
-import type { CommandResult, CliIo } from "./io.ts";
+import type { CommandResult, CliIo } from "./core/io.ts";
 
-import { cliContext } from "./command.ts";
+import { cliContext } from "./core/command.ts";
 
 type FlagValue = string | boolean | readonly string[];
 

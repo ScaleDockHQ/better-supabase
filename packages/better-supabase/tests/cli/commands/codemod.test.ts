@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CODEMODS } from "../../../src/cli/codemod.ts";
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
   type CodemodArgs,
   codemodCommand,
   runCodemod,
 } from "../../../src/cli/commands/codemod.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 describe("runCodemod", () => {

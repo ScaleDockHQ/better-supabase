@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import type { GeneratorMetadata } from "../../config/index.ts";
 
 import { byCodePoint } from "../compare.ts";
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 import { versionAt } from "../peers.ts";
 import { TYPEGEN_VERSION } from "./typegen-version.ts";
 

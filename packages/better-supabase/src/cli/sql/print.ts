@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
 import {

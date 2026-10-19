@@ -4,7 +4,7 @@ import type { ResolvedConfig } from "../config/index.ts";
 
 import { isReadSet, type ReadSet } from "../index.ts";
 import { type CompiledReadSet, compileReadSets } from "../sql/index.ts";
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 
 /** Every read set exported by the modules in `config.readSets`. */

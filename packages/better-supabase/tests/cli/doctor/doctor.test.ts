@@ -15,6 +15,7 @@ import type {
 } from "../../../src/cli/introspect/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { formatReport } from "../../../src/cli/doctor/format.ts";
 import {
   hookGrantBlock,
@@ -30,7 +31,6 @@ import {
 } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
-import { run } from "../../../src/cli/run.ts";
 import {
   parseToml,
   pgFunctionHooks,

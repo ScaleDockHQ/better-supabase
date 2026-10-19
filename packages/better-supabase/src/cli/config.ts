@@ -11,9 +11,9 @@ import {
   resolveConfig,
 } from "../config/index.ts";
 import { configIssues } from "./config-schema.ts";
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
+import { type CliIo, display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
-import { type CliIo, display, readStdin } from "./io.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 

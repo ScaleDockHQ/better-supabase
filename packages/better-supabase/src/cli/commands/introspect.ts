@@ -1,8 +1,8 @@
-import type { AnyCommand } from "../command.ts";
+import type { AnyCommand } from "../core/command.ts";
 
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { fileState, writeLine } from "../core/files.ts";
 import { fileDiff } from "../diff.ts";
-import { fileState, writeLine } from "../files.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter } from "../style.ts";

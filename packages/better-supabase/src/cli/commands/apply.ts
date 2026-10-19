@@ -1,8 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Now } from "../sql/migrations.ts";
 
 import {
@@ -17,10 +17,10 @@ import {
   presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
-import { defineCliCommand } from "../command.ts";
 import { loadConfig } from "../config.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { display } from "../io.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,

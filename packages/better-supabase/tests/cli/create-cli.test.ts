@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CliEntry } from "../../src/cli/builtin-commands.ts";
 
 import { builtinCommands } from "../../src/cli/builtin-commands.ts";
-import { defineCliCommand } from "../../src/cli/command.ts";
-import { createCli } from "../../src/cli/run.ts";
+import { defineCliCommand } from "../../src/cli/core/command.ts";
+import { createCli } from "../../src/cli/core/run.ts";
 
 const ping = defineCliCommand({
   meta: { name: "ping", description: "Answers pong" },

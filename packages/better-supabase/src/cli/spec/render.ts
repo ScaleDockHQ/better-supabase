@@ -8,7 +8,7 @@ import type { SpecTarget } from "./targets.ts";
 
 import { applyOverlays, loadJsonPath } from "../../overlay/index.ts";
 import { serializeDocument } from "../../spec/index.ts";
-import { errorText } from "../errors.ts";
+import { errorText } from "../core/errors.ts";
 import { VERSION } from "../version.ts";
 import { readCachedRender, sha256, writeCachedRender } from "./cache.ts";
 import { documentFormatId } from "./entry.ts";

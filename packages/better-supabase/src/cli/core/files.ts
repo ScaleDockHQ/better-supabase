@@ -2,7 +2,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { CommandResult } from "./io.ts";
 
-import { fileDiff } from "./diff.ts";
+import { fileDiff } from "../diff.ts";
 import { CliError } from "./errors.ts";
 import { display, readIfExists, sameText, writeIfChanged } from "./io.ts";
 

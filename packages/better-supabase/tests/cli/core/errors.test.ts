@@ -10,10 +10,13 @@ import {
   failedResult,
   parseNames,
   toCliError,
-} from "../../src/cli/errors.ts";
+} from "../../../src/cli/core/errors.ts";
 
 const ERRORS_PAGE = readFileSync(
-  new URL("../../../../apps/docs/content/docs/cli/errors.mdx", import.meta.url),
+  new URL(
+    "../../../../../apps/docs/content/docs/cli/errors.mdx",
+    import.meta.url,
+  ),
   "utf-8",
 );
 

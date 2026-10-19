@@ -1,6 +1,6 @@
 import type { CliEnv } from "./env.ts";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 import { type ExecOptions, supabaseCli } from "./exec.ts";
 
 export interface StackStatus {

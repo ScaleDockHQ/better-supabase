@@ -8,8 +8,8 @@ import {
   type SubCommandsDef,
 } from "citty";
 
-import type { ResolvedConfig } from "../config/index.ts";
-import type { CliEnv } from "./env.ts";
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { CliEnv } from "../env.ts";
 import type { CliIo, CommandResult } from "./io.ts";
 
 /** What `run()` hands every command next to its parsed arguments. */

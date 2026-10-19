@@ -6,8 +6,8 @@ import type {
   ResolvedConfig,
   SqlWorkflow,
 } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { TemplateFile } from "../templates.ts";
@@ -29,8 +29,8 @@ import {
   resolvePreset,
   type ResolvedPreset,
 } from "../../preset/index.ts";
-import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { defineCliCommand, list } from "../core/command.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import {
   CANCELLED,
@@ -48,7 +48,8 @@ import {
   installCommand,
   type InstallTarget,
   type Project,
-} from "../project.ts";
+} from "../project/detect.ts";
+import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
@@ -60,7 +61,6 @@ import {
   suggestedIntegrations,
   TEMPLATES,
 } from "../templates.ts";
-import { detectWorkspace, suggestedPackage } from "../workspace.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
 export type InitArgs = CliArgs<typeof INIT_ARGS>;

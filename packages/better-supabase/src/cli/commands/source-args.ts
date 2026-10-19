@@ -1,9 +1,9 @@
-import type { CliArgs } from "../command.ts";
-import type { CliIo } from "../io.ts";
+import type { CliArgs } from "../core/command.ts";
+import type { CliIo } from "../core/io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
-import { CliError } from "../errors.ts";
+import { CliError } from "../core/errors.ts";
 
 /** Where to read the schema from, shared by gen, introspect and doctor. */
 export const SOURCE_ARGS = {

@@ -15,14 +15,14 @@ import {
 } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
 import { loadSnapshot, type SnapshotSource } from "../commands/snapshot.ts";
-import { fileDiff } from "../diff.ts";
-import { providerBucketKeys } from "../doctor/authorization.ts";
 import {
   type CommandResult,
   display,
   sameText,
   writeIfChanged,
-} from "../io.ts";
+} from "../core/io.ts";
+import { fileDiff } from "../diff.ts";
+import { providerBucketKeys } from "../doctor/authorization.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import {

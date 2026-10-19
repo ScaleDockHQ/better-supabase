@@ -10,9 +10,9 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import {
   type DoctorContext,
   RULES,

@@ -17,9 +17,9 @@ import {
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { byCodePoint } from "../compare.ts";
+import { sameText } from "../core/io.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
-import { sameText } from "../io.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";

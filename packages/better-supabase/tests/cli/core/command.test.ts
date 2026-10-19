@@ -6,8 +6,8 @@ import {
   joinRepeated,
   list,
   parseCommandArgs,
-} from "../../src/cli/command.ts";
-import { resolveConfig } from "../../src/config/index.ts";
+} from "../../../src/cli/core/command.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 
 describe("list", () => {
   it("splits, trims and drops empty parts", () => {

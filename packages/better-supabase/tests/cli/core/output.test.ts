@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { CliError } from "../../src/cli/errors.ts";
-import { renderError, renderResult } from "../../src/cli/output.ts";
-import { painter } from "../../src/cli/style.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
+import { renderError, renderResult } from "../../../src/cli/core/output.ts";
+import { painter } from "../../../src/cli/style.ts";
 
 const text = { json: false, paint: painter(false) };
 const json = { json: true, paint: painter(false) };

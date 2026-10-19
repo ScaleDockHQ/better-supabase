@@ -3,7 +3,7 @@ import { text } from "node:stream/consumers";
 
 import type { Prompter } from "./prompts.ts";
 
-import { run } from "./run.ts";
+import { run } from "./core/run.ts";
 import { colorEnabled } from "./style.ts";
 
 // @clack/prompts loads only when a command asks something.

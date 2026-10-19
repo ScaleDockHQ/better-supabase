@@ -1,7 +1,7 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as v from "valibot";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 
 /** The environment variables the CLI reads, validated once per run. */
 export interface CliEnv {

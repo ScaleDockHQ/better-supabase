@@ -1,4 +1,4 @@
-import { CliError, errorText } from "./errors.ts";
+import { CliError, errorText } from "./core/errors.ts";
 
 /** The subset of `pg.Client` the CLI uses. */
 export interface PgQueryable {

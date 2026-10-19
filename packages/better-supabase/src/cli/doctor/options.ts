@@ -1,5 +1,5 @@
+import { CliError, errorText } from "../core/errors.ts";
 import { DOCTOR_FORMATS, type DoctorFormat } from "../doctor/format.ts";
-import { CliError, errorText } from "../errors.ts";
 
 const FLAG_FORMATS = DOCTOR_FORMATS.filter((format) => format !== "json");
 

@@ -2,9 +2,9 @@ import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { GLOBAL_ARGS } from "../../src/cli/command.ts";
-import { CLI_ERROR_CODES } from "../../src/cli/errors.ts";
-import { commandNames, help } from "../../src/cli/run.ts";
+import { GLOBAL_ARGS } from "../../src/cli/core/command.ts";
+import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
+import { commandNames, help } from "../../src/cli/core/run.ts";
 import {
   INTEGRATIONS,
   type TemplateContext,

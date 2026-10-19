@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { seedCommand, runSeed } from "../../../src/cli/commands/seed.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";

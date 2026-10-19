@@ -1,7 +1,7 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
-import { CliError } from "./errors.ts";
+import { CliError } from "./core/errors.ts";
 import { type LoadedTopic, loadTopics } from "./topics.ts";
 
 const literalParts = (template: string): string =>

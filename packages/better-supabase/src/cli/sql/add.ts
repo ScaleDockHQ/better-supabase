@@ -3,7 +3,7 @@ import { basename } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SqlDeps } from "../commands/sql.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";

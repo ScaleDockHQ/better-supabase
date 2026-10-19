@@ -2,13 +2,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { writeIfChanged } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { writeIfChanged } from "../io.ts";
 import { type Paint, painter, plain } from "../style.ts";
 
 const CODEMOD_ARGS = {

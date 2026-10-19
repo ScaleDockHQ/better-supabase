@@ -1,6 +1,6 @@
 import type { BlockCategory } from "../../blocks/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
 import {
   glueCommand,
@@ -8,7 +8,7 @@ import {
   type PresetCatalogBlock,
 } from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
 
 const USAGE = `Usage:
   better-supabase blocks list [--category <name>]   Every block, by category

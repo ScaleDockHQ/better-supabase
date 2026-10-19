@@ -3,15 +3,15 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand } from "../command.ts";
-import { CliError } from "../errors.ts";
-import { insideRoot, writeLine } from "../files.ts";
-import { display, readIfExists } from "../io.ts";
-import { detectProject, publicPrefix } from "../project.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { CliError } from "../core/errors.ts";
+import { insideRoot, writeLine } from "../core/files.ts";
+import { display, readIfExists } from "../core/io.ts";
+import { detectProject, publicPrefix } from "../project/detect.ts";
 import {
   parseStackStatus,
   readStackStatus,

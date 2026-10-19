@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Choice, Prompter } from "../../src/cli/prompts.ts";
 
-import { run } from "../../src/cli/run.ts";
+import { run } from "../../src/cli/core/run.ts";
 
 const clack = vi.hoisted(() => ({
   cancel: Symbol("cancel"),

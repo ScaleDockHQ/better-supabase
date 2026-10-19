@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { display, writeIfChanged } from "./io.ts";
+import { display, writeIfChanged } from "./core/io.ts";
 import {
   diffEngine,
   findSupabaseRoot,

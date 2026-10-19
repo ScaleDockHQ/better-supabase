@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CliIo } from "../../src/cli/io.ts";
+import type { CliIo } from "../../../src/cli/core/io.ts";
 
-import { defineCliCommand } from "../../src/cli/command.ts";
-import { CliError } from "../../src/cli/errors.ts";
-import { registerCommand, run } from "../../src/cli/run.ts";
-import { VERSION } from "../../src/cli/version.ts";
-import { fakeFetch } from "./fixtures/fake-fetch.ts";
+import { defineCliCommand } from "../../../src/cli/core/command.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
+import { registerCommand, run } from "../../../src/cli/core/run.ts";
+import { VERSION } from "../../../src/cli/version.ts";
+import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
 

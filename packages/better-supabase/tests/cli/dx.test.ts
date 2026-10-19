@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { mergeEnv } from "../../src/cli/commands/env.ts";
 import { loadSkills } from "../../src/cli/commands/skills.ts";
-import { run } from "../../src/cli/run.ts";
+import { run } from "../../src/cli/core/run.ts";
 import {
   baseFiles,
   INTEGRATIONS,

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CliError } from "../../../src/cli/errors.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { liteDriverOf, liteSource } from "../../../src/cli/introspect/lite.ts";
 import { readSupabaseToml } from "../../../src/cli/supabase-toml.ts";

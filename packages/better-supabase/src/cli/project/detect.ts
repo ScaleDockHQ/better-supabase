@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { isRecord } from "./guards.ts";
-import { findSupabaseRoot } from "./supabase-toml.ts";
+import { isRecord } from "../guards.ts";
+import { findSupabaseRoot } from "../supabase-toml.ts";
 
 export type Framework =
   | "next"

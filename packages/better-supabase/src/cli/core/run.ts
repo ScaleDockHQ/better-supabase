@@ -9,11 +9,14 @@ import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
-import type { ResolvedConfig } from "../config/index.ts";
-import type { CliEntry } from "./builtin-commands.ts";
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { CliEntry } from "../builtin-commands.ts";
 import type { CliIo, CommandResult, RunResult } from "./io.ts";
 
-import { builtinCommands } from "./builtin-commands.ts";
+import { builtinCommands } from "../builtin-commands.ts";
+import { type Command, legacyCommand } from "../legacy.ts";
+import { painter } from "../style.ts";
+import { VERSION } from "../version.ts";
 import {
   type AnyCommand,
   type CliContext,
@@ -23,10 +26,7 @@ import {
   runsWithInvalidConfig,
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
-import { type Command, legacyCommand } from "./legacy.ts";
 import { type Rendered, renderError, renderResult } from "./output.ts";
-import { painter } from "./style.ts";
-import { VERSION } from "./version.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */
@@ -320,8 +320,8 @@ export function createCli(init: CreateCliOptions): Cli {
         { configEnvironment, isCi, parseEnv },
       ] = await Promise.all([
         load(),
-        import("./config.ts"),
-        import("./env.ts"),
+        import("../config.ts"),
+        import("../env.ts"),
       ]);
 
       command = loaded;

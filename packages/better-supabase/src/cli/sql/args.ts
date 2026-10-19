@@ -1,4 +1,4 @@
-import type { CliArgs, CliOptions } from "../command.ts";
+import type { CliArgs, CliOptions } from "../core/command.ts";
 
 export const SQL_ARGS = {
   action: {

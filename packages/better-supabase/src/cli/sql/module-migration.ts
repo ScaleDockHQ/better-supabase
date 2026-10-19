@@ -5,7 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { ModuleFile } from "../../sql/index.ts";
 
 import { moduleSchemaExtensions } from "../../sql/index.ts";
-import { writeIfChanged } from "../io.ts";
+import { writeIfChanged } from "../core/io.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { stampAfter } from "./migrations.ts";

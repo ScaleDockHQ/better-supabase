@@ -1,7 +1,7 @@
 import type { Queryable } from "./typegen.ts";
 
+import { CliError } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { CliError } from "../errors.ts";
 
 export type { Queryable };
 

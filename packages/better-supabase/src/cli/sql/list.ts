@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { CommandResult } from "../io.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
 import { moduleFilePaths, SQL_MODULES } from "../../sql/index.ts";

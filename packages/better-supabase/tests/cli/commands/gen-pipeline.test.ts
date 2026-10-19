@@ -18,7 +18,7 @@ import {
   selectTasks,
   stepInputs,
 } from "../../../src/cli/commands/gen-pipeline.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { plain } from "../../../src/cli/style.ts";
 import {
   type BetterSupabaseConfig,

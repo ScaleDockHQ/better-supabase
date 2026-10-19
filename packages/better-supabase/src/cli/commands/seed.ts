@@ -3,16 +3,16 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 
 import { isSeed } from "../../testing/index.ts";
-import { defineCliCommand } from "../command.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { fileState, staleResult, writeLine } from "../core/files.ts";
+import { display } from "../core/io.ts";
 import { connect } from "../db.ts";
-import { fileState, staleResult, writeLine } from "../files.ts";
-import { display } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
 import { supabaseDir } from "../supabase-toml.ts";
 

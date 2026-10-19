@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 vi.mock(import("../../../src/sql/index.ts"), async (original) => ({

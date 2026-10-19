@@ -10,12 +10,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
   migrationsDir,
   sqlCommand,
   runSql,
 } from "../../../src/cli/commands/sql.ts";
+import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import {
   type BetterSupabaseConfig,

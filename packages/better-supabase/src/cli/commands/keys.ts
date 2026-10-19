@@ -3,11 +3,11 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
-import { defineCliCommand } from "../command.ts";
-import { display } from "../io.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { display } from "../core/io.ts";
 import { supabaseDir } from "../supabase-toml.ts";
 
 const ARGS = {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { printableConfig } from "../../../src/cli/commands/config.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 describe("config", () => {

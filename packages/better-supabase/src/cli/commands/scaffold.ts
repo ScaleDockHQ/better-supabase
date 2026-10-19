@@ -3,18 +3,18 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig, ScaffoldApiConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
-import { defineCliCommand, list } from "../command.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { writeLine } from "../core/files.ts";
+import { display, sameText } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { writeLine } from "../files.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
 import { isRecord } from "../guards.ts";
-import { display, sameText } from "../io.ts";
-import { detectProject } from "../project.ts";
+import { detectProject } from "../project/detect.ts";
 import {
   GENERATED_HEADER,
   SCAFFOLD_FRAMEWORKS,

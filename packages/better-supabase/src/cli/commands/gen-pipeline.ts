@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { GenTask, ResolvedConfig } from "../../config/index.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 import type { Paint } from "../style.ts";
 
-import { failedResult, parseNames } from "../errors.ts";
+import { failedResult, parseNames } from "../core/errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
 import { runEnv } from "./env.ts";
 import { runScaffold } from "./scaffold.ts";

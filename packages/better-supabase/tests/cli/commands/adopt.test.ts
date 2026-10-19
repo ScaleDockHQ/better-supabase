@@ -9,7 +9,7 @@ import type { ExistingTable } from "../../../src/cli/sql/adopt.ts";
 import { runAdopt } from "../../../src/cli/commands/adopt.ts";
 import { runApply } from "../../../src/cli/commands/apply.ts";
 import { loadConfig } from "../../../src/cli/config.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { encodePreset } from "../../../src/preset/index.ts";
 

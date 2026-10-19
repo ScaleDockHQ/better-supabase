@@ -1,13 +1,13 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
-import { defineCliCommand } from "../command.ts";
 import { importExport } from "../config.ts";
-import { fileState, staleResult, writeLine } from "../files.ts";
-import { display } from "../io.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { fileState, staleResult, writeLine } from "../core/files.ts";
+import { display } from "../core/io.ts";
 
 const ARGS = {
   action: {

@@ -7,13 +7,13 @@ import type {
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { CliError, errorText } from "../errors.ts";
+import { CliError, errorText } from "../core/errors.ts";
+import { importPath } from "../core/io.ts";
 import { cachedDatabaseTypes } from "../introspect/cache.ts";
 import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
-import { importPath } from "../io.ts";
 import { emitBlockConfig } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { buildModel, generatorModel } from "./model.ts";

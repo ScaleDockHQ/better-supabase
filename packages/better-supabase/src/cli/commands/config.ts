@@ -1,9 +1,9 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand } from "../command.ts";
+import type { AnyCommand } from "../core/command.ts";
 
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { display } from "../core/io.ts";
 import { redact, redactUrl } from "../core/redact.ts";
-import { display } from "../io.ts";
 
 /** The resolved config as JSON: generators by name and version, every credential redacted. */
 export function printableConfig(config: ResolvedConfig): unknown {

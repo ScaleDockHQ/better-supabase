@@ -4,8 +4,8 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SpecDiagnostic, SpecUi } from "../../spec/index.ts";
-import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs, CliContext } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type {
   FailOn,
   ManifestOutput,
@@ -15,11 +15,11 @@ import type { RenderedTarget } from "../spec/render.ts";
 import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
+import { errorText, failedResult } from "../core/errors.ts";
+import { display, sameText, writeIfChanged } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { errorText, failedResult } from "../errors.ts";
 import { writeAtomic } from "../introspect/cache.ts";
-import { display, sameText, writeIfChanged } from "../io.ts";
 import { SPEC_CACHE_DIR, sha256 } from "../spec/cache.ts";
 import {
   FAIL_ON,

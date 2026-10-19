@@ -1,15 +1,15 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../command.ts";
+import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
-import { defineCliCommand, list } from "../command.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { toCatalog } from "../introspect/index.ts";
-import { display } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
 import {
   type AdoptProposal,

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runApply } from "../../../src/cli/commands/apply.ts";
 import { runBlocks } from "../../../src/cli/commands/blocks.ts";
 import { runPreset } from "../../../src/cli/commands/preset.ts";
-import { run } from "../../../src/cli/run.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   type CreateDesign,

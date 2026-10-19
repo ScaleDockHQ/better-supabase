@@ -3,8 +3,8 @@ import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { TemplateContext } from "../templates.ts";
 import type { SqlDeps } from "./sql.ts";
@@ -16,7 +16,8 @@ import {
   PRESET_FRAMEWORKS,
   resolvePreset,
 } from "../../preset/index.ts";
-import { defineCliCommand, list } from "../command.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { readIfExists } from "../core/io.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -27,8 +28,7 @@ import {
   templateContextFor,
   writeFiles,
 } from "../glue.ts";
-import { readIfExists } from "../io.ts";
-import { detectProject, installCommand } from "../project.ts";
+import { detectProject, installCommand } from "../project/detect.ts";
 import { addModules } from "../sql/add.ts";
 import { addBlocksToWiring } from "../sql/config-edit.ts";
 import {

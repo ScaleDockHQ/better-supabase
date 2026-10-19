@@ -15,8 +15,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { parseCommandArgs } from "../../src/cli/command.ts";
 import { runSql, sqlCommand } from "../../src/cli/commands/sql.ts";
+import { parseCommandArgs } from "../../src/cli/core/command.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 

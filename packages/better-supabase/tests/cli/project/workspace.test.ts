@@ -7,7 +7,7 @@ import {
   detectWorkspace,
   pnpmWorkspacePatterns,
   suggestedPackage,
-} from "../../src/cli/workspace.ts";
+} from "../../../src/cli/project/workspace.ts";
 
 let root: string;
 

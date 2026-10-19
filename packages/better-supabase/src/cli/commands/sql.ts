@@ -1,8 +1,8 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand } from "../command.ts";
-import type { CommandResult } from "../io.ts";
+import type { AnyCommand } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand } from "../core/command.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { addModules } from "../sql/add.ts";
 import { SQL_ARGS, type SqlFlags, USAGE } from "../sql/args.ts";

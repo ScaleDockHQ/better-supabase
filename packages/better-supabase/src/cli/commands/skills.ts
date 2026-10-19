@@ -5,15 +5,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
-import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand, list } from "../command.ts";
 import { byCodePoint } from "../compare.ts";
+import { defineCliCommand, list } from "../core/command.ts";
+import { writeLine } from "../core/files.ts";
+import { display, readIfExists, sameText } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { writeLine } from "../files.ts";
-import { display, readIfExists, sameText } from "../io.ts";
 
 const ARGS = {
   action: {

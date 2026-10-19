@@ -15,7 +15,7 @@ import type { Catalog, CatalogTable, Snapshot } from "../introspect/types.ts";
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
 import { resolveProviderSql } from "../../sql/index.ts";
-import { CliError } from "../errors.ts";
+import { CliError } from "../core/errors.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,

@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CliIo } from "../../../src/cli/io.ts";
+import type { CliIo } from "../../../src/cli/core/io.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import {
   EXTRAS_RULES,
   skippedForMetadata,
@@ -13,7 +14,6 @@ import {
 import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
 import { fromMetadata } from "../../../src/cli/introspect/from-metadata.ts";
 import { serializeGenerator } from "../../../src/cli/introspect/typegen.ts";
-import { run } from "../../../src/cli/run.ts";
 import { snapshotFixture } from "../fixtures/library.ts";
 
 const snapshot = await parseSnapshot(snapshotFixture);
