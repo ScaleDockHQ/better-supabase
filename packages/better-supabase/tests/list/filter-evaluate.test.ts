@@ -328,4 +328,109 @@ describe("evaluateFilterQuery", () => {
       evaluateFilterQuery(tree, { ...expense, amount: 100 }, nested).results,
     ).toMatchObject({ b: false, root: false });
   });
+
+  const typed = (
+    type: FilterRecordField["type"],
+    columnType: string,
+  ): FilterRecordField => ({
+    id: "value",
+    type,
+    column: "nested.value",
+    columnMeta: { type: columnType, nullable: false },
+  });
+
+  /** The result of one rule on `{ nested: { value } }`. */
+  function truthOf(
+    field: FilterRecordField,
+    operator: string,
+    operand: unknown,
+    value: unknown,
+  ): boolean | null | undefined {
+    const tree: FilterQuery = {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        { id: "x", type: "rule", path: ["value"], operator, value: operand },
+      ],
+    };
+
+    return evaluateFilterQuery(tree, { nested: { value } }, [field], clock)
+      .results["x"];
+  }
+
+  it("coerces numbers, booleans and text the way Postgres compares them", () => {
+    const amount = typed("number", "int8");
+    const flag = typed("boolean", "bool");
+    const label = typed("text", "text");
+
+    expect(truthOf(amount, "eq", 5, 5n)).toBe(true);
+    expect(truthOf(amount, "gte", 5, "5")).toBe(true);
+    expect(truthOf(amount, "lt", 5, 4)).toBe(true);
+    expect(truthOf(amount, "lte", 5, 6)).toBe(false);
+    expect(truthOf(amount, "gt", 5, "five")).toBeNull();
+    expect(truthOf(amount, "gt", 5, Number.NaN)).toBeNull();
+    expect(truthOf(amount, "is", 5, {})).toBeNull();
+    expect(truthOf(flag, "is", true, "true")).toBe(true);
+    expect(truthOf(flag, "is", "false", false)).toBe(true);
+    expect(truthOf(flag, "is", true, "yes")).toBeNull();
+    expect(truthOf(label, "is", "1", 1)).toBe(true);
+    expect(truthOf(label, "contains", "ru", true)).toBe(true);
+    expect(truthOf(label, "is_any_of", ["a"], null)).toBeNull();
+
+    const flat: FilterRecordField = { ...label, column: "value.deeper" };
+
+    const tree: FilterQuery = {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [{ id: "x", type: "rule", path: ["value"], operator: "empty" }],
+    };
+
+    expect(
+      evaluateFilterQuery(tree, { value: "text" }, [flat]).results["x"],
+    ).toBe(true);
+  });
+
+  it("reads lists from arrays and JSON text", () => {
+    const tags = typed("multiselect", "jsonb");
+
+    expect(truthOf(tags, "has_all_of", ["a", "b"], '["a","b","c"]')).toBe(true);
+    expect(truthOf(tags, "has_all_of", ["a", "d"], ["a", "b"])).toBe(false);
+    expect(truthOf(tags, "has_any_of", ["a"], "[not json")).toBeNull();
+    expect(truthOf(tags, "has_any_of", ["a"], '{"a":1}')).toBeNull();
+    expect(truthOf(tags, "has_any_of", "a", ["a"])).toBeNull();
+  });
+
+  it("compares timestamptz and timestamp values from dates, instants and text", () => {
+    const at = typed("date", "timestamptz");
+    const local = typed("date", "timestamp");
+    const today = day("2026-10-14");
+
+    expect(truthOf(at, "is", today, new Date("2026-10-14T08:00:00Z"))).toBe(
+      true,
+    );
+    expect(
+      truthOf(at, "is", today, Temporal.Instant.from("2026-10-14T08:00:00Z")),
+    ).toBe(true);
+    expect(truthOf(at, "is", today, "not a date")).toBeNull();
+    expect(truthOf(at, "is", today, 42)).toBeNull();
+    expect(truthOf(local, "is", today, "2026-10-14 08:00:00")).toBe(true);
+    expect(
+      truthOf(
+        local,
+        "is",
+        today,
+        Temporal.PlainDateTime.from("2026-10-14T08:00"),
+      ),
+    ).toBe(true);
+    expect(truthOf(local, "is", today, new Date("2026-10-15T08:00:00Z"))).toBe(
+      false,
+    );
+    expect(truthOf(local, "is", today, "garbage")).toBeNull();
+    expect(truthOf(local, "is", today, 42)).toBeNull();
+    expect(() =>
+      truthOf(at, "is_sometime", today, "2026-10-14T08:00:00Z"),
+    ).toThrow('Unknown date operator "is_sometime"');
+  });
 });

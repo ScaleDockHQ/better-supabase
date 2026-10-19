@@ -17,4 +17,5 @@ export const rulesBlock: BlockOf<"rules", typeof createRules, RulesEvents> =
     events: rulesEvents,
     create: createRules,
     category: "automation",
+    recipes: ["rule-builder"],
   });
