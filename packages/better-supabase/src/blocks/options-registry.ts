@@ -84,6 +84,10 @@ import {
   type DocumentsSqlOptions,
   documentsSqlOptions,
 } from "./documents/options.ts";
+import {
+  type DomainsSqlOptions,
+  domainsSqlOptions,
+} from "./domains/options.ts";
 import { type DriveSqlOptions, driveSqlOptions } from "./drive/options.ts";
 import {
   type EmployeesSqlOptions,
@@ -314,6 +318,7 @@ export interface BlockOptionsRegistry {
   readonly "data-lifecycle": DataLifecycleSqlOptions;
   readonly deals: DealsSqlOptions;
   readonly documents: DocumentsSqlOptions;
+  readonly domains: DomainsSqlOptions;
   readonly drive: DriveSqlOptions;
   readonly "drive-files": None;
   readonly employees: EmployeesSqlOptions;
@@ -429,6 +434,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "data-lifecycle": dataLifecycleSqlOptions,
   deals: dealsSqlOptions,
   documents: documentsSqlOptions,
+  domains: domainsSqlOptions,
   drive: driveSqlOptions,
   "drive-files": NO_OPTIONS,
   employees: employeesSqlOptions,

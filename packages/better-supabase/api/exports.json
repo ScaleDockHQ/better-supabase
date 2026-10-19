@@ -4827,6 +4827,39 @@
       "RevokeTokenOptions"
     ]
   },
+  "./blocks/domains": {
+    "values": [
+      "createDomains",
+      "createDomainsAdmin",
+      "dbTransport",
+      "dohResolver",
+      "domainsBlock",
+      "domainsEvents",
+      "extendBlock",
+      "normalizeHostname",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "DohResolverOptions",
+      "Domains",
+      "DomainsAdmin",
+      "DomainsAdminOptions",
+      "DomainsEvents",
+      "DomainsOptions",
+      "Hostname",
+      "HostnameEventData",
+      "HostnameMatch",
+      "HostnameRecord",
+      "RpcClient",
+      "TxtResolver"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

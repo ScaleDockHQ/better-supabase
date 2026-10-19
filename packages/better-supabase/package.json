@@ -837,6 +837,11 @@
       "types": "./dist/blocks/oauth-server/index.d.ts",
       "default": "./dist/blocks/oauth-server/index.js"
     },
+    "./blocks/domains": {
+      "@better-supabase/source": "./src/blocks/domains/index.ts",
+      "types": "./dist/blocks/domains/index.d.ts",
+      "default": "./dist/blocks/domains/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2070,6 +2075,10 @@
       "./blocks/oauth-server": {
         "types": "./dist/blocks/oauth-server/index.d.ts",
         "default": "./dist/blocks/oauth-server/index.js"
+      },
+      "./blocks/domains": {
+        "types": "./dist/blocks/domains/index.d.ts",
+        "default": "./dist/blocks/domains/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

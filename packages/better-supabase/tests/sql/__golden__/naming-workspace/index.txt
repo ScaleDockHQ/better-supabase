@@ -39,3 +39,4 @@ signatures
 time-tracking
 service-principals
 employees
+domains

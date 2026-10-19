@@ -26,6 +26,7 @@ import type { customFieldsBlock } from "../../src/blocks/custom-fields/manifest.
 import type { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
 import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
+import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
@@ -140,6 +141,7 @@ export type AllBlocks = {
   readonly dataLifecycle: typeof dataLifecycleBlock;
   readonly deals: typeof dealsBlock;
   readonly documents: typeof documentsBlock;
+  readonly domains: typeof domainsBlock;
   readonly drive: typeof driveBlock;
   readonly employees: typeof employeesBlock;
   readonly engagements: typeof engagementsBlock;

@@ -125,6 +125,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  domains: {
+    schema: "better_supabase",
+    options: {},
+  },
   drive: {
     schema: "better_supabase",
     options: {},

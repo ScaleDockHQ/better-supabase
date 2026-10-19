@@ -52,6 +52,7 @@
   "blocks/data-lifecycle",
   "blocks/deals",
   "blocks/documents",
+  "blocks/domains",
   "blocks/drive",
   "blocks/employees",
   "blocks/engagements",
