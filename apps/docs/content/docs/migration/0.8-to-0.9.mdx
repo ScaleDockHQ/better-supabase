@@ -7,7 +7,8 @@ description: What to change when upgrading to better-supabase 0.9, which routes 
 queued by an OAuth client, published workflows, support sessions and fan-out
 to subscribers. Most changes are behaviour, not names, so
 `better-supabase codemod 0.9` moves the one renamed config key, renames the
-config types, and lists each call to review:
+config types, rewrites the CLI calls in your scripts, and lists each call to
+review:
 
 ```bash
 pnpm better-supabase codemod 0.9 --dry-run
@@ -49,6 +50,36 @@ and `ModuleMode` to `BlockMode`. A config that sets both `sql.modules` and
 another module is listed for review: move the entries into `blocks` by hand.
 Code that reads `config.sql.modules` from a loaded config reads
 `config.blocks` instead.
+
+## CLI commands and flags
+
+`sql`, `blocks`, `preset`, `skills`, `spec`, `scaffold` and `codemod` are
+command groups now: each subcommand has its own help, and the spelling of
+`sql add tenant` or `blocks list` stays the same. A flag has one meaning
+across the CLI (`--out` is a file, `--out-dir` a directory, `--only` narrows
+what runs, `--force` only overwrites), so these calls changed:
+
+| 0.8                              | 0.9                                |
+| -------------------------------- | ---------------------------------- |
+| `openapi emit`                   | `spec emit openapi`                |
+| `spec check`                     | `spec emit --check`                |
+| `init --with <name>`             | `init --integration <name>`        |
+| `add --framework <name>`         | `add --integration <name>`         |
+| `adopt --from <tables>`          | `adopt --tables <tables>`          |
+| `gen --tasks <list>`             | `gen --only <list>`                |
+| `gen --out <dir>`                | `gen --out-dir <dir>`              |
+| `introspect --format <kind>`     | `introspect --kind <kind>`         |
+| `doctor --strict`                | `doctor --fail-on warning`         |
+| `env --print`                    | `env --out -`                      |
+| `env --from <file>`              | `env --status-file <file>`         |
+| `skills install --from <source>` | `skills install --source <source>` |
+| `sql add --force` (hook overlap) | `sql add --allow-hook-overlap`     |
+
+The old forms exit with code 2 and a `command_moved` error whose
+`suggestion` is the new call, until 1.0. The codemod rewrites them in
+`package.json` scripts and `.github/workflows/*.yml`, and lists the ones in
+other shell scripts, Makefiles and YAML files for review. The package also
+installs a short `bsb` bin, so `pnpm bsb doctor` runs the same CLI.
 
 ## Access model
 

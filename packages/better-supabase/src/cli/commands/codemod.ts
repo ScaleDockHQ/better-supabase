@@ -5,6 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
+import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -61,7 +62,7 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
-/** Source files under `path`, skipping dependencies, build output and `.d.ts` files. */
+/** Source, config and script files under `path`, skipping dependencies, build output and `.d.ts` files. */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 
@@ -85,7 +86,9 @@ async function sourceFiles(path: string): Promise<string[]> {
     } else if (
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
         !entry.name.endsWith(".d.ts")) ||
-      CONFIG_FILE.test(entry.name)
+      CONFIG_FILE.test(entry.name) ||
+      CLI_CALL_FILE.test(full) ||
+      SHELL_FILE.test(entry.name)
     ) {
       files.push(full);
     }
