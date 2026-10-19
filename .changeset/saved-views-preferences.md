@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-Saved views keep the whole view state and per-user preferences. `useSavedViews` takes `getState` and `onApplyState`, so `saveCurrent` stores the columns, grouping, density and layout with the URL's query, `apply` restores them, and `active` and `isDirty` compare them; the `save` callback now also receives `state`, the value `savedViews.save()` takes. The `saved-views` SQL module adds a `saved_view_preferences` table and `set_view_preference`, so a member can make a shared view their own default, hide it or pin it without the right to change it, and `list_views` returns the caller's `preference` with each view. `defaultView` opens the caller's preferred view first and skips hidden views. `duplicate_view` and `savedViews.duplicate()` copy a view the caller sees into a new view, with the same checks as saving one. The client adds `setPreference()` and `duplicate()`, and the hook adds `duplicate` and `setPreference`. Run `better-supabase sql sync` to install module version 2.
