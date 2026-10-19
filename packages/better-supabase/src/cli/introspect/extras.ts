@@ -190,7 +190,7 @@ cross join lateral aclexplode(a.attacl) acl
 left join pg_roles r on r.oid = acl.grantee
 where n.nspname = any(${schemas})
   and (acl.grantee = 0 or r.rolname in ('anon', 'authenticated'))
-  and acl.privilege_type in ('INSERT', 'UPDATE')
+  and acl.privilege_type in ('SELECT', 'INSERT', 'UPDATE')
 group by 1, 2, 3
 order by 1, 2, 3`;
 

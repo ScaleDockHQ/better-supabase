@@ -336,9 +336,11 @@ const OWN_RULES: readonly Rule[] = [
           return [];
         }
 
+        // A column grant (`access: "server"` hides columns that way) still
+        // lets the Data API reach the table, so it counts as granted.
         const granted = (role: string): Set<string> =>
           new Set(
-            table.grants
+            [...table.grants, ...(table.columnGrants ?? [])]
               .filter((grant) => grant.role === role || grant.role === "PUBLIC")
               .flatMap((grant) =>
                 grant.privileges.map((privilege) => privilege.toLowerCase()),
