@@ -93,6 +93,7 @@
     "oauth-server",
     "domains",
     "reviews",
-    "leave"
+    "leave",
+    "rules"
   ]
 }

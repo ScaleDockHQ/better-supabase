@@ -54,6 +54,7 @@ import {
   LifeBuoyIcon,
   Link2Icon,
   ListChecksIcon,
+  ListFilterIcon,
   ListOrderedIcon,
   ListTodoIcon,
   LockKeyholeIcon,
@@ -173,6 +174,7 @@ export const BLOCK_ICONS = {
   // People
   "time-tracking": TimerIcon,
   leave: TreePalmIcon,
+  rules: ListFilterIcon,
   hiring: UserPlusIcon,
   employees: IdCardIcon,
   // Billing & commerce

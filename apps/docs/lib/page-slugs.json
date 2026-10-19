@@ -68,6 +68,7 @@
   "blocks/jobs",
   "blocks/knowledge",
   "blocks/leave",
+  "blocks/rules",
   "blocks/memory",
   "blocks/metrics",
   "blocks/notifications",

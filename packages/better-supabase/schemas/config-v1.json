@@ -1314,6 +1314,7 @@
               "reminders",
               "reserved-slugs",
               "reviews",
+              "rules",
               "saved-views",
               "search",
               "service-principals",
@@ -1582,6 +1583,9 @@
             },
             "reviews": {
               "$ref": "#/$defs/blocks/reviews"
+            },
+            "rules": {
+              "$ref": "#/$defs/blocks/rules"
             },
             "saved-views": {
               "$ref": "#/$defs/blocks/saved-views"
@@ -4361,6 +4365,30 @@
                 "default": false
               },
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "rules": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxConditions": {
+                "type": "number",
+                "default": 50
+              },
+              "maxDepth": {
+                "type": "number",
+                "default": 4
+              },
+              "maxActions": {
+                "type": "number",
+                "default": 20
+              }
             }
           }
         }

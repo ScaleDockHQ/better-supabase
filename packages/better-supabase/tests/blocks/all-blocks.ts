@@ -78,6 +78,7 @@ import type { relationsBlock } from "../../src/blocks/relations/manifest.ts";
 import type { remindersBlock } from "../../src/blocks/reminders/manifest.ts";
 import type { reservedSlugsBlock } from "../../src/blocks/reserved-slugs/manifest.ts";
 import type { reviewsBlock } from "../../src/blocks/reviews/manifest.ts";
+import type { rulesBlock } from "../../src/blocks/rules/manifest.ts";
 import type { savedViewsBlock } from "../../src/blocks/saved-views/manifest.ts";
 import type { searchBlock } from "../../src/blocks/search/manifest.ts";
 import type { servicePrincipalsBlock } from "../../src/blocks/service-principals/manifest.ts";
@@ -191,6 +192,7 @@ export type AllBlocks = {
   readonly reminders: typeof remindersBlock;
   readonly reservedSlugs: typeof reservedSlugsBlock;
   readonly reviews: typeof reviewsBlock;
+  readonly rules: typeof rulesBlock;
   readonly savedViews: typeof savedViewsBlock;
   readonly search: typeof searchBlock;
   readonly servicePrincipals: typeof servicePrincipalsBlock;

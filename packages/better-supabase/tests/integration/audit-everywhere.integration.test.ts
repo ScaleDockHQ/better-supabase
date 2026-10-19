@@ -24,6 +24,7 @@ const ACTION_MODULES = [
   "waitlist",
   "sso",
   "domains",
+  "rules",
 ] as const;
 
 /** The event types `actions` records, each once. */
@@ -57,6 +58,9 @@ const RECORDED = [
   "invite_code.created",
   "organization.domain_added",
   "hostname.added",
+  "rule.saved",
+  "rule.enabled",
+  "rule.removed",
 ] as const;
 
 /** Runs one security-relevant action of each module; returns the tenant. */
@@ -169,6 +173,27 @@ async function actions(s: BlockSession): Promise<string> {
 
   await s.value("better_supabase.decide_waitlist_entry($1, true)", [entry]);
   await s.value("better_supabase.create_invite_code($1)", [`CODE-${suffix}`]);
+  await s.value(
+    'better_supabase.sync_rule_fields(\'expense\', \'[{"id": "status", "type": "select"}]\')',
+  );
+
+  await s.as(owner);
+
+  const rule = await s.value<{ id: string }>(
+    "better_supabase.save_rule($1, $2)",
+    [
+      organization,
+      {
+        subjectType: "expense",
+        trigger: "expense.submitted",
+        name: "Submitted",
+        conditions: { id: "root", type: "group", combinator: "and", rules: [] },
+      },
+    ],
+  );
+
+  await s.value("better_supabase.set_rule_enabled($1, true)", [rule.id]);
+  await s.value("better_supabase.remove_rule($1)", [rule.id]);
 
   return organization;
 }

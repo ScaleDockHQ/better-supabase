@@ -843,6 +843,11 @@
       "types": "./dist/blocks/domains/index.d.ts",
       "default": "./dist/blocks/domains/index.js"
     },
+    "./blocks/rules": {
+      "@better-supabase/source": "./src/blocks/rules/index.ts",
+      "types": "./dist/blocks/rules/index.d.ts",
+      "default": "./dist/blocks/rules/index.js"
+    },
     "./blocks/reviews": {
       "@better-supabase/source": "./src/blocks/reviews/index.ts",
       "types": "./dist/blocks/reviews/index.d.ts",
@@ -2090,6 +2095,10 @@
       "./blocks/domains": {
         "types": "./dist/blocks/domains/index.d.ts",
         "default": "./dist/blocks/domains/index.js"
+      },
+      "./blocks/rules": {
+        "types": "./dist/blocks/rules/index.d.ts",
+        "default": "./dist/blocks/rules/index.js"
       },
       "./blocks/reviews": {
         "types": "./dist/blocks/reviews/index.d.ts",

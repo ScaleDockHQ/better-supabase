@@ -1798,6 +1798,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests"
     },
     {
+      "name": "rules",
+      "title": "Rules",
+      "category": "automation",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [],
+      "manifest": "rules",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2765,6 +2779,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "category": "tenancy",
       "client": null,
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "rules",
+      "sql": [
+        "rules"
+      ],
+      "category": "automation",
+      "client": {
+        "export": "rulesBlock",
+        "subpath": "better-supabase/blocks/rules"
+      },
       "consumes": {},
       "provides": []
     },
