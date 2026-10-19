@@ -565,9 +565,9 @@
               "values": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/$defs/triggerValue"
                 },
-                "description": "The column per placeholder. Defaults to the placeholder in snake_case."
+                "description": "The column or lookup per placeholder. Defaults to the placeholder in snake_case. A row whose topic comes out null is not sent to it."
               },
               "events": {
                 "type": "array",
@@ -577,19 +577,88 @@
                 }
               },
               "event": {
-                "type": "string",
-                "description": "The broadcast event name. Defaults to the operation."
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "insert": {
+                        "type": "string"
+                      },
+                      "update": {
+                        "type": "string"
+                      },
+                      "delete": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "The broadcast event name, or one per operation ({ insert, update, delete }). Defaults to the operation."
               },
               "payload": {
-                "enum": ["keys", "row"],
+                "anyOf": [
+                  {
+                    "enum": ["keys", "row"],
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/triggerValue"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "sql": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["sql"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants. An object is the payload itself: each key is a column, a lookup, or { sql }, an expression on the row {row} (tg_op is the operation)."
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "topic": {
+                      "type": "string",
+                      "description": "The template of a topic `policies.from` exports."
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/$defs/triggerValue"
+                      },
+                      "description": "The column or lookup per placeholder. Defaults to the placeholder in snake_case."
+                    }
+                  },
+                  "required": ["topic"],
+                  "additionalProperties": false
+                },
+                "description": "More topics the row change goes to, each with its own values."
+              },
+              "functionSchema": {
                 "type": "string",
-                "description": "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants."
+                "description": "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose."
               }
             },
             "required": ["topic", "table"],
             "additionalProperties": false
           },
-          "description": "Broadcast triggers `sql sync` writes to `policies.output`: each calls better_supabase.broadcast_topic() (the realtime-tables module) for a topic `policies.from` exports."
+          "description": "Broadcast triggers `sql sync` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
         }
       },
       "additionalProperties": false,
@@ -2860,6 +2929,33 @@
       "type": "string",
       "pattern": "^(?:select|insert|update|delete|(?:select|insert|update)\\s*\\(\\s*(?:[a-z_][a-z0-9_$]*(?:\\s*,\\s*[a-z_][a-z0-9_$]*)*|\\*(?:\\s*,\\s*-\\s*[a-z_][a-z0-9_$]*)*)\\s*\\))$",
       "description": "select, insert, update or delete, a column privilege such as `update(title, body)`, or every declared column but some, such as `select(*, -token_hash)`."
+    },
+    "triggerValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "via": {
+              "$ref": "#/$defs/triggerValue"
+            },
+            "select": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            }
+          },
+          "required": ["from", "via", "select"],
+          "additionalProperties": false
+        }
+      ],
+      "description": "A column of the changed row, or a lookup: the `select` column of the `from` row (`table` or `schema.table`) whose `key` (default id) equals `via`, a column or another lookup."
     },
     "blocks": {
       "access": {

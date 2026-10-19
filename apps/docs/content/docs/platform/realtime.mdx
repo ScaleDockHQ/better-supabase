@@ -260,6 +260,22 @@ customersTopic.trigger("customers", {
 });
 ```
 
+Without `betterSupabase`, values and lookups use database names: `table` or
+`schema.table` for `from`, and columns for `via`, `select` and `key`, whose
+default is `id`:
+
+```ts
+inboxTopic.trigger("public.messages", {
+  values: {
+    organizationId: {
+      from: "public.threads",
+      via: "thread_id",
+      select: "organization_id",
+    },
+  },
+});
+```
+
 Lookups, a custom payload, per-operation events and `topics` need a function
 per trigger. It goes into the `better_supabase` schema, which the Data API
 does not expose, so clients can't call it through `/rpc`. Pass
@@ -315,8 +331,10 @@ statement-level `track_realtime`) instead.
 
 `realtime.triggers` makes `sql sync` write them to the `realtime.policies`
 output after the policies. Each entry names a topic that `from` exports by its
-template, and takes `values`, `events`, `event` and `payload` (`"keys"` or
-`"row"`):
+template, and `sql sync` passes the rest to that topic's `trigger()` without
+`betterSupabase`, so the config writes the same SQL as the call. An entry
+takes `values`, `events`, `event`, `payload`, `topics` and `functionSchema`,
+with database names in values and lookups:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -337,9 +355,48 @@ export default defineConfig({
 });
 ```
 
-`sql sync` refuses `realtime.triggers` without `realtime.policies`, without
-`realtime-tables` in `blocks`, or for a template no module in `from`
-exports.
+Lookups, a payload object, per-operation events and `topics` work as they do
+on `trigger()`. Here the inbox's messages go to their organization's topic,
+found through the parent thread, and to the thread's own topic:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  realtime: {
+    policies: {
+      from: ["src/realtime/topics.ts"],
+      output: "supabase/schemas/905_topics.sql",
+    },
+    triggers: [
+      {
+        topic: "organization:{organizationId}:inbox",
+        table: "public.messages",
+        values: {
+          organizationId: {
+            from: "public.threads",
+            via: "thread_id",
+            select: "organization_id",
+          },
+        },
+        event: { insert: "created", update: "updated", delete: "deleted" },
+        payload: {
+          operation: { sql: "lower(tg_op)" },
+          thread_id: "thread_id",
+          record_id: "id",
+        },
+        topics: [{ topic: "thread:{threadId}" }],
+      },
+    ],
+  },
+});
+```
+
+`topics` names each extra topic by its template, which a module in `from`
+also exports, and takes its own `values`.
+
+`sql sync` refuses `realtime.triggers` without `realtime.policies`, or for a
+template no module in `from` exports. A trigger that calls
+`better_supabase.broadcast_topic()` also needs `realtime-tables` in `blocks`;
+one with a function of its own does not.
 
 ### On the client
 

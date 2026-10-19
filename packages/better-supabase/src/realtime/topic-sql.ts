@@ -72,6 +72,11 @@ export type AnyTriggerValue =
       readonly key?: string;
     };
 
+export const splitTable = (table: string): readonly [string, string] =>
+  table.includes(".")
+    ? [table.slice(0, table.indexOf(".")), table.slice(table.indexOf(".") + 1)]
+    : ["public", table];
+
 function columnSql(meta: TableMeta, column: string, where: string): string {
   const db = meta.columns[column]?.db;
 
@@ -84,18 +89,17 @@ function columnSql(meta: TableMeta, column: string, where: string): string {
   return sqlIdent(db);
 }
 
-/** A trigger value as SQL on `rec`, with one subquery per lookup. */
-export function triggerValueSql(
-  tables: Readonly<Record<string, TableMeta | undefined>>,
-  meta: TableMeta,
-  value: AnyTriggerValue,
-  where: string,
-  depth = 0,
-): string {
-  if (typeof value === "string") {
-    return `rec.${columnSql(meta, value, where)}`;
-  }
+interface LookupTarget {
+  readonly relation: string;
+  readonly key: string;
+  readonly select: string;
+}
 
+function lookupTarget(
+  tables: Readonly<Record<string, TableMeta | undefined>>,
+  value: Exclude<AnyTriggerValue, string>,
+  where: string,
+): LookupTarget {
   const joined = tables[value.from];
 
   if (!joined) {
@@ -114,10 +118,46 @@ export function triggerValueSql(
     );
   }
 
+  return {
+    relation: `${sqlIdent(joined.schema)}.${sqlIdent(joined.name)}`,
+    key: columnSql(joined, key, where),
+    select: columnSql(joined, value.select, where),
+  };
+}
+
+function rawLookupTarget(
+  value: Exclude<AnyTriggerValue, string>,
+): LookupTarget {
+  const [schema, name] = splitTable(value.from);
+
+  return {
+    relation: `${sqlIdent(schema)}.${sqlIdent(name)}`,
+    key: sqlIdent(value.key ?? "id"),
+    select: sqlIdent(value.select),
+  };
+}
+
+/** A trigger value as SQL on `rec`, with one subquery per lookup. */
+export function triggerValueSql(
+  tables: Readonly<Record<string, TableMeta | undefined>> | undefined,
+  meta: TableMeta | undefined,
+  value: AnyTriggerValue,
+  where: string,
+  depth = 0,
+): string {
+  if (typeof value === "string") {
+    return `rec.${meta ? columnSql(meta, value, where) : sqlIdent(value)}`;
+  }
+
+  const target =
+    tables && meta
+      ? lookupTarget(tables, value, where)
+      : rawLookupTarget(value);
+
   const alias = `j${String(depth)}`;
   const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
 
-  return `(select ${alias}.${columnSql(joined, value.select, where)} from ${sqlIdent(joined.schema)}.${sqlIdent(joined.name)} ${alias} where ${alias}.${columnSql(joined, key, where)} = ${via} limit 1)`;
+  return `(select ${alias}.${target.select} from ${target.relation} ${alias} where ${alias}.${target.key} = ${via} limit 1)`;
 }
 
 /** The event name: one for every operation, one per operation, or the operation. */

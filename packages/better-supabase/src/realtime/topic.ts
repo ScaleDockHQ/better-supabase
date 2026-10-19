@@ -42,6 +42,7 @@ import { joinTopic, type Subscriber } from "./channels.ts";
 import { fanOutTopic } from "./fan-out.ts";
 import {
   eventSql,
+  splitTable,
   topicPermissionSql,
   triggerValueSql,
   type AnyTriggerValue,
@@ -323,19 +324,34 @@ export interface TriggerOptions<
   readonly topics?: readonly TriggerTopic<TriggerValue<M, T>>[];
 }
 
-/** `topic.trigger()` with columns only. */
+export interface TopicTriggerLookup {
+  readonly from: string;
+  readonly via: string | TopicTriggerLookup;
+  readonly select: string;
+  readonly key?: string;
+}
+
+export type TopicTriggerValue = string | TopicTriggerLookup;
+
+/** `topic.trigger()` without `betterSupabase`: database names. */
 export interface TopicTriggerOptions<
   P extends string,
 > extends TriggerCommonOptions {
   /**
-   * The column that fills each placeholder. Defaults to the placeholder in
-   * snake_case (`{organizationId}` reads `organization_id`).
+   * The column or lookup that fills each placeholder. Defaults to the
+   * placeholder in snake_case (`{organizationId}` reads `organization_id`).
    */
-  readonly values?: { readonly [K in TemplateParams<P>]?: string };
-  /** `"keys"` (default) or `"row"`, which bypasses column grants. */
-  readonly payload?: TriggerPayloadMode;
-  /** More topics the row change goes to, each with its own columns. */
-  readonly topics?: readonly TriggerTopic<string>[];
+  readonly values?: { readonly [K in TemplateParams<P>]?: TopicTriggerValue };
+  /**
+   * `"keys"` (default), `"row"` (bypasses column grants), or the payload
+   * itself: each key is a column, a lookup, or `{ sql }`, an expression on
+   * the row `{row}` (`tg_op` is the operation).
+   */
+  readonly payload?:
+    | TriggerPayloadMode
+    | Readonly<Record<string, TopicTriggerValue | { readonly sql: string }>>;
+  /** More topics the row change goes to, each with its own values. */
+  readonly topics?: readonly TriggerTopic<TopicTriggerValue>[];
 }
 
 /** A row change sent with `payload: "row"`. */
@@ -404,10 +420,11 @@ export interface Topic<
    * a value topics don't allow skips that topic with a warning instead of
    * failing the write.
    *
-   * With `betterSupabase`, `table` is a table key and values can be
-   * lookups; the statement creates a function for the topic. Without it,
-   * `table` is `table` or `schema.table`, and a single topic calls
+   * With `betterSupabase`, `table`, columns and lookup tables are app keys.
+   * Without it they are database names, and a single topic whose values
+   * are columns, with a mode payload and one event name, calls
    * `better_supabase.broadcast_topic()` from the `realtime-tables` module.
+   * Every other trigger creates a function for the topic.
    *
    * The payload carries keys only unless `payload` says otherwise:
    * `payload: "row"` sends whole rows and bypasses column grants.
@@ -480,10 +497,23 @@ interface AnyTriggerOptions {
   readonly functionSchema?: string;
 }
 
-const splitTable = (table: string): readonly [string, string] =>
-  table.includes(".")
-    ? [table.slice(0, table.indexOf(".")), table.slice(table.indexOf(".") + 1)]
-    : ["public", table];
+const columnsOnly = (
+  values: Readonly<Record<string, AnyTriggerValue | undefined>> | undefined,
+): Readonly<Record<string, string>> | undefined => {
+  const columns: Record<string, string> = {};
+
+  for (const [param, value] of Object.entries(values ?? {})) {
+    if (typeof value === "object") {
+      return undefined;
+    }
+
+    if (value !== undefined) {
+      columns[param] = value;
+    }
+  }
+
+  return columns;
+};
 
 const VALUE = /^[\w.@+=-]+$/;
 
@@ -722,24 +752,19 @@ export function defineTopic<
 
     checkKeys(parsed.params, trigger.values, template);
 
+    const columns = columnsOnly(trigger.values);
+
     if (
       !meta &&
+      columns !== undefined &&
       extra.length === 0 &&
       typeof trigger.event !== "object" &&
       (payload === undefined || typeof payload === "string")
     ) {
-      const columns = trigger.values ?? {};
-
       const sqlTemplate = template.replaceAll(
         /\{([^}]+)\}/g,
         (_, param: string) => {
           const column = columns[param] ?? snakeCase(param);
-
-          if (typeof column !== "string") {
-            throw new TypeError(
-              `${where}: a lookup for {${param}} needs betterSupabase`,
-            );
-          }
 
           if (/[{}=]/.test(column)) {
             throw new TypeError(
@@ -770,19 +795,8 @@ export function defineTopic<
       ].join("\n");
     }
 
-    const valueSql = (value: AnyTriggerValue, label: string): string => {
-      if (tables && meta) {
-        return triggerValueSql(tables, meta, value, label);
-      }
-
-      if (typeof value !== "string") {
-        throw new TypeError(
-          `${where}: a lookup for ${label} needs betterSupabase`,
-        );
-      }
-
-      return `rec.${sqlIdent(value)}`;
-    };
+    const valueSql = (value: AnyTriggerValue, label: string): string =>
+      triggerValueSql(tables, meta, value, label);
 
     const topicValues = (
       params: readonly string[],
