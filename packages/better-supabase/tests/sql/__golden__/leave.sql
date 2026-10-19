@@ -92,6 +92,7 @@ create table if not exists "better_supabase"."leave_requests" (
 create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
 create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
 create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
@@ -119,6 +120,8 @@ create table if not exists "better_supabase"."leave_ledger" (
 );
 create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
 create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
+create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
+create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
 alter table "better_supabase"."leave_ledger" enable row level security;
 revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
 grant select on "better_supabase"."leave_ledger" to authenticated;
@@ -796,6 +799,7 @@ create table if not exists "better_supabase"."leave_requests" (
 create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
 create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
 create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
@@ -823,6 +827,8 @@ create table if not exists "better_supabase"."leave_ledger" (
 );
 create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
 create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
+create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
+create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
 alter table "better_supabase"."leave_ledger" enable row level security;
 revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
 grant select on "better_supabase"."leave_ledger" to authenticated;
@@ -1538,6 +1544,7 @@ create table if not exists "app_private"."leave_requests" (
 create index if not exists "leave_requests_user_idx" on "app_private"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
 create index if not exists "leave_requests_dates_idx" on "app_private"."leave_requests" ("tenant_id", "starts_on", "ends_on");
 create index if not exists "leave_requests_approval_idx" on "app_private"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index if not exists "leave_requests_type_idx" on "app_private"."leave_requests" ("tenant_id", "type_id");
 alter table "app_private"."leave_requests" enable row level security;
 revoke all on "app_private"."leave_requests" from anon, authenticated;
 grant select on "app_private"."leave_requests" to authenticated;
@@ -1565,6 +1572,8 @@ create table if not exists "app_private"."leave_ledger" (
 );
 create index if not exists "leave_ledger_balance_idx" on "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
 create unique index if not exists "leave_ledger_key_idx" on "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
+create index if not exists "leave_ledger_type_idx" on "app_private"."leave_ledger" ("tenant_id", "type_id");
+create index if not exists "leave_ledger_request_idx" on "app_private"."leave_ledger" ("request_id") where "request_id" is not null;
 alter table "app_private"."leave_ledger" enable row level security;
 revoke all on "app_private"."leave_ledger" from anon, authenticated;
 grant select on "app_private"."leave_ledger" to authenticated;
@@ -2242,6 +2251,7 @@ create table if not exists "better_supabase"."leave_requests" (
 create index if not exists "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
 create index if not exists "leave_requests_dates_idx" on "better_supabase"."leave_requests" ("tenant_id", "starts_on", "ends_on");
 create index if not exists "leave_requests_approval_idx" on "better_supabase"."leave_requests" ("approval_id") where "approval_id" is not null;
+create index if not exists "leave_requests_type_idx" on "better_supabase"."leave_requests" ("tenant_id", "type_id");
 alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
@@ -2269,6 +2279,8 @@ create table if not exists "better_supabase"."leave_ledger" (
 );
 create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
 create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
+create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
+create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
 alter table "better_supabase"."leave_ledger" enable row level security;
 revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
 grant select on "better_supabase"."leave_ledger" to authenticated;

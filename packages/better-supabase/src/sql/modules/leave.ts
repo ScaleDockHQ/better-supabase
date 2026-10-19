@@ -330,6 +330,7 @@ create table if not exists ${requests} (
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${q("user")}, ${q("startsOn")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockTable(requests, { read: true })}
 drop policy if exists "leave_requests_read" on ${requests};
 create policy "leave_requests_read" on ${requests} for select to authenticated
@@ -354,6 +355,8 @@ create table if not exists ${ledger} (
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_balance_idx`)} on ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("period")});
 create unique index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_key_idx`)} on ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("key")}) where ${l("key")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_type_idx`)} on ${ledger} (${l("tenant")}, ${l("type")});
+create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_request_idx`)} on ${ledger} (${l("request")}) where ${l("request")} is not null;
 ${lockTable(ledger, { read: true })}
 drop policy if exists "leave_ledger_read" on ${ledger};
 create policy "leave_ledger_read" on ${ledger} for select to authenticated
