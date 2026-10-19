@@ -978,6 +978,80 @@ describe("createWorkflowBuilder", () => {
     ]);
   });
 
+  it("starts only the event triggers whose when matches", async () => {
+    const when = {
+      fields: [{ id: "payload.amount", type: "number" }],
+      filter: {
+        id: "root",
+        type: "group",
+        combinator: "and",
+        rules: [
+          {
+            id: "r1",
+            type: "rule",
+            path: ["payload", "amount"],
+            operator: "gt",
+            value: 500,
+          },
+        ],
+      },
+    };
+
+    const { transport } = fake({
+      workflow_event_targets: () => [
+        { trigger: { ...TRIGGER, id: "a", kind: "event", config: { when } } },
+        { trigger: { ...TRIGGER, id: "b", kind: "event", config: {} } },
+        {
+          trigger: {
+            ...TRIGGER,
+            id: "c",
+            kind: "event",
+            config: { when: { filter: {}, fields: [] } },
+          },
+        },
+      ],
+      workflow_start_target: target,
+    });
+
+    const keys: string[] = [];
+
+    const builder = createWorkflowBuilder({
+      transport,
+      start: async (call) => {
+        keys.push(call.idempotencyKey);
+
+        return "wrun";
+      },
+    });
+
+    await builder.triggers
+      .onEvent({
+        id: "e1",
+        type: "expense.submitted",
+        payload: { amount: 900 },
+      })
+      .orThrow();
+    await builder.triggers
+      .onEvent({ id: "e2", type: "expense.submitted", payload: { amount: 90 } })
+      .orThrow();
+
+    expect(keys).toEqual(["event:a:e1", "event:b:e1", "event:b:e2"]);
+  });
+
+  it("refuses an event trigger with an unusable when", async () => {
+    const { transport, calls } = fake({});
+
+    const saved = await createWorkflowBuilder({ transport }).triggers.save({
+      definition: "d1",
+      kind: "event",
+      config: { when: { filter: { type: "group" }, fields: [] } },
+    });
+
+    expect(saved.ok).toBe(false);
+    expect(saved.error?.kind).toBe("invalid_input");
+    expect(calls).toEqual([]);
+  });
+
   it("starts event triggers and stops at the first failure", async () => {
     const { transport } = fake({
       workflow_event_targets: () => [

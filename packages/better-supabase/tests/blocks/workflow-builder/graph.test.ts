@@ -17,6 +17,8 @@ import {
   nodeOf,
   readPath,
   topologicalOrder,
+  triggerMatches,
+  triggerWhenProblem,
   validateGraph,
   type WorkflowCondition,
   type WorkflowGraph,
@@ -91,6 +93,132 @@ describe("conditions", () => {
         config: { path: "input.x", op: "truthy" },
       }),
     ).toEqual({ path: "input.x", op: "truthy", value: undefined });
+  });
+
+  it("tests a filter tree over the run's data", () => {
+    const config = {
+      fields: [
+        { id: "results.lookup.plan", type: "select" },
+        { id: "results.lookup.seats", type: "number" },
+        { id: "input.email", type: "text" },
+      ],
+      filter: {
+        id: "root",
+        type: "group",
+        combinator: "and",
+        rules: [
+          {
+            id: "plan",
+            type: "rule",
+            path: ["results", "lookup", "plan"],
+            operator: "is_any_of",
+            value: ["pro", "team"],
+          },
+          {
+            id: "either",
+            type: "group",
+            combinator: "or",
+            rules: [
+              {
+                id: "seats",
+                type: "rule",
+                path: ["results", "lookup", "seats"],
+                operator: "gt",
+                value: 10,
+              },
+              {
+                id: "email",
+                type: "rule",
+                path: ["input", "email"],
+                operator: "ends_with",
+                value: "@x.test",
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const condition = conditionOf({ id: "c", kind: "condition", config });
+
+    expect(condition).toMatchObject({ fields: config.fields });
+    expect(condition && evaluateCondition(condition, scope)).toBe(true);
+    expect(
+      condition &&
+        evaluateCondition(condition, {
+          ...scope,
+          input: { email: "a@y.test" },
+        }),
+    ).toBe(false);
+
+    for (const bad of [
+      { ...config, fields: [{ id: "env.x", type: "text" }] },
+      { ...config, fields: [{ id: "input.x", type: "colour" }] },
+      { ...config, fields: "input.x" },
+      { ...config, filter: { type: "group" } },
+      {
+        ...config,
+        filter: { id: "root", type: "group", combinator: "and", rules: [] },
+      },
+    ]) {
+      expect(
+        conditionOf({ id: "c", kind: "condition", config: bad }),
+      ).toBeUndefined();
+    }
+  });
+
+  it("lets an event start a trigger only when its when matches", () => {
+    const when = {
+      fields: [
+        { id: "type", type: "text" },
+        { id: "payload.submittedAt", type: "date", columnType: "date" },
+      ],
+      filter: {
+        id: "root",
+        type: "group",
+        combinator: "and",
+        rules: [
+          {
+            id: "t",
+            type: "rule",
+            path: ["type"],
+            operator: "is",
+            value: "expense.submitted",
+          },
+          {
+            id: "d",
+            type: "rule",
+            path: ["payload", "submittedAt"],
+            operator: "is_after",
+            value: { date: "2026-01-01" },
+          },
+        ],
+      },
+    };
+
+    const event = {
+      type: "expense.submitted",
+      payload: { submittedAt: "2026-10-19" },
+    };
+
+    expect(triggerMatches({}, event)).toBe(true);
+    expect(triggerMatches({ when }, event)).toBe(true);
+    expect(
+      triggerMatches(
+        { when },
+        { ...event, payload: { submittedAt: "2025-12-31" } },
+      ),
+    ).toBe(false);
+    expect(triggerMatches({ when: { filter: {}, fields: [] } }, event)).toBe(
+      false,
+    );
+    expect(triggerWhenProblem({ when })).toBeUndefined();
+    expect(triggerWhenProblem({})).toBeUndefined();
+    expect(
+      triggerWhenProblem({
+        when: { ...when, fields: [{ id: "input.x", type: "text" }] },
+      }),
+    ).toContain("config.when");
   });
 
   it("approves anything but approved: false", () => {

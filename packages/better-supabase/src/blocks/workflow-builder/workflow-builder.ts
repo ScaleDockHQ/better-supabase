@@ -46,7 +46,12 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
-import { diffGraphs, graphOf } from "./graph.ts";
+import {
+  diffGraphs,
+  graphOf,
+  triggerMatches,
+  triggerWhenProblem,
+} from "./graph.ts";
 import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
   alertOf,
@@ -471,8 +476,17 @@ export function createWorkflowBuilder<
       });
     },
     triggers: {
-      save: (input) =>
-        call(
+      save: (input) => {
+        const problem =
+          input.kind === "event"
+            ? triggerWhenProblem(input.config ?? {})
+            : undefined;
+
+        if (problem !== undefined) {
+          return AsyncResult.err(dbError("invalid_input", problem));
+        }
+
+        return call(
           "save_workflow_trigger",
           {
             definition: input.definition,
@@ -482,7 +496,8 @@ export function createWorkflowBuilder<
             trigger: input.id,
           },
           (value) => triggerOf(recordOf(value, "save_workflow_trigger")),
-        ),
+        );
+      },
       list: (definition) =>
         call("workflow_triggers_list", { definition }, (value) =>
           recordsOf(value, "workflow_triggers_list").map(triggerOf),
@@ -556,6 +571,11 @@ export function createWorkflowBuilder<
 
           for (const row of rows) {
             const trigger = triggerOf(recordOf(row["trigger"], "trigger"));
+
+            if (!triggerMatches(trigger.config, event)) {
+              continue;
+            }
+
             const subject = eventSubject(event, stringsOf(row["subjectTypes"]));
             const tenant = optionalText(row["tenant"]);
 
