@@ -32,7 +32,10 @@ export interface PostgresTimeouts {
 }
 
 export interface PostgresOptions {
-  /** Defaults to `$SUPABASE_DB_URL`, then `$DATABASE_URL`. */
+  /**
+   * Defaults to `$SUPABASE_DB_URL`, `$DATABASE_URL`, `$POSTGRES_URL`, then
+   * `$POSTGRES_URL_NON_POOLING`, the first one set.
+   */
   readonly connectionString?: string;
   /** An existing pool to run on instead of opening one. `end()` ends it. */
   readonly pool?: PgPool;
@@ -66,6 +69,13 @@ export interface PostgresOptions {
 
 /** Supabase sets no idle-in-transaction timeout; 15 s frees a stuck connection. */
 const DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT = 15_000;
+
+const CONNECTION_VARIABLES = [
+  "SUPABASE_DB_URL",
+  "DATABASE_URL",
+  "POSTGRES_URL",
+  "POSTGRES_URL_NON_POOLING",
+] as const;
 
 const DEFAULT_TIMEOUTS: PostgresTimeouts = {
   authenticated: 8000,
@@ -138,12 +148,11 @@ function roleOf(claims: SqlClaims): string {
 function openPool(options: PostgresOptions): PgPool {
   const connectionString =
     options.connectionString ??
-    process.env["SUPABASE_DB_URL"] ??
-    process.env["DATABASE_URL"];
+    CONNECTION_VARIABLES.map((name) => process.env[name]).find(Boolean);
 
   if (!connectionString) {
     throw new TypeError(
-      "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
+      `createPostgres needs a connectionString or one of ${CONNECTION_VARIABLES.map((name) => `$${name}`).join(", ")}`,
     );
   }
 

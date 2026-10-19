@@ -429,11 +429,23 @@ describe("createPostgres", () => {
     await createPostgres().end();
   });
 
+  it("falls back to the Vercel Postgres connection strings", async () => {
+    vi.stubEnv("SUPABASE_DB_URL", undefined);
+    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("POSTGRES_URL", undefined);
+    vi.stubEnv("POSTGRES_URL_NON_POOLING", "postgresql://127.0.0.1:1/postgres");
+    await createPostgres().end();
+    vi.stubEnv("POSTGRES_URL", "postgresql://127.0.0.1:1/postgres");
+    await createPostgres().end();
+  });
+
   it("needs a connection string when no pool or environment is set", () => {
     vi.stubEnv("SUPABASE_DB_URL", undefined);
     vi.stubEnv("DATABASE_URL", undefined);
+    vi.stubEnv("POSTGRES_URL", undefined);
+    vi.stubEnv("POSTGRES_URL_NON_POOLING", undefined);
     expect(() => createPostgres()).toThrow(
-      "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
+      "createPostgres needs a connectionString or one of $SUPABASE_DB_URL, $DATABASE_URL, $POSTGRES_URL, $POSTGRES_URL_NON_POOLING",
     );
   });
 });
