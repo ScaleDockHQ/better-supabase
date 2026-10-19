@@ -27,6 +27,7 @@ import {
   scaffoldApiFiles,
   scaffoldNextSteps,
 } from "../scaffold/api.ts";
+import { ScreensError, scaffoldScreensFiles } from "../scaffold/screens.ts";
 
 const ARGS = {
   framework: {
@@ -53,7 +54,29 @@ const ARGS = {
   },
 } as const;
 
+const SCREENS_ARGS = {
+  table: {
+    type: "positional",
+    required: false,
+    description: "The app table to write pages for",
+  },
+  framework: {
+    type: "string",
+    description: "next. Defaults to next when package.json lists it",
+    valueHint: "name",
+  },
+  "base-path": {
+    type: "string",
+    description: "The route the pages live under. Defaults to /<table>",
+    valueHint: "path",
+  },
+} as const;
+
 export type ScaffoldArgs = CliArgs<typeof ARGS & typeof PLAN_ARGS>;
+
+export type ScaffoldScreensFlags = CliOptions<
+  typeof SCREENS_ARGS & typeof PLAN_ARGS
+>;
 
 export type ScaffoldFlags = CliOptions<typeof ARGS & typeof PLAN_ARGS>;
 
@@ -226,6 +249,87 @@ export async function runScaffoldApi(
   };
 }
 
+/** Writes list, create and detail pages for one app table, each once. */
+export async function runScaffoldScreens(
+  config: ResolvedConfig,
+  args: ScaffoldScreensFlags,
+): Promise<CommandResult> {
+  const { table } = args;
+
+  if (table === undefined) {
+    throw new CliError(
+      "usage",
+      "Name the app table: `better-supabase scaffold screens <table>`.",
+    );
+  }
+
+  const project = await detectProject(config.root);
+
+  const framework =
+    args.framework ??
+    (project.frameworks.includes("next") ? "next" : undefined);
+
+  if (framework !== "next") {
+    throw new CliError(
+      "usage",
+      framework === undefined
+        ? "Screens are Next.js pages, and package.json has no next. Pass --framework next."
+        : `Screens are Next.js pages; --framework ${framework} has none.`,
+    );
+  }
+
+  const basePath = `/${(args["base-path"] ?? table).replaceAll(/^\/+|\/+$/g, "")}`;
+  let files;
+
+  try {
+    files = scaffoldScreensFiles({
+      config,
+      table,
+      srcDir: project.srcDir,
+      tsExtensions: project.tsExtensions,
+      basePath,
+    });
+  } catch (error) {
+    if (error instanceof ScreensError) {
+      return { code: 1, errorCode: "invalid_input", error: error.message };
+    }
+
+    throw error;
+  }
+
+  const plan: FilePlan = {
+    root: config.root,
+    regenerate: "better-supabase scaffold screens",
+    files: files.map((file) => ({
+      path: file.path,
+      contents: file.contents,
+      policy: "create",
+    })),
+  };
+
+  const applied = await applyPlan(plan, args);
+
+  if (applied.mode !== "write" || hasConflicts(applied)) {
+    return planResult(plan, applied, { data: { table, basePath } });
+  }
+
+  const steps = [
+    `Open ${basePath} in \`next dev\`. The pages call \`bs\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
+    "The files are yours. For search, saved views, a board or a calendar, start from the record-* recipes: https://bettersupabase.com/docs/registry/ui-recipes",
+  ];
+
+  return {
+    code: 0,
+    output: [
+      ...changeLines(applied),
+      "",
+      "Next:",
+      ...steps.map((step) => `- ${step}`),
+    ].join("\n"),
+    data: { table, basePath, files: applied.changes, steps },
+  };
+}
+
 const quote = (value: string): string => `'${value}'`;
 
 const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
@@ -241,4 +345,10 @@ export const scaffoldApiCommand: AnyCommand = defineCliCommand({
   args: { ...ARGS, ...PLAN_ARGS },
   lists: ["tables"],
   run: (args, { config }) => runScaffoldApi(config, args),
+});
+
+export const scaffoldScreensCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("scaffold screens"),
+  args: { ...SCREENS_ARGS, ...PLAN_ARGS },
+  run: (args, { config }) => runScaffoldScreens(config, args),
 });

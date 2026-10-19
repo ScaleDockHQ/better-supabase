@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { runScaffold } from "../../../src/cli/commands/scaffold.ts";
+import { runScaffoldScreens } from "../../../src/cli/commands/scaffold.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import {
   type BetterSupabaseConfig,
@@ -256,9 +256,9 @@ describe("scaffold screens", () => {
     config: BetterSupabaseConfig = {},
     flags: Record<string, string> = {},
   ) =>
-    runScaffold(
+    runScaffoldScreens(
       resolveConfig({ casing: "camel", appTables: APP_TABLES, ...config }, dir),
-      { _: table === undefined ? ["screens"] : ["screens", table], ...flags },
+      { ...(table === undefined ? {} : { table }), ...flags },
     );
 
   it("writes list, create and detail pages from the app table", async () => {
@@ -266,7 +266,7 @@ describe("scaffold screens", () => {
     const result = await screens("tasks");
     expect(result.error).toBeUndefined();
     expect(result.code).toBe(0);
-    expect(result.output).toContain("Wrote src/app/tasks/page.tsx");
+    expect(result.output).toContain("Created src/app/tasks/page.tsx");
     expect(result.output).toContain("record-* recipes");
 
     const list = await read("src/app/tasks/page.tsx");
@@ -311,7 +311,7 @@ describe("scaffold screens", () => {
 
     const result = await screens("projects", {}, { "base-path": "(app)/work" });
     expect(result.code).toBe(0);
-    expect(result.output).toContain("Kept src/app/(app)/work/page.tsx (yours)");
+    expect(result.output).toContain("Skipped src/app/(app)/work/page.tsx");
     expect(await read("src/app/(app)/work/page.tsx")).toBe("// mine\n");
     expect(await read("src/app/(app)/work/actions.ts")).toContain(
       "redirect(`/work/",
@@ -329,7 +329,7 @@ describe("scaffold screens", () => {
 
   it("refuses what it can't serve", async () => {
     await project({ next: "16.0.0" }, false);
-    expect((await screens(undefined)).error).toContain("Name the app table");
+    await expect(screens(undefined)).rejects.toThrow("Name the app table");
     expect((await screens("nope")).error).toContain(
       "App tables: projects, tasks.",
     );
@@ -449,8 +449,6 @@ describe("scaffold screens", () => {
 
   it("needs Next.js", async () => {
     await project({ hono: "4.0.0" }, false);
-    expect((await screens("tasks")).error).toContain(
-      "Screens are Next.js pages",
-    );
+    await expect(screens("tasks")).rejects.toThrow("Screens are Next.js pages");
   });
 });

@@ -63,6 +63,11 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "scaffold api",
     () => import("./commands/scaffold.ts").then((m) => m.scaffoldApiCommand),
   ],
+  [
+    "scaffold screens",
+    () =>
+      import("./commands/scaffold.ts").then((m) => m.scaffoldScreensCommand),
+  ],
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],

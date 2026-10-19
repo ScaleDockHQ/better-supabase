@@ -170,7 +170,8 @@ yourself.
 | `<route>/[id]/page.tsx` | One row, or `notFound()` for an id that is malformed, missing or out of scope |
 | `<route>/show.ts`       | Turns a column value into text for the list and detail pages                  |
 
-Every file is written once and kept (`Kept <path> (yours)`) after that.
+Every file is written once. After that the command lists it as Skipped and
+leaves it alone, unless you pass `--force`.
 
 Each column gets the input its config calls for:
 
@@ -198,3 +199,5 @@ Next.js; pass `--framework next` when `package.json` doesn't list it.
 For search, filters, saved views, a board, a calendar or a timeline, start
 from the `record-*` [UI recipes](/docs/registry/ui-recipes), which build
 the same screens on ReUI.
+
+Side effects: Writes files.

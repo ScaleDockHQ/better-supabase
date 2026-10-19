@@ -81,6 +81,7 @@ Options
   --preset <name|code|url>     A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns
   --only <blocks|conventions>  blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
   --adopt                      Map the preset's blocks onto tables the database already has under their default names (adopt mode)
+  --allow-breaking             Write a design that drops, renames or retypes app table columns, or makes one required without a default
   --dry-run                    Show the config diff and write nothing
   --check                      Write nothing; exit 1 with the diff when the config lacks the preset
   --snapshot <file>            Read a saved snapshot instead of the database
@@ -687,10 +688,11 @@ Docs: https://bettersupabase.com/docs/cli/presets#preset
 exports[`help > documents scaffold 1`] = `
 "Usage: better-supabase scaffold <command> [options]
 
-Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
+Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
 
 Commands
-  api  Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
+  api      Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
+  screens  Writes Next.js list, create and detail pages for an app table
 
 Global options
   --cwd <dir>            Project directory
@@ -736,6 +738,38 @@ Global options
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/scaffold
+"
+`;
+
+exports[`help > documents scaffold screens 1`] = `
+"Usage: better-supabase scaffold screens [options] [table]
+
+Writes Next.js list, create and detail pages for an app table
+
+Arguments
+  [table]  The app table to write pages for
+
+Options
+  --framework <name>  next. Defaults to next when package.json lists it
+  --base-path <path>  The route the pages live under. Defaults to /<table>
+  --dry-run           Print what would change, with a diff, and write nothing
+  --check             Write nothing; exit 1 with a diff when a file would change
+  --force             Overwrite files the CLI did not generate
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/scaffold#screens
 "
 `;
 
@@ -1163,7 +1197,7 @@ Generate
   gen         Writes the typed client from the database, then every other generated file the config sets up
   introspect  Saves the database schema as a snapshot for offline gen
   spec        Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
-  scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
+  scaffold    Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
 
 Local stack
   env   Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
