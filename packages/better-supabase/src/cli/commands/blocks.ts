@@ -24,7 +24,7 @@ const LIST_ARGS = {
 const VIEW_ARGS = {
   block: {
     type: "positional",
-    required: false,
+    required: true,
     description: "The block to show",
   },
 } as const;
@@ -118,7 +118,10 @@ export function listBlocks(category: string | undefined): CommandResult {
 
 export function viewBlock(name: string | undefined): CommandResult {
   if (name === undefined) {
-    throw new CliError("usage", `Name a block.`);
+    throw new CliError("input_required", "Name a block.", {
+      missing: ["<block>"],
+      choices: { "<block>": ENTRIES.map((each) => each.name) },
+    });
   }
 
   const entry = ENTRIES.find((each) => each.name === name);

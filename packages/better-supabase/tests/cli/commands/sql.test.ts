@@ -28,7 +28,7 @@ import {
   stubProvider,
   withProvider,
 } from "../../fixtures/authorization-provider.ts";
-import { usageError } from "../fixtures/usage.ts";
+import { inputRequired, usageError } from "../fixtures/usage.ts";
 
 describe("moduleLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
@@ -99,14 +99,17 @@ describe("runSql", () => {
   });
 
   it("asks for module names", async () => {
-    expect(await usageError(() => sql(["add"]))).toBe(
-      "Name at least one module.",
+    const add = await inputRequired(() => sql(["add"]));
+
+    expect(add.problem.missing).toEqual(["<module>"]);
+    expect(add.problem.choices?.["<module>"]).toEqual(Object.keys(SQL_MODULES));
+    expect((await inputRequired(() => sql(["print"]))).problem.missing).toEqual(
+      ["<module>"],
     );
     const names = Object.keys(SQL_MODULES).join(", ");
-    expect(await usageError(() => sql(["print"]))).toBe(
+    expect(await usageError(() => sql(["print", "nope"]))).toBe(
       `Name one module: ${names}`,
     );
-    await usageError(() => sql(["print", "nope"]));
   });
 
   it("adds a module next to the ones blocks lists", async () => {

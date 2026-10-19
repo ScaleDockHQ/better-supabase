@@ -413,6 +413,9 @@ export function cliFromTree(
               ...(error.problem.suggestion
                 ? { suggestion: error.problem.suggestion }
                 : {}),
+              ...(error.problem.choices
+                ? { choices: error.problem.choices }
+                : {}),
             })
           : error;
 
@@ -498,6 +501,18 @@ export function cliFromTree(
         return printHelp();
       }
 
+      if (agentError !== undefined) {
+        return reportError(agentError);
+      }
+
+      if (json) {
+        return reportError(
+          new CliError("usage", "Name a command.", {
+            choices: { "<command>": [...tree.keys()] },
+          }),
+        );
+      }
+
       fail(await usage());
 
       return finish(2);
@@ -510,12 +525,13 @@ export function cliFromTree(
     }
 
     if (!node.load) {
-      const names = [...node.children.keys()].join(", ");
+      const names = [...node.children.keys()];
 
       return reportError(
         new CliError(
           "usage",
-          `Name a ${node.path.join(" ")} subcommand: ${names}.`,
+          `Name a ${node.path.join(" ")} subcommand: ${names.join(", ")}.`,
+          { choices: { "<command>": names } },
         ),
       );
     }

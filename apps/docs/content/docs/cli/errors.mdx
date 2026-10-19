@@ -42,8 +42,9 @@ exits with 130 or 143. A second signal exits at once.
 ## `usage`
 
 The arguments don't fit the command in a way no more specific code covers,
-such as an extra positional or a group named without a subcommand. The text
-output adds the command's usage. Exit code 2.
+such as an extra positional or a group named without a subcommand. For a
+group, or no command at all under `--json`, `choices["<command>"]` lists the
+subcommands. The text output adds the command's usage. Exit code 2.
 
 ## `unknown_command`
 
@@ -186,8 +187,9 @@ A check such as `doctor` or `spec validate` found problems at or above the
 ## `input_required`
 
 The command needs an answer it would prompt for, and it can't prompt (in CI,
-under `--json` or for an agent). `missing` lists the flags it needs,
-`choices` the values each one takes when there is a fixed set, and `next`
+under `--json` or for an agent), or a required positional such as
+`blocks view <block>` is missing. `missing` lists the flags and positionals
+it needs, `choices` the values each one takes when there is a fixed set, and `next`
 holds the command to run with the answer filled in. Exit code 3. See
 [agent mode](/docs/cli/agent-mode#missing-input).
 

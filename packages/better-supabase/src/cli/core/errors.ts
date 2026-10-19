@@ -162,10 +162,28 @@ function isCittyUsageError(cause: unknown): cause is Error {
   return cause instanceof Error && cause.name === "CLIError";
 }
 
-/** Any thrown value as a `CliError`: citty's argument errors become `usage`, the rest `internal`. */
+const MISSING_POSITIONAL = /^Missing required positional argument: (\S+)$/;
+
+/**
+ * Any thrown value as a `CliError`: a missing required positional becomes
+ * `input_required`, citty's other argument errors `usage`, the rest
+ * `internal`.
+ */
 export function toCliError(cause: unknown): CliError {
   if (cause instanceof CliError) {
     return cause;
+  }
+
+  const positional = isCittyUsageError(cause)
+    ? MISSING_POSITIONAL.exec(cause.message)?.[1]
+    : undefined;
+
+  if (positional !== undefined) {
+    const name = positional.toLowerCase();
+
+    return new CliError("input_required", `<${name}> is required.`, {
+      missing: [`<${name}>`],
+    });
   }
 
   if (isCittyUsageError(cause)) {

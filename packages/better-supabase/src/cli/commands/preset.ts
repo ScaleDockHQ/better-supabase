@@ -22,7 +22,7 @@ import { commandMeta } from "../core/manifest.ts";
 const DECODE_ARGS = {
   preset: {
     type: "positional",
-    required: false,
+    required: true,
     description: "A preset name, a preset code or a /create URL",
   },
 } as const;
@@ -94,7 +94,11 @@ function presetData(resolved: ResolvedPreset): PresetData {
 
 export function decodePresetInput(value: string | undefined): CommandResult {
   if (value === undefined) {
-    throw new CliError("usage", `Name a preset, a code or a /create URL.`);
+    throw new CliError(
+      "input_required",
+      "Name a preset, a code or a /create URL.",
+      { missing: ["<preset>"] },
+    );
   }
 
   let preset: Preset;

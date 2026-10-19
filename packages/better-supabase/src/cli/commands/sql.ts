@@ -75,7 +75,7 @@ export async function runSql(
 const MODULES_ARG = {
   module: {
     type: "positional",
-    required: false,
+    required: true,
     variadic: true,
     description: "SQL modules (`better-supabase sql list`)",
   },
@@ -84,7 +84,7 @@ const MODULES_ARG = {
 const MODULE_ARG = {
   module: {
     type: "positional",
-    required: false,
+    required: true,
     description: "The SQL module to print",
   },
 } as const;

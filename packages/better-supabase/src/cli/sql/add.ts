@@ -25,7 +25,10 @@ export async function addModules(
   deps: SqlDeps,
 ): Promise<CommandResult> {
   if (names.length === 0) {
-    throw new CliError("usage", `Name at least one module.`);
+    throw new CliError("input_required", "Name at least one module.", {
+      missing: ["<module>"],
+      choices: { "<module>": Object.keys(SQL_MODULES) },
+    });
   }
 
   const unknown = names.filter((name) => !(name in SQL_MODULES));
