@@ -1,7 +1,0 @@
----
-"better-supabase": minor
----
-
-The workflow builder adds record-bound runs, test runs, system workflows and restricted definitions. A definition lists `subjectTypes`, and `run({ subject })` starts it on a record through `workflow_subject_start_target`, which checks the type and `can_subject`; event triggers attach the event's record and conditions read a `subject` root. `test({ definition, stubs })` runs the draft with stubbed steps, skipped sleeps and stubbed approvals, filling missing stubs from each library step's `outputSchema` example. A graph may have several trigger nodes: a trigger picks one with `config.node`, and the run starts there. `scope: "system"` definitions belong to the app; organizations see them, `definitions.fork` copies one into the tenant (lists show `upstreamVersion` and `behind`), and `definitions.optOut` stops its runs there (new `workflow_opt_outs` table). `restricted: true` limits running and editing to `workflow.admin` and `definitions.grants` (new `workflow_definition_grants` table). Static executors spread `graphRunFields(meta)` and set `executorRunsTests` on `graphStarter`, which refuses test runs otherwise.
-
-Breaking: `save_workflow_definition`, `workflow_definitions_list`, `workflow_start_target` and `workflow_run_principal` take new arguments, `versions.runAs(version, tenant?)` takes the tenant for system definitions, and `validateGraph` no longer reports a second trigger node. Run `better-supabase sql sync` to install module version 2.
