@@ -283,7 +283,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "realtime.triggers": {
     description:
-      "Broadcast triggers `sql sync` writes to `policies.output`: each calls better_supabase.broadcast_topic() (the realtime-tables module) for a topic `policies.from` exports.",
+      "Broadcast triggers `sql sync` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
   },
   "realtime.triggers[].topic": {
     description: "The template of a topic `policies.from` exports.",
@@ -291,14 +291,34 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "realtime.triggers[].table": { description: "`table` or `schema.table`." },
   "realtime.triggers[].values": {
     description:
-      "The column per placeholder. Defaults to the placeholder in snake_case.",
+      "The column or lookup per placeholder. Defaults to the placeholder in snake_case. A row whose topic comes out null is not sent to it.",
   },
   "realtime.triggers[].event": {
-    description: "The broadcast event name. Defaults to the operation.",
+    description:
+      "The broadcast event name, or one per operation ({ insert, update, delete }). Defaults to the operation.",
   },
   "realtime.triggers[].payload": {
     description:
-      "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants.",
+      "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants. An object is the payload itself: each key is a column, a lookup, or { sql }, an expression on the row {row} (tg_op is the operation).",
+  },
+  "realtime.triggers[].topics": {
+    description:
+      "More topics the row change goes to, each with its own values.",
+  },
+  "realtime.triggers[].topics[].topic": {
+    description: "The template of a topic `policies.from` exports.",
+  },
+  "realtime.triggers[].topics[].values": {
+    description:
+      "The column or lookup per placeholder. Defaults to the placeholder in snake_case.",
+  },
+  "realtime.triggers[].functionSchema": {
+    description:
+      "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose.",
+  },
+  "$defs.triggerValue": {
+    description:
+      "A column of the changed row, or a lookup: the `select` column of the `from` row (`table` or `schema.table`) whose `key` (default id) equals `via`, a column or another lookup.",
   },
   blocks: {
     description:

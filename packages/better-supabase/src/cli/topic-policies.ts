@@ -2,7 +2,11 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
 import { CliError } from "./core/errors.ts";
-import { type LoadedTopic, loadTopics } from "./topics.ts";
+import {
+  type LoadedTopic,
+  type LoadedTriggerOptions,
+  loadTopics,
+} from "./topics.ts";
 
 const literalParts = (template: string): string =>
   template.replaceAll(/\{[^}]+\}/g, "{}");
@@ -14,6 +18,26 @@ const owns = (owned: string, template: string): boolean =>
 
 const receivesOnly = (sql: string): boolean =>
   !sql.includes(" for insert ") && !sql.includes("'presence'");
+
+function triggerStatement(
+  topic: LoadedTopic,
+  table: string,
+  options: LoadedTriggerOptions,
+  index: number,
+): string {
+  try {
+    return topic.trigger(table, options);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new CliError(
+        "config_invalid",
+        `realtime.triggers[${String(index)}]: ${error.message}`,
+      );
+    }
+
+    throw error;
+  }
+}
 
 /** The file `realtime.policies` writes, or `undefined` when it isn't set. */
 export async function topicPolicyFile(
@@ -32,13 +56,6 @@ export async function topicPolicyFile(
     }
 
     return undefined;
-  }
-
-  if (triggers.length > 0 && !config.blockNames.includes("realtime-tables")) {
-    throw new CliError(
-      "config_invalid",
-      "realtime.triggers call better_supabase.broadcast_topic(): add realtime-tables to blocks",
-    );
   }
 
   const topics = (await loadTopics(config.root, policies.from)).map(
@@ -66,18 +83,53 @@ export async function topicPolicyFile(
     return false;
   });
 
-  const triggerSql = triggers.map(({ topic: template, table, ...options }) => {
+  const topicFor = (template: string, where: string): LoadedTopic => {
     const topic = topics.find((candidate) => candidate.template === template);
 
     if (topic === undefined) {
       throw new CliError(
         "config_invalid",
-        `realtime.triggers: no topic "${template}" in ${policies.from.join(", ")}`,
+        `${where}: no topic "${template}" in ${policies.from.join(", ")}`,
       );
     }
 
-    return topic.trigger(table, options);
-  });
+    return topic;
+  };
+
+  const triggerSql = triggers.map(
+    ({ topic: template, table, topics: extra, ...options }, index) => {
+      const topic = topicFor(template, "realtime.triggers");
+
+      const resolved = {
+        ...options,
+        ...(extra === undefined
+          ? {}
+          : {
+              topics: extra.map((each) => ({
+                topic: topicFor(
+                  each.topic,
+                  `realtime.triggers[${String(index)}].topics`,
+                ),
+                ...(each.values === undefined ? {} : { values: each.values }),
+              })),
+            }),
+      };
+
+      const statement = triggerStatement(topic, table, resolved, index);
+
+      if (
+        statement.includes("better_supabase.broadcast_topic(") &&
+        !config.blockNames.includes("realtime-tables")
+      ) {
+        throw new CliError(
+          "config_invalid",
+          `realtime.triggers: the trigger for ${template} on ${table} calls better_supabase.broadcast_topic(): add realtime-tables to blocks`,
+        );
+      }
+
+      return statement;
+    },
+  );
 
   const header = [
     "-- better-supabase: realtime topic policies",

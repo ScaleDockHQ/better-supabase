@@ -168,19 +168,34 @@ export function renderConfigSchema(): string {
     moduleConfig,
     accessBlock,
     privilege,
+    triggerValue,
     generator,
   } = configSchemas();
 
   const rendered: unknown = tidy(
     toJsonSchema(config, {
       target: "draft-2020-12",
-      definitions: { environment, moduleConfig, accessBlock, privilege },
+      definitions: {
+        environment,
+        moduleConfig,
+        accessBlock,
+        privilege,
+        triggerValue,
+      },
       // `rawCheck` runs the authorization scope checks, which have no JSON
       // Schema keyword.
       ignoreActions: ["raw_check"],
       overrideSchema: ({ valibotSchema }) => {
         if (valibotSchema === generator) {
           return { type: "object" };
+        }
+
+        if (
+          "getter" in valibotSchema &&
+          typeof valibotSchema.getter === "function" &&
+          valibotSchema.getter(undefined) === triggerValue
+        ) {
+          return { $ref: "#/$defs/triggerValue" };
         }
 
         // `blocks` is a list or an object, rendered from the block manifests.

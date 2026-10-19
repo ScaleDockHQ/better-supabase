@@ -42,6 +42,10 @@ export type {
   SqlConfig,
   SqlWorkflow,
   TopicTriggerConfig,
+  TopicTriggerLookupConfig,
+  TopicTriggerPayloadValueConfig,
+  TopicTriggerTopicConfig,
+  TopicTriggerValueConfig,
   VectorDistance,
   VectorSearchConfig,
 } from "./types/database.ts";

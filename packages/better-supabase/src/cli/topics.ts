@@ -3,19 +3,33 @@ import { resolve } from "node:path";
 import type {
   AuthorizationFunctions,
   TopicTriggerConfig,
+  TopicTriggerValueConfig,
 } from "../config/index.ts";
 import type { TopicInput } from "../spec/index.ts";
 
 import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 
+export interface LoadedTriggerOptions extends Omit<
+  TopicTriggerConfig,
+  "topic" | "table" | "topics"
+> {
+  readonly topics?: readonly {
+    readonly topic: {
+      readonly template: string;
+      readonly params: readonly string[];
+      readonly private: boolean;
+    };
+    readonly values?: Readonly<Record<string, TopicTriggerValueConfig>>;
+  }[];
+}
+
 /** A `defineTopic` result, as `sql sync` and `spec` read it. */
 export interface LoadedTopic extends TopicInput {
+  readonly params: readonly string[];
+  readonly private: boolean;
   sql(options?: { readonly functions?: AuthorizationFunctions }): string;
-  trigger(
-    table: string,
-    options?: Omit<TopicTriggerConfig, "topic" | "table">,
-  ): string;
+  trigger(table: string, options?: LoadedTriggerOptions): string;
 }
 
 export interface TopicExport {
@@ -31,6 +45,10 @@ const isLoadedTopic = (value: unknown): value is LoadedTopic =>
   value !== null &&
   "template" in value &&
   typeof value.template === "string" &&
+  "params" in value &&
+  Array.isArray(value.params) &&
+  "private" in value &&
+  typeof value.private === "boolean" &&
   "sql" in value &&
   typeof value.sql === "function" &&
   "trigger" in value &&

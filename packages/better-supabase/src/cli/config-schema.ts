@@ -5,6 +5,7 @@ import type {
   EnvironmentConfig,
   ExposePrivilege,
   Generator,
+  TopicTriggerValueConfig,
 } from "../config/index.ts";
 import type { ParityPaths } from "./type-parity.ts";
 
@@ -37,6 +38,18 @@ const privilege = v.pipe(
 ) as v.GenericSchema<string, ExposePrivilege>;
 
 const privileges = v.array(privilege);
+
+const triggerValue: v.GenericSchema<TopicTriggerValueConfig> = v.union([
+  v.string(),
+  v.strictObject({
+    from: v.string(),
+    via: v.lazy(() => triggerValue),
+    select: v.string(),
+    key: v.exactOptional(v.string()),
+  }),
+]);
+
+const triggerValues = v.record(v.string(), triggerValue);
 
 const pluginFlag = v.union([v.boolean(), v.record(v.string(), v.unknown())]);
 
@@ -466,12 +479,38 @@ const ENTRIES = {
           v.strictObject({
             topic: v.string(),
             table: v.string(),
-            values: v.optional(stringRecord),
+            values: v.optional(triggerValues),
             events: v.optional(
               v.array(v.picklist(["insert", "update", "delete"])),
             ),
-            event: v.optional(v.string()),
-            payload: v.optional(v.picklist(["keys", "row"])),
+            event: v.optional(
+              v.union([
+                v.string(),
+                v.strictObject({
+                  insert: v.optional(v.string()),
+                  update: v.optional(v.string()),
+                  delete: v.optional(v.string()),
+                }),
+              ]),
+            ),
+            payload: v.optional(
+              v.union([
+                v.picklist(["keys", "row"]),
+                v.record(
+                  v.string(),
+                  v.union([triggerValue, v.strictObject({ sql: v.string() })]),
+                ),
+              ]),
+            ),
+            topics: v.optional(
+              v.array(
+                v.strictObject({
+                  topic: v.string(),
+                  values: v.optional(triggerValues),
+                }),
+              ),
+            ),
+            functionSchema: v.optional(v.string()),
           }),
         ),
       ),
@@ -881,6 +920,7 @@ export interface ConfigSchemas {
   readonly moduleConfig: v.GenericSchema;
   readonly accessBlock: v.GenericSchema;
   readonly privilege: v.GenericSchema;
+  readonly triggerValue: v.GenericSchema;
   /** Checked by a function, so the renderer writes its JSON Schema. */
   readonly generator: v.GenericSchema;
 }
@@ -891,6 +931,7 @@ const SCHEMAS = {
   moduleConfig: v.strictObject(blockEntries),
   accessBlock,
   privilege,
+  triggerValue,
   generator,
 } satisfies InStep<ConfigSchemas, ConfigDrift>;
 
