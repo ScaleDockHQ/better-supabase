@@ -23,4 +23,5 @@ paths:
 | An adopted standard | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
 | A vendored official schema | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256) |
 | A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests |
+| A config key | its type in `src/config/types`, the valibot schema in `src/cli/config-schema.ts` (it fails to compile until both agree), its description in `tests/config/config-annotations.ts`, then `pnpm --filter better-supabase gen:config-schema` |
 | A CLI command or flag | its docs page under `cli/`, the help snapshot (`tests/cli/help.test.ts`), the changeset |

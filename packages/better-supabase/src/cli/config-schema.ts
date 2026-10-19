@@ -3,11 +3,15 @@ import * as v from "valibot";
 import type {
   BetterSupabaseConfig,
   EnvironmentConfig,
+  ExposePrivilege,
+  Generator,
 } from "../config/index.ts";
+import type { ParityPaths } from "./type-parity.ts";
 
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
+  APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
   providerApiProblem,
   SKILLS_AGENTS,
@@ -21,25 +25,33 @@ const stringRecord = v.record(v.string(), v.string());
 const EXPOSE_PRIVILEGE =
   /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*(?:[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*|\*(?:\s*,\s*-\s*[a-z_][a-z0-9_$]*)*)\s*\))$/;
 
-const privileges = v.array(
-  v.pipe(
-    v.string(),
-    v.regex(
-      EXPOSE_PRIVILEGE,
-      'Use select, insert, update or delete, name columns such as "update(title, body)", or exclude them from every column with "select(*, -secret)"',
-    ),
+// SAFETY: EXPOSE_PRIVILEGE accepts only the strings ExposePrivilege
+// describes. A guard action would make a failed item untyped, and the
+// expose union would then report one message instead of one per item.
+const privilege = v.pipe(
+  v.string(),
+  v.regex(
+    EXPOSE_PRIVILEGE,
+    'Use select, insert, update or delete, name columns such as "update(title, body)", or exclude them from every column with "select(*, -secret)"',
   ),
-);
+) as v.GenericSchema<string, ExposePrivilege>;
+
+const privileges = v.array(privilege);
 
 const pluginFlag = v.union([v.boolean(), v.record(v.string(), v.unknown())]);
 
-const isGenerator = (value: unknown): boolean =>
+const isGenerator = (value: unknown): value is Generator =>
   typeof value === "object" &&
   value !== null &&
   "name" in value &&
   typeof value.name === "string" &&
   "generate" in value &&
   typeof value.generate === "function";
+
+const generator = v.custom<Generator>(
+  isGenerator,
+  "must be a generator: { name, generate(input) }",
+);
 
 /**
  * The top level of `better-supabase.config.*`. It rejects unknown keys and
@@ -287,6 +299,62 @@ const checkedAuthorization = v.pipe(
   }),
 );
 
+const jsonSchema = v.record(v.string(), v.unknown());
+
+const onDelete = v.optional(v.picklist(APP_ON_DELETE_ACTIONS));
+
+const positiveInteger = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const bucket = v.strictObject({
+  id: v.optional(v.string()),
+  public: v.optional(v.boolean()),
+  path: v.union([v.string(), v.pipe(strings, v.minLength(1))]),
+  policy: v.optional(
+    v.union([
+      v.picklist(["tenant", "owner", "public", "none"]),
+      v.strictObject({
+        access: v.strictObject({
+          read: v.string(),
+          list: v.optional(v.string()),
+          write: v.string(),
+          delete: v.optional(v.string()),
+        }),
+        scope: v.optional(v.string()),
+        segment: v.optional(positiveInteger),
+        sql: v.optional(
+          v.union([
+            v.literal("provider"),
+            v.strictObject({ idsWith: v.string(), isPlatform: v.string() }),
+          ]),
+        ),
+      }),
+    ]),
+  ),
+  fileSizeLimit: v.optional(v.string()),
+  allowedMimeTypes: v.optional(strings),
+  versioning: v.optional(v.boolean()),
+  lifecycle: v.optional(
+    v.strictObject({
+      rules: v.pipe(
+        v.array(
+          v.strictObject({
+            id: v.optional(v.string()),
+            status: v.optional(v.picklist(["Enabled", "Disabled"])),
+            noncurrentVersionExpiration: v.strictObject({
+              noncurrentDays: positiveInteger,
+              newerNoncurrentVersions: v.optional(
+                v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+              ),
+            }),
+          }),
+        ),
+        v.minLength(1),
+        v.maxLength(1000),
+      ),
+    }),
+  ),
+});
+
 const ENTRIES = {
   source: v.optional(
     v.strictObject({
@@ -313,7 +381,21 @@ const ENTRIES = {
   ),
   output: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
-  json: v.optional(v.record(v.string(), v.unknown())),
+  json: v.optional(
+    v.record(
+      v.string(),
+      v.union(
+        [
+          v.strictObject({
+            import: v.string(),
+            schema: v.optional(jsonSchema),
+          }),
+          v.strictObject({ type: v.string(), schema: v.optional(jsonSchema) }),
+        ],
+        "Use { import } or { type }, with an optional schema",
+      ),
+    ),
+  ),
   codecs: v.optional(
     v.strictObject({
       timestamptz: v.optional(v.picklist(["string", "instant"])),
@@ -352,11 +434,7 @@ const ENTRIES = {
     ),
   ),
   readSets: v.optional(strings),
-  generators: v.optional(
-    v.array(
-      v.custom(isGenerator, "must be a generator: { name, generate(input) }"),
-    ),
-  ),
+  generators: v.optional(v.array(generator)),
   plugins: v.optional(
     v.strictObject({
       timestamps: v.optional(pluginFlag),
@@ -373,7 +451,7 @@ const ENTRIES = {
       memberships: v.optional(v.string()),
     }),
   ),
-  buckets: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
+  buckets: v.optional(v.record(v.string(), bucket)),
   topics: v.optional(stringRecord),
   realtime: v.optional(
     v.strictObject({
@@ -513,18 +591,14 @@ const ENTRIES = {
               default: v.optional(v.string()),
               unique: v.optional(v.boolean()),
               references: v.optional(
-                v.strictObject({
-                  table: v.string(),
-                  block: v.optional(v.string()),
-                  onDelete: v.optional(
-                    v.picklist([
-                      "cascade",
-                      "restrict",
-                      "set null",
-                      "no action",
-                    ]),
-                  ),
-                }),
+                v.union([
+                  v.strictObject({ table: v.string(), onDelete }),
+                  v.strictObject({
+                    block: v.string(),
+                    table: v.string(),
+                    onDelete,
+                  }),
+                ]),
               ),
               format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
               options: v.optional(v.array(v.string())),
@@ -597,6 +671,7 @@ const ENTRIES = {
   ),
   sql: v.optional(
     v.strictObject({
+      workflow: v.optional(v.picklist(["pg-delta", "migra", "migrations"])),
       dir: v.optional(v.string()),
       prefix: v.optional(v.string()),
       testsDir: v.optional(v.string()),
@@ -789,3 +864,34 @@ export function configIssues(value: unknown): string[] {
     return path ? `${path}: ${issue.message}` : issue.message;
   });
 }
+
+/** Every path where the schema and `BetterSupabaseConfig` disagree. */
+type ConfigDrift = ParityPaths<
+  v.InferOutput<typeof ConfigSchema>,
+  BetterSupabaseConfig
+>;
+
+/** Adds a `drift` key naming the paths, so `satisfies` fails while there are any. */
+type InStep<T, Drift> = [Drift] extends [never] ? T : T & { drift: Drift };
+
+/** The schemas `scripts/gen-config-schema.ts` renders into `schemas/config-v1.json`. */
+export interface ConfigSchemas {
+  readonly config: v.GenericSchema;
+  readonly environment: v.GenericSchema;
+  readonly moduleConfig: v.GenericSchema;
+  readonly accessBlock: v.GenericSchema;
+  readonly privilege: v.GenericSchema;
+  /** Checked by a function, so the renderer writes its JSON Schema. */
+  readonly generator: v.GenericSchema;
+}
+
+const SCHEMAS = {
+  config: ConfigSchema,
+  environment: EnvironmentSchema,
+  moduleConfig: v.strictObject(blockEntries),
+  accessBlock,
+  privilege,
+  generator,
+} satisfies InStep<ConfigSchemas, ConfigDrift>;
+
+export const configSchemas = (): ConfigSchemas => SCHEMAS;

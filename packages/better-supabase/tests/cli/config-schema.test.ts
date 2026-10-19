@@ -118,6 +118,36 @@ describe("configIssues", () => {
     ]);
   });
 
+  it("checks sql.workflow, buckets and json the way their types do", () => {
+    expect(
+      configIssues({
+        sql: { workflow: "migrations" },
+        buckets: {
+          logos: {
+            path: ["{organizationId}/logo.webp"],
+            policy: { access: { read: "files.read", write: "files.write" } },
+            lifecycle: {
+              rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
+            },
+          },
+        },
+        json: { "notes.meta": { import: "./meta.ts#Meta" } },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        sql: { workflow: "flyway" },
+        buckets: { logos: { path: [], policy: "everyone" } },
+        json: { "notes.meta": { import: "./meta.ts#Meta", type: "Meta" } },
+      }),
+    ).toEqual([
+      expect.stringMatching(/^json\.notes\.meta: Use \{ import \} or/),
+      expect.stringMatching(/^buckets\.logos\.path: /),
+      expect.stringMatching(/^buckets\.logos\.policy: /),
+      expect.stringMatching(/^sql\.workflow: /),
+    ]);
+  });
+
   it("names the key path of every problem", () => {
     expect(
       configIssues({

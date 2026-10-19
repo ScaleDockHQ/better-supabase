@@ -49,7 +49,7 @@ const typeOf = (value: unknown): string => {
   return typeof value;
 };
 
-/** Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const, $ref, properties, additionalProperties, items, oneOf. */
+/** Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const, $ref, properties, additionalProperties, items, oneOf, anyOf. */
 function validate(
   root: Schema,
   schema: Schema,
@@ -76,6 +76,19 @@ function validate(
 
     if (matches.length !== 1) {
       errors.push(`${path}: matches ${matches.length} oneOf options`);
+    }
+  }
+
+  if (Array.isArray(schema["anyOf"])) {
+    const matches = (schema["anyOf"] as Schema[]).some((option) => {
+      const inner: string[] = [];
+      validate(root, option, value, path, inner);
+
+      return inner.length === 0;
+    });
+
+    if (!matches) {
+      errors.push(`${path}: matches no anyOf option`);
     }
   }
 
