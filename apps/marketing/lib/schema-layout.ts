@@ -5,6 +5,7 @@ import ELK from "elkjs/lib/elk.bundled.js";
 import {
   keyColumnsOf,
   type SchemaColumn,
+  type SchemaComputed,
   type SchemaData,
   type SchemaTable,
 } from "./schema";
@@ -22,6 +23,8 @@ export type FooterRow = "more" | "less" | "add";
 
 export interface TableRows {
   readonly columns: readonly SchemaColumn[];
+  /** The rollups and lookups under an app table's columns. */
+  readonly computed: readonly SchemaComputed[];
   readonly footer: readonly FooterRow[];
   readonly hidden: number;
 }
@@ -63,6 +66,7 @@ export function tableRows(
 
   return {
     columns,
+    computed: options.app ? (table.computed ?? []) : [],
     hidden,
     footer: [
       ...(collapsible
@@ -76,7 +80,8 @@ export function tableRows(
 export function tableHeight(rows: TableRows): number {
   return (
     HEADER_HEIGHT +
-    (rows.columns.length + rows.footer.length) * ROW_HEIGHT +
+    (rows.columns.length + rows.computed.length + rows.footer.length) *
+      ROW_HEIGHT +
     LIST_PADDING * 2
   );
 }
@@ -602,7 +607,12 @@ export async function layoutSchema(
                 id: table.id,
                 width: NODE_WIDTH,
                 height: tableHeight(
-                  rows.get(table.id) ?? { columns: [], footer: [], hidden: 0 },
+                  rows.get(table.id) ?? {
+                    columns: [],
+                    computed: [],
+                    footer: [],
+                    hidden: 0,
+                  },
                 ),
                 layoutOptions: FIXED_PORTS,
                 ports: portsOf(table.id),

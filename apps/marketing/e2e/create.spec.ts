@@ -984,3 +984,46 @@ test("a template draws its tables, and the Data tab shows sample rows", async ({
   await page.getByRole("button", { name: "Undo" }).first().click();
   await expect(tasks).toHaveCount(0);
 });
+
+test("a rollup added in the inspector shows as a computed row on the table", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await page.getByRole("button", { name: "Start from a template" }).click();
+  const picker = page.getByRole("dialog", { name: "Start from a template" });
+  await picker.getByRole("button", { name: /^Projects and tasks/u }).click();
+  await expect(picker).toBeHidden();
+
+  const projects = page.locator('.react-flow__node[data-id="public.projects"]');
+  await projects.click({ position: { x: 120, y: 18 } });
+  const inspector = page.getByRole("dialog", { name: "projects" });
+  await inspector.getByRole("tab", { name: "Columns" }).click();
+
+  const computed = inspector.getByRole("region", { name: "Computed" });
+  await expect(computed.getByText("No computed columns yet")).toBeVisible();
+  const before = page.url();
+  await computed.getByRole("button", { name: "Add rollup" }).click();
+
+  const list = computed.getByRole("list", {
+    name: "projects computed columns",
+  });
+
+  await expect(
+    list.getByRole("textbox", { name: "tasks_count name" }),
+  ).toHaveValue("tasks_count");
+  await expect.poll(() => page.url()).not.toBe(before);
+
+  const { violations } = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(WCAG)
+    .analyze();
+
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await expect(inspector).toBeHidden();
+  await expect(projects.getByText("tasks_count")).toBeVisible();
+  await expect(
+    projects.getByRole("listitem").filter({ hasText: "tasks_count" }),
+  ).toHaveAttribute("title", /count of tasks/u);
+});

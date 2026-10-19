@@ -44,6 +44,16 @@ export interface SchemaTable {
   readonly tenantColumn: string | null;
   /** Every column, in table order. */
   readonly columns: readonly SchemaColumn[];
+  /** The rollups and lookups of an app table, which its `<table>_view` adds. */
+  readonly computed?: readonly SchemaComputed[];
+}
+
+/** A column of an app table's view: a rollup or a lookup. */
+export interface SchemaComputed {
+  readonly name: string;
+  readonly kind: "rollup" | "lookup";
+  readonly summary: string;
+  readonly label: string;
 }
 
 /**

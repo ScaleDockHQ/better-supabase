@@ -52,6 +52,7 @@ import type { InspectorTab } from "./schema-nodes";
 import { BoundsFields, KindSelect, OptionsEditor } from "./column-fields";
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
+import { ComputedSection } from "./inspector-computed";
 
 /** The kinds a block table's extra column can take: plain Postgres types. */
 const PLAIN_KINDS = COLUMN_KINDS.filter(
@@ -447,6 +448,7 @@ export function ColumnsTab({
           <h3 className="text-sm font-medium">Added for you</h3>
           <ReadOnlyColumns table={{ ...table, columns: implicit }} />
         </section>
+        <ComputedSection table={table.name} preset={preset} />
       </div>
     );
   }
