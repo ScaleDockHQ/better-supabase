@@ -17,13 +17,40 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   let owner: TestUser;
   let outsider: TestUser;
   let org: string;
+  let otherOrg: string;
+
+  const doc = async (name: string): Promise<string> => {
+    await session.service();
+
+    const [row] = await session.rows<{ id: string }>(
+      "insert into public.bs_test_docs (organization_id, name) values ($1, $2) returning id::text as id",
+      [org, name],
+    );
+
+    return row!.id;
+  };
 
   beforeAll(async () => {
     session = await BlockSession.open(pool);
-    await session.install(["organizations", "share-links"]);
+    await session.rows(
+      `create table if not exists public.bs_test_docs (
+         id uuid primary key default gen_random_uuid(),
+         organization_id uuid not null,
+         name text not null
+       );
+       alter table public.bs_test_docs enable row level security;`,
+    );
+    await session.install(["organizations", "share-links"], {
+      modules: {
+        "share-links": {
+          options: { subjects: { doc: { table: "bs_test_docs" } } },
+        },
+      },
+    });
     owner = await session.user("owner");
     outsider = await session.user("outsider");
     org = await session.organization(owner);
+    otherOrg = await session.organization(outsider);
     links = createShareLinks({ transport: sqlTransport(session.sql) });
   });
 
@@ -33,30 +60,32 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   });
 
   it("stores an expiry and returns it with the organization", async () => {
+    const d1 = await doc("d1");
     await session.as(owner);
     const expiresAt = Temporal.Now.instant().add({ hours: 1 }).round("second");
-    const link = await links.create(org, "doc", "d1", { expiresAt }).orThrow();
+    const link = await links.create(org, "doc", d1, { expiresAt }).orThrow();
     await session.as("anon");
     const resolved = await links.resolve(link.token).orThrow();
     expect(resolved).toMatchObject({
       id: link.id,
       organizationId: org,
       subjectType: "doc",
-      subjectId: "d1",
+      subjectId: d1,
       role: "view",
     });
     expect(resolved?.expiresAt?.equals(expiresAt)).toBe(true);
   });
 
   it("refuses an expiry in the past and stops resolving after one", async () => {
+    const d1 = await doc("d1");
     await session.as(owner);
 
-    const past = await links.create(org, "doc", "d1", {
+    const past = await links.create(org, "doc", d1, {
       expiresAt: Temporal.Now.instant().subtract({ minutes: 1 }),
     });
 
     expect(past.ok ? undefined : past.error.hint).toBe("SHARE_EXPIRY_INVALID");
-    const link = await links.create(org, "doc", "d1").orThrow();
+    const link = await links.create(org, "doc", d1).orThrow();
     await session.service();
     await session.client.query(
       "update better_supabase.share_links set expires_at = now() - interval '1 second' where id = $1",
@@ -66,9 +95,37 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     expect(await links.resolve(link.token).orThrow()).toBeNull();
   });
 
-  it("lets only the creator or a manager revoke a link", async () => {
+  it("refuses a subject of another organization or an unknown type", async () => {
+    const d1 = await doc("d1");
+    await session.as(outsider);
+
+    const foreign = await links.create(otherOrg, "doc", d1);
+
+    expect(foreign.ok ? undefined : foreign.error.hint).toBe(
+      "SHARE_SUBJECT_NOT_FOUND",
+    );
+    const unknown = await links.create(otherOrg, "invoice", d1);
+    expect(unknown.ok ? undefined : unknown.error.hint).toBe(
+      "SHARE_SUBJECT_UNKNOWN",
+    );
+  });
+
+  it("stops resolving a link once its uses are spent", async () => {
+    const d1 = await doc("d1");
     await session.as(owner);
-    const link = await links.create(org, "doc", "d2").orThrow();
+    const link = await links.create(org, "doc", d1, { maxUses: 2 }).orThrow();
+    await session.as("anon");
+    expect(await links.resolve(link.token).orThrow()).toMatchObject({
+      maxUses: 2,
+    });
+    expect(await links.resolve(link.token).orThrow()).not.toBeNull();
+    expect(await links.resolve(link.token).orThrow()).toBeNull();
+  });
+
+  it("lets only the creator or a manager revoke a link", async () => {
+    const d2 = await doc("d2");
+    await session.as(owner);
+    const link = await links.create(org, "doc", d2).orThrow();
     await session.as(outsider);
     const refused = await links.revoke(link.id);
     expect(refused.ok ? undefined : refused.error.hint).toBe("SHARE_NOT_FOUND");
@@ -77,11 +134,12 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   });
 
   it("lists links only to their organization", async () => {
+    const d3 = await doc("d3");
     await session.as(owner);
-    await links.create(org, "doc", "d3").orThrow();
-    expect(await links.list("doc", "d3").orThrow()).toHaveLength(1);
+    await links.create(org, "doc", d3).orThrow();
+    expect(await links.list("doc", d3).orThrow()).toHaveLength(1);
     await session.as(outsider);
-    expect(await links.list("doc", "d3").orThrow()).toEqual([]);
+    expect(await links.list("doc", d3).orThrow()).toEqual([]);
   });
 
   it("records views for members only", async () => {

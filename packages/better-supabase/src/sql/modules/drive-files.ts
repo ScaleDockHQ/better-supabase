@@ -588,16 +588,18 @@ declare
   v_role text;
   v_root text;
   v_expires timestamptz;
+  v_tenant text;
   v_node ${T}%rowtype;
 begin
-  select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}
-    into v_link_id, v_role, v_root, v_expires
+  select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}, l.${shareLinks.col("links", "tenant")}::text
+    into v_link_id, v_role, v_root, v_expires, v_tenant
   from ${shareLinks.table("links")} l
   where ${liveShareLink(shareLinks, "l", "drive_link.token", typeLit)};
   if v_link_id is null or v_root !~ ${UUID_TEXT} then
     ${fail("DRIVE_LINK_NOT_FOUND", "this link does not exist or has expired", "P0002")}
   end if;
-  select * into v_node from ${T} x where x.${n("id")} = coalesce(drive_link.node, v_root::uuid)${live("x")};
+  select * into v_node from ${T} x where x.${n("id")} = coalesce(drive_link.node, v_root::uuid)
+    and x.${n("tenant")}::text = v_tenant${live("x")};
   if not found or not (v_root::uuid = any (${fn("drive_ancestors")}(v_node.${n("id")}))) then
     ${fail("DRIVE_LINK_NOT_FOUND", "this link does not open that item", "P0002")}
   end if;

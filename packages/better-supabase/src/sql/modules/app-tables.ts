@@ -614,6 +614,151 @@ function isExposed(name: string, layout: ModuleLayout): boolean {
   );
 }
 
+/**
+ * A literal that meets a required column's type, options, format and
+ * bounds, for the row the read test inserts. `null` when the column needs
+ * no value (nullable, defaulted or an identity); `undefined` when no literal
+ * can stand in for it (a reference, which needs a parent row).
+ */
+function sampleValue(column: AppColumnConfig): string | null | undefined {
+  if (
+    column.nullable !== false ||
+    column.default !== undefined ||
+    column.identity === true
+  ) {
+    return null;
+  }
+
+  if (column.references !== undefined) {
+    return undefined;
+  }
+
+  const first = column.options?.[0];
+
+  if (first !== undefined) {
+    return column.type === "text[]"
+      ? `array[${sqlString(first)}]::text[]`
+      : sqlString(first);
+  }
+
+  const format =
+    column.format === undefined ? undefined : FIELD_FORMATS[column.format];
+
+  const low = column.min ?? format?.bounds?.[0];
+
+  switch (column.type) {
+    case "text": {
+      if (column.format === "email") {
+        return "'test@example.com'";
+      }
+
+      if (column.format === "url") {
+        return "'https://example.com'";
+      }
+
+      return `repeat('x', ${String(Math.max(low ?? 1, 1))})`;
+    }
+
+    case "integer":
+    case "bigint":
+    case "numeric": {
+      return String(low ?? 0);
+    }
+
+    case "uuid": {
+      return "gen_random_uuid()";
+    }
+
+    case "boolean": {
+      return "false";
+    }
+
+    case "timestamptz": {
+      return "now()";
+    }
+
+    case "date": {
+      return "current_date";
+    }
+
+    case "jsonb": {
+      return "'{}'::jsonb";
+    }
+
+    case "text[]": {
+      return "array[]::text[]";
+    }
+
+    default: {
+      const never: never = column.type;
+
+      throw new TypeError(`Unknown app column type "${String(never)}"`);
+    }
+  }
+}
+
+/**
+ * The statement, run as the table owner before the role switch, that puts
+ * one row of another tenant (or user) in the table, so the read check sees
+ * a row it must not return. `undefined` when a required column has no
+ * stand-in value.
+ */
+function foreignRow(table: AppTable): string | undefined {
+  const scope = table.scope;
+
+  if (scope === undefined) {
+    return undefined;
+  }
+
+  const values: [string, string][] = [];
+
+  for (const [name, column] of Object.entries(table.config.columns ?? {})) {
+    const value = sampleValue(column);
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value !== null) {
+      values.push([sqlIdent(name), value]);
+    }
+  }
+
+  const { ctx } = table;
+  const columns = [sqlIdent(scope.name), ...values.map(([name]) => name)];
+  const rest = values.map(([, value]) => value);
+
+  const insert = (owner: string): string =>
+    `insert into ${qualified(table.name)} (${columns.join(", ")}) select ${[owner, ...rest].join(", ")}`;
+
+  if (ctx.scope.kind === "user") {
+    return `with u as (
+  insert into auth.users (id, email, aud, role, instance_id)
+  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  returning id
+)
+${insert("u.id")} from u;`;
+  }
+
+  if (ctx.installed("organizations")) {
+    const organizations = ctx.of("organizations");
+
+    const org = (column: string): string =>
+      organizations.col("organizations", column);
+
+    const slug = organizations.has("organizations", "slug");
+
+    return `with o as (
+  insert into ${organizations.table("organizations")} (${org("name")}${slug ? `, ${org("slug")}` : ""})
+  values ('bs-app-tables-test'${slug ? ", 'bs-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
+  returning ${org("id")} as id
+)
+${insert("o.id")} from o;`;
+  }
+
+  return `${insert(FOREIGN_ID[scope.idType])};`;
+}
+
 function testSql(table: AppTable): string {
   const name = sqlString(table.name);
   const label = `${SCHEMA}.${table.name}`;
@@ -669,9 +814,16 @@ function testSql(table: AppTable): string {
 
   checks.push(...appViewChecks(table.name, table.config));
 
+  const seeded = foreignRow(table);
+
+  const readCheck =
+    seeded === undefined
+      ? `select extensions.skip(${sqlString(`${label} has a required reference, so the read test can't insert a row of another ${table.ctx.scope.kind}`)}, 1);`
+      : `select extensions.is((select count(*)::integer from ${qualified(table.name)}), 0, ${sqlString(`a signed-in user does not read a row of ${label} outside their scope`)});`;
+
   const behaviour = table.scope
     ? [
-        `select extensions.is((select count(*)::integer from ${qualified(table.name)} where not (${ownRows(table) ?? "true"})), 0, ${sqlString(`a signed-in user reads only the rows of ${label} their scope reaches`)});`,
+        readCheck,
         `select extensions.throws_ok($$insert into ${qualified(table.name)} (${sqlIdent(table.scope.name)}) values (${FOREIGN_ID[table.scope.idType]})$$, '42501', null, ${sqlString(`a signed-in user cannot insert a row of ${label} outside their scope`)});`,
       ]
     : [
@@ -679,7 +831,7 @@ function testSql(table: AppTable): string {
       ];
 
   return `${checks.join("\n")}
-
+${table.scope && seeded !== undefined ? `\n${seeded}\n` : ""}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 ${[...behaviour, ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}

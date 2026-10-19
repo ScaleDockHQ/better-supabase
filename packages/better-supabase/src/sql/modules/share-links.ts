@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -15,12 +15,15 @@ import {
   fail,
   lockTable,
   schemaPreamble,
+  SERVICE_CALLER,
   sha256Hex,
   userGrant,
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { driveSubjectType } from "./drive-kit.ts";
 
 const EVENTS: ModuleEvents<ShareLinksEvents> = {
   "share_link.created": {
@@ -55,11 +58,12 @@ const NAMES: ModuleNames = {
         expiresAt: "expires_at",
         revokedAt: "revoked_at",
         maxUses: "max_uses",
+        useCount: "use_count",
         createdBy: "created_by",
         leaf: "leaf_id",
         versionId: "version_id",
       },
-      optional: ["leaf", "versionId"],
+      optional: ["leaf", "versionId", "useCount"],
     },
     views: {
       name: "subject_views",
@@ -98,8 +102,8 @@ const RESERVED = ["fields", "token"] as const;
  * The conditions a live link meets, for the functions that open a link of
  * one subject type: `links` is the share-links context, `alias` the table
  * alias, `token` the presented token (a text expression) and `subjectType`
- * a SQL expression. Every consumer checks the hash, the type, revocation and
- * expiry through this, so none of them can drop one.
+ * a SQL expression. Every consumer checks the hash, the type, revocation,
+ * expiry and the use limit through this, so none of them can drop one.
  */
 export function liveShareLink(
   links: ModuleContext,
@@ -112,8 +116,119 @@ export function liveShareLink(
 
   return `${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
     and ${l("subjectType")} = ${subjectType}
-    and ${l("revokedAt")} is null
-    and (${l("expiresAt")} is null or ${l("expiresAt")} > now())`;
+    and ${unspentShareLink(links, alias)}`;
+}
+
+/** Not revoked, not expired and, with `use_count`, under `max_uses`. */
+function unspentShareLink(links: ModuleContext, alias: string): string {
+  const l = (column: string): string =>
+    `${alias}.${links.col("links", column)}`;
+
+  const uses = links.has("links", "useCount")
+    ? `\n    and (${l("maxUses")} is null or ${l("useCount")} < ${l("maxUses")})`
+    : "";
+
+  return `${l("revokedAt")} is null
+    and (${l("expiresAt")} is null or ${l("expiresAt")} > now())${uses}`;
+}
+
+/** The `create_share_link` arguments the subject check reads. */
+const SUBJECT_ARGS = {
+  type: "create_share_link.subject_type",
+  id: "create_share_link.subject_id",
+  tenant: "create_share_link.tenant",
+} as const;
+
+/**
+ * The subject types other blocks own, each with the SQL that finds the
+ * subject in the link's tenant. ai-chat also requires the caller to own the
+ * chat, as `share_ai_chat` does.
+ */
+function blockSubjects(
+  ctx: ModuleContext,
+): readonly (readonly [string, string])[] {
+  const { id, tenant } = SUBJECT_ARGS;
+
+  const row = (module: string, table: string, extra = ""): string => {
+    const other = ctx.of(module);
+    const c = (column: string): string => `s.${other.col(table, column)}`;
+
+    return `exists (select 1 from ${other.table(table)} s where ${c("id")}::text = ${id} and ${c("tenant")}::text = ${tenant}::text${extra})`;
+  };
+
+  const found: (readonly [string, string])[] = [];
+
+  if (ctx.installed("ai-chat")) {
+    found.push([
+      "ai-chat",
+      `exists (select 1 from ${ctx.schema}.ai_chats s where s.id::text = ${id} and s.${ctx.naming.rename("organization_id")}::text = ${tenant}::text and s.owner_id = auth.uid())`,
+    ]);
+  }
+
+  if (ctx.installed("drive")) {
+    found.push([driveSubjectType(ctx.of("drive")), row("drive", "nodes")]);
+  }
+
+  if (ctx.installed("calendar")) {
+    found.push(["calendar", row("calendar", "calendars")]);
+  }
+
+  if (ctx.installed("forms")) {
+    found.push(["form", row("forms", "forms")]);
+  }
+
+  if (ctx.installed("bookings")) {
+    found.push(["booking_service", row("bookings", "services")]);
+  }
+
+  return found;
+}
+
+/**
+ * Whether the subject a new link names exists in the link's tenant and the
+ * caller may share it. Block-owned types come first; registered subjects
+ * (`config.subjects` or `options.subjects`) check the row's tenant and the
+ * subject's read permission. Any other type fails.
+ */
+function subjectCheck(ctx: ModuleContext): string {
+  const blocks = blockSubjects(ctx);
+  const owned = new Set(blocks.map(([type]) => type));
+
+  const registered = subjectsOption(ctx, [], { hyphens: true }).filter(
+    ([type]) => !owned.has(type),
+  );
+
+  const others =
+    registered.length === 0
+      ? "null"
+      : subjectReadable(ctx, registered, SUBJECT_ARGS).replace(
+          /else false\s+end$/,
+          "else null\n  end",
+        );
+
+  const check =
+    blocks.length === 0
+      ? others
+      : `case ${SUBJECT_ARGS.type}
+${blocks.map(([type, sql]) => `    when ${sqlString(type)} then ${sql}`).join("\n")}
+    else ${others}
+  end`;
+
+  if (check === "null") {
+    return `if not (${SERVICE_CALLER}) then
+    ${fail("SHARE_SUBJECT_UNKNOWN", "this subject type can't be shared", "22023")}
+  end if;`;
+  }
+
+  return `if not (${SERVICE_CALLER}) then
+    v_subject_ok := ${check};
+    if v_subject_ok is null then
+      ${fail("SHARE_SUBJECT_UNKNOWN", "this subject type can't be shared", "22023")}
+    end if;
+    if not v_subject_ok then
+      ${fail("SHARE_SUBJECT_NOT_FOUND", "the subject does not exist in this organization", "P0002")}
+    end if;
+  end if;`;
 }
 
 /**
@@ -172,7 +287,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("links", "createdBy")} uuid${ctx.has("links", "leaf") ? `,` : ""}
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
 );${addExtraColumns(links, extras)}
-${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${lockTable(links, { read: true })}
+${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${ctx.has("links", "useCount") ? `alter table ${links} add column if not exists ${ctx.col("links", "useCount")} integer not null default 0;\n` : ""}${lockTable(links, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("links").name}_subject_idx`)} on ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")});
 ${
   ctx.hasTable("views")
@@ -265,20 +380,25 @@ returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare
   v_subject text;
+  v_tenant text;
   v_leaf text;
   v_chat_id uuid;
 begin
   if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
     return null;
   end if;
-  select l.${ctx.col("links", "subjectId")}, ${ctx.has("links", "leaf") ? `l.${ctx.col("links", "leaf")}` : "null"}
-    into v_subject, v_leaf
+  select l.${ctx.col("links", "subjectId")}, l.${ctx.col("links", "tenant")}::text, ${ctx.has("links", "leaf") ? `l.${ctx.col("links", "leaf")}` : "null"}
+    into v_subject, v_tenant, v_leaf
   from ${links} l
   where ${liveShareLink(ctx, "l", "get_shared_ai_chat.token", "'ai-chat'")};
-  if not found then
+  if not found or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;
   v_chat_id := v_subject::uuid;
+  -- The chat must still live in the tenant the link was created in.
+  if not exists (select 1 from ${ctx.schema}.ai_chats where id = v_chat_id and ${ctx.naming.rename("organization_id")}::text = v_tenant) then
+    return null;
+  end if;
   return jsonb_build_object(
     'chat', (select jsonb_build_object('id', id, 'title', title, 'model', model, 'created_at', created_at) from ${ctx.schema}.ai_chats where id = v_chat_id),
     'leaf_id', v_leaf,
@@ -293,9 +413,11 @@ $$;
 ${tables}
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text);
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid);
+drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz);
+drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz, jsonb);
 -- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
-${extra.drop(ctx.fn("create_share_link"), `${ctx.idType}, text, text, text, uuid, timestamptz`)}
-create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null${extra.param})
+${extra.drop(ctx.fn("create_share_link"), `${ctx.idType}, text, text, text, uuid, timestamptz, integer`)}
+create or replace function ${ctx.fn("create_share_link")}(tenant ${ctx.idType}, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -304,6 +426,7 @@ as $$
 declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
+  v_subject_ok boolean;
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("create_share_link.tenant", create)}) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
@@ -311,9 +434,13 @@ begin
   if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
     ${fail("SHARE_EXPIRY_INVALID", "expires_at must be in the future", "22023")}
   end if;
+  if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
+    ${fail("SHARE_MAX_USES_INVALID", "max_uses must be at least 1", "22023")}
+  end if;
+  ${subjectCheck(ctx)}
   ${versionCheck(ctx)}
-  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
+  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "maxUses")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""})
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""})
   returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",
@@ -325,7 +452,7 @@ begin
   return ${extras.length === 0 ? "jsonb_build_object('id', v_id, 'token', v_token)" : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'token', v_token)", "x", extras)} from ${links} x where x.${linkId} = v_id)`};
 end;
 $$;
-${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz${extra.type})`)}
+${userGrant(`${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz, integer${extra.type})`)}
 
 -- The link's creator, or a caller who may create links in its tenant, may
 -- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
@@ -365,18 +492,35 @@ end;
 $$;
 ${userGrant(`${ctx.fn("revoke_share_link")}(uuid)`)}
 
+-- Each resolve counts one use, so a link with max_uses stops resolving once
+-- it is spent. The row lock keeps two concurrent resolves from both taking
+-- the last use.
 create or replace function ${ctx.fn("resolve_share_link")}(token text)
 returns jsonb
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ${ctx.col("links", "id")}, 'organizationId', ${ctx.col("links", "tenant")}, 'subjectType', ${ctx.col("links", "subjectType")}, 'subjectId', ${ctx.col("links", "subjectId")}, 'role', ${ctx.col("links", "role")}, 'versionId', ${pinned ? ctx.col("links", "versionId") : "null"}, 'expiresAt', ${ctx.col("links", "expiresAt")})
-  from ${links}
-  where ${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(resolve_share_link.token, 'utf8')")}
-    and ${ctx.col("links", "revokedAt")} is null
-    and (${ctx.col("links", "expiresAt")} is null or ${ctx.col("links", "expiresAt")} > now())
+declare
+  v_link ${links}%rowtype;
+begin
+  select * into v_link
+  from ${links} l
+  where l.${ctx.col("links", "tokenHash")} = ${sha256Hex("convert_to(resolve_share_link.token, 'utf8')")}
+    and ${unspentShareLink(ctx, "l")}
+  for update;
+  if not found then
+    return null;
+  end if;${
+    ctx.has("links", "useCount")
+      ? `
+  update ${links} set ${ctx.col("links", "useCount")} = ${ctx.col("links", "useCount")} + 1
+  where ${ctx.col("links", "id")} = v_link.${ctx.col("links", "id")};`
+      : ""
+  }
+  return jsonb_build_object('id', v_link.${ctx.col("links", "id")}, 'organizationId', v_link.${ctx.col("links", "tenant")}, 'subjectType', v_link.${ctx.col("links", "subjectType")}, 'subjectId', v_link.${ctx.col("links", "subjectId")}, 'role', v_link.${ctx.col("links", "role")}, 'versionId', ${pinned ? `v_link.${ctx.col("links", "versionId")}` : "null"}, 'expiresAt', v_link.${ctx.col("links", "expiresAt")}, 'maxUses', v_link.${ctx.col("links", "maxUses")});
+end;
 $$;
 revoke all on function ${ctx.fn("resolve_share_link")}(text) from public, anon, authenticated;
 grant execute on function ${ctx.fn("resolve_share_link")}(text) to anon, authenticated, service_role;
@@ -461,7 +605,16 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "create_share_link",
-      args: ["{id}", "text", "text", "text", "uuid", "timestamptz", ...extra],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "uuid",
+        "timestamptz",
+        "integer",
+        ...extra,
+      ],
       returns: "jsonb",
     },
     { name: "revoke_share_link", args: ["uuid"], returns: "boolean" },
@@ -482,7 +635,15 @@ export const SHARE_LINKS: ModuleDefinition = {
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.",
   requires: ["tenant", "access"],
-  integrates: ["ai-chat", "outbox", "versions"],
+  integrates: [
+    "ai-chat",
+    "bookings",
+    "calendar",
+    "drive",
+    "forms",
+    "outbox",
+    "versions",
+  ],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

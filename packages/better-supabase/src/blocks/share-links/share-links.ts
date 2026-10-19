@@ -75,6 +75,11 @@ export interface CreateShareLinkOptions<
    * (`SHARE_EXPIRY_INVALID`); without it the link lives until revoked.
    */
   readonly expiresAt?: Temporal.Instant;
+  /**
+   * How many times `resolve` may open the link. Without it the link opens
+   * until it is revoked or expires.
+   */
+  readonly maxUses?: number;
 }
 
 /** What a live token points at. */
@@ -89,6 +94,8 @@ export interface ResolvedShareLink {
   readonly versionId?: string;
   /** When the link stops resolving, when it has an expiry. */
   readonly expiresAt?: Temporal.Instant;
+  /** How many times the link may be opened, when it has a limit. */
+  readonly maxUses?: number;
 }
 
 export interface ShareLinks<F extends object = Record<never, never>> {
@@ -101,7 +108,7 @@ export interface ShareLinks<F extends object = Record<never, never>> {
   ): AsyncResult<CreatedShareLink<F>>;
   /** The link's creator, or a member with `share_links.create`. */
   revoke(id: string): AsyncResult<boolean>;
-  /** `null` for an unknown, revoked or expired token. */
+  /** `null` for an unknown, revoked, expired or used-up token. Each call counts one use. */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
   /** A member of the organization records a view. */
   recordView(
@@ -146,6 +153,7 @@ export function createShareLinks<
         role,
         versionId,
         expiresAt,
+        maxUses,
         fields: extra,
       }: CreateShareLinkOptions<F> = typeof link === "string"
         ? { role: link }
@@ -161,6 +169,7 @@ export function createShareLinks<
             role: role ?? "view",
             version_id: versionId ?? null,
             expires_at: instantArg(expiresAt) ?? null,
+            max_uses: maxUses ?? null,
             fields: checked,
           },
           (value) => {
@@ -187,6 +196,9 @@ export function createShareLinks<
         const versionId = optionalText(row["versionId"]);
         const expiresAt = optionalInstant(row["expiresAt"]);
 
+        const maxUses =
+          typeof row["maxUses"] === "number" ? row["maxUses"] : undefined;
+
         return {
           id: textOf(row["id"]),
           organizationId: textOf(row["organizationId"]),
@@ -195,6 +207,7 @@ export function createShareLinks<
           role: textOf(row["role"]),
           ...(versionId === undefined ? {} : { versionId }),
           ...(expiresAt === undefined ? {} : { expiresAt }),
+          ...(maxUses === undefined ? {} : { maxUses }),
         };
       }),
     recordView: (organizationId, subjectType, subjectId, viewerKind, viewer) =>

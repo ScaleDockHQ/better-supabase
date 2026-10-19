@@ -639,11 +639,12 @@ revoke execute on function "better_supabase"."get_version"(uuid) from public, an
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
 
 -- A share link pinned to a version (create_share_link's version_id) reads
--- that version with the token alone, for anon.
+-- that version with the token alone, for anon. Volatile: resolving the link
+-- counts a use.
 create or replace function "better_supabase"."get_shared_version"(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$

@@ -193,6 +193,9 @@ export const runCustomerImport = bs.action(
 
           return run.data.id;
         },
+        running: async (id) => {
+          await service.call(API_SCHEMA, "mark_import_running", { id });
+        },
         finish,
       });
 

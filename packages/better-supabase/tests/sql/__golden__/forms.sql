@@ -1427,6 +1427,7 @@ begin
     and k."subject_type" = 'form'
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
+    and (k."max_uses" is null or k."use_count" < k."max_uses")
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
@@ -1467,6 +1468,7 @@ begin
     and k."subject_type" = 'form'
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
+    and (k."max_uses" is null or k."use_count" < k."max_uses")
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';

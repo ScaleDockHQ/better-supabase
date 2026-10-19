@@ -570,11 +570,12 @@ ${
   ctx.installed("share-links")
     ? `
 -- A share link pinned to a version (create_share_link's version_id) reads
--- that version with the token alone, for anon.
+-- that version with the token alone, for anon. Volatile: resolving the link
+-- counts a use.
 create or replace function ${fn("get_shared_version")}(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
