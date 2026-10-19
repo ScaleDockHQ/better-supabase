@@ -6885,6 +6885,7 @@ npx shadcn add alert button card empty field input label select skeleton switch
 ```tsx title="apps/examples/nextjs/src/features/rules/components/rule-builder.tsx"
 "use client";
 
+import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
 import type {
   FilterCombinator,
   FilterGroupNode,
@@ -6914,10 +6915,7 @@ import {
   ruleOperators,
   type RuleField,
 } from "better-supabase/blocks/rules";
-import {
-  type RuleBuilderState,
-  useRuleBuilder,
-} from "better-supabase/blocks/rules/react";
+import { useRuleBuilder } from "better-supabase/blocks/rules/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
   GripVerticalIcon,

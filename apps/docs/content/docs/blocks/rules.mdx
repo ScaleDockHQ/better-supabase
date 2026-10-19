@@ -184,7 +184,92 @@ export function RuleEditor({ organizationId }: { organizationId: string }) {
 
 The [Rule builder recipe](/docs/registry/ui-recipes#rule-builder) renders this editor with shadcn components: field, operator and value rows, nested And and Or groups, drag handles and a locked first condition. The `use-rule-editor` [registry item](/docs/registry) installs a `useRuleEditor` hook that reads the organization from the session and the schema from `blocks.generated.ts`.
 
-The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/rules` for your own editor. `createRuleBuilderController` is the same state without React, and `better-supabase/blocks/rules/vue`, `/svelte` and `/solid` export `useRuleBuilder` for those frameworks, taking the controller's options with a `client` from `createRules`. In Server Components, call `rules.get(id)` instead.
+The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/rules` for your own editor. `createRuleBuilderController` is the same state without React. In Server Components, call `rules.get(id)` instead.
+
+## Vue
+
+`better-supabase/blocks/rules/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createRules`; `auth` and `ports` come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useRuleBuilder } from "better-supabase/blocks/rules/vue";
+import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useRuleBuilder({
+  client: createRules({ transport: rpcTransport(supabase) }),
+  organizationId,
+  rule: null,
+  subjectType: "expense",
+});
+</script>
+
+<template>
+  <button type="button" @click="actions.addRule(undefined, 'amount')">
+    Add condition
+  </button>
+  <p>{{ state.issues.length }} problems</p>
+</template>
+```
+
+## Svelte
+
+`better-supabase/blocks/rules/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bs)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useRuleBuilder } from "better-supabase/blocks/rules/svelte";
+  import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const builder = useRuleBuilder({
+    client: createRules({ transport: rpcTransport(supabase) }),
+    organizationId,
+    rule: null,
+    subjectType: "expense",
+  });
+</script>
+
+<button type="button" onclick={() => builder.actions.addRule(undefined, "amount")}>
+  Add condition
+</button>
+<p>{$builder.issues.length} problems</p>
+```
+
+## Solid
+
+`better-supabase/blocks/rules/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useRuleBuilder } from "better-supabase/blocks/rules/solid";
+import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state, actions } = useRuleBuilder({
+    client: createRules({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+    rule: null,
+    subjectType: "expense",
+  });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => actions.addRule(undefined, "amount")}
+      >
+        Add condition
+      </button>
+      <p>{state().issues.length} problems</p>
+    </>
+  );
+}
+```
 
 ## Configure
 
