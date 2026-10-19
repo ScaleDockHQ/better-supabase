@@ -1,7 +1,7 @@
+import { EMPTY_DESIGN, moveTables } from "better-supabase/create";
 import { describe, expect, test } from "vitest";
 
 import { freeSpot, settleTables } from "../../lib/canvas-place";
-import { EMPTY_DESIGN, moveTables } from "../../lib/design";
 import { GROUP_PADDING } from "../../lib/schema-layout";
 
 const rect = (x: number, y: number, width = 200, height = 100) => ({

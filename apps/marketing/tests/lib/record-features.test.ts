@@ -1,5 +1,3 @@
-import { describe, expect, test } from "vitest";
-
 import {
   addTable,
   type Design,
@@ -8,7 +6,9 @@ import {
   EMPTY_DESIGN,
   renameColumn,
   setColumn,
-} from "../../lib/design";
+} from "better-supabase/create";
+import { describe, expect, test } from "vitest";
+
 import {
   featureBlocker,
   installedBlocks,

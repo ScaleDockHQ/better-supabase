@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { boundError, fitted, optionError } from "../../lib/column-keys";
 import {
+  boundError,
+  fitted,
+  optionError,
   addTable,
   appTableId,
   columnError,
@@ -28,7 +30,7 @@ import {
   updateTable,
   userConnection,
   withDesign,
-} from "../../lib/design";
+} from "../../src/create/index.ts";
 import { presetSchema } from "./schema-fixture";
 
 const { preset, data } = presetSchema("saas");

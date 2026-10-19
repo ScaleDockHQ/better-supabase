@@ -1,7 +1,3 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import * as v from "valibot";
-
 import {
   authorizeUrl,
   FLOW_COOKIE,
@@ -10,7 +6,11 @@ import {
   randomToken,
   returnPath,
   seal,
-} from "@/lib/supabase-oauth";
+} from "better-supabase/create/supabase";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import * as v from "valibot";
+
 import {
   cookieOptions,
   errorResponse,

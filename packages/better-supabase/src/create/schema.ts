@@ -1,4 +1,4 @@
-import type { Preset } from "better-supabase/preset";
+import type { Preset } from "../preset/index.ts";
 
 /** One rendered SQL file, as `/create/migrations` returns it. */
 export interface SchemaSource {

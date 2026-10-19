@@ -1,4 +1,15 @@
 import {
+  previewFiles,
+  deployBlocker,
+  deployQuery,
+  type DeployResponse,
+  MIGRATION_NAME,
+} from "better-supabase/create";
+import {
+  isProjectRef,
+  type SupabaseLint,
+} from "better-supabase/create/supabase";
+import {
   decodeDesign,
   isDesignCode,
   isPresetCode,
@@ -6,14 +17,6 @@ import {
 } from "better-supabase/preset";
 import * as v from "valibot";
 
-import { previewFiles } from "@/lib/preview-provider";
-import {
-  deployBlocker,
-  deployQuery,
-  type DeployResponse,
-  MIGRATION_NAME,
-} from "@/lib/supabase-deploy";
-import { isProjectRef, type SupabaseLint } from "@/lib/supabase-management";
 import {
   errorResponse,
   sameOrigin,

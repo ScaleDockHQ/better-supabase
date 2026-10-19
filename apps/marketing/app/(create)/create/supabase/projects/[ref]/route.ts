@@ -1,6 +1,7 @@
-import type { ProjectStatusResponse } from "@/lib/supabase-deploy";
+import type { ProjectStatusResponse } from "better-supabase/create";
 
-import { isProjectRef } from "@/lib/supabase-management";
+import { isProjectRef } from "better-supabase/create/supabase";
+
 import { errorResponse, withSupabase } from "@/lib/supabase-session";
 
 /**

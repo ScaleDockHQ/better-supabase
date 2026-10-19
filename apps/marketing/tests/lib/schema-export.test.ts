@@ -1,8 +1,8 @@
+import type { SchemaData } from "better-supabase/create";
+
+import { addTable } from "better-supabase/create";
 import { describe, expect, test } from "vitest";
 
-import type { SchemaData } from "../../lib/schema";
-
-import { addTable } from "../../lib/design";
 import { toDbml, toJson, toMermaid } from "../../lib/schema-export";
 
 const data: Pick<SchemaData, "tables"> = {

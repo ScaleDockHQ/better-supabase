@@ -1,13 +1,13 @@
-import { encodePreset, namedPreset } from "better-supabase/preset";
 import { describe, expect, test } from "vitest";
 
-import { previewFiles } from "../../lib/preview-provider";
 import {
+  previewFiles,
   deployBlocker,
   deployQuery,
   generatePassword,
   suggestedProjectName,
-} from "../../lib/supabase-deploy";
+} from "../../src/create/index.ts";
+import { encodePreset, namedPreset } from "../../src/preset/index.ts";
 
 describe("deployQuery", () => {
   const files = [

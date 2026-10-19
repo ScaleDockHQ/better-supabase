@@ -1,11 +1,10 @@
-import type { Preset } from "better-supabase/preset";
-
-import type { PresetMigrationFile } from "./create";
+import type { Preset } from "../preset/index.ts";
 import type {
   SupabaseLint,
   SupabaseOrganization,
   SupabaseProject,
-} from "./supabase-management";
+} from "./supabase/management.ts";
+import type { PresetMigrationFile } from "./types.ts";
 
 /** The name the deploy gives its migration in `supabase_migrations`. */
 export const MIGRATION_NAME = "better_supabase_blocks";

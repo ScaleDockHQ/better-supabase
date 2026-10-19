@@ -1,15 +1,9 @@
-import { cookies } from "next/headers";
-
-import { env } from "@/env";
-
-import type { ErrorResponse } from "./supabase-deploy";
+import type { ErrorResponse } from "better-supabase/create";
 
 import {
   type ManagementClient,
   managementClient,
   ManagementError,
-} from "./supabase-management";
-import {
   COOKIE_PATH,
   needsRefresh,
   type OAuthConfig,
@@ -18,10 +12,13 @@ import {
   seal,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
-  sessionSchema,
+  isSession,
   type SupabaseSession,
   unseal,
-} from "./supabase-oauth";
+} from "better-supabase/create/supabase";
+import { cookies } from "next/headers";
+
+import { env } from "@/env";
 
 /** The OAuth app settings, or `undefined` when deploying is turned off. */
 export function oauthConfig(): OAuthConfig | undefined {
@@ -98,7 +95,7 @@ async function currentSession(
   const session = await unseal(
     jar.get(SESSION_COOKIE)?.value,
     config.cookieSecret,
-    sessionSchema,
+    isSession,
   );
 
   if (session === undefined || !needsRefresh(session, Date.now())) {

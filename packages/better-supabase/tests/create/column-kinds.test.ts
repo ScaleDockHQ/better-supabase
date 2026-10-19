@@ -1,15 +1,16 @@
 import { describe, expect, test } from "vitest";
 
-import { columnLabel } from "../../lib/column-keys";
 import {
+  columnLabel,
   COLUMN_KINDS,
   KIND_GROUPS,
   kindById,
   kindOf,
   setColumnKind,
   withKind,
-} from "../../lib/column-kinds";
-import { addTable, setColumn } from "../../lib/design";
+  addTable,
+  setColumn,
+} from "../../src/create/index.ts";
 
 const kind = (id: string) => {
   const found = kindById(id);

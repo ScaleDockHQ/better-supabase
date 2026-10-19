@@ -1,4 +1,9 @@
-import { type AppTable, addTable, type Design, freeTableName } from "./design";
+import {
+  type AppTable,
+  addTable,
+  type Design,
+  freeTableName,
+} from "better-supabase/create";
 
 export type PrimitiveKind = "table" | "lookup" | "tree";
 

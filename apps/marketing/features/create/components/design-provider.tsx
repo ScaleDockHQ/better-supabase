@@ -1,11 +1,10 @@
 "use client";
 
+import type { Design } from "better-supabase/create";
 import type { Preset } from "better-supabase/preset";
 import type { ReactElement, ReactNode } from "react";
 
 import { createContext, use, useMemo, useReducer } from "react";
-
-import type { Design } from "@/lib/design";
 
 import {
   createReducer,

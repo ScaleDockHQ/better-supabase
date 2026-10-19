@@ -1,14 +1,13 @@
 import type { ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api";
 
-import ELK from "elkjs/lib/elk.bundled.js";
-
 import {
   keyColumnsOf,
   type SchemaColumn,
   type SchemaComputed,
   type SchemaData,
   type SchemaTable,
-} from "./schema";
+} from "better-supabase/create";
+import ELK from "elkjs/lib/elk.bundled.js";
 
 // The sizes match the node classes: w-62, h-9 header, h-6 rows, py-1 lists, h-10 external and collapsed groups.
 export const NODE_WIDTH = 248;

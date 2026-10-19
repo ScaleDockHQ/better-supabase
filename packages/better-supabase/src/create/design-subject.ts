@@ -1,5 +1,5 @@
-import type { AppSubject } from "./design";
-import type { SchemaColumn } from "./schema";
+import type { AppSubject } from "./design.ts";
+import type { SchemaColumn } from "./schema.ts";
 
 /** The columns `subject` adds: `rank` for manual order and `deleted_at` for trash. */
 export function subjectColumns(

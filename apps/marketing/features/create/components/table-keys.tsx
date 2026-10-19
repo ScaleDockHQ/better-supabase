@@ -2,10 +2,14 @@
 
 import type { ReactElement } from "react";
 
+import {
+  type SchemaTable,
+  type AppTableId,
+  setTableId,
+  updateTable,
+} from "better-supabase/create";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useId } from "react";
-
-import type { SchemaTable } from "@/lib/schema";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -16,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type AppTableId, setTableId, updateTable } from "@/lib/design";
 
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";

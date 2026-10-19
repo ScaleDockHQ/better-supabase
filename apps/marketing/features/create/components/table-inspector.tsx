@@ -3,6 +3,17 @@
 import type { ReactElement } from "react";
 
 import {
+  type AppScope,
+  isAppTable,
+  ON_DELETE_ACTIONS,
+  type OnDeleteAction,
+  setColumn,
+  updateTable,
+  type SchemaData,
+  type SchemaTable,
+  tableStatements,
+} from "better-supabase/create";
+import {
   CircleAlertIcon,
   FileCodeIcon,
   LinkIcon,
@@ -42,19 +53,6 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  type AppScope,
-  isAppTable,
-  ON_DELETE_ACTIONS,
-  type OnDeleteAction,
-  setColumn,
-  updateTable,
-} from "@/lib/design";
-import {
-  type SchemaData,
-  type SchemaTable,
-  tableStatements,
-} from "@/lib/schema";
 
 import type { InspectorTab } from "./schema-nodes";
 

@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 
+import { isEmptyDesign } from "better-supabase/create";
 import {
   isPresetName,
   PRESET_GROUPS,
@@ -32,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { CUSTOM_PRESET, PRESET_ITEMS } from "@/lib/create-options";
-import { isEmptyDesign } from "@/lib/design";
 import {
   DESIGN_TEMPLATES,
   type DesignTemplate,

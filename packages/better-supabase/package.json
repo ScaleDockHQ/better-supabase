@@ -58,6 +58,16 @@
       "types": "./dist/preset/index.d.ts",
       "default": "./dist/preset/index.js"
     },
+    "./create": {
+      "@better-supabase/source": "./src/create/index.ts",
+      "types": "./dist/create/index.d.ts",
+      "default": "./dist/create/index.js"
+    },
+    "./create/supabase": {
+      "@better-supabase/source": "./src/create/supabase/index.ts",
+      "types": "./dist/create/supabase/index.d.ts",
+      "default": "./dist/create/supabase/index.js"
+    },
     "./cli": {
       "@better-supabase/source": "./src/cli/index.ts",
       "types": "./dist/cli/index.d.ts",
@@ -1485,6 +1495,14 @@
       "./preset": {
         "types": "./dist/preset/index.d.ts",
         "default": "./dist/preset/index.js"
+      },
+      "./create": {
+        "types": "./dist/create/index.d.ts",
+        "default": "./dist/create/index.js"
+      },
+      "./create/supabase": {
+        "types": "./dist/create/supabase/index.d.ts",
+        "default": "./dist/create/supabase/index.js"
       },
       "./cli": {
         "types": "./dist/cli/index.d.ts",

@@ -1,8 +1,16 @@
 "use client";
 
+import type { Design, SchemaData, SchemaTable } from "better-supabase/create";
 import type { KeyboardEvent, MouseEvent, ReactElement, ReactNode } from "react";
 
 import { useReactFlow } from "@xyflow/react";
+import {
+  APP_MODULE,
+  connect,
+  deleteColumn,
+  isAppTable,
+  userConnection,
+} from "better-supabase/create";
 import { resolvePreset } from "better-supabase/preset";
 import {
   ArrowLeftRightIcon,
@@ -28,9 +36,7 @@ import {
 import { createContext, use, useState } from "react";
 import { toast } from "sonner";
 
-import type { Design } from "@/lib/design";
 import type { PrimitiveKind } from "@/lib/primitives";
-import type { SchemaData, SchemaTable } from "@/lib/schema";
 import type {
   LayoutEdge,
   LayoutGroup,
@@ -63,13 +69,6 @@ import {
 } from "@/components/ui/context-menu";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { blockGroups, rowNote } from "@/lib/create";
-import {
-  APP_MODULE,
-  connect,
-  deleteColumn,
-  isAppTable,
-  userConnection,
-} from "@/lib/design";
 import { junctionPosition, manyToMany } from "@/lib/relations";
 
 import { useCanvasBridge } from "./canvas-bridge";

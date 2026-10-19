@@ -1,6 +1,6 @@
-import type { AppColumn, AppTable, Design } from "./design";
+import type { AppColumn, AppTable, Design } from "./design.ts";
 
-import { singular } from "./design";
+import { singular } from "./design.ts";
 
 /** One sample row: column name to the text the grid shows, or `null`. */
 export type SampleRow = Readonly<Record<string, string | null>>;

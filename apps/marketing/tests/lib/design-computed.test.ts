@@ -1,6 +1,3 @@
-import { encodeDesign } from "better-supabase/preset";
-import { describe, expect, test } from "vitest";
-
 import {
   addTable,
   columnError,
@@ -13,8 +10,6 @@ import {
   renameTable,
   setColumn,
   withDesign,
-} from "../../lib/design";
-import {
   computedRows,
   fittedRollup,
   lookupSources,
@@ -22,7 +17,10 @@ import {
   rollupSources,
   tableWithComputed,
   tableWithoutComputed,
-} from "../../lib/design-computed";
+} from "better-supabase/create";
+import { encodeDesign } from "better-supabase/preset";
+import { describe, expect, test } from "vitest";
+
 import { tableRows } from "../../lib/schema-layout";
 import { presetSchema } from "./schema-fixture";
 

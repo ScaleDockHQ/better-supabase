@@ -4,7 +4,7 @@ import {
   isProjectRef,
   managementClient,
   ManagementError,
-} from "../../lib/supabase-management";
+} from "../../../src/create/supabase/index.ts";
 
 type JsonBody = Record<string, string | number | boolean>;
 
@@ -131,6 +131,65 @@ describe("managementClient", () => {
         "token",
         respondJson({ unexpected: true }),
       ).organizations(),
+    ).rejects.toBeInstanceOf(ManagementError);
+  });
+
+  test("reads organizations, a single project and the security lints", async () => {
+    await expect(
+      managementClient(
+        "token",
+        respondJson([{ id: "1", slug: "acme", name: "Acme" }]),
+      ).organizations(),
+    ).resolves.toEqual([{ id: "1", slug: "acme", name: "Acme" }]);
+
+    await expect(
+      managementClient("token", respondJson(project)).project(project.ref),
+    ).resolves.toMatchObject({ name: "my-app" });
+
+    const lints = managementClient(
+      "token",
+      respond(
+        JSON.stringify({
+          lints: [
+            { name: "rls_disabled", title: "RLS disabled", level: "ERROR" },
+          ],
+        }),
+      ),
+    ).securityLints(project.ref);
+
+    await expect(lints).resolves.toMatchObject([{ level: "ERROR" }]);
+  });
+
+  test("rejects malformed rows", async () => {
+    for (const body of [
+      [{ id: "1" }],
+      [{ ...project, status: 1 }],
+      { lints: [{ name: "x", title: "y", level: "LOUD" }] },
+      "nope",
+    ]) {
+      const client = managementClient("token", respond(JSON.stringify(body)));
+
+      await expect(client.organizations()).rejects.toBeInstanceOf(
+        ManagementError,
+      );
+      await expect(client.projects()).rejects.toBeInstanceOf(ManagementError);
+      await expect(client.securityLints(project.ref)).rejects.toBeInstanceOf(
+        ManagementError,
+      );
+    }
+
+    const count = (body: unknown) =>
+      managementClient("token", respond(JSON.stringify(body))).publicTableCount(
+        project.ref,
+      );
+
+    await expect(count([])).resolves.toBe(0);
+    await expect(count([1])).rejects.toBeInstanceOf(ManagementError);
+    await expect(count([{ count: "x" }])).rejects.toBeInstanceOf(
+      ManagementError,
+    );
+    await expect(
+      managementClient("token", respond("{}")).databaseHealthy(project.ref),
     ).rejects.toBeInstanceOf(ManagementError);
   });
 });

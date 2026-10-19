@@ -1,5 +1,6 @@
 "use client";
 
+import type { SchemaTable } from "better-supabase/create";
 import type { ReactElement } from "react";
 
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
@@ -16,7 +17,6 @@ import {
 } from "lucide-react";
 import { createContext, use, useMemo } from "react";
 
-import type { SchemaTable } from "@/lib/schema";
 import type { TableRows } from "@/lib/schema-layout";
 
 import { Badge } from "@/components/reui/badge";

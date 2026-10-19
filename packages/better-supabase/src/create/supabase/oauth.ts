@@ -1,9 +1,9 @@
-import * as v from "valibot";
+import { isRecord } from "./guards.ts";
 
-export const SUPABASE_API = "https://api.supabase.com";
+export const SUPABASE_API: string = "https://api.supabase.com";
 
 /** Where the session and the in-flight authorization live. */
-export const COOKIE_PATH = "/create/supabase";
+export const COOKIE_PATH: string = "/create/supabase";
 export const SESSION_COOKIE = "bs_supabase";
 export const FLOW_COOKIE = "bs_supabase_flow";
 
@@ -11,7 +11,7 @@ export const FLOW_COOKIE = "bs_supabase_flow";
 export const FLOW_MAX_AGE = 600;
 
 /** The session cookie outlives the access token; the refresh token renews it. */
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+export const SESSION_MAX_AGE: number = 60 * 60 * 24 * 7;
 
 export interface OAuthConfig {
   readonly clientId: string;
@@ -19,28 +19,37 @@ export interface OAuthConfig {
   readonly cookieSecret: string;
 }
 
-export const sessionSchema = v.object({
-  accessToken: v.string(),
-  refreshToken: v.optional(v.string()),
+export interface SupabaseSession {
+  readonly accessToken: string;
+  readonly refreshToken?: string | undefined;
   /** Epoch milliseconds. */
-  expiresAt: v.number(),
-});
+  readonly expiresAt: number;
+}
 
-export type SupabaseSession = v.InferOutput<typeof sessionSchema>;
+export function isSession(value: unknown): value is SupabaseSession {
+  return (
+    isRecord(value) &&
+    typeof value["accessToken"] === "string" &&
+    (value["refreshToken"] === undefined ||
+      typeof value["refreshToken"] === "string") &&
+    typeof value["expiresAt"] === "number"
+  );
+}
 
-export const flowSchema = v.object({
-  state: v.string(),
-  verifier: v.string(),
-  returnTo: v.string(),
-});
+export interface OAuthFlow {
+  readonly state: string;
+  readonly verifier: string;
+  readonly returnTo: string;
+}
 
-export type OAuthFlow = v.InferOutput<typeof flowSchema>;
-
-const tokenResponse = v.object({
-  access_token: v.string(),
-  refresh_token: v.optional(v.string()),
-  expires_in: v.number(),
-});
+export function isFlow(value: unknown): value is OAuthFlow {
+  return (
+    isRecord(value) &&
+    typeof value["state"] === "string" &&
+    typeof value["verifier"] === "string" &&
+    typeof value["returnTo"] === "string"
+  );
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -133,13 +142,11 @@ export async function seal(
 }
 
 /** The value `seal` wrote, or `undefined` when it is missing, tampered with or another shape. */
-export async function unseal<
-  const TSchema extends v.GenericSchema<unknown, unknown>,
->(
+export async function unseal<TValue>(
   sealed: string | undefined,
   secret: string,
-  schema: TSchema,
-): Promise<v.InferOutput<TSchema> | undefined> {
+  guard: (value: unknown) => value is TValue,
+): Promise<TValue | undefined> {
   if (sealed === undefined || sealed === "") {
     return undefined;
   }
@@ -153,9 +160,9 @@ export async function unseal<
       bytes.slice(12),
     );
 
-    const parsed = v.safeParse(schema, JSON.parse(decoder.decode(plain)));
+    const parsed: unknown = JSON.parse(decoder.decode(plain));
 
-    return parsed.success ? parsed.output : undefined;
+    return guard(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -244,16 +251,22 @@ async function tokenRequest(
     );
   }
 
-  const parsed = v.safeParse(tokenResponse, await response.json());
+  const payload: unknown = await response.json();
 
-  if (!parsed.success) {
+  if (
+    !isRecord(payload) ||
+    typeof payload["access_token"] !== "string" ||
+    typeof payload["expires_in"] !== "number" ||
+    (payload["refresh_token"] !== undefined &&
+      typeof payload["refresh_token"] !== "string")
+  ) {
     throw new OAuthError("Supabase sent a token response without a token.");
   }
 
   return {
-    accessToken: parsed.output.access_token,
-    refreshToken: parsed.output.refresh_token,
-    expiresAt: now + parsed.output.expires_in * 1000,
+    accessToken: payload["access_token"],
+    refreshToken: payload["refresh_token"],
+    expiresAt: now + payload["expires_in"] * 1000,
   };
 }
 

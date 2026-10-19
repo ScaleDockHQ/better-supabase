@@ -5,12 +5,10 @@ import {
   appTableId,
   EMPTY_DESIGN,
   moveTables,
-} from "../../lib/design";
-import {
   undoHistory,
   HISTORY_LIMIT,
   initialHistory,
-} from "../../lib/design-history";
+} from "../../src/create/index.ts";
 
 const one = addTable(EMPTY_DESIGN, "projects");
 const two = addTable(one, "tasks");

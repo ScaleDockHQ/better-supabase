@@ -2,10 +2,18 @@
 
 import type { ReactElement } from "react";
 
+import {
+  type AppColumn,
+  COLUMN_KINDS,
+  type ColumnKind,
+  KIND_GROUPS,
+  kindById,
+  boundError,
+  optionError,
+  withBounds,
+} from "better-supabase/create";
 import { XIcon } from "lucide-react";
 import { useId, useState } from "react";
-
-import type { AppColumn } from "@/lib/design";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -19,13 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { boundError, optionError, withBounds } from "@/lib/column-keys";
-import {
-  COLUMN_KINDS,
-  type ColumnKind,
-  KIND_GROUPS,
-  kindById,
-} from "@/lib/column-kinds";
 
 import { CommitInput } from "./commit-input";
 

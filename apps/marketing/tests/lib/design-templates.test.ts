@@ -1,4 +1,11 @@
 import {
+  designIssues,
+  EMPTY_DESIGN,
+  addTable,
+  withDesign,
+  previewFiles,
+} from "better-supabase/create";
+import {
   decodeDesign,
   encodeDesign,
   encodePreset,
@@ -12,18 +19,11 @@ import {
   presetOfState,
 } from "../../lib/create-state";
 import {
-  designIssues,
-  EMPTY_DESIGN,
-  addTable,
-  withDesign,
-} from "../../lib/design";
-import {
   DESIGN_TEMPLATES,
   type DesignTemplate,
   templatePreset,
   templateTables,
 } from "../../lib/design-templates";
-import { previewFiles } from "../../lib/preview-provider";
 import { installedBlocks, RECORD_FEATURES } from "../../lib/record-features";
 import { presetSchema } from "./schema-fixture";
 

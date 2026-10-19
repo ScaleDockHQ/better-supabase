@@ -1,11 +1,11 @@
-import { describe, expect, test } from "vitest";
-
 import {
   addTable,
   appTableId,
   designIssues,
   withDesign,
-} from "../../lib/design";
+} from "better-supabase/create";
+import { describe, expect, test } from "vitest";
+
 import { manyToMany } from "../../lib/relations";
 import { presetSchema } from "./schema-fixture";
 

@@ -1,10 +1,62 @@
 import { describe, expect, test } from "vitest";
 
-import { DESIGN_TEMPLATES } from "../../lib/design-templates";
-import { SAMPLE_ROW_COUNT, sampleRows } from "../../lib/sample-rows";
+import type { Design } from "../../src/create/index.ts";
 
-const content = DESIGN_TEMPLATES.find((each) => each.id === "content-calendar");
-const events = DESIGN_TEMPLATES.find((each) => each.id === "event-planning");
+import { SAMPLE_ROW_COUNT, sampleRows } from "../../src/create/index.ts";
+
+const USER = {
+  type: "uuid",
+  references: { table: "auth.users", onDelete: "set null" },
+} as const;
+
+const content: Design = {
+  appTables: {
+    channels: {
+      columns: {
+        name: { type: "text", nullable: false },
+        color: { type: "text", format: "color" },
+      },
+    },
+    posts: {
+      columns: {
+        channel_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "channels", onDelete: "cascade" },
+        },
+        title: { type: "text", nullable: false },
+        body: { type: "text", format: "long_text" },
+        status: {
+          type: "text",
+          nullable: false,
+          options: ["idea", "draft", "scheduled", "published"],
+          default: "'idea'",
+        },
+        publish_at: { type: "timestamptz" },
+        author_id: USER,
+        link: { type: "text", format: "url" },
+      },
+      subject: { type: "post", title: "title" },
+    },
+  },
+};
+
+const events: Design = {
+  appTables: {
+    agenda_items: {
+      columns: {
+        starts_at: { type: "timestamptz", nullable: false },
+        room: { type: "text" },
+      },
+    },
+    attendees: {
+      columns: {
+        email: { type: "text", format: "email", nullable: false },
+        checked_in: { type: "boolean", nullable: false, default: "false" },
+      },
+    },
+  },
+};
 
 describe("sample rows", () => {
   test("returns nothing for a table the design doesn't have", () => {
@@ -12,7 +64,7 @@ describe("sample rows", () => {
   });
 
   test("is deterministic and fills every column", () => {
-    const design = content?.design ?? {};
+    const design = content;
     const first = sampleRows(design, "posts");
 
     expect(sampleRows(design, "posts")).toEqual(first);
@@ -29,7 +81,7 @@ describe("sample rows", () => {
   });
 
   test("uses titles, options, formats and references", () => {
-    const design = content?.design ?? {};
+    const design = content;
     const [row] = sampleRows(design, "posts").rows;
 
     expect(row).toMatchObject({
@@ -47,7 +99,7 @@ describe("sample rows", () => {
   });
 
   test("leaves some optional cells empty and fills required ones", () => {
-    const design = events?.design ?? {};
+    const design = events;
     const rows = sampleRows(design, "attendees").rows;
 
     expect(rows[3]).toMatchObject({
@@ -93,6 +145,33 @@ describe("sample rows", () => {
       price: "25.00",
       done: "false",
       due: "2026-01-08",
+    });
+  });
+
+  test("fills phone, uuid, numeric, jsonb and array columns", () => {
+    const [row] = sampleRows(
+      {
+        appTables: {
+          misc: {
+            columns: {
+              phone: { type: "text", format: "phone", nullable: false },
+              ref: { type: "uuid", nullable: false },
+              amount: { type: "numeric", nullable: false },
+              meta: { type: "jsonb", nullable: false },
+              tags: { type: "text[]", nullable: false },
+            },
+          },
+        },
+      },
+      "misc",
+    ).rows;
+
+    expect(row).toMatchObject({
+      phone: "+1 555 0110",
+      ref: "00000000-0000-4000-8000-000000000001",
+      amount: "0.00",
+      meta: "{}",
+      tags: "{}",
     });
   });
 });

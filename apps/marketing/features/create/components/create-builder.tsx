@@ -3,6 +3,11 @@
 import type { ReactElement } from "react";
 
 import {
+  type Design,
+  EMPTY_DESIGN,
+  deployBlocker,
+} from "better-supabase/create";
+import {
   decodeDesign,
   DesignTooLongError,
   encodeDesign,
@@ -44,9 +49,7 @@ import {
   withAuthChoice,
 } from "@/lib/create-options";
 import { presetPrompt } from "@/lib/create-prompt";
-import { type Design, EMPTY_DESIGN } from "@/lib/design";
 import { site } from "@/lib/site";
-import { deployBlocker } from "@/lib/supabase-deploy";
 
 import { CanvasBridgeProvider, useCanvasBridgeState } from "./canvas-bridge";
 import { DeployDialog } from "./deploy-dialog";

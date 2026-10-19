@@ -1,6 +1,6 @@
-import { type AppColumnFormat, isAppDefault } from "better-supabase/preset";
+import type { AppColumn, AppColumnType } from "./design.ts";
 
-import type { AppColumn, AppColumnType } from "./design";
+import { type AppColumnFormat, isAppDefault } from "../preset/index.ts";
 
 /** The most options a select takes, and the longest option. */
 const MAX_OPTIONS = 100;

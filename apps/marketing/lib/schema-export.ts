@@ -1,5 +1,4 @@
-import type { Design } from "./design";
-import type { SchemaData, SchemaTable } from "./schema";
+import type { Design, SchemaData, SchemaTable } from "better-supabase/create";
 
 function identifier(table: SchemaTable): string {
   return table.schema === "public"

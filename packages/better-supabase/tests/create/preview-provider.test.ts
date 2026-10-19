@@ -1,17 +1,17 @@
+import { describe, expect, test } from "vitest";
+
+import {
+  previewAccessProvider,
+  previewFiles,
+  tableStatements,
+} from "../../src/create/index.ts";
 import {
   encodePreset,
   namedPreset,
   type Preset,
   PRESET_NAMES,
   PRESETS,
-} from "better-supabase/preset";
-import { describe, expect, test } from "vitest";
-
-import {
-  previewAccessProvider,
-  previewFiles,
-} from "../../lib/preview-provider";
-import { tableStatements } from "../../lib/schema";
+} from "../../src/preset/index.ts";
 
 const withProvider = (preset: Preset): string =>
   encodePreset({ ...preset, access: "provider" });
