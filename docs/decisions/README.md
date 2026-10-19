@@ -50,3 +50,4 @@ add one, and link it from the code or config it explains.
 | [0042](0042-column-formats-and-table-keys.md)         | App table columns take a format, options, bounds, a comment and identity; tables take composite keys, an id type and a comment |
 | [0043](0043-app-tables-are-subjects.md)               | An app table becomes a subject through `appTables.<name>.subject`                                                              |
 | [0044](0044-rollups-and-lookups-as-views.md)          | App table rollups and lookups render as a `security_invoker` view                                                              |
+| [0045](0045-cli-command-tree-and-agent-mode.md)       | The CLI runs from one command tree with real subcommands, one JSON envelope and agent mode; `bsb` is its short name            |
