@@ -3,6 +3,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 
 import type { Generator, ResolvedConfig } from "../../config/index.ts";
 import type { CliIo, CommandResult } from "../core/io.ts";
+import type { CliLog } from "../core/log.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
@@ -154,17 +155,58 @@ export async function readMetadataSnapshot(
   return fromMetadata(await parseMetadataDocument(text));
 }
 
+/** The `gen` flags that decide whether `--metadata`, `--emit` and `--out` fit together. */
+export interface MetadataFlags {
+  readonly metadata?: string;
+  readonly emit?: string;
+  readonly out?: string;
+  readonly check: boolean;
+  readonly json: boolean;
+  /** Flags that pick another schema source or mode, by name (`--watch`), when passed. */
+  readonly conflicting: readonly string[];
+}
+
+/** Throws the usage error for flags that don't combine with `--metadata`, or need it. */
+export function checkMetadataFlags(flags: MetadataFlags): void {
+  if (flags.metadata === undefined) {
+    if (flags.emit !== undefined || flags.out !== undefined) {
+      throw new CliError(
+        "usage",
+        `${flags.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
+      );
+    }
+
+    return;
+  }
+
+  const problem =
+    flags.conflicting.length > 0
+      ? `--metadata reads the schema from the document, so it can't be combined with ${flags.conflicting.join(", ")}`
+      : flags.out !== undefined && flags.emit !== undefined
+        ? "--emit picks the one file gen prints; --out writes them all. Pass one of them."
+        : flags.out === undefined && flags.check
+          ? "--check with --metadata needs --out <dir>"
+          : flags.out === undefined && flags.json
+            ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary."
+            : undefined;
+
+  if (problem !== undefined) {
+    throw new CliError("usage", problem);
+  }
+}
+
 export interface MetadataGenOptions {
   readonly config: ResolvedConfig;
   readonly env: CliEnv;
   readonly cwd: string;
   readonly io: CliIo;
+  /** Where the generation notices go when the code goes to stdout. */
+  readonly log: CliLog;
   /** `--metadata`: a path, or `-` for stdin. */
   readonly metadata: string;
   readonly emit?: string;
   readonly out?: string;
   readonly check: boolean;
-  readonly json: boolean;
   readonly paint?: Paint;
 }
 
@@ -186,24 +228,6 @@ export async function runMetadataGen(
     throw new CliError(
       "usage",
       `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
-    );
-  }
-
-  if (options.out !== undefined && options.emit !== undefined) {
-    throw new CliError(
-      "usage",
-      "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
-    );
-  }
-
-  if (options.out === undefined && options.check) {
-    throw new CliError("usage", "--check with --metadata needs --out <dir>");
-  }
-
-  if (options.out === undefined && options.json) {
-    throw new CliError(
-      "usage",
-      "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
     );
   }
 
@@ -250,15 +274,14 @@ export async function runMetadataGen(
   }
 
   const { contents, warnings } = await renderEmit(config, snapshot, emit);
-  io.stdout(contents);
   const notices = await generationNotices(snapshot, warnings);
 
   const shown =
     emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);
 
   for (const line of shown) {
-    io.stderr(`${line}\n`);
+    options.log.info(line);
   }
 
-  return { code: 0 };
+  return { code: 0, raw: contents };
 }

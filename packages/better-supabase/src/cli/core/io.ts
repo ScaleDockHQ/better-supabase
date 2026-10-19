@@ -13,11 +13,19 @@ export interface CliIo {
   readonly stdin?: () => Promise<string>;
   /** Stdin is a terminal, so reading it would wait for typing instead of a pipe. */
   readonly stdinIsTty?: boolean;
-  /** Color the output with ANSI escapes. Off unless set. */
+  /** Color stdout with ANSI escapes. Off unless set; `--no-color` turns it off. */
   readonly color?: boolean;
+  /** Color stderr with ANSI escapes. Defaults to `color`. */
+  readonly stderrColor?: boolean;
   /**
-   * Prompts and spinners for a person at a terminal. `run()` drops them in
-   * CI and under `--json` or `--yes`, and without them commands never ask.
+   * Shows `message` on stderr until the returned function is called: a
+   * spinner on a terminal, a plain line elsewhere. Without it, progress
+   * shows nothing.
+   */
+  readonly spinner?: (message: string) => () => void;
+  /**
+   * Prompts for a person at a terminal. `run()` drops them in CI and under
+   * `--json` or `--yes`, and without them commands never ask.
    */
   readonly prompts?: Prompter;
 }
@@ -47,6 +55,13 @@ export interface CommandResult {
   /** The `data` of the `--json` envelope. */
   readonly data?: unknown;
   readonly next?: readonly NextStep[];
+  /**
+   * Printed on stdout exactly as is, in place of `output` and the envelope:
+   * a document another tool reads, like `gen --metadata` without `--out`.
+   */
+  readonly raw?: string;
+  /** The command already printed its results through `emit`, so `run()` prints nothing more. */
+  readonly streamed?: boolean;
 }
 
 /**

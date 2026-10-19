@@ -133,10 +133,12 @@ export function resolveCommand(
   return { kind: "command", node: node!, rest };
 }
 
-/** The `--help`, `-h` and `--json` flags before `--`. */
-export function helpFlags(argv: readonly string[]): {
+/** The flags `run()` reads before it loads a command, before `--`. */
+export function globalFlags(argv: readonly string[]): {
   readonly help: boolean;
   readonly json: boolean;
+  readonly color: boolean;
+  readonly debug: boolean;
 } {
   const end = argv.indexOf("--");
   const flags = new Set(end === -1 ? argv : argv.slice(0, end));
@@ -144,6 +146,8 @@ export function helpFlags(argv: readonly string[]): {
   return {
     help: flags.has("--help") || flags.has("-h"),
     json: flags.has("--json"),
+    color: !flags.has("--no-color") && !flags.has("--color=false"),
+    debug: flags.has("--debug"),
   };
 }
 

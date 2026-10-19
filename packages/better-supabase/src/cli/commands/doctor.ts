@@ -5,6 +5,7 @@ import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { Paint } from "../style.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
@@ -35,9 +36,7 @@ import { workflowOf } from "../doctor/shared.ts";
 import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { peerVersions } from "../peers.ts";
-import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
-import { type Paint, painter } from "../style.ts";
 import {
   findRepoRoot,
   readSupabaseToml,
@@ -396,7 +395,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("doctor"),
   args: ARGS,
   lists: ["only", "ignore", "explain"],
-  run: async (args, { config, cwd, env, io, signal }) => {
+  run: async (args, { config, cwd, env, io, log, paint, signal }) => {
     if (args.metadata !== undefined) {
       const conflicting = [
         ...(args.snapshot === undefined ? [] : ["--snapshot"]),
@@ -436,21 +435,21 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         snapshot,
         advisors: { skipped },
         database: { skipped },
-        paint: painter(io.color),
+        paint,
       });
     }
 
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
 
-    return withSpinner(
-      args.snapshot === undefined ? io.prompts : undefined,
-      "Checking the database",
-      () =>
-        runDoctor(config, args, env, {
-          paint: painter(io.color),
-          ...(dbUrl ? { dbUrl } : {}),
-          ...(signal ? { signal } : {}),
-        }),
-    );
+    const check = (): Promise<CommandResult> =>
+      runDoctor(config, args, env, {
+        paint,
+        ...(dbUrl ? { dbUrl } : {}),
+        ...(signal ? { signal } : {}),
+      });
+
+    return args.snapshot === undefined
+      ? log.progress("Checking the database", check)
+      : check();
   },
 });

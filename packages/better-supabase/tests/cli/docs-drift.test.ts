@@ -38,7 +38,14 @@ const PAGES: Readonly<Record<string, string>> = {
   config: "cli/config.mdx",
 };
 
-const globals = new Set(["help", "version", ...Object.keys(GLOBAL_ARGS)]);
+/** Each global option as help prints it: `--no-color` for a boolean that is on by default. */
+const globalFlags = Object.entries(GLOBAL_ARGS).map(([name, definition]) =>
+  definition.type === "boolean" && "default" in definition
+    ? `no-${name}`
+    : name,
+);
+
+const globals = new Set(["help", "version", ...globalFlags]);
 
 async function flagsOf(command: string): Promise<string[]> {
   const usage = await help(command);
@@ -71,7 +78,7 @@ describe("CLI docs", () => {
   it("documents the global options and every error code", async () => {
     const index = await readFile(join(docs, "cli/index.mdx"), "utf-8");
 
-    for (const flag of Object.keys(GLOBAL_ARGS)) {
+    for (const flag of globalFlags) {
       expect(index).toContain(`--${flag}`);
     }
 

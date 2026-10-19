@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CliIo } from "../../../src/cli/core/io.ts";
+import type { Prompter } from "../../../src/cli/prompts.ts";
 
 import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
@@ -459,6 +460,50 @@ describe("run", () => {
     ).toHaveLength(2);
   });
 
+  it("watches under --json: one envelope per run on its own line, and no final document", async () => {
+    const controller = new AbortController();
+    let polls = 0;
+
+    const api = fakeFetch((call) => {
+      if (!call.body?.includes("as fingerprint")) {
+        return { body: [] };
+      }
+
+      polls += 1;
+
+      if (polls === 6) {
+        controller.abort();
+      }
+
+      return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+
+    const result = await run(
+      ["gen", "--watch", "--json", "--interval", "1", "--project-ref", "abc"],
+      {
+        cwd: dir,
+        signal: controller.signal,
+        env: ENV,
+        io: io({ stdout: (text) => stdout.push(text) }),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(stdout).toHaveLength(2);
+
+    for (const line of stdout) {
+      expect(line.endsWith("\n")).toBe(true);
+      expect(line.trimEnd()).not.toContain("\n");
+      expect(JSON.parse(line)).toMatchObject({
+        $schema: RESULT_SCHEMA_URL,
+        status: "success",
+      });
+    }
+  });
+
   it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
@@ -720,9 +765,8 @@ describe("run", () => {
       }),
     );
 
-    const prompts: CliIo["prompts"] = {
+    const prompts: Prompter = {
       confirm: () => Promise.resolve(true),
-      spinner: () => () => {},
       select: () => Promise.reject(new Error("unused")),
       multiselect: () => Promise.reject(new Error("unused")),
     };
@@ -781,9 +825,8 @@ describe("run", () => {
       }),
     );
 
-    const prompts: CliIo["prompts"] = {
+    const prompts: Prompter = {
       confirm: () => Promise.resolve(true),
-      spinner: () => () => {},
       select: () => Promise.reject(new Error("unused")),
       multiselect: () => Promise.reject(new Error("unused")),
     };
@@ -828,9 +871,8 @@ describe("run", () => {
       }),
     );
 
-    const prompts: CliIo["prompts"] = {
+    const prompts: Prompter = {
       confirm: () => Promise.reject(new CliError("cancelled", "Cancelled.")),
-      spinner: () => () => {},
       select: () => Promise.reject(new Error("unused")),
       multiselect: () => Promise.reject(new Error("unused")),
     };
@@ -841,5 +883,80 @@ describe("run", () => {
 
     expect(result.code).toBe(130);
     expect(result.stderr).toContain("Cancelled.");
+  });
+
+  it("keeps messages and progress on stderr, colored per stream", async () => {
+    registerCommand(
+      "talks",
+      defineCliCommand({
+        meta: { name: "talks", description: "Logs on every channel" },
+        args: {},
+        run: async (_args, { log, paint }) => {
+          log.info("note");
+          log.warn("careful");
+          log.debug("details");
+          await log.progress("Working", () => Promise.resolve());
+
+          return { code: 0, output: paint("bold", "done") };
+        },
+      }),
+    );
+
+    const spun: string[] = [];
+
+    const talk = (argv: readonly string[], overrides: Partial<CliIo> = {}) =>
+      run(["talks", "--cwd", dir, ...argv], {
+        io: io({
+          spinner: (message) => {
+            spun.push(message);
+
+            return () => spun.push(`done: ${message}`);
+          },
+          ...overrides,
+        }),
+      });
+
+    const plain = await talk([]);
+    expect(plain.stdout).toBe("done\n");
+    expect(plain.stderr).toBe("note\nWarning: careful\n");
+    expect(spun).toEqual(["Working", "done: Working"]);
+
+    const colored = await talk([], { color: true, stderrColor: false });
+    expect(colored.stdout).not.toBe("done\n");
+    expect(colored.stderr).toBe("note\nWarning: careful\n");
+
+    const noColor = await talk(["--no-color"], {
+      color: true,
+      stderrColor: true,
+    });
+
+    expect(noColor.stdout).toBe("done\n");
+    expect(noColor.stderr).toBe("note\nWarning: careful\n");
+
+    const debug = await talk(["--debug"]);
+    expect(debug.stdout).toBe("done\n");
+    expect(debug.stderr).toMatch(
+      /^note\nWarning: careful\ndebug details\ndebug Working: \d+ms\ndebug exit 0 after \d+ms\n$/,
+    );
+  });
+
+  it("prints stack traces and the child commands under --debug", async () => {
+    const result = await run(["env", "--print", "--debug", "--cwd", dir], {
+      env: { SUPABASE_BIN: join(dir, "missing-supabase") },
+      io: io(),
+    });
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain(
+      `debug exec ${join(dir, "missing-supabase")} status`,
+    );
+    expect(result.stderr).toMatch(/debug CliError: .+\n\s+at /);
+
+    const quiet = await run(["env", "--print", "--cwd", dir], {
+      env: { SUPABASE_BIN: join(dir, "missing-supabase") },
+      io: io(),
+    });
+
+    expect(quiet.stderr).not.toContain("debug");
   });
 });

@@ -9,7 +9,13 @@ export type { CliArgs, CliCommandDef, CliContext } from "./core/command.ts";
 
 export type { Command, CommandContext, ParsedArgs } from "./legacy.ts";
 
-export type { CliIo, CommandResult, RunResult } from "./core/io.ts";
+export type { CliIo, CommandResult, NextStep, RunResult } from "./core/io.ts";
+
+export type { CliLog } from "./core/log.ts";
+
+export type { Choice, Prompter } from "./prompts.ts";
+
+export type { Format, Paint } from "./style.ts";
 
 export { CLI_ERRORS_URL, CliError } from "./core/errors.ts";
 

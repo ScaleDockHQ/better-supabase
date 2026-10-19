@@ -36,8 +36,10 @@ config filled in, `better-supabase gen` is the whole build step.
 
 Every command takes `--help`. Commands that write files accept `--check`
 (exit 1 on drift, with a unified diff of each stale file) or `--dry-run`.
-In a terminal, output is colored (set `NO_COLOR` to turn it off), `init` and
-`add` ask what they need, and database work shows a spinner on stderr.
+In a terminal, output is colored (pass `--no-color` or set `NO_COLOR` to turn
+it off), `init` and `add` ask what they need, and database work shows a
+spinner on stderr. Outside a terminal the spinner is one plain line, such as
+`Reading the schema...`.
 A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
 ## Global options
@@ -49,6 +51,8 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 | `--env <name>`    | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                 |
 | `--json`          | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                 |
 | `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
+| `--no-color`      | Prints no ANSI colors on either stream, like `NO_COLOR`.                                                                                                                                 |
+| `--debug`         | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                             |
 | `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
 | `--version`       | Prints the version.                                                                                                                                                                      |
 
@@ -93,6 +97,23 @@ error together. Progress and the text output go to stderr, so
 `better-supabase gen --check --json | jq .data.stale` stays parseable. In a
 terminal the next commands print after the output, under `Next:`.
 
+Stdout only ever carries the command's output: its text, its envelope, or
+the one file `gen --metadata` prints. Prompts, spinners, warnings and
+`--debug` lines go to stderr, and each stream is colored only when it is a
+terminal.
+
+`gen --watch` and `spec emit --watch` run until stopped. With `--json` they
+print one envelope per run on its own line (NDJSON), so a script can read
+the stream line by line:
+
+```sh
+better-supabase gen --watch --json | while read -r line; do
+  echo "$line" | jq -r .status
+done
+```
+
+The same failure in a row prints once, and the watch retries every interval.
+
 ## Environment
 
 | Variable                | Used by                                                                                          |
@@ -126,15 +147,22 @@ const { code, stdout, stderr } = await run(["gen", "--check"], {
 ```
 
 `run` reads no process globals: it sees only the `env` you pass (none by
-default), and `--cwd` resolves against the `cwd` option. `help()` returns the
+default), and `--cwd` resolves against the `cwd` option. Pass `io` to
+receive the output as it is written; `io.color` and `io.stderrColor` color
+each stream, and `io.spinner` shows progress. `help()` returns the
 usage text, and `help(command)` the text for one command.
 
 Add your own commands with `defineCliCommand` and `registerCommand`. Commands
 are [citty](https://github.com/unjs/citty) definitions: `args` declares the
 options, and `run` gets the parsed arguments and the context (`cwd`,
-`config`, `io`, `env`, `json`, `signal`). Throw a `CliError` to report a
-coded error, and return `data` to give `--json` a document. Options listed in `lists` may repeat or
-take commas, and `list()` splits them. Set `runsWithInvalidConfig: true` on a
+`config`, `io`, `env`, `json`, `signal`, `log`, `paint` and `emit`). Throw a
+`CliError` to report a coded error, and return `data` to give `--json` a
+document. Write messages with `log.info`, `log.warn` and `log.debug`, and
+wrap slow work in `log.progress(message, task)`: all of it goes to stderr, so
+stdout keeps only the result. `paint` colors text for stdout and is plain
+under `--no-color`. A command that runs until stopped prints each result
+with `emit` and returns `{ code: 0, streamed: true }`. Options listed in
+`lists` may repeat or take commas, and `list()` splits them. Set `runsWithInvalidConfig: true` on a
 command that repairs the config: when the config file fails to load, it runs
 with the default config rooted at that file's directory instead of reporting
 `config_invalid`.

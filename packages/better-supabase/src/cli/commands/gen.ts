@@ -5,21 +5,14 @@ import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
-import { errorText, failedResult, CliError } from "../core/errors.ts";
+import { failedResult, CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { runMetadataGen, EMITS } from "../gen/metadata.ts";
+import { checkMetadataFlags, EMITS, runMetadataGen } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import { GEN_TASKS } from "../names.ts";
-import { withSpinner } from "../prompts.ts";
-import { painter, plain } from "../style.ts";
-import {
-  modifiedTime,
-  onceReporter,
-  parseInterval,
-  sleep,
-  stampFiles,
-} from "../watch.ts";
+import { plain } from "../style.ts";
+import { parseInterval, stampFiles, watchLoop } from "../watch.ts";
 import {
   combineResults,
   runSteps,
@@ -141,107 +134,80 @@ async function runTasks(
  * source without a fingerprint is introspected each time and compared. The
  * schema is read only when `types` runs. A changed config file is loaded
  * again and forces a run; a changed input reruns the steps after `types`. A
- * failed run is retried every interval until it succeeds, and the same
- * error is printed once.
+ * failed run is retried every interval until it succeeds.
  */
 async function watch(
   initial: GenOptions,
   requested: readonly GenTask[] | undefined,
   interval: number,
-  { io, signal, configFile, reloadConfig }: CliContext,
+  context: CliContext,
 ): Promise<CommandResult> {
   let options = initial;
   let last = "";
   let inputs = "";
-  const fresh = onceReporter();
-  let stamp = await modifiedTime(configFile);
   let db: IntrospectionSource | undefined;
-  const aborted = (): boolean => signal?.aborted ?? false;
-
-  const report = (message: string): void => {
-    if (fresh(message)) {
-      io.stderr(`${message}\n`);
-    }
-  };
 
   const closeDb = async (): Promise<void> => {
     await db?.close().catch(() => undefined);
     db = undefined;
   };
 
-  try {
-    while (!aborted()) {
-      const changed = await modifiedTime(configFile);
+  const tick = async (): Promise<CommandResult | undefined> => {
+    const tasks = selectTasks(options.config, requested);
+    const current = await stampFiles(stepInputs(options.config, tasks));
+    let polled: { marker: string; snapshot?: Snapshot } | undefined;
 
-      if (reloadConfig && changed !== stamp) {
-        try {
-          options = { ...options, config: await reloadConfig() };
-          stamp = changed;
-          last = "";
-          inputs = "";
-          await closeDb();
-        } catch (cause) {
-          report(errorText(cause));
-          await sleep(interval, signal);
-          continue;
-        }
+    if (tasks.includes("types")) {
+      try {
+        db ??=
+          snapshotFile(options.config, options) === undefined
+            ? await openSource(options.config, options.env, options)
+            : undefined;
+        polled = await poll(options, db, last);
+      } catch (cause) {
+        await closeDb();
+        throw cause;
       }
-
-      const tasks = selectTasks(options.config, requested);
-      const current = await stampFiles(stepInputs(options.config, tasks));
-      let polled: { marker: string; snapshot?: Snapshot } | undefined;
-
-      if (tasks.includes("types")) {
-        try {
-          db ??=
-            snapshotFile(options.config, options) === undefined
-              ? await openSource(options.config, options.env, options)
-              : undefined;
-          polled = await poll(options, db, last);
-        } catch (cause) {
-          report(errorText(cause));
-          await closeDb();
-          await sleep(interval, signal);
-          continue;
-        }
-      }
-
-      const run: readonly GenTask[] | undefined = polled?.snapshot
-        ? tasks
-        : current === inputs
-          ? undefined
-          : tasks.filter((task) => task !== "types");
-
-      const result =
-        run && run.length > 0
-          ? await runTasks(run, {
-              ...options,
-              ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
-            })
-          : undefined;
-
-      if (result && result.code !== 0) {
-        report(result.error ?? `gen exited with code ${result.code}`);
-      } else {
-        if (result?.output) {
-          io.stdout(`${result.output}\n`);
-        }
-
-        if (polled) {
-          last = polled.marker;
-        }
-
-        inputs = current;
-        fresh("");
-      }
-
-      await sleep(interval, signal);
     }
+
+    const run: readonly GenTask[] | undefined = polled?.snapshot
+      ? tasks
+      : current === inputs
+        ? undefined
+        : tasks.filter((task) => task !== "types");
+
+    if (!run || run.length === 0) {
+      return undefined;
+    }
+
+    const result = await runTasks(run, {
+      ...options,
+      ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
+    });
+
+    if (result.code === 0) {
+      last = polled?.marker ?? last;
+      inputs = current;
+    }
+
+    return result;
+  };
+
+  try {
+    return await watchLoop({
+      interval,
+      context,
+      reload: async (config) => {
+        options = { ...options, config };
+        last = "";
+        inputs = "";
+        await closeDb();
+      },
+      tick,
+    });
   } finally {
     await closeDb();
   }
-
-  return { code: 0 };
 }
 
 export const genCommand: AnyCommand = defineCliCommand({
@@ -249,40 +215,33 @@ export const genCommand: AnyCommand = defineCliCommand({
   args: ARGS,
   lists: ["tasks"],
   run: async (args, context) => {
-    if (args.metadata !== undefined) {
-      const conflicting = [
+    checkMetadataFlags({
+      ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
+      ...(args.emit === undefined ? {} : { emit: args.emit }),
+      ...(args.out === undefined ? {} : { out: args.out }),
+      check: args.check === true,
+      json: context.json,
+      conflicting: [
         ...(args.watch === true ? ["--watch"] : []),
         ...(args.snapshot === undefined ? [] : ["--snapshot"]),
         ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
         ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
-      ];
+      ],
+    });
 
-      if (conflicting.length > 0) {
-        throw new CliError(
-          "usage",
-          `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
-        );
-      }
-
+    if (args.metadata !== undefined) {
       return runMetadataGen({
         config: context.config,
         env: context.env,
         cwd: context.cwd,
         io: context.io,
+        log: context.log,
         metadata: args.metadata,
         check: args.check === true,
-        json: context.json,
-        paint: painter(context.io.color),
+        paint: context.paint,
         ...(args.emit === undefined ? {} : { emit: args.emit }),
         ...(args.out === undefined ? {} : { out: args.out }),
       });
-    }
-
-    if (args.emit !== undefined || args.out !== undefined) {
-      throw new CliError(
-        "usage",
-        `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
-      );
     }
 
     const requested =
@@ -302,7 +261,7 @@ export const genCommand: AnyCommand = defineCliCommand({
       config: context.config,
       env: context.env,
       check: args.check === true,
-      paint: painter(context.io.color),
+      paint: context.paint,
       ...(await sourceArgs(args, context.io)),
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
@@ -319,7 +278,7 @@ export const genCommand: AnyCommand = defineCliCommand({
 
     return args.watch === true
       ? watch(options, requested, interval, context)
-      : withSpinner(context.io.prompts, "Generating from the schema", () =>
+      : context.log.progress("Generating from the schema", () =>
           runTasks(tasks, options),
         );
   },

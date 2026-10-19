@@ -219,10 +219,12 @@ pnpm better-supabase spec emit --watch
 `--watch` runs `emit`, then checks every `--interval` milliseconds whether
 the config file, the entry module, the generated module (`output`), an
 overlay file or a `realtime.policies.from` module changed, and runs again
-when one did. A changed config file is
-loaded again first. A failed run is retried on the next change, and the same
-error prints once. Files the entry imports are not watched, apart from the
-generated module.
+when one did. A changed config file is loaded again first; a config that
+fails to load is reported once, and the watch waits until it loads. A failed
+run is retried on the next change, and the same error prints once. Files the
+entry imports are not watched, apart from the generated module. With
+`--json`, each run prints one envelope on its own line
+([NDJSON](/docs/cli#exit-codes-and-json-output)).
 
 ## The manifest
 

@@ -71,16 +71,29 @@ function optionName(name: string, definition: ArgDef, list: boolean): string {
         ? `<${listHint(definition.valueHint ?? name, list)}>`
         : "";
 
-  return [...aliases, `--${name}${hint ? ` ${hint}` : ""}`].join(", ");
+  const flag = negated(definition) ? `no-${name}` : name;
+
+  return [...aliases, `--${flag}${hint ? ` ${hint}` : ""}`].join(", ");
 }
+
+/** A boolean that is on by default, so the flag a person types is `--no-<name>`. */
+const negated = (definition: ArgDef): boolean =>
+  definition.type === "boolean" && definition.default === true;
 
 function optionDescription(definition: ArgDef): string {
   const fallback =
-    definition.default === undefined || definition.default === false
+    definition.default === undefined ||
+    definition.default === false ||
+    negated(definition)
       ? ""
       : ` (default: ${String(definition.default)})`;
 
-  return `${definition.description ?? ""}${fallback}`;
+  const description =
+    negated(definition) && "negativeDescription" in definition
+      ? definition.negativeDescription
+      : definition.description;
+
+  return `${description ?? ""}${fallback}`;
 }
 
 function optionRows(

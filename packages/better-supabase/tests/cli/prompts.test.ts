@@ -26,7 +26,7 @@ vi.mock("@clack/prompts", () => {
   };
 });
 
-const { createClackPrompter, withSpinner } =
+const { clackSpinner, createClackPrompter } =
   await import("../../src/cli/prompts.ts");
 
 const clackPrompter = createClackPrompter(process.stderr);
@@ -40,14 +40,11 @@ interface Asked {
 /** A prompter that answers from `answers` in order and records each question. */
 function fake(answers: unknown[]): Prompter & {
   readonly asked: Asked[];
-  readonly spun: string[];
 } {
   const asked: Asked[] = [];
-  const spun: string[] = [];
 
   return {
     asked,
-    spun,
     select: async <T extends string>(
       message: string,
       _choices: readonly Choice<T>[],
@@ -70,11 +67,6 @@ function fake(answers: unknown[]): Prompter & {
       asked.push({ kind: "confirm", message });
 
       return answers.shift() as boolean | undefined;
-    },
-    spinner: (message) => {
-      spun.push(message);
-
-      return () => spun.push(`done: ${message}`);
     },
   };
 }
@@ -224,23 +216,6 @@ describe("add prompts", () => {
   });
 });
 
-describe("withSpinner", () => {
-  it("stops the spinner after the task, also when it throws", async () => {
-    const prompts = fake([]);
-    expect(await withSpinner(prompts, "Working", async () => 1)).toBe(1);
-    await expect(
-      withSpinner(prompts, "Failing", () => Promise.reject(new Error("x"))),
-    ).rejects.toThrow("x");
-    expect(prompts.spun).toEqual([
-      "Working",
-      "done: Working",
-      "Failing",
-      "done: Failing",
-    ]);
-    expect(await withSpinner(undefined, "Quiet", async () => 2)).toBe(2);
-  });
-});
-
 describe("clackPrompter", () => {
   const choices = [
     { value: "a", label: "A", hint: "first" },
@@ -272,7 +247,7 @@ describe("clackPrompter", () => {
   });
 
   it("clears the spinner when stopped", () => {
-    const stop = clackPrompter.spinner("Loading");
+    const stop = clackSpinner(process.stderr, "Loading");
     expect(clack.spinner.start).toHaveBeenCalledWith("Loading");
     stop();
     expect(clack.spinner.clear).toHaveBeenCalled();

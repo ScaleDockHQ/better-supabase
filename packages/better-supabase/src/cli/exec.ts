@@ -1,3 +1,4 @@
+import { channel } from "node:diagnostics_channel";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { x } from "tinyexec";
@@ -5,6 +6,7 @@ import { x } from "tinyexec";
 import type { CliEnv } from "./env.ts";
 
 import { CliError, errorText } from "./core/errors.ts";
+import { EXEC_CHANNEL, type ExecEvent } from "./core/trace.ts";
 import { PROCESS_ENV } from "./env.ts";
 import { findUp } from "./supabase-toml.ts";
 
@@ -21,6 +23,8 @@ export interface ExecOptions {
 
 const NOT_FOUND = 127;
 
+const execChannel = channel(EXEC_CHANNEL);
+
 async function exec(
   command: string,
   args: readonly string[],
@@ -29,6 +33,21 @@ async function exec(
   options: ExecOptions,
 ): Promise<ExecResult> {
   const childEnv = env[PROCESS_ENV];
+  const start = performance.now();
+
+  const publish = (result: ExecResult): ExecResult => {
+    if (execChannel.hasSubscribers) {
+      execChannel.publish({
+        command,
+        args,
+        cwd,
+        code: result.code,
+        milliseconds: Math.round(performance.now() - start),
+      } satisfies ExecEvent);
+    }
+
+    return result;
+  };
 
   try {
     const result = await x(command, [...args], {
@@ -41,17 +60,17 @@ async function exec(
       throwOnError: false,
     });
 
-    return {
+    return publish({
       code: result.exitCode ?? 1,
       stdout: result.stdout,
       stderr: result.stderr,
-    };
+    });
   } catch (error) {
-    return {
+    return publish({
       code: NOT_FOUND,
       stdout: "",
       stderr: errorText(error),
-    };
+    });
   }
 }
 

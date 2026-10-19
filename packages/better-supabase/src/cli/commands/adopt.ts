@@ -12,7 +12,6 @@ import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { toCatalog } from "../introspect/index.ts";
-import { withSpinner } from "../prompts.ts";
 import {
   type AdoptProposal,
   describeProposal,
@@ -25,7 +24,7 @@ import {
   setBlockInConfig,
   setBlockInJson,
 } from "../sql/config-edit.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -194,15 +193,15 @@ export const adoptCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("adopt"),
   args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
   lists: ["from"],
-  run: async (args, { config, configFile, env, io, signal }) => {
+  run: async (args, { config, configFile, env, io, log, paint, signal }) => {
     const tables = snapshotTables(config, env, {
       ...(await sourceArgs(args, io)),
       ...(signal ? { signal } : {}),
     });
 
     return runAdopt(config, args, {
-      paint: painter(io.color),
-      tables: () => withSpinner(io.prompts, "Reading the schema", tables),
+      paint,
+      tables: () => log.progress("Reading the schema", tables),
       ...(configFile === undefined ? {} : { configFile }),
     });
   },

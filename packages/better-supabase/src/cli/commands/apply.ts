@@ -40,7 +40,7 @@ import {
 } from "../sql/config-edit.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
 import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -448,10 +448,10 @@ export async function runApply(
 export const applyCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("apply"),
   args: { ...APPLY_ARGS, ...SOURCE_ARGS },
-  run: async (args, { config, configFile, env, io, signal }) =>
+  run: async (args, { config, configFile, env, io, paint, signal }) =>
     runApply(config, args, {
       now: () => new Date(),
-      paint: painter(io.color),
+      paint,
       tables: snapshotTables(config, env, {
         ...(await sourceArgs(args, io)),
         ...(signal ? { signal } : {}),

@@ -112,7 +112,9 @@ task again. A change to the spec entry, its overlays or the seed entry reruns
 the tasks after `types`, without reading the schema; a config that fails to load is reported once and kept
 until the next edit fixes it. Each run imports the `readSets` and `realtime.policies`
 modules again, with the project files they import (such as the main module
-the run wrote); packages in `node_modules` load once. Ctrl-C ends the
+the run wrote); packages in `node_modules` load once. With `--json`, each
+run prints one envelope on its own line
+([NDJSON](/docs/cli#exit-codes-and-json-output)). Ctrl-C ends the
 connection, including a query in flight. Connecting gives up after 10 seconds,
 and each introspection query after 2 minutes.
 

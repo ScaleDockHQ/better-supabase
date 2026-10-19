@@ -20,6 +20,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Examples
@@ -54,6 +56,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
@@ -81,6 +85,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files, reads the database with --adopt, calls the Supabase Management API with --project-ref.
@@ -105,6 +111,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: None.
@@ -129,6 +137,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -147,6 +157,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: None.
@@ -181,6 +193,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Examples
@@ -211,6 +225,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -241,6 +257,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Examples
@@ -275,6 +293,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Examples
@@ -307,6 +327,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
@@ -330,6 +352,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -356,6 +380,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -377,6 +403,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: None.
@@ -404,6 +432,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -429,6 +459,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files, writes to the database with --apply.
@@ -456,6 +488,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -480,7 +514,7 @@ Options
   --ui <name>               Also write a reference page next to OpenAPI outputs: scalar, swagger, redoc, elements or rapidoc
   --fail-on <level>         Exit 1 on findings at this level: error (default), warning or never
   --manifest <file>         Also write the diagnostics manifest (JSON) to this file. Defaults to specs.manifest
-  --cache                   Reuse renders whose inputs did not change (default: true)
+  --no-cache                Render every output again
   --watch                   With emit, render again whenever the entry, the config, an overlay or a topic module changes
   --interval <ms>           Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
 
@@ -490,6 +524,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -517,6 +553,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
 
 Side effects: Writes files.
@@ -565,6 +603,8 @@ Global options
   --env <name>     Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
   --json           Print one JSON document on stdout; errors as Problem Details
   -y, --yes        Ask nothing; use the flags and the defaults
+  --no-color       Print no colors, like $NO_COLOR
+  --debug          Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help       Show help
   --version        Print the version
 

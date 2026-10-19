@@ -36,13 +36,7 @@ import { TargetError, resolveTargets } from "../spec/targets.ts";
 import { fieldOf, parseAs } from "../spec/text.ts";
 import { undocumentedTopics } from "../spec/topics.ts";
 import { loadTopics } from "../topics.ts";
-import {
-  modifiedTime,
-  onceReporter,
-  parseInterval,
-  sleep,
-  stampFiles,
-} from "../watch.ts";
+import { parseInterval, stampFiles, watchLoop } from "../watch.ts";
 
 const ACTIONS = ["emit", "check", "validate"] as const;
 
@@ -450,65 +444,36 @@ function watchedFiles(
 
 /**
  * Emits whenever a watched file changes. A changed config file is loaded
- * again first. A failed run is retried on the next change, and the same
- * error is printed once.
+ * again first. A failed run is retried on the next change.
  */
-async function watch(
+function watch(
   initial: SpecRunOptions,
   interval: number,
-  { io, signal, configFile, reloadConfig }: CliContext,
+  context: CliContext,
 ): Promise<CommandResult> {
   let options = initial;
   let last = "";
-  const fresh = onceReporter();
 
-  const configStamp = (): Promise<number | undefined> =>
-    configFile ? modifiedTime(configFile) : Promise.resolve(undefined);
+  return watchLoop({
+    interval,
+    context,
+    reload: (config) => {
+      options = { ...options, config };
+    },
+    tick: async () => {
+      const current = await stampFiles(
+        watchedFiles(options, context.configFile),
+      );
 
-  let configTime = await configStamp();
-
-  for (;;) {
-    if (signal?.aborted === true) {
-      break;
-    }
-
-    const changedConfig = await configStamp();
-
-    if (reloadConfig && changedConfig !== configTime) {
-      configTime = changedConfig;
-
-      try {
-        options = { ...options, config: await reloadConfig() };
-      } catch (cause) {
-        const message = errorText(cause);
-
-        if (fresh(message)) {
-          io.stderr(`${message}\n`);
-        }
+      if (current === last) {
+        return;
       }
-    }
 
-    const current = await stampFiles(watchedFiles(options, configFile));
-
-    if (current !== last) {
       last = current;
-      const result = await runSpec(options).catch(failedResult);
 
-      if (result.output) {
-        io.stdout(`${result.output}\n`);
-      }
-
-      const message = result.error ?? "";
-
-      if (fresh(message)) {
-        io.stderr(`${message}\n`);
-      }
-    }
-
-    await sleep(interval, signal);
-  }
-
-  return { code: 0 };
+      return runSpec(options).catch(failedResult);
+    },
+  });
 }
 
 export const specCommand: AnyCommand = defineCliCommand({

@@ -7,11 +7,18 @@ import { CliError, type CliErrorCode, type CliProblem } from "./errors.ts";
 export interface Rendered {
   readonly stdout?: string;
   readonly stderr?: string;
+  /** Written to stdout byte for byte, with no newline added. */
+  readonly raw?: string;
 }
 
 export interface RenderOptions {
   readonly json: boolean;
+  /** Colors for stdout. */
   readonly paint: Paint;
+  /** Colors for stderr. Defaults to `paint`. */
+  readonly errorPaint?: Paint;
+  /** One envelope per line (NDJSON), for results streamed under `--watch`. */
+  readonly compact?: boolean;
 }
 
 export const RESULT_SCHEMA_URL =
@@ -98,6 +105,15 @@ export function renderResult(
   options: RenderOptions,
 ): Rendered {
   const next = result.next ?? [];
+  const errorPaint = options.errorPaint ?? options.paint;
+
+  if (result.streamed === true) {
+    return {};
+  }
+
+  if (result.raw !== undefined) {
+    return { raw: result.raw };
+  }
 
   if (!options.json) {
     const stdout = [
@@ -109,7 +125,7 @@ export function renderResult(
 
     return {
       ...(stdout ? { stdout } : {}),
-      ...(result.error ? { stderr: options.paint("red", result.error) } : {}),
+      ...(result.error ? { stderr: errorPaint("red", result.error) } : {}),
     };
   }
 
@@ -128,14 +144,14 @@ export function renderResult(
     ...(result.error && !failed ? [result.error] : []),
   ];
 
+  const shown = envelope(result.code, {
+    ...(result.data === undefined ? {} : { data: result.data }),
+    ...(problem ? { error: problem } : {}),
+    next,
+  });
+
   return {
-    stdout: document(
-      envelope(result.code, {
-        ...(result.data === undefined ? {} : { data: result.data }),
-        ...(problem ? { error: problem } : {}),
-        next,
-      }),
-    ),
+    stdout: options.compact === true ? JSON.stringify(shown) : document(shown),
     ...(diagnostics.length > 0 ? { stderr: diagnostics.join("\n") } : {}),
   };
 }

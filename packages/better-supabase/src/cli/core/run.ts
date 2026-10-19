@@ -1,4 +1,5 @@
 import { parseArgs, runCommand } from "citty";
+import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
@@ -21,6 +22,7 @@ import {
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
+import { createLog, milliseconds } from "./log.ts";
 import {
   document,
   envelope,
@@ -34,10 +36,11 @@ import {
   commandArgs,
   type CommandNode,
   commandTree,
-  helpFlags,
+  globalFlags,
   type Loader,
   resolveCommand,
 } from "./parse.ts";
+import { EXEC_CHANNEL, type ExecEvent } from "./trace.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */
@@ -83,6 +86,19 @@ function isCommandResult(value: unknown): value is CommandResult {
 }
 
 const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
+
+/** The stack of `cause` and of each error in its `cause` chain, for `--debug`. */
+function stackText(cause: unknown): string {
+  const stacks: string[] = [];
+  let current = cause;
+
+  while (current instanceof Error && stacks.length < 10) {
+    stacks.push(current.stack ?? `${current.name}: ${current.message}`);
+    current = current.cause;
+  }
+
+  return stacks.length === 0 ? String(cause) : stacks.join("\nCaused by: ");
+}
 
 /** `--cwd` resolved against `base`; it has to name an existing directory. */
 function projectDirectory(base: string, flag: string | undefined): string {
@@ -193,16 +209,34 @@ export function createCli(init: CreateCliOptions): Cli {
       io.stderr(line);
     };
 
-    const paint = painter(io.color);
+    const { json, debug, color } = globalFlags(argv);
+    const paint = painter(io.color === true && color);
+
+    const errorPaint = painter((io.stderrColor ?? io.color) === true && color);
+
+    const log = createLog({
+      write: fail,
+      paint: errorPaint,
+      debug,
+      ...(io.spinner ? { spinner: io.spinner } : {}),
+    });
+
+    const started = performance.now();
 
     const usage = (path: readonly string[] = []): Promise<string> =>
-      helpText(path, bin, io.color === true);
+      helpText(path, bin, io.color === true && color);
 
-    const finish = (code: number): RunResult => ({
-      code,
-      stdout: stdout.join(""),
-      stderr: stderr.join(""),
-    });
+    const finish = (code: number): RunResult => {
+      log.debug(
+        `exit ${code} after ${milliseconds(started, performance.now())}`,
+      );
+
+      return {
+        code,
+        stdout: stdout.join(""),
+        stderr: stderr.join(""),
+      };
+    };
 
     let resolution = resolveCommand(tree, argv);
 
@@ -222,10 +256,17 @@ export function createCli(init: CreateCliOptions): Cli {
     }
 
     const path = resolution.kind === "command" ? resolution.node.path : [];
-    const flags = helpFlags(resolution.rest);
-    const { json } = flags;
+    const { help: wantsHelp } = globalFlags(resolution.rest);
 
     const report = (rendered: Rendered): void => {
+      if (rendered.raw !== undefined) {
+        if (options.io) {
+          stdout.push(rendered.raw);
+        }
+
+        io.stdout(rendered.raw);
+      }
+
       if (rendered.stdout) {
         out(rendered.stdout);
       }
@@ -241,6 +282,10 @@ export function createCli(init: CreateCliOptions): Cli {
     ): Promise<RunResult> => {
       const error = toCliError(cause);
 
+      if (debug) {
+        log.debug(stackText(cause));
+      }
+
       const shown =
         error.code === "usage"
           ? new CliError("usage", stripVTControlCharacters(error.message), {
@@ -255,6 +300,7 @@ export function createCli(init: CreateCliOptions): Cli {
         renderError(shown, {
           json,
           paint,
+          errorPaint,
           ...(SHOWS_USAGE.has(error.code)
             ? { usage: await usage(usagePath) }
             : {}),
@@ -322,7 +368,7 @@ export function createCli(init: CreateCliOptions): Cli {
         return finish(0);
       }
 
-      if (flags.help) {
+      if (wantsHelp) {
         return printHelp();
       }
 
@@ -333,7 +379,7 @@ export function createCli(init: CreateCliOptions): Cli {
 
     const { node, rest } = resolution;
 
-    if (flags.help) {
+    if (wantsHelp) {
       return printHelp(node);
     }
 
@@ -414,9 +460,28 @@ export function createCli(init: CreateCliOptions): Cli {
         env,
         json: globals.json === true,
         signal: options.signal,
+        log,
+        paint,
+        emit: (result) => {
+          report(
+            renderResult(result, { json, paint, errorPaint, compact: true }),
+          );
+        },
       };
     } catch (cause) {
       return reportError(cause);
+    }
+
+    const traceExec = (message: unknown): void => {
+      // SAFETY: exec.ts publishes only ExecEvent objects on EXEC_CHANNEL.
+      const event = message as ExecEvent;
+      log.debug(
+        `exec ${[event.command, ...event.args].join(" ")} (in ${event.cwd}): exit ${event.code} after ${event.milliseconds}ms`,
+      );
+    };
+
+    if (debug) {
+      subscribe(EXEC_CHANNEL, traceExec);
     }
 
     try {
@@ -429,11 +494,15 @@ export function createCli(init: CreateCliOptions): Cli {
         return finish(0);
       }
 
-      report(renderResult(result, { json, paint }));
+      report(renderResult(result, { json, paint, errorPaint }));
 
       return finish(result.code);
     } catch (cause) {
-      return reportError(cause);
+      return await reportError(cause);
+    } finally {
+      if (debug) {
+        unsubscribe(EXEC_CHANNEL, traceExec);
+      }
     }
   };
 

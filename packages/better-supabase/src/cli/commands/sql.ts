@@ -13,7 +13,7 @@ import { dataMigration, type Now } from "../sql/migrations.ts";
 import { printModule } from "../sql/print.ts";
 import { syncModules } from "../sql/sync.ts";
 import { upgrade } from "../sql/upgrade.ts";
-import { type Paint, painter, plain } from "../style.ts";
+import { type Paint, plain } from "../style.ts";
 
 export { migrationsDir };
 
@@ -74,8 +74,8 @@ export async function runSql(
 export const sqlCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("sql"),
   args: SQL_ARGS,
-  run: (args, { config, configFile, io }) =>
-    runSql(config, args, painter(io.color), {
+  run: (args, { config, configFile, paint }) =>
+    runSql(config, args, paint, {
       ...SYSTEM_DEPS,
       ...(configFile === undefined ? {} : { configFile }),
     }),

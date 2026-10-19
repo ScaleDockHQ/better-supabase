@@ -6,8 +6,6 @@ import { fileState, writeLine } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { fileDiff } from "../diff.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
-import { withSpinner } from "../prompts.ts";
-import { painter } from "../style.ts";
 import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
@@ -34,7 +32,7 @@ const ARGS = {
 export const introspectCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("introspect"),
   args: ARGS,
-  run: async (args, { config, env, io, signal }) => {
+  run: async (args, { config, env, io, log, paint, signal }) => {
     const format = args.format ?? "snapshot";
 
     if (format !== "snapshot" && format !== "generator-metadata") {
@@ -48,7 +46,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
 
     // `--snapshot` converts a saved file; without it, introspect always reads
     // the database, even when the config names a snapshot.
-    const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
+    const snapshot = await log.progress("Reading the schema", () =>
       loadSnapshot(config, env, {
         ...source,
         live: true,
@@ -80,7 +78,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
           }
         : {
             code: 1,
-            output: fileDiff(file, current, contents, painter(io.color)),
+            output: fileDiff(file, current, contents, paint),
             error: `${file} is out of date. Run \`better-supabase introspect\`.`,
             errorCode: "check_failed",
             data: { file, upToDate: false },

@@ -10,7 +10,9 @@ import {
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
+import type { Paint } from "../style.ts";
 import type { CliIo, CommandResult } from "./io.ts";
+import type { CliLog } from "./log.ts";
 
 /** What `run()` hands every command next to its parsed arguments. */
 export interface CliContext {
@@ -26,6 +28,15 @@ export interface CliContext {
   /** `--json`: return `data`, which `run()` prints as the one JSON document. */
   readonly json: boolean;
   readonly signal: AbortSignal | undefined;
+  /** Messages and progress on stderr. */
+  readonly log: CliLog;
+  /** Colors text for stdout, or leaves it plain under `--no-color` and in a pipe. */
+  readonly paint: Paint;
+  /**
+   * Prints one result now, for a command that runs until stopped: the text
+   * output, or under `--json` one envelope on its own line (NDJSON).
+   */
+  readonly emit: (result: CommandResult) => void;
 }
 
 /** Options every command accepts; `run()` reads them before the command starts. */
@@ -54,6 +65,17 @@ export const GLOBAL_ARGS = {
     type: "boolean",
     alias: "y",
     description: "Ask nothing; use the flags and the defaults",
+  },
+  color: {
+    type: "boolean",
+    default: true,
+    description: "Color the output on a terminal",
+    negativeDescription: "Print no colors, like $NO_COLOR",
+  },
+  debug: {
+    type: "boolean",
+    description:
+      "Print stack traces, the commands the CLI runs, and timings on stderr",
   },
 } as const;
 

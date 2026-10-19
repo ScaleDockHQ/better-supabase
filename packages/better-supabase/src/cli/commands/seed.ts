@@ -14,7 +14,6 @@ import { fileState, staleResult, writeLine } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
-import { withSpinner } from "../prompts.ts";
 import { supabaseDir } from "../supabase-toml.ts";
 
 const ARGS = {
@@ -155,13 +154,14 @@ export async function runSeed(
 export const seedCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("seed"),
   args: ARGS,
-  run: async (args, { config, env, io }) => {
+  run: async (args, { config, env, io, log }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
 
-    return withSpinner(
-      args.apply === true ? io.prompts : undefined,
-      "Inserting the seed rows",
-      () => runSeed(config, args, env, connect, dbUrl),
-    );
+    const seed = (): Promise<CommandResult> =>
+      runSeed(config, args, env, connect, dbUrl);
+
+    return args.apply === true
+      ? log.progress("Inserting the seed rows", seed)
+      : seed();
   },
 });
