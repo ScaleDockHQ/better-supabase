@@ -167,6 +167,75 @@ describe("better-supabase mcp", () => {
     );
   });
 
+  it.each([
+    ["blocks_list", {}, ["blocks", "list"]],
+    ["blocks_view", { block: "tags" }, ["blocks", "view", "tags"]],
+    [
+      "blocks_search",
+      { text: "audit log" },
+      ["blocks", "search", "audit", "log"],
+    ],
+    ["config", {}, ["config"]],
+    ["preset_info", {}, ["preset", "info"]],
+    ["sql_list", {}, ["sql", "list"]],
+    ["gen_check", {}, ["gen", "--check"]],
+    [
+      "apply_dry_run",
+      { preset: "crm" },
+      ["apply", "--preset", "crm", "--dry-run"],
+    ],
+  ])("runs %s as the matching command", async (name, args, argv) => {
+    const run = fakeRun();
+
+    await session([call(1, name, args)], { run });
+
+    expect(run).toHaveBeenCalledWith(
+      [...argv, "--json", "--agent", "no"],
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    ["gen", {}, ["gen"]],
+    ["sql_sync", {}, ["sql", "sync"]],
+    ["apply", { preset: "crm" }, ["apply", "--preset", "crm"]],
+    [
+      "apply",
+      { preset: "crm", allow_breaking: true },
+      ["apply", "--preset", "crm", "--allow-breaking"],
+    ],
+  ])("runs the write tool %s after consent", async (name, args, argv) => {
+    const run = fakeRun();
+
+    const first = await session([call(1, name, args)], {
+      allowWrites: true,
+      run,
+    });
+
+    const token = first.responses[0]!.result.structuredContent.error.token;
+
+    await session([call(1, name, { ...args, confirm: token })], {
+      allowWrites: true,
+      run,
+    });
+
+    expect(run).toHaveBeenCalledWith(
+      [...argv, "--json", "--agent", "no"],
+      expect.anything(),
+    );
+  });
+
+  it("returns the raw output when a command prints no envelope", async () => {
+    const run = fakeRun({ stdout: "not json" });
+
+    const { responses } = await session([call(1, "config")], { run });
+
+    expect(responses[0]?.result.content[0]).toEqual({
+      type: "text",
+      text: "not json",
+    });
+  });
+
   it("answers a parse error and invalid arguments", async () => {
     const { responses } = await session([
       "{not json",

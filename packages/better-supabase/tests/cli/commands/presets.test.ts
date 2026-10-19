@@ -558,6 +558,36 @@ describe("apply with a design", () => {
     expect(envelope.data.kept).toEqual(["links"]);
   });
 
+  it("prints the statement for a renamed column", async () => {
+    await files({
+      "better-supabase.config.json": json({
+        appTables: {
+          notes: { scope: "user", columns: { text: { type: "text" } } },
+        },
+      }),
+    });
+
+    const allowed = await run([
+      "apply",
+      "--preset",
+      await designUrl({ appTables: design.appTables ?? {} }),
+      "--allow-breaking",
+      "--json",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(allowed.code).toBe(0);
+
+    const envelope = JSON.parse(allowed.stdout) as {
+      data: { renames?: string[] };
+    };
+
+    expect(envelope.data.renames).toEqual([
+      'alter table public."notes" rename column "text" to "body";',
+    ]);
+  });
+
   it("leaves the design out with --only conventions", async () => {
     await files({ "better-supabase.config.json": json({}) });
 
