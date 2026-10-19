@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { commandTree, resolveCommand } from "../../../src/cli/core/parse.ts";
-import { createCli, run } from "../../../src/cli/core/run.ts";
+import { cliFromTree, run } from "../../../src/cli/core/run.ts";
 
 const echo = defineCliCommand({
   meta: { name: "a", description: "Echoes its arguments" },
@@ -33,7 +33,7 @@ const echo = defineCliCommand({
 });
 
 const grouped = () =>
-  createCli({
+  cliFromTree({
     commands: [
       {
         name: "grp",

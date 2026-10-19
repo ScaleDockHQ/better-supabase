@@ -7,14 +7,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CliIo } from "../../../src/cli/core/io.ts";
 import type { Prompter } from "../../../src/cli/prompts.ts";
 
-import { defineCliCommand } from "../../../src/cli/core/command.ts";
+import {
+  type CliCommand,
+  defineCliCommand,
+} from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
-import { registerCommand, run } from "../../../src/cli/core/run.ts";
+import { type Cli, createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
+
+let commands: Record<string, CliCommand> = {};
+
+const addCommand = (name: string, command: CliCommand): void => {
+  commands = { ...commands, [name]: command };
+};
+
+const run: Cli["run"] = (argv, options) =>
+  createCli({ commands }).run(argv, options);
 
 /** A Management API that answers every query with no rows. */
 const emptyProject = () => fakeFetch(() => ({ body: [] }));
@@ -102,7 +114,7 @@ describe("run", () => {
   });
 
   it("runs a registered citty command with the context and its parsed args", async () => {
-    registerCommand(
+    addCommand(
       "greet",
       defineCliCommand({
         meta: { name: "greet", description: "Says hello" },
@@ -126,40 +138,6 @@ describe("run", () => {
     expect(missing.code).toBe(2);
     expect(missing.stderr).toMatch(
       /^Missing required argument: --name\n\nUsage: better-supabase greet/s,
-    );
-  });
-
-  it("adapts the deprecated (context) => result commands", async () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
-    registerCommand(
-      "legacy",
-      ({ args, cwd }) =>
-        Promise.resolve({
-          code: 0,
-          output: JSON.stringify({ rest: args.rest, flags: args.flags, cwd }),
-        }),
-      "Usage: better-supabase legacy",
-    );
-
-    const result = await run([
-      "legacy",
-      "one",
-      "--only",
-      "a,b",
-      "--check",
-      "--out",
-      "x.json",
-      "--cwd",
-      dir,
-    ]);
-
-    expect(JSON.parse(result.stdout)).toEqual({
-      rest: ["one"],
-      flags: { only: ["a", "b"], check: true, out: "x.json", cwd: dir },
-      cwd: dir,
-    });
-    expect((await run(["legacy", "--help"])).stdout).toContain(
-      "Usage: better-supabase legacy",
     );
   });
 
@@ -202,7 +180,7 @@ describe("run", () => {
   });
 
   it("exits 0 for a command that returns no result", async () => {
-    registerCommand(
+    addCommand(
       "quiet",
       defineCliCommand({
         meta: { name: "quiet" },
@@ -218,37 +196,19 @@ describe("run", () => {
     });
   });
 
-  it("parses legacy flags with =, -h and --", async () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
-    registerCommand("legacy-flags", ({ args }) =>
-      Promise.resolve({ code: 0, output: JSON.stringify(args) }),
-    );
-
-    const result = await run([
-      "legacy-flags",
-      "--out=a.json",
-      "--only",
-      "x",
-      "--only=y",
-      "-h2",
-      "--",
-      "--raw",
-    ]);
-
-    expect(JSON.parse(result.stdout)).toEqual({
-      command: "legacy-flags",
-      rest: ["-h2", "--raw"],
-      flags: { out: "a.json", only: ["x", "y"] },
-    });
-  });
-
   it("prints the version", async () => {
     expect((await run(["version"])).stdout).toBe(`${VERSION}\n`);
   });
 
   it("turns a thrown error into exit code 1 and writes through a custom io", async () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
-    registerCommand("explode", () => Promise.reject(new Error("boom")));
+    addCommand(
+      "explode",
+      defineCliCommand({
+        meta: { name: "explode" },
+        args: {},
+        run: () => Promise.reject(new Error("boom")),
+      }),
+    );
     const lines: string[] = [];
 
     const result = await run(["explode", "--cwd", dir], {
@@ -749,7 +709,7 @@ describe("run", () => {
   });
 
   it("drops the prompter under --json, --yes and CI", async () => {
-    registerCommand(
+    addCommand(
       "asks",
       defineCliCommand({
         meta: { name: "asks", description: "Reports whether it can prompt" },
@@ -810,7 +770,7 @@ describe("run", () => {
   });
 
   it("asks in CI=false and CI=0, and never in CI=1", async () => {
-    registerCommand(
+    addCommand(
       "asks-ci",
       defineCliCommand({
         meta: { name: "asks-ci", description: "Reports prompts" },
@@ -858,7 +818,7 @@ describe("run", () => {
   });
 
   it("exits 130 when the person cancels a prompt", async () => {
-    registerCommand(
+    addCommand(
       "cancels",
       defineCliCommand({
         meta: { name: "cancels", description: "Asks and is cancelled" },
@@ -884,7 +844,7 @@ describe("run", () => {
   });
 
   it("keeps messages and progress on stderr, colored per stream", async () => {
-    registerCommand(
+    addCommand(
       "talks",
       defineCliCommand({
         meta: { name: "talks", description: "Logs on every channel" },

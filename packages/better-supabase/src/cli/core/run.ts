@@ -9,11 +9,11 @@ import type { CliIo, CommandResult, RunResult } from "./io.ts";
 import type { CommandSpec } from "./manifest.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
-import { type Command, legacyCommand } from "../legacy.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
 import {
   type AnyCommand,
+  type CliCommand,
   type CliContext,
   GLOBAL_ARGS,
   joinRepeated,
@@ -23,6 +23,7 @@ import {
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
+import { RESERVED_NAMES } from "./manifest.ts";
 import {
   document,
   envelope,
@@ -53,7 +54,7 @@ export interface RunOptions {
   readonly bin?: string;
 }
 
-export interface CreateCliOptions {
+export interface CommandTreeInit {
   /** The command tree: names, descriptions, groups and subcommands. */
   readonly commands: readonly CommandSpec[];
   /** Loads each leaf in `commands`, keyed by its space-separated path (`"sql add"`). */
@@ -65,10 +66,13 @@ export interface Cli {
   run(argv: readonly string[], options?: RunOptions): Promise<RunResult>;
   /** The usage text for the CLI, or for one command path (`"sql add"`); plain unless `color` is set. */
   help(command?: string, color?: boolean): Promise<string>;
-  /** The top-level names `run()` dispatches, registered commands included. */
+  /** The top-level names `run()` dispatches, your own commands included. */
   commandNames(): string[];
-  /** Adds a command that is already loaded. */
-  register(name: string, command: AnyCommand): void;
+}
+
+export interface CreateCliOptions {
+  /** Commands from `defineCliCommand` to add next to the built-in ones, keyed by name. */
+  readonly commands?: Readonly<Record<string, CliCommand>>;
 }
 
 const ROOT_DESCRIPTION =
@@ -137,9 +141,46 @@ function metaDescription(command: AnyCommand): string {
     : "";
 }
 
+/** The tree node for one of the app's own commands, after checking its contract and name. */
+function extraCommand(
+  tree: ReadonlyMap<string, CommandNode>,
+  name: string,
+  command: CliCommand,
+): CommandNode {
+  const version: unknown = command.apiVersion;
+
+  if (version !== 1) {
+    throw new CliError(
+      "invalid_input",
+      `Command "${name}" has no CLI command API version; define it with defineCliCommand.`,
+    );
+  }
+
+  if (tree.has(name) || RESERVED_NAMES.includes(name)) {
+    throw new CliError(
+      "invalid_input",
+      `Command "${name}" is taken by a better-supabase command; pick another name.`,
+    );
+  }
+
+  return {
+    spec: { name, description: metaDescription(command) },
+    path: [name],
+    load: () => Promise.resolve(command),
+    children: new Map(),
+  };
+}
+
 /** A CLI over its own command tree, so tests and embedders don't share state through the module. */
-export function createCli(init: CreateCliOptions): Cli {
+export function cliFromTree(
+  init: CommandTreeInit,
+  extra: Readonly<Record<string, CliCommand>> = {},
+): Cli {
   const tree = commandTree(init.commands, init.loaders);
+
+  for (const [name, command] of Object.entries(extra)) {
+    tree.set(name, extraCommand(tree, name, command));
+  }
 
   const helpText = async (
     path: readonly string[],
@@ -510,46 +551,25 @@ export function createCli(init: CreateCliOptions): Cli {
     run,
     help,
     commandNames: () => [...tree.keys()],
-    register: (name, command) => {
-      tree.set(name, {
-        spec: { name, description: metaDescription(command) },
-        path: [name],
-        load: () => Promise.resolve(command),
-        children: new Map(),
-      });
-    },
   };
 }
 
+/**
+ * A CLI with every built-in command plus `options.commands`. Each one has to
+ * come from `defineCliCommand` (`apiVersion: 1`) and take a free name.
+ */
+export function createCli(options: CreateCliOptions = {}): Cli {
+  return cliFromTree(builtinCommands(), options.commands);
+}
+
 /** The CLI the `better-supabase` bin runs, with every built-in command. */
-const defaultCli: Cli = createCli(builtinCommands());
+const defaultCli: Cli = cliFromTree(builtinCommands());
 
 export const run: Cli["run"] = (argv, options) => defaultCli.run(argv, options);
 
 export const help: Cli["help"] = (command, color) =>
   defaultCli.help(command, color);
 
-/** The names `run()` dispatches, registered commands included. */
+/** The names `run()` dispatches. */
 export const commandNames: Cli["commandNames"] = () =>
   defaultCli.commandNames();
-
-/** Registers a citty command; `defineCliCommand` gives it the `CliContext`. */
-export function registerCommand(name: string, command: AnyCommand): void;
-/** @deprecated Pass a citty `CommandDef` from `defineCliCommand` instead. */
-export function registerCommand(
-  name: string,
-  command: Command,
-  help?: string,
-): void;
-export function registerCommand(
-  name: string,
-  command: AnyCommand | Command,
-  help?: string,
-): void {
-  defaultCli.register(
-    name,
-    typeof command === "function"
-      ? legacyCommand(name, command, help)
-      : command,
-  );
-}

@@ -14,6 +14,8 @@ import type { Paint } from "../style.ts";
 import type { CliIo, CommandResult } from "./io.ts";
 import type { CliLog } from "./log.ts";
 
+import { CliError } from "./errors.ts";
+
 /** What `run()` hands every command next to its parsed arguments. */
 export interface CliContext {
   readonly cwd: string;
@@ -87,6 +89,8 @@ export type CliOptions<T extends ArgsDef> = {
 } & { readonly _?: readonly string[] };
 
 export interface CliCommandDef<T extends ArgsDef> {
+  /** The command contract; a breaking change to `CliContext` or `CommandResult` ships a new one. */
+  readonly apiVersion?: 1;
   readonly meta: CommandMeta & { readonly name: string };
   readonly args: T;
   /** String options that take a list: comma-separated, repeated, or both. */
@@ -104,13 +108,25 @@ export type AnyCommand = Exclude<
   Promise<unknown> | (() => unknown)
 >;
 
+/** A command from `defineCliCommand`, which `createCli` accepts. */
+export type CliCommand = AnyCommand & { readonly apiVersion: 1 };
+
 const LISTS = new WeakMap<object, readonly string[]>();
 const RUNS_WITH_INVALID_CONFIG = new WeakSet<object>();
 
 /** A citty command that receives the `CliContext` and returns a `CommandResult`. */
 export function defineCliCommand<const T extends ArgsDef>(
   def: CliCommandDef<T>,
-): AnyCommand {
+): CliCommand {
+  const version: unknown = def.apiVersion ?? 1;
+
+  if (version !== 1) {
+    throw new CliError(
+      "invalid_input",
+      `Command "${def.meta.name}" targets CLI command API v${String(version)}; this version supports v1.`,
+    );
+  }
+
   const command = defineCommand<T & typeof GLOBAL_ARGS>({
     meta: def.meta,
     args: { ...def.args, ...GLOBAL_ARGS },
@@ -123,7 +139,7 @@ export function defineCliCommand<const T extends ArgsDef>(
     RUNS_WITH_INVALID_CONFIG.add(command);
   }
 
-  return command;
+  return Object.assign(command, { apiVersion: 1 as const });
 }
 
 /** The list options a command declared through `defineCliCommand`. */

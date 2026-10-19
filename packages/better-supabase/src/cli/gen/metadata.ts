@@ -166,6 +166,16 @@ export interface MetadataFlags {
   readonly conflicting: readonly string[];
 }
 
+/** Refuses `--metadata` next to `conflicting`, the passed flags that read the schema from somewhere else. */
+export function refuseWithMetadata(conflicting: readonly string[]): void {
+  if (conflicting.length > 0) {
+    throw new CliError(
+      "usage",
+      `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
+    );
+  }
+}
+
 /** Throws the usage error for flags that don't combine with `--metadata`, or need it. */
 export function checkMetadataFlags(flags: MetadataFlags): void {
   if (flags.metadata === undefined) {
@@ -179,16 +189,16 @@ export function checkMetadataFlags(flags: MetadataFlags): void {
     return;
   }
 
+  refuseWithMetadata(flags.conflicting);
+
   const problem =
-    flags.conflicting.length > 0
-      ? `--metadata reads the schema from the document, so it can't be combined with ${flags.conflicting.join(", ")}`
-      : flags.out !== undefined && flags.emit !== undefined
-        ? "--emit picks the one file gen prints; --out writes them all. Pass one of them."
-        : flags.out === undefined && flags.check
-          ? "--check with --metadata needs --out <dir>"
-          : flags.out === undefined && flags.json
-            ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary."
-            : undefined;
+    flags.out !== undefined && flags.emit !== undefined
+      ? "--emit picks the one file gen prints; --out writes them all. Pass one of them."
+      : flags.out === undefined && flags.check
+        ? "--check with --metadata needs --out <dir>"
+        : flags.out === undefined && flags.json
+          ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary."
+          : undefined;
 
   if (problem !== undefined) {
     throw new CliError("usage", problem);

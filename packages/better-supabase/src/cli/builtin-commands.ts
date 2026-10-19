@@ -1,5 +1,5 @@
 import type { Loader } from "./core/parse.ts";
-import type { CreateCliOptions } from "./core/run.ts";
+import type { CommandTreeInit } from "./core/run.ts";
 
 import { COMMANDS } from "./core/manifest.ts";
 
@@ -42,6 +42,6 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
 ];
 
 /** The built-in commands, for `createCli`. */
-export function builtinCommands(): CreateCliOptions {
+export function builtinCommands(): CommandTreeInit {
   return { commands: COMMANDS, loaders: new Map(LOADERS) };
 }

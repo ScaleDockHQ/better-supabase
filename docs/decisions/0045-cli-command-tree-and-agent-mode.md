@@ -99,6 +99,16 @@ that is not the local stack, `--force` over files the CLI did not write)
 return `consent_required` in agent mode until they get `--confirm <token>`,
 which `--yes` does not replace.
 
+### Programmatic API
+
+`better-supabase/cli` exports `run`, which runs the built-in commands, and
+`createCli({ commands })`, which returns a CLI with the app's own commands
+next to them. A command comes from `defineCliCommand`, which stamps it
+with `apiVersion: 1`; `createCli` refuses a command without it, and one
+that takes a built-in or reserved name. The module-wide
+`registerCommand` and the 0.2 `(context) => result` commands are gone, so
+two CLIs in one process share no state.
+
 ### Short name
 
 The package also installs `bsb`. Help shows the name the CLI was called

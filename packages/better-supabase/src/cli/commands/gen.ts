@@ -21,7 +21,7 @@ import {
   stepInputs,
 } from "./gen-pipeline.ts";
 import { loadSnapshot, openSource, snapshotFile } from "./snapshot.ts";
-import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
+import { SOURCE_ARGS, sourceArgs, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
   metadata: {
@@ -233,9 +233,7 @@ export const genCommand: AnyCommand = defineCliCommand({
       json: context.json,
       conflicting: [
         ...(args.watch === true ? ["--watch"] : []),
-        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
-        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
-        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
+        ...sourceFlags(args),
       ],
     });
 

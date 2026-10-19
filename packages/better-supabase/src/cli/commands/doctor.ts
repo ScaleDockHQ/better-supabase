@@ -34,7 +34,11 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
-import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
+import {
+  METADATA_REJECTED,
+  readMetadataSnapshot,
+  refuseWithMetadata,
+} from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { peerVersions } from "../peers.ts";
 import { compiledReadSets } from "../read-sets.ts";
@@ -45,6 +49,7 @@ import {
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
+import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
   format: {
@@ -73,26 +78,11 @@ const ARGS = {
     type: "boolean",
     description: "Fail on warnings; also doctor.strict",
   },
-  snapshot: {
-    type: "string",
-    description: "Check a saved snapshot instead of the database",
-    valueHint: "file",
-  },
   metadata: {
     type: "string",
     description:
       "Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped",
     valueHint: "path|-",
-  },
-  "db-url-stdin": {
-    type: "boolean",
-    description:
-      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
-  },
-  "project-ref": {
-    type: "string",
-    description: "Read a hosted project through the Management API",
-    valueHint: "ref",
   },
   stats: {
     type: "boolean",
@@ -122,7 +112,7 @@ const ARGS = {
   },
 } as const;
 
-export type DoctorArgs = CliArgs<typeof ARGS>;
+export type DoctorArgs = CliArgs<typeof ARGS & typeof SOURCE_ARGS>;
 
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
@@ -407,25 +397,16 @@ export async function runDoctor(
 
 export const doctorCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("doctor"),
-  args: ARGS,
+  args: { ...SOURCE_ARGS, ...ARGS },
   lists: ["only", "ignore", "explain"],
   run: async (args, { config, cwd, env, io, log, paint, signal }) => {
     if (args.metadata !== undefined) {
-      const conflicting = [
-        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
-        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
-        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
+      refuseWithMetadata([
+        ...sourceFlags(args),
         ...(args.stats === true ? ["--stats"] : []),
         ...(args.explain === undefined ? [] : ["--explain"]),
         ...(args.as === undefined ? [] : ["--as"]),
-      ];
-
-      if (conflicting.length > 0) {
-        throw new CliError(
-          "usage",
-          `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
-        );
-      }
+      ]);
 
       let snapshot: Snapshot;
 

@@ -184,8 +184,9 @@ receive the output as it is written; `io.color` and `io.stderrColor` color
 each stream, and `io.spinner` shows progress. `help()` returns the
 usage text, and `help(command)` the text for one command.
 
-Add your own commands with `defineCliCommand` and `registerCommand`. Commands
-are [citty](https://github.com/unjs/citty) definitions: `args` declares the
+Add your own commands with `defineCliCommand` and pass them to `createCli`,
+which returns a CLI with them next to the built-in ones. Commands are
+[citty](https://github.com/unjs/citty) definitions: `args` declares the
 options, and `run` gets the parsed arguments and the context (`cwd`,
 `config`, `io`, `env`, `json`, `signal`, `log`, `paint` and `emit`). Throw a
 `CliError` to report a coded error, and return `data` to give `--json` a
@@ -199,36 +200,38 @@ command that repairs the config: when the config file fails to load, it runs
 with the default config rooted at that file's directory instead of reporting
 `config_invalid`.
 
+`defineCliCommand` marks each command with `apiVersion: 1`, the command
+contract this release supports. `createCli` refuses a command without it, a
+name a built-in command already has, and the names kept free for account
+commands (`login`, `logout`, `whoami`, `link`, `projects`, `deploy` and
+`cloud`).
+
 ```ts title="scripts/cli.ts"
-import {
-  defineCliCommand,
-  list,
-  registerCommand,
-  run,
-} from "better-supabase/cli";
+import { createCli, defineCliCommand, list } from "better-supabase/cli";
 
-registerCommand(
-  "schemas",
-  defineCliCommand({
-    meta: { name: "schemas", description: "Prints the schemas codegen reads" },
-    args: { only: { type: "string", description: "Schemas to keep" } },
-    lists: ["only"],
-    run: async (args, { config }) => {
-      const only = list(args.only);
-      const schemas = config.schemas.filter(
-        (name) => only.length === 0 || only.includes(name),
-      );
-      return { code: 0, output: schemas.join("\n") };
-    },
-  }),
-);
+const cli = createCli({
+  commands: {
+    schemas: defineCliCommand({
+      meta: {
+        name: "schemas",
+        description: "Prints the schemas codegen reads",
+      },
+      args: { only: { type: "string", description: "Schemas to keep" } },
+      lists: ["only"],
+      run: async (args, { config }) => {
+        const only = list(args.only);
+        const schemas = config.schemas.filter(
+          (name) => only.length === 0 || only.includes(name),
+        );
+        return { code: 0, output: schemas.join("\n") };
+      },
+    }),
+  },
+});
 
-const { code } = await run(process.argv.slice(2), {
+const { code } = await cli.run(process.argv.slice(2), {
   cwd: process.cwd(),
   env: process.env,
 });
 process.exitCode = code;
 ```
-
-Commands written for 0.2, `(context) => CommandResult`, still register with
-`registerCommand(name, command, help)`. That overload is deprecated.
