@@ -1,3 +1,8 @@
+import type {
+  AppColumnType,
+  AppOnDeleteAction as OnDeleteAction,
+} from "better-supabase/config";
+
 import {
   type AppColumnFormat,
   appReservedColumns,
@@ -18,30 +23,9 @@ import {
 } from "./design-computed";
 import { subjectColumns, subjectColumnsEdited } from "./design-subject";
 
-/** The column types an app table column can have (`appTables.<table>.columns.<column>.type`). */
-export const APP_COLUMN_TYPES = [
-  "text",
-  "uuid",
-  "integer",
-  "bigint",
-  "numeric",
-  "boolean",
-  "timestamptz",
-  "date",
-  "jsonb",
-  "text[]",
-] as const;
+export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "better-supabase/config";
 
-export type AppColumnType = (typeof APP_COLUMN_TYPES)[number];
-
-export const ON_DELETE_ACTIONS = [
-  "cascade",
-  "restrict",
-  "set null",
-  "no action",
-] as const;
-
-export type OnDeleteAction = (typeof ON_DELETE_ACTIONS)[number];
+export type { AppColumnType, OnDeleteAction };
 
 /** Another app table or `auth.users` (`{ table }`), or a block module's logical table (`{ block, table }`). */
 export interface AppReference {

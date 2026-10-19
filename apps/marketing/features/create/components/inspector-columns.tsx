@@ -84,7 +84,7 @@ export function OverviewTab({
     table.tenantColumn === null
       ? table.columns.some((column) => column.name === "user_id")
         ? "Per user"
-        : "Not scoped"
+        : "Shared"
       : `By ${preset.tenantName} (${table.tenantColumn})`;
 
   return (

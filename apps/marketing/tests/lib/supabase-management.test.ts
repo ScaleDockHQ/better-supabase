@@ -90,7 +90,7 @@ describe("managementClient", () => {
 
     await managementClient("token", fetchImpl).applyMigration(
       project.ref,
-      "better_supabase_create",
+      "better_supabase_blocks",
       "select 1;",
     );
 
@@ -100,7 +100,7 @@ describe("managementClient", () => {
       `https://api.supabase.com/v1/projects/${project.ref}/database/migrations`,
     );
     expect(JSON.parse(String(init?.body))).toEqual({
-      name: "better_supabase_create",
+      name: "better_supabase_blocks",
       query: "select 1;",
     });
   });

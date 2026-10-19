@@ -69,7 +69,7 @@ export interface CreatePromptInput {
   readonly siteUrl: string;
   /** `init` for a new project, with `--package` already added. */
   readonly installCommand: string;
-  /** `apply` for an existing project, with `--config` already added. */
+  /** `apply` for an existing project, with `--package` already added. */
   readonly applyCommand: string;
 }
 

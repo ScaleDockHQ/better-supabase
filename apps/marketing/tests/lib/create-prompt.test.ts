@@ -227,7 +227,7 @@ describe("createPrompt", () => {
     );
 
     expect(prompt).toContain("--package apps/web");
-    expect(prompt).toContain("--config apps/web/better-supabase.config.ts");
+    expect(prompt).not.toContain("--config");
     expect(prompt).toContain("`apps/web/better-supabase.config.ts`");
     expect(prompt).toContain("`apps/web/lib/blocks.ts`");
     expect(prompt).toContain("`bunx better-supabase sql sync --cwd apps/web`");

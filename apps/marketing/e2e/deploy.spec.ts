@@ -70,7 +70,7 @@ test("deploys into an existing project after the confirm", async ({ page }) => {
     return route.fulfill({
       json: {
         ref: REF,
-        migration: "better_supabase_create",
+        migration: "better_supabase_blocks",
         lints: [
           {
             name: "function_search_path_mutable",
