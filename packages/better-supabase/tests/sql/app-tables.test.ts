@@ -596,3 +596,69 @@ describe("appTables SQL errors", () => {
     );
   });
 });
+
+describe("appTables column access", () => {
+  const ACCESS: AppTablesConfig = {
+    projects: {
+      columns: {
+        name: { type: "text", nullable: false },
+        budget: { type: "numeric", access: "read" },
+        internal_notes: { type: "text", access: "server" },
+      },
+      rollups: {
+        open_tasks: { table: "tasks", via: "project_id", aggregate: "count" },
+      },
+    },
+    tasks: {
+      columns: {
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+      },
+    },
+    rates: {
+      scope: "none",
+      columns: { cost: { type: "numeric", access: "server" } },
+    },
+  };
+
+  it("renders column grants, the view's columns and the allow and deny checks", async () => {
+    const files = render(BLOCKS, { appTables: ACCESS });
+    const schema = files.find((file) => file.kind === "schema")?.contents;
+    const test = files.find((file) => file.kind === "test")?.contents;
+
+    expect(schema).toContain(
+      'grant select ("id", "organization_id", "created_at", "updated_at", "name", "budget") on "public"."projects" to authenticated;',
+    );
+    expect(schema).toContain(
+      'grant insert ("id", "organization_id", "created_at", "updated_at", "name"), update ("id", "organization_id", "created_at", "updated_at", "name") on "public"."projects" to authenticated;',
+    );
+    expect(schema).toContain(
+      'grant select ("id", "created_at", "updated_at") on "public"."rates" to authenticated;',
+    );
+    expect(schema).not.toContain('t."internal_notes"');
+    expect(test).toContain(
+      "a signed-in user cannot read public.projects.internal_notes",
+    );
+    expect(test).toContain(
+      "a signed-in user cannot write public.projects.budget",
+    );
+
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/access.sql",
+    );
+  });
+
+  it("refuses access on a table that expose grants", () => {
+    expect(() =>
+      render(BLOCKS, {
+        appTables: ACCESS,
+        grants: [
+          { table: "public.projects", role: "anon", privileges: ["select"] },
+        ],
+      }),
+    ).toThrow("expose sets the grants");
+  });
+});

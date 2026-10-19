@@ -207,6 +207,7 @@
   },
   "./config": {
     "values": [
+      "APP_COLUMN_ACCESS",
       "APP_COLUMN_FORMATS",
       "APP_COLUMN_TYPES",
       "APP_ON_DELETE_ACTIONS",
@@ -239,6 +240,7 @@
       "ActiveTenantSource",
       "ActorConfig",
       "AnyBlocksConfig",
+      "AppColumnAccess",
       "AppColumnConfig",
       "AppColumnFormat",
       "AppColumnType",

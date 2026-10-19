@@ -30,6 +30,7 @@ export type DesignChangeKind =
   | "column.bounds"
   | "column.format"
   | "column.reference"
+  | "column.access"
   | "column.changed";
 
 export interface DesignChange {
@@ -44,7 +45,8 @@ export interface DesignChange {
    * True when existing rows or app code can break: a dropped or renamed
    * table or column, a type change, a column made required without a
    * default, a new or tighter constraint (unique, options, bounds, format,
-   * a reference target), a new scope, or removed generated columns.
+   * a reference target), tighter column access, a new scope, or removed
+   * generated columns.
    */
   readonly breaking: boolean;
   readonly summary: string;
@@ -127,6 +129,12 @@ const targetOf = (reference: AppColumnConfig["references"]): string =>
     : "block" in reference
       ? `${reference.block}.${reference.table}`
       : reference.table;
+
+/** How closed a column's access is: none, then `read`, then `server`. */
+const ACCESS_RANK = { read: 1, server: 2 } as const;
+
+const accessRank = (column: AppColumnConfig): number =>
+  column.access === undefined ? 0 : ACCESS_RANK[column.access];
 
 /**
  * The changes to one column whose name and type stay: each new or tighter
@@ -227,6 +235,23 @@ function constraintChanges(
         table,
         `Points ${at} at ${targetOf(after.references)}, which fails for values that row doesn't have.`,
         checkSteps(at, `match a row of ${targetOf(after.references)}`),
+        name,
+      ),
+    );
+  }
+
+  if (accessRank(after) > accessRank(before)) {
+    changes.push(
+      breakingChange(
+        "column.access",
+        table,
+        after.access === "server"
+          ? `Hides ${at} from signed-in users, so client reads and writes of it fail.`
+          : `Makes ${at} read-only for signed-in users, so client writes of it fail.`,
+        [
+          `Move every client ${after.access === "server" ? "read and write" : "write"} of ${at} to server code that uses the service role, then deploy.`,
+          `Change the access of ${at}.`,
+        ],
         name,
       ),
     );

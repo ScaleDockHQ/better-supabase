@@ -167,6 +167,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0048: app tables emit outbox events from a trigger; rules and workflows consume them through sinks.
 - 0049: `better-supabase mcp` serves the CLI on stdio; write tools need a consent token.
 - 0050: doctor lints unapplied migrations for locking statements (BS229 to BS234).
+- 0051: app table columns restrict access to `read` or `server` with Postgres column grants.
 
 ## Pre-release pins
 

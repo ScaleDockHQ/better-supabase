@@ -1,12 +1,46 @@
 import { describe, expect, test } from "vitest";
 
 import { DESIGN_TEMPLATES } from "../../lib/design-templates";
-import { SAMPLE_ROW_COUNT, sampleRows } from "../../lib/sample-rows";
+import {
+  hiddenColumns,
+  SAMPLE_ROW_COUNT,
+  sampleRows,
+} from "../../lib/sample-rows";
 
 const content = DESIGN_TEMPLATES.find((each) => each.id === "content-calendar");
 const events = DESIGN_TEMPLATES.find((each) => each.id === "event-planning");
 
 describe("sample rows", () => {
+  test("leaves server-only columns out for a signed-in member", () => {
+    const design = {
+      appTables: {
+        projects: {
+          columns: {
+            name: { type: "text" as const },
+            budget: { type: "integer" as const, access: "read" as const },
+            internal_notes: {
+              type: "text" as const,
+              access: "server" as const,
+            },
+          },
+        },
+      },
+    };
+
+    expect(hiddenColumns(design.appTables.projects, "member")).toEqual([
+      "internal_notes",
+    ]);
+    expect(hiddenColumns(design.appTables.projects, "server")).toEqual([]);
+    expect(
+      sampleRows(design, "projects", SAMPLE_ROW_COUNT, "member").columns,
+    ).toEqual(["name", "budget"]);
+    expect(sampleRows(design, "projects").columns).toEqual([
+      "name",
+      "budget",
+      "internal_notes",
+    ]);
+  });
+
   test("returns nothing for a table the design doesn't have", () => {
     expect(sampleRows({}, "missing")).toEqual({ columns: [], rows: [] });
   });

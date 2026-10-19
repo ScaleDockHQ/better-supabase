@@ -832,8 +832,8 @@ export class IrBuilder {
     let columns = this.#allColumns.get(table);
 
     if (!columns) {
-      columns = Object.keys(table.columns).map((alias) =>
-        this.selectColumn(table, alias),
+      columns = Object.entries(table.columns).flatMap(([alias, meta]) =>
+        meta.selectable === false ? [] : [this.selectColumn(table, alias)],
       );
       this.#allColumns.set(table, columns);
     }

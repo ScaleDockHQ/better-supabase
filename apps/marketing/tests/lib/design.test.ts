@@ -416,6 +416,29 @@ describe("designIssues", () => {
     ).toEqual(["projects", "projects", blockName, "not-a-block"]);
   });
 
+  test("flags a required column members can't write that has no default", () => {
+    const locked = setColumn(projects, "projects", "internal_notes", {
+      type: "text",
+      nullable: false,
+      access: "server",
+    });
+
+    expect(
+      designIssues(locked, data, preset).map((issue) => issue.message),
+    ).toEqual([
+      "projects.internal_notes is required, and signed-in users can't write it, so give it a default.",
+    ]);
+
+    const defaulted = setColumn(projects, "projects", "internal_notes", {
+      type: "text",
+      nullable: false,
+      default: "''",
+      access: "server",
+    });
+
+    expect(designIssues(defaulted, data, preset)).toEqual([]);
+  });
+
   test("flags duplicate subject types and names Postgres would truncate", () => {
     const design = updateTable(
       updateTable(addTable(projects, "boards"), "boards", {

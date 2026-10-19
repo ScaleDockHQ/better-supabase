@@ -10,6 +10,7 @@ import type {
 import type { ParityPaths } from "./type-parity.ts";
 
 import {
+  APP_COLUMN_ACCESS,
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
@@ -649,6 +650,7 @@ const ENTRIES = {
               max: v.optional(v.number()),
               comment: v.optional(v.string()),
               identity: v.optional(v.boolean()),
+              access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
             }),
           ),
         ),

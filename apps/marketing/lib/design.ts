@@ -1,4 +1,5 @@
 import type {
+  AppColumnAccess,
   AppColumnType,
   AppOnDeleteAction as OnDeleteAction,
 } from "better-supabase/config";
@@ -14,7 +15,7 @@ import {
 
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
 
-import { columnLabel, fitted } from "./column-keys";
+import { columnLabel, fitted, lockedWithoutDefault } from "./column-keys";
 import {
   type AppLookup,
   type AppRollup,
@@ -33,7 +34,7 @@ import {
 
 export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "better-supabase/config";
 
-export type { AppColumnType, OnDeleteAction };
+export type { AppColumnAccess, AppColumnType, OnDeleteAction };
 
 /** Another app table or `auth.users` (`{ table }`), or a block module's logical table (`{ block, table }`). */
 export interface AppReference {
@@ -54,6 +55,8 @@ export interface AppColumn {
   readonly max?: number;
   readonly comment?: string;
   readonly identity?: boolean;
+  /** Who reads and writes the column: everyone by default, `read`, or `server` (ADR 0051). */
+  readonly access?: AppColumnAccess;
 }
 
 export type AppScope = "inherit" | "user" | "none";
@@ -989,6 +992,13 @@ export function designIssues(
 
       if (fallback !== undefined) {
         issues.push({ table: name, message: `${name}.${column}: ${fallback}` });
+      }
+
+      if (lockedWithoutDefault(config)) {
+        issues.push({
+          table: name,
+          message: `${name}.${column} is required, and signed-in users can't write it, so give it a default.`,
+        });
       }
     }
 

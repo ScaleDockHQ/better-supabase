@@ -21,7 +21,7 @@ function rowEntries(
 ): string[] {
   return columns.map(
     (column) =>
-      `${prop(column[name])}: ${nullable(column.tsType, column.nullable)};`,
+      `${prop(column[name])}${column.selectable === false ? "?" : ""}: ${nullable(column.tsType, column.nullable)};`,
   );
 }
 

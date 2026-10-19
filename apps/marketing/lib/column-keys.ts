@@ -44,6 +44,19 @@ const CONTROL = /\p{Cc}/u;
 /** An app column under construction. */
 type DraftColumn = { -readonly [K in keyof AppColumn]: AppColumn[K] };
 
+/**
+ * Whether a column signed-in users can't write is required with no default,
+ * which `appTables` refuses: nobody but the server could insert a row.
+ */
+export function lockedWithoutDefault(column: AppColumn): boolean {
+  return (
+    column.access !== undefined &&
+    column.nullable === false &&
+    column.default === undefined &&
+    column.identity !== true
+  );
+}
+
 /** Whether `min` and `max` apply to a `type` column, as a value or a length. */
 export function takesBounds(type: AppColumnType): boolean {
   return type === "text" || NUMBER_TYPES.has(type);

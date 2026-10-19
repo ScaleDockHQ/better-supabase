@@ -197,6 +197,27 @@ describe("diffAppTables", () => {
     ]);
   });
 
+  test("tighter column access is breaking and looser access is safe", () => {
+    const columns = (
+      notes: "read" | "server" | undefined,
+      title: "read" | "server" | undefined,
+    ): AppTablesConfig => ({
+      tasks: {
+        columns: {
+          notes: { type: "text", ...(notes ? { access: notes } : {}) },
+          title: { type: "text", ...(title ? { access: title } : {}) },
+        },
+      },
+    });
+
+    expect(
+      kinds(columns(undefined, "read"), columns("read", "server")),
+    ).toEqual(["column.access tasks.notes !", "column.access tasks.title !"]);
+    expect(
+      kinds(columns("server", "read"), columns(undefined, "read")),
+    ).toEqual(["column.changed tasks.notes"]);
+  });
+
   test("a looser constraint, a display format and onDelete are safe", () => {
     const before: AppTablesConfig = {
       tasks: {

@@ -49,7 +49,12 @@ import {
 
 import type { InspectorTab } from "./schema-nodes";
 
-import { BoundsFields, KindSelect, OptionsEditor } from "./column-fields";
+import {
+  AccessSelect,
+  BoundsFields,
+  KindSelect,
+  OptionsEditor,
+} from "./column-fields";
 import { CommitInput } from "./commit-input";
 import { useDesign } from "./design-provider";
 import { ComputedSection } from "./inspector-computed";
@@ -283,6 +288,13 @@ function AppColumnRow({
       column.identity !== true ? (
         <BoundsFields column={column} onChange={replace} />
       ) : null}
+      <AccessSelect
+        value={column.access}
+        onChange={(access) => {
+          const { access: _drop, ...rest } = column;
+          replace(access === undefined ? rest : { ...rest, access });
+        }}
+      />
       <Field>
         <FieldLabel htmlFor={`${id}-comment`}>Description</FieldLabel>
         <CommitInput

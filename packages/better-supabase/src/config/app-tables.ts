@@ -2,6 +2,7 @@ import type { BlockScope } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
+import { accessOf, checkColumnAccess } from "./app-access.ts";
 import { computedOf, hasComputed } from "./app-computed.ts";
 import {
   APP_COLUMN_FORMATS,
@@ -80,6 +81,7 @@ const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "max",
   "comment",
   "identity",
+  "access",
 ]);
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([
@@ -677,6 +679,19 @@ function columnOf(
     type,
   );
 
+  const access = accessOf(`${where}.access`, value["access"]);
+
+  if (
+    access !== undefined &&
+    nullable === false &&
+    fallback === undefined &&
+    identity !== true
+  ) {
+    throw new TypeError(
+      `${where}: signed-in users can't write a column with access ${access}, so a required one needs a default`,
+    );
+  }
+
   if (options !== undefined && format !== undefined) {
     throw new TypeError(
       `${where}: options make a select; drop the format ${format}`,
@@ -719,6 +734,7 @@ function columnOf(
     ...(max === undefined ? {} : { max }),
     ...(comment === undefined ? {} : { comment }),
     ...(identity === undefined ? {} : { identity }),
+    ...(access === undefined ? {} : { access }),
   };
 }
 
@@ -1150,7 +1166,7 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
     }),
   );
 
-  return Object.fromEntries(
+  const checked: AppTablesConfig = Object.fromEntries(
     Object.entries(resolved).map(([name, table]) => {
       const where = `appTables.${name}`;
 
@@ -1180,6 +1196,10 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
       return [name, withComputed];
     }),
   );
+
+  checkColumnAccess(checked);
+
+  return checked;
 }
 
 /**

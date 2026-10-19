@@ -56,3 +56,4 @@ add one, and link it from the code or config it explains.
 | [0048](0048-app-table-events.md)                      | App tables emit outbox events from a trigger; rules and workflows consume them through sinks                                   |
 | [0049](0049-dev-mcp-server.md)                        | The CLI serves its commands as a stdio MCP server; tools that write files need a consent token                                 |
 | [0050](0050-migration-safety-lint.md)                 | Doctor lints unapplied migrations for statements that lock tables, without a SQL parser dependency                             |
+| [0051](0051-app-column-access.md)                     | App table columns restrict access to `read` or `server` with Postgres column grants                                            |

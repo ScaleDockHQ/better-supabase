@@ -8,6 +8,7 @@ import type {
 import type { ModuleContext, ModuleIdType } from "../context.ts";
 import type { ModuleFile, ModuleLayout } from "../module-types.ts";
 
+import { hasColumnAccess } from "../../config/app-access.ts";
 import {
   APP_DELETED_AT_COLUMN,
   APP_RANK_COLUMN,
@@ -20,6 +21,12 @@ import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import {
+  columnAccessChecks,
+  columnAccessRefusals,
+  readableColumns,
+  writableColumns,
+} from "./app-table-access.ts";
 import { appTableSetSql, settableColumns } from "./app-table-set.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
@@ -542,14 +549,42 @@ function grantsSql(table: AppTable): string {
   const target = qualified(table.name);
 
   if (table.exposed) {
+    if (hasColumnAccess(table.config)) {
+      throw new TypeError(
+        `appTables.${table.name}: expose sets the grants, so its columns can't set access; drop access or the expose entry`,
+      );
+    }
+
     return `-- expose sets the grants on ${target}.`;
   }
 
-  const privileges = table.scope ? "select, insert, update, delete" : "select";
+  if (!hasColumnAccess(table.config)) {
+    const privileges = table.scope
+      ? "select, insert, update, delete"
+      : "select";
 
-  return `${revokeTable(target)}
+    return `${revokeTable(target)}
 grant ${privileges} on ${target} to authenticated;
 grant all on ${target} to service_role;`;
+  }
+
+  const list = (columns: readonly string[]): string =>
+    columns.map((column) => sqlIdent(column)).join(", ");
+
+  const readable = readableColumns(table.config, columnNames(table));
+  const writable = writableColumns(table.config, columnNames(table));
+
+  return [
+    revokeTable(target),
+    `grant select (${list(readable)}) on ${target} to authenticated;`,
+    ...(table.scope
+      ? [
+          `grant insert (${list(writable)}), update (${list(writable)}) on ${target} to authenticated;`,
+          `grant delete on ${target} to authenticated;`,
+        ]
+      : []),
+    `grant all on ${target} to service_role;`,
+  ].join("\n");
 }
 
 function triggerSql(table: AppTable): string {
@@ -1039,10 +1074,25 @@ function testSql(table: AppTable): string {
     );
   }
 
+  const access = {
+    name: table.name,
+    config: table.config,
+    scoped: !!table.scope,
+  };
+
   if (!table.exposed) {
+    const privileges = hasColumnAccess(table.config)
+      ? table.scope
+        ? ["DELETE"]
+        : []
+      : table.scope
+        ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
+        : ["SELECT"];
+
     checks.push(
       `select extensions.table_privs_are('${SCHEMA}', ${name}, 'anon', array[]::text[], ${sqlString(`anon has no privileges on ${label}`)});`,
-      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', array[${(table.scope ? ["DELETE", "INSERT", "SELECT", "UPDATE"] : ["SELECT"]).map((privilege) => sqlString(privilege)).join(", ")}], ${sqlString(`authenticated has the privileges for its scope on ${label}`)});`,
+      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', ${privileges.length === 0 ? "array[]::text[]" : `array[${privileges.map((privilege) => sqlString(privilege)).join(", ")}]`}, ${sqlString(`authenticated has the privileges for its scope on ${label}`)});`,
+      ...columnAccessChecks(access),
     );
   }
 
@@ -1075,7 +1125,7 @@ function testSql(table: AppTable): string {
 ${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-${[...behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}
+${[...behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined), ...(table.exposed ? [] : columnAccessRefusals(access))].join("\n")}
 reset role;`;
 }
 
@@ -1166,7 +1216,15 @@ export function appTablesFiles(
     ...tables.map((table) => tableSql(table)),
     tenantKeysSql(tables),
     tables
-      .map((table) => appViewSql(table.name, table.config))
+      .map((table) =>
+        appViewSql(
+          table.name,
+          table.config,
+          hasColumnAccess(table.config)
+            ? readableColumns(table.config, columnNames(table))
+            : undefined,
+        ),
+      )
       .filter((part) => part !== "")
       .join("\n\n"),
     installed.includes("search")
