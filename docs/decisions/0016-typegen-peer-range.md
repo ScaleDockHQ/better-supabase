@@ -49,4 +49,7 @@ column nullability) and adds `rpcFunctions`, which older releases don't
 write. `rpcFunctions` is derived from `functions`, so the CLI drops it
 wherever it reorders, renumbers or filters functions, and the generator
 resolves it again. Supabase CLI 2.121 writes `ComputedFields`, so the parity
-test only normalizes the `__InternalSupabase` key that `--local` omits.
+test normalizes the `__InternalSupabase` key that `--local` omits, and view
+column nullability: the CLI's postgres-meta still types every view column as
+nullable, so the test drops `| null` inside `Views` on both sides. Remove that
+step once the CLI infers view nullability too.

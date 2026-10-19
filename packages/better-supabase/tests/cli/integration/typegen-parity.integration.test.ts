@@ -37,8 +37,13 @@ const live = await reachable();
  * Differences that come from the CLI, not from better-supabase. Since 2.118
  * the CLI prints the typegen output unformatted, so both sides go through
  * the typegen's formatter settings first, and `--local` omits
- * `__InternalSupabase`.
+ * `__InternalSupabase`. postgrest-typegen 0.6 marks a view column not null
+ * when Postgres can prove it, and the postgres-meta in CLI 2.121 types every
+ * view column as nullable, so `| null` inside `Views` is left out on both
+ * sides.
  */
+const VIEWS = /\n {4}Views: \{\n[\s\S]*?\n {4}\}\n/g;
+
 async function normalize(source: string): Promise<string> {
   const { code, errors } = await format("database.types.ts", source, {
     semi: false,
@@ -52,6 +57,7 @@ async function normalize(source: string): Promise<string> {
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
       "\n",
     )
+    .replace(VIEWS, (views) => views.replaceAll(" | null\n", "\n"))
     .trimEnd();
 }
 
