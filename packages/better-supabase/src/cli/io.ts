@@ -4,11 +4,15 @@ import { dirname, relative, resolve, sep } from "node:path";
 
 import type { Prompter } from "./prompts.ts";
 
+import { CliError } from "./errors.ts";
+
 export interface CliIo {
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
   /** All of stdin, for the `--*-stdin` flags that keep secrets out of arguments. */
   readonly stdin?: () => Promise<string>;
+  /** Stdin is a terminal, so reading it would wait for typing instead of a pipe. */
+  readonly stdinIsTty?: boolean;
   /** Color the output with ANSI escapes. Off unless set. */
   readonly color?: boolean;
   /**
@@ -30,6 +34,22 @@ export interface CommandResult {
   readonly error?: string;
   /** The JSON document `--json` prints instead of `output`. */
   readonly data?: unknown;
+}
+
+/**
+ * All of stdin for `flag`. Fails at once when stdin is a terminal or
+ * missing, instead of waiting for input nobody pipes in.
+ */
+export async function readStdin(io: CliIo, flag: string): Promise<string> {
+  if (!io.stdin || io.stdinIsTty === true) {
+    throw new CliError(
+      "missing_value",
+      `${flag} reads from stdin, and nothing is piped in. Pipe the value: printf %s "$VALUE" | better-supabase <command> ${flag}`,
+      { flag },
+    );
+  }
+
+  return io.stdin();
 }
 
 /** `text` with `\r\n` line endings turned into `\n`. */

@@ -8,6 +8,7 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
+import { CliError } from "../errors.ts";
 import { insideRoot, writeLine } from "../files.ts";
 import { display, readIfExists } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
@@ -48,6 +49,7 @@ async function readStatus(
   config: ResolvedConfig,
   args: EnvFlags,
   env: CliEnv,
+  signal?: AbortSignal,
 ): Promise<StackStatus> {
   const from = args.from;
 
@@ -57,17 +59,22 @@ async function readStatus(
     );
 
     if (!status) {
-      throw new Error(`${from} holds no supabase status JSON.`);
+      throw new CliError(
+        "invalid_input",
+        `${from} holds no supabase status JSON.`,
+      );
     }
 
     return status;
   }
 
-  const result = await readStackStatus(config.root, env);
+  const result = await readStackStatus(config.root, env, { signal });
 
   if (!result.ok) {
-    throw new Error(
+    throw new CliError(
+      "supabase_cli_failed",
       `supabase status failed (${result.code}). Is the local stack running (supabase start)?`,
+      { suggestion: "supabase start" },
     );
   }
 
@@ -130,8 +137,9 @@ export async function runEnv(
   config: ResolvedConfig,
   args: EnvFlags,
   env: CliEnv,
+  signal?: AbortSignal,
 ): Promise<CommandResult> {
-  const status = await readStatus(config, args, env);
+  const status = await readStatus(config, args, env, signal);
   const project = await detectProject(config.root);
   const prefixFlag = args.prefix ?? config.env.prefix;
 
@@ -232,5 +240,5 @@ export const envCommand: AnyCommand = defineCliCommand({
       "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
   },
   args: ARGS,
-  run: (args, { config, env }) => runEnv(config, args, env),
+  run: (args, { config, env, signal }) => runEnv(config, args, env, signal),
 });

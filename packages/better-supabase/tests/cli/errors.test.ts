@@ -1,13 +1,41 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  CLI_ERROR_CODES,
   CLI_ERRORS_URL,
   CliError,
   errorText,
+  exitCodeOf,
   failedResult,
   parseNames,
   toCliError,
 } from "../../src/cli/errors.ts";
+
+const ERRORS_PAGE = readFileSync(
+  new URL("../../../../apps/docs/content/docs/cli/errors.mdx", import.meta.url),
+  "utf-8",
+);
+
+describe("the errors page", () => {
+  const sections = new Map(
+    ERRORS_PAGE.split(/^## /m)
+      .slice(1)
+      .map((section) => {
+        const [heading = "", ...body] = section.split("\n");
+
+        return [heading.replaceAll("`", "").trim(), body.join("\n")] as const;
+      }),
+  );
+
+  it("names each code's exit code in its section", () => {
+    for (const code of CLI_ERROR_CODES.filter((name) => name !== "failed")) {
+      expect(`${code}: ${sections.get(code) ?? ""}`).toMatch(
+        new RegExp(`Exit\\s+code\\s+${exitCodeOf(code)}\\.`),
+      );
+    }
+  });
+});
 
 describe("CliError", () => {
   it("carries Problem Details whose type links to the code's docs heading", () => {

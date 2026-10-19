@@ -5,6 +5,7 @@ import {
   renderUsage,
   runCommand,
 } from "citty";
+import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
@@ -92,6 +93,29 @@ function isCommandResult(value: unknown): value is CommandResult {
 }
 
 const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
+
+/** `--cwd` resolved against `base`; it has to name an existing directory. */
+function projectDirectory(base: string, flag: string | undefined): string {
+  if (flag === undefined) {
+    return resolve(base);
+  }
+
+  if (flag.trim() === "") {
+    throw new CliError("missing_value", "--cwd needs a directory.", {
+      flag: "--cwd",
+    });
+  }
+
+  const directory = resolve(base, flag);
+
+  if (!statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new CliError("usage", `--cwd ${flag} is not a directory.`, {
+      flag: "--cwd",
+    });
+  }
+
+  return directory;
+}
 
 function withoutPrompts(io: CliIo): CliIo {
   const { prompts: _prompts, ...rest } = io;
@@ -225,7 +249,12 @@ export function createCli(init: CreateCliOptions): Cli {
 
       const shown =
         error.code === "usage"
-          ? new CliError("usage", stripVTControlCharacters(error.message))
+          ? new CliError("usage", stripVTControlCharacters(error.message), {
+              ...(error.problem.flag ? { flag: error.problem.flag } : {}),
+              ...(error.problem.suggestion
+                ? { suggestion: error.problem.suggestion }
+                : {}),
+            })
           : error;
 
       report(
@@ -288,7 +317,7 @@ export function createCli(init: CreateCliOptions): Cli {
       const [
         loaded,
         { defaultConfig, discoverConfig, loadConfig },
-        { configEnvironment, parseEnv },
+        { configEnvironment, isCi, parseEnv },
       ] = await Promise.all([
         load(),
         import("./config.ts"),
@@ -297,34 +326,38 @@ export function createCli(init: CreateCliOptions): Cli {
 
       command = loaded;
       const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
-      const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
+      const cwd = projectDirectory(options.cwd ?? ".", globals.cwd);
       const env = parseEnv(options.env ?? {});
       const environment = configEnvironment(globals.env, env);
+      const configFile = discoverConfig(cwd, globals.config);
 
-      const reloadConfig = (): Promise<ResolvedConfig> =>
-        loadConfig(cwd, globals.config, environment).catch((cause: unknown) => {
-          throw cause instanceof CliError
-            ? cause
-            : new CliError("config_invalid", toCliError(cause).message, {
-                cause,
-              });
-        });
+      const loadWith = (path?: string): Promise<ResolvedConfig> =>
+        loadConfig(cwd, globals.config, environment, path).catch(
+          (cause: unknown) => {
+            throw cause instanceof CliError
+              ? cause
+              : new CliError("config_invalid", toCliError(cause).message, {
+                  cause,
+                });
+          },
+        );
 
-      const config = await reloadConfig().catch((cause: unknown) => {
+      // Reloads discover the file again, so a config created under `--watch` is picked up.
+      const reloadConfig = (): Promise<ResolvedConfig> => loadWith();
+
+      const config = await loadWith(configFile).catch((cause: unknown) => {
         if (
           runsWithInvalidConfig(command) &&
           toCliError(cause).code === "config_invalid"
         ) {
-          return defaultConfig(cwd, globals.config, environment);
+          return defaultConfig(cwd, globals.config, environment, configFile);
         }
 
         throw cause;
       });
 
-      const configFile = discoverConfig(cwd, globals.config);
-
       const interactive =
-        globals.json !== true && globals.yes !== true && env.CI === undefined;
+        globals.json !== true && globals.yes !== true && !isCi(env);
 
       context = {
         cwd,

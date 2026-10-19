@@ -13,7 +13,7 @@ import {
 import { configIssues } from "./config-schema.ts";
 import { CliError } from "./errors.ts";
 import { importFresh } from "./fresh-import.ts";
-import { type CliIo, display } from "./io.ts";
+import { type CliIo, display, readStdin } from "./io.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
@@ -68,7 +68,7 @@ export async function importExport(
   name: string,
 ): Promise<unknown> {
   if (!existsSync(path)) {
-    throw new Error(`Module not found: ${path}`);
+    throw new CliError("not_found", `Module not found: ${path}`);
   }
 
   const loaded = await importFresh(path);
@@ -161,8 +161,8 @@ export function defaultConfig(
   cwd: string,
   explicit?: string,
   environment?: string,
+  path: string | undefined = discoverConfig(cwd, explicit),
 ): ResolvedConfig {
-  const path = discoverConfig(cwd, explicit);
   const resolved = resolveConfig({}, !path || explicit ? cwd : dirname(path));
 
   return environment === undefined ? resolved : { ...resolved, environment };
@@ -175,15 +175,15 @@ export function defaultConfig(
  * are off so the one file is the whole config. `environment` merges its
  * blocks in (`applyEnvironment`); c12's own `envName` is off because it
  * concatenates arrays. A discovered file sets the project root to its own
- * directory; `--config` keeps `cwd` as the root.
+ * directory; `--config` keeps `cwd` as the root. `path` is the file
+ * `discoverConfig` found, for callers that already looked it up.
  */
 export async function loadConfig(
   cwd: string,
   explicit?: string,
   environment?: string,
+  path: string | undefined = discoverConfig(cwd, explicit),
 ): Promise<ResolvedConfig> {
-  const path = discoverConfig(cwd, explicit);
-
   const withEnvironment = (resolved: ResolvedConfig): ResolvedConfig =>
     environment === undefined ? resolved : { ...resolved, environment };
 
@@ -243,7 +243,7 @@ export async function stdinDatabaseUrl(
     return undefined;
   }
 
-  const url = (await io.stdin?.())?.trim();
+  const url = (await readStdin(io, "--db-url-stdin")).trim();
 
   if (!url) {
     throw new CliError(
@@ -282,15 +282,26 @@ export async function databaseUrl(
     return env.SUPABASE_DB_URL;
   }
 
-  const port = await readSupabasePort(config.root, "db");
+  let resolved = localUrls.get(config);
 
-  if (port === undefined && (await readSupabaseToml(config.root))) {
+  if (!resolved) {
+    resolved = localDatabaseUrl(config.root, env);
+    localUrls.set(config, resolved);
+  }
+
+  return resolved;
+}
+
+/** One lookup per loaded config, so a run asks `supabase status` at most once. */
+const localUrls = new WeakMap<ResolvedConfig, Promise<string>>();
+
+async function localDatabaseUrl(root: string, env: CliEnv): Promise<string> {
+  const port = await readSupabasePort(root, "db");
+
+  if (port === undefined && (await readSupabaseToml(root))) {
     // The stack engine (`[experimental] stack`) picks the ports per checkout,
     // so only its status knows them.
-    const stack = await readStackStatus(config.root, env).catch(
-      () => undefined,
-    );
-
+    const stack = await readStackStatus(root, env).catch(() => undefined);
     const url = stack?.ok ? stack.status["DB_URL"] : undefined;
 
     if (typeof url === "string" && url.length > 0) {

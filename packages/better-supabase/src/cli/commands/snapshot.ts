@@ -196,7 +196,7 @@ async function readSnapshotFile(
   label: string = absolute,
 ): Promise<Snapshot> {
   if (!existsSync(absolute)) {
-    throw new Error(`Snapshot not found: ${label}`);
+    throw new CliError("not_found", `Snapshot not found: ${label}`);
   }
 
   return parseSnapshot(JSON.parse(await readFile(absolute, "utf-8")), label);
@@ -211,7 +211,8 @@ export async function parseSnapshot(
   const doc = data as Partial<Snapshot> | null;
 
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
-    throw new Error(
+    throw new CliError(
+      "invalid_input",
       `${label} is not a version 2 snapshot. Run \`better-supabase introspect\` to refresh it.`,
     );
   }
@@ -221,7 +222,10 @@ export async function parseSnapshot(
     !doc.extras ||
     !Array.isArray(doc.extras.tables)
   ) {
-    throw new Error(`${label} is missing "schemas" or "extras".`);
+    throw new CliError(
+      "invalid_input",
+      `${label} is missing "schemas" or "extras".`,
+    );
   }
 
   let generator;
@@ -233,7 +237,8 @@ export async function parseSnapshot(
       throw cause;
     }
 
-    throw new Error(
+    throw new CliError(
+      "invalid_input",
       `${label} has invalid "generator" metadata: ${errorText(cause)}`,
       { cause },
     );

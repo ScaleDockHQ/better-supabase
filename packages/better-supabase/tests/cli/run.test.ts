@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CliIo } from "../../src/cli/io.ts";
 
 import { defineCliCommand } from "../../src/cli/command.ts";
+import { CliError } from "../../src/cli/errors.ts";
 import { registerCommand, run } from "../../src/cli/run.ts";
 import { VERSION } from "../../src/cli/version.ts";
 import { fakeFetch } from "./fixtures/fake-fetch.ts";
@@ -694,5 +695,95 @@ describe("run", () => {
 
     expect(empty.code).toBe(2);
     expect(empty.stderr).toMatch(/^--db-url-stdin read nothing from stdin/);
+  });
+
+  it("fails at once when a stdin flag meets a terminal", async () => {
+    const stdin = vi.fn(() => Promise.resolve("postgresql://u@h/db"));
+
+    const result = await run(
+      ["seed", "--db-url-stdin", "--cwd", dir, "--json"],
+      { io: io({ stdin, stdinIsTty: true }) },
+    );
+
+    expect(result.code).toBe(2);
+    expect(stdin).not.toHaveBeenCalled();
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      code: "missing_value",
+      flag: "--db-url-stdin",
+    });
+  });
+
+  it("asks in CI=false and CI=0, and never in CI=1", async () => {
+    registerCommand(
+      "asks-ci",
+      defineCliCommand({
+        meta: { name: "asks-ci", description: "Reports prompts" },
+        args: {},
+        run: (_args, { io: commandIo }) =>
+          Promise.resolve({
+            code: 0,
+            output: commandIo.prompts ? "prompts" : "no prompts",
+          }),
+      }),
+    );
+
+    const prompts: CliIo["prompts"] = {
+      confirm: () => Promise.resolve(true),
+      spinner: () => () => {},
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+
+    const ask = async (CI: string) =>
+      (
+        await run(["asks-ci", "--cwd", dir], {
+          env: { CI },
+          io: io({ prompts }),
+        })
+      ).stdout;
+
+    expect(await ask("false")).toBe("prompts\n");
+    expect(await ask("0")).toBe("prompts\n");
+    expect(await ask("1")).toBe("no prompts\n");
+  });
+
+  it.each([
+    [["--cwd", ""], "missing_value"],
+    [["--cwd", "does-not-exist"], "usage"],
+  ])("rejects %j", async (flags, code) => {
+    const result = await run(["config", "--json", ...flags], {
+      cwd: dir,
+      io: io(),
+    });
+
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({ code, flag: "--cwd" });
+  });
+
+  it("exits 130 when the person cancels a prompt", async () => {
+    registerCommand(
+      "cancels",
+      defineCliCommand({
+        meta: { name: "cancels", description: "Asks and is cancelled" },
+        args: {},
+        run: async (_args, { io: commandIo }) => ({
+          code: (await commandIo.prompts?.confirm("Sure?")) === true ? 0 : 1,
+        }),
+      }),
+    );
+
+    const prompts: CliIo["prompts"] = {
+      confirm: () => Promise.reject(new CliError("cancelled", "Cancelled.")),
+      spinner: () => () => {},
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+
+    const result = await run(["cancels", "--cwd", dir], {
+      io: io({ prompts }),
+    });
+
+    expect(result.code).toBe(130);
+    expect(result.stderr).toContain("Cancelled.");
   });
 });

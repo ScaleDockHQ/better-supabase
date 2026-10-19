@@ -1,6 +1,7 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
+import { CliError } from "./errors.ts";
 import { type LoadedTopic, loadTopics } from "./topics.ts";
 
 const literalParts = (template: string): string =>
@@ -24,7 +25,8 @@ export async function topicPolicyFile(
 
   if (policies === undefined) {
     if (triggers.length > 0) {
-      throw new Error(
+      throw new CliError(
+        "config_invalid",
         "realtime.triggers needs realtime.policies: the triggers go to its output, for topics its from files export",
       );
     }
@@ -33,7 +35,8 @@ export async function topicPolicyFile(
   }
 
   if (triggers.length > 0 && !config.blockNames.includes("realtime-tables")) {
-    throw new Error(
+    throw new CliError(
+      "config_invalid",
       "realtime.triggers call better_supabase.broadcast_topic(): add realtime-tables to blocks",
     );
   }
@@ -67,7 +70,8 @@ export async function topicPolicyFile(
     const topic = topics.find((candidate) => candidate.template === template);
 
     if (topic === undefined) {
-      throw new Error(
+      throw new CliError(
+        "config_invalid",
         `realtime.triggers: no topic "${template}" in ${policies.from.join(", ")}`,
       );
     }

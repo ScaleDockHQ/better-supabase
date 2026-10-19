@@ -1,7 +1,9 @@
+import { parseJSONC } from "confbox/jsonc";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { isRecord } from "./guards.ts";
 import { findSupabaseRoot } from "./supabase-toml.ts";
 
 export type Framework =
@@ -47,10 +49,9 @@ async function readJson(
   const text = await readFile(path, "utf-8");
 
   try {
-    // SAFETY: callers only read optional fields and check their types.
-    return JSON.parse(
-      text.replaceAll(/^\s*\/\/.*$/gm, "").replaceAll(/,(\s*[}\]])/g, "$1"),
-    ) as Record<string, unknown>;
+    const parsed: unknown = parseJSONC(text, { allowTrailingComma: true });
+
+    return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -127,19 +128,33 @@ export interface InstallTarget {
   readonly name: string | undefined;
 }
 
+const SHELL_SAFE = /^[\w@%+=:,./-]+$/;
+
+/** `value` as one shell word: unchanged when it is safe, else in single quotes. */
+function shellQuote(value: string): string {
+  return SHELL_SAFE.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
 export function installCommand(
   manager: PackageManager,
   packages: readonly string[],
   dev = false,
-  target?: InstallTarget,
+  installTarget?: InstallTarget,
 ): string {
-  const list = packages.join(" ");
+  const list = packages.map(shellQuote).join(" ");
+
+  const target = installTarget && {
+    dir: shellQuote(installTarget.dir),
+    name:
+      installTarget.name === undefined
+        ? undefined
+        : shellQuote(installTarget.name),
+    filter: shellQuote(installTarget.name ?? `./${installTarget.dir}`),
+  };
 
   switch (manager) {
     case "pnpm": {
-      const filter = target
-        ? `--filter ${target.name ?? `./${target.dir}`} `
-        : "";
+      const filter = target ? `--filter ${target.filter} ` : "";
 
       return `pnpm ${filter}add ${dev ? "-D " : ""}${list}`;
     }

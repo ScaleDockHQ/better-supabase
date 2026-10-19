@@ -7,7 +7,7 @@ import type {
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { errorText } from "../errors.ts";
+import { CliError, errorText } from "../errors.ts";
 import { cachedDatabaseTypes } from "../introspect/cache.ts";
 import {
   generateDatabaseTypes,
@@ -122,7 +122,8 @@ export async function render(
         ...runtime,
       });
     } catch (cause) {
-      throw new Error(
+      throw new CliError(
+        "generator_failed",
         `generator "${generator.name}" failed: ${errorText(cause)}`,
         { cause },
       );
@@ -133,7 +134,8 @@ export async function render(
       const inside = relative(config.root, path);
 
       if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
-        throw new Error(
+        throw new CliError(
+          "generator_failed",
           `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
         );
       }
@@ -141,7 +143,8 @@ export async function render(
       const owner = owners.get(path);
 
       if (owner !== undefined) {
-        throw new Error(
+        throw new CliError(
+          "generator_failed",
           `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
         );
       }

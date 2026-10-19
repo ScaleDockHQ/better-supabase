@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 
 import type { Queryable } from "../introspect/source.ts";
 
+import { CliError } from "../errors.ts";
 import { type TomlTable, tomlGet } from "../supabase-toml.ts";
 
 /**
@@ -88,7 +89,10 @@ export function managementAdvisors(
       const text = await response.text();
 
       if (!response.ok) {
-        throw new Error(
+        throw new CliError(
+          response.status === 401 || response.status === 403
+            ? "auth_required"
+            : "request_failed",
           `Management API ${category} advisors failed (${response.status}): ${text.slice(0, 300)}`,
         );
       }
@@ -168,7 +172,8 @@ async function splinterSql(options: SplinterOptions): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(
+    throw new CliError(
+      "request_failed",
       `Downloading splinter.sql failed (${response.status}) from ${SPLINTER_URL}`,
     );
   }
@@ -176,7 +181,8 @@ async function splinterSql(options: SplinterOptions): Promise<string> {
   const text = await response.text();
 
   if (sha256(text) !== SPLINTER_SHA256) {
-    throw new Error(
+    throw new CliError(
+      "integrity_failed",
       `splinter.sql from ${SPLINTER_URL} does not match the pinned hash; refusing to run it.`,
     );
   }

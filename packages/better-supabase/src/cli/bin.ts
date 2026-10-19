@@ -35,12 +35,15 @@ const prompts: Prompter = {
 };
 
 const controller = new AbortController();
+let signalExit: 130 | 143 | undefined;
 
 process.once("SIGINT", () => {
+  signalExit = 130;
   controller.abort();
 });
 
 process.once("SIGTERM", () => {
+  signalExit = 143;
   controller.abort();
 });
 
@@ -56,9 +59,10 @@ const result = await run(process.argv.slice(2), {
       process.stderr.write(chunk);
     },
     stdin: () => text(process.stdin),
+    stdinIsTty: process.stdin.isTTY,
     color: colorEnabled(process.stdout),
     ...(process.stdin.isTTY && process.stdout.isTTY ? { prompts } : {}),
   },
 });
 
-process.exitCode = controller.signal.aborted ? 130 : result.code;
+process.exitCode = signalExit ?? result.code;

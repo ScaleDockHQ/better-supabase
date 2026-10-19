@@ -13,12 +13,13 @@ import {
   valibot,
   zod,
 } from "../../config/index.ts";
-import { errorText } from "../errors.ts";
+import { CliError, errorText } from "../errors.ts";
 import { fromMetadata } from "../introspect/from-metadata.ts";
 import {
   MetadataRejectedError,
   parseMetadataDocument,
 } from "../introspect/typegen.ts";
+import { readStdin } from "../io.ts";
 import { metaPaths } from "./emit.ts";
 import { generationNotices, UNFORMATTED } from "./notices.ts";
 import { type Rendered, render } from "./render.ts";
@@ -115,7 +116,8 @@ async function renderEmit(
   const [file] = picked;
 
   if (!file || picked.length > 1) {
-    throw new Error(
+    throw new CliError(
+      "usage",
       `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out <dir> to write them all.`,
     );
   }
@@ -133,19 +135,19 @@ export async function readMetadataSnapshot(
   cwd: string,
   io: CliIo,
 ): Promise<Snapshot> {
+  if (source === "-") {
+    const piped = await readStdin(io, "--metadata -");
+
+    return fromMetadata(await parseMetadataDocument(piped));
+  }
+
   let text: string;
 
   try {
-    if (source !== "-") {
-      text = await readFile(resolve(cwd, source), "utf-8");
-    } else if (io.stdin) {
-      text = await io.stdin();
-    } else {
-      throw new Error("there is no stdin to read");
-    }
+    text = await readFile(resolve(cwd, source), "utf-8");
   } catch (cause) {
     throw new MetadataRejectedError(
-      `Could not read ${source === "-" ? "stdin" : source}: ${errorText(cause)}`,
+      `Could not read ${source}: ${errorText(cause)}`,
     );
   }
 

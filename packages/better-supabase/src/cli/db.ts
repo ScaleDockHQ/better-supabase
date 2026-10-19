@@ -1,4 +1,4 @@
-import { errorText } from "./errors.ts";
+import { CliError, errorText } from "./errors.ts";
 
 /** The subset of `pg.Client` the CLI uses. */
 export interface PgQueryable {
@@ -70,8 +70,10 @@ export async function connect(
 
     pg = mod.default ?? mod;
   } catch {
-    throw new Error(
+    throw new CliError(
+      "dependency_missing",
       'better-supabase needs the "pg" package to read your database. Install it: pnpm add -D pg',
+      { suggestion: "pnpm add -D pg" },
     );
   }
 
@@ -113,9 +115,11 @@ export async function connect(
       ? " Is the local stack running (supabase start)?"
       : "";
 
-    throw new Error(`Could not connect to ${redact(url)}: ${message}.${hint}`, {
-      cause,
-    });
+    throw new CliError(
+      "database_unreachable",
+      `Could not connect to ${redact(url)}: ${message}.${hint}`,
+      { cause, ...(hint ? { suggestion: "supabase start" } : {}) },
+    );
   }
 
   options.signal?.addEventListener("abort", onAbort, { once: true });

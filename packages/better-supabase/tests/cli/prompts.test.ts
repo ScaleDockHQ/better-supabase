@@ -247,7 +247,7 @@ describe("clackPrompter", () => {
     { value: "b", label: "B" },
   ] as const;
 
-  it("maps answers and cancels", async () => {
+  it("maps answers, and a cancel ends the run with exit code 130", async () => {
     clack.answers.push(
       "b",
       clack.cancel,
@@ -256,14 +256,19 @@ describe("clackPrompter", () => {
       true,
       clack.cancel,
     );
+    const cancelled = { code: "cancelled", exitCode: 130 };
     expect(await clackPrompter.select("Pick", choices, "a")).toBe("b");
-    expect(await clackPrompter.select("Pick", choices, "a")).toBeUndefined();
+    await expect(
+      clackPrompter.select("Pick", choices, "a"),
+    ).rejects.toMatchObject(cancelled);
     expect(await clackPrompter.multiselect("Pick", choices, [])).toEqual(["a"]);
-    expect(
-      await clackPrompter.multiselect("Pick", choices, []),
-    ).toBeUndefined();
+    await expect(
+      clackPrompter.multiselect("Pick", choices, []),
+    ).rejects.toMatchObject(cancelled);
     expect(await clackPrompter.confirm("Sure?")).toBe(true);
-    expect(await clackPrompter.confirm("Sure?")).toBeUndefined();
+    await expect(clackPrompter.confirm("Sure?")).rejects.toMatchObject(
+      cancelled,
+    );
   });
 
   it("clears the spinner when stopped", () => {

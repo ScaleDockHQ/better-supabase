@@ -7,6 +7,7 @@ import type {
   RenderResult,
 } from "../../spec/index.ts";
 
+import { CliError } from "../errors.ts";
 import { importFresh } from "../fresh-import.ts";
 import { isRecord } from "../guards.ts";
 import { isDocumentFormat } from "./formats.ts";
@@ -70,7 +71,7 @@ async function settle(value: unknown): Promise<unknown> {
  */
 export async function loadSpecEntry(path: string): Promise<SpecEntry> {
   if (!existsSync(path)) {
-    throw new Error(`Module not found: ${path}`);
+    throw new CliError("not_found", `Module not found: ${path}`);
   }
 
   const loaded = await importFresh(path);

@@ -61,8 +61,10 @@ stack, and better-supabase works next to it rather than wrapping it:
   own files next to it. It reads the schema over `pg`, so it doesn't call the
   Supabase CLI.
 - `better-supabase env` runs `supabase status` to read the local URLs and
-  keys. It uses `$SUPABASE_BIN` when set, then `supabase` on the `PATH`, then
-  `npx supabase`.
+  keys. It uses `$SUPABASE_BIN` when set, then the project's
+  `node_modules/.bin/supabase`, then `supabase` on the `PATH`. It never
+  downloads the CLI; without one it fails with
+  [`supabase_cli_missing`](/docs/cli/errors#supabase_cli_missing).
 - `better-supabase init` prints the `supabase` commands to run next
   (`supabase start`, `supabase db reset`).
 

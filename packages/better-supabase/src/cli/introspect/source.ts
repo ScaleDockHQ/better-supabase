@@ -1,6 +1,7 @@
 import type { Queryable } from "./typegen.ts";
 
 import { connect } from "../db.ts";
+import { CliError } from "../errors.ts";
 
 export type { Queryable };
 
@@ -106,7 +107,10 @@ export function managementSource(
       const text = await response.text();
 
       if (!response.ok) {
-        throw new Error(
+        throw new CliError(
+          response.status === 401 || response.status === 403
+            ? "auth_required"
+            : "request_failed",
           `Management API query failed (${response.status}) for project ${options.projectRef}: ${text.slice(0, 500)}`,
         );
       }

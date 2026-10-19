@@ -148,6 +148,21 @@ describe("installCommand", () => {
     ).toBe(unnamed);
   });
 
+  it("quotes a version range or a directory the shell would expand", () => {
+    expect(installCommand("pnpm", ["pg@^8 || ^9"], true)).toBe(
+      "pnpm add -D 'pg@^8 || ^9'",
+    );
+    expect(
+      installCommand("npm", ["a"], false, {
+        dir: "apps/my app",
+        name: undefined,
+      }),
+    ).toBe("npm install a -w 'apps/my app'");
+    expect(
+      installCommand("pnpm", ["a"], false, { dir: "it's", name: undefined }),
+    ).toBe(`pnpm --filter './it'\\''s' add a`);
+  });
+
   it("returns the value for a manager it does not know", () => {
     // SAFETY: simulates a manager value outside the union.
     const deno = "deno" as PackageManager;

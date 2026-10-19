@@ -526,7 +526,7 @@ describe("env", () => {
       io: { stdout: () => {}, stderr: () => {} },
     });
 
-    expect(result.code).toBe(1);
+    expect(result.code).toBe(2);
     expect(result.stderr).toContain(
       `${flag} ${path} is outside the project root`,
     );

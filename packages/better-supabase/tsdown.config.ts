@@ -446,6 +446,20 @@ const cli = defineConfig({
         };
       },
     },
+    {
+      // The bin is an executable, not a module anyone imports, so it ships no types.
+      name: "no-bin-types",
+      generateBundle: {
+        order: "post",
+        handler(_options, bundle) {
+          for (const file of Object.keys(bundle)) {
+            if (/^cli\/bin\.d\.[cm]?ts(\.map)?$/.test(file)) {
+              delete bundle[file];
+            }
+          }
+        },
+      },
+    },
   ],
   deps: {
     neverBundle: [

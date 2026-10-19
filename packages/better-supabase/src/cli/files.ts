@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { CommandResult } from "./io.ts";
 
 import { fileDiff } from "./diff.ts";
+import { CliError } from "./errors.ts";
 import { display, readIfExists, sameText, writeIfChanged } from "./io.ts";
 
 /**
@@ -14,8 +15,10 @@ export function insideRoot(root: string, path: string, flag: string): string {
   const inside = relative(root, resolved);
 
   if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
-    throw new Error(
+    throw new CliError(
+      "outside_root",
       `${flag} ${path} is outside the project root ${root}. Run the command from the project that owns the file.`,
+      { flag },
     );
   }
 

@@ -66,15 +66,15 @@ fails. Progress and diagnostics go to stderr, so
 
 ## Environment
 
-| Variable                | Used by                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set |
-| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                        |
-| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                    |
-| `SUPABASE_API_URL`      | Another Management API host                                                |
-| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `supabase` on the `PATH`           |
-| `CI`                    | Turns prompts off, and applies the config's `ci` environment               |
-| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                 |
+| Variable                | Used by                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set                       |
+| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                              |
+| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                                          |
+| `SUPABASE_API_URL`      | Another Management API host                                                                      |
+| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
+| `CI`                    | Turns prompts off, and applies the config's `ci` environment                                     |
+| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                       |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the

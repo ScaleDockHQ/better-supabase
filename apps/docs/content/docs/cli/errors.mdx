@@ -19,10 +19,17 @@ stdout instead, whose `type` links to the code's section on this page:
 }
 ```
 
-Exit code 2 means the command line, the config or the environment needs a
-change; running the same command again fails the same way. Exit code 1 means
-the command ran and failed, or found something (`--check` drift, doctor
-errors).
+The exit code tells a script what to do next:
+
+| Exit code | Meaning                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------- |
+| 0         | The command succeeded.                                                                      |
+| 1         | The command ran and failed, or found something (`--check` drift, doctor errors).            |
+| 2         | The command line, the config or the environment needs a change; a rerun fails the same way. |
+| 3         | The user has to act first: give an input, consent to a change, or log in.                   |
+| 65        | `gen --metadata` rejected its GeneratorMetadata document.                                   |
+| 130       | The run was interrupted (Ctrl-C) or a prompt was cancelled.                                 |
+| 143       | The process received SIGTERM.                                                               |
 
 ## `usage`
 
@@ -35,11 +42,24 @@ The first argument isn't a command. When one is close enough to be a typo,
 `suggestion` names it. Run `better-supabase --help` for the list. Exit
 code 2.
 
+## `command_moved`
+
+The command or flag was renamed. `suggestion` holds the new form, which you
+can run as is. Exit code 2.
+
 ## `missing_value`
 
 The command needs a value it didn't get, such as `SUPABASE_ACCESS_TOKEN` for
-`--project-ref`, or a connection string on stdin for `--db-url-stdin`.
-`flag` names the variable or option that supplies it. Exit code 2.
+`--project-ref`, a connection string on stdin for `--db-url-stdin`, or a
+directory for `--cwd`. A stdin flag reports it at once when stdin is a
+terminal instead of waiting for input. `flag` names the variable or option
+that supplies it. Exit code 2.
+
+## `outside_root`
+
+A path option points outside the project root, for example
+`--out ../.env.local`. Run the command from the project that owns the file.
+`flag` names the option. Exit code 2.
 
 ## `config_not_found`
 
@@ -57,14 +77,96 @@ doesn't accept. `issues` lists each problem as `path: message`, for example
 An environment variable the CLI reads has a malformed value, for example a
 `DATABASE_URL` that isn't a URL. `issues` lists each variable. Exit code 2.
 
+## `not_found`
+
+A file or module the command reads doesn't exist, such as a snapshot or an
+entry named in the config. Exit code 1.
+
+## `invalid_input`
+
+A file the command reads exists but holds the wrong thing: a snapshot of an
+older version, a status file without `supabase status` JSON, or an entry
+that exports no topic or read set. Exit code 1.
+
+## `dependency_missing`
+
+The command needs an optional package the project hasn't installed, such as
+`pg` to read a database. `suggestion` holds the install command. Exit
+code 1.
+
+## `database_unreachable`
+
+The CLI couldn't connect to the database. The message has the redacted URL
+and the driver's error. For a local URL that refused the connection,
+`suggestion` is `supabase start`. Exit code 1.
+
+## `supabase_cli_missing`
+
+The command runs the Supabase CLI and found none: not `$SUPABASE_BIN`, not
+`node_modules/.bin/supabase`, and not `supabase` on the `PATH`. The CLI never
+downloads one. Install it with `pnpm add -D supabase`. Exit code 1.
+
+## `supabase_cli_failed`
+
+The Supabase CLI ran and failed, or printed output the command can't read.
+Check that the local stack runs (`supabase start`). Exit code 1.
+
+## `request_failed`
+
+An HTTP request failed, such as a Management API query or the download of
+the pinned `splinter.sql`. The message has the status and the start of the
+response. Exit code 1.
+
+## `auth_required`
+
+A request was refused with 401 or 403. Check that `SUPABASE_ACCESS_TOKEN` is
+set and can read the project. Exit code 3.
+
+## `integrity_failed`
+
+A downloaded file didn't match its pinned hash, so the CLI refused to run
+it. Exit code 1.
+
+## `generator_failed`
+
+A generator threw, or wrote a file outside the project root or a file that
+another generator writes. The message names the generator. Exit code 1.
+
+## `check_failed`
+
+`--check` found files that are out of date. Run the command without
+`--check` to write them. Exit code 1.
+
+## `findings`
+
+A check such as `doctor` or `spec validate` found problems at or above the
+`--fail-on` level. The report lists them. Exit code 1.
+
+## `input_required`
+
+The command needs an answer it would prompt for, and it can't prompt (in CI,
+under `--json` or for an agent). `next` holds the command to run with the
+answer filled in. Exit code 3.
+
+## `consent_required`
+
+The command would make a destructive change, and needs the user's explicit
+consent. Rerun it with the `--confirm <token>` that `next` shows; `--yes`
+doesn't replace it. Exit code 3.
+
+## `cancelled`
+
+The person cancelled a prompt with Ctrl-C or Escape. Nothing after the
+prompt ran. Exit code 130.
+
 ## `failed`
 
-The command ran and reported a failure, such as a stale file under
-`--check`. `exitCode` is the command's own exit code, usually 1.
+The command ran and reported a failure. `exitCode` is the command's own exit
+code, usually 1.
 
 ## `internal`
 
-Something the CLI didn't expect went wrong, such as a database that refused
-the connection. `detail` has the underlying message. Exit code 1. If it
-looks like a bug, [open an issue](https://github.com/ScaleDockHQ/better-supabase/issues)
-with the command and the message.
+Something the CLI didn't expect went wrong. `detail` has the underlying
+message. Exit code 1. If it looks like a bug,
+[open an issue](https://github.com/ScaleDockHQ/better-supabase/issues) with
+the command and the message.

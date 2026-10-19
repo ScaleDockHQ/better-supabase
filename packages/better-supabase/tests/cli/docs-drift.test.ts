@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GLOBAL_ARGS } from "../../src/cli/command.ts";
+import { CLI_ERROR_CODES } from "../../src/cli/errors.ts";
 import { commandNames, help } from "../../src/cli/run.ts";
 import {
   INTEGRATIONS,
@@ -80,16 +81,7 @@ describe("CLI docs", () => {
       (match) => match[1],
     );
 
-    expect(headings).toEqual([
-      "usage",
-      "unknown_command",
-      "missing_value",
-      "config_not_found",
-      "config_invalid",
-      "env_invalid",
-      "failed",
-      "internal",
-    ]);
+    expect(headings).toEqual(CLI_ERROR_CODES);
   });
 });
 
