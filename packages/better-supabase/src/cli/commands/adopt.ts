@@ -11,6 +11,7 @@ import { CliError } from "../core/errors.ts";
 import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { toCatalog } from "../introspect/index.ts";
 import {
   type AdoptProposal,
@@ -23,6 +24,8 @@ import {
   type ConfigEdit,
   setBlockInConfig,
   setBlockInJson,
+  setPathInConfig,
+  setPathInJson,
 } from "../sql/config-edit.ts";
 import { type Paint, plain } from "../style.ts";
 import { blockNames } from "./blocks.ts";
@@ -77,6 +80,35 @@ export function withAdoptedBlock(
   return file.endsWith(".json")
     ? setBlockInJson(source, proposal.block, proposal.entry)
     : setBlockInConfig(source, proposal.block, proposal.entry);
+}
+
+/**
+ * `edit` with `doctor.migrationSafety.since` set to the newest migration when
+ * the config has none, so doctor's lock checks skip the migrations that ran
+ * before the tables were adopted.
+ */
+async function withMigrationSince(
+  config: ResolvedConfig,
+  file: string,
+  edit: ConfigEdit,
+): Promise<ConfigEdit> {
+  if (!edit.ok || config.doctor.migrationSafety?.since !== undefined) {
+    return edit;
+  }
+
+  const since = await latestMigrationVersion(config.root);
+
+  if (since === undefined) {
+    return edit;
+  }
+
+  const path = ["doctor", "migrationSafety", "since"] as const;
+
+  const next = file.endsWith(".json")
+    ? setPathInJson(edit.text, path, since)
+    : setPathInConfig(edit.text, path, since);
+
+  return next.ok ? next : edit;
 }
 
 /** The tables `loadSnapshot` reads, for the adopt commands. */
@@ -149,7 +181,13 @@ export async function runAdopt(
   }
 
   const source = await readFile(file, "utf-8");
-  const edit = withAdoptedBlock(file, source, proposal);
+
+  const edit = await withMigrationSince(
+    config,
+    file,
+    withAdoptedBlock(file, source, proposal),
+  );
+
   const shown = display(config.root, file);
 
   if (!edit.ok) {

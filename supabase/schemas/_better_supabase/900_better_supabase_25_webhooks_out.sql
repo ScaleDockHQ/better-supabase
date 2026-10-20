@@ -1,4 +1,4 @@
--- better-supabase module: webhooks-out (0.8.0)
+-- better-supabase module: webhooks-out (0.9.0)
 -- @bs-module webhooks-out@5 managed
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -450,7 +450,8 @@ begin
       where d."id" = v_endpoint and d."enabled";
       if found then
         v_result := 'disabled';
-        perform better_supabase.audit_event(
+        perform "better_supabase".emit_event('webhook.disabled', jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since), 'webhooks/' || v_endpoint::text, (v_tenant::text)::text, 'webhook.disabled:' || v_endpoint::text || ':' || v_since::text, 'better-supabase/webhooks-out');
+  perform better_supabase.audit_event(
     event_type => 'webhook.disabled',
     category => 'integration',
     target_type => 'webhook_endpoint',
@@ -596,6 +597,7 @@ begin
   );
   insert into "better_supabase"."webhook_endpoint_secrets" ("endpoint_id", "vault_secret_id", "organization_id")
   values (rotate_webhook_secret.endpoint, v_vault, v_tenant);
+  perform "better_supabase".emit_event('webhook.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'better-supabase/webhooks-out');
   perform better_supabase.audit_event(
     event_type => 'webhook.secret_rotated',
     category => 'security',

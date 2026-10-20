@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
@@ -101,52 +102,55 @@ interface Versioned {
 function versioned(ctx: ModuleContext): readonly Versioned[] {
   const where = "blocks.versions.options.subjects";
 
-  return subjectsOption(ctx, ["columns", "apply", "auto", "freeze"]).map(
-    ([type, subject]) => {
-      const extra = subject.extra;
-      const columns = extra["columns"] ?? [];
+  return subjectsOption(
+    ctx,
+    ["columns", "apply", "auto", "freeze", "versions"],
+    { always: (entry) => entry.versions !== undefined },
+  ).map(([type, subject]) => {
+    const extra = subject.extra;
+    const table = isRecord(extra["versions"]) ? extra["versions"] : {};
+    const columns = extra["columns"] ?? table["columns"] ?? [];
 
-      if (!isColumnList(columns)) {
-        throw new TypeError(
-          `${where}.${type}.columns must be a list of column names`,
-        );
-      }
+    if (!isColumnList(columns)) {
+      throw new TypeError(
+        `${where}.${type}.columns must be a list of column names`,
+      );
+    }
 
-      const apply = extra["apply"];
+    const apply = extra["apply"];
 
-      if (
-        apply !== undefined &&
-        (typeof apply !== "string" || !FUNCTION.test(apply))
-      ) {
-        throw new TypeError(
-          `${where}.${type}.apply must name a function, such as public.apply_document_version`,
-        );
-      }
+    if (
+      apply !== undefined &&
+      (typeof apply !== "string" || !FUNCTION.test(apply))
+    ) {
+      throw new TypeError(
+        `${where}.${type}.apply must name a function, such as public.apply_document_version`,
+      );
+    }
 
-      const auto = extra["auto"] ?? false;
+    const auto = extra["auto"] ?? table["auto"] ?? false;
 
-      if (typeof auto !== "boolean") {
-        throw new TypeError(`${where}.${type}.auto must be true or false`);
-      }
+    if (typeof auto !== "boolean") {
+      throw new TypeError(`${where}.${type}.auto must be true or false`);
+    }
 
-      const freeze = freezeOf(extra["freeze"], `${where}.${type}.freeze`);
+    const freeze = freezeOf(extra["freeze"], `${where}.${type}.freeze`);
 
-      if ((auto || freeze) && columns.length === 0) {
-        throw new TypeError(
-          `${where}.${type}: auto and freeze snapshot the columns listed in columns`,
-        );
-      }
+    if ((auto || freeze) && columns.length === 0) {
+      throw new TypeError(
+        `${where}.${type}: auto and freeze snapshot the columns listed in columns`,
+      );
+    }
 
-      return {
-        type,
-        subject,
-        columns,
-        ...(apply === undefined ? {} : { apply }),
-        auto,
-        ...(freeze === undefined ? {} : { freeze }),
-      };
-    },
-  );
+    return {
+      type,
+      subject,
+      columns,
+      ...(apply === undefined ? {} : { apply }),
+      auto,
+      ...(freeze === undefined ? {} : { freeze }),
+    };
+  });
 }
 
 const isColumnList = (value: unknown): value is string[] =>
@@ -338,6 +342,14 @@ function build(ctx: ModuleContext): string {
   const restore = ctx.permission("restore", OPERATIONS["versions.restore"]);
   const manage = ctx.permission("manage", OPERATIONS["versions.manage"]);
   const list = versioned(ctx);
+
+  const current = captureCase(
+    list,
+    "v_subject_type",
+    "v_subject_id",
+    "v_current",
+  );
+
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const keep = ctx.number("keep", 50);
   const debounce = ctx.number("debounce", 300);
@@ -570,11 +582,12 @@ ${
   ctx.installed("share-links")
     ? `
 -- A share link pinned to a version (create_share_link's version_id) reads
--- that version with the token alone, for anon.
+-- that version with the token alone, for anon. Volatile: resolving the link
+-- counts a use.
 create or replace function ${fn("get_shared_version")}(token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
@@ -606,8 +619,11 @@ grant execute on function ${fn("get_shared_version")}(text) to anon, authenticat
 }
 
 -- Writes a version's content back to its subject, through the subject's apply
--- function or its columns, then records the result as a new version.
-create or replace function ${fn("restore_version")}(version_id uuid)
+-- function or its columns, then records the result as a new version. With
+-- fields, only those keys come from the version and the rest keep the row's
+-- current values, so the subject needs columns to read them from.
+drop function if exists ${fn("restore_version")}(uuid);
+create or replace function ${fn("restore_version")}(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -619,6 +635,7 @@ declare
   v_subject_id text;
   v_number integer;
   v_content jsonb;
+  v_current jsonb;
   v_result jsonb;
 begin
   select ${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("number")}, ${c("content")}
@@ -633,12 +650,27 @@ begin
   if v_content is null then
     ${fail("VERSION_RESTORE_UNSUPPORTED", "a version kept in Storage is restored by the app", "22023")}
   end if;
+  if restore_version.fields is not null then
+    if cardinality(restore_version.fields) = 0 then
+      ${fail("VERSION_FIELDS_EMPTY", "list at least one field to restore, or pass null to restore the whole version", "22023")}
+    end if;
+    if exists (select 1 from unnest(restore_version.fields) f where not (v_content ? f)) then
+      ${fail("VERSION_FIELD_UNKNOWN", "a field to restore is not in this version", "22023")}
+    end if;${current ? `\n    ${current}` : ""}
+    if v_current is null then
+      ${fail("VERSION_RESTORE_UNSUPPORTED", "this subject type has no columns to keep, so it restores whole versions only", "22023")}
+    end if;
+    v_content := v_current || (
+      select jsonb_object_agg(e.key, e.value) from jsonb_each(v_content) e
+      where e.key = any (restore_version.fields)
+    );
+  end if;
   ${ctx.hook("before_version_restore", [["uuid", "restore_version.version_id"]])}
   ${restoreCase(list)}
   v_result := ${fn("version_insert")}(v_tenant, v_subject_type, v_subject_id, v_content, null, null, 'restore', false, auth.uid());
   ${ctx.record({
     type: "version.restored",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number)`,
+    payload: `jsonb_build_object('organizationId', v_tenant, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'id', (v_result ->> 'id')::uuid, 'number', (v_result ->> 'number')::integer, 'restoredFrom', v_number, 'fields', to_jsonb(restore_version.fields))`,
     subject: `'versions/' || (v_result ->> 'id')`,
     tenant: "v_tenant",
     audit: {
@@ -655,7 +687,7 @@ begin
   return v_result || jsonb_build_object('content', v_content, 'restoredFrom', v_number);
 end;
 $$;
-${userGrant(`${fn("restore_version")}(uuid)`)}
+${userGrant(`${fn("restore_version")}(uuid, text[])`)}
 
 -- A label keeps a version out of retention; null removes it.
 create or replace function ${fn("label_version")}(version_id uuid, label text)
@@ -801,7 +833,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_version", args: ["uuid"], returns: "jsonb" },
-    { name: "restore_version", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_version", args: ["uuid", "text[]"], returns: "jsonb" },
   ];
 }
 

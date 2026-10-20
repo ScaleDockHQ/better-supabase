@@ -55,10 +55,16 @@ function lookupJoin(
  * row level security on every table it reads, so a rollup counts only the
  * rows the caller reaches. The joins also keep Postgres from treating the
  * view as updatable, so `gen` types it read-only. Dropped and created again,
- * since `t.*` fixes the column list when the view is created. Empty for a
- * table without rollups or lookups.
+ * since `t.*` fixes the column list when the view is created. `readable`
+ * lists the table's columns instead of `t.*` when some have `access:
+ * "server"`, which the caller can't select. Empty for a table without
+ * rollups or lookups.
  */
-export function appViewSql(name: string, config: AppTableConfig): string {
+export function appViewSql(
+  name: string,
+  config: AppTableConfig,
+  readable?: readonly string[],
+): string {
   if (!hasComputed(config)) {
     return "";
   }
@@ -79,7 +85,7 @@ export function appViewSql(name: string, config: AppTableConfig): string {
   ];
 
   const columns = [
-    "t.*",
+    ...(readable?.map((column) => `t.${sqlIdent(column)}`) ?? ["t.*"]),
     ...joins.map(
       ({ column, alias }) => `${alias}.value as ${sqlIdent(column)}`,
     ),

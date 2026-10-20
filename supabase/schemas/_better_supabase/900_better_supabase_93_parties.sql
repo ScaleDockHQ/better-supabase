@@ -1,4 +1,4 @@
--- better-supabase module: parties (0.8.0)
+-- better-supabase module: parties (0.9.0)
 -- @bs-module parties@1 managed
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -185,9 +185,9 @@ begin
   end;
   select to_jsonb(x) into v_row from "better_supabase"."companies" x where x."id" = v_id;
   if v_created then
-    null;
+    perform "better_supabase".emit_event('company.created', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/parties');
   else
-    null;
+    perform "better_supabase".emit_event('company.updated', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/parties');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
@@ -273,9 +273,9 @@ begin
   end;
   select to_jsonb(x) into v_row from "better_supabase"."people" x where x."id" = v_id;
   if v_created then
-    null;
+    perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/parties');
   else
-    null;
+    perform "better_supabase".emit_event('person.updated', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/parties');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
@@ -325,7 +325,7 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
-    null;
+    perform "better_supabase".emit_event('company.archived', jsonb_build_object('organizationId', v_tenant, 'companyId', archive_company.id, 'name', v_name), 'companies/' || archive_company.id::text, (v_tenant::text)::text, null, 'better-supabase/parties');
   end if;
   return true;
 end;
@@ -362,7 +362,7 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
-    null;
+    perform "better_supabase".emit_event('person.archived', jsonb_build_object('organizationId', v_tenant, 'personId', archive_person.id, 'name', v_name), 'persons/' || archive_person.id::text, (v_tenant::text)::text, null, 'better-supabase/parties');
   end if;
   return true;
 end;
@@ -402,7 +402,7 @@ begin
   select x."tenant_id", set_company_person.company, set_company_person.person, v_role, coalesce(set_company_person.is_primary, false)
   from "better_supabase"."companies" x where x."id" = set_company_person.company
   on conflict ("company_id", "person_id") do update set "role" = excluded."role", "is_primary" = excluded."is_primary";
-  null;
+  perform "better_supabase".emit_event('company.person_linked', jsonb_build_object('organizationId', v_tenant, 'companyId', set_company_person.company, 'personId', set_company_person.person, 'role', v_role), 'companies/' || set_company_person.company::text, (v_tenant::text)::text, null, 'better-supabase/parties');
   return true;
 end;
 $$;
@@ -431,7 +431,7 @@ begin
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
-  null;
+  perform "better_supabase".emit_event('company.person_unlinked', jsonb_build_object('organizationId', v_tenant, 'companyId', remove_company_person.company, 'personId', remove_company_person.person, 'role', v_role), 'companies/' || remove_company_person.company::text, (v_tenant::text)::text, null, 'better-supabase/parties');
   return true;
 end;
 $$;
@@ -475,6 +475,7 @@ begin
   from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop;
+  perform "better_supabase".emit_event('company.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'companyId', merge_companies.keep, 'name', v_keep."name", 'mergedId', merge_companies.drop), 'companies/' || merge_companies.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/parties');
   perform better_supabase.audit_event(
     event_type => 'company.merged',
     category => 'data',
@@ -528,6 +529,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  perform "better_supabase".emit_event('person.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop), 'persons/' || merge_people.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/parties');
   perform better_supabase.audit_event(
     event_type => 'person.merged',
     category => 'data',

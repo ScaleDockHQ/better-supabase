@@ -1,4 +1,4 @@
--- better-supabase module: calendar (0.8.0)
+-- better-supabase module: calendar (0.9.0)
 -- @bs-module calendar@1 managed
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees. Series expand in TypeScript with the reminders block's expandRule; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -152,7 +152,7 @@ begin
   insert into "better_supabase"."calendars" ("tenant_id", "name", "tz", "owner_type", "owner_id")
   values (create_calendar.tenant, create_calendar.name, coalesce(create_calendar.tz, 'UTC'), create_calendar.owner_type, create_calendar.owner_id)
   returning "id" into v_id;
-  null;
+  perform "better_supabase".emit_event('calendar.created', jsonb_build_object('organizationId', create_calendar.tenant, 'id', v_id, 'name', create_calendar.name), 'calendars/' || v_id::text, (create_calendar.tenant)::text, null, 'better-supabase/calendar');
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -279,9 +279,9 @@ begin
   on conflict ("tenant_id", "subject_type", "subject_id")
   do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   if v_created then
-    null;
+    perform "better_supabase".emit_event('calendar_event.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', save_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   else
-    null;
+    perform "better_supabase".emit_event('calendar_event.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', save_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_calendar_event_save"(uuid)');
@@ -321,7 +321,7 @@ begin
   end if;
   delete from "better_supabase"."calendar_events" where "id" = v_id;
   delete from "better_supabase"."recurrence_rules" where "subject_type" = 'calendar_event' and "subject_id" = v_id::text;
-  null;
+  perform "better_supabase".emit_event('calendar_event.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', v_calendar), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   return true;
 end;
 $$;
@@ -357,7 +357,7 @@ begin
     ), "updated_at" = now()
   where "id" = v_id;
   delete from "better_supabase"."calendar_events" where "recurrence_id" = v_id and "original_start" = cancel_calendar_occurrence.original_start;
-  null;
+  perform "better_supabase".emit_event('calendar_event.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', v_calendar), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   return true;
 end;
 $$;
@@ -417,7 +417,7 @@ begin
   v_new_id := (v_new ->> 'id')::uuid;
   update "better_supabase"."calendar_events" set "recurrence_id" = v_new_id, "uid" = v_new_uid, "updated_at" = now()
   where "recurrence_id" = v_id and "original_start" >= split_calendar_event.split_at;
-  null;
+  perform "better_supabase".emit_event('calendar_event.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', v_calendar), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   return jsonb_build_object('id', v_new_id, 'uid', v_new_uid);
 end;
 $$;
@@ -625,7 +625,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(calendar_feed.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'calendar'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;

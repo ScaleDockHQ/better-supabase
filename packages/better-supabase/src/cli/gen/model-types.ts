@@ -35,6 +35,8 @@ export interface ColumnModel {
   readonly storage: string | undefined;
   readonly insertable: boolean;
   readonly updatable: boolean;
+  /** `false` for an app table column with `access: "server"`. */
+  readonly selectable?: false;
 }
 
 export interface RelationModel {

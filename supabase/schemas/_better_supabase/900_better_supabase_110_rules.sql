@@ -1,4 +1,4 @@
--- better-supabase module: rules (0.8.0)
+-- better-supabase module: rules (0.9.0)
 -- @bs-module rules@1 managed
 -- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -758,6 +758,7 @@ begin
   insert into "better_supabase"."rule_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
   values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
+  perform "better_supabase".emit_event('rule.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
   perform better_supabase.audit_event(
     event_type => 'rule.saved',
     category => 'configuration',
@@ -769,7 +770,8 @@ begin
     actor_id => auth.uid()
   );
   if v_row."enabled" and not coalesce(v_old."enabled", false) then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('rule.enabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
+  perform better_supabase.audit_event(
     event_type => 'rule.enabled',
     category => 'configuration',
     target_type => 'rule',
@@ -780,7 +782,8 @@ begin
     actor_id => auth.uid()
   );
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('rule.disabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
+  perform better_supabase.audit_event(
     event_type => 'rule.disabled',
     category => 'configuration',
     target_type => 'rule',
@@ -890,7 +893,8 @@ begin
   update "better_supabase"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   if v_row."enabled" then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('rule.enabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
+  perform better_supabase.audit_event(
     event_type => 'rule.enabled',
     category => 'configuration',
     target_type => 'rule',
@@ -901,7 +905,8 @@ begin
     actor_id => auth.uid()
   );
   else
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('rule.disabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
+  perform better_supabase.audit_event(
     event_type => 'rule.disabled',
     category => 'configuration',
     target_type => 'rule',
@@ -964,6 +969,7 @@ begin
     return false;
   end if;
   delete from "better_supabase"."rules" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('rule.removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/rules');
   perform better_supabase.audit_event(
     event_type => 'rule.removed',
     category => 'configuration',
@@ -1046,7 +1052,7 @@ begin
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
-    null;
+    perform "better_supabase".emit_event('rule.matched', jsonb_build_object('organizationId', v_rule."organization_id"::text, 'ruleId', v_rule."id"::text, 'version', v_rule."version", 'subjectType', v_rule."subject_type", 'subjectId', record_rule_evaluation.subject_id, 'trigger', v_rule."trigger"), 'rules/' || v_rule."id"::text, (v_rule."organization_id")::text, null, 'better-supabase/rules');
   end if;
   return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;

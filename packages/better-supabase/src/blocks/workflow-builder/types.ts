@@ -567,4 +567,19 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     /** Fires the slow alerts that are due (service role); returns how many fired. */
     check(options?: { readonly batch?: number }): AsyncResult<number>;
   };
+  /**
+   * An outbox consumer handler that passes each event to `triggers.onEvent`,
+   * for `outbox.consume("workflows", builder.sink())`. It
+   * throws when a start fails, so the outbox retries the event.
+   */
+  sink(): (events: readonly WorkflowSinkEvent[]) => Promise<void>;
+}
+
+/** An outbox row as a consumer hands it over; an `OutboxEvent` fits. */
+export interface WorkflowSinkEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly payload?: unknown;
+  readonly tenant?: string | null;
+  readonly actorId?: string | null;
 }

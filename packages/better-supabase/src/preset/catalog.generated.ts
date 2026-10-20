@@ -876,6 +876,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "ai-chat",
+        "bookings",
+        "calendar",
+        "drive",
+        "forms",
         "outbox",
         "versions"
       ],

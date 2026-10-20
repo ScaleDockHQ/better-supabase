@@ -1,4 +1,4 @@
--- better-supabase module: catalog (0.8.0)
+-- better-supabase module: catalog (0.9.0)
 -- @bs-module catalog@1 managed
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -316,9 +316,9 @@ begin
     raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
   end;
   if v_created then
-    null;
+    perform "better_supabase".emit_event('product.created', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug, 'kind', coalesce(save_product.kind, 'physical')), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
   else
-    null;
+    perform "better_supabase".emit_event('product.updated', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
@@ -371,7 +371,7 @@ begin
   end if;
   update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
   where x."id" = set_product_status.product;
-  null;
+  perform "better_supabase".emit_event('product.status_changed', jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product, 'from', v_from, 'to', set_product_status.status), 'products/' || set_product_status.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
   return jsonb_build_object('id', set_product_status.product, 'status', set_product_status.status, 'from', v_from);
 end;
 $$;
@@ -402,7 +402,7 @@ begin
     raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_PRODUCT_IN_USE';
   end if;
   delete from "better_supabase"."products" x where x."id" = delete_product.product;
-  null;
+  perform "better_supabase".emit_event('product.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_product.product), 'products/' || delete_product.product::text, (v_tenant)::text, null, 'better-supabase/catalog');
   return true;
 end;
 $$;
@@ -491,9 +491,9 @@ begin
   select v_tenant, v_id, x from unnest(v_wanted) x
   on conflict do nothing;
   if v_created then
-    null;
+    perform "better_supabase".emit_event('variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   else
-    null;
+    perform "better_supabase".emit_event('variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', save_variant.sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
@@ -564,7 +564,7 @@ begin
     raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_VARIANT_IN_USE';
   end if;
   delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
-  null;
+  perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product), 'variants/' || delete_variant.variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
   return true;
 end;
 $$;
@@ -817,7 +817,7 @@ begin
     where x."id" = v_id;
   end if;
   if v_previous is distinct from v_amount then
-    null;
+    perform "better_supabase".emit_event('catalog.price_changed', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'variantId', set_price.variant, 'priceListId', set_price.price_list, 'currency', set_price.currency, 'amount', v_amount::text, 'previousAmount', v_previous::text), 'prices/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_price_set"(uuid, bigint)');
@@ -1284,9 +1284,9 @@ begin
   on conflict ("tenant_id") do update
     set "published_at" = case when publish_storefront.published then coalesce(x."published_at", now()) end;
   if publish_storefront.published then
-    null;
+    perform "better_supabase".emit_event('storefront.published', jsonb_build_object('organizationId', publish_storefront.tenant), 'storefronts/' || publish_storefront.tenant::text, (publish_storefront.tenant)::text, null, 'better-supabase/catalog');
   else
-    null;
+    perform "better_supabase".emit_event('storefront.unpublished', jsonb_build_object('organizationId', publish_storefront.tenant), 'storefronts/' || publish_storefront.tenant::text, (publish_storefront.tenant)::text, null, 'better-supabase/catalog');
   end if;
   return publish_storefront.published;
 end;

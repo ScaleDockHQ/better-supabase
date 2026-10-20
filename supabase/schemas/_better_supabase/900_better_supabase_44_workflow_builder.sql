@@ -1,4 +1,4 @@
--- better-supabase module: workflow-builder (0.8.0)
+-- better-supabase module: workflow-builder (0.9.0)
 -- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -834,6 +834,7 @@ begin
     "permissions" = v_permissions
   where x."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('workflow.published', jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"), 'workflows/' || v_row."definition_id"::text, (v_tenant)::text, 'workflow.published:' || v_row."id"::text, 'better-supabase/workflow-builder');
   perform better_supabase.audit_event(
     event_type => 'workflow.published',
     category => 'configuration',
@@ -1931,6 +1932,7 @@ begin
       on conflict do nothing;
       if found then
         v_fired := v_fired + 1;
+        perform "better_supabase".emit_event('workflow_alert.triggered', jsonb_build_object('alertId', v_alert."id", 'organizationId', v_run."tenant_id"::text, 'definition', v_alert."definition_id", 'onEvent', v_alert."on_event", 'channel', v_alert."channel", 'runId', v_run."id", 'status', v_run."status", 'error', v_run."error"), 'workflow-runs/' || v_run."id", (v_run."tenant_id")::text, 'workflow_alert.triggered:' || v_alert."id" || ':' || v_run."id", 'better-supabase/workflow-builder');
       end if;
   end loop;
   return null;
@@ -1972,6 +1974,7 @@ begin
       on conflict do nothing;
       if found then
         v_fired := v_fired + 1;
+        perform "better_supabase".emit_event('workflow_alert.triggered', jsonb_build_object('alertId', v_alert."id", 'organizationId', v_run."tenant_id"::text, 'definition', v_alert."definition_id", 'onEvent', v_alert."on_event", 'channel', v_alert."channel", 'runId', v_run."id", 'status', v_run."status", 'error', v_run."error"), 'workflow-runs/' || v_run."id", (v_run."tenant_id")::text, 'workflow_alert.triggered:' || v_alert."id" || ':' || v_run."id", 'better-supabase/workflow-builder');
       end if;
   end loop;
   return v_fired;

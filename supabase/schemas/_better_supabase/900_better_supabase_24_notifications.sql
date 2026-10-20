@@ -1,4 +1,4 @@
--- better-supabase module: notifications (0.8.0)
+-- better-supabase module: notifications (0.9.0)
 -- @bs-module notifications@8 managed
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -455,7 +455,7 @@ begin
         using v_event;
     end if;
   end;
-  null;
+  perform "better_supabase".emit_event('notification.created', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'recipientIds', to_jsonb(v_recipients)), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.created:' || v_event::text, 'better-supabase/notifications');
   return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));
 end;
 $$;
@@ -1191,6 +1191,19 @@ begin
           coalesce(record_delivery_event.detail, '{}')
         );
       end if;
+    end if;
+    if v_kind = 'delayed' then
+      perform "better_supabase".emit_event('notification.delayed', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.delayed:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'delivered' then
+      perform "better_supabase".emit_event('notification.delivered', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.delivered:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'opened' then
+      perform "better_supabase".emit_event('notification.opened', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.opened:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'clicked' then
+      perform "better_supabase".emit_event('notification.clicked', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.clicked:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'bounced' then
+      perform "better_supabase".emit_event('notification.bounced', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.bounced:' || v_row::text, 'better-supabase/notifications');
+    elsif v_kind = 'complained' then
+      perform "better_supabase".emit_event('notification.complained', jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'channel', v_channel, 'deliveryId', v_delivery, 'provider', record_delivery_event.provider, 'providerEventId', record_delivery_event.provider_event_id, 'subjectType', v_subject_type, 'subjectId', v_subject_id), 'notifications/' || v_event::text, (v_tenant)::text, 'notification.complained:' || v_row::text, 'better-supabase/notifications');
     end if;
   end if;
   return jsonb_build_object(

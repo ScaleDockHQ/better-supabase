@@ -315,6 +315,17 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     const other = await session.organization(outsider);
     await session.as(outsider);
 
+    expect(
+      await session.hint(
+        "better_supabase.create_share_link($1, 'calendar', $2, 'view')",
+        [other, calendarId],
+      ),
+    ).toBe("SHARE_SUBJECT_NOT_FOUND");
+
+    // The service role skips the subject check, so the feed's own tenant
+    // check is what refuses this link.
+    await session.service();
+
     const foreign = await session.value<{ token: string }>(
       "better_supabase.create_share_link($1, 'calendar', $2, 'view')",
       [other, calendarId],

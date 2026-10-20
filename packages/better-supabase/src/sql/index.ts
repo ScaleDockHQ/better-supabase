@@ -32,6 +32,8 @@ export {
 
 export { resolveModule } from "../config/blocks.ts";
 
+export { appTableEventTypes } from "../config/app-tables.ts";
+
 export { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 
 export type { BlockOptionsRegistry } from "../blocks/options-registry.ts";

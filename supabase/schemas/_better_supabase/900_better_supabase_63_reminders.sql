@@ -1,4 +1,4 @@
--- better-supabase module: reminders (0.8.0)
+-- better-supabase module: reminders (0.9.0)
 -- @bs-module reminders@1 managed
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -210,7 +210,7 @@ begin
   if not found then
     return false;
   end if;
-  null;
+  perform "better_supabase".emit_event('reminder.sent', jsonb_build_object('organizationId', v_tenant, 'id', mark_reminder_sent.reminder, 'subjectType', v_subject_type, 'subjectId', v_subject_id, 'userId', v_user), 'reminders/' || mark_reminder_sent.reminder::text, (v_tenant)::text, null, 'better-supabase/reminders');
   return true;
 end;
 $$;

@@ -34,6 +34,7 @@ import {
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
+import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
@@ -147,6 +148,7 @@ const blockSet = defineBlocks(blockConfig, {
   signingKeys: signingKeysBlock,
   dataLifecycle: dataLifecycleBlock,
   teams: teamsBlock,
+  outbox: outboxBlock.with({ source: "https://example.bettersupabase.com" }),
 });
 
 /**

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -111,6 +111,24 @@ describe("adopt", () => {
     );
 
     expect(again.output).toContain("already holds this mapping");
+  });
+
+  it("sets doctor.migrationSafety.since to the newest migration", async () => {
+    await writeFile(configPath(), json({}));
+    await mkdir(join(dir, "supabase/migrations"), { recursive: true });
+    await writeFile(join(dir, "supabase/migrations/20260101000000_a.sql"), "");
+    await writeFile(join(dir, "supabase/migrations/20260301000000_b.sql"), "");
+
+    const written = await runAdopt(
+      resolveConfig({}, dir),
+      { block: "teams" },
+      { configFile: configPath(), tables },
+    );
+
+    expect(written.code).toBe(0);
+    expect(await readConfig()).toMatchObject({
+      doctor: { migrationSafety: { since: "20260301000000" } },
+    });
   });
 
   it("writes nothing and exits 1 when something can't map", async () => {

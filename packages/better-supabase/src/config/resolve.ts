@@ -340,6 +340,9 @@ export function resolveConfig(
       ...(config.doctor?.claimsLimit === undefined
         ? {}
         : { claimsLimit: config.doctor.claimsLimit }),
+      ...(config.doctor?.migrationSafety === undefined
+        ? {}
+        : { migrationSafety: config.doctor.migrationSafety }),
     },
     gen: {
       ...config.gen,

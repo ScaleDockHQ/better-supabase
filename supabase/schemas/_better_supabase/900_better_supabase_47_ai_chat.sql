@@ -1,4 +1,4 @@
--- better-supabase module: ai-chat (0.8.0)
+-- better-supabase module: ai-chat (0.9.0)
 -- @bs-module ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -987,7 +987,7 @@ begin
     update "better_supabase"."ai_runs" x set "assistant_message_id" = v_id where x."id" = save_ai_assistant_message.run and x."chat_id" = v_chat."id";
   end if;
   if v_status = 'complete' then
-    null;
+    perform "better_supabase".emit_event('ai_chat_message.completed', jsonb_build_object('chatId', v_chat."id", 'messageId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'model', coalesce(save_ai_assistant_message.model, v_chat."model"), 'status', v_status), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, 'ai_chat_message.completed:' || v_chat."id"::text || ':' || v_id, 'better-supabase/ai-chat');
   end if;
   perform "better_supabase"."ai_chat_notify"(v_chat."id", v_chat."owner_id", 'message.saved', jsonb_build_object('messageId', v_id), not v_chat."is_temporary");
   return jsonb_build_object('message_id', v_id, 'parent_id', save_ai_assistant_message.parent_id, 'created', v_created);
@@ -1229,6 +1229,7 @@ begin
   where x."approval_id" = v_row."approval_id"
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
+  perform "better_supabase".emit_event('ai_tool_approval.decided', jsonb_build_object('organizationId', (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision), 'ai-chats/' || v_row."chat_id"::text, ((select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"))::text, 'ai_tool_approval.decided:' || v_row."approval_id", 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_tool_approval.decided',
     category => 'ai',
@@ -1327,7 +1328,8 @@ begin
   end if;
   if set_ai_tool_policy.policy is null then
     delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('ai_tool_policy.set', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
+  perform better_supabase.audit_event(
     event_type => 'ai_tool_policy.set',
     category => 'ai',
     target_type => 'ai_tool_policy',
@@ -1340,6 +1342,7 @@ begin
   insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
   on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  perform "better_supabase".emit_event('ai_tool_policy.set', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_tool_policy.set',
     category => 'ai',
@@ -1505,6 +1508,7 @@ begin
   insert into "better_supabase"."ai_chat_shares" ("chat_id", "token_hash", "leaf_id", "created_by")
   values (v_chat."id", encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), v_leaf, auth.uid())
   returning "id", "created_at" into v_id, v_created;
+  perform "better_supabase".emit_event('ai_chat.shared', jsonb_build_object('chatId', v_chat."id", 'shareId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'leafId', v_leaf), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, 'ai_chat.shared:' || v_id::text, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_chat.shared',
     category => 'ai',
@@ -1547,6 +1551,7 @@ begin
     return false;
   end if;
   select * into v_chat from "better_supabase"."ai_chats" c where c."id" = v_chat_id;
+  perform "better_supabase".emit_event('ai_chat.share_revoked', jsonb_build_object('chatId', v_chat."id", 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id"), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_chat.share_revoked',
     category => 'ai',

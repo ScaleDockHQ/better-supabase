@@ -17267,7 +17267,7 @@ export function TeamPicker({
 
 ## Record grid
 
-An app table as a data grid with search, filters, saved views and bulk actions on the selected rows. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.
+An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including Set field through `appTables.set`. It loads its data on the server through the block's client; the [saved-views block](https://bettersupabase.com/blocks/saved-views) must be installed (`npx better-supabase add saved-views`). Page: https://bettersupabase.com/recipes/record-grid.
 
 Web, with shadcn components:
 
@@ -17537,6 +17537,170 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
   );
 }
 
+const UNASSIGNED = "unassigned";
+
+type SetField = "due_on" | "assignee_id";
+
+/**
+ * Sets one field on the selected tasks with the bulk block's
+ * `appTables.set`. An empty value clears the field.
+ */
+function SetFieldDialog({
+  ids,
+  members,
+  onDone,
+}: {
+  ids: readonly string[];
+  members: readonly MemberOption[];
+  onDone: () => void;
+}) {
+  const t = useExtracted("projects");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+  const [open, setOpen] = useState(false);
+  const [field, setField] = useState<SetField>("due_on");
+  const [dueOn, setDueOn] = useState("");
+  const [assignee, setAssignee] = useState(UNASSIGNED);
+
+  const set = useAction(setTaskField, {
+    onSuccess: (count) => {
+      toast.success(
+        t("{count, plural, one {# task} other {# tasks}} changed", { count }),
+      );
+      setOpen(false);
+      onDone();
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const fields = [
+    { value: "due_on", label: t("Due date") },
+    { value: "assignee_id", label: t("Assignee") },
+  ] as const satisfies readonly { value: SetField; label: string }[];
+
+  const people = [
+    { value: UNASSIGNED, label: t("Unassigned") },
+    ...members.map((member) => ({ value: member.userId, label: member.name })),
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
+        {t("Set field")}
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="grid gap-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void set.run({
+              ids: [...ids],
+              values:
+                field === "due_on"
+                  ? { due_on: dueOn === "" ? null : dueOn }
+                  : {
+                      assignee_id: assignee === UNASSIGNED ? null : assignee,
+                    },
+            });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {t(
+                "Set a field on {count, plural, one {# task} other {# tasks}}",
+                { count: ids.length },
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {t("Leave the value empty to clear the field.")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-field`}>{t("Field")}</FieldLabel>
+              <Select
+                value={field}
+                items={fields}
+                onValueChange={(value) => {
+                  const picked = fields.find((each) => each.value === value);
+
+                  if (picked) {
+                    setField(picked.value);
+                  }
+                }}
+              >
+                <SelectTrigger id={`${fieldId}-field`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fields.map((each) => (
+                    <SelectItem key={each.value} value={each.value}>
+                      {each.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {field === "due_on" ? (
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-due`}>
+                  {t("Due date")}
+                </FieldLabel>
+                <Input
+                  id={`${fieldId}-due`}
+                  type="date"
+                  value={dueOn}
+                  onChange={(event) => {
+                    setDueOn(event.target.value);
+                  }}
+                />
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-assignee`}>
+                  {t("Assignee")}
+                </FieldLabel>
+                <Select
+                  value={assignee}
+                  items={people}
+                  onValueChange={(value) => {
+                    const person = people.find((each) => each.value === value);
+
+                    if (person) {
+                      setAssignee(person.value);
+                    }
+                  }}
+                >
+                  <SelectTrigger id={`${fieldId}-assignee`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {people.map((person) => (
+                      <SelectItem key={person.value} value={person.value}>
+                        {person.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              {t("Cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={set.pending}>
+              {t("Apply")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type GridRow = TaskRow & {
   readonly projectName: string;
   readonly assigneeName: string;
@@ -17568,7 +17732,8 @@ function StatusCell({ row }: GridCell) {
 
 /**
  * Tasks in a ReUI data grid. The checkboxes feed a bulk bar that sets the
- * status of the selected rows or deletes them in one statement.
+ * status of the selected rows, sets another field through the bulk block,
+ * or deletes them in one statement.
  */
 export function TaskGrid({
   rows,
@@ -17652,6 +17817,13 @@ export function TaskGrid({
               {t("Mark {status}", { status: statusLabel(status) })}
             </Button>
           ))}
+          <SetFieldDialog
+            ids={ids}
+            members={members}
+            onDone={() => {
+              setSelection({});
+            }}
+          />
           <Button
             size="sm"
             variant="destructive"
@@ -17931,14 +18103,16 @@ export async function ProjectPage({
     notFound();
   }
 
-  const [project, tasks, members, t, format, locale] = await Promise.all([
-    settle(() => getProject(id)),
-    settle(() => getTasks({ q: "", status: null, projectId: id })),
-    settle(() => getMemberOptions(organizationId)),
-    getExtracted("projects"),
-    getFormatter(),
-    getLocale(),
-  ]);
+  const [project, tasks, members, history, t, format, locale] =
+    await Promise.all([
+      settle(() => getProject(id)),
+      settle(() => getTasks({ q: "", status: null, projectId: id })),
+      settle(() => getMemberOptions(organizationId)),
+      settle(() => getProjectHistory(id)),
+      getExtracted("projects"),
+      getFormatter(),
+      getLocale(),
+    ]);
 
   if (project.kind !== "ok" || tasks.kind !== "ok" || members.kind !== "ok") {
     return <ProjectLoadError title={t("The project didn't load")} />;
@@ -17982,7 +18156,10 @@ export async function ProjectPage({
                 count: tasks.data.length,
               })}
             </CardDescription>
-            <CardAction>
+            <CardAction className="flex items-center gap-2">
+              {can(session, "imports.manage") ? (
+                <TaskImportDialog projectId={record.id} />
+              ) : null}
               <TaskFormDialog
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}
@@ -18068,6 +18245,16 @@ export async function ProjectPage({
             </dl>
           </CardContent>
         </Card>
+        {history.kind === "ok" ? (
+          <ProjectHistory
+            projectId={record.id}
+            versions={history.data}
+            canSave={can(session, "versions.create")}
+            canRestore={can(session, "versions.restore")}
+          />
+        ) : (
+          <ProjectLoadError title={t("The history didn't load")} />
+        )}
         <Card size="sm" data-recipe="tag-input">
           <CardHeader>
             <CardTitle>{t("Tags")}</CardTitle>
@@ -18647,6 +18834,491 @@ export async function TaskGantt({
         </div>
       </CardContent>
     </Card>
+  );
+}
+```
+
+## Record history
+
+Every version `subject.versions` kept of a row, with the fields each one changed and a restore per field. It loads its data on the server through the block's client; the [versions block](https://bettersupabase.com/blocks/versions) must be installed (`npx better-supabase add versions`). Page: https://bettersupabase.com/recipes/record-history.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button card empty
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/project-history.tsx"
+interface FieldChange {
+  readonly field: ProjectHistoryField;
+  readonly before: string | undefined;
+  readonly after: string | undefined;
+}
+
+/** The fields a version changed from the one before it; all of them for the first. */
+function changesOf(
+  version: ProjectVersion,
+  previous: ProjectVersion | undefined,
+): readonly FieldChange[] {
+  return PROJECT_HISTORY_FIELDS.flatMap((field) => {
+    const after = version.fields[field];
+    const before = previous?.fields[field];
+
+    return previous !== undefined && before === after
+      ? []
+      : [{ field, before, after }];
+  });
+}
+
+/**
+ * The project's history: every version the snapshot trigger kept, with the
+ * fields it changed. Restore writes one field of an older version back and
+ * leaves the others as they are.
+ */
+export function ProjectHistory({
+  projectId,
+  versions,
+  canSave,
+  canRestore,
+}: {
+  projectId: string;
+  versions: readonly ProjectVersion[];
+  canSave: boolean;
+  canRestore: boolean;
+}) {
+  const t = useExtracted("projects");
+
+  return (
+    <Card size="sm" data-recipe="record-history">
+      <CardHeader>
+        <CardTitle>{t("History")}</CardTitle>
+        <CardDescription>
+          {t("Each change to the name, budget or currency.")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {versions.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HistoryIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No history yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("The next change to this project appears here.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            {canSave ? (
+              <EmptyContent>
+                <SaveVersionButton projectId={projectId} />
+              </EmptyContent>
+            ) : null}
+          </Empty>
+        ) : (
+          <ol className="flex flex-col divide-y" data-testid="project-history">
+            {versions.map((version, index) => (
+              <VersionEntry
+                key={version.id}
+                projectId={projectId}
+                version={version}
+                changes={changesOf(version, versions[index + 1])}
+                canRestore={canRestore && index > 0}
+              />
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function VersionEntry({
+  projectId,
+  version,
+  changes,
+  canRestore,
+}: {
+  projectId: string;
+  version: ProjectVersion;
+  changes: readonly FieldChange[];
+  canRestore: boolean;
+}) {
+  const t = useExtracted("projects");
+  const format = useFormatter();
+  const locale = useLocale();
+  const errorMessage = useErrorMessage();
+
+  const restore = useAction(restoreProjectFields, {
+    onSuccess: () => {
+      toast.success(t("Field restored"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const label = {
+    name: t("Name"),
+    budget_minor: t("Budget"),
+    currency: t("Currency"),
+  } as const satisfies Record<ProjectHistoryField, string>;
+
+  const source = {
+    manual: t("Saved"),
+    auto: t("Edited"),
+    restore: t("Restored"),
+  } as const satisfies Record<ProjectVersion["source"], string>;
+
+  const shown = (field: ProjectHistoryField, value: string | undefined) => {
+    if (value === undefined) {
+      return t("Empty");
+    }
+
+    return field === "budget_minor"
+      ? formatMoney(
+          money(BigInt(value), version.fields.currency ?? "EUR"),
+          locale,
+        )
+      : value;
+  };
+
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">
+          {t("Version {number}", { number: String(version.number) })}
+        </span>
+        <Badge variant="secondary">{source[version.source]}</Badge>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {format.dateTime(version.createdAt, {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </span>
+      </div>
+      <dl className="flex flex-col gap-1">
+        {changes.map((change) => (
+          <div key={change.field} className="flex items-center gap-2 text-sm">
+            <dt className="w-20 shrink-0 text-muted-foreground">
+              {label[change.field]}
+            </dt>
+            <dd className="flex min-w-0 flex-1 items-center gap-1">
+              {change.before === undefined ? null : (
+                <>
+                  <span className="truncate text-muted-foreground line-through">
+                    {shown(change.field, change.before)}
+                  </span>
+                  <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" />
+                </>
+              )}
+              <span className="truncate">
+                {shown(change.field, change.after)}
+              </span>
+            </dd>
+            {canRestore ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={restore.pending}
+                aria-label={t("Restore {field} from version {number}", {
+                  field: label[change.field],
+                  number: String(version.number),
+                })}
+                onClick={() => {
+                  void restore.run({
+                    projectId,
+                    versionId: version.id,
+                    fields: [change.field],
+                  });
+                }}
+              >
+                {t("Restore")}
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </dl>
+    </li>
+  );
+}
+
+function SaveVersionButton({ projectId }: { projectId: string }) {
+  const t = useExtracted("projects");
+  const errorMessage = useErrorMessage();
+
+  const save = useAction(saveProjectVersion, {
+    onSuccess: () => {
+      toast.success(t("Version saved"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={save.pending}
+      onClick={() => {
+        void save.run({ projectId });
+      }}
+    >
+      <HistoryIcon />
+      {t("Save a version")}
+    </Button>
+  );
+}
+```
+
+## Upsert import
+
+Paste CSV, map its columns, preview the rows it creates and changes, then upsert them on one of the table's unique sets. It loads its data on the server through the block's client; the [imports block](https://bettersupabase.com/blocks/imports) must be installed (`npx better-supabase add imports`). Page: https://bettersupabase.com/recipes/upsert-import.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button dialog field select skeleton textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-import-dialog.tsx"
+const SKIP = "skip";
+
+type Choice = TaskImportField | typeof SKIP;
+
+function isChoice(value: unknown): value is Choice {
+  return value === SKIP || TASK_IMPORT_FIELDS.some((field) => field === value);
+}
+
+/** The mapped columns, without the skipped ones. */
+function mappedOnly(
+  mapping: Readonly<Record<string, Choice>>,
+): Record<string, TaskImportField> {
+  return Object.fromEntries(
+    Object.entries(mapping).flatMap(([header, choice]) =>
+      choice === SKIP ? [] : [[header, choice]],
+    ),
+  );
+}
+
+/**
+ * Imports tasks into the project from pasted CSV: map the columns, preview
+ * what the file creates and changes, then run it. A task with the same
+ * title in the project is updated instead of added twice.
+ */
+export function TaskImportDialog({ projectId }: { projectId: string }) {
+  const t = useExtracted("projects");
+  const id = useId();
+  const errorMessage = useErrorMessage();
+  const [open, setOpen] = useState(false);
+  const [csv, setCsv] = useState("");
+  const [mapping, setMapping] = useState<Record<string, Choice>>({});
+  const preview = useAction(previewTaskImport);
+
+  const run = useAction(runTaskImport, {
+    onSuccess: ({ status, imported }) => {
+      if (status === "completed") {
+        toast.success(
+          t("{count, plural, one {# task} other {# tasks}} imported", {
+            count: imported,
+          }),
+        );
+        setOpen(false);
+        setCsv("");
+        setMapping({});
+        preview.reset();
+      } else {
+        toast.error(t("The file has rows that need fixing."));
+      }
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const [headers = []] = csv.trim() === "" ? [] : parseCsv(csv);
+  const titleMapped = Object.values(mapping).includes("title");
+
+  const label = {
+    title: t("Title"),
+    status: t("Status"),
+    dueOn: t("Due date"),
+  } as const satisfies Record<TaskImportField, string>;
+
+  const choices = [
+    { value: SKIP, label: t("Skip") },
+    ...TASK_IMPORT_FIELDS.map((field) => ({
+      value: field,
+      label: label[field],
+    })),
+  ];
+
+  const changeCsv = (text: string) => {
+    setCsv(text);
+    preview.reset();
+
+    const [first = []] = text.trim() === "" ? [] : parseCsv(text);
+    const suggested = suggestMapping(first, TASK_IMPORT_FIELDS);
+
+    setMapping(
+      Object.fromEntries(
+        first.map((header) => {
+          const field = suggested[header];
+
+          return [header, isChoice(field) ? field : SKIP];
+        }),
+      ),
+    );
+  };
+
+  const input = { projectId, csv, mapping: mappedOnly(mapping) };
+
+  const runPreview = () => {
+    void preview.run(input);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
+        <UploadIcon />
+        {t("Import")}
+      </DialogTrigger>
+      <DialogContent data-recipe="upsert-import">
+        <DialogHeader>
+          <DialogTitle>{t("Import tasks")}</DialogTitle>
+          <DialogDescription>
+            {t(
+              "Paste CSV with a title column. A title the project already has updates that task.",
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor={`${id}-csv`}>{t("CSV")}</FieldLabel>
+            <Textarea
+              id={`${id}-csv`}
+              rows={5}
+              value={csv}
+              placeholder={"title,status,due\nWrite the brief,todo,2026-11-02"}
+              onChange={(event) => {
+                changeCsv(event.target.value);
+              }}
+            />
+          </Field>
+          {headers.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {headers.map((header) => (
+                <Field key={header}>
+                  <FieldLabel htmlFor={`${id}-${header}`}>{header}</FieldLabel>
+                  <Select
+                    value={mapping[header] ?? SKIP}
+                    items={choices}
+                    onValueChange={(value) => {
+                      if (isChoice(value)) {
+                        setMapping((current) => ({
+                          ...current,
+                          [header]: value,
+                        }));
+                        preview.reset();
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      id={`${id}-${header}`}
+                      size="sm"
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {choices.map((choice) => (
+                        <SelectItem key={choice.value} value={choice.value}>
+                          {choice.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ))}
+            </div>
+          ) : null}
+          {preview.error ? (
+            <Alert variant="destructive">
+              <TriangleAlertIcon />
+              <AlertTitle>{t("The preview didn't load")}</AlertTitle>
+              <AlertDescription>{errorMessage(preview.error)}</AlertDescription>
+              <AlertAction>
+                <Button size="sm" variant="outline" onClick={runPreview}>
+                  {t("Retry")}
+                </Button>
+              </AlertAction>
+            </Alert>
+          ) : preview.pending ? (
+            <Skeleton className="h-8" />
+          ) : preview.data ? (
+            <div className="flex flex-col gap-2" data-testid="import-preview">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="success-light">
+                  {t("{count, plural, one {# new} other {# new}}", {
+                    count: preview.data.created,
+                  })}
+                </Badge>
+                <Badge variant="info-light">
+                  {t("{count, plural, one {# changed} other {# changed}}", {
+                    count: preview.data.changed,
+                  })}
+                </Badge>
+                <Badge variant="secondary">
+                  {t("{count, plural, one {# unchanged} other {# unchanged}}", {
+                    count: preview.data.unchanged,
+                  })}
+                </Badge>
+                {preview.data.errors.length > 0 ? (
+                  <Badge variant="destructive-light">
+                    {t("{count, plural, one {# error} other {# errors}}", {
+                      count: preview.data.errors.length,
+                    })}
+                  </Badge>
+                ) : null}
+              </div>
+              {preview.data.errors.slice(0, 5).map((error) => (
+                <p
+                  key={`${error.row}:${error.message}`}
+                  className="text-xs text-destructive"
+                >
+                  {t("Row {row}: {message}", {
+                    row: String(error.row),
+                    message: error.message,
+                  })}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="outline" />}>
+            {t("Cancel")}
+          </DialogClose>
+          {preview.data && preview.data.errors.length === 0 ? (
+            <Button
+              disabled={run.pending}
+              onClick={() => {
+                void run.run(input);
+              }}
+            >
+              {t("Import")}
+            </Button>
+          ) : (
+            <Button
+              disabled={!titleMapped || preview.pending}
+              onClick={runPreview}
+            >
+              {t("Preview")}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 ```

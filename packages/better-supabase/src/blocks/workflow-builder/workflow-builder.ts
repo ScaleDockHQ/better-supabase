@@ -16,6 +16,7 @@ import type {
   WorkflowBuilder,
   WorkflowBuilderHooks,
   WorkflowDefinition,
+  WorkflowSinkEvent,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowVersion,
@@ -92,6 +93,7 @@ export type {
   WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
+  WorkflowSinkEvent,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
@@ -865,6 +867,7 @@ export function createWorkflowBuilder<
       check: (check = {}) =>
         serviceCall("check_workflow_alerts", { batch: check.batch }, Number),
     },
+    sink: () => workflowSink((event) => builder.triggers.onEvent(event)),
   };
 
   return hooked(builder, options);
@@ -902,6 +905,12 @@ function hooked<F extends object>(
     { block: "workflow-builder", ...logger },
   );
 
+  const triggers = withBlockHooks(
+    builder.triggers,
+    hooks.triggers,
+    block("triggers"),
+  );
+
   return {
     ...builder,
     run: top.run,
@@ -916,11 +925,7 @@ function hooked<F extends object>(
       hooks.versions,
       block("versions"),
     ),
-    triggers: withBlockHooks(
-      builder.triggers,
-      hooks.triggers,
-      block("triggers"),
-    ),
+    triggers,
     credentials: withBlockHooks(
       builder.credentials,
       hooks.credentials,
@@ -933,6 +938,24 @@ function hooked<F extends object>(
       block("nodeRuns"),
     ),
     alerts: withBlockHooks(builder.alerts, hooks.alerts, block("alerts")),
+    sink: () => workflowSink((event) => triggers.onEvent(event)),
+  };
+}
+
+/** The outbox handler `sink()` returns, over a `triggers.onEvent`. */
+function workflowSink(
+  onEvent: WorkflowBuilder["triggers"]["onEvent"],
+): (events: readonly WorkflowSinkEvent[]) => Promise<void> {
+  return async (events) => {
+    for (const event of events) {
+      await onEvent({
+        id: event.id,
+        type: event.type,
+        payload: event.payload,
+        ...(event.tenant == null ? {} : { tenant: event.tenant }),
+        ...(event.actorId == null ? {} : { actorId: event.actorId }),
+      }).orThrow();
+    }
   };
 }
 

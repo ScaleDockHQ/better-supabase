@@ -1,4 +1,4 @@
--- better-supabase module: organizations (0.8.0)
+-- better-supabase module: organizations (0.9.0)
 -- @bs-module organizations@1 adopt
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -119,6 +119,7 @@ begin
         using organization, owner;
     end if;
   end;
+  perform "better_supabase".emit_event('organization.created', jsonb_build_object('organizationId', organization::text, 'userId', owner, 'role', 'owner'), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.created',
     category => 'configuration',
@@ -178,6 +179,7 @@ begin
         using organization, attrs;
     end if;
   end;
+  perform "better_supabase".emit_event('organization.updated', jsonb_build_object('organizationId', organization::text, 'userId', auth.uid()), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.updated',
     category => 'configuration',
@@ -210,6 +212,7 @@ begin
     return false;
   end if;
   delete from "public"."memberships" where "organization_id" = organization;
+  perform "better_supabase".emit_event('organization.deleted', jsonb_build_object('organizationId', organization::text, 'userId', auth.uid()), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.deleted',
     category => 'configuration',
@@ -350,6 +353,7 @@ begin
         using organization, member, 'role';
     end if;
   end;
+  perform "better_supabase".emit_event('organization.role_changed', jsonb_build_object('organizationId', organization::text, 'userId', member, 'role', role, 'previousRole', previous), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.role_changed',
     category => 'membership',
@@ -397,6 +401,7 @@ begin
         using organization, member, 'removed';
     end if;
   end;
+  perform "better_supabase".emit_event('organization.member_removed', jsonb_build_object('organizationId', organization::text, 'userId', member), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.member_removed',
     category => 'membership',
@@ -434,6 +439,7 @@ begin
         using organization, me, 'left';
     end if;
   end;
+  perform "better_supabase".emit_event('organization.member_left', jsonb_build_object('organizationId', organization::text, 'userId', me), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.member_left',
     category => 'membership',
@@ -500,6 +506,7 @@ begin
         using organization, new_owner, 'owner';
     end if;
   end;
+  perform "better_supabase".emit_event('organization.ownership_transferred', jsonb_build_object('organizationId', organization::text, 'userId', new_owner, 'role', 'owner'), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   perform better_supabase.audit_event(
     event_type => 'organization.ownership_transferred',
     category => 'membership',
@@ -558,7 +565,7 @@ begin
   set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || jsonb_build_object('tenant_id', organization::text)
   where id = me;
   update "public"."memberships" set "last_used_at" = now() where "organization_id" = organization and "user_id" = me;
-  null;
+  perform "better_supabase".emit_event('organization.switched', jsonb_build_object('organizationId', organization::text, 'userId', me), 'organizations/' || organization::text, (organization)::text, null, 'better-supabase/organizations');
   return jsonb_build_object('organization_id', organization, 'refresh', true);
 end;
 $$;

@@ -22,12 +22,15 @@ import { Link } from "@/i18n/navigation";
 import {
   getMemberOptions,
   getProject,
+  getProjectHistory,
   getTasks,
   settle,
 } from "../project-queries";
 import { PROJECT_SUBJECT } from "../project-types";
+import { ProjectHistory } from "./project-history";
 import { ProjectLoadError } from "./project-load-error";
 import { TaskFormDialog } from "./task-form-dialog";
+import { TaskImportDialog } from "./task-import-dialog";
 import { TaskStatusBadge } from "./task-status-badge";
 
 // #region recipe:record-page
@@ -48,14 +51,16 @@ export async function ProjectPage({
     notFound();
   }
 
-  const [project, tasks, members, t, format, locale] = await Promise.all([
-    settle(() => getProject(id)),
-    settle(() => getTasks({ q: "", status: null, projectId: id })),
-    settle(() => getMemberOptions(organizationId)),
-    getExtracted("projects"),
-    getFormatter(),
-    getLocale(),
-  ]);
+  const [project, tasks, members, history, t, format, locale] =
+    await Promise.all([
+      settle(() => getProject(id)),
+      settle(() => getTasks({ q: "", status: null, projectId: id })),
+      settle(() => getMemberOptions(organizationId)),
+      settle(() => getProjectHistory(id)),
+      getExtracted("projects"),
+      getFormatter(),
+      getLocale(),
+    ]);
 
   if (project.kind !== "ok" || tasks.kind !== "ok" || members.kind !== "ok") {
     return <ProjectLoadError title={t("The project didn't load")} />;
@@ -99,7 +104,10 @@ export async function ProjectPage({
                 count: tasks.data.length,
               })}
             </CardDescription>
-            <CardAction>
+            <CardAction className="flex items-center gap-2">
+              {can(session, "imports.manage") ? (
+                <TaskImportDialog projectId={record.id} />
+              ) : null}
               <TaskFormDialog
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}
@@ -185,6 +193,16 @@ export async function ProjectPage({
             </dl>
           </CardContent>
         </Card>
+        {history.kind === "ok" ? (
+          <ProjectHistory
+            projectId={record.id}
+            versions={history.data}
+            canSave={can(session, "versions.create")}
+            canRestore={can(session, "versions.restore")}
+          />
+        ) : (
+          <ProjectLoadError title={t("The history didn't load")} />
+        )}
         <Card size="sm" data-recipe="tag-input">
           <CardHeader>
             <CardTitle>{t("Tags")}</CardTitle>
@@ -215,6 +233,7 @@ export function ProjectPageSkeleton() {
       </div>
       <div className="flex flex-col gap-6">
         <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
         <Skeleton className="h-32 rounded-xl" />
       </div>
     </div>

@@ -15,7 +15,7 @@ export const RECORD_RECIPES: readonly RecipeSource[] = [
     category: "App tables",
     kind: "screen",
     description:
-      "An app table as a data grid with search, filters, saved views and bulk actions on the selected rows.",
+      "An app table as a data grid with search, filters, saved views and bulk actions on the selected rows, including Set field through `appTables.set`.",
     web: {
       file: `${PROJECTS}/task-grid.tsx`,
       components: [
@@ -111,6 +111,43 @@ export const RECORD_RECIPES: readonly RecipeSource[] = [
     web: {
       file: `${PROJECTS}/task-gantt.tsx`,
       components: ["badge", "button", "card"],
+      glue: [],
+    },
+  },
+  {
+    slug: "record-history",
+    title: "Record history",
+    blocks: ["versions"],
+    category: "App tables",
+    kind: "component",
+    description:
+      "Every version `subject.versions` kept of a row, with the fields each one changed and a restore per field.",
+    web: {
+      file: `${PROJECTS}/project-history.tsx`,
+      components: ["badge", "button", "card", "empty"],
+      glue: [],
+    },
+  },
+  {
+    slug: "upsert-import",
+    title: "Upsert import",
+    blocks: ["imports"],
+    category: "App tables",
+    kind: "component",
+    description:
+      "Paste CSV, map its columns, preview the rows it creates and changes, then upsert them on one of the table's unique sets.",
+    web: {
+      file: `${PROJECTS}/task-import-dialog.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "dialog",
+        "field",
+        "select",
+        "skeleton",
+        "textarea",
+      ],
       glue: [],
     },
   },

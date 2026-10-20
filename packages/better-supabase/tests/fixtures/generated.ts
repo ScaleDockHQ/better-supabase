@@ -429,6 +429,7 @@ export type Models = {
       lead_id: string | null;
       label_id: string | null;
       deleted_at: string | null;
+      internal_notes: string | null;
     };
     Insert: {
       id?: string;
@@ -441,6 +442,7 @@ export type Models = {
       lead_id?: string | null;
       label_id?: string | null;
       deleted_at?: string | null;
+      internal_notes?: string | null;
     };
     Update: {
       id?: string;
@@ -453,6 +455,7 @@ export type Models = {
       lead_id?: string | null;
       label_id?: string | null;
       deleted_at?: string | null;
+      internal_notes?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -652,7 +655,9 @@ export type Models = {
       project: { table: "projects"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
-    UniqueKeys: Record<never, never>;
+    UniqueKeys: {
+      tasks_project_id_title_key: readonly ["project_id", "title"];
+    };
     Checks: "tasks_status_check" | "tasks_title_check";
     ForeignKeys: "tasks_assignee_id_fkey" | "tasks_organization_id_fkey" | "tasks_project_id_fkey";
     Flags: {
@@ -690,6 +695,15 @@ export type Models = {
 };
 
 export type Functions = {
+  app_table_set: {
+    Args: {
+      args: Json | null;
+      subject_id: string | null;
+      subject_type: string | null;
+      tenant: string | null;
+    };
+    Returns: undefined;
+  };
   customer_note_counts: {
     Args: {
       p_customer_ids?: string[] | null;

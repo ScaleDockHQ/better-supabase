@@ -1,4 +1,4 @@
--- better-supabase module: saved-views (0.8.0)
+-- better-supabase module: saved-views (0.9.0)
 -- @bs-module saved-views@2 managed
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -178,12 +178,16 @@ begin
       "name" = save_view.name,
       "kind" = save_view.kind,
       "state" = save_view.state,
-      "is_default" = case when "scope" = save_view.scope then "is_default" else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      "is_default" = case
+        when "scope" = save_view.scope and "list" = save_view.list
+          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  perform "better_supabase".emit_event('saved_view.saved', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -316,7 +320,7 @@ begin
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   delete from "better_supabase"."shared_views" where "id" = delete_view.view_id;
-  null;
+  perform "better_supabase".emit_event('saved_view.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', delete_view.view_id), 'saved-views/' || delete_view.view_id::text, (v_row."tenant_id")::text, null, 'better-supabase/saved-views');
   return true;
 end;
 $$;

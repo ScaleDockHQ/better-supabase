@@ -219,6 +219,21 @@ describe("doctor rules", () => {
     expect(exposed[0]!.message).toContain("auto_expose_new_tables = false");
   });
 
+  it("counts column grants as reaching the table", async () => {
+    const snap = snapshot((tables) => {
+      const tags = table(tables, "tags");
+
+      tags.grants = [];
+      tags.columnGrants = [
+        { role: "authenticated", column: "id", privileges: ["SELECT"] },
+      ];
+    });
+
+    const only = RULES.filter((rule) => rule.code === "BS106");
+
+    expect(await runRules(context(snap), only)).toEqual([]);
+  });
+
   it("accepts service-role tables without grants and flags granted ones", async () => {
     const snap = snapshot((tables) => {
       table(tables, "tags").grants = [

@@ -1,4 +1,4 @@
--- better-supabase module: share-links (0.8.0)
+-- better-supabase module: share-links (0.9.0)
 -- @bs-module share-links@1 managed
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -55,6 +55,7 @@ create table if not exists "better_supabase"."share_links" (
   "leaf_id" text
 );
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
+alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
@@ -94,9 +95,11 @@ grant all on "better_supabase"."subject_user_state" to service_role;
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
--- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null)
 returns jsonb
 language plpgsql
 security definer
@@ -105,6 +108,7 @@ as $$
 declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
+  v_subject_ok boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -114,6 +118,38 @@ begin
   end if;
   if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
     raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
+  end if;
+  if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
+    raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    v_subject_ok := case create_share_link.subject_type
+    when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'calendar' then exists (select 1 from "better_supabase"."calendars" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    else case create_share_link.subject_type
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'customers.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'parties.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'parties.read'), false)
+    when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'deals.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'work_items.read'), false)
+    when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'employees.read'), false)
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'catalog.read'), false)
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'catalog.read'), false)
+    when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'hiring.read'), false)
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
+    else null
+  end
+  end;
+    if v_subject_ok is null then
+      raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
+    end if;
+    if not v_subject_ok then
+      raise exception 'the subject does not exist in this organization' using errcode = 'P0002', hint = 'SHARE_SUBJECT_NOT_FOUND';
+    end if;
   end if;
   if create_share_link.version_id is not null then
     declare
@@ -125,15 +161,15 @@ begin
       end if;
     end;
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid(), create_share_link.version_id)
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id)
   returning "id" into v_id;
-  null;
+  perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- The link's creator, or a caller who may create links in its tenant, may
 -- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
@@ -164,25 +200,43 @@ begin
   end if;
   update "better_supabase"."share_links" set "revoked_at" = now()
   where "id" = revoke_share_link.id;
-  null;
+  perform "better_supabase".emit_event('share_link.revoked', jsonb_build_object('organizationId', v_tenant, 'id', revoke_share_link.id), 'share-links/' || revoke_share_link.id::text, (v_tenant)::text, null, 'better-supabase/share-links');
   return true;
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
 grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
 
+-- Each resolve counts one use, so a link with max_uses stops resolving once
+-- it is spent. The row lock keeps two concurrent resolves from both taking
+-- the last use.
 create or replace function "better_supabase"."resolve_share_link"(token text)
 returns jsonb
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', "version_id", 'expiresAt', "expires_at")
-  from "better_supabase"."share_links"
-  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
-    and "revoked_at" is null
-    and ("expires_at" is null or "expires_at" > now())
+declare
+  v_link "better_supabase"."share_links"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_link
+  from "better_supabase"."share_links" l
+  where l."token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and l."revoked_at" is null
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+  for update;
+  if not found then
+    return null;
+  end if;
+  update "better_supabase"."share_links" set "use_count" = "use_count" + 1
+  where "id" = v_link."id";
+  return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
+end;
 $$;
 revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
@@ -205,7 +259,7 @@ begin
   values (record_view.tenant, record_view.subject_type, record_view.subject_id, record_view.viewer_kind, record_view.viewer)
   on conflict ("tenant_id", "subject_type", "subject_id", "viewer_kind", "viewer")
   do update set "last_viewed_at" = now(), "view_count" = "better_supabase"."subject_views"."view_count" + 1;
-  null;
+  perform "better_supabase".emit_event('subject.viewed', jsonb_build_object('organizationId', record_view.tenant, 'subjectType', record_view.subject_type, 'subjectId', record_view.subject_id), 'views/' || record_view.subject_type || '/' || record_view.subject_id, (record_view.tenant)::text, null, 'better-supabase/share-links');
   return true;
 end;
 $$;
@@ -310,23 +364,29 @@ returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare
   v_subject text;
+  v_tenant text;
   v_leaf text;
   v_chat_id uuid;
 begin
   if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
     return null;
   end if;
-  select l."subject_id", l."leaf_id"
-    into v_subject, v_leaf
+  select l."subject_id", l."tenant_id"::text, l."leaf_id"
+    into v_subject, v_tenant, v_leaf
   from "better_supabase"."share_links" l
   where l."token_hash" = encode(extensions.digest(convert_to(get_shared_ai_chat.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'ai-chat'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
-  if not found then
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
+  if not found or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;
   v_chat_id := v_subject::uuid;
+  -- The chat must still live in the tenant the link was created in.
+  if not exists (select 1 from "better_supabase".ai_chats where id = v_chat_id and organization_id::text = v_tenant) then
+    return null;
+  end if;
   return jsonb_build_object(
     'chat', (select jsonb_build_object('id', id, 'title', title, 'model', model, 'created_at', created_at) from "better_supabase".ai_chats where id = v_chat_id),
     'leaf_id', v_leaf,
@@ -341,7 +401,9 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."create_share_link"(uuid, text, text, text);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -361,14 +423,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
+create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
-grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 create or replace function "api"."revoke_share_link"(id uuid)
 returns boolean

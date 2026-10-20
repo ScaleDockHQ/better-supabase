@@ -1,4 +1,4 @@
--- better-supabase module: access-requests (0.8.0)
+-- better-supabase module: access-requests (0.9.0)
 -- @bs-module access-requests@1 managed
 -- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -135,6 +135,7 @@ begin
   update "better_supabase"."access_requests" r set "approval_id" = (v_approval ->> 'id')::uuid
   where r."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('access.requested', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.requested',
     category => 'membership',
@@ -197,6 +198,7 @@ begin
       "expires_at" = case when v_row."duration" is null then null else now() + v_row."duration" end
   where r."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('access.request_approved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.request_approved',
     category => 'membership',
@@ -255,6 +257,7 @@ begin
     end if;
   end if;
   update "better_supabase"."access_requests" r set "ended_at" = now() where r."id" = v_row."id" returning * into v_row;
+  perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'revoked'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.ended',
     category => 'membership',
@@ -301,7 +304,8 @@ begin
     end if;
   end if;
     update "better_supabase"."access_requests" r set "ended_at" = now() where r."id" = v_row."id" returning * into v_row;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'expired'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform better_supabase.audit_event(
     event_type => 'access.ended',
     category => 'membership',
     target_type => 'user',

@@ -1,6 +1,7 @@
 export {
   createRuleDispatcher,
   createRules,
+  createRuleSink,
   createRulesAdmin,
   evaluateRule,
   ruleOf,
@@ -19,6 +20,9 @@ export {
   type Rules,
   type RulesAdmin,
   type RulesAdminOptions,
+  type RuleSinkEvent,
+  type RuleSinkOptions,
+  type RuleSinkTarget,
   type RulesOptions,
   type RuleSubject,
   type RuleVersion,
@@ -60,8 +64,17 @@ export {
 
 export {
   approvalsAction,
+  notifyAction,
   type RuleApprovals,
+  type RuleFieldSetter,
+  type RuleFieldWrite,
+  type RuleNotifier,
   type RuleSubjectContext,
+  type RuleWebhooks,
+  type RuleWorkflows,
+  setFieldAction,
+  webhookAction,
+  workflowAction,
 } from "./actions.ts";
 
 export {

@@ -1,4 +1,4 @@
--- better-supabase module: service-principals (0.8.0)
+-- better-supabase module: service-principals (0.9.0)
 -- @bs-module service-principals@1 managed
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -76,6 +76,7 @@ begin
   insert into "better_supabase"."service_principals" ("id", "tenant_id", "name", "role", "is_default", "created_by")
   values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,
     register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);
+  perform "better_supabase".emit_event('service_principal.created', jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role), 'service-principals/' || register_service_principal.principal::text, (register_service_principal.tenant)::text, null, 'better-supabase/service-principals');
   perform better_supabase.audit_event(
     event_type => 'service_principal.created',
     category => 'access',
@@ -123,6 +124,7 @@ begin
     raise exception 'Unknown role %', set_service_principal_role.role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
   end if;
   update "better_supabase"."service_principals" set "role" = set_service_principal_role.role where "id" = v_row."id";
+  perform "better_supabase".emit_event('service_principal.role_changed', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'role', set_service_principal_role.role), 'service-principals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/service-principals');
   perform better_supabase.audit_event(
     event_type => 'service_principal.role_changed',
     category => 'access',
@@ -166,6 +168,7 @@ begin
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   update "better_supabase"."service_principals" set "disabled_at" = now(), "is_default" = false where "id" = v_row."id";
+  perform "better_supabase".emit_event('service_principal.disabled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id"), 'service-principals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/service-principals');
   perform better_supabase.audit_event(
     event_type => 'service_principal.disabled',
     category => 'access',

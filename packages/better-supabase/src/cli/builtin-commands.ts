@@ -71,6 +71,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
+  ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],
   ["sql list", () => import("./commands/sql.ts").then((m) => m.sqlListCommand)],
   ["sql add", () => import("./commands/sql.ts").then((m) => m.sqlAddCommand)],
   ["sql sync", () => import("./commands/sql.ts").then((m) => m.sqlSyncCommand)],

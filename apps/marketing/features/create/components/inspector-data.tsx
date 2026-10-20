@@ -8,9 +8,12 @@ import {
   type SchemaTable,
   type SampleRow,
   sampleRows,
+  type SampleViewer,
+  hiddenColumns,
   isAppTable,
 } from "better-supabase/create";
 import { Columns3Icon, TableIcon } from "lucide-react";
+import { useId, useState } from "react";
 
 import {
   DataGrid,
@@ -29,10 +32,67 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import type { InspectorTab } from "./schema-nodes";
 
 import { useDesign } from "./design-provider";
+
+const VIEWERS: readonly { value: SampleViewer; label: string }[] = [
+  { value: "member", label: "Signed-in member" },
+  { value: "server", label: "Server" },
+];
+
+const isViewer = (value: unknown): value is SampleViewer =>
+  VIEWERS.some((each) => each.value === value);
+
+/** Switches the sample between what a signed-in member and server code can select. */
+function ViewerToggle({
+  viewer,
+  hidden,
+  onChange,
+}: {
+  viewer: SampleViewer;
+  hidden: readonly string[];
+  onChange: (viewer: SampleViewer) => void;
+}): ReactElement {
+  const id = useId();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span id={`${id}-label`} className="text-sm font-medium">
+          Preview as
+        </span>
+        <ToggleGroup
+          aria-labelledby={`${id}-label`}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          value={[viewer]}
+          onValueChange={(value) => {
+            const next = value[0];
+
+            if (isViewer(next)) {
+              onChange(next);
+            }
+          }}
+        >
+          {VIEWERS.map((each) => (
+            <ToggleGroupItem key={each.value} value={each.value}>
+              {each.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {viewer === "member"
+          ? `A signed-in member can't select ${hidden.join(", ")}, so the grid leaves ${hidden.length === 1 ? "it" : "them"} out.`
+          : "Server code with the service role selects every column."}
+      </p>
+    </div>
+  );
+}
 
 function SampleCell({
   getValue,
@@ -92,6 +152,7 @@ export function DataTab({
   onTab: (tab: InspectorTab) => void;
 }): ReactElement {
   const { state } = useDesign();
+  const [viewer, setViewer] = useState<SampleViewer>("member");
 
   if (!isAppTable(table)) {
     return (
@@ -110,9 +171,12 @@ export function DataTab({
     );
   }
 
-  const sample = sampleRows(state.design, table.name);
+  const config = state.design.appTables?.[table.name];
+  const restricted = hiddenColumns(config, "member");
+  const shown = restricted.length === 0 ? "server" : viewer;
+  const sample = sampleRows(state.design, table.name, undefined, shown);
 
-  if (sample.columns.length === 0) {
+  if (Object.keys(config?.columns ?? {}).length === 0) {
     return (
       <Empty className="border border-dashed p-6">
         <EmptyHeader>
@@ -148,6 +212,13 @@ export function DataTab({
         references, so you can check the design reads well. They stay in this
         browser.
       </p>
+      {restricted.length === 0 ? null : (
+        <ViewerToggle
+          viewer={viewer}
+          hidden={restricted}
+          onChange={setViewer}
+        />
+      )}
       <SampleGrid
         key={sample.columns.join(",")}
         columns={sample.columns}

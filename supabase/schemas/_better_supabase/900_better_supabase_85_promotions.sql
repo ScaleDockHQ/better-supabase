@@ -1,4 +1,4 @@
--- better-supabase module: promotions (0.8.0)
+-- better-supabase module: promotions (0.9.0)
 -- @bs-module promotions@1 managed
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -741,7 +741,7 @@ begin
     values (v_order.tenant, v_promo.id, (v_entry ->> 'codeId')::uuid, v_order.id, v_order.customer, v_order.email,
       v_order.currency, (v_entry ->> 'amount')::bigint)
     returning "id" into v_id;
-    null;
+    perform "better_supabase".emit_event('promotion.redeemed', jsonb_build_object('organizationId', v_order.tenant, 'id', v_id, 'promotionId', v_promo.id, 'code', v_entry ->> 'code', 'orderId', v_order.id, 'currency', v_order.currency, 'amount', v_entry ->> 'amount'), 'promotion-redemptions/' || v_id::text, (v_order.tenant)::text, null, 'better-supabase/promotions');
     v_count := v_count + 1;
   end loop;
   return v_count;

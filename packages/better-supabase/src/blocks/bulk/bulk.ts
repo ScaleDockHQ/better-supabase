@@ -19,7 +19,8 @@ export type BuiltInBulkAction =
   | "stateMachine.transition"
   | "relations.link"
   | "trash.trash"
-  | "collections.add";
+  | "collections.add"
+  | "appTables.set";
 
 /** Arguments per built-in action; an app's own actions take any object. */
 export interface BulkActionArgs {
@@ -39,6 +40,10 @@ export interface BulkActionArgs {
   };
   readonly "trash.trash": Readonly<Record<string, never>>;
   readonly "collections.add": { readonly collectionId: string };
+  /** Sets editable columns of an app table row; values are cast to the column types. */
+  readonly "appTables.set": {
+    readonly values: Readonly<Record<string, unknown>>;
+  };
 }
 
 type ArgsOf<A extends string> = A extends keyof BulkActionArgs

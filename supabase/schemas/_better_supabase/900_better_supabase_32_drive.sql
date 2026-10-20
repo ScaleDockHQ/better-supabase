@@ -1,4 +1,4 @@
--- better-supabase module: drive (0.8.0)
+-- better-supabase module: drive (0.9.0)
 -- @bs-module drive@1 managed
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -401,6 +401,7 @@ begin
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, 'owner')
     on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
   end if;
+  perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
   perform better_supabase.audit_event(
     event_type => 'drive.node_created',
     category => 'data',
@@ -599,6 +600,7 @@ begin
   update "better_supabase"."drive_nodes" x set "name" = v_name, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
+  perform "better_supabase".emit_event('drive.node_renamed', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'name', v_node."name", 'previousName', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
   perform better_supabase.audit_event(
     event_type => 'drive.node_renamed',
     category => 'data',
@@ -692,7 +694,8 @@ begin
   end), "updated_at" = now()
     where x."id" = v_node."id"
     returning * into v_node;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('drive.node_moved', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'parentId', v_node."parent_id", 'previousParentId', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
     event_type => 'drive.node_moved',
     category => 'data',
     target_type => 'drive_node',
@@ -798,6 +801,7 @@ begin
   insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "created_by")
   values (v_node."tenant_id", v_node."id", v_type, drive_share.principal_id, drive_share.role, drive_share.expires_at, auth.uid())
   returning "id" into v_id;
+  perform "better_supabase".emit_event('drive.node_shared', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
   perform better_supabase.audit_event(
     event_type => 'drive.node_shared',
     category => 'access',
@@ -848,6 +852,7 @@ begin
   if not found then
     return false;
   end if;
+  perform "better_supabase".emit_event('drive.node_unshared', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_unshare.principal_id), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
   perform better_supabase.audit_event(
     event_type => 'drive.node_unshared',
     category => 'access',

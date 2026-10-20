@@ -671,6 +671,62 @@ the expand-and-contract steps that `apply --preset` prints for a breaking
 change. A table or column the database doesn't have yet is left out, since
 that is a migration not applied.
 
+### BS229
+
+**Warning: index built without `concurrently`.** BS229 to BS234 read the
+migrations that haven't run yet, statement by statement, and flag the ones
+that lock a table that already holds rows. With `--db-url`, doctor checks the
+migrations missing from `supabase_migrations.schema_migrations`. Offline, it
+checks the migrations after `doctor.migrationSafety.since`, or only the newest
+migration when `since` is unset; `init` and `adopt` set `since` to the latest
+migration so older files aren't reported. Tables a migration creates are
+skipped, since nothing reads them yet.
+
+`create index` blocks every write to the table until the index is built. Use
+`create index concurrently`, and put it in a migration of its own, because it
+can't run inside a transaction.
+
+### BS230
+
+**Warning: foreign key or check validated in the same step.** Adding a foreign
+key or a check scans the whole table while it holds a lock that blocks writes.
+Add the constraint with `not valid`, then run
+`alter table ... validate constraint ...` in a later statement, which scans
+without blocking writes.
+
+### BS231
+
+**Warning: column change that rewrites or scans the table.**
+`alter column ... type` rewrites every row under an exclusive lock, unless the
+types are binary compatible. `set not null` scans the table under the same
+lock. For a type change, add a new column, backfill it, and switch reads to
+it. For `set not null`, first add `check (column is not null) not valid`,
+validate it, and then set not null, which Postgres then accepts without a
+scan.
+
+### BS232
+
+**Warning: column added with a volatile default.** A default like
+`gen_random_uuid()`, `random()` or `clock_timestamp()` makes Postgres write
+the value into every existing row while it holds an exclusive lock. `now()`
+and constants are stored once and don't rewrite. Add the column without a
+default, backfill it in batches, and then set the default.
+
+### BS233
+
+**Warning: no `lock_timeout` before an exclusive lock.** A migration that
+alters an existing table waits behind long-running queries for its lock, and
+every query that arrives after it waits too. Start the migration with
+`set lock_timeout = '5s';` so it fails fast and can be retried instead of
+stalling the app.
+
+### BS234
+
+**Info: drop or rename.** Dropping or renaming a table or a column breaks the
+deployed app until it ships the matching code. Rename in steps: add the new
+name, write to both, move the reads, and drop the old name in a later release.
+`apply --preset` prints these steps for a breaking change.
+
 ## Drift
 
 ### BS301

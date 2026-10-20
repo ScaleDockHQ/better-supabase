@@ -1,4 +1,4 @@
--- better-supabase module: agents (0.8.0)
+-- better-supabase module: agents (0.9.0)
 -- @bs-module agents@1 managed
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -174,6 +174,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('agent.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.saved',
     category => 'ai',
@@ -223,6 +224,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('agent.published', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.published',
     category => 'ai',
@@ -255,6 +257,7 @@ begin
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('agent.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.deleted',
     category => 'ai',
@@ -346,7 +349,8 @@ begin
     get diagnostics v_count = row_count;
     update "better_supabase"."agents" x set "install_count" = greatest(x."install_count" - v_count, 0) where x."id" = install_agent.agent_id;
     if v_count > 0 then
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('agent.uninstalled', jsonb_build_object('organizationId', install_agent.tenant::text, 'agentId', install_agent.agent_id, 'userId', auth.uid()), 'organizations/' || install_agent.tenant::text || '/agents/' || install_agent.agent_id::text, (install_agent.tenant)::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
     event_type => 'agent.uninstalled',
     category => 'ai',
     target_type => 'agent',
@@ -365,7 +369,8 @@ begin
   get diagnostics v_count = row_count;
   update "better_supabase"."agents" x set "install_count" = x."install_count" + v_count where x."id" = install_agent.agent_id;
   if v_count > 0 then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('agent.installed', jsonb_build_object('organizationId', install_agent.tenant::text, 'agentId', install_agent.agent_id, 'userId', auth.uid()), 'organizations/' || install_agent.tenant::text || '/agents/' || install_agent.agent_id::text, (install_agent.tenant)::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
     event_type => 'agent.installed',
     category => 'ai',
     target_type => 'agent',

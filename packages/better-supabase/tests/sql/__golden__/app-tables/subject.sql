@@ -56,9 +56,16 @@ select extensions.policies_are('public', 'projects', array['projects_select', 'p
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.projects');
 
+with o as (
+  insert into "better_supabase"."organizations" ("name", "slug")
+  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  returning "id" as id
+)
+insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."projects" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.projects their scope reaches');
+select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope');
 select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
 reset role;
 
