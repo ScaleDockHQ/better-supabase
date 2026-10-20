@@ -27,9 +27,17 @@ case-insensitive equality, such as an email or a slug typed in any case.
 `contains` is case-insensitive too (both send `ilike`); `startsWith` and
 `endsWith` send `like` and are case-sensitive. For a case-insensitive prefix
 or suffix, use `ilike` with an escaped pattern:
-`` ilike: `${escapeLike(prefix)}%` ``. `escapeLike` is exported from
-`better-supabase` and escapes the same three characters, for input you put
-in a `like` or `ilike` pattern yourself. The
+
+```ts
+where: {
+  name: {
+    ilike: `${escapeLike(prefix)}%`;
+  }
+}
+```
+
+`escapeLike` is exported from `better-supabase` and escapes the same three
+characters, for input you put in a `like` or `ilike` pattern yourself. The
 [`require-escape-like`](/docs/plugins/lint#require-escape-like) lint rule
 flags a variable passed to `like` or `ilike` without it.
 
