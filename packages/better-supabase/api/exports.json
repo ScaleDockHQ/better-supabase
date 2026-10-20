@@ -458,6 +458,7 @@
       "kindOf",
       "lookupSources",
       "MIGRATION_NAME",
+      "migrationBetween",
       "moveTables",
       "ON_DELETE_ACTIONS",
       "optionError",
