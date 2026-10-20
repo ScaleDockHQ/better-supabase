@@ -1053,7 +1053,7 @@ function rpc(
   rest: unknown[],
 ): AsyncResult<unknown> {
   // SAFETY: the $rpc overloads take args and then options.
-  const [args, options] = rest as [
+  const [given, options] = rest as [
     Readonly<Record<string, unknown>> | undefined,
     (
       | {
@@ -1067,6 +1067,15 @@ function rpc(
       | undefined
     ),
   ];
+
+  // An optional argument left `undefined` is omitted, so a GET call never
+  // sends the string "undefined" and the function default applies.
+  const args =
+    given === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(given).filter(([, value]) => value !== undefined),
+        );
 
   return AsyncResult.from(async () => {
     if (!executor.rpc) {
