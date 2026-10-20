@@ -144,7 +144,7 @@ describe("createNext", () => {
 
   const bs = createNext(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never, fetch: fresh },
+    auth: { jwks: signer.jwks, fetch: fresh },
   });
 
   beforeEach(() => {
@@ -565,7 +565,7 @@ describe("createNext", () => {
   it("forwards the client IP on refresh with a secret key", async () => {
     const withSecret = createNext(defineSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
-      auth: { jwks: signer.jwks as never, fetch: fresh },
+      auth: { jwks: signer.jwks, fetch: fresh },
     });
 
     fresh.mockResolvedValue(
@@ -893,7 +893,7 @@ describe("createNext", () => {
 
     const withResolver = createNext(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       tenant: resolver,
     });
 
@@ -1202,7 +1202,7 @@ describe("createNext", () => {
       const debugged = createNext(defineSupabase(schema), {
         env,
         cacheTags: false,
-        auth: { jwks: signer.jwks as never, fetch: fresh },
+        auth: { jwks: signer.jwks, fetch: fresh },
         debug: { enabled: true },
       });
 
@@ -1323,7 +1323,7 @@ describe("createNext", () => {
   });
 
   it("invalidates each tag once when createNext runs again for a definition", async () => {
-    createNext(betterSupabase, { env, auth: { jwks: signer.jwks as never } });
+    createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
     const executor: Executor = {
       name: "fake",
@@ -1412,7 +1412,7 @@ describe("next.liveCount", () => {
 
   const bs = createNext(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   const spec = betterSupabase.spec.notes.count({
@@ -1458,7 +1458,7 @@ describe("read replicas", () => {
 
     const bs = createNext(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       cacheTags: false,
       replicas: { pinMs: 2000 },
     });
@@ -1531,7 +1531,7 @@ describe("read replicas", () => {
 
     const bs = createNext(definition, {
       env: { ...env, readUrl: READ_URL },
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       cacheTags: false,
       replicas: { pinMs: 2000 },
     });

@@ -11,29 +11,50 @@ pnpm better-supabase env
 
 `env` reads `supabase status` and writes the URL and keys to `.env.local`.
 It updates the variables it manages in place and keeps every other line.
-The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
-`EXPO_PUBLIC_`), or the one you pass with `--prefix`:
+Server code reads the plain names. The browser copies get your framework's
+prefix (`NEXT_PUBLIC_`, `VITE_`, `EXPO_PUBLIC_`), or the one you pass with
+`--prefix`. `--prefix` takes a framework name (`next`, `vite`, `expo`,
+`nuxt`, `astro`, `sveltekit`), `none`, or the prefix itself:
 
 | Variable                           | From                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `SUPABASE_URL`                     | `API_URL`                                                                              |
+| `SUPABASE_PUBLISHABLE_KEY`         | `PUBLISHABLE_KEY` (or the legacy `ANON_KEY`)                                           |
 | `<prefix>SUPABASE_URL`             | `API_URL`                                                                              |
 | `<prefix>SUPABASE_PUBLISHABLE_KEY` | `PUBLISHABLE_KEY` (or the legacy `ANON_KEY`)                                           |
 | `SUPABASE_SECRET_KEY`              | `SECRET_KEY` (or the legacy `SERVICE_ROLE_KEY`)                                        |
+| `SUPABASE_JWKS_URL`                | `API_URL` plus `/auth/v1/.well-known/jwks.json`                                        |
 | `SUPABASE_DB_URL`                  | `DB_URL`                                                                               |
 | `SUPABASE_JWT_SECRET`              | `JWT_SECRET`, for HS256 [test tokens](/docs/testing) (`asUser(..., { alg: 'HS256' })`) |
 
-Values are never printed unless you pass `--out -`, which prints the
+Only the URL and the publishable key get the prefix. The secret key, the
+database URL and the JWT secret never do, because a prefixed variable is
+bundled into client code ([BS501](/docs/cli/doctor#bs501)).
+
+Values are never printed unless you pass `--write -`, which prints the
 variables on stdout instead of writing a file. The file is readable by
 your user only (mode `0600`), even when its contents didn't change. `env`
 warns when the file isn't in `.gitignore`, and when your Supabase CLI only
 prints legacy keys.
-`--out <file>` writes another file than `.env.local` (`env.output` in the
-config sets it for every run, and `env.prefix` the prefix), and
+`--write <file>` (or its older name `--out`) writes another file than
+`.env.local` (`env.output` in the config sets it for every run, and
+`env.prefix` the prefix), and
 `--status-file <file>` reads saved `supabase status -o json` output instead of running the
 Supabase CLI. Both paths must stay inside the project root: `env` refuses an
 absolute path elsewhere or one that climbs out with `..`, so the secret key
 never lands outside the project. `--dry-run` and `--check` name the file
 without showing the keys ([writing files](/docs/cli#writing-files)).
+
+```bash
+pnpm better-supabase env --write .env.supabase.local --prefix next
+```
+
+A separate file keeps the stack's values apart from the ones you edit. In
+Next.js, `.env.supabase.local` is not one of the files it loads, so load it
+with `run` below or a dotenv loader. If you write to `.env.local`, Next.js
+loads it after `.env.development.local` and before `.env.development` and
+`.env`, and a variable from the first file that sets it wins. It skips
+`.env.local` under `NODE_ENV=test`.
 
 The Supabase CLI's native stack (`[experimental] stack = true` in
 `supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a
@@ -43,6 +64,42 @@ Docker daemon and rejects `supabase status -o json`. `env` then reads
 secret.
 
 Side effects: Writes files.
+
+## run
+
+```bash
+pnpm better-supabase run -- next dev
+```
+
+`run` reads `supabase status` and starts the command after `--` with the
+stack's variables (the ones `env` writes) set, so the app always talks to
+the stack this worktree is running. It passes the child's output and exit
+code through, forwards Ctrl+C (`SIGINT`) and `SIGTERM` to it, and
+`--prefix` picks the browser prefix the same way `env` does. Nothing is
+written to disk.
+
+Each variable is resolved in this order, first one set wins:
+
+1. The running stack, through `run`.
+2. Your shell's exported variables.
+3. The framework's env files (`.env.local` and the rest). Next.js, Vite and
+   dotenv never override a variable that is already set, so the first two
+   win over every file.
+
+A `SUPABASE_*` variable exported in your shell (left over from another
+project or a hosted one) would otherwise point the app at the wrong stack.
+`run` uses the stack's value and warns, naming the variable. The warning
+shows only the host and port of a URL, and a `sha256:` fingerprint of a key,
+never the key itself:
+
+```txt
+SUPABASE_URL is exported as 127.0.0.1:54321, but the running stack has 127.0.0.1:55021. run uses the stack's value.
+```
+
+[`doctor`](/docs/cli/doctor#bs503) reports the same mismatch when you start
+the app another way.
+
+Side effects: Runs the command you pass.
 
 ## keys
 

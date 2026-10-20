@@ -46,7 +46,7 @@ const kit: SvelteKitHelpers = {
 
 const bs = createSvelteKit(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   prefetchJwks: false,
   kit,
   signIn: "/sign-in",

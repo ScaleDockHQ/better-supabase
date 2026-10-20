@@ -175,7 +175,7 @@ describe("createMcp authorizer", () => {
 
   const mcp = createMcp(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     authorizer,
@@ -232,7 +232,7 @@ describe("createMcp authorizer", () => {
 
     const swapped = createMcp(defineSupabase(schema), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       authorizer: defineAuthorizer<Ref>({
@@ -288,7 +288,7 @@ describe("createMcp authorizer", () => {
 
     const bare = createMcp(defineSupabase(schema), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
     })

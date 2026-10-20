@@ -18,7 +18,7 @@ import type { Db } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { StatsRecorder, DbStats } from "../core/stats.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
-import type { BetterSupabaseEnv } from "../env/index.ts";
+import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
 import type { EventSink } from "../events/index.ts";
 import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -58,10 +58,12 @@ export interface ServerDbOptions {
 
 export interface ServerOptions {
   /**
-   * Defaults to the variables `getEnv` from `@supabase/middleware` reads:
-   * Workers bindings, then `process.env`, then `Deno.env`.
+   * A loaded env, or the variables to load it from (`{ SUPABASE_URL, ... }`),
+   * read without falling back to the runtime's. Defaults to the variables
+   * `getEnv` from `@supabase/middleware` reads: Workers bindings, then
+   * `process.env`, then `Deno.env`.
    */
-  readonly env?: BetterSupabaseEnv;
+  readonly env?: BetterSupabaseEnv | EnvSource;
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: BetterPostgres;
   readonly auth?: Omit<ResolveAuthOptions, "env">;

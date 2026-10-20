@@ -37,7 +37,7 @@ describe("createMcp", () => {
 
   const mcp = createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     instructions: "Customer records of the caller’s organization.",
@@ -121,7 +121,7 @@ describe("createMcp", () => {
   it("checks the Host header and links the connect docs from the metadata", async () => {
     const strict = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       allowedHosts: ["tools.test", "localhost"],
@@ -404,7 +404,7 @@ describe("createMcp", () => {
   it("challenges with insufficient_scope and publishes scopes without offline_access", async () => {
     const scoped = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "admin",
       version: "1.0.0",
       allow: ["service"],
@@ -452,7 +452,7 @@ describe("createMcp", () => {
   it("enforces requiredScopes on delegated tokens", async () => {
     const scoped = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       advertisedScopes: ["openid"],
@@ -485,7 +485,7 @@ describe("createMcp", () => {
   it("answers a missing second factor without a scope challenge", async () => {
     const strict = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       aal: "aal2",
@@ -540,7 +540,7 @@ describe("createMcp", () => {
 
     const guarded = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "guarded",
       version: "1.0.0",
       advertisedScopes: ["openid"],
@@ -719,7 +719,7 @@ describe("createMcp table tool meta", () => {
 
     const mcp = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       resources: {
@@ -763,7 +763,7 @@ describe("createMcp table tool meta", () => {
 
     const mcp = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       resources: { tags: { operations: ["list"] } },
@@ -813,7 +813,7 @@ describe("createMcp table tool meta", () => {
 
     const mcp = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       resources: { tags: { operations: ["list"] } },
@@ -853,7 +853,7 @@ describe("createMcp cursor lists", () => {
 
     const mcp = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       resources: {
@@ -912,7 +912,7 @@ describe("createMcp on Supabase Edge Functions", () => {
 
   const mcp = createMcp(defineSupabase(schema), {
     env: { ...env, url: "http://kong:8000" },
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     allowedHosts: ["abcdefghijklmnopqrst.supabase.co"],
@@ -1031,14 +1031,14 @@ describe("createMcp CORS", () => {
 
   const open = createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
   });
 
   const listed = createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     allowedOrigins: ["https://claude.test"],
@@ -1095,7 +1095,7 @@ describe("createMcp CORS", () => {
   it("can be turned off", async () => {
     const closed = createMcp(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       name: "crm",
       version: "1.0.0",
       cors: false,
@@ -1137,7 +1137,7 @@ describe("tool schemas per protocol version", () => {
 
   const mcp = createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     resources: { tags: { operations: ["get"] } },

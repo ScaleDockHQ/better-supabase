@@ -213,6 +213,21 @@
               "type": "string"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "description": "Runs the command passed after --.",
+              "const": "process"
+            },
+            "when": {
+              "description": "The flag that turns the effect on.",
+              "type": "string"
+            }
+          }
         }
       ]
     }

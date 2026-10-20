@@ -56,7 +56,7 @@ describe("bs.resources()", () => {
 
   const bs = createNext(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     authorizer,
   });
 

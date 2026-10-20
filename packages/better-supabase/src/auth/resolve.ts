@@ -159,8 +159,12 @@ export interface ResolveAuthOptions {
    * request another site makes it send.
    */
   readonly cookies?: boolean;
-  /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
-  readonly jwks?: SupabaseEnv["jwks"];
+  /**
+   * Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped).
+   * `false` or `null` verifies against no keys and never fetches, ignoring
+   * `SUPABASE_JWKS` and `SUPABASE_JWKS_URL`.
+   */
+  readonly jwks?: SupabaseEnv["jwks"] | false;
   /**
    * Verify HS256 tokens without a `kid` locally with this shared secret, the
    * tokens Supabase Lite issues (`auth.jwt_secret`). Tokens with a `kid`
@@ -230,6 +234,20 @@ function expiryOf(session: StoredSession): number | undefined {
   return typeof exp === "number" ? exp : undefined;
 }
 
+type JwksSource = NonNullable<SupabaseEnv["jwks"]>;
+
+/** An empty key set: `auth.jwks: false` verifies against it and fetches nothing. */
+const NO_KEYS: JwksSource = { keys: [] };
+
+/** `auth.jwks`, then `env.jwks` (`SUPABASE_JWKS`), then `env.jwksUrl`. */
+function jwksOf(options: ResolveAuthOptions): JwksSource {
+  if (options.jwks === false || options.jwks === null) {
+    return NO_KEYS;
+  }
+
+  return options.jwks ?? options.env.jwks ?? options.env.jwksUrl;
+}
+
 function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
   const { env } = options;
 
@@ -238,7 +256,7 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
     publishableKeys: { default: env.publishableKey },
     secretKeys:
       env.secretKeys ?? (env.secretKey ? { default: env.secretKey } : {}),
-    jwks: options.jwks ?? env.jwks ?? env.jwksUrl,
+    jwks: jwksOf(options),
   };
 }
 
@@ -287,11 +305,11 @@ function secretId(secret: string | undefined): number | null {
  * A hit skips the audience and issuer checks too, so both are part of the key.
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
-  const jwks = options.jwks ?? options.env.jwks;
-  const inline = jwks && typeof jwks === "object" && !(jwks instanceof URL);
+  const jwks = jwksOf(options);
+  const inline = !(jwks instanceof URL);
 
   const key = JSON.stringify([
-    inline ? null : String(jwks ?? options.env.jwksUrl),
+    inline ? null : String(jwks),
     options.env.url,
     options.audience ?? null,
     options.issuer ?? null,
@@ -611,7 +629,7 @@ function base64url(text: string): string {
  * fetch it as before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (options.jwks !== undefined || options.env.jwks !== undefined) {
+  if (!(jwksOf(options) instanceof URL)) {
     return Promise.resolve();
   }
 

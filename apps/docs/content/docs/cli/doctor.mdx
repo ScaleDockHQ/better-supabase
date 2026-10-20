@@ -1560,6 +1560,18 @@ rotate the key.
 secret key or database URL but no `.gitignore` pattern matches it. Add the
 file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.
 
+### BS503
+
+**Warning: exported Supabase variable differs from the running stack.** A
+`SUPABASE_*` variable exported in your shell, such as a `SUPABASE_URL` left
+over from another worktree, has another value than the local stack. The app
+then talks to the wrong stack, because frameworks never override a variable
+that is already set. The finding names the variable and both values, redacted:
+the host and port for a URL, and a SHA-256 fingerprint for a key. Unset the
+variable, or start the app with `better-supabase run -- <cmd>`, which sets the
+stack's values over the shell's. Doctor only checks this when the shell
+exports a `SUPABASE_*` variable and the local stack is running.
+
 ## Dependencies
 
 ### BS601

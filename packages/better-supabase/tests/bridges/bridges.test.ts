@@ -288,7 +288,7 @@ describe("bridge behavior", () => {
     const middleware = toH3([
       withBetterSupabase(betterSupabase, {
         env,
-        auth: { jwks: signer.jwks as never },
+        auth: { jwks: signer.jwks },
         allow: ["anon"],
       }),
     ]);
@@ -421,7 +421,7 @@ describe("bridge behavior", () => {
     const middleware = toTanStackStart([
       withBetterSupabase(betterSupabase, {
         env,
-        auth: { jwks: signer.jwks as never },
+        auth: { jwks: signer.jwks },
       }),
     ]);
 

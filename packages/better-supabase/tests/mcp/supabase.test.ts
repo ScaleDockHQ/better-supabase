@@ -33,7 +33,7 @@ const signer = await createTestSigner();
 
 const auth = createMcpAuth(defineSupabase(schema), {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   resource: ENDPOINT,
 });
 

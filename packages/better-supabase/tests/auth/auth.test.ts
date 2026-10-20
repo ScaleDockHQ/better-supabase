@@ -145,7 +145,7 @@ describe("session cookies", () => {
 
 describe("resolveAuth", async () => {
   const signer = await createTestSigner();
-  const options: ResolveAuthOptions = { env, jwks: signer.jwks as never };
+  const options: ResolveAuthOptions = { env, jwks: signer.jwks };
 
   it("verifies a Bearer token locally", async () => {
     const token = await signer.sign({ sub: USER, email: "a@b.c" });

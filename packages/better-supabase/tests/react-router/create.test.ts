@@ -34,7 +34,7 @@ function contextProvider(): ReactRouterArgs["context"] {
 
 const bs = createReactRouter(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   prefetchJwks: false,
   createContext: () => ({}),
   signIn: "/sign-in",

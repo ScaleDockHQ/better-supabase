@@ -24,7 +24,7 @@ describe("createEdge", () => {
 
   const bs = createEdge(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     cors: { origin: ["https://app.test"] },
   });
 
@@ -119,7 +119,7 @@ describe("createEdge", () => {
 
     const deno = createEdge(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       waitUntil: (promise) => void global.push(promise),
     }).handler(() => {
       betterSupabase.events.track(
@@ -200,7 +200,7 @@ describe("createEdge", () => {
   it("allows any origin with cors: true", async () => {
     const open = createEdge(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       cors: true,
     });
 
@@ -225,7 +225,7 @@ describe("bs.resources() actions", () => {
 
   const bs = createEdge(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     authorizer,
   });
 

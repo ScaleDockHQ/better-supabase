@@ -43,7 +43,7 @@ describe("createServer headers", () => {
 
     const server = createServer(defineSupabase(schema), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       headers: (request) => ({
         "x-channel": "api",
         "x-request-id": request.headers.get("x-request-id") ?? "",
@@ -88,7 +88,7 @@ describe("createServer headers", () => {
 
     const server = createServer(defineSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       fetch: traced,
     });
 
@@ -123,7 +123,7 @@ describe("createServer db options", () => {
 
       const server = createServer(
         defineSupabase(schema, { postgrestVersion: "12.2" }),
-        { env, auth: { jwks: signer.jwks as never }, fetch, ...options },
+        { env, auth: { jwks: signer.jwks }, fetch, ...options },
       );
 
       const ctx = await server.context(new Request("https://api.test/"));
@@ -153,7 +153,7 @@ describe("createServer db options", () => {
 
     const server = createServer(defineSupabase(schema), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       fetch,
       db: { timeout: 20 },
     });
@@ -181,7 +181,7 @@ describe("createServer claims", () => {
 
     const server = createServer(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const request = async (claims: Record<string, unknown>) =>
@@ -220,7 +220,7 @@ describe("createServer claims", () => {
 
     const server = createServer(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const organization = "22222222-2222-4222-8222-222222222222";
@@ -279,7 +279,7 @@ describe("createServer userMetadata", () => {
 
     const server = createServer(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const request = async (metadata: Record<string, unknown>) =>
@@ -977,7 +977,7 @@ describe("createServer events", () => {
 
     const server = createServer(betterSupabase, {
       env: secretEnv,
-      auth: { jwks: signer.jwks as never, secret: true },
+      auth: { jwks: signer.jwks, secret: true },
     });
 
     const token = await signer.sign({ sub: USER });
@@ -1020,7 +1020,7 @@ describe("createServer events", () => {
     const server = createServer(betterSupabase, {
       env,
       auth: {
-        jwks: signer.jwks as never,
+        jwks: signer.jwks,
         onRefresh,
         fetch: async () =>
           Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
@@ -1061,7 +1061,7 @@ describe("createServer buckets", () => {
 
     const server = createServer(defineSupabase(schema).buckets({ logos }), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const db = server.dbFor({ kind: "anon", reason: "none" });

@@ -14,6 +14,7 @@ import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
+import { loadStackEnvCheck } from "../doctor/env.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
@@ -129,6 +130,8 @@ export interface DoctorOptions {
   readonly database?: DoctorContext["database"];
   /** Peers and installed versions (tests); otherwise read from `node_modules`. */
   readonly peers?: DoctorContext["peers"];
+  /** The shell and stack variables (tests); otherwise read from `supabase status` (BS503). */
+  readonly stackEnv?: DoctorContext["stackEnv"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
   /** Colors the text report. */
@@ -242,6 +245,7 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
+    stackEnv,
   ] = await Promise.all([
     options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
@@ -260,6 +264,10 @@ export async function runDoctor(
       skipped: errorText(cause),
     })),
     options.peers ?? peerVersions(config.root).catch(() => []),
+    options.stackEnv ??
+      (rules.some((rule) => rule.code === "BS503")
+        ? loadStackEnvCheck(config.root, env, options.signal)
+        : undefined),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -284,6 +292,7 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
+    ...(stackEnv ? { stackEnv } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),

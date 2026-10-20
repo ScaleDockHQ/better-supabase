@@ -25,7 +25,7 @@ const supabaseEnv = {
   url: PROJECT_URL,
   publishableKeys: { default: env.publishableKey },
   secretKeys: { default: "sb_secret_test" },
-  jwks: signer.jwks as never,
+  jwks: signer.jwks,
 };
 
 describe("better-supabase/hono after @supabase/server's withSupabase through toHono", () => {
@@ -33,13 +33,13 @@ describe("better-supabase/hono after @supabase/server's withSupabase through toH
 
   const alone = createHono(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   /** Its own keys can't verify the token, whatever withSupabase stored. */
   const distrusting = createHono(betterSupabase, {
     env,
-    auth: { jwks: stranger.jwks as never },
+    auth: { jwks: stranger.jwks },
   });
 
   const who = (bs: typeof alone) =>

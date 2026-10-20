@@ -2,6 +2,7 @@ import type { JWTClaims } from "@supabase/server";
 import type { webcrypto } from "node:crypto";
 
 import type { AuthResolver } from "../auth/resolve.ts";
+import type { InlineJwks } from "../env/index.ts";
 
 import { base64ToText, fromBase64, toBase64Url } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
@@ -125,7 +126,7 @@ export function localAuth(secret: string): AuthResolver {
 
 export interface TestSigner {
   /** Public JWKS; pass as `jwks` to `resolveAuth` / `createServer({ auth: { jwks } })`. */
-  readonly jwks: { readonly keys: readonly webcrypto.JsonWebKey[] };
+  readonly jwks: InlineJwks;
   sign(claims: TestJwtClaims): Promise<string>;
 }
 

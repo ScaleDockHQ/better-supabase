@@ -74,6 +74,68 @@ async function exec(
   }
 }
 
+const SIGNAL_NUMBERS: Readonly<Record<string, number>> = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGKILL: 9,
+  SIGTERM: 15,
+};
+
+const FORWARDED_SIGNALS = ["SIGINT", "SIGTERM"] as const;
+
+export interface InheritedOptions {
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}
+
+/**
+ * Runs a command on the terminal (stdin, stdout and stderr inherited) and
+ * resolves to its exit code, `128 + n` when signal `n` ended it. SIGINT and
+ * SIGTERM sent to the CLI go on to the command, so a process manager that
+ * signals only the CLI still stops it. 127 when it could not start.
+ */
+export async function spawnInherited(
+  command: string,
+  args: readonly string[],
+  options: InheritedOptions,
+): Promise<number> {
+  const running = x(command, [...args], {
+    nodeOptions: {
+      cwd: options.cwd,
+      stdio: "inherit",
+      env: { ...options.env },
+    },
+    throwOnError: false,
+  });
+
+  const forwards = FORWARDED_SIGNALS.map((name) => {
+    const forward = (): void => {
+      running.kill(name);
+    };
+
+    process.on(name, forward);
+
+    return () => process.off(name, forward);
+  });
+
+  try {
+    const result = await running;
+    const signal = running.process?.signalCode;
+
+    if (signal) {
+      return 128 + (SIGNAL_NUMBERS[signal] ?? 1);
+    }
+
+    return result.exitCode ?? NOT_FOUND;
+  } catch {
+    return NOT_FOUND;
+  } finally {
+    for (const off of forwards) {
+      off();
+    }
+  }
+}
+
 /** `node_modules/.bin/supabase` in `cwd` or a parent, when the project installs the CLI. */
 function localSupabase(cwd: string): string | undefined {
   const bin = join(

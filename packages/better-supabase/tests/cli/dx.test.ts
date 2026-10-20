@@ -525,9 +525,44 @@ describe("env", () => {
     );
   });
 
+  it("writes plain and prefixed variables with --write and --prefix next", async () => {
+    await project({}, { "status.json": JSON.stringify(status) });
+
+    const result = await run(
+      [
+        "env",
+        "--status-file",
+        "status.json",
+        "--write",
+        ".env.supabase.local",
+        "--prefix",
+        "next",
+        "--cwd",
+        dir,
+      ],
+      { io: { stdout: () => {}, stderr: () => {} } },
+    );
+
+    expect(result.code).toBe(0);
+    const written = await readFile(join(dir, ".env.supabase.local"), "utf-8");
+
+    for (const line of [
+      "SUPABASE_URL=http://127.0.0.1:54321",
+      "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321",
+      "SUPABASE_PUBLISHABLE_KEY=sb_publishable_test",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_test",
+      "SUPABASE_SECRET_KEY=sb_secret_test",
+      "SUPABASE_JWKS_URL=http://127.0.0.1:54321/auth/v1/.well-known/jwks.json",
+    ]) {
+      expect(written.split("\n")).toContain(line);
+    }
+
+    expect(written).not.toContain("NEXT_PUBLIC_SUPABASE_SECRET_KEY");
+  });
+
   it.each([
-    ["--out", "../.env.local"],
-    ["--out", "/tmp/better-supabase-escape.env"],
+    ["--write", "../.env.local"],
+    ["--write", "/tmp/better-supabase-escape.env"],
     ["--status-file", "../status.json"],
   ])("refuses %s %s outside the project root", async (flag, path) => {
     await project({}, { "status.json": JSON.stringify(status) });

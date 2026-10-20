@@ -76,7 +76,7 @@ function protectServer<
 
 const auth = createMcpAuth(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   resource: ENDPOINT,
   advertisedScopes: ["crm:read", "offline_access"],
 });
@@ -281,7 +281,7 @@ describe("createMcpAuth guard options", () => {
   it("lets anon callers through when allowed", async () => {
     const open = createMcpAuth(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       allow: ["user", "anon"],
     });
 
@@ -324,7 +324,7 @@ describe("createMcpAuth guard options", () => {
   it("doesn't trust auth that another instance verified", async () => {
     const scoped = createMcpAuth(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       requiredScopes: ["crm:write"],
     });
 
@@ -345,7 +345,7 @@ describe("createMcpAuth guard options", () => {
   it("answers 403 insufficient_scope for a delegated token without the scope", async () => {
     const scoped = createMcpAuth(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       requiredScopes: ["crm:write"],
     });
 
@@ -374,7 +374,7 @@ describe("createMcpAuth guard options", () => {
   it("answers CORS preflight for the endpoint and adds CORS headers", async () => {
     const open = createMcpAuth(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const serve = open.serve({
@@ -401,7 +401,7 @@ describe("createMcpAuth guard options", () => {
 
     const closed = createMcpAuth(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       cors: false,
     }).serve({ fetch: () => Promise.resolve(new Response("ok")) });
 
@@ -421,7 +421,7 @@ describe("createMcpAuth on Supabase Edge Functions", () => {
 
     const edge = createMcpAuth(betterSupabase, {
       env: { ...env, url: "http://kong:8000" },
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const serve = edge.serve({

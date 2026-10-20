@@ -57,12 +57,9 @@ const listHint = (hint: string, list: boolean): string =>
   list && !hint.endsWith("...") ? `${hint},...` : hint;
 
 function optionName(name: string, definition: ArgDef, list: boolean): string {
-  const aliases =
-    "alias" in definition
-      ? [definition.alias]
-          .flat()
-          .map((alias) => (alias.length === 1 ? `-${alias}` : `--${alias}`))
-      : [];
+  const aliases = "alias" in definition ? [definition.alias].flat() : [];
+  const short = aliases.filter((alias) => alias.length === 1);
+  const long = aliases.filter((alias) => alias.length > 1);
 
   const hint =
     definition.type === "enum" && definition.options
@@ -73,7 +70,11 @@ function optionName(name: string, definition: ArgDef, list: boolean): string {
 
   const flag = negated(definition) ? `no-${name}` : name;
 
-  return [...aliases, `--${flag}${hint ? ` ${hint}` : ""}`].join(", ");
+  return [
+    ...short.map((alias) => `-${alias}`),
+    `--${flag}${hint ? ` ${hint}` : ""}`,
+    ...long.map((alias) => `--${alias}`),
+  ].join(", ");
 }
 
 /** A boolean that is on by default, so the flag a person types is `--no-<name>`. */
@@ -139,6 +140,10 @@ function effectText(effect: CommandEffect): string {
         return effect.access === "read"
           ? "reads the database"
           : "writes to the database";
+      }
+
+      case "process": {
+        return "runs the command you pass";
       }
 
       case "network": {

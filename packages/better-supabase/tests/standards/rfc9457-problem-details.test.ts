@@ -188,7 +188,7 @@ describe("RFC 9457 Problem Details", () => {
   it("the Hono and edge adapters answer errors with Problem Details", async () => {
     const hono = createHono(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const app = new Hono<HonoEnv<Models, Functions, unknown>>()
@@ -201,7 +201,7 @@ describe("RFC 9457 Problem Details", () => {
 
     const edge = createEdge(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const serve = edge.handler(() => err(dbError("stale", "Changed")));

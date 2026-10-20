@@ -144,7 +144,7 @@ describe("createServer read URL", () => {
 
     const server = createServer(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const token = await signer.sign({

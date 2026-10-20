@@ -21,7 +21,7 @@ function serverWith(
 ) {
   return createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     prefetchJwks: false,
     name: "crm",
     version: "1.0.0",

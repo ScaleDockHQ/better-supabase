@@ -20,6 +20,7 @@ import {
 import { display, readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
+import { prefixFromFlag, stackEnvValues } from "../stack-env.ts";
 import {
   parseStackStatus,
   readStackStatus,
@@ -27,8 +28,9 @@ import {
 } from "../stack-status.ts";
 
 const ARGS = {
-  out: {
+  write: {
     type: "string",
+    alias: "out",
     description:
       "Env file to write, or - to print the variables. Defaults to env.output, then .env.local",
     valueHint: "file",
@@ -36,7 +38,7 @@ const ARGS = {
   prefix: {
     type: "string",
     description:
-      'Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix',
+      'Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework',
     valueHint: "prefix",
   },
   "status-file": {
@@ -61,7 +63,7 @@ export type EnvFlags = CliOptions<
 
 async function readStatus(
   config: ResolvedConfig,
-  args: EnvFlags,
+  args: Pick<EnvFlags, "status-file">,
   env: CliEnv,
   signal?: AbortSignal,
 ): Promise<StackStatus> {
@@ -95,17 +97,45 @@ async function readStatus(
   return result.status;
 }
 
-const text = (status: StackStatus, ...keys: string[]): string | undefined => {
-  for (const key of keys) {
-    const value = status[key];
+/** The browser prefix: `--prefix`, then `env.prefix`, then the framework's. */
+export async function browserPrefix(
+  config: ResolvedConfig,
+  flag: string | undefined,
+): Promise<string> {
+  const prefix = flag ?? config.env.prefix;
 
-    if (typeof value === "string" && value.length > 0) {
-      return value;
-    }
+  return prefix === undefined
+    ? publicPrefix(await detectProject(config.root))
+    : prefixFromFlag(prefix);
+}
+
+export interface StackEnv {
+  readonly status: StackStatus;
+  readonly values: Readonly<Record<string, string>>;
+}
+
+/** The running stack's variables, as `env` writes them and `run` sets them. */
+export async function readStackEnv(
+  config: ResolvedConfig,
+  args: Pick<EnvFlags, "prefix" | "status-file">,
+  env: CliEnv,
+  signal?: AbortSignal,
+): Promise<StackEnv> {
+  const status = await readStatus(config, args, env, signal);
+  const prefix = await browserPrefix(config, args.prefix);
+
+  const values = stackEnvValues(status, prefix);
+
+  if (!values) {
+    throw new CliError(
+      "supabase_cli_failed",
+      "supabase status has no API_URL or publishable key. Is the stack running?",
+      { suggestion: "supabase start" },
+    );
   }
 
-  return undefined;
-};
+  return { status, values };
+}
 
 /** Replaces `KEY=` lines in place and appends the rest under a header. */
 export function mergeEnv(
@@ -154,21 +184,11 @@ export async function runEnv(
   signal?: AbortSignal,
 ): Promise<CommandResult> {
   const status = await readStatus(config, args, env, signal);
-  const project = await detectProject(config.root);
-  const prefixFlag = args.prefix ?? config.env.prefix;
+  const prefix = await browserPrefix(config, args.prefix);
 
-  const prefix =
-    prefixFlag === undefined
-      ? publicPrefix(project)
-      : prefixFlag === "none"
-        ? ""
-        : prefixFlag;
+  const values = stackEnvValues(status, prefix);
 
-  const url = text(status, "API_URL");
-  const publishableKey = text(status, "PUBLISHABLE_KEY", "ANON_KEY");
-  const secretKey = text(status, "SECRET_KEY", "SERVICE_ROLE_KEY");
-
-  if (!url || !publishableKey) {
+  if (!values) {
     return {
       code: 1,
       error:
@@ -176,28 +196,9 @@ export async function runEnv(
     };
   }
 
-  const values: Record<string, string> = {
-    [`${prefix}SUPABASE_URL`]: url,
-    [`${prefix}SUPABASE_PUBLISHABLE_KEY`]: publishableKey,
-  };
+  const write = args.write;
 
-  if (secretKey) {
-    values["SUPABASE_SECRET_KEY"] = secretKey;
-  }
-
-  const dbUrl = text(status, "DB_URL");
-
-  if (dbUrl) {
-    values["SUPABASE_DB_URL"] = dbUrl;
-  }
-
-  const jwtSecret = text(status, "JWT_SECRET");
-
-  if (jwtSecret) {
-    values["SUPABASE_JWT_SECRET"] = jwtSecret;
-  }
-
-  if (args.out === "-") {
+  if (write === "-") {
     return {
       code: 0,
       output: Object.entries(values)
@@ -207,8 +208,8 @@ export async function runEnv(
     };
   }
 
-  const out = args.out ?? config.env.output;
-  const path = insideRoot(config.root, out, args.out ? "--out" : "env.output");
+  const out = write ?? config.env.output;
+  const path = insideRoot(config.root, out, write ? "--write" : "env.output");
   const current = (await readIfExists(path)) ?? "";
   const file = display(config.root, out);
 
@@ -236,7 +237,9 @@ export async function runEnv(
 
   const warnings: string[] = [];
 
-  if (!text(status, "PUBLISHABLE_KEY")) {
+  const publishable = status["PUBLISHABLE_KEY"];
+
+  if (typeof publishable !== "string" || publishable.length === 0) {
     warnings.push(
       "This Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
     );

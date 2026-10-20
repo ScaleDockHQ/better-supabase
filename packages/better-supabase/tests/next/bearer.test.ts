@@ -32,7 +32,7 @@ const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
 
 const bs = createNext(defineSupabase(schema), {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   cacheTags: false,
 });
 

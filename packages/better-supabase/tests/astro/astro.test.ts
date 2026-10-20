@@ -12,7 +12,7 @@ import {
 
 const bs = createAstro(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   prefetchJwks: false,
   signIn: "/sign-in",
 });

@@ -26,6 +26,7 @@ import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
+import { ENV_RULES, type StackEnvCheck } from "./env.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
@@ -123,6 +124,7 @@ export interface DoctorContext {
   readonly codes?: readonly string[];
   /** better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
+  readonly stackEnv?: StackEnvCheck;
 }
 
 export interface Rule {
@@ -226,32 +228,6 @@ function tomlLocation(
     lineOf(context.configToml.text, /^\[auth\]/);
 
   return line ? { file: context.configToml.path, line } : undefined;
-}
-
-const PUBLIC_PREFIXES = [
-  "NEXT_PUBLIC_",
-  "VITE_",
-  "PUBLIC_",
-  "EXPO_PUBLIC_",
-  "NUXT_PUBLIC_",
-];
-
-function envEntries(
-  file: TextFile,
-): { key: string; value: string; line: number }[] {
-  return file.text.split("\n").flatMap((raw, index) => {
-    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(
-      raw,
-    );
-
-    if (!match) {
-      return [];
-    }
-
-    const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, "$2");
-
-    return [{ key: match[1]!, value, line: index + 1 }];
-  });
 }
 
 /**
@@ -1051,74 +1027,6 @@ const OWN_RULES: readonly Rule[] = [
               })),
       ),
   },
-  {
-    code: "BS501",
-    severity: "error",
-    title: "Secret in a browser variable",
-    description:
-      "Variables with a public prefix are bundled into client code. A secret key there gives every visitor full access.",
-    check: (context) =>
-      context.envFiles.flatMap((file) =>
-        envEntries(file)
-          .filter(
-            (entry) =>
-              PUBLIC_PREFIXES.some((prefix) => entry.key.startsWith(prefix)) &&
-              (entry.value.startsWith("sb_secret_") ||
-                /SECRET|SERVICE_ROLE/.test(entry.key)),
-          )
-          .map((entry) => ({
-            message: `${entry.key} in ${file.path} is exposed to the browser but holds a secret. Rename it without the public prefix and rotate the key.`,
-            target: `${file.path}:${entry.key}`,
-            location: { file: file.path, line: entry.line },
-          })),
-      ),
-  },
-  {
-    code: "BS502",
-    severity: "warning",
-    title: "Env file with secrets is not ignored by git",
-    description:
-      "Env files holding a secret key or database password should never be committed.",
-    check: (context) => {
-      const patterns = context.gitignore
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith("#"));
-
-      const ignored = (path: string): boolean =>
-        patterns.some((pattern) => {
-          const source = pattern
-            .replace(/^\//, "")
-            .replaceAll(/[.+^${}()|[\]\\]/g, "\\$&")
-            .replaceAll("*", ".*");
-
-          return (
-            new RegExp(`^${source}$`).test(path) ||
-            new RegExp(`(^|/)${source}$`).test(path)
-          );
-        });
-
-      return context.envFiles.flatMap((file) => {
-        const secret = envEntries(file).find(
-          (entry) =>
-            entry.value.startsWith("sb_secret_") ||
-            /SECRET_KEY|SERVICE_ROLE|DB_URL|DATABASE_URL/.test(entry.key),
-        );
-
-        if (!secret || ignored(file.path) || file.path.endsWith(".example")) {
-          return [];
-        }
-
-        return [
-          {
-            message: `${file.path} contains ${secret.key} but isn't in .gitignore.`,
-            target: file.path,
-            location: { file: file.path, line: secret.line },
-          },
-        ];
-      });
-    },
-  },
 ];
 
 export const RULES: readonly Rule[] = [
@@ -1139,6 +1047,7 @@ export const RULES: readonly Rule[] = [
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
+  ...ENV_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
