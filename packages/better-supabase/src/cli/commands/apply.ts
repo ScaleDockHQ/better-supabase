@@ -11,12 +11,10 @@ import {
   type DesignChange,
   designConfig,
   diffAppTables,
-  designOf,
   encodePreset,
   isPresetName,
   type Preset,
   PRESET_NAMES,
-  presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
@@ -34,6 +32,7 @@ import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { ident as sqlIdent } from "../doctor/live.ts";
+import { readPresetInput } from "../preset-input.ts";
 import {
   type AdoptProposal,
   adoptableBlocks,
@@ -59,8 +58,8 @@ const APPLY_ARGS = {
   preset: {
     type: "string",
     description:
-      "A named preset, a code from /create or its URL; a URL's design (&design=) adds its app tables and extra columns",
-    valueHint: "name|code|url",
+      "A named preset, a code from /create, its URL or a downloaded design file; the design (&design= or the file) adds its app tables and extra columns",
+    valueHint: "name|code|url|file",
   },
   package: {
     type: "string",
@@ -181,16 +180,14 @@ const describeConflicts = (preset: Preset): string | undefined => {
 };
 
 /**
- * The design in `input`'s `&design=`, checked against the blocks the config
+ * The design `--preset` carries, checked against the blocks the config
  * gets: an extra column needs its block in the preset or the config.
  */
-async function designFor(
+function designFor(
   config: ResolvedConfig,
-  input: string,
+  design: CreateDesign | undefined,
   preset: Preset,
-): Promise<CreateDesign | undefined> {
-  const design = await designOf(input);
-
+): CreateDesign | undefined {
   if (design === undefined) {
     return undefined;
   }
@@ -346,7 +343,7 @@ export async function runApply(
   if (input === undefined) {
     throw new CliError(
       "usage",
-      "Pass --preset with a named preset, a code from /create or its URL.",
+      "Pass --preset with a named preset, a code from /create, its URL or a downloaded design file.",
     );
   }
 
@@ -384,18 +381,8 @@ export async function runApply(
     );
   }
 
-  let preset: Preset;
-
-  try {
-    preset = presetOf(input);
-  } catch (error) {
-    throw new CliError(
-      "usage",
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-
-  preset = withConventions(preset, flags);
+  const read = await readPresetInput(input, rootConfig.root);
+  const preset = withConventions(read.preset, flags);
 
   const name =
     isPresetName(input) && !hasConventionFlags(flags) ? input : undefined;
@@ -406,7 +393,7 @@ export async function runApply(
     design =
       only === "conventions"
         ? undefined
-        : await designFor(config, input, preset);
+        : designFor(config, read.design, preset);
   } catch (error) {
     throw new CliError(
       "usage",
