@@ -1596,6 +1596,58 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ).toEqual([]);
   });
 
+  it("reads subjects listed by name from the registry and skips unknown tables", async () => {
+    const findings = await run(
+      "BS345",
+      context(
+        withPolicies(strict, tenantOnly),
+        {},
+        {
+          subjects: {
+            note: { table: "public.notes" },
+            ghost: { table: "missing" },
+          },
+          blocks: {
+            attachments: { options: { subjects: ["note", "ghost", 1] } },
+          },
+        },
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual(["public.notes"]);
+
+    const forAll = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_all",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: true,
+          using: tenantOnly,
+          check: null,
+        },
+      ];
+    });
+
+    for (const subjects of [{ note: { table: "notes" }, bad: 1 }, "notes"]) {
+      expect(
+        await run(
+          "BS345",
+          context(
+            forAll,
+            {},
+            {
+              subjects: { note: { table: "notes" } },
+              blocks: { attachments: { options: { subjects } } },
+            },
+          ),
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it("passes provider membership helpers, a wider or branch and a table no client inserts into", async () => {
     const provider =
       "(organization_id IN ( SELECT centrakit.authz_organization_member_ids() AS authz_organization_member_ids))";
