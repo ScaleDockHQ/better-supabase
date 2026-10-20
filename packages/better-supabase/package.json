@@ -884,6 +884,11 @@
       "types": "./dist/blocks/rules/solid/index.d.ts",
       "default": "./dist/blocks/rules/solid/index.js"
     },
+    "./blocks/vercel-marketplace": {
+      "@better-supabase/source": "./src/blocks/vercel-marketplace/index.ts",
+      "types": "./dist/blocks/vercel-marketplace/index.d.ts",
+      "default": "./dist/blocks/vercel-marketplace/index.js"
+    },
     "./blocks/reviews": {
       "@better-supabase/source": "./src/blocks/reviews/index.ts",
       "types": "./dist/blocks/reviews/index.d.ts",
@@ -2164,6 +2169,10 @@
       "./blocks/rules/solid": {
         "types": "./dist/blocks/rules/solid/index.d.ts",
         "default": "./dist/blocks/rules/solid/index.js"
+      },
+      "./blocks/vercel-marketplace": {
+        "types": "./dist/blocks/vercel-marketplace/index.d.ts",
+        "default": "./dist/blocks/vercel-marketplace/index.js"
       },
       "./blocks/reviews": {
         "types": "./dist/blocks/reviews/index.d.ts",

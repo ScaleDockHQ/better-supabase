@@ -102,6 +102,7 @@ import { undoBlock } from "./undo/manifest.ts";
 import { updatedAtBlock } from "./updated-at/manifest.ts";
 import { usageBlock } from "./usage/manifest.ts";
 import { vectorSearchBlock } from "./vector-search/manifest.ts";
+import { vercelMarketplaceBlock } from "./vercel-marketplace/manifest.ts";
 import { versionsBlock } from "./versions/manifest.ts";
 import { waitlistBlock } from "./waitlist/manifest.ts";
 import { incomingWebhooksBlock, webhooksBlock } from "./webhooks/manifest.ts";
@@ -191,6 +192,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   remindersBlock,
   reservedSlugsBlock,
   rulesBlock,
+  vercelMarketplaceBlock,
   savedViewsBlock,
   searchBlock,
   servicePrincipalsBlock,

@@ -89,6 +89,7 @@
   "blocks/reminders",
   "blocks/reviews",
   "blocks/rules",
+  "blocks/vercel-marketplace",
   "blocks/saved-views",
   "blocks/search",
   "blocks/service-principals",

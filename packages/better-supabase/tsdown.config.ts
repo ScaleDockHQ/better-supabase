@@ -93,6 +93,7 @@ const entries = [
   "blocks/oauth-server/index",
   "blocks/domains/index",
   "blocks/rules/index",
+  "blocks/vercel-marketplace/index",
   "blocks/rules/react/index",
   "blocks/rules/react/server",
   "blocks/rules/vue/index",

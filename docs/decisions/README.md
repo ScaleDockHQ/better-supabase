@@ -57,3 +57,6 @@ add one, and link it from the code or config it explains.
 | [0049](0049-dev-mcp-server.md)                        | The CLI serves its commands as a stdio MCP server; tools that write files need a consent token                                 |
 | [0050](0050-migration-safety-lint.md)                 | Doctor lints unapplied migrations for statements that lock tables, without a SQL parser dependency                             |
 | [0051](0051-app-column-access.md)                     | App table columns restrict access to `read` or `server` with Postgres column grants                                            |
+| [0052](0052-billing-webhook-subscriptions.md)         | Billing can store subscriptions from webhooks, with an `event_at` guard and a checkout block                                   |
+| [0053](0053-usage-meter-kinds.md)                     | Usage meters can count distinct values or compute a value on a schedule                                                        |
+| [0054](0054-vercel-marketplace-and-queues.md)         | A Vercel Marketplace block and a Vercel Queues jobs backend, both without a `@vercel/*` runtime dependency                     |

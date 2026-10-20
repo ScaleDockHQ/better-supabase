@@ -266,6 +266,10 @@ import {
   vectorSearchSqlOptions,
 } from "./vector-search/options.ts";
 import {
+  type VercelMarketplaceSqlOptions,
+  vercelMarketplaceSqlOptions,
+} from "./vercel-marketplace/options.ts";
+import {
   type VersionsSqlOptions,
   versionsSqlOptions,
 } from "./versions/options.ts";
@@ -377,6 +381,7 @@ export interface BlockOptionsRegistry {
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
   readonly rules: RulesSqlOptions;
+  readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
   readonly "service-principals": ServicePrincipalsSqlOptions;
@@ -496,6 +501,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
   rules: rulesSqlOptions,
+  "vercel-marketplace": vercelMarketplaceSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
   "service-principals": servicePrincipalsSqlOptions,

@@ -113,6 +113,7 @@ import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
 import { VECTOR_SEARCH } from "./modules/vector-search.ts";
+import { VERCEL_MARKETPLACE } from "./modules/vercel-marketplace.ts";
 import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
@@ -305,6 +306,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(REVIEWS),
       built(LEAVE),
       built(RULES),
+      built(VERCEL_MARKETPLACE),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

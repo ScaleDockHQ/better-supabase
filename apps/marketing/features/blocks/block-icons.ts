@@ -91,6 +91,7 @@ import {
   SquareCheckBigIcon,
   StarIcon,
   StampIcon,
+  StoreIcon,
   TagIcon,
   TargetIcon,
   TestTubeIcon,
@@ -175,6 +176,7 @@ export const BLOCK_ICONS = {
   "time-tracking": TimerIcon,
   leave: TreePalmIcon,
   rules: ListFilterIcon,
+  "vercel-marketplace": StoreIcon,
   hiring: UserPlusIcon,
   employees: IdCardIcon,
   // Billing & commerce
