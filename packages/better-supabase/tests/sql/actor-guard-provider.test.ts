@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/layout.ts";
+import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { applyActorWriteGuards } from "../../src/sql/actor-guard.ts";
 
