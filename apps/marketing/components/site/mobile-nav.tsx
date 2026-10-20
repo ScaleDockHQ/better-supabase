@@ -79,6 +79,9 @@ export function MobileNav() {
               <BrandLogo mark={siGithub} className="size-4" />
               GitHub
             </LinkButton>
+            <LinkButton variant="outline" size="lg" href={site.signIn}>
+              Sign in
+            </LinkButton>
             <LinkButton size="lg" href={site.getStarted}>
               Get started
             </LinkButton>

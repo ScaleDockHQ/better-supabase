@@ -34,6 +34,19 @@ test("typing D in a field or with a modifier keeps the theme", async ({
   await expect(html).not.toHaveClass(/\bdark\b/);
 });
 
+test("/create redirects to the cloud app and keeps the query", async ({
+  request,
+}) => {
+  const response = await request.get("/create?preset=saas&design=0abc", {
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(308);
+  expect(response.headers()["location"]).toBe(
+    "https://app.bettersupabase.com/create?preset=saas&design=0abc",
+  );
+});
+
 test("the GitHub link in the navbar has a name", async ({ page }) => {
   await page.goto("/");
 
