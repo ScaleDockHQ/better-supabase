@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import type { AuthorizationFunctions } from "../../src/config/authorization.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { applyActorWriteGuards } from "../../src/sql/actor-guard.ts";
 
-const layoutWith = (template: string): ModuleLayout =>
+const layoutWith = (template: string): ModuleLayout => {
+  const functions: Partial<AuthorizationFunctions> = {
+    actorMayWrite: template,
+  };
+
   // SAFETY: the guard reads only accessProvider.functions.actorMayWrite.
-  ({
-    accessProvider: { functions: { actorMayWrite: template } },
-  });
+  return { accessProvider: { functions } } as ModuleLayout;
+};
 
 describe("applyActorWriteGuards with a provider template", () => {
   it("refuses a template with placeholders", () => {
