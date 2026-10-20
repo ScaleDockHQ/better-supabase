@@ -9,6 +9,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  columnRef,
   fail,
   lockTable,
   quotedTable,
@@ -50,14 +51,61 @@ const PREDICATE = /^[A-Za-z0-9_.'"=<>!() \t-]+$/;
 
 interface SequenceEntity {
   readonly name: string;
-  readonly period: "none" | "year" | "month" | "fiscal";
+  readonly period: "none" | "year" | "month" | "fiscal" | "format";
   readonly fiscalMonth: number;
   readonly format: string;
+  readonly formatFrom?: {
+    readonly table: string;
+    readonly column: string;
+    readonly key: string;
+  };
   readonly table?: string;
   readonly column?: string;
+  readonly sequenceColumn?: string;
   readonly tenantColumn: string;
   readonly assignOn: string;
   readonly periodColumn?: string;
+}
+
+const YEAR_TOKEN = /\{yy(?:yy)?\}/;
+
+function formatPeriod(format: string): "none" | "year" | "month" {
+  if (!YEAR_TOKEN.test(format)) {
+    return "none";
+  }
+
+  return format.includes("{mm}") ? "month" : "year";
+}
+
+function formatSource(
+  where: string,
+  value: unknown,
+): SequenceEntity["formatFrom"] {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(
+      `${where}.formatFrom must be { column: "schema.table.column", key? }`,
+    );
+  }
+
+  const record = recordOf(value);
+  const column = record["column"];
+  const key = record["key"] ?? "id";
+
+  if (typeof column !== "string") {
+    throw new TypeError(
+      `${where}.formatFrom.column must be "schema.table.column"`,
+    );
+  }
+
+  if (typeof key !== "string" || !ENTITY.test(key)) {
+    throw new TypeError(`${where}.formatFrom.key must be a column name`);
+  }
+
+  return { ...columnRef(`${where}.formatFrom.column`, column), key };
 }
 
 function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
@@ -97,23 +145,26 @@ function entity(name: string, entry: unknown): SequenceEntity {
       ? recordOf(period)["fiscalYearStartMonth"]
       : undefined;
 
-  const kind =
-    period === "none" || period === "year" || period === "month"
+  const stated =
+    period === "none" ||
+    period === "year" ||
+    period === "month" ||
+    period === "format"
       ? period
       : fiscal === undefined
         ? undefined
         : "fiscal";
 
-  if (kind === undefined) {
+  if (stated === undefined) {
     throw new TypeError(
-      `${where}.period must be "none", "year", "month" or { fiscalYearStartMonth }`,
+      `${where}.period must be "none", "year", "month", "format" or { fiscalYearStartMonth }`,
     );
   }
 
-  const fiscalMonth = kind === "fiscal" ? Number(fiscal) : 1;
+  const fiscalMonth = stated === "fiscal" ? Number(fiscal) : 1;
 
   if (
-    kind === "fiscal" &&
+    stated === "fiscal" &&
     (!Number.isInteger(fiscalMonth) || fiscalMonth < 1 || fiscalMonth > 12)
   ) {
     throw new TypeError(
@@ -126,6 +177,13 @@ function entity(name: string, entry: unknown): SequenceEntity {
   if (typeof format !== "string" || format.length === 0 || format.length > 80) {
     throw new TypeError(`${where}.format must be a short template`);
   }
+
+  const formatFrom = formatSource(where, record["formatFrom"]);
+
+  const kind =
+    stated === "format" && formatFrom === undefined
+      ? formatPeriod(format)
+      : stated;
 
   const table = record["table"];
   const column = record["column"];
@@ -143,6 +201,20 @@ function entity(name: string, entry: unknown): SequenceEntity {
 
   if ((table === undefined) !== (column === undefined)) {
     throw new TypeError(`${where} needs both table and column, or neither`);
+  }
+
+  const sequenceColumn = record["sequenceColumn"];
+
+  if (
+    sequenceColumn !== undefined &&
+    (typeof sequenceColumn !== "string" ||
+      !ENTITY.test(sequenceColumn) ||
+      column === undefined ||
+      sequenceColumn === column)
+  ) {
+    throw new TypeError(
+      `${where}.sequenceColumn must be a column name other than column, with table and column set`,
+    );
   }
 
   const tenantColumn = record["tenantColumn"] ?? "tenant_id";
@@ -173,9 +245,11 @@ function entity(name: string, entry: unknown): SequenceEntity {
     period: kind,
     fiscalMonth,
     format,
+    ...(formatFrom === undefined ? {} : { formatFrom }),
     ...(typeof table === "string" && typeof column === "string"
       ? { table, column }
       : {}),
+    ...(typeof sequenceColumn === "string" ? { sequenceColumn } : {}),
     tenantColumn,
     assignOn,
     ...(typeof periodColumn === "string" ? { periodColumn } : {}),
@@ -192,7 +266,7 @@ function recordOf(value: object): Record<string, unknown> {
   return record;
 }
 
-function periodSql(item: SequenceEntity, at: string): string {
+function periodSql(item: SequenceEntity, at: string, format: string): string {
   const stamp = `${at} at time zone 'utc'`;
 
   switch (item.period) {
@@ -210,6 +284,10 @@ function periodSql(item: SequenceEntity, at: string): string {
 
     case "fiscal": {
       return `case when extract(month from ${stamp}) >= ${String(item.fiscalMonth)} then to_char(${stamp}, 'YYYY') else (extract(year from ${stamp})::int - 1)::text end`;
+    }
+
+    case "format": {
+      return `better_supabase.number_format_period(${format}, ${at})`;
     }
 
     default: {
@@ -272,7 +350,11 @@ function syncPeriod(
   }
 
   if (item.periodColumn !== undefined) {
-    return periodSql(item, rowAt(`t.${sqlIdent(item.periodColumn)}`));
+    return periodSql(
+      item,
+      rowAt(`t.${sqlIdent(item.periodColumn)}`),
+      sqlString(item.format),
+    );
   }
 
   const part = (token: string): string | undefined => {
@@ -302,6 +384,10 @@ function syncPeriod(
         : `case when ${month}::int >= ${String(item.fiscalMonth)} then ${year} else ((${year})::int - 1)::text end`;
     }
 
+    case "format": {
+      return undefined;
+    }
+
     default: {
       const never: never = item.period;
 
@@ -310,20 +396,75 @@ function syncPeriod(
   }
 }
 
+function formatOf(
+  ctx: ModuleContext,
+  item: SequenceEntity,
+  tenant: string,
+): string {
+  return item.formatFrom === undefined
+    ? sqlString(item.format)
+    : `${ctx.fn("number_format")}(${tenant}, ${sqlString(item.name)})`;
+}
+
+interface SyncSource {
+  readonly period: string | undefined;
+  readonly number: string | undefined;
+  readonly match: string | undefined;
+}
+
+function syncSource(ctx: ModuleContext, item: SequenceEntity): SyncSource {
+  const sequence =
+    item.sequenceColumn === undefined
+      ? undefined
+      : `t.${sqlIdent(item.sequenceColumn)}`;
+
+  if (item.formatFrom !== undefined) {
+    const format = formatOf(ctx, item, `t.${sqlIdent(item.tenantColumn)}`);
+
+    const period =
+      item.period === "none"
+        ? "''"
+        : item.periodColumn === undefined
+          ? undefined
+          : periodSql(item, rowAt(`t.${sqlIdent(item.periodColumn)}`), format);
+
+    return sequence === undefined
+      ? {
+          period,
+          number: "m.parts[1]",
+          match: `better_supabase.number_format_pattern(${format})`,
+        }
+      : { period, number: sequence, match: undefined };
+  }
+
+  const { pattern, groups } = formatPattern(item.format);
+  const period = syncPeriod(item, groups);
+  const group = groups.get("n");
+
+  const number =
+    sequence ?? (group === undefined ? undefined : `m.parts[${String(group)}]`);
+
+  const parses =
+    (period?.includes("m.parts") ?? false) ||
+    (number?.startsWith("m.parts") ?? false);
+
+  return { period, number, match: parses ? sqlString(pattern) : undefined };
+}
+
 function syncEntity(
   ctx: ModuleContext,
   item: SequenceEntity & { readonly table: string; readonly column: string },
 ): string {
-  const { pattern, groups } = formatPattern(item.format);
-  const period = syncPeriod(item, groups);
-  const number = groups.get("n");
+  const { period, number, match } = syncSource(ctx, item);
   const where = `p_entity is null or p_entity = ${sqlString(item.name)}`;
 
   if (period === undefined || number === undefined) {
     const problem =
       number === undefined
         ? `the ${item.name} format has no {n} to read a number from`
-        : `the ${item.name} format holds no period; set options.entities.${item.name}.periodColumn`;
+        : item.formatFrom === undefined
+          ? `the ${item.name} format holds no period; set options.entities.${item.name}.periodColumn`
+          : `the ${item.name} format is chosen per tenant; set options.entities.${item.name}.periodColumn`;
 
     return `  if ${where} then
     ${fail("NUMBER_SYNC_UNSUPPORTED", problem, "22023")}
@@ -338,14 +479,22 @@ function syncEntity(
   const updatedAt = ctx.col("sequences", "updatedAt");
   const owner = `t.${sqlIdent(item.tenantColumn)}`;
 
+  const join =
+    match === undefined
+      ? ""
+      : `
+      cross join lateral regexp_match(t.${sqlIdent(item.column)}::text, ${match}) as m(parts)`;
+
+  const found =
+    match === undefined ? `${number} is not null` : "m.parts is not null";
+
   return `  if ${where} then
     insert into ${table} (${tenant}, ${entity}, ${periodCol}, ${last})
     select s.tenant, ${ctx.cast("sequences", "entity", sqlString(item.name))}, s.period, max(s.n)
     from (
-      select ${owner} as tenant, ${period} as period, (m.parts[${String(number)}])::bigint as n
-      from ${quotedTable(item.table)} t
-      cross join lateral regexp_match(t.${sqlIdent(item.column)}::text, ${sqlString(pattern)}) as m(parts)
-      where m.parts is not null
+      select ${owner} as tenant, ${period} as period, (${number})::bigint as n
+      from ${quotedTable(item.table)} t${join}
+      where ${found}
         and (p_tenant is null or ${owner} = p_tenant)
     ) s
     where s.tenant is not null and s.period is not null
@@ -355,6 +504,55 @@ function syncEntity(
     get diagnostics v_count = row_count;
     v_rows := v_rows + v_count;
   end if;`;
+}
+
+function formatFunction(
+  ctx: ModuleContext,
+  items: readonly SequenceEntity[],
+): string {
+  const fn = ctx.fn("number_format");
+  const chosen = items.filter((item) => item.formatFrom !== undefined);
+
+  const branches = items.map((item) => {
+    const from = item.formatFrom;
+
+    const value =
+      from === undefined
+        ? sqlString(item.format)
+        : `coalesce((select nullif(btrim(s.${from.column}), '') from ${from.table} s where s.${sqlIdent(from.key)} = p_tenant), ${sqlString(item.format)})`;
+
+    return `    when ${sqlString(item.name)} then ${value}`;
+  });
+
+  const resolve =
+    branches.length === 0
+      ? "null"
+      : `case p_entity\n${branches.join("\n")}\n    else null\n  end`;
+
+  const check =
+    chosen.length === 0
+      ? ""
+      : `
+  if p_entity in (${chosen.map((item) => sqlString(item.name)).join(", ")}) and v_format !~ '\\{n(:[0-9]+)?\\}' then
+    ${fail("NUMBER_FORMAT_INVALID", "the tenant's number format has no {n}", "22023")}
+  end if;`;
+
+  return `
+create or replace function ${fn}(p_tenant ${ctx.idType}, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := ${resolve};${check}
+  return v_format;
+end;
+$$;
+${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
 }
 
 function syncFunction(
@@ -425,7 +623,7 @@ function build(ctx: ModuleContext): string {
       : `case next_number.entity\n${items
           .map(
             (item) =>
-              `    when ${sqlString(item.name)} then ${periodSql(item, "next_number.at")}`,
+              `    when ${sqlString(item.name)} then ${periodSql(item, "next_number.at", formatOf(ctx, item, "next_number.tenant"))}`,
           )
           .join("\n")}\n    else null\n  end`;
 
@@ -499,6 +697,36 @@ ${serviceGrant("better_supabase.number_at(timestamptz)")}
 ${serviceGrant("better_supabase.number_at(timestamp)")}
 ${serviceGrant("better_supabase.number_at(date)")}
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\\{yy(yy)?\\}' and p_format ~ '\\{mm\\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\\{yy(yy)?\\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+${serviceGrant("better_supabase.number_format_period(text, timestamptz)")}
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\\{n(:[0-9]+)?\\}', chr(3), 'g'),
+      '([^[:alnum:]\\x01-\\x03])', '\\\\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+${serviceGrant("better_supabase.number_format_pattern(text)")}
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists ${fn}(${ctx.idType}, text, timestamptz) cascade;
 create or replace function ${fn}(tenant ${ctx.idType}, p_entity text, at timestamptz default now())
@@ -550,6 +778,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}
+${formatFunction(ctx, items)}
 ${syncFunction(ctx, items)}
 ${triggers}`;
 }
@@ -564,6 +793,12 @@ function trigger(ctx: ModuleContext, item: SequenceEntity): string {
 
   const target = quotedTable(table);
   const col = sqlIdent(column);
+
+  const sequence =
+    item.sequenceColumn === undefined
+      ? undefined
+      : sqlIdent(item.sequenceColumn);
+
   const fn = sqlIdent(`bs_assign_number_${item.name}`);
 
   return `
@@ -581,7 +816,7 @@ begin
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
   end if;
   if tg_op = 'UPDATE' and old.${col} is not null then
-    if new.${col} is distinct from old.${col} then
+    if new.${col} is distinct from old.${col}${sequence === undefined ? "" : ` or new.${sequence} is distinct from old.${sequence}`} then
       ${fail("NUMBER_IMMUTABLE", "a number cannot change", "22023")}
     end if;
     return new;
@@ -598,7 +833,12 @@ begin
   end if;
   v_at := ${item.periodColumn === undefined ? "now()" : `coalesce(${rowAt(`new.${sqlIdent(item.periodColumn)}`)}, now())`};
   v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, v_at);
-  new.${col} := better_supabase.format_assigned_number(${sqlString(item.format)}, v_n, v_at);
+  new.${col} := better_supabase.format_assigned_number(${formatOf(ctx, item, `new.${sqlIdent(item.tenantColumn)}`)}, v_n, v_at);${
+    sequence === undefined
+      ? ""
+      : `
+  new.${sequence} := v_n;`
+  }
   return new;
 end;
 $$;

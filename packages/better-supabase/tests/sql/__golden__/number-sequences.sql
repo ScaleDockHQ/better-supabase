@@ -107,6 +107,38 @@ grant execute on function better_supabase.number_at(timestamp) to service_role;
 revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
 grant execute on function better_supabase.number_at(date) to service_role;
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\{yy(yy)?\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\{n(:[0-9]+)?\}', chr(3), 'g'),
+      '([^[:alnum:]\x01-\x03])', '\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+revoke execute on function better_supabase.number_format_pattern(text) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_pattern(text) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
@@ -154,6 +186,23 @@ end;
 $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "better_supabase"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := null;
+  return v_format;
+end;
+$$;
+revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports
@@ -315,6 +364,38 @@ grant execute on function better_supabase.number_at(timestamp) to service_role;
 revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
 grant execute on function better_supabase.number_at(date) to service_role;
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\{yy(yy)?\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\{n(:[0-9]+)?\}', chr(3), 'g'),
+      '([^[:alnum:]\x01-\x03])', '\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+revoke execute on function better_supabase.number_format_pattern(text) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_pattern(text) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
@@ -371,6 +452,23 @@ end;
 $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "better_supabase"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := null;
+  return v_format;
+end;
+$$;
+revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports
@@ -534,6 +632,38 @@ grant execute on function better_supabase.number_at(timestamp) to service_role;
 revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
 grant execute on function better_supabase.number_at(date) to service_role;
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\{yy(yy)?\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\{n(:[0-9]+)?\}', chr(3), 'g'),
+      '([^[:alnum:]\x01-\x03])', '\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+revoke execute on function better_supabase.number_format_pattern(text) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_pattern(text) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "app_private"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "app_private"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
@@ -581,6 +711,23 @@ end;
 $$;
 revoke execute on function "app_private"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "app_private"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "app_private"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := null;
+  return v_format;
+end;
+$$;
+revoke execute on function "app_private"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "app_private"."number_format"(uuid, text) to service_role;
 
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports
@@ -742,6 +889,38 @@ grant execute on function better_supabase.number_at(timestamp) to service_role;
 revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
 grant execute on function better_supabase.number_at(date) to service_role;
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\{yy(yy)?\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\{n(:[0-9]+)?\}', chr(3), 'g'),
+      '([^[:alnum:]\x01-\x03])', '\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+revoke execute on function better_supabase.number_format_pattern(text) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_pattern(text) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
@@ -789,6 +968,23 @@ end;
 $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "better_supabase"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := null;
+  return v_format;
+end;
+$$;
+revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports
@@ -874,6 +1070,24 @@ as $$ select "better_supabase"."number_at"($1) $$;
 revoke execute on function "api"."number_at"(date) from public, anon, authenticated;
 grant execute on function "api"."number_at"(date) to service_role;
 
+create or replace function "api"."number_format_period"(p_format text, p_at timestamptz)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."number_format_period"($1, $2) $$;
+revoke execute on function "api"."number_format_period"(text, timestamptz) from public, anon, authenticated;
+grant execute on function "api"."number_format_period"(text, timestamptz) to service_role;
+
+create or replace function "api"."number_format_pattern"(p_format text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."number_format_pattern"($1) $$;
+revoke execute on function "api"."number_format_pattern"(text) from public, anon, authenticated;
+grant execute on function "api"."number_format_pattern"(text) to service_role;
+
 create or replace function "api"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
 returns bigint
 language sql
@@ -882,6 +1096,15 @@ set search_path = ''
 as $$ select "better_supabase"."next_number"($1, $2, $3) $$;
 revoke execute on function "api"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "api"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "api"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."number_format"($1, $2) $$;
+revoke execute on function "api"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "api"."number_format"(uuid, text) to service_role;
 
 create or replace function "api"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null)
 returns integer
@@ -1030,6 +1253,38 @@ grant execute on function better_supabase.number_at(timestamp) to service_role;
 revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
 grant execute on function better_supabase.number_at(date) to service_role;
 
+create or replace function better_supabase.number_format_period(p_format text, p_at timestamptz)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then to_char(p_at at time zone 'utc', 'YYYY-MM')
+    when p_format ~ '\{yy(yy)?\}' then to_char(p_at at time zone 'utc', 'YYYY')
+    else ''
+  end
+$$;
+revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
+
+create or replace function better_supabase.number_format_pattern(p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select '^' || replace(replace(replace(
+    regexp_replace(
+      regexp_replace(
+        replace(replace(replace(replace(p_format, '{yyyy}', chr(1)), '{yy}', chr(2)), '{mm}', chr(2)), '{dd}', chr(2)),
+        '\{n(:[0-9]+)?\}', chr(3), 'g'),
+      '([^[:alnum:]\x01-\x03])', '\\\1', 'g'),
+    chr(1), '[0-9]{4}'), chr(2), '[0-9]{2}'), chr(3), '([0-9]+)') || '$'
+$$;
+revoke execute on function better_supabase.number_format_pattern(text) from public, anon, authenticated;
+grant execute on function better_supabase.number_format_pattern(text) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now())
@@ -1077,6 +1332,23 @@ end;
 $$;
 revoke execute on function "better_supabase"."next_number"(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function "better_supabase"."next_number"(uuid, text, timestamptz) to service_role;
+
+create or replace function "better_supabase"."number_format"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+begin
+  v_format := null;
+  return v_format;
+end;
+$$;
+revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports

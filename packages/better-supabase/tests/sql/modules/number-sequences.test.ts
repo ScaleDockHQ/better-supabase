@@ -433,3 +433,199 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 });
+
+const CAROL = "33333333-3333-4333-8333-333333333333";
+
+const TENANT_FORMATS = `
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'supabase_auth_admin') then
+    create role supabase_auth_admin;
+  end if;
+end;
+$$;
+
+create table public.organizations (
+  id uuid primary key,
+  invoice_number_format text
+);
+
+create table public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations (id),
+  status text not null default 'draft',
+  issued_on date,
+  number bigint,
+  formatted_number text,
+  unique (organization_id, formatted_number)
+);
+`;
+
+const ORGANIZATIONS = `
+insert into public.organizations (id, invoice_number_format) values
+  ('${ALICE}', '{yyyy}-{n:3}'),
+  ('${BOB}', null),
+  ('${CAROL}', 'F{yy}{mm}-{n}');
+`;
+
+const perTenant = {
+  period: "format",
+  format: "{n}",
+  formatFrom: { column: "public.organizations.invoice_number_format" },
+  table: "public.invoices",
+  column: "formatted_number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+};
+
+const tenantFormats = (
+  check: string,
+  entity: Record<string, unknown> = {},
+): Promise<void> =>
+  withNumbers({ invoice: { ...perTenant, ...entity } }, TENANT_FORMATS, [
+    ORGANIZATIONS,
+    check,
+  ]);
+
+const send = (tenant: string, issued: string, expected: string): string =>
+  `  insert into public.invoices (organization_id, status, issued_on) values ('${tenant}', 'sent', '${issued}') returning formatted_number into v_number;
+  if v_number is distinct from '${expected}' then
+    raise exception 'numbered % for ${tenant} on ${issued}, expected ${expected}', v_number;
+  end if;`;
+
+describe("per-tenant formats", () => {
+  it("resolves the tenant's format and derives the period from it", () => {
+    const sql = sqlOf({
+      "number-sequences": {
+        options: {
+          entities: {
+            invoice: { ...perTenant, sequenceColumn: "number" },
+            ticket: { period: "format", format: "T-{yyyy}-{mm}-{n}" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `when 'invoice' then coalesce((select nullif(btrim(s."invoice_number_format"), '') from "public"."organizations" s where s."id" = p_tenant), '{n}')`,
+    );
+    expect(sql).toContain(
+      `when 'invoice' then better_supabase.number_format_period("better_supabase"."number_format"(next_number.tenant, 'invoice'), next_number.at)`,
+    );
+    expect(sql).toContain(
+      "when 'ticket' then to_char(next_number.at at time zone 'utc', 'YYYY-MM')",
+    );
+    expect(sql).toContain('new."number" := v_n;');
+    expect(sql).toContain('or new."number" is distinct from old."number"');
+    expect(sql).toContain("NUMBER_FORMAT_INVALID");
+  });
+
+  it.each([
+    ["a formatFrom that is not an object", { formatFrom: "x" }, /formatFrom/],
+    [
+      "a formatFrom column without a schema",
+      { formatFrom: { column: "organizations.format" } },
+      /schema\.table\.column/,
+    ],
+    [
+      "a formatFrom key that is not a name",
+      { formatFrom: { column: "public.o.f", key: "Id" } },
+      /formatFrom\.key/,
+    ],
+    [
+      "a sequenceColumn equal to column",
+      { sequenceColumn: "formatted_number" },
+      /sequenceColumn/,
+    ],
+  ])("refuses %s", (_label, entity, message) => {
+    expect(() =>
+      sqlOf({
+        "number-sequences": {
+          options: { entities: { invoice: { ...perTenant, ...entity } } },
+        },
+      }),
+    ).toThrow(message);
+  });
+});
+
+describe("per-tenant formats in PGlite", BOOT, () => {
+  it("numbers continuously, yearly or monthly by each tenant's format", async () => {
+    await expect(
+      tenantFormats(
+        `do $$
+declare
+  v_number text;
+begin
+${send(ALICE, "2025-12-31", "2025-001")}
+${send(ALICE, "2026-01-02", "2026-001")}
+${send(ALICE, "2026-02-03", "2026-002")}
+${send(BOB, "2025-12-31", "1")}
+${send(BOB, "2026-01-02", "2")}
+${send(CAROL, "2026-01-05", "F2601-1")}
+${send(CAROL, "2026-02-01", "F2602-1")}
+${send(CAROL, "2026-02-09", "F2602-2")}
+  if (select number from public.invoices where formatted_number = 'F2602-2') <> 2 then
+    raise exception 'the sequence column holds the wrong number';
+  end if;
+end;
+$$;`,
+        { sequenceColumn: "number" },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps the number and its sequence immutable", async () => {
+    await expect(
+      tenantFormats(
+        `insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2026-01-02');
+update public.invoices set number = 7;`,
+        { sequenceColumn: "number" },
+      ),
+    ).rejects.toThrow(/a number cannot change/);
+  });
+
+  it("refuses a tenant format without {n}", async () => {
+    await expect(
+      tenantFormats(
+        `update public.organizations set invoice_number_format = 'INV-{yyyy}' where id = '${ALICE}';
+insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2026-01-02');`,
+      ),
+    ).rejects.toThrow(/has no \{n\}/);
+  });
+
+  it("syncs per tenant from the sequence column or the tenant's format", async () => {
+    const seeded = `alter table public.invoices disable trigger user;
+update public.organizations set invoice_number_format = 'INV/{yyyy}.{n:4} (x)' where id = '${CAROL}';
+insert into public.invoices (organization_id, status, issued_on, number, formatted_number) values
+  ('${ALICE}', 'sent', '2026-03-01', 41, '2026-041'),
+  ('${ALICE}', 'sent', '2025-03-01', 9, '2025-009'),
+  ('${BOB}', 'sent', '2024-03-01', 17, '17'),
+  ('${CAROL}', 'sent', '2026-03-01', 5, 'INV/2026.0005 (x)');
+alter table public.invoices enable trigger user;
+do $$
+declare
+  v_number text;
+begin
+  perform better_supabase.sync_number_sequences();
+${send(ALICE, "2026-04-01", "2026-042")}
+${send(ALICE, "2025-04-01", "2025-010")}
+${send(BOB, "2026-04-01", "18")}
+${send(CAROL, "2026-04-01", "INV/2026.0006 (x)")}
+end;
+$$;`;
+
+    await expect(
+      tenantFormats(seeded, { sequenceColumn: "number" }),
+    ).resolves.toBeUndefined();
+    await expect(tenantFormats(seeded)).resolves.toBeUndefined();
+  });
+
+  it("refuses to sync a per-tenant period without periodColumn", async () => {
+    await expect(
+      tenantFormats("select better_supabase.sync_number_sequences();", {
+        periodColumn: undefined,
+      }),
+    ).rejects.toThrow(/chosen per tenant; set options/);
+  });
+});

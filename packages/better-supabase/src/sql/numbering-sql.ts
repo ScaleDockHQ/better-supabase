@@ -3,10 +3,14 @@ import type { ModuleContext } from "./context.ts";
 import { isRecord } from "../core/guards.ts";
 import { sqlString } from "../core/template.ts";
 
-/** The `number-sequences` format of `entity`, when the app configured one. */
+/**
+ * The `number-sequences` format of `entity` in `tenant` as SQL, when the app
+ * configured one.
+ */
 function sequenceFormatOf(
   ctx: ModuleContext,
   entity: string,
+  tenant: string,
 ): string | undefined {
   if (!ctx.installed("number-sequences")) {
     return undefined;
@@ -24,7 +28,9 @@ function sequenceFormatOf(
     return undefined;
   }
 
-  return entry["format"];
+  return isRecord(entry["formatFrom"])
+    ? `${ctx.of("number-sequences").fn("number_format")}(${tenant}, ${sqlString(entity)})`
+    : sqlString(entry["format"]);
 }
 
 /**
@@ -46,13 +52,13 @@ export function assignNumberSql(
     readonly prefix: string;
   },
 ): string {
-  const format = sequenceFormatOf(ctx, entity);
+  const format = sequenceFormatOf(ctx, entity, tenant);
 
   if (format !== undefined) {
     const next = ctx.of("number-sequences").fn("next_number");
 
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
-  ${target.identifier} := better_supabase.format_assigned_number(${sqlString(format)}, ${target.seq}, now());`;
+  ${target.identifier} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;
   }
 
   return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ${sqlString(`:${entity}`)}, 0));

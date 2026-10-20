@@ -17,7 +17,7 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 | ------------------ | ----------------------------------------------- |
 | `number_sequences` | The last number for a tenant, entity and period |
 
-Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month`, `format` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
 
 ## Period from the row
 
@@ -34,6 +34,30 @@ invoice: {
   assignOn: "new.status = 'sent'",
 },
 ```
+
+## Formats per tenant
+
+Some tenants number invoices continuously and others restart every year. Set `formatFrom` to the column that holds each tenant's format, as `schema.table.column`, with `key` naming the column that matches the tenant id (default `id`). A tenant whose column is null or empty gets the entity's `format`. A format a tenant sets must hold `{n}`, or the assignment fails with `NUMBER_FORMAT_INVALID`.
+
+With `period: "format"` the format decides when the counter restarts: a format with `{yyyy}` or `{yy}` and `{mm}` restarts every month, one with only the year every year, and one without either never. `2026-{n}` style numbers then never repeat, and a tenant who changes `{yyyy}-{n:3}` to `{n}` continues on the continuous counter. A fixed `period` still works with `formatFrom`, and `period: "format"` without `formatFrom` follows the entity's own `format`.
+
+`sequenceColumn` also stores the bare number, for sorting or for an app that keeps the formatted and the bare number apart. It cannot change either once set.
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "format",
+  format: "{yyyy}-{n:4}",
+  formatFrom: { column: "public.organizations.invoice_number_format" },
+  table: "public.invoices",
+  column: "formatted_number",
+  sequenceColumn: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
+
+`number_format(tenant, entity)` returns the format a tenant uses. Every number is still assigned in the document's transaction and never changes, and a format change only affects the numbers assigned after it.
 
 ## Existing numbers
 
@@ -66,7 +90,9 @@ It reads the entities that set `table` and `column`, matches each value against 
 },
 ```
 
-Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
+Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity.
+
+With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
 
 Run it after anything that writes numbered rows directly. After seeding, end `supabase/seed.sql` with `select better_supabase.sync_number_sequences();`, so `supabase db reset` leaves the counters past the seeded documents. After an import, call it in the same transaction as the import. After adopting tables whose documents already have numbers, run it once in a data migration.
 
