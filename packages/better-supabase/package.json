@@ -63,6 +63,11 @@
       "types": "./dist/create/index.d.ts",
       "default": "./dist/create/index.js"
     },
+    "./create/lite": {
+      "@better-supabase/source": "./src/create/lite/index.ts",
+      "types": "./dist/create/lite/index.d.ts",
+      "default": "./dist/create/lite/index.js"
+    },
     "./create/supabase": {
       "@better-supabase/source": "./src/create/supabase/index.ts",
       "types": "./dist/create/supabase/index.d.ts",
@@ -1499,6 +1504,10 @@
       "./create": {
         "types": "./dist/create/index.d.ts",
         "default": "./dist/create/index.js"
+      },
+      "./create/lite": {
+        "types": "./dist/create/lite/index.d.ts",
+        "default": "./dist/create/lite/index.js"
       },
       "./create/supabase": {
         "types": "./dist/create/supabase/index.d.ts",
