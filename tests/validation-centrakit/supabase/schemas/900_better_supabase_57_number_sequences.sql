@@ -85,6 +85,31 @@ $$;
 revoke execute on function better_supabase.format_assigned_number(text, bigint, timestamptz) from public, anon, authenticated;
 grant execute on function better_supabase.format_assigned_number(text, bigint, timestamptz) to service_role;
 
+create or replace function better_supabase.number_at(value timestamptz)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value $$;
+create or replace function better_supabase.number_at(value timestamp)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value at time zone 'utc' $$;
+create or replace function better_supabase.number_at(value date)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value::timestamp at time zone 'utc' $$;
+revoke execute on function better_supabase.number_at(timestamptz) from public, anon, authenticated;
+grant execute on function better_supabase.number_at(timestamptz) to service_role;
+revoke execute on function better_supabase.number_at(timestamp) from public, anon, authenticated;
+grant execute on function better_supabase.number_at(timestamp) to service_role;
+revoke execute on function better_supabase.number_at(date) from public, anon, authenticated;
+grant execute on function better_supabase.number_at(date) to service_role;
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now())

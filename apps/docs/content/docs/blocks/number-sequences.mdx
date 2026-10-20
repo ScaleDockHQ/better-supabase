@@ -17,7 +17,23 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 | ------------------ | ----------------------------------------------- |
 | `number_sequences` | The last number for a tenant, entity and period |
 
-Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `periodColumn` is only read by `sync_number_sequences` (see [existing numbers](#existing-numbers)).
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`).
+
+## Period from the row
+
+By default the trigger takes the period and the `{yyyy}`, `{mm}` and `{dd}` tokens from the time of assignment. Set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as an invoice's issue date, and the trigger reads them from that column instead, in UTC. An invoice issued on 31 December and sent on 2 January then gets a number of the old year. A row whose column is still null falls back to the time of assignment. `sync_number_sequences` reads the same column (see [existing numbers](#existing-numbers)).
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "year",
+  format: "INV-{yyyy}-{n:4}",
+  table: "public.invoices",
+  column: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
 
 ## Existing numbers
 
@@ -31,7 +47,7 @@ select better_supabase.sync_number_sequences();
 select better_supabase.sync_number_sequences('6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69', 'invoice');
 ```
 
-It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC:
+It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC, as it does when the trigger assigns a number:
 
 ```ts title="better-supabase.config.ts"
 "number-sequences": {

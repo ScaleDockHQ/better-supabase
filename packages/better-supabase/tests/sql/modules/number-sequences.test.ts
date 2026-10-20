@@ -129,8 +129,12 @@ describe("number sequences", () => {
       "case when m.parts[2]::int >= 4 then '20' || m.parts[1] else (('20' || m.parts[1])::int - 1)::text end",
     );
     expect(sql).toContain(
-      "to_char(t.\"issued_at\" at time zone 'utc', 'YYYY-MM')",
+      "to_char(better_supabase.number_at(t.\"issued_at\") at time zone 'utc', 'YYYY-MM')",
     );
+    expect(sql).toContain(
+      'v_at := coalesce(better_supabase.number_at(new."issued_at"), now());',
+    );
+    expect(sql).toContain("v_at := now();");
     expect(sql).toContain(
       "the quote format holds no period; set options.entities.quote.periodColumn",
     );
@@ -265,29 +269,19 @@ insert into public.invoices (organization_id, number) values
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
 const BOOT = { timeout: 60_000 };
 
-async function withInvoices(check: string): Promise<void> {
+async function withNumbers(
+  entities: Record<string, unknown>,
+  ddl: string,
+  seed: readonly string[],
+): Promise<void> {
   const files = renderModules(["number-sequences"], {
-    modules: {
-      "number-sequences": {
-        options: {
-          entities: {
-            invoice: {
-              period: "year",
-              format: "INV-{yyyy}-{n:4}",
-              table: "public.invoices",
-              column: "number",
-              tenantColumn: "organization_id",
-            },
-          },
-        },
-      },
-    },
+    modules: { "number-sequences": { options: { entities } } },
   });
 
   await using stack = await liteStack({
     driver: "pglite",
     migrations: [
-      INVOICES,
+      ddl,
       ...files
         .filter((file) => file.kind !== "data")
         .map((file) => file.contents),
@@ -296,13 +290,27 @@ async function withInvoices(check: string): Promise<void> {
       ...files
         .filter((file) => file.kind === "data")
         .map((file) => file.contents),
-      SEEDED,
-      check,
+      ...seed,
     ],
   });
 
   expect(stack.url).not.toBe("");
 }
+
+const withInvoices = (check: string): Promise<void> =>
+  withNumbers(
+    {
+      invoice: {
+        period: "year",
+        format: "INV-{yyyy}-{n:4}",
+        table: "public.invoices",
+        column: "number",
+        tenantColumn: "organization_id",
+      },
+    },
+    INVOICES,
+    [SEEDED, check],
+  );
 
 describe("sync_number_sequences", BOOT, () => {
   it("numbers past the seeded rows after a sync, per tenant and period", async () => {
@@ -344,5 +352,84 @@ $$;`),
         "select better_supabase.sync_number_sequences(null, 'quote');",
       ),
     ).rejects.toThrow(/no numbered table for this sequence/);
+  });
+});
+
+const ISSUED = `${INVOICES}
+alter table public.invoices
+  add column status text not null default 'draft',
+  add column issued_on date;
+`;
+
+const issued = (check: string): Promise<void> =>
+  withNumbers(
+    {
+      invoice: {
+        period: "year",
+        format: "INV-{yyyy}-{n:4}",
+        table: "public.invoices",
+        column: "number",
+        tenantColumn: "organization_id",
+        periodColumn: "issued_on",
+        assignOn: "new.status = 'sent'",
+      },
+    },
+    ISSUED,
+    [check],
+  );
+
+describe("periodColumn at assignment", BOOT, () => {
+  it("takes the period and the date tokens from the row's issue date", async () => {
+    await expect(
+      issued(`set timezone = 'Europe/Amsterdam';
+do $$
+declare
+  v_id uuid;
+  v_number text;
+begin
+  insert into public.invoices (organization_id, issued_on) values ('${ALICE}', '2025-01-01') returning id into v_id;
+  if (select number from public.invoices where id = v_id) is not null then
+    raise exception 'a draft got a number';
+  end if;
+  update public.invoices set status = 'sent' where id = v_id returning number into v_number;
+  if v_number <> 'INV-2025-0001' then
+    raise exception 'numbered %', v_number;
+  end if;
+  insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2024-12-31') returning number into v_number;
+  if v_number <> 'INV-2024-0001' then
+    raise exception 'numbered %', v_number;
+  end if;
+  insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2025-03-02') returning number into v_number;
+  if v_number <> 'INV-2025-0002' then
+    raise exception 'numbered %', v_number;
+  end if;
+  insert into public.invoices (organization_id, status) values ('${ALICE}', 'sent') returning number into v_number;
+  if v_number <> 'INV-' || ${YEAR} || '-0001' and ${YEAR} not in ('2024', '2025') then
+    raise exception 'numbered % without an issue date', v_number;
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("syncs a date column's period in UTC", async () => {
+    await expect(
+      issued(`set timezone = 'Europe/Amsterdam';
+alter table public.invoices disable trigger user;
+insert into public.invoices (organization_id, number, status, issued_on) values
+  ('${ALICE}', 'INV-2025-0009', 'sent', '2025-01-01');
+alter table public.invoices enable trigger user;
+do $$
+declare
+  v_number text;
+begin
+  perform better_supabase.sync_number_sequences();
+  insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2025-01-01') returning number into v_number;
+  if v_number <> 'INV-2025-0010' then
+    raise exception 'numbered %', v_number;
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
   });
 });

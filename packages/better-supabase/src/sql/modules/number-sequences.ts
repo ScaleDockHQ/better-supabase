@@ -220,6 +220,9 @@ function periodSql(item: SequenceEntity, at: string): string {
   }
 }
 
+const rowAt = (column: string): string =>
+  `better_supabase.number_at(${column})`;
+
 const TOKEN = /\{(yyyy|yy|mm|dd|n(?::[0-9]+)?)\}/g;
 
 const TOKEN_PATTERN: Readonly<Record<string, string>> = {
@@ -269,7 +272,7 @@ function syncPeriod(
   }
 
   if (item.periodColumn !== undefined) {
-    return periodSql(item, `t.${sqlIdent(item.periodColumn)}`);
+    return periodSql(item, rowAt(`t.${sqlIdent(item.periodColumn)}`));
   }
 
   const part = (token: string): string | undefined => {
@@ -474,6 +477,28 @@ end;
 $$;
 ${serviceGrant("better_supabase.format_assigned_number(text, bigint, timestamptz)")}
 
+create or replace function better_supabase.number_at(value timestamptz)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value $$;
+create or replace function better_supabase.number_at(value timestamp)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value at time zone 'utc' $$;
+create or replace function better_supabase.number_at(value date)
+returns timestamptz
+language sql
+immutable
+set search_path = ''
+as $$ select value::timestamp at time zone 'utc' $$;
+${serviceGrant("better_supabase.number_at(timestamptz)")}
+${serviceGrant("better_supabase.number_at(timestamp)")}
+${serviceGrant("better_supabase.number_at(date)")}
+
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
 drop function if exists ${fn}(${ctx.idType}, text, timestamptz) cascade;
 create or replace function ${fn}(tenant ${ctx.idType}, p_entity text, at timestamptz default now())
@@ -550,6 +575,7 @@ set search_path = ''
 as $$
 declare
   v_n bigint;
+  v_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
@@ -570,8 +596,9 @@ begin
   if not (${item.assignOn}) then
     return new;
   end if;
-  v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, now());
-  new.${col} := better_supabase.format_assigned_number(${sqlString(item.format)}, v_n, now());
+  v_at := ${item.periodColumn === undefined ? "now()" : `coalesce(${rowAt(`new.${sqlIdent(item.periodColumn)}`)}, now())`};
+  v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, v_at);
+  new.${col} := better_supabase.format_assigned_number(${sqlString(item.format)}, v_n, v_at);
   return new;
 end;
 $$;
