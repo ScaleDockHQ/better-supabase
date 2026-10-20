@@ -1,4 +1,4 @@
--- better-supabase module: comments (0.8.0)
+-- better-supabase module: comments (0.9.0)
 -- @bs-module comments@6 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -168,7 +168,8 @@ declare
   v_claims text;
 begin
   if tg_op = 'UPDATE' and new."deleted_at" is not null then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('comment.deleted', jsonb_build_object('commentId', new."id", 'organizationId', new."organization_id"::text, 'subjectType', new."subject_type", 'subjectId', new."subject_id", 'authorId', new."author_id"), 'comments/' || new."id"::text, (new."organization_id")::text, null, 'better-supabase/comments');
+  perform better_supabase.audit_event(
     event_type => 'comment.deleted',
     category => 'data',
     target_type => 'comment',
@@ -185,10 +186,10 @@ begin
       and case new."subject_type" when 'customer' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'customers.read'), false) when 'company' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'parties.read'), false) when 'person' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'parties.read'), false) when 'deal' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'deals.read'), false) when 'work_item' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'work_items.read'), false) when 'employee' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'employees.read'), false) when 'product' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'catalog.read'), false) when 'product_variant' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'catalog.read'), false) when 'drive_node' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'drive.read'), false) when 'application' then coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'hiring.read'), false) else true end
   );
   if tg_op = 'INSERT' then
-    null;
+    perform "better_supabase".emit_event('comment.created', jsonb_build_object('commentId', new."id", 'organizationId', new."organization_id"::text, 'subjectType', new."subject_type", 'subjectId', new."subject_id", 'authorId', new."author_id", 'parentId', new."parent_id", 'mentionIds', to_jsonb(new."mentions")), 'comments/' || new."id"::text, (new."organization_id")::text, null, 'better-supabase/comments');
   end if;
   if cardinality(v_new) > 0 then
-    null;
+    perform "better_supabase".emit_event('comment.mentioned', jsonb_build_object('commentId', new."id", 'organizationId', new."organization_id"::text, 'subjectType', new."subject_type", 'subjectId', new."subject_id", 'authorId', new."author_id", 'mentionIds', to_jsonb(v_new)), 'comments/' || new."id"::text, (new."organization_id")::text, null, 'better-supabase/comments');
   end if;
   -- notify() trusts only the service role, so the mention is sent as it,
   -- with the comment's author as the actor; the claims are restored after.

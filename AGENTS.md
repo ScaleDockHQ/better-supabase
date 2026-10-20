@@ -164,6 +164,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0045: the CLI runs from one command tree, with one JSON envelope, agent mode and the `bsb` short name.
 - 0046: tenant rules are filter trees with `{ kind, config }` action references, evaluated in TS and SQL.
 - 0047: the CLI contract is published for other CLIs: codes, envelope, help document, consent.
+- 0048: app tables emit outbox events from a trigger; rules and workflows consume them through sinks.
+- 0049: `better-supabase mcp` serves the CLI on stdio; write tools need a consent token.
+- 0050: doctor lints unapplied migrations for locking statements (BS229 to BS234).
+- 0051: app table columns restrict access to `read` or `server` with Postgres column grants.
 
 ## Pre-release pins
 

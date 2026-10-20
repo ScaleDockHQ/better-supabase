@@ -357,7 +357,13 @@ function draftTables(ctx: ModelContext): DraftTable[] {
 
       const updatable = !readonly && table.updatable && column.updatable;
 
+      const hidden =
+        table.schema === "public" &&
+        config.appTables[table.name]?.columns?.[column.name]?.access ===
+          "server";
+
       return {
+        ...(hidden ? { selectable: false as const } : {}),
         app: applyCasing(column.name, casing),
         db: column.name,
         snapshot: column,
@@ -591,6 +597,10 @@ function toTableModels(
 
         if (!column.readonly && !column.updatable) {
           meta.updatable = false;
+        }
+
+        if (column.selectable === false) {
+          meta.selectable = false;
         }
 
         if (column.snapshot.isArray) {

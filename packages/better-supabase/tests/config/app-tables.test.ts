@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { appTablesOf, isAppDefault } from "../../src/config/app-tables.ts";
+import {
+  appTablesOf,
+  isAppDefault,
+  withAppTableSubjects,
+} from "../../src/config/app-tables.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 describe("resolveConfig appTables", () => {
@@ -56,9 +60,54 @@ describe("appTablesOf", () => {
   it("refuses a table name that isn't lower snake", () => {
     fails(
       { Projects: {} },
-      'appTables.Projects: "Projects" is not a lower snake',
+      'appTables.Projects: "Projects" is not a table name. Use lower-case',
     );
-    fails({ pg_things: {} }, "appTables.pg_things");
+    fails({ pg_things: {} }, "reserved by Postgres");
+    fails({ [`t${"a".repeat(58)}`]: {} }, "Use at most 58 characters");
+  });
+
+  it("refuses a derived constraint name past 63 characters", () => {
+    fails(
+      {
+        [`t${"a".repeat(40)}`]: {
+          columns: {
+            [`c${"b".repeat(20)}`]: { type: "text", options: ["x"] },
+          },
+        },
+      },
+      "is longer than 63 characters",
+    );
+  });
+
+  it("refuses a default outside the options or bounds", () => {
+    fails(
+      {
+        a: {
+          columns: {
+            stage: { type: "text", options: ["lead"], default: "'won'" },
+          },
+        },
+      },
+      "appTables.a.columns.stage.default: The default must be one of the options",
+    );
+    fails(
+      { a: { columns: { score: { type: "integer", max: 5, default: "9" } } } },
+      "above the maximum of 5",
+    );
+    fails(
+      {
+        a: {
+          columns: {
+            stars: { type: "integer", format: "rating", default: "0" },
+          },
+        },
+      },
+      "below the minimum of 1",
+    );
+    fails(
+      { a: { columns: { code: { type: "text", min: 3, default: "'ab'" } } } },
+      "The default's length is below the minimum of 3",
+    );
   });
 
   it("refuses unknown keys", () => {
@@ -635,5 +684,80 @@ describe("isAppDefault", () => {
     expect(() =>
       appTablesOf({ projects: { subject: { type: "Project" } } }),
     ).toThrow(/subject.type must be lowercase/u);
+  });
+});
+
+describe("appTablesOf events", () => {
+  it("keeps true or on and include, without duplicates", () => {
+    expect(appTablesOf({ tasks: { events: true } })["tasks"]?.events).toBe(
+      true,
+    );
+    expect(
+      appTablesOf({
+        tasks: {
+          columns: { status: { type: "text" } },
+          events: { on: ["updated", "updated"], include: ["status", "id"] },
+        },
+      })["tasks"]?.events,
+    ).toEqual({ on: ["updated"], include: ["status", "id"] });
+  });
+
+  it("names the key of a bad events setting", () => {
+    expect(() => appTablesOf({ tasks: { events: false } })).toThrow(
+      "appTables.tasks.events must be true or { on, include }",
+    );
+    expect(() => appTablesOf({ tasks: { events: { on: ["moved"] } } })).toThrow(
+      "appTables.tasks.events.on must list one or more of created, updated, deleted",
+    );
+    expect(() =>
+      appTablesOf({ tasks: { events: { include: ["missing"] } } }),
+    ).toThrow(/appTables.tasks.events.include\[0\] must name a column/u);
+  });
+});
+
+describe("appTablesOf subject versions", () => {
+  it("keeps true or the columns and auto, and registers them", () => {
+    const tables = appTablesOf({
+      projects: {
+        columns: { name: { type: "text" }, notes: { type: "text" } },
+        subject: {
+          type: "project",
+          versions: { columns: ["name", "name"], auto: false },
+        },
+      },
+      tasks: {
+        columns: { title: { type: "text" } },
+        subject: { type: "task", versions: true },
+      },
+    });
+
+    expect(tables["projects"]?.subject?.versions).toEqual({
+      columns: ["name"],
+      auto: false,
+    });
+    expect(withAppTableSubjects({}, tables, "tenant")).toMatchObject({
+      project: { versions: { columns: ["name"], auto: false } },
+      task: { versions: { columns: ["title"], auto: true } },
+    });
+  });
+
+  it("refuses columns a restore must not write", () => {
+    expect(() =>
+      appTablesOf({
+        projects: {
+          columns: { name: { type: "text" } },
+          subject: { type: "project", versions: { columns: ["id"] } },
+        },
+      }),
+    ).toThrow(
+      /appTables.projects.subject.versions.columns\[0\] must name a column/u,
+    );
+    expect(() =>
+      appTablesOf({
+        projects: { subject: { type: "project", versions: "all" } },
+      }),
+    ).toThrow(
+      "appTables.projects.subject.versions must be true or { columns, auto }",
+    );
   });
 });

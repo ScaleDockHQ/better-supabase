@@ -119,6 +119,14 @@ export interface Versions<F extends object = Record<never, never>> {
   getShared(token: string): AsyncResult<Version | null>;
   /** Writes the version back to its subject and records that as a new version. */
   restore(id: string): AsyncResult<RestoreResult>;
+  /**
+   * Writes only `fields` of the version back; the subject's other columns
+   * keep their current values. Needs a subject type with `columns`.
+   */
+  restoreFields(
+    id: string,
+    fields: readonly string[],
+  ): AsyncResult<RestoreResult>;
   /** Names a version, which keeps it; `null` removes the name. */
   label(id: string, label: string | null): AsyncResult<boolean>;
   delete(id: string): AsyncResult<boolean>;
@@ -164,6 +172,17 @@ function snapshotOf(value: unknown, fn: string): SnapshotResult {
 }
 
 /** The `versions` SQL module as typed calls. */
+
+function restoreOf(value: unknown): RestoreResult {
+  const row = recordOf(value, "restore_version");
+
+  return {
+    ...snapshotOf(row, "restore_version"),
+    restoredFrom: Number(row["restoredFrom"]),
+    content: jsonOf(row["content"]),
+  };
+}
+
 export function createVersions<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: VersionsOptions<S>): Versions<FieldsOf<S>> {
@@ -217,16 +236,13 @@ export function createVersions<
           ),
       ).andThen(fields.rows),
     get,
-    restore: (id) =>
-      call("restore_version", { version_id: id }, (value) => {
-        const row = recordOf(value, "restore_version");
-
-        return {
-          ...snapshotOf(row, "restore_version"),
-          restoredFrom: Number(row["restoredFrom"]),
-          content: jsonOf(row["content"]),
-        };
-      }),
+    restore: (id) => call("restore_version", { version_id: id }, restoreOf),
+    restoreFields: (id, fields) =>
+      call(
+        "restore_version",
+        { version_id: id, fields: [...fields] },
+        restoreOf,
+      ),
     label: (id, label) =>
       call(
         "label_version",

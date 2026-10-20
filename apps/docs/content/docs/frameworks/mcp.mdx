@@ -329,7 +329,8 @@ const bs = createMcp(betterSupabase, {
 - `tools/list` hides the tools the caller is denied. Tools that share a
   permission are checked in one batch.
 - Without an authorizer, a tool with a `permission` is hidden and refused,
-  so a forgotten setup never opens it.
+  so a forgotten setup never opens it. The first `tools/list` logs one
+  warning that names the hidden tools.
 
 Pass the provider's operations table as `operations` and an entry
 `mcp.tool.<name>` replaces that tool's `permission`, or gates a tool that

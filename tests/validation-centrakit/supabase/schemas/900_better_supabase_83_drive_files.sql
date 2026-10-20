@@ -1,4 +1,4 @@
--- better-supabase module: drive-files (0.8.0)
+-- better-supabase module: drive-files (0.9.0)
 -- @bs-module drive-files@1 managed
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -180,19 +180,22 @@ declare
   v_role text;
   v_root text;
   v_expires timestamptz;
+  v_tenant text;
   v_node "centrakit"."file_node"%rowtype;
 begin
-  select l."id", l."role", l."subject_id", l."expires_at"
-    into v_link_id, v_role, v_root, v_expires
+  select l."id", l."role", l."subject_id", l."expires_at", l."tenant_id"::text
+    into v_link_id, v_role, v_root, v_expires, v_tenant
   from "centrakit"."share_links" l
   where l."token_hash" = encode(extensions.digest(convert_to(drive_link.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'drive_node'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_link_id is null or v_root !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'this link does not exist or has expired' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;
-  select * into v_node from "centrakit"."file_node" x where x."id" = coalesce(drive_link.node, v_root::uuid);
+  select * into v_node from "centrakit"."file_node" x where x."id" = coalesce(drive_link.node, v_root::uuid)
+    and x."organization_id"::text = v_tenant;
   if not found or not (v_root::uuid = any ("better_supabase"."drive_ancestors"(v_node."id"))) then
     raise exception 'this link does not open that item' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;

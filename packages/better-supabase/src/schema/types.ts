@@ -21,6 +21,12 @@ export interface ColumnMeta {
   readonly insertable?: false;
   /** `false` when updates can't set this column. */
   readonly updatable?: false;
+  /**
+   * `false` when signed-in users can't read the column (an app table
+   * column with `access: "server"`). Reads without `select` leave it out;
+   * the service role can still select it by name.
+   */
+  readonly selectable?: false;
   readonly array?: boolean;
   readonly json?: boolean;
   /** Allowed values for enum columns and CHECK-constraint unions. */

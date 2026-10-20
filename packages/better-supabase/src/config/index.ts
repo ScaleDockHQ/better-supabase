@@ -59,10 +59,13 @@ export {
 } from "../core/contracts/field-formats.ts";
 
 export {
+  APP_COLUMN_ACCESS,
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
   APP_ROLLUP_AGGREGATES,
+  APP_TABLE_EVENT_KINDS,
+  type AppColumnAccess,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
@@ -73,6 +76,9 @@ export {
   type AppRollupAggregate,
   type AppRollupConfig,
   type AppTableConfig,
+  type AppTableEventKind,
+  type AppTableEvents,
+  type AppTableVersions,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
@@ -89,6 +95,7 @@ export type {
   GenTask,
   IntegrationName,
   KeysConfig,
+  MigrationSafetyConfig,
   OpenApiConfig,
   ScaffoldApiConfig,
   ScaffoldConfig,

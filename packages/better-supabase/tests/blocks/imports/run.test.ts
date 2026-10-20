@@ -88,4 +88,42 @@ describe("runImport", () => {
     expect(result.status).toBe("failed");
     expect(inserted).toEqual([]);
   });
+
+  it("marks the run running and finishes failed when a batch throws", async () => {
+    const calls: string[] = [];
+    const csv = `email\n${Array.from({ length: 150 }, (_, i) => `p${i}@x.test`).join("\n")}\n`;
+    let batches = 0;
+
+    const result = await runImport(
+      {
+        kind: "people",
+        columns,
+        key: (row) => row.email,
+        insert: async () => {
+          batches += 1;
+
+          if (batches === 2) {
+            throw new Error("duplicate key");
+          }
+        },
+      },
+      csv,
+      { email: "email" },
+      {
+        organizationId: "org-1",
+        start: async () => "run-3",
+        running: async (id) => {
+          calls.push(`${id}:running`);
+        },
+        finish: async (id, status, count, error) => {
+          calls.push(`${id}:${status}:${count}:${error}`);
+        },
+      },
+    );
+
+    expect(calls).toEqual(["run-3:running", "run-3:failed:100:duplicate key"]);
+    expect(result).toMatchObject({ status: "failed", imported: 100 });
+    expect(result.rows).toHaveLength(100);
+    expect(result.errors[0]?.message).toContain("imported row 101");
+  });
 });

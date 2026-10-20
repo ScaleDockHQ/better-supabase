@@ -1,4 +1,4 @@
--- better-supabase module: pipelines (0.8.0)
+-- better-supabase module: pipelines (0.9.0)
 -- @bs-module pipelines@1 managed
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -300,7 +300,7 @@ begin
     insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
     values (new."tenant_id", 'deal', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, new."amount", new."currency", auth.uid());
     if tg_op = 'UPDATE' then
-      null;
+      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'deal', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
     end if;
     if tg_op = 'UPDATE' then
       v_claims := current_setting('request.jwt.claims', true);
@@ -426,7 +426,7 @@ begin
     insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
     values (new."tenant_id", 'work_item', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
-      null;
+      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'work_item', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
     end if;
     if tg_op = 'UPDATE' then
       v_claims := current_setting('request.jwt.claims', true);
@@ -552,7 +552,7 @@ begin
     insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
     values (new."tenant_id", 'application', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
-      null;
+      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'application', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
     end if;
     if tg_op = 'UPDATE' then
       v_claims := current_setting('request.jwt.claims', true);
@@ -675,7 +675,8 @@ begin
     raise exception 'another pipeline of this type has this key' using errcode = '23505', hint = 'PIPELINE_KEY_TAKEN';
   end;
   if v_created then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('pipeline.created', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
     event_type => 'pipeline.created',
     category => 'configuration',
     target_type => 'pipeline',
@@ -685,7 +686,8 @@ begin
     metadata => jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)
   );
   else
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('pipeline.updated', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
     event_type => 'pipeline.updated',
     category => 'configuration',
     target_type => 'pipeline',
@@ -751,6 +753,7 @@ begin
   end if;
   update "better_supabase"."pipelines" x set "archived_at" = now(), "is_default" = false, "updated_at" = now()
   where x."id" = archive_pipeline.pipeline;
+  perform "better_supabase".emit_event('pipeline.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline.archived',
     category => 'configuration',
@@ -873,6 +876,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
+  perform "better_supabase".emit_event('pipeline_stage.saved', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline_stage.saved',
     category => 'configuration',
@@ -978,6 +982,7 @@ begin
     raise exception 'a pipeline keeps at least one open stage' using errcode = '23514', hint = 'PIPELINE_LAST_OPEN_STAGE';
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
+  perform "better_supabase".emit_event('pipeline_stage.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline_stage.archived',
     category => 'configuration',

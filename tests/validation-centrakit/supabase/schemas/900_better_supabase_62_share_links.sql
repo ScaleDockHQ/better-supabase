@@ -1,4 +1,4 @@
--- better-supabase module: share-links (0.8.0)
+-- better-supabase module: share-links (0.9.0)
 -- @bs-module share-links@1 adopt
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -43,9 +43,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid);
--- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null)
+-- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null)
 returns jsonb
 language plpgsql
 security definer
@@ -54,6 +56,7 @@ as $$
 declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
+  v_subject_ok boolean;
 begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -64,18 +67,33 @@ begin
   if create_share_link.expires_at is not null and create_share_link.expires_at <= now() then
     raise exception 'expires_at must be in the future' using errcode = '22023', hint = 'SHARE_EXPIRY_INVALID';
   end if;
+  if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
+    raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    v_subject_ok := case create_share_link.subject_type
+    when 'drive_node' then exists (select 1 from "centrakit"."file_node" s where s."id"::text = create_share_link.subject_id and s."organization_id"::text = create_share_link.tenant::text)
+    else null
+  end;
+    if v_subject_ok is null then
+      raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';
+    end if;
+    if not v_subject_ok then
+      raise exception 'the subject does not exist in this organization' using errcode = 'P0002', hint = 'SHARE_SUBJECT_NOT_FOUND';
+    end if;
+  end if;
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
-  insert into "centrakit"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "created_by")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, auth.uid())
+  insert into "centrakit"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid())
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'domain');
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- The link's creator, or a caller who may create links in its tenant, may
 -- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
@@ -113,18 +131,36 @@ $$;
 revoke execute on function "better_supabase"."revoke_share_link"(uuid) from public, anon;
 grant execute on function "better_supabase"."revoke_share_link"(uuid) to authenticated, service_role;
 
+-- Each resolve counts one use, so a link with max_uses stops resolving once
+-- it is spent. The row lock keeps two concurrent resolves from both taking
+-- the last use.
 create or replace function "better_supabase"."resolve_share_link"(token text)
 returns jsonb
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', "id", 'organizationId', "tenant_id", 'subjectType', "subject_type", 'subjectId', "subject_id", 'role', "role", 'versionId', null, 'expiresAt', "expires_at")
-  from "centrakit"."share_links"
-  where "token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
-    and "revoked_at" is null
-    and ("expires_at" is null or "expires_at" > now())
+declare
+  v_link "centrakit"."share_links"%rowtype;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_link
+  from "centrakit"."share_links" l
+  where l."token_hash" = encode(extensions.digest(convert_to(resolve_share_link.token, 'utf8'), 'sha256'), 'hex')
+    and l."revoked_at" is null
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+  for update;
+  if not found then
+    return null;
+  end if;
+  update "centrakit"."share_links" set "use_count" = "use_count" + 1
+  where "id" = v_link."id";
+  return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', null, 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
+end;
 $$;
 revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;

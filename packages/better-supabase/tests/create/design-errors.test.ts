@@ -40,7 +40,7 @@ describe("columnError and defaultError", () => {
   });
 
   test("defaultError allows an empty value and explains a wrong one", () => {
-    expect(defaultError("integer", " ")).toBeUndefined();
-    expect(defaultError("integer", "abc")).toMatch(/integer column/u);
+    expect(defaultError({ type: "integer" }, " ")).toBeUndefined();
+    expect(defaultError({ type: "integer" }, "abc")).toMatch(/integer column/u);
   });
 });

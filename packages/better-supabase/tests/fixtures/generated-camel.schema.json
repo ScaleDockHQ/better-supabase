@@ -1173,6 +1173,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1185,7 +1191,8 @@
         "currency",
         "leadId",
         "labelId",
-        "deletedAt"
+        "deletedAt",
+        "internalNotes"
       ],
       "additionalProperties": false
     },
@@ -1240,6 +1247,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1299,6 +1312,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

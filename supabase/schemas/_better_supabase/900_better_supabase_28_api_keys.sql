@@ -1,4 +1,4 @@
--- better-supabase module: api-keys (0.8.0)
+-- better-supabase module: api-keys (0.9.0)
 -- @bs-module api-keys@4 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -133,6 +133,7 @@ begin
   insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
+  perform "better_supabase".emit_event('api_key.created', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.created',
     category => 'security',
@@ -279,6 +280,7 @@ begin
   end if;
   update "better_supabase"."api_keys" k set "revoked_at" = now()
   where k."id" = found."id" and (k."revoked_at" is null or k."revoked_at" > now());
+  perform "better_supabase".emit_event('api_key.revoked', jsonb_build_object('keyId', found."id", 'organizationId', found."organization_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id"), 'api-keys/' || found."id"::text, (found."organization_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.revoked',
     category => 'security',
@@ -329,6 +331,7 @@ begin
   values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
+  perform "better_supabase".emit_event('api_key.rotated', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.rotated',
     category => 'security',

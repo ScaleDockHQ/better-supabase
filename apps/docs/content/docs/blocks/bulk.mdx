@@ -28,6 +28,30 @@ Each block that is installed adds its action:
 | `relations.link`          | [Relations](/docs/blocks/relations)         | `{ kind, targetType, targetId, data? }` |
 | `trash.trash`             | [Trash](/docs/blocks/trash)                 | none (`{}`)                             |
 | `collections.add`         | [Collections](/docs/blocks/collections)     | `{ collectionId }`                      |
+| `appTables.set`           | [App tables](/docs/blocks/app-tables)       | `{ values }`                            |
+
+`appTables.set` sets columns on the selected rows of any app table that is a
+subject. `values` is keyed by database column name, and each value is cast
+to the column's type:
+
+```ts
+await bulk
+  .apply({
+    organizationId,
+    subjectType: "task",
+    rows: selectedIds,
+    action: "appTables.set",
+    args: { values: { due_on: "2026-11-02" } },
+  })
+  .orThrow();
+```
+
+It runs `app_table_set` as the caller, so row level security and column
+grants decide what changes. A row fails with `APP_TABLE_SET_EMPTY` when
+`values` is empty, `APP_TABLE_SET_COLUMN` for a column the table doesn't
+let it set (an id, the tenant column or a timestamp), `APP_TABLE_SET_SUBJECT`
+for a subject type that isn't an app table, and `APP_TABLE_SET_NOT_FOUND`
+when the caller can't see the row.
 
 An app adds its own actions in `options.actions`, each a function that
 takes `(tenant, subject_type, subject_id, args jsonb)` and raises with a

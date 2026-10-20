@@ -275,7 +275,11 @@ begin
       ${name} = save_view.name,
       ${kind} = save_view.kind,
       ${state} = save_view.state,
-      ${isDefault} = case when ${scope} = save_view.scope then ${isDefault} else false end,
+      -- The default is per list, scope and team; moving the view drops it.
+      ${isDefault} = case
+        when ${scope} = save_view.scope and ${list} = save_view.list
+          and ${team} is not distinct from case when save_view.scope = 'team' then save_view.team end
+        then ${isDefault} else false end,
       ${updatedAt} = now()
     where ${id} = v_id
     returning ${rank} into v_rank;

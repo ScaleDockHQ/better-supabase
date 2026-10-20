@@ -108,6 +108,32 @@ describe("blocks.generated.ts", () => {
     );
   });
 
+  it("declares the events app tables emit", () => {
+    const config = resolveConfig(
+      {
+        blocks: { tenant: {}, outbox: {} },
+        appTables: {
+          tasks: { subject: { type: "task" }, events: true },
+          notes: { events: { on: ["deleted"] } },
+          files: {},
+        },
+      },
+      "/project",
+    );
+
+    const contents =
+      emitBlockConfig(config, { runtimeImport: "better-supabase" })?.contents ??
+      "";
+
+    expect(contents).toContain(
+      'import {\n  type AppTableEventData,\n  defineEvents,\n  event,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
+    );
+    expect(contents).toContain(
+      'export const appTableEvents = defineEvents({\n  "task.created": event<AppTableEventData>(),\n  "task.updated": event<AppTableEventData>(),\n  "task.deleted": event<AppTableEventData>(),\n  "notes.deleted": event<AppTableEventData>(),\n});',
+    );
+    expect(contents).toContain('  "notes.deleted": true,\n} as const;');
+  });
+
   it("writes nothing when the config installs no blocks", () => {
     expect(emitBlockConfig(resolveConfig({}, "/project"))).toBeUndefined();
   });

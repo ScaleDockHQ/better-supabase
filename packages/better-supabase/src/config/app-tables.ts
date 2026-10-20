@@ -2,16 +2,21 @@ import type { BlockScope } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
+import { accessOf, checkColumnAccess } from "./app-access.ts";
 import { computedOf, hasComputed } from "./app-computed.ts";
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
+  APP_TABLE_EVENT_KINDS,
   type AppColumnConfig,
   type AppColumnFormat,
   type AppColumnType,
   type AppReference,
   type AppTableConfig,
+  type AppTableEventKind,
+  type AppTableEvents,
+  type AppTableVersions,
   type AppTableSubject,
   type AppTablesConfig,
 } from "./types/app-tables.ts";
@@ -44,6 +49,7 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "subject",
   "rollups",
   "lookups",
+  "events",
 ]);
 
 const SUBJECT_KEYS: ReadonlySet<string> = new Set([
@@ -54,6 +60,7 @@ const SUBJECT_KEYS: ReadonlySet<string> = new Set([
   "permissions",
   "rank",
   "softDelete",
+  "versions",
 ]);
 
 /** The columns `subject.rank` and `subject.softDelete` add. */
@@ -74,6 +81,7 @@ const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "max",
   "comment",
   "identity",
+  "access",
 ]);
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([
@@ -370,6 +378,141 @@ export function appReservedColumns(tenant = "organization"): readonly string[] {
   return ["id", "created_at", "updated_at", "user_id", `${tenant}_id`];
 }
 
+/** Postgres truncates identifiers past 63 bytes, so longer generated names collide. */
+const MAX_IDENTIFIER = 63;
+
+/** The longest app table or column name: `<table>_view` still fits in 63 bytes. */
+export const APP_NAME_MAX: number = MAX_IDENTIFIER - "_view".length;
+
+/**
+ * Why `name` can't name an app table or column, or `undefined` when it can:
+ * lower snake case starting with a letter, not `pg_`, and at most
+ * `APP_NAME_MAX` characters.
+ */
+export function appIdentifierError(name: string): string | undefined {
+  if (name === "") {
+    return "Enter a name.";
+  }
+
+  if (name.length > APP_NAME_MAX) {
+    return `Use at most ${String(APP_NAME_MAX)} characters.`;
+  }
+
+  if (!IDENT.test(name)) {
+    return "Use lower-case letters, digits and underscores, starting with a letter.";
+  }
+
+  if (name.startsWith("pg_")) {
+    return "Names starting with pg_ are reserved by Postgres.";
+  }
+
+  return undefined;
+}
+
+/**
+ * The first constraint or index name the SQL derives for `table` that is
+ * longer than 63 bytes, which Postgres would truncate into a collision, as
+ * a message; `undefined` when every name fits.
+ */
+export function appNameLengthError(
+  table: string,
+  config: Pick<AppTableConfig, "columns" | "unique" | "indexes">,
+): string | undefined {
+  const names = [
+    ...Object.entries(config.columns ?? {}).flatMap(([column, each]) =>
+      each.references !== undefined ||
+      each.format !== undefined ||
+      each.options !== undefined ||
+      each.min !== undefined ||
+      each.max !== undefined
+        ? [`${table}_${column}_check`]
+        : [],
+    ),
+    ...(config.unique ?? []).map((set) => `${table}_${set.join("_")}_key`),
+    ...(config.indexes ?? []).map((set) => `${table}_${set.join("_")}_idx`),
+  ];
+
+  const long = names.find((name) => name.length > MAX_IDENTIFIER);
+
+  return long === undefined
+    ? undefined
+    : `${long} is longer than ${String(MAX_IDENTIFIER)} characters; use shorter table or column names`;
+}
+
+/** The defaults `isAppDefault` accepts, per type, as a message names them. */
+const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
+  text: "a 'quoted' text",
+  integer: "a whole number",
+  bigint: "a whole number",
+  numeric: "a number",
+  boolean: "true or false",
+  uuid: "gen_random_uuid(), auth.uid() or a 'quoted' value",
+  timestamptz: "now() or a 'quoted' value",
+  date: "now() or a 'quoted' value",
+  jsonb: "'{}' or '[]'",
+  "text[]": "'{}'",
+};
+
+/**
+ * Why `value` can't be the default of `column`, or `undefined` when it can:
+ * it must be on the `isAppDefault` allowlist, one of the column's
+ * `options`, and inside its bounds (`min`, `max`, or those of its format).
+ */
+export function appDefaultError(
+  column: Pick<AppColumnConfig, "type" | "options" | "min" | "max" | "format">,
+  value: string,
+): string | undefined {
+  const { type } = column;
+
+  if (!isAppDefault(type, value)) {
+    return `A ${type} column takes ${DEFAULT_EXAMPLES[type]} as its default.`;
+  }
+
+  const literal = TEXT_LITERAL.test(value)
+    ? value.slice(1, -1).replaceAll("''", "'")
+    : undefined;
+
+  if (
+    type === "text" &&
+    column.options !== undefined &&
+    literal !== undefined &&
+    !column.options.includes(literal)
+  ) {
+    return `The default must be one of the options: ${column.options.join(", ")}.`;
+  }
+
+  const bounds =
+    column.format === undefined
+      ? undefined
+      : FIELD_FORMATS[column.format].bounds;
+
+  const min = column.min ?? bounds?.[0];
+  const max = column.max ?? bounds?.[1];
+
+  const size =
+    type === "text"
+      ? literal?.length
+      : NUMBER.test(value)
+        ? Number(value)
+        : undefined;
+
+  if (size === undefined) {
+    return undefined;
+  }
+
+  const what = type === "text" ? "length" : "value";
+
+  if (min !== undefined && size < min) {
+    return `The default's ${what} is below the minimum of ${String(min)}.`;
+  }
+
+  if (max !== undefined && size > max) {
+    return `The default's ${what} is above the maximum of ${String(max)}.`;
+  }
+
+  return undefined;
+}
+
 /** Whether `value` is a default `type` accepts; see `AppColumnConfig.default`. */
 export function isAppDefault(type: AppColumnType, value: string): boolean {
   switch (value) {
@@ -536,6 +679,19 @@ function columnOf(
     type,
   );
 
+  const access = accessOf(`${where}.access`, value["access"]);
+
+  if (
+    access !== undefined &&
+    nullable === false &&
+    fallback === undefined &&
+    identity !== true
+  ) {
+    throw new TypeError(
+      `${where}: signed-in users can't write a column with access ${access}, so a required one needs a default`,
+    );
+  }
+
   if (options !== undefined && format !== undefined) {
     throw new TypeError(
       `${where}: options make a select; drop the format ${format}`,
@@ -546,6 +702,24 @@ function columnOf(
     throw new TypeError(
       `${where}: min ${String(min)} is above max ${String(max)}`,
     );
+  }
+
+  const outside =
+    typeof fallback === "string"
+      ? appDefaultError(
+          {
+            type,
+            ...(options === undefined ? {} : { options }),
+            ...(min === undefined ? {} : { min }),
+            ...(max === undefined ? {} : { max }),
+            ...(format === undefined ? {} : { format }),
+          },
+          fallback,
+        )
+      : undefined;
+
+  if (outside !== undefined) {
+    throw new TypeError(`${where}.default: ${outside}`);
   }
 
   return {
@@ -560,6 +734,7 @@ function columnOf(
     ...(max === undefined ? {} : { max }),
     ...(comment === undefined ? {} : { comment }),
     ...(identity === undefined ? {} : { identity }),
+    ...(access === undefined ? {} : { access }),
   };
 }
 
@@ -652,13 +827,73 @@ function rankOf(
 }
 
 /**
+ * `subject.versions` checked: `true`, or `columns` from the table's own
+ * columns (not its id, scope or timestamps, which a restore must not
+ * write) and `auto`.
+ */
+function versionsOf(
+  where: string,
+  value: unknown,
+  editable: ReadonlySet<string>,
+): true | AppTableVersions | undefined {
+  if (value === undefined || value === true) {
+    return value;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be true or { columns, auto }`);
+  }
+
+  checkKeys(where, value, new Set(["columns", "auto"]));
+  const { columns } = value;
+
+  if (
+    columns !== undefined &&
+    (!Array.isArray(columns) || columns.length === 0)
+  ) {
+    throw new TypeError(`${where}.columns must list one or more columns`);
+  }
+
+  const listed = columns?.map((name: unknown, index: number) =>
+    namedColumn(`${where}.columns[${index}]`, name, editable),
+  );
+
+  const auto = optionalBoolean(`${where}.auto`, value["auto"]);
+
+  return {
+    ...(listed === undefined ? {} : { columns: [...new Set(listed)] }),
+    ...(auto === undefined ? {} : { auto }),
+  };
+}
+
+/** The columns and snapshot mode `subject.versions` registers with the versions block. */
+export function appTableVersions(
+  table: AppTableConfig,
+): { readonly columns: readonly string[]; readonly auto: boolean } | undefined {
+  const versions = table.subject?.versions;
+
+  if (versions === undefined) {
+    return undefined;
+  }
+
+  const options = versions === true ? {} : versions;
+
+  return {
+    columns: options.columns ?? Object.keys(table.columns ?? {}),
+    auto: options.auto ?? true,
+  };
+}
+
+/**
  * `subject` checked against the table's columns. `columns` holds every
- * column the table has, the ones `rank` and `softDelete` add included.
+ * column the table has, the ones `rank` and `softDelete` add included;
+ * `editable` holds the table's own columns.
  */
 function subjectOf(
   where: string,
   value: unknown,
   columns: ReadonlySet<string>,
+  editable: ReadonlySet<string>,
 ): AppTableSubject | undefined {
   if (value === undefined) {
     return undefined;
@@ -701,6 +936,8 @@ function subjectOf(
     value["softDelete"],
   );
 
+  const versions = versionsOf(`${where}.versions`, value["versions"], editable);
+
   return {
     type,
     ...(title === undefined
@@ -711,6 +948,7 @@ function subjectOf(
     ...(permissions === undefined ? {} : { permissions }),
     ...(rank === undefined ? {} : { rank }),
     ...(softDelete === undefined ? {} : { softDelete }),
+    ...(versions === undefined ? {} : { versions }),
   };
 }
 
@@ -724,6 +962,75 @@ function subjectColumnsOf(value: unknown): readonly string[] {
     ...(value["rank"] === undefined ? [] : [APP_RANK_COLUMN]),
     ...(value["softDelete"] === true ? [APP_DELETED_AT_COLUMN] : []),
   ];
+}
+
+/** The event kinds `events` turns on; empty without it. */
+export function appTableEventKinds(
+  table: AppTableConfig,
+): readonly AppTableEventKind[] {
+  const events = table.events;
+
+  if (events === undefined) {
+    return [];
+  }
+
+  return events === true
+    ? APP_TABLE_EVENT_KINDS
+    : (events.on ?? APP_TABLE_EVENT_KINDS);
+}
+
+/** The event types an app table emits: `<subject type or table>.<kind>`. */
+export function appTableEventTypes(
+  name: string,
+  table: AppTableConfig,
+): readonly string[] {
+  const base = table.subject?.type ?? name;
+
+  return appTableEventKinds(table).map((kind) => `${base}.${kind}`);
+}
+
+function isEventKind(value: unknown): value is AppTableEventKind {
+  return APP_TABLE_EVENT_KINDS.some((kind) => kind === value);
+}
+
+/** `events` checked: `true`, or `on` from the event kinds and `include` from the table's columns. */
+function eventsOf(
+  where: string,
+  value: unknown,
+  columns: ReadonlySet<string>,
+): true | AppTableEvents | undefined {
+  if (value === undefined || value === true) {
+    return value;
+  }
+
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be true or { on, include }`);
+  }
+
+  checkKeys(where, value, new Set(["on", "include"]));
+  const { on, include } = value;
+
+  if (
+    on !== undefined &&
+    (!Array.isArray(on) || on.length === 0 || !on.every(isEventKind))
+  ) {
+    throw new TypeError(
+      `${where}.on must list one or more of ${APP_TABLE_EVENT_KINDS.join(", ")}`,
+    );
+  }
+
+  if (include !== undefined && !Array.isArray(include)) {
+    throw new TypeError(`${where}.include must be a list of columns`);
+  }
+
+  const included = include?.map((name: unknown, index: number) =>
+    namedColumn(`${where}.include[${index}]`, name, columns),
+  );
+
+  return {
+    ...(on === undefined ? {} : { on: [...new Set(on)] }),
+    ...(included === undefined ? {} : { include: [...new Set(included)] }),
+  };
 }
 
 function tableOf(
@@ -765,10 +1072,10 @@ function tableOf(
   const resolved = Object.entries(columns ?? {}).map(([name, column]) => {
     const at = `${where}.columns.${name}`;
 
-    if (!IDENT.test(name)) {
-      throw new TypeError(
-        `${at}: "${name}" is not a lower snake identifier (a-z, 0-9 and _, starting with a letter)`,
-      );
+    const invalid = appIdentifierError(name);
+
+    if (invalid !== undefined) {
+      throw new TypeError(`${at}: "${name}" is not a column name. ${invalid}`);
     }
 
     if (reserved.has(name)) {
@@ -790,6 +1097,13 @@ function tableOf(
     `${where}.subject`,
     value["subject"],
     new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
+    new Set(resolved.map(([name]) => name)),
+  );
+
+  const events = eventsOf(
+    `${where}.events`,
+    value["events"],
+    new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
   );
 
   return {
@@ -801,6 +1115,7 @@ function tableOf(
     ...(indexes === undefined ? {} : { indexes }),
     ...(comment === undefined ? {} : { comment }),
     ...(subject === undefined ? {} : { subject }),
+    ...(events === undefined ? {} : { events }),
   };
 }
 
@@ -832,17 +1147,26 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
 
   const resolved: AppTablesConfig = Object.fromEntries(
     Object.entries(value).map(([name, table]) => {
-      if (!IDENT.test(name) || name.startsWith("pg_")) {
+      const invalid = appIdentifierError(name);
+
+      if (invalid !== undefined) {
         throw new TypeError(
-          `appTables.${name}: "${name}" is not a lower snake identifier (a-z, 0-9 and _, starting with a letter)`,
+          `appTables.${name}: "${name}" is not a table name. ${invalid}`,
         );
       }
 
-      return [name, tableOf(`appTables.${name}`, table, tables, reserved)];
+      const checked = tableOf(`appTables.${name}`, table, tables, reserved);
+      const long = appNameLengthError(name, checked);
+
+      if (long !== undefined) {
+        throw new TypeError(`appTables.${name}: ${long}`);
+      }
+
+      return [name, checked];
     }),
   );
 
-  return Object.fromEntries(
+  const checked: AppTablesConfig = Object.fromEntries(
     Object.entries(resolved).map(([name, table]) => {
       const where = `appTables.${name}`;
 
@@ -872,6 +1196,10 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
       return [name, withComputed];
     }),
   );
+
+  checkColumnAccess(checked);
+
+  return checked;
 }
 
 /**
@@ -921,6 +1249,7 @@ export function withAppTableSubjects(
       ...(subject.softDelete === true
         ? { deletedAt: APP_DELETED_AT_COLUMN }
         : {}),
+      ...versionsEntry(table),
       ...(subject.rank === undefined
         ? {}
         : {
@@ -935,4 +1264,10 @@ export function withAppTableSubjects(
   }
 
   return merged;
+}
+
+function versionsEntry(table: AppTableConfig): Pick<SubjectConfig, "versions"> {
+  const versions = appTableVersions(table);
+
+  return versions === undefined ? {} : { versions };
 }

@@ -12,6 +12,17 @@ export {
   type RunImportResult,
 } from "./define-import.ts";
 
+export {
+  appTableImport,
+  previewImport,
+  type AppTableImport,
+  type AppTableImportOptions,
+  type AppTableImportRepository,
+  type AppTableImportUpdate,
+  type ImportPreview,
+  type PreviewImportResult,
+} from "./app-table-import.ts";
+
 export { createImports, type Imports, type ImportsOptions } from "./imports.ts";
 
 export { importsBlock } from "./manifest.ts";

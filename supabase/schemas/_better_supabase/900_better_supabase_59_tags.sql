@@ -1,4 +1,4 @@
--- better-supabase module: tags (0.8.0)
+-- better-supabase module: tags (0.9.0)
 -- @bs-module tags@2 managed
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -101,7 +101,7 @@ begin
   insert into "better_supabase"."tags" ("tenant_id", "kind", "name", "slug", "color", "description", "rank", "created_at")
   values (create_tag.tenant, create_tag.kind, create_tag.name, v_slug, create_tag.color, create_tag.description, v_rank, now())
   returning "id" into v_id;
-  null;
+  perform "better_supabase".emit_event('tag.created', jsonb_build_object('organizationId', create_tag.tenant, 'id', v_id, 'kind', create_tag.kind, 'name', create_tag.name), 'tags/' || v_id::text, (create_tag.tenant)::text, null, 'better-supabase/tags');
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
@@ -176,7 +176,7 @@ begin
       values (tag.tenant, tag.tag_id, tag.subject_type, tag.subject_id)
       on conflict do nothing;
   end case;
-  null;
+  perform "better_supabase".emit_event('subject.tagged', jsonb_build_object('organizationId', tag.tenant, 'subjectType', tag.subject_type, 'subjectId', tag.subject_id, 'id', tag.tag_id), 'subjects/' || tag.subject_type || '/' || tag.subject_id, (tag.tenant)::text, null, 'better-supabase/tags');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_tag_apply"(uuid, text, text)');
   begin
@@ -212,7 +212,7 @@ begin
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   update "better_supabase"."tags" t set "name" = coalesce(update_tag.name, t."name"), "updated_at" = now() where t."id" = update_tag.tag_id;
-  null;
+  perform "better_supabase".emit_event('tag.updated', jsonb_build_object('organizationId', v_tenant, 'id', update_tag.tag_id, 'name', update_tag.name), 'tags/' || update_tag.tag_id::text, (v_tenant)::text, null, 'better-supabase/tags');
   return true;
 end;
 $$;
@@ -269,7 +269,7 @@ begin
     raise exception 'not allowed to manage tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   delete from "better_supabase"."tags" where "id" = delete_tag.tag_id;
-  null;
+  perform "better_supabase".emit_event('tag.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_tag.tag_id), 'tags/' || delete_tag.tag_id::text, (v_tenant)::text, null, 'better-supabase/tags');
   return true;
 end;
 $$;
@@ -311,7 +311,7 @@ begin
         and g."tag_id" = untag.tag_id
         and g."subject_type" = untag.subject_type
         and g."subject_id" = untag.subject_id;
-  null;
+  perform "better_supabase".emit_event('subject.untagged', jsonb_build_object('organizationId', untag.tenant, 'subjectType', untag.subject_type, 'subjectId', untag.subject_id, 'id', untag.tag_id), 'subjects/' || untag.subject_type || '/' || untag.subject_id, (untag.tenant)::text, null, 'better-supabase/tags');
   return true;
 end;
 $$;

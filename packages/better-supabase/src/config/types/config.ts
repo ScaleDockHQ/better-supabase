@@ -265,8 +265,10 @@ export interface ResolvedConfig {
     readonly failOn: NonNullable<SpecsConfig["failOn"]>;
     readonly manifest?: string;
   };
-  readonly doctor: Required<Omit<DoctorConfig, "claimsLimit" | "output">> &
-    Pick<DoctorConfig, "claimsLimit" | "output">;
+  readonly doctor: Required<
+    Omit<DoctorConfig, "claimsLimit" | "output" | "migrationSafety">
+  > &
+    Pick<DoctorConfig, "claimsLimit" | "output" | "migrationSafety">;
   /** `tasks` stays unset without a list, so `gen` picks the steps the project uses. */
   readonly gen: GenConfig;
   readonly env: { readonly output: string; readonly prefix?: string };

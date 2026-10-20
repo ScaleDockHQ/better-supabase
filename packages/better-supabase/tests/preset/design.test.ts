@@ -107,7 +107,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 3; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 5; update better-supabase",
     );
   });
 
@@ -147,7 +147,7 @@ describe("design codes", () => {
       },
     };
 
-    expect(designFormat(computed)).toBe(DESIGN_FORMAT);
+    expect(designFormat(computed)).toBe(3);
     expect(await decodeDesign(await encodeDesign(computed))).toEqual(computed);
     await expect(
       encodeDesign({
@@ -160,6 +160,63 @@ describe("design codes", () => {
         },
       }),
     ).rejects.toThrow("rollups.n.table must name an app table");
+  });
+
+  it("writes format 4 for table events", async () => {
+    const events: CreateDesign = {
+      appTables: {
+        tasks: {
+          columns: { status: { type: "text" } },
+          events: { on: ["created"], include: ["status"] },
+        },
+      },
+    };
+
+    expect(designFormat(events)).toBe(4);
+    expect(await decodeDesign(await encodeDesign(events))).toEqual(events);
+  });
+
+  it("writes format 4 for subject versions", async () => {
+    const versions: CreateDesign = {
+      appTables: {
+        tasks: {
+          columns: { status: { type: "text" } },
+          subject: { type: "task", versions: { columns: ["status"] } },
+        },
+      },
+    };
+
+    expect(designFormat(versions)).toBe(4);
+    expect(await decodeDesign(await encodeDesign(versions))).toEqual(versions);
+  });
+
+  it("writes format 5 for column access", async () => {
+    const access: CreateDesign = {
+      appTables: {
+        projects: {
+          columns: {
+            name: { type: "text" },
+            internal_notes: { type: "text", access: "server" },
+          },
+        },
+      },
+    };
+
+    expect(designFormat(access)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(access))).toEqual(access);
+  });
+
+  it("rejects an unknown column access", async () => {
+    await expect(
+      encodeDesign({
+        appTables: {
+          projects: {
+            // SAFETY: an invalid value on purpose, as a hand-edited code carries it.
+            columns: { notes: { type: "text", access: "owner" as "server" } },
+          },
+        },
+      }),
+    ).rejects.toThrow("access");
   });
 
   it("encodes an empty design to an empty code", async () => {

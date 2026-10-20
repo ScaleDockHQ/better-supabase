@@ -501,6 +501,7 @@ export function OptionsPanel({
   onShuffle,
   onGetCode,
   onDeploy,
+  outputBlocked,
 }: {
   preset: Preset;
   resolved: ResolvedPreset;
@@ -520,6 +521,8 @@ export function OptionsPanel({
   onGetCode: () => void;
   /** Opens the deploy dialog; without it, deploying is turned off. */
   onDeploy?: (() => void) | undefined;
+  /** Why the design can't be exported right now; disables Get code, Deploy and the AI copy. */
+  outputBlocked?: string | undefined;
 }): ReactElement {
   const ids = useId();
   const { state: bridge } = useCanvasBridge();
@@ -729,8 +732,19 @@ export function OptionsPanel({
         <p className="truncate font-mono text-xs text-muted-foreground">
           preset: {code}
         </p>
+        {outputBlocked === undefined ? null : (
+          <p role="alert" className="text-xs text-destructive">
+            {outputBlocked}
+          </p>
+        )}
         {onDeploy === undefined ? null : (
-          <Button type="button" variant="outline" size="sm" onClick={onDeploy}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={outputBlocked !== undefined}
+            onClick={onDeploy}
+          >
             <BrandLogo mark={siSupabase} className="size-4" />
             Deploy to Supabase
           </Button>
@@ -743,6 +757,7 @@ export function OptionsPanel({
           <CopyButton
             text={aiPrompt}
             label="Copy AI instructions"
+            disabled={outputBlocked !== undefined}
             variant="outline"
             size="sm"
           >
@@ -752,6 +767,7 @@ export function OptionsPanel({
             type="button"
             size="sm"
             className="flex-1"
+            disabled={outputBlocked !== undefined}
             onClick={onGetCode}
           >
             <TerminalIcon aria-hidden="true" />

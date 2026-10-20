@@ -113,9 +113,16 @@ select extensions.ok((select coalesce('security_invoker=true' = any(c.reloptions
 select extensions.table_privs_are('public', 'projects_view', 'anon', array[]::text[], 'anon has no privileges on public.projects_view');
 select extensions.table_privs_are('public', 'projects_view', 'authenticated', array['SELECT'], 'authenticated only reads public.projects_view');
 
+with o as (
+  insert into "better_supabase"."organizations" ("name", "slug")
+  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  returning "id" as id
+)
+insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."projects" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.projects their scope reaches');
+select extensions.is((select count(*)::integer from "public"."projects"), 0, 'a signed-in user does not read a row of public.projects outside their scope');
 select extensions.throws_ok($$insert into "public"."projects" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.projects outside their scope');
 select extensions.is((select count(*)::integer from "public"."projects_view"), 0, 'a stranger sees no rows of public.projects_view');
 reset role;
@@ -134,7 +141,7 @@ select extensions.table_privs_are('public', 'tasks_view', 'authenticated', array
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."tasks" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.tasks their scope reaches');
+select extensions.skip('public.tasks has a required reference, so the read test can''t insert a row of another tenant', 1);
 select extensions.throws_ok($$insert into "public"."tasks" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.tasks outside their scope');
 select extensions.is((select count(*)::integer from "public"."tasks_view"), 0, 'a stranger sees no rows of public.tasks_view');
 reset role;

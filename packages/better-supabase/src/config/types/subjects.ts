@@ -61,6 +61,14 @@ export interface SubjectConfig {
     readonly column: string;
     readonly group?: string;
   };
+  /**
+   * The columns the versions block snapshots and restores, and whether it
+   * snapshots on each change. An app table's `subject.versions` sets it.
+   */
+  readonly versions?: {
+    readonly columns: readonly string[];
+    readonly auto: boolean;
+  };
 }
 
 /** The app's subject types, keyed by type name (lowercase, digits and underscores). */

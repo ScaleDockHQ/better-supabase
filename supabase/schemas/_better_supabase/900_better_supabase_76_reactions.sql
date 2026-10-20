@@ -1,4 +1,4 @@
--- better-supabase module: reactions (0.8.0)
+-- better-supabase module: reactions (0.9.0)
 -- @bs-module reactions@1 managed
 -- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -165,10 +165,10 @@ begin
   end if;
   if tg_op = 'INSERT' then
     v_row := new;
-    
+    perform "better_supabase".emit_event('reaction.added', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   else
     v_row := old;
-    
+    perform "better_supabase".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
     perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'reactions:' || v_row."tenant_id"::text, true);

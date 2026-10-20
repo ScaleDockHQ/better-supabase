@@ -1,4 +1,4 @@
--- better-supabase module: bookings (0.8.0)
+-- better-supabase module: bookings (0.9.0)
 -- @bs-module bookings@1 managed
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -459,7 +459,7 @@ begin
     returning bk.*
   loop
     v_count := v_count + 1;
-    null;
+    perform "better_supabase".emit_event('booking.expired', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_booking."id"::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
   end loop;
   return v_count;
 end;
@@ -547,7 +547,7 @@ begin
   if v_id is null then
     raise exception 'that time was just taken' using errcode = '23P01', hint = 'BOOKING_SLOT_UNAVAILABLE';
   end if;
-  null;
+  perform "better_supabase".emit_event('booking.reserved', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_id, 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_id::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
   if v_status = 'confirmed' then
     select r."calendar_id", r."tz", sv."name" into v_calendar, v_tz, v_title
   from "better_supabase"."booking_resources" r join "better_supabase"."booking_services" sv on sv."id" = v_booking."service_id"
@@ -568,7 +568,7 @@ begin
   select v_booking."tenant_id", 'booking', v_booking."id"::text, v_booking."customer_user_id", o
   from "better_supabase"."booking_services" sv, unnest(sv."reminder_offsets") o
   where sv."id" = v_booking."service_id";
-    null;
+    perform "better_supabase".emit_event('booking.confirmed', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_id, 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_id::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_booking_confirm"(uuid)');
   begin
@@ -682,7 +682,7 @@ begin
   select v_booking."tenant_id", 'booking', v_booking."id"::text, v_booking."customer_user_id", o
   from "better_supabase"."booking_services" sv, unnest(sv."reminder_offsets") o
   where sv."id" = v_booking."service_id";
-    null;
+    perform "better_supabase".emit_event('booking.confirmed', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_id, 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_id::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_booking_confirm"(uuid)');
   begin
@@ -702,7 +702,7 @@ begin
   end if;
     delete from "better_supabase"."reminders" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
   delete from "better_supabase"."recurrence_rules" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
-    null;
+    perform "better_supabase".emit_event('booking.cancelled', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_id, 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_id::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_booking_cancel"(uuid)');
   begin
@@ -785,7 +785,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_booking_service.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -842,7 +843,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_available_slots.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -898,7 +900,8 @@ begin
   where l."token_hash" = encode(extensions.digest(convert_to(public_hold_booking.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
-    and (l."expires_at" is null or l."expires_at" > now());
+    and (l."expires_at" is null or l."expires_at" > now())
+    and (l."max_uses" is null or l."use_count" < l."max_uses");
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;

@@ -119,9 +119,16 @@ select extensions.has_index('public'::name, 'contacts'::name, 'contacts_stage_cr
 select extensions.table_privs_are('public', 'contacts', 'anon', array[]::text[], 'anon has no privileges on public.contacts');
 select extensions.table_privs_are('public', 'contacts', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.contacts');
 
+with o as (
+  insert into "better_supabase"."organizations" ("name", "slug")
+  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  returning "id" as id
+)
+insert into "public"."contacts" ("organization_id") select o.id from o;
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."contacts" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.contacts their scope reaches');
+select extensions.is((select count(*)::integer from "public"."contacts"), 0, 'a signed-in user does not read a row of public.contacts outside their scope');
 select extensions.throws_ok($$insert into "public"."contacts" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.contacts outside their scope');
 reset role;
 
@@ -132,9 +139,16 @@ select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.co
 select extensions.table_privs_are('public', 'notes', 'anon', array[]::text[], 'anon has no privileges on public.notes');
 select extensions.table_privs_are('public', 'notes', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.notes');
 
+with o as (
+  insert into "better_supabase"."organizations" ("name", "slug")
+  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  returning "id" as id
+)
+insert into "public"."notes" ("organization_id") select o.id from o;
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."notes" where not ("organization_id" in (select better_supabase.member_organization_ids()))), 0, 'a signed-in user reads only the rows of public.notes their scope reaches');
+select extensions.is((select count(*)::integer from "public"."notes"), 0, 'a signed-in user does not read a row of public.notes outside their scope');
 select extensions.throws_ok($$insert into "public"."notes" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.notes outside their scope');
 reset role;
 

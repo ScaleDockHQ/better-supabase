@@ -5,19 +5,32 @@ import type {
 } from "../config/types/app-tables.ts";
 import type { CreateDesign } from "./design.ts";
 
+import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
+
 /** What changed between two sets of app tables. */
 export type DesignChangeKind =
   | "table.added"
   | "table.dropped"
   | "table.renamed"
   | "table.id"
+  | "table.scope"
+  | "table.unique"
+  | "table.columns"
   | "table.changed"
   | "table.computed"
+  | "table.events"
+  | "table.versions"
   | "column.added"
   | "column.dropped"
   | "column.renamed"
   | "column.type"
   | "column.required"
+  | "column.unique"
+  | "column.options"
+  | "column.bounds"
+  | "column.format"
+  | "column.reference"
+  | "column.access"
   | "column.changed";
 
 export interface DesignChange {
@@ -30,8 +43,10 @@ export interface DesignChange {
   readonly to?: string;
   /**
    * True when existing rows or app code can break: a dropped or renamed
-   * table or column, a type change, or a column made required without a
-   * default.
+   * table or column, a type change, a column made required without a
+   * default, a new or tighter constraint (unique, options, bounds, format,
+   * a reference target), tighter column access, a new scope, or removed
+   * generated columns.
    */
   readonly breaking: boolean;
   readonly summary: string;
@@ -85,6 +100,286 @@ const safe = (
   summary,
   steps: [],
 });
+
+const breakingChange = (
+  kind: DesignChangeKind,
+  table: string,
+  summary: string,
+  steps: readonly string[],
+  column?: string,
+): DesignChange => ({
+  kind,
+  table,
+  ...(column === undefined ? {} : { column }),
+  breaking: true,
+  summary,
+  steps,
+});
+
+/** The steps that make a new check or constraint safe on rows that may not pass it. */
+const checkSteps = (target: string, rule: string): readonly string[] => [
+  `Find the rows where ${target} doesn't ${rule}, and fix them in a migration.`,
+  `Make the app write only values that ${rule}, then deploy.`,
+  `Add the constraint.`,
+];
+
+const targetOf = (reference: AppColumnConfig["references"]): string =>
+  reference === undefined
+    ? ""
+    : "block" in reference
+      ? `${reference.block}.${reference.table}`
+      : reference.table;
+
+/** How closed a column's access is: none, then `read`, then `server`. */
+const ACCESS_RANK = { read: 1, server: 2 } as const;
+
+const accessRank = (column: AppColumnConfig): number =>
+  column.access === undefined ? 0 : ACCESS_RANK[column.access];
+
+/**
+ * The changes to one column whose name and type stay: each new or tighter
+ * constraint is breaking, because rows already in the table may not pass
+ * it; anything else (a comment, a default, `onDelete`, a looser rule) is safe.
+ */
+function constraintChanges(
+  table: string,
+  name: string,
+  before: AppColumnConfig,
+  after: AppColumnConfig,
+): DesignChange[] {
+  const at = `${table}.${name}`;
+  const changes: DesignChange[] = [];
+
+  if (before.unique !== true && after.unique === true) {
+    changes.push(
+      breakingChange(
+        "column.unique",
+        table,
+        `Makes ${at} unique, which fails while two rows share a value.`,
+        checkSteps(at, "repeat a value"),
+        name,
+      ),
+    );
+  }
+
+  const removed =
+    after.options === undefined
+      ? []
+      : before.options === undefined
+        ? after.options
+        : before.options.filter((option) => !after.options?.includes(option));
+
+  if (after.options !== undefined && removed.length > 0) {
+    changes.push(
+      breakingChange(
+        "column.options",
+        table,
+        before.options === undefined
+          ? `Limits ${at} to ${after.options.join(", ")}.`
+          : `Removes ${removed.join(", ")} from the options of ${at}.`,
+        checkSteps(at, `hold one of ${after.options.join(", ")}`),
+        name,
+      ),
+    );
+  }
+
+  const raised =
+    after.min !== undefined &&
+    (before.min === undefined || after.min > before.min);
+
+  const lowered =
+    after.max !== undefined &&
+    (before.max === undefined || after.max < before.max);
+
+  if (raised || lowered) {
+    changes.push(
+      breakingChange(
+        "column.bounds",
+        table,
+        `Narrows the bounds of ${at}${after.min === undefined ? "" : ` to at least ${String(after.min)}`}${after.max === undefined ? "" : `${after.min === undefined ? " to" : " and"} at most ${String(after.max)}`}.`,
+        checkSteps(at, "fit the new bounds"),
+        name,
+      ),
+    );
+  }
+
+  const checks = (format: AppColumnConfig["format"]): boolean => {
+    const rule = format === undefined ? undefined : FIELD_FORMATS[format];
+
+    return rule?.pattern !== undefined || rule?.bounds !== undefined;
+  };
+
+  if (
+    after.format !== undefined &&
+    after.format !== before.format &&
+    checks(after.format)
+  ) {
+    changes.push(
+      breakingChange(
+        "column.format",
+        table,
+        `Checks ${at} as ${after.format}.`,
+        checkSteps(at, `hold a valid ${after.format}`),
+        name,
+      ),
+    );
+  }
+
+  if (
+    after.references !== undefined &&
+    targetOf(before.references) !== targetOf(after.references)
+  ) {
+    changes.push(
+      breakingChange(
+        "column.reference",
+        table,
+        `Points ${at} at ${targetOf(after.references)}, which fails for values that row doesn't have.`,
+        checkSteps(at, `match a row of ${targetOf(after.references)}`),
+        name,
+      ),
+    );
+  }
+
+  if (accessRank(after) > accessRank(before)) {
+    changes.push(
+      breakingChange(
+        "column.access",
+        table,
+        after.access === "server"
+          ? `Hides ${at} from signed-in users, so client reads and writes of it fail.`
+          : `Makes ${at} read-only for signed-in users, so client writes of it fail.`,
+        [
+          `Move every client ${after.access === "server" ? "read and write" : "write"} of ${at} to server code that uses the service role, then deploy.`,
+          `Change the access of ${at}.`,
+        ],
+        name,
+      ),
+    );
+  }
+
+  if (changes.length === 0 && !same(before, after)) {
+    changes.push(safe("column.changed", table, `Changes ${at}.`, name));
+  }
+
+  return changes;
+}
+
+/**
+ * The changes to a table's own keys: a new scope, unique set, or a removed
+ * `timestamps`, `rank` or `softDelete` breaks what exists; the rest (indexes,
+ * the comment, other subject keys) is safe.
+ */
+function tableChanges(
+  name: string,
+  before: AppTableConfig,
+  after: AppTableConfig,
+): DesignChange[] {
+  const changes: DesignChange[] = [];
+
+  if ((before.scope ?? "inherit") !== (after.scope ?? "inherit")) {
+    changes.push(
+      breakingChange(
+        "table.scope",
+        name,
+        `Changes the scope of ${name} from ${before.scope ?? "inherit"} to ${after.scope ?? "inherit"}, which changes its scope column and policies.`,
+        [
+          `Add the new scope column as nullable and fill it for every row in a migration.`,
+          `Move the app to the new scope, then deploy.`,
+          `Change the scope and drop the old column in a later migration.`,
+        ],
+      ),
+    );
+  }
+
+  const sets = (table: AppTableConfig): Set<string> =>
+    new Set((table.unique ?? []).map((set) => set.join(",")));
+
+  const oldSets = sets(before);
+  const added = [...sets(after)].filter((set) => !oldSets.has(set));
+
+  if (added.length > 0) {
+    changes.push(
+      breakingChange(
+        "table.unique",
+        name,
+        `Adds unique (${added.join("), (")}) to ${name}, which fails while two rows share those values.`,
+        checkSteps(`(${added.join("), (")})`, "repeat across rows"),
+      ),
+    );
+  }
+
+  const dropped = [
+    before.timestamps !== false && after.timestamps === false
+      ? "timestamps"
+      : undefined,
+    before.subject?.rank !== undefined && after.subject?.rank === undefined
+      ? "rank"
+      : undefined,
+    before.subject?.softDelete === true && after.subject?.softDelete !== true
+      ? "softDelete"
+      : undefined,
+  ].filter((each) => each !== undefined);
+
+  if (dropped.length > 0) {
+    changes.push(
+      breakingChange(
+        "table.columns",
+        name,
+        `Removes ${dropped.join(", ")} from ${name}, which drops the columns ${dropped.length === 1 ? "it adds" : "they add"} and their values.`,
+        [
+          `Stop reading ${dropped.join(", ")} in the app, then deploy.`,
+          `Export the values first if you need them.`,
+          `Remove the key and generate the migration that drops the columns.`,
+        ],
+      ),
+    );
+  }
+
+  const rest = (config: AppTableConfig): unknown => ({
+    ...config,
+    columns: undefined,
+    id: undefined,
+    rollups: undefined,
+    lookups: undefined,
+    events: undefined,
+    subject:
+      config.subject === undefined
+        ? undefined
+        : { ...config.subject, versions: undefined },
+  });
+
+  if (!same(before.events, after.events)) {
+    changes.push(
+      safe(
+        "table.events",
+        name,
+        `Changes the outbox events ${name} emits, which replaces its events trigger.`,
+      ),
+    );
+  }
+
+  if (!same(before.subject?.versions, after.subject?.versions)) {
+    changes.push(
+      safe(
+        "table.versions",
+        name,
+        `Changes the versions ${name} keeps, which replaces its snapshot trigger; existing versions stay.`,
+      ),
+    );
+  }
+
+  if (
+    changes.every(
+      (change) =>
+        change.kind === "table.events" || change.kind === "table.versions",
+    ) &&
+    !same(rest(before), rest(after))
+  ) {
+    changes.push(safe("table.changed", name, `Changes table ${name}.`));
+  }
+
+  return changes;
+}
 
 const columnsOf = (
   table: AppTableConfig,
@@ -190,10 +485,8 @@ function columnChanges(
           `Make the column required.`,
         ],
       });
-    } else if (!same(column, now)) {
-      changes.push(
-        safe("column.changed", table, `Changes ${table}.${name}.`, name),
-      );
+    } else {
+      changes.push(...constraintChanges(table, name, column, now));
     }
   }
 
@@ -294,19 +587,10 @@ export function diffAppTables(
         });
       }
 
-      changes.push(...columnChanges(name, table, now));
-
-      const rest = (config: AppTableConfig): unknown => ({
-        ...config,
-        columns: undefined,
-        id: undefined,
-        rollups: undefined,
-        lookups: undefined,
-      });
-
-      if (!same(rest(table), rest(now))) {
-        changes.push(safe("table.changed", name, `Changes table ${name}.`));
-      }
+      changes.push(
+        ...tableChanges(name, table, now),
+        ...columnChanges(name, table, now),
+      );
 
       const computed = (config: AppTableConfig): unknown => ({
         rollups: config.rollups,

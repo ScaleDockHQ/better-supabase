@@ -1,4 +1,4 @@
--- better-supabase module: signing-keys (0.8.0)
+-- better-supabase module: signing-keys (0.9.0)
 -- @bs-module signing-keys@1 managed
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -64,7 +64,8 @@ begin
     add_signing_key.public_jwk, v_vault)
   returning * into v_row;
   if v_old."kid" is not null then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('signing_key.retired', jsonb_build_object('ownerType', v_old."owner_type", 'ownerId', v_old."owner_id", 'kid', v_old."kid"), 'signing-keys/' || v_old."kid", null, null, 'better-supabase/signing-keys');
+  perform better_supabase.audit_event(
     event_type => 'signing_key.retired',
     category => 'security',
     target_type => 'signing_key',
@@ -72,6 +73,7 @@ begin
     metadata => jsonb_build_object('ownerType', v_old."owner_type", 'ownerId', v_old."owner_id", 'kid', v_old."kid")
   );
   end if;
+  perform "better_supabase".emit_event('signing_key.created', jsonb_build_object('ownerType', v_row."owner_type", 'ownerId', v_row."owner_id", 'kid', v_row."kid", 'alg', v_row."alg"), 'signing-keys/' || v_row."kid", null, null, 'better-supabase/signing-keys');
   perform better_supabase.audit_event(
     event_type => 'signing_key.created',
     category => 'security',
@@ -149,6 +151,7 @@ begin
   if v_row."kid" is null then
     return false;
   end if;
+  perform "better_supabase".emit_event('signing_key.retired', jsonb_build_object('ownerType', v_row."owner_type", 'ownerId', v_row."owner_id", 'kid', v_row."kid"), 'signing-keys/' || v_row."kid", null, null, 'better-supabase/signing-keys');
   perform better_supabase.audit_event(
     event_type => 'signing_key.retired',
     category => 'security',

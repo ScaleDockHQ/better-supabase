@@ -1,4 +1,4 @@
--- better-supabase module: push (0.8.0)
+-- better-supabase module: push (0.9.0)
 -- @bs-module push@1 managed
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -121,7 +121,8 @@ begin
     "last_seen_at" = now()
   returning x."id", (x.xmax = 0) into v_id, v_new;
   if v_new then
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('push.device_registered', jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text, 'platform', register_push_device.platform, 'provider', register_push_device.provider), 'push-devices/' || v_id::text, null, null, 'better-supabase/push');
+  perform better_supabase.audit_event(
     event_type => 'push.device_registered',
     category => 'security',
     target_type => 'push_device',
@@ -159,6 +160,7 @@ begin
   if v_id is null then
     return false;
   end if;
+  perform "better_supabase".emit_event('push.device_unregistered', jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text), 'push-devices/' || v_id::text, null, null, 'better-supabase/push');
   perform better_supabase.audit_event(
     event_type => 'push.device_unregistered',
     category => 'security',

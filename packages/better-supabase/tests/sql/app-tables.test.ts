@@ -512,4 +512,153 @@ describe("appTables SQL errors", () => {
       }),
     ).toThrow("the organizations block already keeps a table named workspaces");
   });
+
+  it("renders the golden SQL of events through the outbox", async () => {
+    await expect(
+      golden(
+        render([...BLOCKS, "outbox"], {
+          appTables: {
+            tasks: {
+              columns: {
+                title: { type: "text", nullable: false },
+                status: { type: "text", options: ["todo", "done"] },
+              },
+              subject: { type: "task" },
+              events: { include: ["status"] },
+            },
+            notes: {
+              columns: { body: { type: "text" } },
+              events: { on: ["deleted"] },
+            },
+          },
+        }),
+      ),
+    ).toMatchFileSnapshot("__golden__/app-tables/events.sql");
+  });
+
+  it("checks the auto snapshot trigger of a versioned subject", () => {
+    const test = render([...BLOCKS, "versions"], {
+      appTables: {
+        tasks: {
+          columns: { title: { type: "text" } },
+          subject: { type: "task", versions: true },
+        },
+      },
+    }).find((file) => file.kind === "test");
+
+    expect(test?.contents).toContain(
+      "select extensions.has_trigger('public'::name, 'tasks'::name, 'bs_versions_task_auto'::name, 'public.tasks snapshots a version on each change');",
+    );
+  });
+
+  it("renders app_table_set for the bulk action over subject tables", () => {
+    const schema = render([...BLOCKS, "access", "bulk"], {
+      appTables: {
+        tasks: {
+          columns: {
+            title: { type: "text" },
+            number: { type: "bigint", identity: true },
+          },
+          subject: { type: "task" },
+        },
+        notes: { columns: { body: { type: "text" } } },
+      },
+    }).find((file) => file.kind === "schema")?.contents;
+
+    expect(schema).toContain(
+      'create or replace function public."app_table_set"(tenant uuid, subject_type text, subject_id text, args jsonb)',
+    );
+    expect(schema).toContain("only these columns of tasks can be set: title");
+    expect(schema).toContain(
+      `"title" = case when v_values ? 'title' then r."title" else t."title" end`,
+    );
+    expect(schema).toContain(
+      `where t.id = app_table_set.subject_id::uuid\n        and t."organization_id" = app_table_set.tenant;`,
+    );
+    expect(schema).not.toContain("'note' then");
+  });
+
+  it("refuses subject versions without the versions block", () => {
+    expect(() =>
+      render(BLOCKS, {
+        appTables: { tasks: { subject: { type: "task", versions: true } } },
+      }),
+    ).toThrow(
+      "appTables.tasks.subject.versions needs the versions block; add it to blocks",
+    );
+  });
+
+  it("refuses events without the outbox block", () => {
+    expect(() =>
+      render(BLOCKS, { appTables: { tasks: { events: true } } }),
+    ).toThrow(
+      "appTables.tasks.events needs the outbox block; add it to blocks",
+    );
+  });
+});
+
+describe("appTables column access", () => {
+  const ACCESS: AppTablesConfig = {
+    projects: {
+      columns: {
+        name: { type: "text", nullable: false },
+        budget: { type: "numeric", access: "read" },
+        internal_notes: { type: "text", access: "server" },
+      },
+      rollups: {
+        open_tasks: { table: "tasks", via: "project_id", aggregate: "count" },
+      },
+    },
+    tasks: {
+      columns: {
+        project_id: {
+          type: "uuid",
+          nullable: false,
+          references: { table: "projects", onDelete: "cascade" },
+        },
+      },
+    },
+    rates: {
+      scope: "none",
+      columns: { cost: { type: "numeric", access: "server" } },
+    },
+  };
+
+  it("renders column grants, the view's columns and the allow and deny checks", async () => {
+    const files = render(BLOCKS, { appTables: ACCESS });
+    const schema = files.find((file) => file.kind === "schema")?.contents;
+    const test = files.find((file) => file.kind === "test")?.contents;
+
+    expect(schema).toContain(
+      'grant select ("id", "organization_id", "created_at", "updated_at", "name", "budget") on "public"."projects" to authenticated;',
+    );
+    expect(schema).toContain(
+      'grant insert ("id", "organization_id", "created_at", "updated_at", "name"), update ("id", "organization_id", "created_at", "updated_at", "name") on "public"."projects" to authenticated;',
+    );
+    expect(schema).toContain(
+      'grant select ("id", "created_at", "updated_at") on "public"."rates" to authenticated;',
+    );
+    expect(schema).not.toContain('t."internal_notes"');
+    expect(test).toContain(
+      "a signed-in user cannot read public.projects.internal_notes",
+    );
+    expect(test).toContain(
+      "a signed-in user cannot write public.projects.budget",
+    );
+
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/access.sql",
+    );
+  });
+
+  it("refuses access on a table that expose grants", () => {
+    expect(() =>
+      render(BLOCKS, {
+        appTables: ACCESS,
+        grants: [
+          { table: "public.projects", role: "anon", privileges: ["select"] },
+        ],
+      }),
+    ).toThrow("expose sets the grants");
+  });
 });

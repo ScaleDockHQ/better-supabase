@@ -114,6 +114,7 @@ export function CreateBuilder({
   const [baseline, setBaseline] = useState<Design>(EMPTY_DESIGN);
 
   const [designCode, setDesignCode] = useState("");
+  const [encodeError, setEncodeError] = useState<string | undefined>();
 
   const [authzOption, setAuthzOption] = useState<AuthzLibrary | undefined>(() =>
     initialAuthz(params.get("authz"), initialPreset(params.get("preset"))),
@@ -149,7 +150,12 @@ export function CreateBuilder({
   );
 
   const code = encodePreset(preset);
+  const [linkedCode] = useState(code);
   const named = matchingPreset(preset);
+
+  // A shared link only becomes the draft once it is edited, so opening one
+  // never replaces the design saved in this browser.
+  const untouchedLink = linked && code === linkedCode && design === baseline;
   const pkg = pkgOption.on ? packageDir(pkgOption.dir) : undefined;
   const authz = preset.access === "provider" ? authzOption : undefined;
 
@@ -183,13 +189,12 @@ export function CreateBuilder({
       if (outcome.ok) {
         reset(outcome.value);
         setBaseline(outcome.value);
+        setDesignLoaded(true);
       } else {
         toast.error("The design in this link can't be read", {
           description: outcome.message,
         });
       }
-
-      setDesignLoaded(true);
     });
 
     return () => {
@@ -198,13 +203,14 @@ export function CreateBuilder({
   }, [linkedDesign, reset]);
 
   useEffect(() => {
-    if (linked) {
-      return;
-    }
-
     const draft = readDraft(window.localStorage);
 
-    if (draft === undefined) {
+    if (
+      draft === undefined ||
+      (linked &&
+        draft.preset === linkedCode &&
+        draft.design === (linkedDesign ?? ""))
+    ) {
       return;
     }
 
@@ -224,16 +230,21 @@ export function CreateBuilder({
       }
     };
 
-    toast("Your last design is saved in this browser", {
-      duration: 10_000,
-      action: {
-        label: "Restore",
-        onClick: () => {
-          void restoreDraft();
+    toast(
+      linked
+        ? "Another design is saved in this browser"
+        : "Your last design is saved in this browser",
+      {
+        duration: 10_000,
+        action: {
+          label: "Restore",
+          onClick: () => {
+            void restoreDraft();
+          },
         },
       },
-    });
-  }, [linked, restore]);
+    );
+  }, [linked, linkedCode, linkedDesign, restore]);
 
   useEffect(() => {
     let current = true;
@@ -245,13 +256,19 @@ export function CreateBuilder({
 
       if (outcome.ok) {
         setDesignCode(outcome.value);
+        setEncodeError(undefined);
       } else {
-        toast.error(
+        const message =
           outcome.error instanceof DesignTooLongError
-            ? "The design is too large for a link"
-            : "The design has a problem the link can't carry",
-          { id: "design-code", description: outcome.message },
-        );
+            ? "The design is too large for a link."
+            : "The design has a problem the link can't carry.";
+
+        setDesignCode("");
+        setEncodeError(`${message} Undo the last change to export it.`);
+        toast.error(message, {
+          id: "design-code",
+          description: outcome.message,
+        });
       }
     });
 
@@ -261,7 +278,7 @@ export function CreateBuilder({
   }, [design]);
 
   useEffect(() => {
-    if (!designLoaded) {
+    if (!designLoaded || encodeError !== undefined) {
       return;
     }
 
@@ -271,10 +288,19 @@ export function CreateBuilder({
       window.history.replaceState(null, "", href);
     }
 
-    if (designCode !== "") {
+    if (designCode !== "" && !untouchedLink) {
       writeDraft(window.localStorage, { preset: code, design: designCode });
     }
-  }, [preset, pkg, authz, code, designCode, designLoaded]);
+  }, [
+    preset,
+    pkg,
+    authz,
+    code,
+    designCode,
+    designLoaded,
+    encodeError,
+    untouchedLink,
+  ]);
 
   const openCode = (): void => {
     setOptionsOpen(false);
@@ -314,6 +340,7 @@ export function CreateBuilder({
       }}
       onGetCode={openCode}
       onDeploy={deployEnabled ? openDeploy : undefined}
+      outputBlocked={encodeError}
     />
   );
 
@@ -363,6 +390,7 @@ export function CreateBuilder({
                 type="button"
                 size="sm"
                 className="ml-auto"
+                disabled={encodeError !== undefined}
                 onClick={openCode}
               >
                 <TerminalIcon aria-hidden="true" />
@@ -386,7 +414,7 @@ export function CreateBuilder({
           </section>
 
           <GetCodeDialog
-            open={codeOpen}
+            open={codeOpen && encodeError === undefined}
             onOpenChange={setCodeOpen}
             code={code}
             resolved={resolved}
@@ -399,7 +427,7 @@ export function CreateBuilder({
           />
           {deployEnabled ? (
             <DeployDialog
-              open={deployOpen}
+              open={deployOpen && encodeError === undefined}
               onOpenChange={setDeployOpen}
               code={code}
               designCode={designCode}

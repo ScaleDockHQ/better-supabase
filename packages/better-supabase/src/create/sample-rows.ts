@@ -12,6 +12,23 @@ export interface SampleTable {
 
 export const SAMPLE_ROW_COUNT = 8;
 
+/** Who reads the rows: a signed-in member, or server code with the service role. */
+export type SampleViewer = "member" | "server";
+
+/** The columns of `table` a `viewer` can't select: `access: "server"` ones for a member. */
+export function hiddenColumns(
+  table: AppTable | undefined,
+  viewer: SampleViewer,
+): readonly string[] {
+  if (viewer === "server") {
+    return [];
+  }
+
+  return Object.entries(table?.columns ?? {})
+    .filter(([, column]) => column.access === "server")
+    .map(([key]) => key);
+}
+
 const USERS = "auth.users";
 
 const PEOPLE = [
@@ -226,12 +243,14 @@ function cell(
 /**
  * Deterministic sample rows for app table `name`, from its columns' types,
  * formats, options, bounds and references. A reference shows the name of the
- * row it points at, so rows of related tables line up.
+ * row it points at, so rows of related tables line up. A `member` viewer
+ * doesn't get the columns `hiddenColumns` lists.
  */
 export function sampleRows(
   design: Design,
   name: string,
   count: number = SAMPLE_ROW_COUNT,
+  viewer: SampleViewer = "server",
 ): SampleTable {
   const table = design.appTables?.[name];
 
@@ -239,7 +258,12 @@ export function sampleRows(
     return { columns: [], rows: [] };
   }
 
-  const entries = Object.entries(table.columns ?? {});
+  const hidden = new Set(hiddenColumns(table, viewer));
+
+  const entries = Object.entries(table.columns ?? {}).filter(
+    ([key]) => !hidden.has(key),
+  );
+
   const title = titleColumnOf(table);
 
   return {

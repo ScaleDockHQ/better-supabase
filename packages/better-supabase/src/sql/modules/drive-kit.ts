@@ -191,7 +191,7 @@ function driveRoles(ctx: ModuleContext): DriveRoles {
 }
 
 /** `options.subjectType`: the subject type of a node, `drive_node` by default. */
-function driveSubjectType(ctx: ModuleContext): string {
+export function driveSubjectType(ctx: ModuleContext): string {
   const type = ctx.text("subjectType", "drive_node");
 
   if (!SUBJECT_TYPE.test(type)) {

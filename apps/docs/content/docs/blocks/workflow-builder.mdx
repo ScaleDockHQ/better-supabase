@@ -472,6 +472,18 @@ await builder.triggers
 `onEvent` skips a trigger whose `when` doesn't match the event, and
 `triggers.save` refuses a `when` it can't use (`invalid_input`).
 
+### Start from outbox events
+
+`builder.sink()` is an [outbox](/docs/blocks/outbox) consumer handler that
+passes each event to `triggers.onEvent`. App tables with
+[`events`](/docs/blocks/app-tables#events) then start the definitions whose
+event trigger names `task.created` or `task.updated`. A failed start throws,
+so the outbox retries the batch.
+
+```ts
+await outbox.consume("workflows", serviceBuilder.sink());
+```
+
 `syncSchedule` writes through the `workflows` option, the workflows block
 built with a transport that may create schedules (the service role);
 `createBlocks` passes it as the `workflows` port when the set has

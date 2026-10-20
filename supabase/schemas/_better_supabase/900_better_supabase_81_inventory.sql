@@ -1,4 +1,4 @@
--- better-supabase module: inventory (0.8.0)
+-- better-supabase module: inventory (0.9.0)
 -- @bs-module inventory@1 managed
 -- Stock per catalog variant and location: an append-only movement ledger, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -237,7 +237,7 @@ begin
     raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
   end if;
   if v_point is not null and (v_after - new."quantity") > v_point and v_after <= v_point then
-    null;
+    perform "better_supabase".emit_event('stock.reorder_point_reached', jsonb_build_object('organizationId', new."tenant_id", 'subjectType', 'product_variant', 'subjectId', new."variant_id"::text, 'variantId', new."variant_id", 'locationId', new."location_id", 'available', v_after::text, 'reorderPoint', v_point::text), 'stock-levels/' || new."variant_id"::text || '/' || new."location_id"::text, (new."tenant_id")::text, null, 'better-supabase/inventory');
   end if;
   return null;
 end;
@@ -418,7 +418,7 @@ begin
   returning "id" into v_movement;
   select x."on_hand", x."available" into v_on_hand, v_available from "better_supabase"."stock_levels" x
   where x."variant_id" = adjust_stock.variant and x."location_id" = adjust_stock.location;
-  null;
+  perform "better_supabase".emit_event('stock.adjusted', jsonb_build_object('organizationId', v_tenant, 'id', v_movement, 'variantId', adjust_stock.variant, 'locationId', adjust_stock.location, 'quantity', adjust_stock.quantity::text, 'reason', adjust_stock.reason, 'available', v_available::text), 'stock-movements/' || v_movement::text, (v_tenant)::text, null, 'better-supabase/inventory');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_stock_adjust"(uuid)');
   begin
@@ -475,7 +475,7 @@ begin
     returning "id" into v_movement;
     select x."available" into v_available from "better_supabase"."stock_levels" x
     where x."variant_id" = count_stock.variant and x."location_id" = count_stock.location;
-    null;
+    perform "better_supabase".emit_event('stock.adjusted', jsonb_build_object('organizationId', v_tenant, 'id', v_movement, 'variantId', count_stock.variant, 'locationId', count_stock.location, 'quantity', v_delta::text, 'reason', 'count', 'available', v_available::text), 'stock-movements/' || v_movement::text, (v_tenant)::text, null, 'better-supabase/inventory');
   end if;
   return jsonb_build_object('movementId', v_movement, 'delta', v_delta, 'onHand', count_stock.counted);
 end;
@@ -592,9 +592,9 @@ begin
   where x."variant_id" = reserve_stock.variant and x."location_id" = reserve_stock.location
   returning x."available" into v_after;
   if v_point is not null and v_before > v_point and v_after <= v_point then
-    null;
+    perform "better_supabase".emit_event('stock.reorder_point_reached', jsonb_build_object('organizationId', v_tenant, 'subjectType', 'product_variant', 'subjectId', reserve_stock.variant::text, 'variantId', reserve_stock.variant, 'locationId', reserve_stock.location, 'available', v_after::text, 'reorderPoint', v_point::text), 'stock-levels/' || reserve_stock.variant::text || '/' || reserve_stock.location::text, (v_tenant)::text, null, 'better-supabase/inventory');
   end if;
-  null;
+  perform "better_supabase".emit_event('reservation.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'variantId', reserve_stock.variant, 'locationId', reserve_stock.location, 'quantity', reserve_stock.quantity::text), 'stock-reservations/' || v_id::text, (v_tenant)::text, null, 'better-supabase/inventory');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_stock_reserve"(uuid)');
   begin
@@ -646,7 +646,7 @@ begin
   insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
   values (v_row.tenant, v_row.variant, v_row.location, -v_row.quantity, 'sale', v_row.reference_type, v_row.reference_id)
   returning "id" into v_movement;
-  null;
+  perform "better_supabase".emit_event('reservation.committed', jsonb_build_object('organizationId', v_row.tenant, 'id', commit_reservation.reservation, 'variantId', v_row.variant, 'locationId', v_row.location, 'quantity', v_row.quantity::text), 'stock-reservations/' || commit_reservation.reservation::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return jsonb_build_object('id', commit_reservation.reservation, 'movementId', v_movement);
 end;
 $$;
@@ -682,7 +682,7 @@ begin
   where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
   update "better_supabase"."stock_reservations" x set "status" = 'released', "updated_at" = now()
   where x."id" = release_reservation.reservation;
-  null;
+  perform "better_supabase".emit_event('reservation.released', jsonb_build_object('organizationId', v_row.tenant, 'id', v_row.id, 'variantId', v_row.variant, 'locationId', v_row.location, 'quantity', v_row.quantity::text, 'reason', 'released'), 'stock-reservations/' || v_row.id::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;
@@ -713,7 +713,7 @@ begin
     update "better_supabase"."stock_reservations" x set "status" = 'expired', "updated_at" = now() where x."id" = v_row.id;
     update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" - v_row.quantity, 0), "updated_at" = now()
   where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-    null;
+    perform "better_supabase".emit_event('reservation.released', jsonb_build_object('organizationId', v_row.tenant, 'id', v_row.id, 'variantId', v_row.variant, 'locationId', v_row.location, 'quantity', v_row.quantity::text, 'reason', 'expired'), 'stock-reservations/' || v_row.id::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -801,7 +801,7 @@ begin
   select v_row.tenant, x."variant_id", v_row.from_location, -x."quantity", 'transfer_out', 'transfer', ship_transfer.transfer::text
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = ship_transfer.transfer;
   update "better_supabase"."stock_transfers" x set "status" = 'in_transit', "shipped_at" = now() where x."id" = ship_transfer.transfer;
-  null;
+  perform "better_supabase".emit_event('transfer.shipped', jsonb_build_object('organizationId', v_row.tenant, 'id', ship_transfer.transfer, 'from', v_row.from_location, 'to', v_row.to_location, 'status', 'in_transit'), 'stock-transfers/' || ship_transfer.transfer::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;
@@ -836,7 +836,7 @@ begin
   select v_row.tenant, x."variant_id", v_row.to_location, x."quantity", 'transfer_in', 'transfer', receive_transfer.transfer::text
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = receive_transfer.transfer;
   update "better_supabase"."stock_transfers" x set "status" = 'received', "received_at" = now() where x."id" = receive_transfer.transfer;
-  null;
+  perform "better_supabase".emit_event('transfer.received', jsonb_build_object('organizationId', v_row.tenant, 'id', receive_transfer.transfer, 'from', v_row.from_location, 'to', v_row.to_location, 'status', 'received'), 'stock-transfers/' || receive_transfer.transfer::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;
@@ -873,7 +873,7 @@ begin
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = cancel_transfer.transfer;
   end if;
   update "better_supabase"."stock_transfers" x set "status" = 'cancelled' where x."id" = cancel_transfer.transfer;
-  null;
+  perform "better_supabase".emit_event('transfer.cancelled', jsonb_build_object('organizationId', v_row.tenant, 'id', cancel_transfer.transfer, 'from', v_row.from_location, 'to', v_row.to_location, 'status', 'cancelled'), 'stock-transfers/' || cancel_transfer.transfer::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;
@@ -984,7 +984,7 @@ begin
     set "incoming" = x."incoming" + excluded."incoming", "updated_at" = now();
   update "better_supabase"."purchase_orders" x set "status" = 'ordered', "placed_at" = now(), "updated_at" = now()
   where x."id" = place_purchase_order.purchase_order;
-  null;
+  perform "better_supabase".emit_event('purchase_order.placed', jsonb_build_object('organizationId', v_row.tenant, 'id', place_purchase_order.purchase_order, 'locationId', v_row.location, 'status', 'ordered', 'supplierType', v_row.supplier_type, 'supplierId', v_row.supplier_id), 'purchase-orders/' || place_purchase_order.purchase_order::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;
@@ -1055,7 +1055,7 @@ begin
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
   where x."id" = receive_purchase_order.purchase_order;
-  null;
+  perform "better_supabase".emit_event('purchase_order.received', jsonb_build_object('organizationId', v_row.tenant, 'id', receive_purchase_order.purchase_order, 'locationId', v_row.location, 'status', v_status, 'supplierType', v_row.supplier_type, 'supplierId', v_row.supplier_id), 'purchase-orders/' || receive_purchase_order.purchase_order::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return jsonb_build_object('status', v_status, 'backordered', v_backordered);
 end;
 $$;
@@ -1096,7 +1096,7 @@ begin
   end if;
   update "better_supabase"."purchase_orders" x set "status" = 'cancelled', "updated_at" = now()
   where x."id" = cancel_purchase_order.purchase_order;
-  null;
+  perform "better_supabase".emit_event('purchase_order.cancelled', jsonb_build_object('organizationId', v_row.tenant, 'id', cancel_purchase_order.purchase_order, 'locationId', v_row.location, 'status', 'cancelled', 'supplierType', v_row.supplier_type, 'supplierId', v_row.supplier_id), 'purchase-orders/' || cancel_purchase_order.purchase_order::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return true;
 end;
 $$;

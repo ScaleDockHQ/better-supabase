@@ -25,7 +25,14 @@ export {
   presetOf,
 } from "./config.ts";
 
-export { appReservedColumns, isAppDefault } from "../config/app-tables.ts";
+export {
+  APP_NAME_MAX,
+  appDefaultError,
+  appIdentifierError,
+  appNameLengthError,
+  appReservedColumns,
+  isAppDefault,
+} from "../config/app-tables.ts";
 
 export {
   APP_COLUMN_FORMATS,

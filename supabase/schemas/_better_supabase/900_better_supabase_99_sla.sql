@@ -1,4 +1,4 @@
--- better-supabase module: sla (0.8.0)
+-- better-supabase module: sla (0.9.0)
 -- @bs-module sla@1 managed
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -348,7 +348,7 @@ begin
       and x."met_at" is null and x."metric" = any (v_meet)
     returning *
   loop
-    null;
+    perform "better_supabase".emit_event('sla.completed', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at", 'late', v_clock."met_at" > v_clock."due_at"), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
   end loop;
   select x.* into v_policy from "better_supabase"."sla_clocks" c join "better_supabase"."sla_policies" x on x."id" = c."policy_id"
   where c."subject_type" = record_sla_event.subject_type and c."subject_id" = record_sla_event.subject_id
@@ -414,7 +414,7 @@ begin
     where x."met_at" is null and x."paused_at" is null and x."breached_at" is null and x."due_at" < now()
     returning *
   loop
-    null;
+    perform "better_supabase".emit_event('sla.breached', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at"), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
     v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
@@ -438,7 +438,7 @@ begin
       and now() >= x."started_at" + (x."due_at" - x."started_at") * y."warn_at_percent" / 100.0
     returning x.*
   loop
-    null;
+    perform "better_supabase".emit_event('sla.warned', jsonb_build_object('organizationId', v_clock."tenant_id", 'clockId', v_clock."id", 'subjectType', v_clock."subject_type", 'subjectId', v_clock."subject_id", 'metric', v_clock."metric", 'dueAt', v_clock."due_at"), 'sla-clocks/' || v_clock."id"::text, (v_clock."tenant_id"::text)::text, null, 'better-supabase/sla');
     v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
