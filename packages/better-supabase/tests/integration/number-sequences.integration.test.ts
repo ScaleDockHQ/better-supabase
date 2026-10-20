@@ -5,7 +5,7 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { renderModules } from "../../src/sql/render.ts";
 import { dbUrl, reachable } from "./block-session.ts";
-import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 
 const live = await reachable();
 
@@ -39,9 +39,9 @@ async function install(
       }
     }
 
-    // `tenant` replaces the fixture helper. Put it back before commit so
-    // other suites never see the member-checked version.
-    await client.query(FIXTURE_TENANT_SQL);
+    // `tenant` replaces the fixture helpers. Put them back before commit so
+    // other suites never see the module's versions.
+    await client.query(FIXTURE_HELPERS_SQL);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
