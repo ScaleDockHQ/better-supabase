@@ -28,6 +28,16 @@ export type {
   InstantPage,
 } from "./instant.ts";
 
+export { scopedSeed, withRollback } from "./scope.ts";
+
+export type {
+  Scope,
+  ScopedRows,
+  ScopedSeed,
+  ScopedSeedOptions,
+  ScopedTenant,
+} from "./scope.ts";
+
 export { expectTenantIsolation } from "./isolation.ts";
 
 export type {

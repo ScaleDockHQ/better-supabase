@@ -17,7 +17,13 @@ export interface Hs256Options {
   readonly now: number;
 }
 
-const encoder = /* @__PURE__ */ new TextEncoder();
+let encoderInstance: InstanceType<typeof TextEncoder> | undefined;
+
+// Created on first use: not every runtime has the global at import time.
+const encoder = {
+  encode: (text: string): Uint8Array<ArrayBuffer> =>
+    (encoderInstance ??= new TextEncoder()).encode(text),
+};
 
 /** The most HMAC keys kept at once; the oldest goes first. */
 const KEYS_SIZE = 64;

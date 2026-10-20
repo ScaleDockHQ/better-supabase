@@ -56,8 +56,121 @@ A stack without a signing key still verifies tokens signed with the shared
 JWT secret. Pass `{ alg: 'HS256' }` to sign that way; it reads
 `SUPABASE_JWT_SECRET` and refuses any URL that is not local.
 
+supabase-js warns when its trace propagation option is on and the runtime
+has no OpenTelemetry tracing loaded. Test users switch it off; pass
+`{ tracePropagation: true }` to keep it.
+
 `signLocalJwt(claims)` signs a token the same way without building
 repositories, for requests you send yourself.
+
+## Command tests
+
+`alice.context` is the server `RequestContext` for the user: the actor and
+the claims `asUser` signed. Together with `alice.supabase` and `alice.db` it
+builds the request a command or handler receives, so a test calls the
+function directly and RLS still applies:
+
+```ts title="archive-customer.test.ts"
+import { asUser } from "better-supabase/testing";
+
+import { archiveCustomer } from "./archive-customer";
+
+const alice = await asUser(betterSupabase, { sub: aliceId, tenant_id: acme });
+
+await archiveCustomer(
+  { supabase: alice.supabase, db: alice.db, context: alice.context },
+  { id: customerId },
+);
+```
+
+The token is `alice.token`. Send it as `Authorization: Bearer` when the
+command sits behind a route and you call the route over HTTP instead.
+
+## Isolation between tests
+
+Tests that run at the same time must not share rows. Two helpers cover the
+two ways to do that:
+
+| Helper                              | Isolates with                                   | Covers                     |
+| ----------------------------------- | ----------------------------------------------- | -------------------------- |
+| `scopedSeed(betterSupabase, build)` | A fresh tenant and rows per test, deleted after | `db` over PostgREST, `sql` |
+| `withRollback(user, fn)`            | One transaction that always rolls back          | `sql` only                 |
+
+`scopedSeed` creates a new tenant id, inserts the fixtures that `build`
+returns through the service role, and returns the inserted rows.
+`cleanup()` (or `await using`) deletes them in reverse order, the tenant row
+last. It needs `stack.secretKey` or `$SUPABASE_SECRET_KEY`. Use `id()` for
+rows that other fixtures reference:
+
+```ts title="customers.test.ts"
+import { test } from "node:test";
+import { asUser, scopedSeed } from "better-supabase/testing";
+
+test("lists the tenant's customers", async () => {
+  await using scope = await scopedSeed(
+    betterSupabase,
+    ({ tenant }) => ({
+      customers: { first: { organizationId: tenant, name: "First" } },
+    }),
+    {
+      tenant: {
+        table: "organizations",
+        row: (id) => ({ id, name: id, slug: id }),
+      },
+    },
+  );
+
+  const alice = await asUser(betterSupabase, {
+    sub: aliceId,
+    tenant_id: scope.tenant,
+  });
+
+  expect(await alice.db.customers.count().orThrow()).toBe(1);
+});
+```
+
+`node:test` runs the tests of one file one after another and the files in
+parallel, and each call gets its own tenant, so the files never see each
+other's rows. Give the tenant row a unique `slug` or name, as above.
+
+`withRollback(alice, fn)` runs `fn` as the user inside one transaction over
+direct Postgres, passes it the same repositories as `alice.sql`, and rolls
+back when `fn` returns or throws. It returns what `fn` returned. It needs
+`asUser` to have been given `postgres`, and throws a clear error otherwise.
+Rollback covers only that `sql` path: `alice.db` talks to PostgREST over
+HTTP and commits on its own, so a write through `db` stays.
+
+```ts
+const alice = await asUser(betterSupabase, claims, { postgres });
+
+const count = await withRollback(alice, async (db) => {
+  await db.customers.create({ organizationId: acme, name: "Temp" }).orThrow();
+
+  return db.customers.count().orThrow();
+});
+```
+
+## Jest and jest-expo
+
+better-supabase ships ES modules only, on purpose, so Jest has to transform
+it. Add it to the allow-list of `transformIgnorePatterns` (Jest skips
+`node_modules` by default), next to the packages your preset already lists:
+
+```js title="jest.config.js"
+module.exports = {
+  preset: "jest-expo",
+  transformIgnorePatterns: [
+    "node_modules/(?!(?:.pnpm/)?((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|better-supabase))",
+  ],
+};
+```
+
+Under the `jsdom` environment, older Jest releases have no `TextEncoder` or
+`TextDecoder` global. better-supabase creates them when it first decodes a
+session, not on import, so importing the client works either way. If a test
+decodes a session in such an environment, polyfill both before it runs, for
+example in `setupFiles` with the ones from `node:util`. The same applies to
+[Expo](/docs/frameworks/expo#jest-and-jest-expo).
 
 ## Fixtures
 

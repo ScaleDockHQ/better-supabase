@@ -1,9 +1,14 @@
-const encoder = /* @__PURE__ */ new TextEncoder();
-const decoder = /* @__PURE__ */ new TextDecoder();
+// Created on first use: React Native and some test runtimes have no global at import time.
+let encoder: InstanceType<typeof TextEncoder> | undefined;
+let decoder: InstanceType<typeof TextDecoder> | undefined;
 
 /** Standard base64 (RFC 4648 section 4) of `input`, with padding. */
 export function toBase64(input: Uint8Array | string): string {
-  const bytes = typeof input === "string" ? encoder.encode(input) : input;
+  const bytes =
+    typeof input === "string"
+      ? (encoder ??= new TextEncoder()).encode(input)
+      : input;
+
   let binary = "";
 
   for (const byte of bytes) {
@@ -36,7 +41,7 @@ export function toBase64Url(input: Uint8Array | string): string {
 
 /** UTF-8 text of base64 or base64url. Throws on invalid input. */
 export function base64ToText(text: string): string {
-  return decoder.decode(fromBase64(text));
+  return (decoder ??= new TextDecoder()).decode(fromBase64(text));
 }
 
 /**
