@@ -1,5 +1,40 @@
 # better-supabase
 
+## 0.12.0
+
+### Minor Changes
+
+- [#272](https://github.com/ScaleDockHQ/better-supabase/pull/272) [`31f81c7`](https://github.com/ScaleDockHQ/better-supabase/commit/31f81c70c97cca15a7c76e36ad60671856383ab7) Thanks [@martijn00](https://github.com/martijn00)! - Check a Create design in one call, and hand designs too large for a URL to `init` as a file.
+  
+  - `checkDesign(input, preset)` in `better-supabase/create` checks a design object, design code or
+    `/create` URL against a preset with every rule the canvas and `sql sync` apply. It returns
+    `{ ok: true, design, code }`, where `code` is `null` for a design too long for a URL, or
+    `{ ok: false, issues }`, and never throws for a bad design.
+  - `parseDesign(value)` in `better-supabase/preset` checks the shape of a design object.
+  - `designFileSource` and `readDesignFile` write and read a design file
+    (`better-supabase.design.json`, `DESIGN_FILE`), which holds the preset code and the design as
+    JSON with no length limit.
+  - `init --preset ./better-supabase.design.json` and `apply --preset ./better-supabase.design.json`
+    read a design file like a Create URL. `DesignTooLongError` now points to it.
+
+- [#269](https://github.com/ScaleDockHQ/better-supabase/pull/269) [`4f4029f`](https://github.com/ScaleDockHQ/better-supabase/commit/4f4029f33b36dd187e23d2cd2f6a97ee3aced9da) Thanks [@martijn00](https://github.com/martijn00)! - Doctor's BS503 warns when the shell exports a `SUPABASE_*` variable (plain or with a browser prefix) that differs from the running local stack, so an app started from that shell would talk to another project. It reads `supabase status` only when such a variable is exported, and shows redacted values.
+
+- [#269](https://github.com/ScaleDockHQ/better-supabase/pull/269) [`4f4029f`](https://github.com/ScaleDockHQ/better-supabase/commit/4f4029f33b36dd187e23d2cd2f6a97ee3aced9da) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase env` writes the full stack env: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` under their plain names for server code, the same two with the browser prefix, and the new `SUPABASE_JWKS_URL`. The secret key, database URL and JWT secret never get a browser prefix. `--write <file>` names the file (`--out` still works), and `--prefix` takes a framework name (`next`, `vite`, `expo`, `nuxt`, `astro`, `sveltekit`), `none`, or the prefix itself. Help lists a long alias after the flag it stands for.
+
+- [#269](https://github.com/ScaleDockHQ/better-supabase/pull/269) [`4f4029f`](https://github.com/ScaleDockHQ/better-supabase/commit/4f4029f33b36dd187e23d2cd2f6a97ee3aced9da) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase run -- <cmd>`. It starts the command with the running stack's URL and keys set, over the shell's exported variables and every `.env` file, passes its output and exit code through, and forwards Ctrl+C and `SIGTERM`. When an exported `SUPABASE_*` variable differs from the stack, `run` warns and names it, showing the host and port of a URL or a `sha256:` fingerprint of a key, never the value.
+
+- [#269](https://github.com/ScaleDockHQ/better-supabase/pull/269) [`4f4029f`](https://github.com/ScaleDockHQ/better-supabase/commit/4f4029f33b36dd187e23d2cd2f6a97ee3aced9da) Thanks [@martijn00](https://github.com/martijn00)! - Server auth can run hermetic. `auth.jwks: false` (or `null`) verifies against no keys and never fetches one, ignoring `SUPABASE_JWKS` and `SUPABASE_JWKS_URL`; `null` used to fall through to the JWKS URL. `createServer({ env })` also takes the variables as an object (`{ SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY }`) and loads only those, never filling a missing one from `process.env`. `createTestSigner().jwks` is typed so it passes to `auth.jwks` without a cast.
+
+- [#267](https://github.com/ScaleDockHQ/better-supabase/pull/267) [`5081bd5`](https://github.com/ScaleDockHQ/better-supabase/commit/5081bd5394fe3849f57f5dfdf3e95b8f2813ac59) Thanks [@mick340](https://github.com/mick340)! - Signed uploads work in a writable support session. `supportStorage` used to refuse `createSignedUploadUrl` and `uploadToSignedUrl` with `SUPPORT_STORAGE_WRITES`, so `bucket.connect(storage).reserve(...)` and the blocks' browser uploads failed, and an admin could not upload a file as the user. Now `createSignedUploadUrl` runs the same dry run as `upload` as the target (an insert, or an upsert with `upsert: true`, refused with Storage's `403`), then the service client signs the URL.
+  
+  An object uploaded to a signed URL has no owner, so a claim step finishes the upload. It checks again that the target may insert at the path, then makes the target the owner and adds `supportSessionId` and `supportAdminId` to the object's `user_metadata`. It claims only an object without an owner; one another user owns is refused with `403` `AccessDenied`. The `StorageApi` that `supportStorage` returns has `claimSignedUpload(bucket, path)`, and a connected bucket has `claimReserved(reservation)`, which succeeds without a request outside a support session, so call it after a reserved upload and before you record the file. `uploadToSignedUrl` on the server and `upload` with `onProgress` claim on their own.
+  
+  The blocks claim in their own finish step: `attachments.confirm`, `drive.commit` and the AI files block's `files.confirm` claim the upload before they record it. A refused claim keeps the record pending and returns the block's `forbidden` (`ATTACHMENT_FORBIDDEN`, `DRIVE_FORBIDDEN`, `AI_FILE_FORBIDDEN`) or `not_found` (`ATTACHMENT_NOT_UPLOADED`, `AI_FILE_NOT_UPLOADED`) error. Outside a support session they make no extra request. Read-only sessions still refuse every write with `SUPPORT_READ_ONLY`.
+
+### Patch Changes
+
+- [#268](https://github.com/ScaleDockHQ/better-supabase/pull/268) [`1c6f351`](https://github.com/ScaleDockHQ/better-supabase/commit/1c6f3519e049fe3eec085f525d08adee02d2284f) Thanks [@martijn00](https://github.com/martijn00)! - Create moved to the cloud app. `createUrl()` and the comment `init` writes above a preset now link to `https://app.bettersupabase.com/create`. Old `bettersupabase.com/create` links redirect there with their query string, and `presetOf` and `designOf` still read both.
+
 ## 0.11.0
 
 ### Minor Changes
