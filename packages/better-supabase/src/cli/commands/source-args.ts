@@ -14,6 +14,16 @@ export const DB_URL_STDIN_ARG = {
   },
 } as const;
 
+/** The named local stack, for commands that connect to one. */
+export const STACK_ARG = {
+  stack: {
+    type: "string",
+    description:
+      "Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack",
+    valueHint: "name",
+  },
+} as const;
+
 /** Where to read the schema from, shared by gen, introspect, doctor, adopt and apply. */
 export const SOURCE_ARGS = {
   snapshot: {

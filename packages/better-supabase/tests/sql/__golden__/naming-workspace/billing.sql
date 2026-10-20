@@ -551,6 +551,7 @@ begin
 end;
 $$;
 
+
 revoke execute on function "better_supabase"."billing_stripe_rows"(uuid, text, integer) from public, anon;
 revoke execute on function "better_supabase"."billing_invoices"(uuid, integer) from public, anon;
 revoke execute on function "better_supabase"."billing_payment_methods"(uuid) from public, anon;

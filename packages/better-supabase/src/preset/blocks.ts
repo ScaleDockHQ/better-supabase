@@ -116,4 +116,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "reviews",
   "leave",
   "rules",
+  "vercel-marketplace",
 ];

@@ -8,6 +8,23 @@ const billing = (options?: Record<string, unknown>) =>
   })!;
 
 describe("billing module", () => {
+  it("renders webhook subscriptions with and without a plan catalog", () => {
+    const bare = billing({ subscriptions: "webhook" });
+
+    expect(bare).toContain("billing_subscriptions");
+    expect(bare).toContain("select null::text");
+
+    const planned = billing({
+      subscriptions: "webhook",
+      plans: { table: "app.plans", key: "slug", price: "price" },
+    });
+
+    expect(planned).toContain(`p."price"::text`);
+    expect(() => billing({ subscriptions: "polling" })).toThrow(
+      'must be "sync-engine" or "webhook"',
+    );
+  });
+
   it("resolves plan keys through the app's catalog", () => {
     expect(billing()).toContain("select null::text");
 

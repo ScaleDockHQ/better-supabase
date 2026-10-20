@@ -8,13 +8,35 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  actor uuid := auth.uid();
+  actor uuid := coalesce(auth.uid(), better_supabase.acting_member());
 begin
   if actor is null then
     return new;
@@ -176,13 +198,35 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  actor uuid := auth.uid();
+  actor uuid := coalesce(auth.uid(), better_supabase.acting_member());
 begin
   if actor is null then
     return new;
@@ -344,13 +388,35 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  actor uuid := auth.uid();
+  actor uuid := coalesce(auth.uid(), better_supabase.acting_member());
 begin
   if actor is null then
     return new;
@@ -512,13 +578,35 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  actor uuid := auth.uid();
+  actor uuid := coalesce(auth.uid(), better_supabase.acting_member());
 begin
   if actor is null then
     return new;
@@ -648,6 +736,15 @@ grant execute on function better_supabase.token_scope_allows(text) to anon, auth
 -- blocks.actor.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."acting_member"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."acting_member"() $$;
+revoke execute on function "api"."acting_member"() from public;
+grant execute on function "api"."acting_member"() to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

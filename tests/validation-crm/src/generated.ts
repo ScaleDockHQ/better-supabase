@@ -16937,17 +16937,17 @@ export type Functions = {
   };
   accept_quote_for_portal: {
     Args: {
-      p_ip?: string | null;
+      p_ip?: string | null | undefined;
       p_org_slug: string | null;
       p_payload: Json | null;
       p_quote_id: string | null;
-      p_user_agent?: string | null;
+      p_user_agent?: string | null | undefined;
     };
     Returns: string | null;
   };
   accrue_time_off: {
     Args: {
-      p_on?: string | null;
+      p_on?: string | null | undefined;
       p_organization_id: string | null;
     };
     Returns: number | null;
@@ -16979,8 +16979,8 @@ export type Functions = {
   agenda_default_time_zone: {
     Args: {
       p_organization_id: string | null;
-      p_prefer_profile?: boolean | null;
-      p_user_id?: string | null;
+      p_prefer_profile?: boolean | null | undefined;
+      p_user_id?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -17011,8 +17011,8 @@ export type Functions = {
       p_created_by: string | null;
       p_invoice_id: string | null;
       p_invoice_line_id: string | null;
-      p_location_id?: string | null;
-      p_order_line_id?: string | null;
+      p_location_id?: string | null | undefined;
+      p_order_line_id?: string | null | undefined;
       p_organization_id: string | null;
       p_product_id: string | null;
       p_quantity: number | null;
@@ -17043,7 +17043,7 @@ export type Functions = {
   allocation_owner_variant: {
     Args: {
       p_invoice_line_id: string | null;
-      p_order_line_id?: string | null;
+      p_order_line_id?: string | null | undefined;
       p_product_id: string | null;
       p_quote_version_line_id: string | null;
       p_task_material_id: string | null;
@@ -17209,7 +17209,7 @@ export type Functions = {
       p_dispatch_id: string | null;
       p_event_payload: Json | null;
       p_expected_active_stream_id: string | null;
-      p_history_limit?: number | null;
+      p_history_limit?: number | null | undefined;
       p_message_id: string | null;
       p_mode: string | null;
       p_model: string | null;
@@ -17304,7 +17304,7 @@ export type Functions = {
     Args: {
       p_order_id: string | null;
       p_organization_id: string | null;
-      p_reason?: string | null;
+      p_reason?: string | null | undefined;
     };
     Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled" | null;
   };
@@ -17471,9 +17471,9 @@ export type Functions = {
   };
   claim_agenda_external_calendars_for_sync: {
     Args: {
-      p_limit?: number | null;
-      p_min_age_seconds?: number | null;
-      p_stale_seconds?: number | null;
+      p_limit?: number | null | undefined;
+      p_min_age_seconds?: number | null | undefined;
+      p_stale_seconds?: number | null | undefined;
     };
     Returns: { "agendaCollectionId": string | null; "organizationId": string | null }[];
   };
@@ -17503,8 +17503,8 @@ export type Functions = {
   };
   claim_due_workflow_schedules: {
     Args: {
-      p_lease_for_ms?: number | null;
-      p_limit?: number | null;
+      p_lease_for_ms?: number | null | undefined;
+      p_limit?: number | null | undefined;
       p_now: string | null;
     };
     Returns: (Models["workflowSchedules"]['Row'])[];
@@ -17512,7 +17512,7 @@ export type Functions = {
   claim_inbox_automation: {
     Args: {
       p_channel_thread_id: string | null;
-      p_lease_seconds?: number | null;
+      p_lease_seconds?: number | null | undefined;
       p_lease_token: string | null;
       p_organization_id: string | null;
       p_source_message_id: string | null;
@@ -17521,8 +17521,8 @@ export type Functions = {
   };
   claim_inbox_webhook_jobs: {
     Args: {
-      p_lease_seconds?: number | null;
-      p_limit?: number | null;
+      p_lease_seconds?: number | null | undefined;
+      p_limit?: number | null | undefined;
     };
     Returns: (Models["inboxWebhookJobs"]['Row'])[];
   };
@@ -17537,8 +17537,8 @@ export type Functions = {
   };
   claim_webhook_deliveries: {
     Args: {
-      p_lease_seconds?: number | null;
-      p_limit?: number | null;
+      p_lease_seconds?: number | null | undefined;
+      p_limit?: number | null | undefined;
     };
     Returns: (Models["webhookDeliveries"]['Row'])[];
   };
@@ -17559,7 +17559,7 @@ export type Functions = {
   complete_stripe_webhook_event: {
     Args: {
       p_claim_id: string | null;
-      p_error_message?: string | null;
+      p_error_message?: string | null | undefined;
       p_event_id: string | null;
       p_succeeded: boolean | null;
     };
@@ -17575,10 +17575,10 @@ export type Functions = {
     Args: {
       p_employee_id: string | null;
       p_end_part: "full" | "morning" | "afternoon" | "hours" | null;
-      p_end_time?: string | null;
+      p_end_time?: string | null | undefined;
       p_ends_on: string | null;
       p_start_part: "full" | "morning" | "afternoon" | "hours" | null;
-      p_start_time?: string | null;
+      p_start_time?: string | null | undefined;
       p_starts_on: string | null;
     };
     Returns: number | null;
@@ -17605,7 +17605,7 @@ export type Functions = {
   };
   consume_approval_request: {
     Args: {
-      p_input_fingerprint?: string | null;
+      p_input_fingerprint?: string | null | undefined;
       p_request_id: string | null;
     };
     Returns: Models["approvalRequests"]['Row'] | null;
@@ -17709,7 +17709,7 @@ export type Functions = {
   };
   create_file_copy_operation: {
     Args: {
-      p_conflict_strategy?: string | null;
+      p_conflict_strategy?: string | null | undefined;
       p_destination_drive_id: string | null;
       p_destination_parent_id: string | null;
       p_idempotency_key: string | null;
@@ -17722,11 +17722,11 @@ export type Functions = {
   create_file_version: {
     Args: {
       p_byte_size: number | null;
-      p_checksum?: string | null;
-      p_etag?: string | null;
+      p_checksum?: string | null | undefined;
+      p_etag?: string | null | undefined;
       p_media_type: string | null;
       p_node_id: string | null;
-      p_source_modified_at?: string | null;
+      p_source_modified_at?: string | null | undefined;
       p_storage_bucket: string | null;
       p_storage_path: string | null;
     };
@@ -17755,36 +17755,36 @@ export type Functions = {
   };
   create_organization_for_current_user: {
     Args: {
-      p_address_city?: string | null;
-      p_address_country?: string | null;
-      p_address_line1?: string | null;
-      p_address_line2?: string | null;
-      p_address_postal_code?: string | null;
-      p_address_state?: string | null;
-      p_brand_primary_color?: string | null;
-      p_brand_secondary_color?: string | null;
+      p_address_city?: string | null | undefined;
+      p_address_country?: string | null | undefined;
+      p_address_line1?: string | null | undefined;
+      p_address_line2?: string | null | undefined;
+      p_address_postal_code?: string | null | undefined;
+      p_address_state?: string | null | undefined;
+      p_brand_primary_color?: string | null | undefined;
+      p_brand_secondary_color?: string | null | undefined;
       p_name: string | null;
       p_slug: string | null;
-      p_socials?: Json | null;
-      p_website?: string | null;
+      p_socials?: Json | null | undefined;
+      p_website?: string | null | undefined;
     };
     Returns: string | null;
   };
   create_purchase_orders_from_reorder: {
     Args: {
       p_organization_id: string | null;
-      p_variant_ids?: string[] | null;
+      p_variant_ids?: string[] | null | undefined;
     };
     Returns: string[] | null;
   };
   create_shipment: {
     Args: {
       p_direction: "outbound" | "inbound" | "return" | null;
-      p_header?: Json | null;
-      p_lines?: Json | null;
-      p_order_id?: string | null;
+      p_header?: Json | null | undefined;
+      p_lines?: Json | null | undefined;
+      p_order_id?: string | null | undefined;
       p_organization_id: string | null;
-      p_purchase_order_id?: string | null;
+      p_purchase_order_id?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -17895,7 +17895,7 @@ export type Functions = {
   decide_approval_request: {
     Args: {
       p_approved: boolean | null;
-      p_comment?: string | null;
+      p_comment?: string | null | undefined;
       p_request_id: string | null;
     };
     Returns: Models["approvalRequests"]['Row'] | null;
@@ -17975,12 +17975,12 @@ export type Functions = {
   };
   ensure_comment_thread: {
     Args: {
-      p_customer_asset_id?: number | null;
-      p_customer_id?: number | null;
+      p_customer_asset_id?: number | null | undefined;
+      p_customer_id?: number | null | undefined;
       p_organization_id: string | null;
       p_subject_id: string | null;
       p_subject_type: string | null;
-      p_task_id?: string | null;
+      p_task_id?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -18036,14 +18036,14 @@ export type Functions = {
   };
   evaluate_promotion: {
     Args: {
-      p_code?: string | null;
+      p_code?: string | null | undefined;
       p_customer_id: number | null;
       p_organization_id: string | null;
-      p_promotion_id?: string | null;
-      p_quantity?: number | null;
-      p_subject_id?: string | null;
+      p_promotion_id?: string | null | undefined;
+      p_quantity?: number | null | undefined;
+      p_subject_id?: string | null | undefined;
       p_subject_type: "quote" | "order" | "invoice" | null;
-      p_subtotal?: number | null;
+      p_subtotal?: number | null | undefined;
     };
     Returns: Json;
   };
@@ -18055,7 +18055,7 @@ export type Functions = {
   };
   fill_backorders: {
     Args: {
-      p_location_id?: string | null;
+      p_location_id?: string | null | undefined;
       p_organization_id: string | null;
       p_variant_id: string | null;
     };
@@ -18080,8 +18080,8 @@ export type Functions = {
   finalize_file_upload: {
     Args: {
       p_actual_bytes: number | null;
-      p_checksum?: string | null;
-      p_etag?: string | null;
+      p_checksum?: string | null | undefined;
+      p_etag?: string | null | undefined;
       p_reservation_id: string | null;
     };
     Returns: Models["fileUploadReservations"]['Row'] | null;
@@ -18145,19 +18145,19 @@ export type Functions = {
   };
   get_admin_operations_attention: {
     Args: {
-      p_now?: string | null;
+      p_now?: string | null | undefined;
     };
     Returns: Json;
   };
   get_admin_operations_metrics: {
     Args: {
-      p_now?: string | null;
+      p_now?: string | null | undefined;
     };
     Returns: Json;
   };
   get_admin_operations_plans: {
     Args: {
-      p_now?: string | null;
+      p_now?: string | null | undefined;
     };
     Returns: Json;
   };
@@ -18189,7 +18189,7 @@ export type Functions = {
   };
   get_ai_usage_allowance: {
     Args: {
-      p_at?: string | null;
+      p_at?: string | null | undefined;
       p_organization_id: string | null;
     };
     Returns: { "allowed": boolean | null; "code": string | null; "reason": string | null }[];
@@ -18197,13 +18197,13 @@ export type Functions = {
   get_employee_history: {
     Args: {
       p_employee_id: string | null;
-      p_limit?: number | null;
+      p_limit?: number | null | undefined;
     };
     Returns: { "actorDisplayName": string | null; "actorId": string | null; "eventType": string | null; "id": string | null; "occurredAt": string | null; "targetId": string | null; "targetType": string | null }[];
   };
   get_file_node_path: {
     Args: {
-      p_max_depth?: number | null;
+      p_max_depth?: number | null | undefined;
       p_node_id: string | null;
     };
     Returns: { "createdAt": string | null; "createdBy": string | null; "currentVersionId": string | null; "deletedAt": string | null; "depth": number | null; "driveId": string | null; "externalId": string | null; "externalMetadata": Json; "id": string | null; "kind": string | null; "name": string | null; "organizationId": string | null; "parentId": string | null; "source": string | null; "updatedAt": string | null }[];
@@ -18268,7 +18268,7 @@ export type Functions = {
     Args: {
       p_org_slug: string | null;
       p_quote_id: string | null;
-      p_version?: number | null;
+      p_version?: number | null | undefined;
     };
     Returns: Json;
   };
@@ -18464,7 +18464,7 @@ export type Functions = {
   has_agenda_collection_access: {
     Args: {
       p_calendar_id: string | null;
-      p_min_role?: string | null;
+      p_min_role?: string | null | undefined;
       p_organization_id: string | null;
     };
     Returns: boolean | null;
@@ -18500,13 +18500,13 @@ export type Functions = {
   has_file_drive_access: {
     Args: {
       p_drive_id: string | null;
-      p_min_role?: string | null;
+      p_min_role?: string | null | undefined;
     };
     Returns: boolean | null;
   };
   has_file_node_access: {
     Args: {
-      p_min_role?: string | null;
+      p_min_role?: string | null | undefined;
       p_node_id: string | null;
     };
     Returns: boolean | null;
@@ -18579,7 +18579,7 @@ export type Functions = {
   inventory_variant_levels: {
     Args: {
       p_organization_id: string | null;
-      p_product_ids?: string[] | null;
+      p_product_ids?: string[] | null | undefined;
     };
     Returns: { "allocated": number | null; "available": number | null; "backordered": number | null; "incoming": number | null; "isDefault": boolean | null; "onHand": number | null; "productId": string | null; "reorderPoint": number | null; "sku": string | null; "stockStatus": string | null; "variantId": string | null; "variantPosition": number | null; "variantTitle": string | null }[];
   };
@@ -18747,24 +18747,24 @@ export type Functions = {
   };
   list_admin_billing: {
     Args: {
-      p_limit?: number | null;
-      p_offset?: number | null;
-      p_plan_keys?: string[] | null;
-      p_search?: string | null;
-      p_statuses?: string[] | null;
+      p_limit?: number | null | undefined;
+      p_offset?: number | null | undefined;
+      p_plan_keys?: string[] | null | undefined;
+      p_search?: string | null | undefined;
+      p_statuses?: string[] | null | undefined;
     };
     Returns: Json;
   };
   list_agenda_collections_for_user: {
     Args: {
-      p_calendar_id?: string | null;
+      p_calendar_id?: string | null | undefined;
       p_organization_id: string | null;
     };
     Returns: { "canEdit": boolean | null; "canManage": boolean | null; "color": string | null; "createdAt": string | null; "createdBy": string | null; "defaultTimeZone": string | null; "description": string | null; "externalCalendarId": string | null; "id": string | null; "isDefault": boolean | null; "isSubscribed": boolean | null; "kind": string | null; "name": string | null; "organizationId": string | null; "ownerUserId": string | null; "position": number | null; "prefIsVisible": boolean | null; "prefPosition": number | null; "source": string | null; "updatedAt": string | null; "visibility": string | null }[];
   };
   list_decidable_approval_requests: {
     Args: {
-      p_limit?: number | null;
+      p_limit?: number | null | undefined;
       p_organization_id: string | null;
     };
     Returns: (Models["approvalRequests"]['Row'])[];
@@ -18779,8 +18779,8 @@ export type Functions = {
   };
   list_inbox_threads: {
     Args: {
-      p_limit?: number | null;
-      p_offset?: number | null;
+      p_limit?: number | null | undefined;
+      p_offset?: number | null | undefined;
       p_organization_id: string | null;
     };
     Returns: { "archivedAt": string | null; "assignedTeamId": number | null; "assignedUserId": string | null; "chatThreadId": string | null; "chatThreadTitle": string | null; "connectionId": string | null; "connectionKind": string | null; "connectionName": string | null; "connectionStatus": string | null; "contactAvatarPath": string | null; "contactDisplayName": string | null; "contactEmail": string | null; "contactFirstName": string | null; "contactLastName": string | null; "contactPhone": string | null; "continuationCursor": string | null; "createdAt": string | null; "customerId": number | null; "externalActorId": string | null; "externalChannelId": string | null; "externalThreadId": string | null; "id": string | null; "lastDeliveryError": string | null; "lastDeliveryStatus": string | null; "lastMessageAt": string | null; "lastMessageId": string | null; "lastMessageRole": string | null; "lastMessageText": string | null; "metadata": Json; "organizationId": string | null; "pinnedAt": string | null; "readAt": string | null; "streamStatus": string | null; "takeoverAt": string | null; "takeoverReason": string | null; "takeoverStatus": string | null; "unread": boolean | null; "updatedAt": string | null }[];
@@ -18795,7 +18795,7 @@ export type Functions = {
   };
   list_notification_subscriber_user_ids: {
     Args: {
-      p_activity?: string | null;
+      p_activity?: string | null | undefined;
       p_organization_id: string | null;
       p_subject_id: string | null;
       p_subject_type: string | null;
@@ -18858,7 +18858,7 @@ export type Functions = {
     Args: {
       p_entity: string | null;
       p_organization_id: string | null;
-      p_period?: string | null;
+      p_period?: string | null | undefined;
     };
     Returns: number | null;
   };
@@ -18905,7 +18905,7 @@ export type Functions = {
   };
   process_open_sick_leave: {
     Args: {
-      p_on?: string | null;
+      p_on?: string | null | undefined;
     };
     Returns: { "caseId": string | null; "employeeId": string | null; "needsFollowUp": boolean | null; "organizationId": string | null; "reportedOn": string | null }[];
   };
@@ -18940,19 +18940,19 @@ export type Functions = {
   };
   promotion_rejection: {
     Args: {
-      p_check_limits?: boolean | null;
+      p_check_limits?: boolean | null | undefined;
       p_customer_id: number | null;
       p_promotion_id: string | null;
-      p_quantity?: number | null;
-      p_subject_id?: string | null;
+      p_quantity?: number | null | undefined;
+      p_subject_id?: string | null | undefined;
       p_subject_type: "quote" | "order" | "invoice" | null;
-      p_subtotal?: number | null;
+      p_subtotal?: number | null | undefined;
     };
     Returns: string | null;
   };
   publish_quote_version: {
     Args: {
-      p_actor_user_id?: string | null;
+      p_actor_user_id?: string | null | undefined;
       p_quote_id: string | null;
     };
     Returns: number | null;
@@ -18965,8 +18965,8 @@ export type Functions = {
   };
   purge_expired_audit_logs: {
     Args: {
-      p_batch_size?: number | null;
-      p_now?: string | null;
+      p_batch_size?: number | null | undefined;
+      p_now?: string | null | undefined;
     };
     Returns: number | null;
   };
@@ -18983,7 +18983,7 @@ export type Functions = {
   };
   receive_inbound_shipment: {
     Args: {
-      p_location_id?: string | null;
+      p_location_id?: string | null | undefined;
       p_organization_id: string | null;
       p_shipment_id: string | null;
     };
@@ -18991,18 +18991,18 @@ export type Functions = {
   };
   receive_purchase_order: {
     Args: {
-      p_allow_over_receipt?: boolean | null;
+      p_allow_over_receipt?: boolean | null | undefined;
       p_lines: Json | null;
-      p_location_id?: string | null;
+      p_location_id?: string | null | undefined;
       p_organization_id: string | null;
       p_purchase_order_id: string | null;
-      p_shipment_id?: string | null;
+      p_shipment_id?: string | null | undefined;
     };
     Returns: Json;
   };
   receive_return_shipment: {
     Args: {
-      p_location_id?: string | null;
+      p_location_id?: string | null | undefined;
       p_organization_id: string | null;
       p_shipment_id: string | null;
     };
@@ -19035,7 +19035,7 @@ export type Functions = {
   recompute_quote_totals: {
     Args: {
       p_quote_id: string | null;
-      p_selected_optional_line_ids?: Json | null;
+      p_selected_optional_line_ids?: Json | null | undefined;
     };
     Returns: undefined;
   };
@@ -19064,7 +19064,7 @@ export type Functions = {
   };
   record_ai_turn_usage: {
     Args: {
-      p_at?: string | null;
+      p_at?: string | null | undefined;
       p_duration_ms: number | null;
       p_function_id: string | null;
       p_idempotency_key: string | null;
@@ -19091,23 +19091,23 @@ export type Functions = {
       p_actor_is_platform_admin: boolean | null;
       p_actor_kind: string | null;
       p_category: string | null;
-      p_correlation_id?: string | null;
+      p_correlation_id?: string | null | undefined;
       p_event_type: string | null;
-      p_idempotency_key?: string | null;
-      p_ip_address?: unknown | null;
+      p_idempotency_key?: string | null | undefined;
+      p_ip_address?: unknown | null | undefined;
       p_organization_id: string | null;
       p_outcome: string | null;
-      p_request_id?: string | null;
-      p_restricted_metadata?: Json | null;
-      p_safe_metadata?: Json | null;
+      p_request_id?: string | null | undefined;
+      p_restricted_metadata?: Json | null | undefined;
+      p_safe_metadata?: Json | null | undefined;
       p_scope: string | null;
-      p_session_id?: string | null;
+      p_session_id?: string | null | undefined;
       p_source: string | null;
-      p_summary?: string | null;
-      p_target_display_name?: string | null;
-      p_target_id?: string | null;
-      p_target_type?: string | null;
-      p_user_agent?: string | null;
+      p_summary?: string | null | undefined;
+      p_target_display_name?: string | null | undefined;
+      p_target_id?: string | null | undefined;
+      p_target_type?: string | null | undefined;
+      p_user_agent?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -19121,7 +19121,7 @@ export type Functions = {
   };
   record_usage_events_bulk: {
     Args: {
-      p_at?: string | null;
+      p_at?: string | null | undefined;
       p_events: Json | null;
       p_organization_id: string | null;
     };
@@ -19242,11 +19242,11 @@ export type Functions = {
     };
   reject_quote_for_portal: {
     Args: {
-      p_ip?: string | null;
+      p_ip?: string | null | undefined;
       p_org_slug: string | null;
       p_payload: Json | null;
       p_quote_id: string | null;
-      p_user_agent?: string | null;
+      p_user_agent?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -19298,11 +19298,11 @@ export type Functions = {
     Args: {
       p_confidence: number | null;
       p_content: string | null;
-      p_embedding?: unknown | null;
+      p_embedding?: unknown | null | undefined;
       p_expires_at: string | null;
       p_kind: string | null;
-      p_metadata?: Json | null;
-      p_now?: string | null;
+      p_metadata?: Json | null | undefined;
+      p_now?: string | null | undefined;
       p_organization_id: string | null;
       p_scope: string | null;
       p_source: string | null;
@@ -19324,7 +19324,7 @@ export type Functions = {
   replace_agenda_collection_grants: {
     Args: {
       p_calendar_id: string | null;
-      p_created_by?: string | null;
+      p_created_by?: string | null | undefined;
       p_grants: Json | null;
       p_organization_id: string | null;
     };
@@ -19399,7 +19399,7 @@ export type Functions = {
   };
   replace_workflow_grants: {
     Args: {
-      p_created_by?: string | null;
+      p_created_by?: string | null | undefined;
       p_definition_id: string | null;
       p_organization_id: string | null;
       p_team_ids: number[] | null;
@@ -19409,11 +19409,11 @@ export type Functions = {
   };
   request_quote_changes_for_portal: {
     Args: {
-      p_ip?: string | null;
+      p_ip?: string | null | undefined;
       p_org_slug: string | null;
       p_payload: Json | null;
       p_quote_id: string | null;
-      p_user_agent?: string | null;
+      p_user_agent?: string | null | undefined;
     };
     Returns: string | null;
   };
@@ -19446,7 +19446,7 @@ export type Functions = {
     Args: {
       p_organization_id: string | null;
       p_subject_type: string | null;
-      p_template_id?: string | null;
+      p_template_id?: string | null | undefined;
     };
     Returns: Models["workflowDefinitions"]['Row'] | null;
   };
@@ -19498,7 +19498,7 @@ export type Functions = {
   };
   return_invoice_stock: {
     Args: {
-      p_credit_note_id?: string | null;
+      p_credit_note_id?: string | null | undefined;
       p_invoice_id: string | null;
       p_organization_id: string | null;
     };
@@ -19512,22 +19512,22 @@ export type Functions = {
   };
   search_knowledge_chunks: {
     Args: {
-      p_collection_ids?: string[] | null;
-      p_include_system?: boolean | null;
-      p_limit?: number | null;
-      p_organization_id?: string | null;
+      p_collection_ids?: string[] | null | undefined;
+      p_include_system?: boolean | null | undefined;
+      p_limit?: number | null | undefined;
+      p_organization_id?: string | null | undefined;
       p_query: string | null;
-      p_query_embedding?: unknown | null;
+      p_query_embedding?: unknown | null | undefined;
     };
     Returns: { "chunkId": string | null; "chunkPosition": number | null; "collectionId": string | null; "content": string | null; "fileId": string | null; "organizationId": string | null; "score": number | null }[];
   };
   search_private_ai_memory: {
     Args: {
-      p_limit?: number | null;
-      p_now?: string | null;
+      p_limit?: number | null | undefined;
+      p_now?: string | null | undefined;
       p_organization_id: string | null;
       p_query: string | null;
-      p_query_embedding?: unknown | null;
+      p_query_embedding?: unknown | null | undefined;
       p_scopes: string[] | null;
       p_thread_id: string | null;
       p_user_id: string | null;
@@ -19536,7 +19536,7 @@ export type Functions = {
   };
   seed_organization_document_templates: {
     Args: {
-      p_created_by?: string | null;
+      p_created_by?: string | null | undefined;
       p_organization_id: string | null;
     };
     Returns: undefined;
@@ -19601,7 +19601,7 @@ export type Functions = {
   set_task_status_with_materials: {
     Args: {
       p_organization_id: string | null;
-      p_position?: number | null;
+      p_position?: number | null | undefined;
       p_status: "todo" | "in_progress" | "on_hold" | "done" | null;
       p_task_id: string | null;
     };
@@ -19619,7 +19619,7 @@ export type Functions = {
     Args: {
       p_organization_id: string | null;
       p_shipment_id: string | null;
-      p_status?: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
+      p_status?: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null | undefined;
     };
     Returns: Json;
   };
@@ -19885,7 +19885,7 @@ export type Functions = {
   time_off_balance: {
     Args: {
       p_employee_id: string | null;
-      p_on?: string | null;
+      p_on?: string | null | undefined;
       p_time_off_type_id: string | null;
     };
     Returns: number | null;
@@ -19988,7 +19988,7 @@ export type Functions = {
   };
   update_shipment_status: {
     Args: {
-      p_occurred_at?: string | null;
+      p_occurred_at?: string | null | undefined;
       p_organization_id: string | null;
       p_shipment_id: string | null;
       p_status: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
@@ -20011,7 +20011,7 @@ export type Functions = {
   upsert_reserved_allocation: {
     Args: {
       p_invoice_line_id: string | null;
-      p_order_line_id?: string | null;
+      p_order_line_id?: string | null | undefined;
       p_organization_id: string | null;
       p_product_id: string | null;
       p_quantity: number | null;
@@ -20249,7 +20249,7 @@ export type Functions = {
       p_location_id: string | null;
       p_movement_type: "initial_count" | "purchase_receipt" | "sale" | "reservation" | "reservation_release" | "reservation_transfer" | "adjustment" | "transfer_out" | "transfer_in" | "return" | "write_off" | "cycle_count" | null;
       p_on_hand_delta: number | null;
-      p_order_id?: string | null;
+      p_order_id?: string | null | undefined;
       p_organization_id: string | null;
       p_product_id: string | null;
       p_quantity_after: number | null;

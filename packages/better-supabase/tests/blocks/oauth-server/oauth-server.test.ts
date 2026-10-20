@@ -127,6 +127,69 @@ describe("createOAuthServer", () => {
     });
   });
 
+  it("passes RFC 8707 resources through and returns them at exchange", async () => {
+    const { call, transport } = fake({
+      create_oauth_authorization_code: { grantId: "grant-1" },
+      redeem_oauth_authorization_code: {
+        status: "ok",
+        userId: "user-1",
+        clientId: "bsc_client",
+        grantId: "grant-1",
+        scope: "openid",
+        nonce: null,
+        resource: ["https://api.example.com"],
+      },
+    });
+
+    const oauth = createOAuthServer({ transport });
+
+    const issued = await oauth
+      .createAuthorizationCode({
+        clientId: "bsc_client",
+        userId: "user-1",
+        codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        codeChallengeMethod: "S256",
+        resource: ["https://api.example.com", "https://other.example.com"],
+      })
+      .orThrow();
+
+    expect(call.mock.calls[0]?.[2]).toMatchObject({
+      resource: ["https://api.example.com", "https://other.example.com"],
+    });
+
+    const redeemed = await oauth
+      .redeemAuthorizationCode({
+        code: issued.code,
+        clientId: "bsc_client",
+        codeVerifier: "a".repeat(43),
+        resource: ["https://api.example.com"],
+      })
+      .orThrow();
+
+    expect(redeemed?.resource).toEqual(["https://api.example.com"]);
+    expect(call.mock.calls[1]?.[2]).toMatchObject({
+      resource: ["https://api.example.com"],
+    });
+  });
+
+  it("registers a client under a chosen id", async () => {
+    const { call, transport } = fake({ register_oauth_client: CLIENT_ROW });
+    const oauth = createOAuthServer({ transport });
+
+    await oauth
+      .registerClient(
+        {
+          name: "CLI",
+          grantTypes: ["urn:ietf:params:oauth:grant-type:device_code"],
+          tokenEndpointAuthMethod: "none",
+        },
+        { clientId: "acme-cli" },
+      )
+      .orThrow();
+
+    expect(call.mock.calls[0]?.[2]).toMatchObject({ client_id: "acme-cli" });
+  });
+
   it("returns null for a replayed or mismatched code", async () => {
     const oauth = createOAuthServer(
       fake({ redeem_oauth_authorization_code: { status: "replayed" } }),
@@ -166,6 +229,7 @@ describe("createOAuthServer", () => {
         grantId: "grant-1",
         scope: "contacts:read",
         nonce: null,
+        resource: [],
       },
     });
   });

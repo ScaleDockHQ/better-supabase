@@ -97,6 +97,11 @@ export interface RegisteredOAuthClient {
 export interface RegisterClientOptions {
   /** The user who registered the client, when one did. */
   readonly createdBy?: string;
+  /**
+   * A client id to use instead of a generated one. It has to match the
+   * module's `clientIdPattern`; the database refuses it otherwise.
+   */
+  readonly clientId?: string;
 }
 
 export interface AuthorizationCodeRequest {
@@ -111,6 +116,11 @@ export interface AuthorizationCodeRequest {
   readonly codeChallengeMethod: string;
   /** The OpenID Connect `nonce`, returned by `redeemAuthorizationCode`. */
   readonly nonce?: string;
+  /**
+   * The RFC 8707 `resource` indicators of the request: the APIs the token may
+   * be used at. `redeemAuthorizationCode` returns them for the token's `aud`.
+   */
+  readonly resource?: readonly string[];
 }
 
 /** What `createAuthorizationCode` returns. */
@@ -127,6 +137,11 @@ export interface AuthorizationCodeRedemption {
   /** Must match the authorization request's `redirect_uri`. */
   readonly redirectUri?: string;
   readonly codeVerifier: string;
+  /**
+   * The `resource` of the token request. It has to be a subset of the code's
+   * resources (RFC 8707 section 2.2); anything else is refused.
+   */
+  readonly resource?: readonly string[];
 }
 
 /** A code or device code exchanged once: who to issue tokens for. */
@@ -136,6 +151,8 @@ export interface OAuthAuthorization {
   readonly grantId: string;
   readonly scope: string;
   readonly nonce: string | null;
+  /** The RFC 8707 resources the token is for; empty when the request named none. */
+  readonly resource: readonly string[];
 }
 
 /** What `createDeviceCode` returns (RFC 8628 section 3.2). */
@@ -151,6 +168,7 @@ export interface IssuedDeviceCode {
 export interface DeviceRequest {
   readonly clientId: string;
   readonly scope: string;
+  readonly resource: readonly string[];
   readonly expiresAt: Temporal.Instant;
 }
 
@@ -170,6 +188,8 @@ export interface OAuthGrant {
   readonly clientId: string;
   readonly clientName: string | null;
   readonly scopes: readonly string[];
+  /** Every resource the user consented to for this client. */
+  readonly resource: readonly string[];
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
   readonly revokedAt: Temporal.Instant | null;
@@ -227,6 +247,7 @@ export interface OAuthServer {
   createDeviceCode(
     clientId: string,
     scope?: string,
+    resource?: readonly string[],
   ): AsyncResult<IssuedDeviceCode>;
   /** The pending request for a user code as typed, dashes and case ignored. */
   deviceRequest(userCode: string): AsyncResult<DeviceRequest | null>;
@@ -235,6 +256,7 @@ export interface OAuthServer {
   pollDeviceCode(
     deviceCode: string,
     clientId: string,
+    resource?: readonly string[],
   ): AsyncResult<DeviceCodePoll>;
   listGrants(
     userId: string,
@@ -351,6 +373,7 @@ function grantOf(row: Record<string, unknown>): OAuthGrant {
     clientId: textOf(row["clientId"]),
     clientName: nullableText(row["clientName"]),
     scopes: stringsOf(row["scopes"]),
+    resource: stringsOf(row["resource"] ?? []),
     createdAt: instantOf(row["createdAt"]),
     updatedAt: instantOf(row["updatedAt"]),
     revokedAt: nullableInstant(row["revokedAt"]),
@@ -364,6 +387,7 @@ function authorizationOf(row: Record<string, unknown>): OAuthAuthorization {
     grantId: textOf(row["grantId"]),
     scope: nullableText(row["scope"]) ?? "",
     nonce: nullableText(row["nonce"]),
+    resource: stringsOf(row["resource"] ?? []),
   };
 }
 
@@ -461,7 +485,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
         );
       }
 
-      const clientId = randomToken(16);
+      const clientId = registerOptions.clientId ?? randomToken(16);
       const secret = method === "none" ? null : randomToken(32);
       const registrationToken = randomToken(32);
 
@@ -579,6 +603,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
             code_challenge: request.codeChallenge,
             ttl: `${String(codeSeconds)} seconds`,
             nonce: request.nonce ?? null,
+            resource: request.resource ?? null,
           },
           (value) => ({
             code,
@@ -606,6 +631,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
             client_id: redemption.clientId,
             redirect_uri: redemption.redirectUri ?? null,
             code_challenge: challenge,
+            resource: redemption.resource ?? null,
           },
           (value) => {
             const row = recordOf(value, "redeem_oauth_authorization_code");
@@ -615,7 +641,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
         ),
       );
     },
-    createDeviceCode: (clientId, scope) => {
+    createDeviceCode: (clientId, scope, resource) => {
       const deviceCode = randomToken(32);
       const code = userCode();
 
@@ -629,6 +655,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
             scope: scope ?? "",
             ttl: `${String(deviceSeconds)} seconds`,
             poll_interval: deviceInterval,
+            resource: resource ?? null,
           },
           () => ({
             deviceCode,
@@ -653,17 +680,22 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
           return {
             clientId: textOf(row["clientId"]),
             scope: nullableText(row["scope"]) ?? "",
+            resource: stringsOf(row["resource"] ?? []),
             expiresAt: instantOf(row["expiresAt"]),
           };
         },
       ),
     approveDeviceCode: (code, userId) => decide(code, userId, true),
     denyDeviceCode: (code, userId) => decide(code, userId, false),
-    pollDeviceCode: (deviceCode, clientId) =>
+    pollDeviceCode: (deviceCode, clientId, resource) =>
       run(() => sha256Hex(deviceCode)).andThen((hash) =>
         call(
           "poll_oauth_device_code",
-          { device_code_hash: hash, client_id: clientId },
+          {
+            device_code_hash: hash,
+            client_id: clientId,
+            resource: resource ?? null,
+          },
           pollOf,
         ),
       ),

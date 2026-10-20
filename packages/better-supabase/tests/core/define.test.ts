@@ -747,6 +747,18 @@ describe("$rpc", () => {
     ]);
   });
 
+  it("leaves out arguments that are undefined and keeps null", async () => {
+    const executor = fake({ rpc: () => ok(null) });
+    await betterSupabase
+      .connect(executor)
+      .$rpc(
+        "search_notes" as never,
+        { q: undefined, limit: null, n: 0 } as never,
+      );
+    expect(executor.calls[0]?.args).toEqual({ limit: null, n: 0 });
+    expect(Object.keys(executor.calls[0]?.args ?? {})).toEqual(["limit", "n"]);
+  });
+
   it("defaults to the public schema and empty arguments", async () => {
     const executor = fake({ rpc: () => ok(null) });
     await betterSupabase

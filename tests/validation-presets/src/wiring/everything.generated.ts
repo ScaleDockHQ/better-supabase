@@ -68,6 +68,7 @@ import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { remindersBlock } from "better-supabase/blocks/reminders";
 import { rulesBlock } from "better-supabase/blocks/rules";
+import { vercelMarketplaceBlock } from "better-supabase/blocks/vercel-marketplace";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
@@ -162,6 +163,7 @@ export const blockSet = defineBlocks(blockConfig, {
   relations: relationsBlock,
   reminders: remindersBlock,
   rules: rulesBlock,
+  vercelMarketplace: vercelMarketplaceBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
   servicePrincipals: servicePrincipalsBlock,

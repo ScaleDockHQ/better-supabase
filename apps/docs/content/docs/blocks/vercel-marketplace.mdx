@@ -1,0 +1,101 @@
+---
+title: Vercel Marketplace
+description: Provider state for an integration listed on the Vercel Marketplace, installations, resources, plans, invoices and meter reports, with verified webhooks, the SSO exchange and usage reporting.
+---
+
+`vercel-marketplace` is for apps that sell a product through the [Vercel Marketplace](https://vercel.com/docs/integrations/create-integration/marketplace-product). It keeps what Vercel tells you, which team installed the integration, the resources they provisioned, the plans, Vercel's invoices and the quantities you reported, and it gives you the three server calls a provider needs: verify a webhook, exchange an SSO code and send usage.
+
+```bash
+better-supabase add vercel-marketplace
+```
+
+The module needs nothing else, and only the service role calls it. Every function is granted to `service_role`, so build the client on a service-role transport.
+
+```ts
+import { createVercelMarketplace } from "better-supabase/blocks/vercel-marketplace";
+
+const marketplace = createVercelMarketplace({
+  transport: serviceTransport,
+  clientId: process.env.VERCEL_INTEGRATION_CLIENT_ID,
+  clientSecret: process.env.VERCEL_INTEGRATION_CLIENT_SECRET,
+  accessToken: (configurationId) => tokens.forInstallation(configurationId),
+});
+```
+
+`accessToken` returns the bearer token Vercel gave you for an installation. It is only read when you submit invoices or report usage, and your app stores it.
+
+## Installations and resources
+
+`upsertInstallation` records an installation by its configuration id, and a reinstall after a removal makes it active again. Set `tenant` to link the installation to your own organization row. `upsertResource` provisions or updates a resource (the id Vercel uses is `externalId`), and `upsertPlan` keeps the plans your product offers.
+
+```ts
+const installation = await marketplace
+  .upsertInstallation({
+    configurationId,
+    teamId,
+    userId,
+    tenant: organizationId,
+  })
+  .orThrow();
+
+await marketplace.upsertResource({
+  configurationId,
+  externalId: resourceId,
+  name: "Production database",
+  planId: "pro",
+});
+```
+
+## Webhooks
+
+`handleWebhook` takes the `Request` Vercel sent. It checks the `x-vercel-signature` header, the HMAC-SHA1 of the raw body under your client secret, in constant time, and returns an error without touching the database when it does not match.
+
+```ts title="app/api/vercel/webhook/route.ts"
+export async function POST(request: Request) {
+  const result = await marketplace.handleWebhook(request);
+
+  return result.ok
+    ? Response.json(result.data)
+    : Response.json({ error: result.error.message }, { status: 400 });
+}
+```
+
+| Event                                                           | What the block does                                                                             |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `integration-configuration.removed`                             | Marks the installation removed and its resources deleted. The rows stay for invoices and audit. |
+| `marketplace.invoice.created`, `.paid`, `.notpaid`, `.refunded` | Stores the invoice with its state.                                                              |
+| anything else                                                   | Returns `handled: false`.                                                                       |
+
+An invoice event carries its creation time, and the database keeps the state of the newest event. Vercel can redeliver events out of order, and an older one never overwrites a newer state.
+
+## Single sign-on
+
+When a user opens your product from the Vercel dashboard, Vercel redirects to your SSO route with a `code`. `exchangeSso` trades it for an `id_token`, verifies the RS256 signature against Vercel's JWKS, checks the issuer, audience and expiry, and keeps the installation current.
+
+```ts title="app/api/vercel/sso/route.ts"
+const claims = await marketplace.exchangeSso({ code, state }).orThrow();
+// claims.configurationId, claims.userEmail, claims.resourceId, claims.path
+```
+
+Pass `jwks` to verify against another key set, such as one inline in tests.
+
+## Invoices and usage
+
+`submitInvoice` sends an invoice for a period, and `reportUsage` sends meter quantities. `reportUsage` first stores each quantity (one row per installation, resource, meter and period), then sends everything Vercel has not accepted yet and marks it sent. A failed send leaves the rows stored, so the next call retries them.
+
+```ts
+await marketplace.reportUsage({
+  configurationId,
+  periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+  periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+  meters: [{ meterId: "requests", quantity: 12_000 }],
+});
+```
+
+To feed a meter from the [usage block](/docs/blocks/usage), read the period's total there and pass it as the quantity.
+
+## Options and events
+
+`blocks.vercel-marketplace.options.currency` (default `usd`) is the currency an invoice takes when the webhook names none.
+
+The block writes `marketplace_installation.upserted`, `marketplace_installation.removed` and `marketplace_invoice.state_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.

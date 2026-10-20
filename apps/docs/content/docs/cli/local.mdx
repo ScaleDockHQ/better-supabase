@@ -107,6 +107,16 @@ Tests import the same rows: `seed.rows.customers.first`, and
 `await seed.insert(sql)` in a `beforeAll`. Node loads `seed.ts` directly,
 so use `.ts` extensions in its relative imports.
 
+### One stack per purpose
+
+`seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
+`supabase/config.toml`. To keep a second stack for tests or a demo, give it
+its own `[db] port` in `supabase/stacks/<name>/config.toml` and pass
+`--stack <name>` or set `BSB_STACK=<name>`. A connection string from
+`$DATABASE_URL` or `--db-url-stdin` still wins. If two stacks can't run side
+by side on your Supabase CLI, use one git worktree per purpose instead; each
+worktree gets its own stack.
+
 Side effects: Writes files, writes to the database with `--apply`.
 
 ## OpenAPI files

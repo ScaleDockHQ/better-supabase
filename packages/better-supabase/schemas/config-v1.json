@@ -1833,6 +1833,7 @@
               "updated-at",
               "usage",
               "vector-search",
+              "vercel-marketplace",
               "versions",
               "waitlist",
               "webhook-inbox",
@@ -2154,6 +2155,9 @@
             },
             "vector-search": {
               "$ref": "#/$defs/blocks/vector-search"
+            },
+            "vercel-marketplace": {
+              "$ref": "#/$defs/blocks/vercel-marketplace"
             },
             "versions": {
               "$ref": "#/$defs/blocks/versions"
@@ -3427,7 +3431,11 @@
                 "default": []
               },
               "plans": {},
-              "tenantKey": {}
+              "tenantKey": {},
+              "subscriptions": {
+                "type": "string",
+                "default": "sync-engine"
+              }
             }
           }
         }
@@ -4234,7 +4242,11 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "clientIdPattern": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -5101,6 +5113,22 @@
             "additionalProperties": false,
             "properties": {
               "schema": {}
+            }
+          }
+        }
+      },
+      "vercel-marketplace": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "type": "string",
+                "default": "usd"
+              }
             }
           }
         }

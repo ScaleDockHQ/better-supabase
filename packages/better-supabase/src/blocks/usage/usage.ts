@@ -112,6 +112,10 @@ export interface UsageMeterInfo {
   readonly unit?: string;
   readonly category?: string;
   readonly label?: string;
+  /** `counter` when the catalog gives no kind. */
+  readonly kind?: "counter" | "distinct" | "computed";
+  /** The window a distinct or computed meter measures. */
+  readonly period?: UsagePeriod;
 }
 
 export interface UsageStatus {
@@ -139,6 +143,23 @@ export interface Usage {
     meter: string,
     options?: RecordUsageOptions,
   ): AsyncResult<UsageRecorded>;
+  /**
+   * Counts `subject` once in the current period of a `distinct` meter (active
+   * users, say). Repeating a subject changes nothing, and quotas and Stripe
+   * reporting read the meter like a counter.
+   */
+  track(
+    organizationId: string,
+    meter: string,
+    subject: string,
+    options?: { readonly period?: UsagePeriod },
+  ): AsyncResult<UsageRecorded>;
+  /**
+   * Recomputes `computed` meters from their query for every tenant it returns,
+   * or for one meter. Service role only; returns the rows written. The
+   * migration schedules it hourly when pg_cron is installed.
+   */
+  refresh(meter?: string): AsyncResult<number>;
   /** Adds usage when it fits the quota, or returns `quota_exceeded`. */
   consume(
     organizationId: string,
@@ -274,11 +295,23 @@ function meterInfo(row: Readonly<Record<string, unknown>>): UsageMeterInfo {
   const unit = optionalText(row["unit"]);
   const category = optionalText(row["category"]);
   const label = optionalText(row["label"]);
+  const kind = optionalText(row["kind"]);
+  const period = optionalText(row["period"]);
 
   return {
     ...(unit === undefined ? {} : { unit }),
     ...(category === undefined ? {} : { category }),
     ...(label === undefined ? {} : { label }),
+    ...(kind === "counter" || kind === "distinct" || kind === "computed"
+      ? { kind }
+      : {}),
+    ...(period === "day" ||
+    period === "week" ||
+    period === "month" ||
+    period === "year" ||
+    period === "billing"
+      ? { period }
+      : {}),
   };
 }
 
@@ -370,6 +403,19 @@ export function createUsage(options: UsageOptions): Usage {
       }),
     record: (organizationId, meter, record) =>
       call("record_usage", args(organizationId, meter, record), recordedOf),
+    track: (organizationId, meter, subject, trackOptions = {}) =>
+      call(
+        "track_usage",
+        {
+          tenant: organizationId,
+          meter,
+          subject,
+          period: trackOptions.period ?? "month",
+        },
+        recordedOf,
+      ),
+    refresh: (meter) =>
+      call("usage_refresh", { meter }, (value) => Number(value ?? 0)),
     consume: (organizationId, meter, record) =>
       call("consume_quota", args(organizationId, meter, record), recordedOf),
     recordMany: batch(false),

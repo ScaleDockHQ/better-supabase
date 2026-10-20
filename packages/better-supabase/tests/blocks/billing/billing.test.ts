@@ -477,6 +477,86 @@ describe("createBilling", () => {
     });
   });
 
+  it("stores subscription events in webhook mode and guards checkout", async () => {
+    let blocked: string | null = null;
+
+    const t = setup((fn) => {
+      if (fn === "billing_customer_tenant") {
+        return "org-1";
+      }
+
+      if (fn === "upsert_billing_subscription") {
+        return true;
+      }
+
+      if (fn === "billing_checkout_block") {
+        return blocked;
+      }
+
+      return null;
+    });
+
+    const billing = createBilling({ ...t, subscriptions: "webhook" });
+
+    await billing
+      .handleStripeEvent({
+        id: "evt_1",
+        type: "customer.subscription.updated",
+        created: 1_700_000_000,
+        data: {
+          object: {
+            id: "sub_1",
+            customer: "cus_1",
+            status: "active",
+            items: { data: [{ price: { id: "price_pro" } }] },
+          },
+        },
+      })
+      .orThrow();
+
+    expect(
+      t.calls.find(([fn]) => fn === "upsert_billing_subscription"),
+    ).toEqual([
+      "upsert_billing_subscription",
+      {
+        tenant: "org-1",
+        subscription: "sub_1",
+        status: "active",
+        price: "price_pro",
+        event_at: "2023-11-14T22:13:20.000Z",
+      },
+    ]);
+
+    blocked = "BILLING_ALREADY_SUBSCRIBED";
+
+    const result = await billing.checkout("org-1", {
+      price: "price_pro",
+      successUrl: "https://x/ok",
+      cancelUrl: "https://x/no",
+    });
+
+    expect(result.ok ? undefined : result.error).toMatchObject({
+      kind: "conflict",
+      hint: "BILLING_ALREADY_SUBSCRIBED",
+    });
+
+    const external = createBilling({
+      ...t,
+      external: () => "vercel",
+    });
+
+    const viaProvider = await external.checkout("org-1", {
+      price: "price_pro",
+      successUrl: "https://x/ok",
+      cancelUrl: "https://x/no",
+    });
+
+    expect(viaProvider.ok ? undefined : viaProvider.error).toMatchObject({
+      kind: "conflict",
+      hint: "BILLING_EXTERNAL",
+    });
+  });
+
   it("emits block events when given the hub", async () => {
     const t = setup((fn, args) =>
       fn === "link_billing_customer"

@@ -94,6 +94,7 @@
     "domains",
     "reviews",
     "leave",
-    "rules"
+    "rules",
+    "vercel-marketplace"
   ]
 }

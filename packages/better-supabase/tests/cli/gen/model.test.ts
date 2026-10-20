@@ -333,7 +333,7 @@ describe("buildModel functions", () => {
         "  | {",
         "    Args: {",
         "      label: string | null;",
-        "      scale?: number | null;",
+        "      scale?: number | null | undefined;",
         "    };",
         "    Returns: string | null;",
         "  }",

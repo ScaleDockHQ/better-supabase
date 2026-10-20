@@ -57,6 +57,14 @@ const created = await signingKeys.create(owner).orThrow();
 | `remove(owner)`        | Deletes every key of the owner and its Vault secrets                  |
 | `purge(opts?)`         | Deletes retired keys that no token can still need                     |
 
+### Owners
+
+An owner is any `{ type, id }` pair. Use one owner per tenant that needs its
+own JWKS, such as `{ type: "environment", id: environment.id }`, so rotating
+one tenant's key never touches another's. A platform with one authorization
+server for every tenant uses the exported `PLATFORM_OWNER`
+(`{ type: "platform", id: "default" }`).
+
 An owner has at most one active key. `add_signing_key` takes an advisory
 lock per owner, so two rotations at once leave one active key.
 
@@ -82,6 +90,22 @@ Without an active key, signing fails with `not_found` and the hint
 `SIGNING_KEY_MISSING`, unless `create` names the type to generate. An
 Ed25519 key signs with `alg: "EdDSA"` (RFC 8037), which most verifiers read;
 set `ed25519Alg: "Ed25519"` for the fully specified name from RFC 9864.
+
+### Token types
+
+Name each kind of token you sign with `typ`, so a token of one kind can't be
+replayed as another (RFC 8725 section 3.11). `jwtType("invite")` returns
+`vnd.invite+jwt` and throws for a name outside lower-case letters, digits and
+`-`. `signJwt` accepts `JWT` or a type ending in `+jwt` and fails with the
+hint `SIGNING_TYP_INVALID` for any other value. Verify with the same type:
+
+```ts
+import { jwtType, verifyCompact } from "better-supabase/blocks/signing-keys";
+
+const typ = jwtType("invite");
+const token = await signer.signJwt({ sub: userId }, { typ }).orThrow();
+await verifyCompact(token, jwks, { typ }); // throws JWS_TYP for another kind
+```
 
 A numeric `exp` claim is noted on the key, rounded up to the hour, so a
 retired key stays in the JWKS until the last token it signed has expired.

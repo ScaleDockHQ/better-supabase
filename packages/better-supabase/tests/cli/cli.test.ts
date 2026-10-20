@@ -642,7 +642,7 @@ describe("function arguments", () => {
       file.path.endsWith("/generated.ts"),
     );
 
-    expect(snake?.contents).toContain("p_limit?: number | null;");
+    expect(snake?.contents).toContain("p_limit?: number | null | undefined;");
     expect(snake?.contents).toContain("p_status: string | null;");
   });
 });

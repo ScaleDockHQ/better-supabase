@@ -101,6 +101,9 @@ const NO_FIELDS: readonly string[] = [
   "state-machine",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.
   "usage",
+  // Installations, resources and invoices mirror what Vercel sends; the app's
+  // data lives on the tenant an installation links to.
+  "vercel-marketplace",
   // The app writes and reads endpoints over its own Data API; the client only handles deliveries.
   "webhooks",
   // Engines write the run registry; per-run data goes in `attributes`.

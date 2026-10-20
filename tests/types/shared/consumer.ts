@@ -288,3 +288,26 @@ export function integrations(): unknown[] {
     ) satisfies Result<number>,
   ];
 }
+
+/**
+ * A raw supabase-js select on the enriched Database keeps the embedded
+ * shape from the Relationships and narrows a CHECK column to its union, so
+ * an app can drop its casts when it adopts `better-supabase gen`.
+ */
+export async function rawSelect(): Promise<void> {
+  const { data } = await typedClient
+    .from("customers")
+    .select("id, status, customer_tags(tag_id)")
+    .throwOnError();
+
+  assert<
+    Equal<
+      (typeof data)[number],
+      {
+        id: string;
+        status: "lead" | "active" | "archived";
+        customer_tags: { tag_id: string }[];
+      }
+    >
+  >();
+}

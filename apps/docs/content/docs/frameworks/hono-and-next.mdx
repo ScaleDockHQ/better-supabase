@@ -1,0 +1,54 @@
+---
+title: Hono and Next.js together
+description: One server for a Next.js app and a Hono API, with shared cookies, CORS and Problem Details.
+---
+
+An app with a Next.js front end and a Hono API in the same repository can
+share one [server](/docs/auth/server). Build it once, then hand it to the
+other adapter with `server`:
+
+```ts title="src/lib/bs.ts"
+import { createHono } from "better-supabase/hono";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./supabase";
+
+export const bsNext = createNext(betterSupabase);
+
+export const api = createHono(betterSupabase, {
+  server: bsNext,
+  cors: { origin: ["https://app.example.com"] },
+});
+```
+
+`createHono` then does not call `createServer` again, so both sides use the
+same Supabase clients, credentials providers and event sinks. The server
+options you pass next to `server` are ignored.
+
+```ts title="src/api.ts"
+import { api } from "./lib/bs";
+
+export const app = api
+  .app()
+  .use("/api/*", api.middleware())
+  .get("/api/me", (c) => c.json({ id: c.var.auth.user?.id }));
+```
+
+## Cookies
+
+The Next.js proxy refreshes the session and writes the cookies. The Hono
+middleware reads the same cookies and never refreshes, so a Hono API on the
+same site sees the session the proxy refreshed. An API on another origin needs
+`cors` and a bearer token instead of cookies.
+
+## CORS
+
+`cors` on `createHono` answers preflights and adds the headers to every route
+of `app()`. `true` uses the headers supabase-js sends and `*` as the origin;
+`{ origin, headers, methods, maxAge }` narrows them. The same option exists on
+[`createEdge`](/docs/frameworks/edge).
+
+## Problem Details
+
+`api.app()` installs `api.onError`, which turns a thrown `DbException` or an
+unexpected error into an RFC 9457 response. Pass `exposeErrors` to include
+messages outside development.

@@ -495,6 +495,26 @@ the item, the old and new quantity and the outbox event id, so a relay that
 retries the batch doesn't change the subscription twice. A failed update
 throws, which leaves the batch for the next run.
 
+## Subscriptions without the Sync Engine
+
+By default the block reads subscriptions from the Stripe Sync Engine tables.
+An app that only receives webhooks sets `subscriptions: "webhook"` in
+`blocks.billing.options` and in `createBilling`. The migration then creates
+`billing_subscriptions`, and `handleStripeEvent` stores every
+`customer.subscription.*` event in it with the event's `created` time. An older
+event never overwrites a newer one, so retries and out-of-order delivery are
+safe. `billing_tenant_subscription` and `billing_subscription_item` read the
+table, and `billing_plan_of_price(price)` maps a Stripe price to a key of
+`options.plans`.
+
+In this mode `checkout` fails with a `conflict` error whose hint is
+`BILLING_ALREADY_SUBSCRIBED` when the tenant has an active, trialing or past
+due subscription. To refuse tenants that another provider bills (a
+marketplace or an invoice contract), pass an `external` function to
+`createBilling` that returns the provider's name, or `undefined`. `checkout` then fails with the hint
+`BILLING_EXTERNAL`. The SQL hook `public.billing_external_provider(tenant)`
+does the same in SQL, and `external` works in both modes.
+
 ## Stripe webhooks
 
 Store Stripe events in the webhook inbox, then hand them to

@@ -1791,6 +1791,7 @@
       "sqlQueueBackend",
       "sqlTransport",
       "transportQueueBackend",
+      "vercelQueueBackend",
       "webhookInboxBlock",
       "withLease"
     ],
@@ -1851,6 +1852,9 @@
       "ScheduleOptions",
       "SqlClient",
       "TransportQueueBackendOptions",
+      "VercelQueueBackendOptions",
+      "VercelQueueClient",
+      "VercelQueueMetadata",
       "WebhookInbox",
       "WebhookInboxEntry",
       "WebhookInboxEvent",
@@ -4975,6 +4979,8 @@
       "jwksOf",
       "jwkThumbprint",
       "JwsError",
+      "jwtType",
+      "PLATFORM_OWNER",
       "signingKeysBlock",
       "signingKeysEvents",
       "sqlTransport",
@@ -5195,6 +5201,31 @@
       "RuleBuilderControllerOptions",
       "RuleBuilderSnapshot",
       "SolidController"
+    ]
+  },
+  "./blocks/vercel-marketplace": {
+    "values": [
+      "createVercelMarketplace",
+      "sqlTransport",
+      "vercelMarketplaceBlock",
+      "vercelMarketplaceEvents"
+    ],
+    "types": [
+      "BlockTransport",
+      "InvoiceItem",
+      "MarketplaceInstallation",
+      "MarketplaceInstallationEventData",
+      "MarketplaceInvoice",
+      "MarketplaceInvoiceEventData",
+      "MarketplaceResource",
+      "MarketplaceSsoClaims",
+      "MarketplaceWebhookResult",
+      "MeterReport",
+      "ReportUsageInput",
+      "SubmitInvoiceInput",
+      "VercelMarketplace",
+      "VercelMarketplaceEvents",
+      "VercelMarketplaceOptions"
     ]
   },
   "./blocks/reviews": {

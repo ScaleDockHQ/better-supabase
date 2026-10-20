@@ -1443,6 +1443,36 @@ describe("subject registry (BS331, BS332)", () => {
   });
 });
 
+describe("partition without RLS (BS343)", () => {
+  const withPartition = (rls: boolean) =>
+    snapshot((tables) => {
+      const parent = table(tables, "notes");
+      parent.rls = true;
+      tables.push({
+        ...structuredClone(parent),
+        id: 9_000_001,
+        name: "notes_default",
+        rls,
+        partitionOf: "public.notes",
+        policies: [],
+      });
+    });
+
+  it("reports a partition whose parent has RLS and it doesn't", async () => {
+    expect(await run("BS343", context(withPartition(false)))).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "public.notes_default",
+      }),
+    ]);
+  });
+
+  it("passes a partition with RLS and tables that aren't partitions", async () => {
+    expect(await run("BS343", context(withPartition(true)))).toEqual([]);
+    expect(await run("BS343", context(base))).toEqual([]);
+  });
+});
+
 describe("unpartitioned audit log (BS335)", () => {
   const withLog = (primaryKey: string[]) =>
     snapshot((tables) => {
@@ -1846,7 +1876,11 @@ describe("tables without an audit trigger (BS315)", () => {
           {},
           {
             blocks: {
-              audit: { options: { exempt: rest } },
+              audit: {
+                options: {
+                  exempt: rest.map((table) => ({ table, reason: "archive" })),
+                },
+              },
               tenant: { mode: "adopt", tables: { memberships: first } },
             },
           },
@@ -1860,12 +1894,36 @@ describe("tables without an audit trigger (BS315)", () => {
           base,
           {},
           {
-            blocks: { audit: { options: { exempt: ["public.*"] } } },
+            blocks: {
+              audit: {
+                options: {
+                  exempt: [{ table: "public.*", reason: "scratch tables" }],
+                },
+              },
+            },
           },
         ),
       ),
     ).toEqual([]);
     expect(await run("BS315", context(base))).toEqual([]);
+  });
+
+  it("asks for a reason when an exemption is a bare glob", async () => {
+    const findings = await run(
+      "BS315",
+      context(
+        base,
+        {},
+        { blocks: { audit: { options: { exempt: ["public.*"] } } } },
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "blocks.audit.options.exempt:public.*",
+      }),
+    ]);
   });
 });
 

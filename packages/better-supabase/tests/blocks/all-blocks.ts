@@ -104,6 +104,7 @@ import type { undoBlock } from "../../src/blocks/undo/manifest.ts";
 import type { updatedAtBlock } from "../../src/blocks/updated-at/manifest.ts";
 import type { usageBlock } from "../../src/blocks/usage/manifest.ts";
 import type { vectorSearchBlock } from "../../src/blocks/vector-search/manifest.ts";
+import type { vercelMarketplaceBlock } from "../../src/blocks/vercel-marketplace/manifest.ts";
 import type { versionsBlock } from "../../src/blocks/versions/manifest.ts";
 import type { waitlistBlock } from "../../src/blocks/waitlist/manifest.ts";
 import type {
@@ -193,6 +194,7 @@ export type AllBlocks = {
   readonly reservedSlugs: typeof reservedSlugsBlock;
   readonly reviews: typeof reviewsBlock;
   readonly rules: typeof rulesBlock;
+  readonly vercelMarketplace: typeof vercelMarketplaceBlock;
   readonly savedViews: typeof savedViewsBlock;
   readonly search: typeof searchBlock;
   readonly servicePrincipals: typeof servicePrincipalsBlock;

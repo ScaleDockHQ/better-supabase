@@ -45,6 +45,14 @@ export {
   transportQueueBackend,
 } from "./backends.ts";
 
+export { vercelQueueBackend } from "./vercel-queue.ts";
+
+export type {
+  VercelQueueBackendOptions,
+  VercelQueueClient,
+  VercelQueueMetadata,
+} from "./vercel-queue.ts";
+
 export type {
   DeadJobRow,
   DueSchedule,

@@ -4,7 +4,9 @@
 // `permitted_<scope>_ids` helpers, its catalog file).
 // Authorization libraries plug in through the `AuthorizationProvider`
 // interface, so better-supabase never depends on one. The Create page may name
-// PermDock as one optional auth choice (ADR 0039): only its option module, that
+// PermDock as one optional auth choice (ADR 0039) and connect a visitor's
+// PermDock Cloud account through OAuth (ADR 0055): only the connect routes,
+// their session helper and env keys, and its option module, that
 // module's test, the dialog that renders the setup and the create e2e spec.
 // The changelogs keep their history, and the rule's own text, this script and
 // ADR 0039 name what they forbid.
@@ -51,12 +53,20 @@ const allowed = new Set([
   "docs/agents/commands.md",
   "docs/decisions/0011-authorization-providers.md",
   "docs/decisions/0039-name-permdock-on-create.md",
+  "docs/decisions/0055-connect-permdock-cloud-on-create.md",
   "docs/decisions/README.md",
   "packages/better-supabase/CHANGELOG.md",
   "scripts/check-no-permdock.ts",
   "apps/docs/content/docs/extending/authorization-providers.mdx",
   "apps/docs/content/docs/migration/0.5-to-0.6.mdx",
+  "apps/marketing/app/(create)/create/permdock/callback/route.ts",
+  "apps/marketing/app/(create)/create/permdock/connect/route.ts",
+  "apps/marketing/app/(create)/create/permdock/disconnect/route.ts",
+  "apps/marketing/app/(create)/create/permdock/projects/route.ts",
   "apps/marketing/e2e/create.spec.ts",
+  "apps/marketing/env.ts",
+  "apps/marketing/lib/permdock-session.ts",
+  "apps/marketing/turbo.json",
   "apps/marketing/features/create/components/get-code-dialog.tsx",
   "apps/marketing/lib/create-options.ts",
   "apps/marketing/tests/lib/create-options.test.ts",

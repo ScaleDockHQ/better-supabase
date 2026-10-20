@@ -49,7 +49,8 @@ organization with environments under it, make the environment the tenant:
 put its id in the claim or in `{ tenant }`, and let an
 [authorization provider](/docs/extending/authorization-providers#nested-tenancy)
 declare organization and environment as scopes with `parent`, so the SQL
-modules check permissions at the environment level.
+modules check permissions at the environment level. See
+[nested tenancy](/docs/concepts/nested-tenancy) for the whole model.
 
 ## In the API document
 

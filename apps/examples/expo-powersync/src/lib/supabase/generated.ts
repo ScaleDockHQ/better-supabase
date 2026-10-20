@@ -665,13 +665,13 @@ export type Functions = {
   };
   customer_note_counts: {
     Args: {
-      p_customer_ids?: string[] | null;
+      p_customer_ids?: string[] | null | undefined;
     };
     Returns: { "customer_id": string | null; "last_note_at": string | null; "note_count": number | null }[];
   };
   customers_by_status: {
     Args: {
-      p_limit?: number | null;
+      p_limit?: number | null | undefined;
       p_status: string | null;
     };
     Returns: (Models["customers"]['Row'])[];
@@ -704,14 +704,14 @@ export type Functions = {
   };
   search_notes: {
     Args: {
-      k?: number | null;
+      k?: number | null | undefined;
       query: string | null;
     };
     Returns: (Models["notes"]['Row'])[];
   };
   search_notes_scores: {
     Args: {
-      k?: number | null;
+      k?: number | null | undefined;
       query: string | null;
     };
     Returns: { "id": Json; "score": number | null }[];

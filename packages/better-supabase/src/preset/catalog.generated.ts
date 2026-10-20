@@ -1816,6 +1816,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "vercel-marketplace",
+      "title": "Vercel Marketplace",
+      "category": "developer",
+      "requires": [],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "vercel-marketplace",
+      "tenantNameClashes": [
+        "team"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -2795,6 +2809,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "client": {
         "export": "rulesBlock",
         "subpath": "better-supabase/blocks/rules"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "vercel-marketplace",
+      "sql": [
+        "vercel-marketplace"
+      ],
+      "category": "developer",
+      "client": {
+        "export": "vercelMarketplaceBlock",
+        "subpath": "better-supabase/blocks/vercel-marketplace"
       },
       "consumes": {},
       "provides": []

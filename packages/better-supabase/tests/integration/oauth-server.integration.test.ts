@@ -84,6 +84,66 @@ describe.skipIf(!live)("oauth-server module", () => {
     }
   });
 
+  it("narrows resources at exchange and refuses a wider request", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["oauth-server"]);
+      const user = await s.user("oauth-resource");
+      await s.service();
+      await s.client.query("set local role service_role");
+      const oauth = createOAuthServer({ transport: sqlTransport(s.sql) });
+
+      const { client } = await oauth
+        .registerClient({ name: "Desktop", redirectUris: [REDIRECT] })
+        .orThrow();
+
+      const request = async () =>
+        oauth
+          .createAuthorizationCode({
+            clientId: client.clientId,
+            userId: user.id,
+            redirectUri: REDIRECT,
+            codeChallenge: CHALLENGE,
+            codeChallengeMethod: "S256",
+            resource: ["https://a.example.com", "https://b.example.com"],
+          })
+          .orThrow();
+
+      const base = {
+        clientId: client.clientId,
+        redirectUri: REDIRECT,
+        codeVerifier: VERIFIER,
+      };
+
+      const narrowed = await request();
+
+      expect(
+        await oauth
+          .redeemAuthorizationCode({
+            ...base,
+            code: narrowed.code,
+            resource: ["https://a.example.com"],
+          })
+          .orThrow(),
+      ).toMatchObject({ resource: ["https://a.example.com"] });
+
+      const wider = await request();
+
+      expect(
+        await oauth
+          .redeemAuthorizationCode({
+            ...base,
+            code: wider.code,
+            resource: ["https://c.example.com"],
+          })
+          .orThrow(),
+      ).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
+
   it("runs the device flow and checks revoked tokens", async () => {
     const s = await BlockSession.open(pool);
 

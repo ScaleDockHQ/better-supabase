@@ -53,11 +53,15 @@ function updateEntries(
   });
 }
 
-/** Postgres passes `null` to any argument, so every argument accepts it. */
+/**
+ * Postgres passes `null` to any argument, so every argument accepts it. An
+ * optional argument also accepts `undefined`, which `rpc()` leaves out, so
+ * `exactOptionalPropertyTypes` apps can pass a maybe-missing value.
+ */
 function argEntries(fn: FunctionModel): string[] {
   return fn.args.map(
     (arg) =>
-      `${prop(arg.name)}${arg.optional ? "?" : ""}: ${nullable(arg.tsType, true)};`,
+      `${prop(arg.name)}${arg.optional ? "?" : ""}: ${nullable(arg.tsType, true)}${arg.optional ? " | undefined" : ""};`,
   );
 }
 

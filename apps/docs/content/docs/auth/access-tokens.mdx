@@ -28,6 +28,12 @@ export const bs = createHono(betterSupabase, {
 });
 ```
 
+The claims reach Postgres unchanged, so `auth.uid()` returns the token's `sub`,
+a policy such as `owner = (select auth.uid())` filters rows for that user, and
+`request.jwt.claims` keeps `client_id` and `scope` for policies that check
+them. The pgTAP test `oauth_token_claims.test.sql` in this repository covers
+that path.
+
 Resolvers run before the Supabase Bearer and cookie checks. The resolver
 only claims an `Authorization: Bearer` token whose header has `typ: "at+jwt"`
 (RFC 9068 section 2.1), so a Supabase session token or an API key falls

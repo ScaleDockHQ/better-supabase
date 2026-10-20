@@ -1313,6 +1313,10 @@
         "large": {
           "description": "Postgres estimates at least 10,000 rows; the unbounded-read lint rule reads it.",
           "const": true
+        },
+        "partitionOf": {
+          "description": "The partitioned parent as schema.name, for a partition. Absent for other tables and in older snapshots.",
+          "type": "string"
         }
       }
     }

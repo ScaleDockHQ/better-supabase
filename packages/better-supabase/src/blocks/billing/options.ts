@@ -5,6 +5,8 @@ export type BillingSqlOptions = {
   readonly seatRoles?: readonly string[];
   readonly plans?: unknown;
   readonly tenantKey?: unknown;
+  /** Where subscriptions are read from. Default `sync-engine`. */
+  readonly subscriptions?: string;
 };
 
 export const billingSqlOptions: BlockOptionsSchema<BillingSqlOptions> =
@@ -12,4 +14,5 @@ export const billingSqlOptions: BlockOptionsSchema<BillingSqlOptions> =
     seatRoles: option.strings({ default: [] }),
     plans: option.unknown(),
     tenantKey: option.unknown(),
+    subscriptions: option.string({ default: "sync-engine" }),
   });

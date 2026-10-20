@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   createSigningKeys,
   jwksOf,
+  jwtType,
+  PLATFORM_OWNER,
   verifyCompact,
 } from "../../../src/blocks/signing-keys/index.ts";
 
@@ -129,6 +131,31 @@ describe("signing-keys block", () => {
         Math.ceil(exp / 3600) * 3600 * 1000,
       ).toString(),
     );
+  });
+
+  it("signs a custom typ that verifyCompact then requires", async () => {
+    const t = store();
+    const keys = createSigningKeys({ transport: t });
+    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const typ = jwtType("invite");
+    expect(typ).toBe("vnd.invite+jwt");
+    const token = await signer.signJwt({ sub: "u1" }, { typ }).orThrow();
+    const jwks = jwksOf(await keys.jwks(OWNER).orThrow());
+    expect((await verifyCompact(token, jwks, { typ })).header).toMatchObject({
+      typ,
+    });
+    await expect(
+      verifyCompact(token, jwks, { typ: jwtType("other") }),
+    ).rejects.toMatchObject({ code: "JWS_TYP" });
+  });
+
+  it("refuses a typ that is not a JWT media type and a bad type name", async () => {
+    const keys = createSigningKeys({ transport: store() });
+    const signer = keys.signer(OWNER, { create: "Ed25519" });
+    const result = await signer.signJwt({ sub: "u1" }, { typ: "invite" });
+    expect(result.ok).toBe(false);
+    expect(() => jwtType("Bad Name")).toThrow(TypeError);
+    expect(PLATFORM_OWNER).toEqual({ type: "platform", id: "default" });
   });
 
   it("rotates with the active key's type and keeps the retired kid published", async () => {

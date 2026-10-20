@@ -168,6 +168,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0049: `better-supabase mcp` serves the CLI on stdio; write tools need a consent token.
 - 0050: doctor lints unapplied migrations for locking statements (BS229 to BS234).
 - 0051: app table columns restrict access to `read` or `server` with Postgres column grants.
+- 0052: billing webhooks keep subscriptions, guarded by `event_at`.
+- 0053: usage meters can count distinct values or compute a value on a schedule.
+- 0054: a Vercel Marketplace block and a Vercel Queues jobs backend, without `@vercel/*` dependencies.
+- 0055: the Create page connects a PermDock Cloud account through OAuth with PKCE.
+- 0056: audit resolves tenants through a path or function and names the acting member.
 
 ## Pre-release pins
 
@@ -224,3 +229,20 @@ This project uses an existing design system: ReUI on shadcn/ui. Keep its look. G
 
 Managed by the ReUI installer. Edits between the markers are replaced on the next run.
 <!-- END:reui-agent-rules -->
+
+## Learned User Preferences
+
+- Keep plan to-do statuses (in progress, done) current as work proceeds, and keep going through every to-do and PR without stopping to ask.
+- Prefer Vercel products (AI SDK, AI Gateway, Vercel Connect) when a choice exists.
+- Allow beta or alpha releases of a major new version when that avoids a rebuild later; the user likes moving fast.
+- Do not adopt a tool version the user cannot find or install (for example Supabase CLI 3.0 beta).
+- Tokens or secrets that should not be needed (for example `LIBRARY_READ_TOKEN`) should be removed rather than documented.
+- UI polish: no heavy borders or system scrollbars in the Create canvas and sidebars, and sub-items get no colored background; only the parent item does.
+- Local Supabase never needs Docker: use the native per-agent local stack, Declarative Schemas 2.0 with pg-delta, and `@supabase/middleware`.
+- Build new app UI from ReUI and ReUI Pro blocks and templates (the user has the Ultimate tier), with CentraKit as the reference for architecture and UI.
+
+## Learned Workspace Facts
+
+- better-supabase must not depend on PermDock; the two should still glue together easily, and PermDock is its own repo (`PermDock`).
+- The PermDock API lives at the path `https://permdock.com/api`, not at an `api.` subdomain.
+- Work is usually driven by attached plans that are implemented through to-dos, with one branch and one PR per plan.

@@ -146,6 +146,10 @@ import {
   numberSequencesSqlOptions,
 } from "./number-sequences/options.ts";
 import {
+  type OAuthServerSqlOptions,
+  oauthServerSqlOptions,
+} from "./oauth-server/options.ts";
+import {
   type OnboardingSqlOptions,
   onboardingSqlOptions,
 } from "./onboarding/options.ts";
@@ -262,6 +266,10 @@ import {
   vectorSearchSqlOptions,
 } from "./vector-search/options.ts";
 import {
+  type VercelMarketplaceSqlOptions,
+  vercelMarketplaceSqlOptions,
+} from "./vercel-marketplace/options.ts";
+import {
   type VersionsSqlOptions,
   versionsSqlOptions,
 } from "./versions/options.ts";
@@ -338,7 +346,7 @@ export interface BlockOptionsRegistry {
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly imports: None;
-  readonly "oauth-server": None;
+  readonly "oauth-server": OAuthServerSqlOptions;
   readonly inbox: InboxSqlOptions;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
@@ -373,6 +381,7 @@ export interface BlockOptionsRegistry {
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
   readonly rules: RulesSqlOptions;
+  readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
   readonly "service-principals": ServicePrincipalsSqlOptions;
@@ -457,7 +466,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   idempotency: NO_OPTIONS,
   identities: identitiesSqlOptions,
   imports: NO_OPTIONS,
-  "oauth-server": NO_OPTIONS,
+  "oauth-server": oauthServerSqlOptions,
   inbox: inboxSqlOptions,
   inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,
@@ -492,6 +501,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
   rules: rulesSqlOptions,
+  "vercel-marketplace": vercelMarketplaceSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
   "service-principals": servicePrincipalsSqlOptions,

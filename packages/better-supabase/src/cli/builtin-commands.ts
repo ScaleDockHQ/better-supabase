@@ -69,6 +69,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       import("./commands/scaffold.ts").then((m) => m.scaffoldScreensCommand),
   ],
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
+  ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
   ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],

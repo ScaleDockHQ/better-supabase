@@ -24,6 +24,22 @@ export interface BillingOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** `betterSupabase.events`, for `billing.*` block events. */
   readonly events?: EventHub;
+  /**
+   * Where subscription state lives, matching `blocks.billing.options.subscriptions`.
+   * `webhook` stores every `customer.subscription.*` event handled by
+   * `handleStripeEvent` in `billing_subscriptions`, newest event wins, and
+   * makes `checkout` refuse a tenant that is already subscribed. Default `sync-engine`.
+   */
+  readonly subscriptions?: "sync-engine" | "webhook";
+  /**
+   * Names the provider that already bills the tenant outside Stripe, such as
+   * a marketplace. `checkout` then fails with `BILLING_EXTERNAL` and the
+   * provider in the message. In webhook mode the SQL hook
+   * `public.billing_external_provider(tenant)` does the same.
+   */
+  readonly external?: (
+    tenant: string,
+  ) => string | undefined | Promise<string | undefined>;
   /** The per-seat price `syncSeats` updates; default the subscription's first item. */
   readonly seatPrice?: string;
   /** Stripe `proration_behavior` for seat changes, default `create_prorations`. */
@@ -111,6 +127,8 @@ export interface SeatSync {
 export interface StripeEvent {
   readonly id: string;
   readonly type: string;
+  /** Unix seconds; orders subscription events in webhook mode. */
+  readonly created?: number;
   readonly data: { readonly object: unknown };
 }
 

@@ -24,10 +24,16 @@ import {
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 import {
+  usageKindsContract,
+  usageKindsSql,
+  usageRefreshSchedule,
+} from "./usage-kinds.ts";
+import {
   METER,
   isMeterTable,
   qualifiedTable,
   metersOf,
+  publicCatalog,
 } from "./usage-meters.ts";
 
 const NAMES: ModuleNames = {
@@ -69,6 +75,17 @@ const NAMES: ModuleNames = {
         source: "source",
         metadata: "metadata",
         recordedAt: "recorded_at",
+      },
+    },
+    distinct: {
+      name: "usage_distinct",
+      lifecycle: { tenant: "tenant" },
+      columns: {
+        tenant: "organization_id",
+        meter: "meter",
+        periodStart: "period_start",
+        subject: "subject",
+        firstSeen: "first_seen",
       },
     },
     quotas: {
@@ -142,7 +159,15 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 
   const catalog =
     table === undefined
-      ? `${sqlString(JSON.stringify(meters ?? {}))}::jsonb`
+      ? `${sqlString(
+          JSON.stringify(
+            publicCatalog(
+              meters !== undefined && !isMeterTable(meters)
+                ? meters
+                : undefined,
+            ),
+          ),
+        )}::jsonb`
       : `(select coalesce(jsonb_object_agg(m.${sqlIdent(table.key)}::text, jsonb_strip_nulls(jsonb_build_object(${(
           ["unit", "category", "label"] as const
         )
@@ -891,11 +916,17 @@ grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenti
 grant execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) to service_role;
-grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;`;
+grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;
+${usageKindsSql(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function data(ctx: ModuleContext): string {
+  return ctx.mode === "custom" ? "" : usageRefreshSchedule(ctx);
+}
+
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
+    ...usageKindsContract(ctx),
     { name: "usage_status", args: ["{id}", "text"], returns: "jsonb" },
     { name: "usage_overview", args: ["{id}"], returns: "jsonb" },
     { name: "usage_meters", args: [], returns: "jsonb" },
@@ -997,4 +1028,5 @@ export const USAGE: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  data,
 };

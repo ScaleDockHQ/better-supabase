@@ -568,7 +568,45 @@ const DEFAULT_HOISTED = [
 
 const TIMEOUT_ROLES = ["anon", "authenticated", "authenticator"] as const;
 
+/** Partitions of an RLS table that have RLS off: queried by name, they skip the parent's policies. */
+function partitionsWithoutRls(context: DoctorContext): FindingInput[] {
+  const tables = catalogOf(context).tables;
+  const byName = new Map(tables.map((table) => [qualified(table), table]));
+
+  return tables.flatMap((table): FindingInput[] => {
+    if (
+      table.partitionOf === undefined ||
+      table.rls ||
+      !context.config.schemas.includes(table.schema)
+    ) {
+      return [];
+    }
+
+    const parent = byName.get(table.partitionOf);
+
+    if (!parent?.rls) {
+      return [];
+    }
+
+    return [
+      {
+        message: `${qualified(table)} is a partition of ${table.partitionOf}, which has RLS on, but RLS is off on the partition. A query that names the partition skips the parent's policies, and Data API roles with a grant on it read every row. Run \`alter table ${qualified(table)} enable row level security;\`, and add the same enable to the code that creates new partitions.`,
+        target: qualified(table),
+        object: tableObject(table),
+      },
+    ];
+  });
+}
+
 export const RLS_RULES: readonly Rule[] = [
+  {
+    code: "BS343",
+    severity: "error",
+    title: "Partition without row level security",
+    description:
+      "A table in `schemas` is a partition of a table with RLS on, but has RLS off itself. Policies belong to the parent, so a query that names the partition (`select * from events_default`) never applies them. This includes the default partition. Enable RLS on every partition when you create it; the partition functions of the SQL modules (`ensure_partitions`, ADR 0038) already do.",
+    check: partitionsWithoutRls,
+  },
   {
     code: "BS205",
     severity: "warning",
