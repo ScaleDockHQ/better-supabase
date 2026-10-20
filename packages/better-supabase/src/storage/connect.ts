@@ -178,13 +178,11 @@ export function connectBucket<P extends string, Id extends string>(
     });
 
   const claim = (path: string): AsyncResult<unknown> => {
-    const target = api();
-
-    if (!target.claimSignedUpload) {
+    if (!storage.claimSignedUpload) {
       return AsyncResult.ok(path);
     }
 
-    const claiming = target.claimSignedUpload(path);
+    const claiming = storage.claimSignedUpload(bucket.id, path);
 
     return run(() => claiming);
   };

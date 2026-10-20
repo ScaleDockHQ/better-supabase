@@ -2,7 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createAttachments } from "../../src/blocks/attachments/index.ts";
+import {
+  createAttachments,
+  sqlTransport,
+} from "../../src/blocks/attachments/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
@@ -569,5 +572,140 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     expect(put.error).toBeNull();
     expect(called).toEqual(["create_attachment", "confirm_attachment"]);
     expect(await row(files.id, path)).toMatchObject({ owner_id: USER });
+  });
+});
+
+const OWNER = "00000000-0000-4000-8000-0000000000a1";
+
+describe.skipIf(!live)("attachments in a support session", () => {
+  const service = createClient(url, secretKey, {
+    auth: { persistSession: false },
+  });
+
+  const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
+  const pool = new Pool({ connectionString: dbUrl, max: 1 });
+  const created: string[] = [];
+
+  const session = { ...SESSION, targetUserId: OWNER };
+
+  const supportClaims = (readOnly: boolean) => ({
+    sub: OWNER,
+    role: "authenticated",
+    tenant_id: ACME,
+    act: {
+      kind: "support",
+      sub: session.adminId,
+      session_id: session.id,
+      read_only: readOnly,
+    },
+  });
+
+  const attachmentsAs = (readOnly: boolean) => {
+    const sql = postgres.asUser(supportClaims(readOnly), { readOnly });
+
+    return createAttachments({
+      transport: sqlTransport(sql),
+      storage: supportStorage({
+        admin: service.storage,
+        sql,
+        adminSql: postgres.admin,
+        session,
+        readOnly,
+      }),
+    });
+  };
+
+  const object = async (path: string) =>
+    (
+      await pool.query<{
+        owner_id: string | null;
+        user_metadata: Record<string, unknown> | null;
+      }>(
+        "select owner_id, user_metadata from storage.objects where bucket_id = 'attachments' and name = $1",
+        [path],
+      )
+    ).rows[0];
+
+  afterAll(async () => {
+    if (created.length > 0) {
+      const { rows } = await pool.query<{ object_path: string }>(
+        "delete from better_supabase.attachments where id = any($1::uuid[]) returning object_path",
+        [created],
+      );
+
+      await service.storage
+        .from("attachments")
+        .remove(rows.map((row) => row.object_path));
+    }
+
+    await postgres.end();
+    await pool.end();
+  });
+
+  it("claims the browser's upload as the target when it confirms it", async () => {
+    const attachments = attachmentsAs(false);
+
+    const upload = await attachments
+      .upload({
+        organizationId: ACME,
+        name: "plan.pdf",
+        mimeType: "application/pdf",
+        size: 3,
+      })
+      .orThrow();
+
+    created.push(upload.attachment.id);
+
+    const browser = createClient(url, publishableKey).storage.from(
+      "attachments",
+    );
+
+    const sent = await browser.uploadToSignedUrl(
+      upload.attachment.path,
+      upload.token,
+      new Blob(["pdf"], { type: "application/pdf" }),
+    );
+
+    expect(sent.error).toBeNull();
+    expect(await object(upload.attachment.path)).toMatchObject({
+      owner_id: null,
+    });
+
+    const confirmed = await attachments.confirm(upload.attachment.id).orThrow();
+
+    expect(confirmed.uploadedAt).toBeDefined();
+    expect(confirmed.uploadedBy).toBe(OWNER);
+    expect(await object(upload.attachment.path)).toEqual({
+      owner_id: OWNER,
+      user_metadata: {
+        supportSessionId: session.id,
+        supportAdminId: session.adminId,
+      },
+    });
+    expect((await attachments.confirm(upload.attachment.id)).error).toBeNull();
+  });
+
+  it("refuses the upload in a read-only session and leaves no record", async () => {
+    const before = await pool.query(
+      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      [ACME],
+    );
+
+    const upload = await attachmentsAs(true).upload({
+      organizationId: ACME,
+      name: "plan.pdf",
+      mimeType: "application/pdf",
+      size: 3,
+    });
+
+    expect(upload.ok).toBe(false);
+    expect(upload.error?.kind).toBe("forbidden");
+
+    const after = await pool.query(
+      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      [ACME],
+    );
+
+    expect(after.rows).toEqual(before.rows);
   });
 });

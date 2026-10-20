@@ -191,14 +191,6 @@ export interface StorageBucketApi {
     body: UploadBody,
     options?: StorageFileOptions,
   ): PromiseLike<StorageResponse<{ readonly path: string }>>;
-  /**
-   * Finishes an upload to a signed upload URL: makes the caller the owner of
-   * the object when it has none. supabase-js has no such method, as Storage
-   * sets the owner from the caller's token; `supportStorage` adds it.
-   */
-  claimSignedUpload?(
-    path: string,
-  ): PromiseLike<StorageResponse<{ readonly path: string }>>;
   download(
     path: string,
     options?: StorageDownloadOptions,
@@ -261,6 +253,15 @@ export interface StorageBucketApi {
 /** Storage's file API: `supabase.storage`, or anything with the same `from(bucket)`. */
 export interface StorageApi {
   from(bucket: string): StorageBucketApi;
+  /**
+   * Finishes an upload to a signed upload URL: makes the caller the owner of
+   * the object when it has none. supabase-js has no such method, as Storage
+   * sets the owner from the caller's token; `supportStorage` adds it.
+   */
+  claimSignedUpload?(
+    bucket: string,
+    path: string,
+  ): PromiseLike<StorageResponse<{ readonly path: string }>>;
 }
 
 /** What `bucket.connect()` takes: a `StorageApi`, or a client that carries one as `storage` (a supabase-js client). */

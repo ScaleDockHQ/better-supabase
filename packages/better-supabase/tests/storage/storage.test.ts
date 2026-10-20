@@ -1399,14 +1399,12 @@ describe("BucketClient claimReserved", () => {
     const { client } = fakeStorage();
 
     return {
-      from: (bucket) => ({
-        ...client.storage.from(bucket),
-        claimSignedUpload: (path) => {
-          claimed.push(`${bucket}/${path}`);
+      from: (bucket) => client.storage.from(bucket),
+      claimSignedUpload: (bucket, path) => {
+        claimed.push(`${bucket}/${path}`);
 
-          return Promise.resolve(reply);
-        },
-      }),
+        return Promise.resolve(reply);
+      },
     };
   };
 

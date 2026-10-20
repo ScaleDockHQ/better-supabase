@@ -7,6 +7,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { AiMessage } from "../ai-chat/message.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { UploadClaimStorage } from "../upload-claim.ts";
 
 export interface StorageReply<T> {
   readonly data: T | null;
@@ -34,7 +35,7 @@ export interface AiFileBucket {
 }
 
 /** `supabase.storage`, typed structurally. */
-export interface AiFileStorage {
+export interface AiFileStorage extends UploadClaimStorage {
   from(bucket: string): AiFileBucket;
 }
 

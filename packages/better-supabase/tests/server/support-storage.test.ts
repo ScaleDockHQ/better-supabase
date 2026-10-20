@@ -1044,13 +1044,13 @@ const DUPLICATE: SqlRule = [
   { throws: pgError("23505", "duplicate key value") },
 ];
 
-function claimOf(bucket: StorageBucketApi) {
+function claimOf(storage: StorageApi, bucket = "docs") {
   return (path: string) => {
-    if (!bucket.claimSignedUpload) {
+    if (!storage.claimSignedUpload) {
       throw new TypeError("claimSignedUpload is missing");
     }
 
-    return bucket.claimSignedUpload(path);
+    return storage.claimSignedUpload(bucket, path);
   };
 }
 
@@ -1120,13 +1120,13 @@ describe("supportStorage signed uploads", () => {
   });
 
   it("claims an uploaded object without an owner for the target", async () => {
-    const { docs, sql, owner, calls } = writableOf(
+    const { storage, sql, owner, calls } = writableOf(
       [],
       [DUPLICATE],
       [["returning name", [{ name: "org/a.txt" }]]],
     );
 
-    const reply = await claimOf(docs)("/org/a.txt");
+    const reply = await claimOf(storage)("/org/a.txt");
 
     expect(reply).toEqual({ data: { path: "org/a.txt" }, error: null });
     expect(sql.calls).toEqual([
@@ -1159,7 +1159,7 @@ describe("supportStorage signed uploads", () => {
   });
 
   it("refuses to claim an object another user owns", async () => {
-    const { docs, owner } = writableOf(
+    const { storage, owner } = writableOf(
       [],
       [DUPLICATE],
       [
@@ -1170,7 +1170,7 @@ describe("supportStorage signed uploads", () => {
       ],
     );
 
-    const reply = await claimOf(docs)("a");
+    const reply = await claimOf(storage)("a");
     expect(reply).toEqual({
       data: null,
       error: {
@@ -1189,7 +1189,7 @@ describe("supportStorage signed uploads", () => {
   });
 
   it("accepts a claim of an object the target already owns", async () => {
-    const { docs } = writableOf(
+    const { storage } = writableOf(
       [],
       [DUPLICATE],
       [
@@ -1200,7 +1200,7 @@ describe("supportStorage signed uploads", () => {
       ],
     );
 
-    expect(await claimOf(docs)("a")).toEqual({
+    expect(await claimOf(storage)("a")).toEqual({
       data: { path: "a" },
       error: null,
     });
@@ -1208,26 +1208,26 @@ describe("supportStorage signed uploads", () => {
 
   it("answers a claim of a missing object like Storage does", async () => {
     const missing = writableOf([]);
-    expect((await claimOf(missing.docs)("a")).error).toMatchObject({
+    expect((await claimOf(missing.storage)("a")).error).toMatchObject({
       statusCode: "404",
       code: "NoSuchKey",
     });
     expect(missing.owner.calls).toEqual([]);
 
     const removed = writableOf([], [DUPLICATE]);
-    expect((await claimOf(removed.docs)("a")).error).toMatchObject({
+    expect((await claimOf(removed.storage)("a")).error).toMatchObject({
       code: "NoSuchKey",
     });
     expect(removed.owner.calls).toHaveLength(2);
   });
 
   it("refuses to claim what the target may not insert", async () => {
-    const { docs, owner } = writableOf(
+    const { storage, owner } = writableOf(
       [],
       [["insert into", { throws: pgError("42501", RLS) }]],
     );
 
-    expect((await claimOf(docs)("a")).error).toMatchObject({
+    expect((await claimOf(storage)("a")).error).toMatchObject({
       status: 403,
       code: "AccessDenied",
     });
@@ -1238,7 +1238,7 @@ describe("supportStorage signed uploads", () => {
       [["insert into", { throws: pgError("57014", "canceling statement") }]],
     );
 
-    expect((await claimOf(broken.docs)("a")).error).toMatchObject({
+    expect((await claimOf(broken.storage)("a")).error).toMatchObject({
       name: "DbError",
       code: "57014",
     });
@@ -1329,7 +1329,6 @@ describe("supportStorage refusals and failures", () => {
     (bucket) => bucket.update("a", "x"),
     (bucket) => bucket.createSignedUploadUrl("a"),
     (bucket) => bucket.uploadToSignedUrl("a", "t", "x"),
-    (bucket) => claimOf(bucket)("a"),
     (bucket) => bucket.remove(["a"]),
     (bucket) => bucket.copy("a", "b"),
     (bucket) => bucket.move("a", "b"),
@@ -1353,16 +1352,20 @@ describe("supportStorage refusals and failures", () => {
     const owner = fakeSql();
     const service = fakeAdmin();
 
-    const docs = supportStorage({
+    const storage = supportStorage({
       admin: service.admin,
       sql: sql.sql,
       adminSql: owner.sql,
       session: SESSION,
-    }).from("docs");
+    });
+
+    const docs = storage.from("docs");
 
     for (const write of writes) {
       refused(await write(docs), "SUPPORT_READ_ONLY");
     }
+
+    refused(await claimOf(storage)("a"), "SUPPORT_READ_ONLY");
 
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
@@ -1386,15 +1389,17 @@ describe("supportStorage refusals and failures", () => {
         session: SESSION,
       },
     ]) {
-      const docs = supportStorage({
+      const storage = supportStorage({
         admin: service.admin,
         readOnly: false,
         ...options,
-      }).from("docs");
+      });
 
       for (const write of writes) {
-        refused(await write(docs), "SUPPORT_STORAGE_WRITES");
+        refused(await write(storage.from("docs")), "SUPPORT_STORAGE_WRITES");
       }
+
+      refused(await claimOf(storage)("a"), "SUPPORT_STORAGE_WRITES");
     }
 
     expect(service.calls).toEqual([]);

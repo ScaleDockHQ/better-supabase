@@ -35,6 +35,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { claimsUploads, claimUpload } from "../upload-claim.ts";
 
 export interface DriveOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -584,6 +585,11 @@ function withFields<F extends object>(
 }
 
 /** The `drive` SQL module as typed calls, as the caller. */
+const CLAIM_HINTS = {
+  notUploaded: "ATTACHMENT_NOT_UPLOADED",
+  forbidden: "DRIVE_FORBIDDEN",
+} as const;
+
 export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   options: DriveOptions<S>,
 ): Drive<FieldsOf<S>> {
@@ -738,10 +744,26 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           signed("drive_upload_revision"),
         ),
       ),
-    commit: (id, attachmentId) =>
-      call("drive_commit", { node: id, attachment: attachmentId }, (value) =>
-        nodeOf(value, "drive_commit"),
-      ),
+    commit: (id, attachmentId) => {
+      const committed = () =>
+        call("drive_commit", { node: id, attachment: attachmentId }, (value) =>
+          nodeOf(value, "drive_commit"),
+        );
+
+      if (storage === undefined || !claimsUploads(storage)) {
+        return committed();
+      }
+
+      return call("get_attachment", { id: attachmentId }, (value) =>
+        isRecord(value) ? attachmentOf(value) : undefined,
+      )
+        .andThen((attachment) =>
+          attachment === undefined || attachment.uploadedAt !== undefined
+            ? AsyncResult.ok(undefined)
+            : claimUpload(storage, attachment, CLAIM_HINTS),
+        )
+        .andThen(committed);
+    },
     download: (id, download = {}) => {
       if (attachments === undefined) {
         return AsyncResult.err(noAttachments());

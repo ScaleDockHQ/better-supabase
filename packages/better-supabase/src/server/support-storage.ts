@@ -503,7 +503,7 @@ function infoOf(row: Row): StorageObjectInfo {
  *
  * `createSignedUploadUrl` runs the same dry run as `upload` before the
  * service client signs the URL. The object a browser uploads there has no
- * owner, so `claimSignedUpload(path)` finishes the upload: it checks again
+ * owner, so `claimSignedUpload(bucket, path)` finishes the upload: it checks again
  * that the target may insert at the path, then makes the target the owner
  * of an object without one and stamps the session on its `user_metadata`.
  * An object another user owns is refused with a `403`. `uploadToSignedUrl`
@@ -572,7 +572,95 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     }
   };
 
+  const rehearseStore = (
+    bucket: string,
+    active: StorageWriter["session"],
+    name: string,
+    statement: string,
+    metadata: Readonly<Record<string, unknown>>,
+  ): Promise<StorageFailure | null> =>
+    rehearse(async (client) => {
+      await client.queryRaw(statement, [
+        bucket,
+        name,
+        ownerOf(active.targetUserId),
+        active.targetUserId,
+        JSON.stringify(metadata),
+      ]);
+
+      return null;
+    });
+
+  const claimFor = async (
+    bucket: string,
+    { adminSql: ownerSql, session: active }: StorageWriter,
+    name: string,
+  ): Promise<StorageResponse<{ readonly path: string }>> => {
+    const [claimed] = await ownerSql.queryRaw<Row>(OWN_SIGNED_UPLOAD, [
+      bucket,
+      name,
+      ownerOf(active.targetUserId),
+      active.targetUserId,
+      JSON.stringify(stampOf(active)),
+    ]);
+
+    if (claimed) {
+      return { data: { path: name }, error: null };
+    }
+
+    const [found] = await ownerSql.queryRaw<Row>(SOURCE_OBJECT, [bucket, name]);
+
+    if (!found) {
+      return failed(NOT_FOUND);
+    }
+
+    return found["owner_id"] === active.targetUserId
+      ? { data: { path: name }, error: null }
+      : failed(OWNED);
+  };
+
+  const claimSignedUpload = (
+    bucket: string,
+    path: string,
+  ): Promise<StorageResponse<{ readonly path: string }>> => {
+    if (!writer) {
+      return refuse();
+    }
+
+    return settled(async () => {
+      const name = normalizePath(path);
+      const active = writer.session;
+
+      const refused = await rehearse(async (client) => {
+        try {
+          await client.queryRaw(INSERT_OBJECT, [
+            bucket,
+            name,
+            ownerOf(active.targetUserId),
+            active.targetUserId,
+            JSON.stringify(stampOf(active)),
+          ]);
+        } catch (cause) {
+          if (fromPgError(cause)?.code === "23505") {
+            return null;
+          }
+
+          throw cause;
+        }
+
+        return NOT_FOUND;
+      });
+
+      if (refused) {
+        return failed(refused);
+      }
+
+      return claimFor(bucket, writer, name);
+    });
+  };
+
   return {
+    claimSignedUpload,
     from(bucket): StorageBucketApi {
       const admin = () => options.admin.from(bucket);
 
@@ -729,54 +817,6 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           return { data, error: null };
         });
 
-      const rehearseStore = (
-        active: StorageWriter["session"],
-        name: string,
-        statement: string,
-        metadata: Readonly<Record<string, unknown>>,
-      ): Promise<StorageFailure | null> =>
-        rehearse(async (client) => {
-          await client.queryRaw(statement, [
-            bucket,
-            name,
-            ownerOf(active.targetUserId),
-            active.targetUserId,
-            JSON.stringify(metadata),
-          ]);
-
-          return null;
-        });
-
-      const claimFor = async (
-        { adminSql: ownerSql, session: active }: StorageWriter,
-        name: string,
-      ): Promise<StorageResponse<{ readonly path: string }>> => {
-        const [claimed] = await ownerSql.queryRaw<Row>(OWN_SIGNED_UPLOAD, [
-          bucket,
-          name,
-          ownerOf(active.targetUserId),
-          active.targetUserId,
-          JSON.stringify(stampOf(active)),
-        ]);
-
-        if (claimed) {
-          return { data: { path: name }, error: null };
-        }
-
-        const [found] = await ownerSql.queryRaw<Row>(SOURCE_OBJECT, [
-          bucket,
-          name,
-        ]);
-
-        if (!found) {
-          return failed(NOT_FOUND);
-        }
-
-        return found["owner_id"] === active.targetUserId
-          ? { data: { path: name }, error: null }
-          : failed(OWNED);
-      };
-
       const createSignedUploadUrl: StorageBucketApi["createSignedUploadUrl"] = (
         path,
         uploadOptions,
@@ -794,6 +834,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
               : INSERT_OBJECT;
 
           const refused = await rehearseStore(
+            bucket,
             writer.session,
             name,
             statement,
@@ -832,6 +873,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
               : INSERT_OBJECT;
 
           const refused = await rehearseStore(
+            bucket,
             writer.session,
             name,
             statement,
@@ -852,7 +894,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           }
 
           try {
-            const claimed = await claimFor(writer, name);
+            const claimed = await claimFor(bucket, writer, name);
 
             return claimed.error ? claimed : reply;
           } catch (cause) {
@@ -860,45 +902,6 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
 
             return failed(sqlFailure(cause));
           }
-        });
-      };
-
-      const claimSignedUpload = (
-        path: string,
-      ): Promise<StorageResponse<{ readonly path: string }>> => {
-        if (!writer) {
-          return refuse();
-        }
-
-        return settled(async () => {
-          const name = normalizePath(path);
-          const active = writer.session;
-
-          const refused = await rehearse(async (client) => {
-            try {
-              await client.queryRaw(INSERT_OBJECT, [
-                bucket,
-                name,
-                ownerOf(active.targetUserId),
-                active.targetUserId,
-                JSON.stringify(stampOf(active)),
-              ]);
-            } catch (cause) {
-              if (fromPgError(cause)?.code === "23505") {
-                return null;
-              }
-
-              throw cause;
-            }
-
-            return NOT_FOUND;
-          });
-
-          if (refused) {
-            return failed(refused);
-          }
-
-          return claimFor(writer, name);
         });
       };
 
@@ -923,6 +926,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             const statement = upsert ? await upsertStatement() : INSERT_OBJECT;
 
             const refused = await rehearseStore(
+              bucket,
               active,
               name,
               statement,
@@ -1199,7 +1203,6 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
         update: store("update"),
         createSignedUploadUrl,
         uploadToSignedUrl,
-        claimSignedUpload,
         remove,
         copy: relocate<{ readonly path: string }>("copy"),
         move: relocate<{ readonly message: string }>("move"),

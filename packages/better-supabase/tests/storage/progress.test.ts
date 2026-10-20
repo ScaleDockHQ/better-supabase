@@ -177,14 +177,12 @@ describe("upload progress", () => {
     const claiming = (
       reply: StorageResponse<{ readonly path: string }>,
     ): StorageApi => ({
-      from: (bucket) => ({
-        ...client.storage.from(bucket),
-        claimSignedUpload: (path) => {
-          claimed.push(path);
+      from: (bucket) => client.storage.from(bucket),
+      claimSignedUpload: (_bucket, path) => {
+        claimed.push(path);
 
-          return Promise.resolve(reply);
-        },
-      }),
+        return Promise.resolve(reply);
+      },
     });
 
     expect(

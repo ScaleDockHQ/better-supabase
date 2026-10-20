@@ -93,7 +93,11 @@ const part = { type: "file", mediaType: file.mediaType, url: aiFileUrl(file) };
 `upload` reserves the record and returns a signed upload URL for its path.
 For files over 6 MB, upload to the same path with TUS
 (`/storage/v1/upload/resumable`) instead; the policies are the same.
-`confirm` checks that the object exists and takes its stored size. Run
+`confirm` checks that the object exists and takes its stored size. In a
+writable [support session](/docs/auth/impersonation#storage-in-a-support-session)
+it first claims the upload for the user the admin acts as; a refused claim
+returns `forbidden` (`AI_FILE_FORBIDDEN`) or `not_found`
+(`AI_FILE_NOT_UPLOADED`) and leaves the file pending. Run
 `purge` from a job: it deletes pending uploads older than `pendingTtl`,
 expired files and the files of deleted chats, then removes their objects.
 

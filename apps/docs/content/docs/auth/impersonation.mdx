@@ -157,7 +157,7 @@ Each read runs as the target over Postgres, so the policies on
 | `getPublicUrl`                                             | Built by the service client without a check, as it is built without a request                              |
 | `upload`, `update`, `remove`, `copy`, `move`, `purgeCache` | Writes in a writable session, after a dry run as the target (see below); refused in a read-only one        |
 | `createSignedUploadUrl`, `uploadToSignedUrl`               | Signed in a writable session after the same dry run as `upload`; refused in a read-only one                |
-| `claimSignedUpload`                                        | Makes the target the owner of a signed upload and records the session (see below)                          |
+| `claimSignedUpload(bucket, path)`                          | Makes the target the owner of a signed upload and records the session (see below)                          |
 
 A path the target can't see answers like a missing object (`not_found`,
 code `NoSuchKey`), and `exists` returns `false`. Paths are normalised the
@@ -188,8 +188,8 @@ dry run as `upload` (an insert, or an upsert with `upsert: true`) and then
 the service client signs the URL. The browser's upload reaches Storage
 without the session, so the stored object has no owner and no session stamp
 until the server claims it. Call `claimReserved(reservation)` on the
-connected bucket, or `claimSignedUpload(path)` on the `StorageApi`, after the
-upload and before you record the file:
+connected bucket, or `claimSignedUpload(bucket, path)` on the `StorageApi`,
+after the upload and before you record the file:
 
 ```ts
 // server, in the support session
@@ -212,12 +212,17 @@ caller's token, so the same code runs in both.
 
 In a read-only session every write, the signed upload URL and the claim
 resolve to a `403` error with code `SUPPORT_READ_ONLY`. A connected bucket
-maps it to `forbidden`. Blocks that upload from the server, such as
-[`attachments.put`](/docs/blocks/attachments), work in a writable session.
-Blocks that hand out a signed upload URL, such as `attachments.upload`, get
-one in a writable session, but their `confirm` does not claim the object;
-call `claimSignedUpload` on the storage before `confirm` to record the
-session on it.
+maps it to `forbidden`. The blocks work in a writable session too.
+[`attachments.put`](/docs/blocks/attachments) uploads from the server. The
+blocks that hand out a signed upload URL claim the object in their own
+finish step, before it records the upload: `attachments.confirm`,
+[`drive.commit`](/docs/blocks/drive) and
+[`files.confirm`](/docs/blocks/ai-files) of the AI files block. A refused
+claim keeps the record pending and returns the block's error: `forbidden`
+with the hint `ATTACHMENT_FORBIDDEN`, `DRIVE_FORBIDDEN` or
+`AI_FILE_FORBIDDEN`, or `not_found` with `ATTACHMENT_NOT_UPLOADED` or
+`AI_FILE_NOT_UPLOADED` when the object is missing. Outside a support session
+these steps make no extra request.
 
 A public bucket is served to anyone by URL, but its objects are still rows in
 `storage.objects`. When the bucket has no `select` policy that lets the
