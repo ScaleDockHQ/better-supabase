@@ -33,3 +33,24 @@ const projects = await client.projects();
 ```
 
 Pass your own `fetch` to trace or stub the calls in tests.
+
+## Validate in Postgres
+
+`better-supabase/create/lite` applies the generated files to an in-memory
+PGlite database through the optional `@supabase/lite` peer, and reports what
+Postgres rejects before anything reaches a project.
+
+```ts
+import { previewFiles } from "better-supabase/create";
+import { validateDesign } from "better-supabase/create/lite";
+import { encodePreset, namedPreset } from "better-supabase/preset";
+
+const files = previewFiles(encodePreset(namedPreset("saas")));
+const { ok, issues, skipped } = await validateDesign(files);
+```
+
+PGlite starts without a Supabase project's roles and `auth` schema, so the
+function creates a minimal copy first. A module that needs an extension PGlite
+doesn't ship (`pgmq` for jobs, `btree_gist` for time tracking) lands in
+`skipped` instead of failing. pgTAP is not available through
+`@supabase/lite`, so database tests still run with `supabase test db`.

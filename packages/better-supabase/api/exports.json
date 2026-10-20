@@ -501,6 +501,18 @@
       "* from ./types.ts"
     ]
   },
+  "./create/lite": {
+    "values": [
+      "SUPABASE_PRELUDE",
+      "validateDesign"
+    ],
+    "types": [
+      "DesignIssue",
+      "DesignValidation",
+      "SkippedModule",
+      "ValidateDesignOptions"
+    ]
+  },
   "./create/supabase": {
     "values": [
       "authorizeUrl",
