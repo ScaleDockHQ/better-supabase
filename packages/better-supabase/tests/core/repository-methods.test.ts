@@ -625,15 +625,32 @@ describe("update and updateMany", () => {
 });
 
 describe("empty updates", () => {
-  it("refuses an update that sets no columns", async () => {
-    const { db, ops } = connect();
+  it("reads instead of writing for an update that sets no columns", async () => {
+    const { db, ops } = connect(() => rowsOf([{ id: "c1" }]));
+    const one = await db.customers.update("c1", {}, { select: ["id"] });
+    expect(one).toMatchObject({ ok: true, data: { id: "c1" } });
+
+    const many = await db.customers.updateMany({
+      where: { id: "c1" },
+      data: {},
+    });
+
+    expect(many).toMatchObject({ ok: true, data: { count: 0 } });
+    expect(ops.map((op) => op.kind)).toEqual(["select"]);
+  });
+
+  it("refuses an empty patch that a plugin leaves empty", async () => {
+    const idle: AnyPlugin = {
+      name: "idle",
+      apiVersion: 1,
+      beforeMutation: (op) => op,
+    };
+
+    const { db, ops } = connect(undefined, [idle]);
     expect(await db.customers.update("c1", {})).toMatchObject({
       ok: false,
       error: { kind: "invalid_request", table: "customers" },
     });
-    expect(
-      await db.customers.updateMany({ where: { id: "c1" }, data: {} }),
-    ).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
     expect(ops).toHaveLength(0);
   });
 
