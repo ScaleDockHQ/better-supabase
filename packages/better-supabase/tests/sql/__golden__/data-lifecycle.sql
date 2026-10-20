@@ -1427,6 +1427,7 @@ as $$
     ('organization', 'better_supabase.usage_counters', '"better_supabase"."usage_counters"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_events', '"better_supabase"."usage_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.usage_distinct', '"better_supabase"."usage_distinct"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_quotas', '"better_supabase"."usage_quotas"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.billing_customers', '"better_supabase"."billing_customers"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.billing_subscriptions', '"better_supabase"."billing_subscriptions"', 'organization_id', true, '{}'::text[], true),

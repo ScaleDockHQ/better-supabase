@@ -85,8 +85,43 @@ describe("usage module", () => {
     );
     expect(() => usage({ meters: { m: "x" } })).toThrow(/m must be an object/);
     expect(() => usage({ meters: { m: { color: "red" } } })).toThrow(
-      /use unit, category and label/,
+      /use unit, category, label, kind, period and query/,
     );
+  });
+
+  it("counts distinct subjects and refreshes computed meters", () => {
+    const sql = usage({
+      meters: {
+        mau: { kind: "distinct", period: "month" },
+        storage: {
+          kind: "computed",
+          period: "month",
+          query: "select organization_id, sum(bytes) from app.files group by 1",
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."usage_distinct"',
+    );
+    expect(sql).toContain("track_usage");
+    expect(sql).toContain("if track_usage.meter <> all (array['mau'])");
+    expect(sql).toContain("usage_refresh");
+    expect(sql).toContain("from app.files group by 1");
+    // The query is not exposed in the catalog usage_meters() returns.
+    expect(sql).toContain(
+      `'{"mau":{"kind":"distinct","period":"month"},"storage":{"kind":"computed","period":"month"}}'::jsonb`,
+    );
+    expect(usage()).not.toContain("track_usage");
+    expect(() => usage({ meters: { m: { kind: "computed" } } })).toThrow(
+      /needs a query/,
+    );
+    expect(() => usage({ meters: { m: { query: "select 1" } } })).toThrow(
+      /needs kind "computed"/,
+    );
+    expect(() =>
+      usage({ meters: { m: { kind: "computed", query: "select 1; drop" } } }),
+    ).toThrow(/one select/);
   });
 });
 

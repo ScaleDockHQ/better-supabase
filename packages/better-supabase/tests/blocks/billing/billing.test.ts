@@ -529,7 +529,11 @@ describe("createBilling", () => {
 
     blocked = "BILLING_ALREADY_SUBSCRIBED";
 
-    const result = await billing.checkout("org-1", { price: "price_pro" });
+    const result = await billing.checkout("org-1", {
+      price: "price_pro",
+      successUrl: "https://x/ok",
+      cancelUrl: "https://x/no",
+    });
 
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "conflict",
@@ -543,6 +547,8 @@ describe("createBilling", () => {
 
     const viaProvider = await external.checkout("org-1", {
       price: "price_pro",
+      successUrl: "https://x/ok",
+      cancelUrl: "https://x/no",
     });
 
     expect(viaProvider.ok ? undefined : viaProvider.error).toMatchObject({

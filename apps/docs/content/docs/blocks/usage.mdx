@@ -306,6 +306,43 @@ the same number `current` returns.
 In SQL, `record_usage_batch(tenant, entries, idempotency_key, check)` takes
 `entries` as a JSON array of `{ meter, quantity }`.
 
+## Distinct and computed meters
+
+A meter is a counter unless `options.meters` gives it a `kind`. Inline
+catalogs (not `{ table }` catalogs) accept two more:
+
+- `distinct` counts each subject once per period, for active users or active
+  projects. Call `usage.track(tenant, "mau", subject)`. The first sight in the
+  period adds one unit, repeats change nothing.
+- `computed` is a gauge a query reports, for storage bytes or seat counts.
+  `query` is one select of `(tenant, value)` rows. `usage.refresh()` (or the
+  hourly pg_cron job the migration schedules) sets today's counter so the
+  period's total equals the value.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  usage: {
+    options: {
+      meters: {
+        mau: { kind: "distinct", period: "month", label: "Active users" },
+        storage: {
+          kind: "computed",
+          unit: "bytes",
+          query: "select organization_id, sum(size) from app.files group by 1",
+        },
+      },
+    },
+  },
+}
+```
+
+Both kinds write the counters table, so quotas, `current`, `overview` and
+`reportUsageToStripe` treat them like any counter. The query runs as the
+function owner and is never returned by `usage.meters()`. The tenant is
+whatever scope the usage module is installed on, so a meter can be
+organization-level or, with a platform-level tenant, environment-level: the
+query decides which ids it returns.
+
 ## Usage history
 
 A usage page shows who and what used a meter. Set

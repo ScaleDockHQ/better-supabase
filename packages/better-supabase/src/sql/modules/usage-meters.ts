@@ -14,6 +14,16 @@ export interface UsageMeter {
   /** A group for display, such as `ai` or `storage`. */
   readonly category?: string;
   readonly label?: string;
+  /**
+   * `counter` (default) adds recorded quantities, `distinct` counts each
+   * subject once per period (`track_usage`) and `computed` is a gauge a query
+   * reports per tenant (`usage_refresh`).
+   */
+  readonly kind?: "counter" | "distinct" | "computed";
+  /** The window a distinct or computed meter measures; default `month`. */
+  readonly period?: string;
+  /** A computed meter's SQL: a select of `(tenant, value)` rows. */
+  readonly query?: string;
 }
 
 /** `options.meters` as a table: the app's own meter catalog. */
@@ -127,18 +137,68 @@ export function metersOf(
 
     for (const [key, text] of Object.entries(value)) {
       if (
-        !["unit", "category", "label"].includes(key) ||
+        !["unit", "category", "label", "kind", "period", "query"].includes(
+          key,
+        ) ||
         typeof text !== "string"
       ) {
         throw new TypeError(
-          `${where}.${meter}.${key}: use unit, category and label as strings`,
+          `${where}.${meter}.${key}: use unit, category, label, kind, period and query as strings`,
+        );
+      }
+
+      if (
+        key === "kind" &&
+        !["counter", "distinct", "computed"].includes(text)
+      ) {
+        throw new TypeError(
+          `${where}.${meter}.kind must be counter, distinct or computed`,
+        );
+      }
+
+      if (
+        key === "period" &&
+        !["day", "week", "month", "year", "billing"].includes(text)
+      ) {
+        throw new TypeError(
+          `${where}.${meter}.period must be day, week, month, year or billing`,
+        );
+      }
+
+      if (key === "query" && (text.includes(";") || text.includes("$$"))) {
+        throw new TypeError(
+          `${where}.${meter}.query must be one select without ";" or "$$"`,
         );
       }
 
       entry[key] = text;
     }
 
+    if (entry["kind"] === "computed" && entry["query"] === undefined) {
+      throw new TypeError(`${where}.${meter}: a computed meter needs a query`);
+    }
+
+    if (entry["query"] !== undefined && entry["kind"] !== "computed") {
+      throw new TypeError(`${where}.${meter}: query needs kind "computed"`);
+    }
+
+    // SAFETY: kind, period and query were checked above; entry holds only strings.
     out[meter] = entry;
+  }
+
+  return out;
+}
+
+/** The catalog `usage_meters()` returns: every meter without its query. */
+export function publicCatalog(
+  meters: Readonly<Record<string, UsageMeter>> | undefined,
+): Record<string, Omit<UsageMeter, "query">> {
+  const out: Record<string, Omit<UsageMeter, "query">> = {};
+
+  for (const [name, info] of Object.entries(meters ?? {})) {
+    const { query: _query, ...shown } = info;
+
+    out[name] = shown;
   }
 
   return out;
