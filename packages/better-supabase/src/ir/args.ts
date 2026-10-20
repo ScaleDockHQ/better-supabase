@@ -162,9 +162,13 @@ export type SortSpec =
   | SortDirection
   | { readonly direction: SortDirection; readonly nulls?: "first" | "last" };
 
-/** The columns of one table, each with a sort direction. */
+/**
+ * The columns of one table, each with a sort direction. `undefined` is
+ * allowed so a ternary between two objects (`?: undefined` after TypeScript
+ * merges the branches) passes `exactOptionalPropertyTypes`.
+ */
 export type ColumnOrderBy<M extends AnyModels, T extends keyof M> = {
-  readonly [K in keyof Row<M, T>]?: SortSpec;
+  readonly [K in keyof Row<M, T>]?: SortSpec | undefined;
 };
 
 /**

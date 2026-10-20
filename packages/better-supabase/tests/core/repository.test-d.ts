@@ -34,7 +34,7 @@ describe("payload inference", () => {
       .orThrow();
 
     expectTypeOf(page.items).toEqualTypeOf<{ id: string }[]>();
-    expectTypeOf(page.page.total).toEqualTypeOf<number | null>();
+    expectTypeOf(page.page.total).toEqualTypeOf<number>();
     // @ts-expect-error an offset window takes limit, not size
     void db.customers.paginate({ offset: 0, limit: 10, size: 10 });
   });

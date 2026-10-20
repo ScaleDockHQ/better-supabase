@@ -18,7 +18,8 @@ const { items, page } = await db.customers
 // page: { number: 2, size: 25, total: 81, pages: 4, hasMore: true }
 ```
 
-Without `count`, `total` and `pages` are `null`. `hasMore` comes from fetching
+`withCount: true` is shorthand for `count: "exact"`. Without a count, `total` and
+`pages` are `null`; with one, their type is `number`. `hasMore` comes from fetching
 one extra row, so it never needs a count. Without `orderBy`, pages are
 ordered by the primary key, so they never overlap.
 
@@ -63,6 +64,11 @@ nulls (last for `asc`, first for `desc`, or what `nulls` says), so no row
 with a null sort value is skipped. Give the order an index that matches it,
 for example `create index on customers (name, id)`, and each page is one
 index range scan however deep it is.
+
+Pass `withCount: true` to get `total`, the number of rows that match `where`
+(the cursor is ignored). The first page reads it from the page request; each
+later page sends one more request that only counts. Without `withCount`, a
+cursor page has no `total`.
 
 On the `better-supabase/postgres` executor the cursor compiles to a row
 comparison, `(name, id) > ($1, $2)`, when every column sorts the same way and

@@ -76,12 +76,40 @@ export interface UpdateArgs<
   readonly expect?: WhereInput<M, T>;
 }
 
+/**
+ * The result of a many-row write by its `returning` option. Each case of
+ * `returning` (`true`, `false`, absent) picks rows or `{ count }`, and a
+ * widened `boolean` gives both. `Default` is what an absent option means:
+ * `true` for `createMany` and `upsertMany`, `false` for `updateMany` and
+ * `deleteMany`.
+ */
+export type ManyOutcome<
+  M extends AnyModels,
+  T extends keyof M,
+  A,
+  Default extends boolean,
+> =
+  ReturningOption<A> extends infer R
+    ? R extends true
+      ? Payload<M, T, A>[]
+      : R extends false
+        ? { count: number }
+        : Default extends true
+          ? Payload<M, T, A>[]
+          : { count: number }
+    : never;
+
+type ReturningOption<A> = "returning" extends keyof A
+  ? A["returning" & keyof A]
+  : undefined;
+
 /** `updateMany` and `deleteMany` return the written rows with `returning: true`. */
-export type ManyResult<M extends AnyModels, T extends keyof M, A> = A extends {
-  readonly returning: true;
-}
-  ? Payload<M, T, A>[]
-  : { count: number };
+export type ManyResult<M extends AnyModels, T extends keyof M, A> = ManyOutcome<
+  M,
+  T,
+  A,
+  false
+>;
 
 export interface ManyReturningArgs<
   M extends AnyModels,
@@ -154,6 +182,8 @@ export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   readonly size: number;
   /** Also count all matching rows. */
   readonly count?: CountMode;
+  /** Shorthand for `count: "exact"`. */
+  readonly withCount?: boolean;
   readonly offset?: never;
   readonly limit?: never;
 };
@@ -167,6 +197,8 @@ export type OffsetRangeArgs<M extends AnyModels, T extends keyof M> = Omit<
   readonly limit: number;
   /** Also count all matching rows. */
   readonly count?: CountMode;
+  /** Shorthand for `count: "exact"`. */
+  readonly withCount?: boolean;
   readonly page?: never;
   readonly size?: never;
 };
@@ -178,15 +210,21 @@ export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   /** Cursor from the previous page, or `null` for the first page. */
   readonly after: string | null;
   readonly size: number;
+  /**
+   * Also count every row matching `where` (ignoring the cursor) and return
+   * it as `total`. The first page reads it from the page request; later
+   * pages cost one more request.
+   */
+  readonly withCount?: boolean;
 };
 
-export interface OffsetPage<R> {
+export interface OffsetPage<R, Counted extends boolean = false> {
   readonly items: R[];
   readonly page: {
     readonly number: number;
     readonly size: number;
-    readonly total: number | null;
-    readonly pages: number | null;
+    readonly total: Counted extends true ? number : number | null;
+    readonly pages: Counted extends true ? number : number | null;
     readonly hasMore: boolean;
   };
 }
@@ -197,11 +235,24 @@ export interface CursorPage<R> {
   readonly hasMore: boolean;
 }
 
+/** A cursor page that was asked for a count. */
+export type CountedCursorPage<R> = CursorPage<R> & { readonly total: number };
+
+type IsCounted<A> = A extends { readonly withCount: true }
+  ? true
+  : A extends { readonly count: "exact" | "planned" | "estimated" }
+    ? true
+    : false;
+
 export type PageOf<M extends AnyModels, T extends keyof M, A> = A extends {
   readonly after: unknown;
 }
-  ? CursorPage<Payload<M, T, A>>
-  : OffsetPage<Payload<M, T, A>>;
+  ? IsCounted<A> extends true
+    ? CountedCursorPage<Payload<M, T, A>>
+    : CursorPage<Payload<M, T, A>>
+  : IsCounted<A> extends true
+    ? OffsetPage<Payload<M, T, A>, true>
+    : OffsetPage<Payload<M, T, A>>;
 
 export interface Repository<
   M extends AnyModels,
@@ -272,11 +323,7 @@ export interface Repository<
   createMany<const A extends WriteManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
-  ): AsyncResult<
-    A extends { readonly returning: false }
-      ? { count: number }
-      : Payload<M, T, A>[]
-  >;
+  ): AsyncResult<ManyOutcome<M, T, A, true>>;
   update<const A extends UpdateArgs<M, T> = {}>(
     id: PrimaryKeyValue<M, T>,
     patch: Update<M, T>,
@@ -288,7 +335,9 @@ export interface Repository<
    */
   updateMany<
     const A extends ManyReturningArgs<M, T> & {
-      readonly data: Update<M, T>;
+      // NoInfer keeps the `const` inference from turning array and object
+      // values in `data` into readonly types the column rejects.
+      readonly data: NoInfer<Update<M, T>>;
       /** Update every visible row when `where` filters nothing. */
       readonly allowAll?: boolean;
     } & FindExt<E, M, T>,
@@ -306,11 +355,7 @@ export interface Repository<
   upsertMany<const A extends UpsertManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
-  ): AsyncResult<
-    A extends { readonly returning: false }
-      ? { count: number }
-      : Payload<M, T, A>[]
-  >;
+  ): AsyncResult<ManyOutcome<M, T, A, true>>;
   /** Returns a `not_found` error when no visible row has this key. */
   delete(
     id: PrimaryKeyValue<M, T>,

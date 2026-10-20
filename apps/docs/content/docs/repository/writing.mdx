@@ -35,7 +35,16 @@ await db.auditLog.create(entry, { returning: false });
 </Callout>
 
 `updateMany` and `deleteMany` return `{ count }`. Pass `returning: true` to get
-the written rows instead, narrowed with `select` and `include` as in reads:
+the written rows instead, narrowed with `select` and `include` as in reads.
+`createMany` and `upsertMany` work the other way round: they return the rows,
+and `returning: false` gives `{ count }`. The result type follows the
+`returning` value you pass:
+
+| Method                     | `returning: true` | `returning: false` | Not passed  | `boolean` variable      |
+| -------------------------- | ----------------- | ------------------ | ----------- | ----------------------- |
+| `create`, `update`         | The row           | `null`             | The row     | The row or `null`       |
+| `createMany`, `upsertMany` | The rows          | `{ count }`        | The rows    | The rows or `{ count }` |
+| `updateMany`, `deleteMany` | The rows          | `{ count }`        | `{ count }` | The rows or `{ count }` |
 
 ```ts
 const sent = await db.invoices
@@ -52,9 +61,15 @@ const sent = await db.invoices
 missing `where`, or one whose conditions are all `undefined`, returns
 `invalid_request` instead of writing every row. Pass `allowAll: true` to
 `updateMany` when you mean the whole table; for `deleteMany`, filter on a
-column that every row matches. An `update` or `updateMany` whose `data` sets
-no columns also returns `invalid_request`, unless a plugin such as
-[`timestamps()`](/docs/plugins/timestamps) fills one in.
+column that every row matches. An `update` whose `data` sets no columns
+changes nothing: it reads the current row with the same `where`, `select` and
+`include` and returns it (`null` with `returning: false`), or `not_found` when
+no row matches. An `updateMany` with empty `data` returns `{ count: 0 }`, or
+the matching rows with `returning: true`. This lets you build a patch from
+optional fields without a guard. When a plugin such as
+[`timestamps()`](/docs/plugins/timestamps) is installed, an empty patch still
+runs as a write, because the plugin may fill in a column; a plugin that
+leaves it empty gets `invalid_request`.
 
 On a table with [`softDelete()`](/docs/plugins/soft-delete), `deleteMany`
 with `returning: true` keeps `RETURNING` on the update it becomes, so it needs

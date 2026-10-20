@@ -567,6 +567,115 @@ describe("writes", () => {
     expect(last().headers.get("prefer")).toContain("return=representation");
   });
 
+  it("reads the current row for an empty update instead of writing", async () => {
+    const { client, last, requests } = capturingClient(() => ({
+      body: [{ id: "c1", name: "Acme" }],
+    }));
+
+    const db = sbCamel.connect(client);
+
+    const row = await db.customers
+      .update("c1", {}, { select: ["id", "name"] })
+      .orThrow();
+
+    expect(row).toEqual({ id: "c1", name: "Acme" });
+    expect(requests).toHaveLength(1);
+    expect(last().method).toBe("GET");
+    expect(query(last())).toEqual(["select=id,name", "id=eq.c1", "limit=1"]);
+  });
+
+  it("answers not_found for an empty update of a missing row", async () => {
+    const { client, last } = capturingClient(() => ({ body: [] }));
+    const db = sbCamel.connect(client);
+
+    const result = await db.customers.update("c1", {});
+
+    expect(result.error?.kind).toBe("not_found");
+    expect(last().method).toBe("GET");
+  });
+
+  it("returns null for an empty update with returning false", async () => {
+    const { client, last } = capturingClient(() => ({
+      body: [{ id: "c1" }],
+    }));
+
+    const db = sbCamel.connect(client);
+
+    const row = await db.customers
+      .update("c1", {}, { returning: false })
+      .orThrow();
+
+    expect(row).toBeNull();
+    expect(last().method).toBe("GET");
+  });
+
+  it("answers an empty updateMany with a zero count or the rows", async () => {
+    const { client, last, requests } = capturingClient(() => ({
+      body: [{ id: "c1" }],
+    }));
+
+    const db = sbCamel.connect(client);
+
+    const counted = await db.customers
+      .updateMany({ where: { status: "lead" }, data: {} })
+      .orThrow();
+
+    expect(counted).toEqual({ count: 0 });
+    expect(requests).toHaveLength(0);
+
+    const rows = await db.customers
+      .updateMany({
+        where: { status: "lead" },
+        data: {},
+        returning: true,
+        select: ["id"],
+      })
+      .orThrow();
+
+    expect(rows).toEqual([{ id: "c1" }]);
+    expect(last().method).toBe("GET");
+    expect(query(last())).toEqual(["select=id", "status=eq.lead"]);
+  });
+
+  it("counts offset pages with withCount", async () => {
+    const { client, last } = capturingClient(() => ({
+      body: [{ id: "c1" }],
+      headers: { "content-range": "0-0/42" },
+    }));
+
+    const db = sbCamel.connect(client);
+
+    const page = await db.customers
+      .paginate({ size: 10, withCount: true, select: ["id"] })
+      .orThrow();
+
+    expect(page.page.total).toBe(42);
+    expect(page.page.pages).toBe(5);
+    expect(last().headers.get("prefer")).toContain("count=exact");
+  });
+
+  it("counts cursor pages with withCount, once more after the first page", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: request.method === "HEAD" ? undefined : [{ id: "c1" }],
+      headers: { "content-range": "0-0/7" },
+    }));
+
+    const db = sbCamel.connect(client);
+
+    const first = await db.customers
+      .paginate({ size: 1, after: null, withCount: true, select: ["id"] })
+      .orThrow();
+
+    expect(first.total).toBe(7);
+    expect(requests).toHaveLength(1);
+
+    const plain = await db.customers
+      .paginate({ size: 1, after: null, select: ["id"] })
+      .orThrow();
+
+    expect("total" in plain).toBe(false);
+  });
+
   it("counts updateMany and deleteMany without returning", async () => {
     const { client, requests } = capturingClient(() => ({
       status: 204,
