@@ -1,6 +1,8 @@
 export {
   type CreatedSigningKey,
   createSigningKeys,
+  jwtType,
+  PLATFORM_OWNER,
   type JwksOptions,
   type JwksResponseOptions,
   type Signature,

@@ -51,6 +51,39 @@ export interface SigningKeyOwner {
   readonly id: string;
 }
 
+/**
+ * The owner of the platform's own keys, for a single authorization server
+ * that signs for every tenant. A key per tenant uses `{ type, id }` of the
+ * tenant instead, such as `{ type: "environment", id: environment.id }`.
+ */
+export const PLATFORM_OWNER: SigningKeyOwner = {
+  type: "platform",
+  id: "default",
+};
+
+const TYPE_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+// RFC 8725 section 3.11: a typ that names the kind of token, as a media type
+// subtype with the +jwt suffix (`at+jwt`, `vnd.acme.invite+jwt`).
+const JWT_TYPE = /^(?:JWT|[a-z0-9][a-z0-9.-]{0,126}\+jwt)$/i;
+
+/**
+ * The `typ` header for a token kind of your own: `jwtType("invite")` is
+ * `vnd.invite+jwt`. Sign with `{ typ }` and verify with `verifyCompact(...,
+ * { typ })` so a token of one kind can't be replayed as another (RFC 8725
+ * section 3.11). Throws a `TypeError` for a name outside lower-case letters,
+ * digits and `-`.
+ */
+export function jwtType(name: string): string {
+  if (!TYPE_NAME.test(name)) {
+    throw new TypeError(
+      `jwtType name must be lower-case letters, digits and "-", got ${JSON.stringify(name)}`,
+    );
+  }
+
+  return `vnd.${name}+jwt`;
+}
+
 /** What `create` and `rotate` return. The private key never leaves Vault again. */
 export interface CreatedSigningKey {
   readonly kid: string;
@@ -74,7 +107,8 @@ export interface Signer {
   sign(data: Uint8Array): AsyncResult<Signature>;
   /**
    * A compact JWS over `claims`, with `alg`, `kid` and `typ: "JWT"` in the
-   * header unless `header` sets them. A numeric `exp` keeps the key in the
+   * header unless `header` sets them. A custom `typ` has to be `JWT` or end in
+   * `+jwt` (see `jwtType`); anything else fails with `SIGNING_TYP_INVALID`. A numeric `exp` keeps the key in the
    * JWKS until then (`note_signing_key_exp`), so a rotation can't strand the token.
    */
   signJwt(
@@ -323,8 +357,21 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
             signature: await signBytes(key.key, key.alg, data),
           })),
         ),
-      signJwt: (claims, header = {}) =>
-        active(owner, signerOptions.create).andThen((key) => {
+      signJwt: (claims, header = {}) => {
+        const typ = header["typ"];
+
+        if (
+          typ !== undefined &&
+          (typeof typ !== "string" || !JWT_TYPE.test(typ))
+        ) {
+          return AsyncResult.err(
+            dbError("invalid_input", "The typ header is not a JWT media type", {
+              hint: "SIGNING_TYP_INVALID",
+            }),
+          );
+        }
+
+        return active(owner, signerOptions.create).andThen((key) => {
           const exp = claims["exp"];
 
           // Noting the exp rounded up to the hour keeps the calls to one per key per hour.
@@ -355,7 +402,8 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
               ),
             ),
           );
-        }),
+        });
+      },
     }),
   };
 
