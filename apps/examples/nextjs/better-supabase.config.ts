@@ -252,7 +252,13 @@ export default defineConfig({
     // record events as the signed-in user.
     audit: {
       options: {
-        exempt: ["public.*"],
+        exempt: [
+          {
+            table: "public.*",
+            reason:
+              "the fixture CRM tables are demo data with no audit requirement",
+          },
+        ],
         readPolicy: true,
         eventRoles: ["authenticated", "service_role"],
       },
