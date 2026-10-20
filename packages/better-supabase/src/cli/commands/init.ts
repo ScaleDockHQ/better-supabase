@@ -18,16 +18,13 @@ import {
   conventionConfig,
   type CreateDesign,
   designConfig,
-  designOf,
   encodePreset,
   glueCommand,
   integrationsForFramework,
   isPresetName,
-  type Preset,
   PRESET_NAMES,
   presetBlocksSource,
   presetGlue,
-  presetOf,
   PRESETS,
   resolvePreset,
   type ResolvedPreset,
@@ -65,6 +62,7 @@ import {
   templatePlan,
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
+import { readPresetInput } from "../preset-input.ts";
 import {
   detectProject,
   installCommand,
@@ -118,8 +116,8 @@ const INIT_ARGS = {
   preset: {
     type: "string",
     description:
-      "A named preset, a code from /create or its URL: the config starts from it, and init writes its modules and lib/blocks.ts",
-    valueHint: "name|code|url",
+      "A named preset, a code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts",
+    valueHint: "name|code|url|file",
   },
   lite: {
     type: "boolean",
@@ -218,6 +216,7 @@ async function chosenPreset(
   args: InitArgs,
   flags: Partial<ConfigConventions>,
   prompts: Prompter | undefined,
+  root: string,
 ): Promise<
   | {
       readonly value: string;
@@ -261,20 +260,9 @@ async function chosenPreset(
     return null;
   }
 
-  let preset: Preset;
-  let design: CreateDesign | undefined;
-
-  try {
-    preset = presetOf(value);
-    design = isPresetName(value) ? undefined : await designOf(value);
-  } catch (error) {
-    throw new CliError(
-      "usage",
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-
-  preset = withConventions(preset, flags);
+  const input = await readPresetInput(value, root);
+  const design = input.design;
+  const preset = withConventions(input.preset, flags);
 
   const resolved = resolvePreset(preset);
 
@@ -342,7 +330,7 @@ export async function runInit(
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
   const flags = conventionFlags(args);
-  const chosen = await chosenPreset(args, flags, prompts);
+  const chosen = await chosenPreset(args, flags, prompts, config.root);
 
   if (chosen !== null && "code" in chosen) {
     return chosen;

@@ -1,3 +1,5 @@
+export * from "./check.ts";
+
 export * from "./column-keys.ts";
 
 export * from "./column-kinds.ts";

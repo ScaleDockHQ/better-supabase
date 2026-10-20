@@ -18,9 +18,13 @@ import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   type CreateDesign,
+  DESIGN_FILE,
+  DesignTooLongError,
+  designFileSource,
   encodeDesign,
   encodePreset,
   namedPreset,
+  resolvePreset,
 } from "../../../src/preset/index.ts";
 import { inputRequired, usageError } from "../fixtures/usage.ts";
 
@@ -855,5 +859,112 @@ describe("init --preset", () => {
         "utf-8",
       ),
     ).toContain("nickname");
+  });
+
+  it("writes a design too long for a URL from a design file", async () => {
+    let seed = 7;
+
+    const word = (): string => {
+      seed = (seed * 48_271) % 2_147_483_647;
+
+      return seed.toString(36);
+    };
+
+    const appTables = Object.fromEntries(
+      Array.from({ length: 100 }, (_, index) => [
+        `table_${String(index)}_${word()}_${word()}`,
+        {
+          scope: "user" as const,
+          columns: Object.fromEntries(
+            Array.from({ length: 6 }, (__, column) => [
+              `c${String(column)}_${word()}${word()}`,
+              { type: "text" as const },
+            ]),
+          ),
+        },
+      ]),
+    );
+
+    await expect(encodeDesign({ appTables })).rejects.toBeInstanceOf(
+      DesignTooLongError,
+    );
+
+    await files({
+      "package.json": json({ name: "app" }),
+      [DESIGN_FILE]: designFileSource(resolvePreset(namedPreset("minimal")), {
+        appTables,
+      }),
+    });
+
+    const result = await run([
+      "init",
+      "--preset",
+      `./${DESIGN_FILE}`,
+      "--cwd",
+      dir,
+    ]);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+
+    const [first = ""] = Object.keys(appTables);
+
+    expect(
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
+    ).toContain(`${first}: {`);
+    expect(await readFile(join(dir, APP_TABLES_FILE), "utf-8")).toContain(
+      `"public"."${first}"`,
+    );
+  });
+
+  it("refuses a missing or invalid design file", async () => {
+    await files({
+      "package.json": json({ name: "app" }),
+      "broken.json": json({ preset: "minimal", design: { tables: {} } }),
+    });
+
+    const missing = await run([
+      "init",
+      "--preset",
+      "./nowhere.json",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toContain("./nowhere.json doesn't exist");
+
+    const broken = await run(["init", "--preset", "broken.json", "--cwd", dir]);
+
+    expect(broken.code).toBe(2);
+    expect(broken.stderr).toContain('design: unknown key "tables"');
+    expect(existsSync(join(dir, "better-supabase.config.ts"))).toBe(false);
+  });
+});
+
+describe("apply with a design file", () => {
+  it("merges the file's design into the config", async () => {
+    await files({
+      "better-supabase.config.json": json({}),
+      [DESIGN_FILE]: designFileSource(
+        resolvePreset(namedPreset("minimal")),
+        design,
+      ),
+    });
+
+    const result = await run(["apply", "--preset", DESIGN_FILE, "--cwd", dir]);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+    expect(
+      JSON.parse(
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
+      ),
+    ).toMatchObject({
+      appTables: {
+        notes: { scope: "user", columns: { body: { type: "text" } } },
+      },
+      preset: encodePreset(namedPreset("minimal")),
+    });
   });
 });

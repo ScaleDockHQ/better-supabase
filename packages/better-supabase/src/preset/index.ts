@@ -41,8 +41,10 @@ export {
 
 export {
   decodeDesign,
+  DESIGN_FILE,
   DESIGN_FORMAT,
   DesignTooLongError,
+  designFileSource,
   designFormat,
   designApplyCommand,
   designConfig,
@@ -52,9 +54,11 @@ export {
   encodeDesign,
   isDesignCode,
   MAX_DESIGN_CODE_LENGTH,
+  parseDesign,
+  readDesignFile,
 } from "./design.ts";
 
-export type { CreateDesign } from "./design.ts";
+export type { CreateDesign, DesignFile } from "./design.ts";
 
 export { diffAppTables, diffDesigns } from "./design-diff.ts";
 
