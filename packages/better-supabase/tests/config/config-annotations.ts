@@ -316,6 +316,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose.",
   },
+  "realtime.triggers[].when": {
+    description:
+      "Filters updates: with { changed: [columns] } an UPDATE sends only when one of those columns changed. Inserts and deletes always send.",
+  },
+  "realtime.triggers[].when.changed": {
+    description:
+      "Columns (database names) whose change lets an UPDATE send. A trigger for updates alone compiles it into its WHEN clause.",
+  },
   "$defs.triggerValue": {
     description:
       "A column of the changed row, or a lookup: the `select` column of the `from` row (`table` or `schema.table`) whose `key` (default id) equals `via`, a column or another lookup.",

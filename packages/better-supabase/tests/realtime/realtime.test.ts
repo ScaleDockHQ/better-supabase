@@ -10,6 +10,7 @@ import {
   rowChange,
   rowKeys,
 } from "../../src/realtime/index.ts";
+import { LOOKUP_WARNING } from "../../src/realtime/topic-trigger.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -1015,10 +1016,17 @@ describe("trigger with betterSupabase", () => {
     });
 
     expect(sql).toContain(
-      `'organizationSlug', ((select j0."slug" from "public"."organizations" j0 where j0."id" = (select j1."organization_id" from "public"."customers" j1 where j1."id" = rec."customer_id" limit 1) limit 1))::text`,
+      `select j."organization_id", j."name" into lk_0 from "public"."customers" j where j."id" = rec."customer_id" limit 1;`,
     );
     expect(sql).toContain(
-      `perform realtime.send(jsonb_build_object('tagId', rec."tag_id", 'customerName', (select j0."name" from "public"."customers" j0 where j0."id" = rec."customer_id" limit 1), 'operation', (lower(tg_op) || ':' || rec.tag_id)), case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, 'org:' || (vals ->> 'organizationSlug') || ':customer:' || (vals ->> 'customerId'), true);`,
+      `select j."slug" into lk_1 from "public"."organizations" j where j."id" = lk_0."organization_id" limit 1;`,
+    );
+    expect(sql).toContain(`'organizationSlug', (lk_1."slug")::text`);
+    expect(sql).toContain(
+      `body := jsonb_build_object('tagId', rec."tag_id", 'customerName', lk_0."name", 'operation', (lower(tg_op) || ':' || rec.tag_id));`,
+    );
+    expect(sql).toContain(
+      `perform realtime.send(body, case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, 'org:' || (vals ->> 'organizationSlug') || ':customer:' || (vals ->> 'customerId'), true);`,
     );
     expect(
       customers.trigger("customers", {
@@ -1073,7 +1081,7 @@ describe("trigger with betterSupabase", () => {
           },
         },
       }),
-    ).toContain(`where j0."customer_id" = rec."customer_id"`);
+    ).toContain(`where j."customer_id" = rec."customer_id"`);
   });
 
   it("uses the given events and function schema", () => {
@@ -1090,6 +1098,104 @@ describe("trigger with betterSupabase", () => {
     expect(sql).toContain(
       'create trigger "bs_broadcast_organization_customers" after insert on "public"."customers"',
     );
+  });
+
+  it("reads each lookup once per row, however many topics and payload keys use it", () => {
+    const tenant = defineTopic("org:{organizationSlug}:tags");
+
+    const perCustomer = defineTopic(
+      "org:{organizationSlug}:customer:{customerId}",
+    );
+
+    const slug = {
+      from: "organizations",
+      select: "slug",
+      via: { from: "customers", select: "organizationId", via: "customerId" },
+    } as const;
+
+    const sql = tenant.trigger("customerTags", {
+      betterSupabase,
+      values: { organizationSlug: slug },
+      payload: { tagId: "tagId", organization: slug },
+      topics: [
+        {
+          topic: perCustomer,
+          values: { organizationSlug: slug, customerId: "customerId" },
+        },
+        { topic: tenant, values: { organizationSlug: slug } },
+      ],
+    });
+
+    expect(sql).toMatchSnapshot();
+    expect(sql.match(/from "public"\."customers" j/g)).toHaveLength(1);
+    expect(sql.match(/from "public"\."organizations" j/g)).toHaveLength(1);
+    expect(sql.match(/lk_1\."slug"/g)).toHaveLength(4);
+    expect(sql).toContain(`'${LOOKUP_WARNING} for a delete on %.%`);
+  });
+
+  it("sends an update only when a when.changed column changed", () => {
+    const updatesOnly = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      events: ["update"],
+      when: { changed: ["name", "organizationId"] },
+    });
+
+    expect(updatesOnly).toContain(
+      `for each row when (old."name" is distinct from new."name" or old."organization_id" is distinct from new."organization_id") execute function`,
+    );
+    expect(updatesOnly).not.toContain("then return null; end if;");
+
+    const all = customers.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      when: { changed: ["name"] },
+    });
+
+    expect(all).toContain(
+      `  if tg_op = 'UPDATE' and not (old."name" is distinct from new."name") then return null; end if;`,
+    );
+    expect(all).toContain("  for each row execute function");
+
+    expect(
+      customers.trigger("public.customers", {
+        events: ["update"],
+        when: { changed: ["status"] },
+      }),
+    ).toContain(
+      `for each row when (old."status" is distinct from new."status") execute function better_supabase.broadcast_topic(`,
+    );
+    expect(
+      customers.trigger("public.customers", { when: { changed: ["status"] } }),
+    ).toContain(
+      `if tg_op = 'UPDATE' and not (old."status" is distinct from new."status") then return null; end if;`,
+    );
+  });
+
+  it("rejects a when.changed the trigger can't apply", () => {
+    expect(() =>
+      customers.trigger("customers", {
+        betterSupabase,
+        values: { organizationId: "organizationId" },
+        events: ["insert"],
+        when: { changed: ["name"] },
+      }),
+    ).toThrow('when.changed filters updates, but events has no "update"');
+    expect(() =>
+      customers.trigger("customers", {
+        betterSupabase,
+        values: { organizationId: "organizationId" },
+        when: { changed: [] },
+      }),
+    ).toThrow("when.changed lists no columns");
+    expect(() =>
+      customers.trigger("customers", {
+        // @ts-expect-error `missing` is not a column, so no overload matches and tsc reports the first key
+        betterSupabase,
+        values: { organizationId: "organizationId" },
+        when: { changed: ["missing"] },
+      }),
+    ).toThrow('no column for when.changed on "customers" ("missing")');
   });
 
   it("keeps triggerSql as a deprecated alias", () => {
@@ -1294,13 +1400,22 @@ describe("trigger", () => {
       'create or replace function "better_supabase"."bs_broadcast_org_inbox_inbox_messages"()',
     );
     expect(sql).toContain(
-      `vals := jsonb_build_object('orgId', ((select j0."org_id" from "inbox"."threads" j0 where j0."id" = rec."thread_id" limit 1))::text);`,
+      `select j."org_id", j."owner" into lk_0 from "inbox"."threads" j where j."id" = rec."thread_id" limit 1;`,
+    );
+    expect(sql).toContain(
+      `vals := jsonb_build_object('orgId', (lk_0."org_id")::text);`,
     );
     expect(sql).toContain(
       `vals := jsonb_build_object('threadId', (rec."thread_id")::text);`,
     );
     expect(sql).toContain(
-      `perform realtime.send(jsonb_build_object('operation', (lower(tg_op)), 'thread_id', rec."thread_id", 'record_id', rec."id", 'owner', (select j0."email" from "public"."users" j0 where j0."user_id" = (select j1."owner" from "inbox"."threads" j1 where j1."id" = rec."thread_id" limit 1) limit 1)), case tg_op when 'INSERT' then 'created' when 'DELETE' then 'deleted' else tg_op end, 'org:' || (vals ->> 'orgId') || ':inbox', true);`,
+      `select j."email" into lk_1 from "public"."users" j where j."user_id" = lk_0."owner" limit 1;`,
+    );
+    expect(sql).toContain(
+      `body := jsonb_build_object('operation', (lower(tg_op)), 'thread_id', rec."thread_id", 'record_id', rec."id", 'owner', lk_1."email");`,
+    );
+    expect(sql).toContain(
+      `perform realtime.send(body, case tg_op when 'INSERT' then 'created' when 'DELETE' then 'deleted' else tg_op end, 'org:' || (vals ->> 'orgId') || ':inbox', true);`,
     );
     expect(sql).not.toContain("broadcast_topic(");
   });

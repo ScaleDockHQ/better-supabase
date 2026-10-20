@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { ADOPTED_FORMAT_ERROR } from "../../../src/sql/modules/webhooks-out.ts";
 import {
   customContracts,
   moduleBody,
@@ -31,6 +32,7 @@ const CENTRAKIT: AnyBlocksConfig = {
       secretStorage: "column",
       eventIdType: "uuid",
       runIdType: "uuid",
+      defaultFormat: "standard",
     },
   },
 };
@@ -222,6 +224,7 @@ describe("webhooks-out module", () => {
               deliveries: { tenant: null, subject: null },
               secrets: { tenant: null },
             },
+            options: { defaultFormat: "standard" },
           },
         }),
       );
@@ -237,6 +240,7 @@ describe("webhooks-out module", () => {
             columns: {
               endpoints: { createdBy: null, permissions: "held_permissions" },
             },
+            options: { defaultFormat: "standard" },
           },
         }),
       );
@@ -244,9 +248,16 @@ describe("webhooks-out module", () => {
       expect(ownerless).toContain(
         `and (publish_webhook_event.read_permission is null or coalesce(d."held_permissions" && v_held, false))`,
       );
-      expect(publish(body({ "webhooks-out": { mode: "adopt" } }))).toContain(
-        "else publish_webhook_event.read_permission is null end",
-      );
+      expect(
+        publish(
+          body({
+            "webhooks-out": {
+              mode: "adopt",
+              options: { defaultFormat: "cloudevents" },
+            },
+          }),
+        ),
+      ).toContain("else publish_webhook_event.read_permission is null end");
     });
 
     it("leaves the new columns out of an adopted table unless they are mapped", () => {
@@ -302,12 +313,31 @@ describe("webhooks-out module", () => {
       });
 
       expect(mapped).toContain(
-        `alter table "public"."webhook_endpoints" alter column "body_format" set default 'cloudevents';`,
+        `alter table "public"."webhook_endpoints" alter column "body_format" set default 'standard';`,
       );
 
       expect(() =>
         body({ "webhooks-out": { options: { defaultFormat: "x'; drop" } } }),
       ).toThrow(/defaultFormat "x'; drop" must match/);
+    });
+
+    it("requires defaultFormat for an adopted table that maps no format column", () => {
+      const { defaultFormat: _, ...options } =
+        CENTRAKIT["webhooks-out"]!.options!;
+
+      expect(() =>
+        body({ "webhooks-out": { ...CENTRAKIT["webhooks-out"], options } }),
+      ).toThrow(ADOPTED_FORMAT_ERROR);
+      expect(() =>
+        body({
+          "webhooks-out": {
+            ...CENTRAKIT["webhooks-out"],
+            options,
+            columns: { endpoints: { format: "body_format" } },
+          },
+        }),
+      ).not.toThrow();
+      expect(() => body()).not.toThrow();
     });
   });
 });

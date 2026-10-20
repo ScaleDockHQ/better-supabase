@@ -543,6 +543,15 @@ export function subjectAccess<A extends string>(
     const keys = new Map<string, string>();
     const raw = subject.extra["permissions"];
 
+    // `read` in the registry is the subject's own read key (`subject.permission`), not this module's action.
+    for (const [key, value] of Object.entries(
+      ctx.subjects[type]?.permissions ?? {},
+    )) {
+      if (key !== "read" && allowed.has(key) && value.length > 0) {
+        keys.set(key, value);
+      }
+    }
+
     if (raw !== undefined) {
       if (!isRecord(raw)) {
         throw new TypeError(

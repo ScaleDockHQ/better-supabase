@@ -1,4 +1,4 @@
--- better-supabase module: attachments (0.8.0)
+-- better-supabase module: attachments (0.10.0)
 -- @bs-module attachments@2 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -140,12 +140,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 drop policy if exists "attachments_read" on "better_supabase"."attachments";
 create policy "attachments_read" on "better_supabase"."attachments" for select to authenticated
-  using ((("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or (not coalesce("subject_type" in ('project'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using ((("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("organization_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "organization_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "attachments_insert" on "better_supabase"."attachments";
 create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
   with check ((
     "uploaded_by" = (select auth.uid())
-    and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or (not coalesce("subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)))
+    and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', "organization_id", 'crm.read'), false))) or (not coalesce("subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)))
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select centrakit.authz_actor_may_write()));
 drop policy if exists "attachments_delete" on "better_supabase"."attachments";
@@ -173,7 +173,7 @@ as $$
     where a."bucket" = attachment_object_allowed.bucket and a."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."uploaded_at" is null and a."uploaded_by" = auth.uid()
-        when 'select' then (a."status" = 'clean' and ((a."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or a."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or (not coalesce(a."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))))
+        when 'select' then (a."status" = 'clean' and ((a."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or a."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or (a."subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', a."organization_id", 'crm.read'), false))) or (not coalesce(a."subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))))
           or a."uploaded_by" = auth.uid() or ((a."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false) or a."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(a."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)))
         when 'delete' then a."uploaded_by" = auth.uid() or ((a."subject_type" = 'project' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false) or a."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.manage') as t(id)))) or (not coalesce(a."subject_type" in ('project'), false) and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)))
         else false

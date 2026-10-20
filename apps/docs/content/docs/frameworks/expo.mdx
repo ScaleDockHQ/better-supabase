@@ -160,9 +160,13 @@ export const GET = toExpo([withBetterSupabase(bs)], async (_request, ctx) =>
 
 ## Middleware
 
-`bs.middleware()` in `+middleware.ts` refreshes an expired cookie session once
-per request, before loaders run, and writes the new cookies with
-`setResponseHeaders`. Loaders never refresh on their own.
+`bs.middleware()` in `+middleware.ts` refreshes an expired cookie session
+before loaders run and writes the new cookies with `setResponseHeaders`. From
+0.11 it also hands that session to the loaders and `bs.request` calls of the
+same request, so they read the refreshed session without calling Auth again,
+even with `refresh: false`. A loader that runs without middleware refreshes on
+its own, so the middleware is optional for routes that only need a loader.
+Either way a request makes at most one Auth call.
 
 ```ts title="src/app/+middleware.ts"
 import { bs } from "../lib/supabase/server";

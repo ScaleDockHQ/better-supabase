@@ -1,3 +1,5 @@
+import type { TriggerLookupSql } from "./topic-sql.ts";
+
 import { sqlIdent, sqlString } from "../core/template.ts";
 
 /** One topic a generated broadcast function sends to. */
@@ -28,7 +30,21 @@ interface TriggerFunctionSql {
   readonly event: string;
   readonly topics: readonly TriggerTopicSql[];
   readonly payload: TriggerPayloadSql;
+  /** Lookups the topics and payload read, in dependency order. */
+  readonly lookups: readonly TriggerLookupSql[];
+  /**
+   * `when.changed` as an `old`/`new` comparison. With `when`, it becomes the
+   * trigger's `WHEN` clause; otherwise an UPDATE that fails it returns early.
+   */
+  readonly changed?: { readonly sql: string; readonly when: boolean };
 }
+
+/** The start of the warning a delete raises when a lookup finds no row. */
+export const LOOKUP_WARNING: string =
+  "better-supabase: realtime lookup found no row";
+
+const LOOKUP_HINT =
+  "The parent row was deleted in the same statement, such as a cascade, so the topic that reads it is skipped. Keep the topic value on the row itself, or add a topic trigger on the parent.";
 
 /** Marks a generated function that sends whole rows on purpose (doctor reads it). */
 const ROW_PAYLOAD_MARKER: string = "better-supabase: payload row";
@@ -98,7 +114,28 @@ function payloadSql(payload: TriggerPayloadSql): string {
  */
 export function triggerFunctionSql(input: TriggerFunctionSql): string {
   const fn = `${sqlIdent(input.functionSchema)}.${sqlIdent(input.functionName)}`;
-  const payload = payloadSql(input.payload);
+
+  const payload =
+    input.payload.kind === "custom" ? "body" : payloadSql(input.payload);
+
+  const declarations = input.lookups.map(
+    (lookup) => `  ${lookup.name} record;`,
+  );
+
+  const reads = input.lookups.flatMap((lookup) => [
+    `  select ${lookup.columns.map((column) => `j.${column}`).join(", ")} into ${lookup.name} from ${lookup.relation} j where j.${lookup.key} = ${lookup.via} limit 1;`,
+    `  if not found and tg_op = 'DELETE' and ${lookup.via} is not null then`,
+    `    raise warning '${LOOKUP_WARNING} for a delete on %.%: no % row where % = %', tg_table_schema, tg_table_name, ${sqlString(lookup.relation)}, ${sqlString(lookup.key)}, ${lookup.via}`,
+    `      using hint = ${sqlString(LOOKUP_HINT)};`,
+    "  end if;",
+  ]);
+
+  const early =
+    input.changed && !input.changed.when
+      ? [
+          `  if tg_op = 'UPDATE' and not (${input.changed.sql}) then return null; end if;`,
+        ]
+      : [];
 
   const sends = input.topics.flatMap((topic) => {
     const entries = Object.entries(topic.values);
@@ -137,12 +174,19 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
     "  rec record;",
     "  vals jsonb;",
     "  bad record;",
+    ...(input.payload.kind === "custom" ? ["  body jsonb;"] : []),
+    ...declarations,
     "begin",
     "  if tg_when <> 'AFTER' then",
     "    raise exception '% runs after the write; as a % trigger it would cancel the write', tg_name, lower(tg_when)",
     "      using errcode = '39P01';",
     "  end if;",
+    ...early,
     "  if tg_op = 'DELETE' then rec := old; else rec := new; end if;",
+    ...reads,
+    ...(input.payload.kind === "custom"
+      ? [`  body := ${input.payload.sql};`]
+      : []),
     ...sends,
     "  return null;",
     "end;",
@@ -154,7 +198,7 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
     "",
     `drop trigger if exists ${sqlIdent(input.triggerName)} on ${input.target};`,
     `create trigger ${sqlIdent(input.triggerName)} after ${input.events} on ${input.target}`,
-    `  for each row execute function ${fn}();`,
+    `  for each row${input.changed?.when ? ` when (${input.changed.sql})` : ""} execute function ${fn}();`,
     "",
   ].join("\n");
 }

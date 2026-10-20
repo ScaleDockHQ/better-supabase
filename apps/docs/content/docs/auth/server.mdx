@@ -275,6 +275,37 @@ and `ctx.sql` is `undefined`: there is no user to run as. Use `bs.admin()`
 for privileged repository work, or `bs.actingAs(userId)` to run over Postgres
 as a particular user.
 
+### Cron jobs and webhooks
+
+Code that runs without a caller, such as a cron job or a webhook handler, gets
+everything it needs from `bs.admin()`. You don't need a second client from
+`@supabase/server/core`:
+
+| Work                              | Handle                                                     |
+| --------------------------------- | ---------------------------------------------------------- |
+| Rows and database functions       | `bs.admin().<model>` repositories and `bs.admin().$rpc`    |
+| A bucket registered with `bucket` | `bs.admin().$buckets.<name>`                               |
+| Any other bucket                  | `bs.admin().$storage.from(bucket)`, e.g. `.remove([path])` |
+| Auth users (create, invite, ban)  | `bs.admin().$authAdmin`, from 0.11                         |
+| Anything else supabase-js does    | `bs.admin().$client`, the secret-key client                |
+
+```ts title="app/api/cron/cleanup/route.ts"
+export async function GET() {
+  const admin = bs.admin();
+  const { data } = await admin.$authAdmin.listUsers({ perPage: 100 });
+  const stale = data.users.filter((user) => user.banned_until);
+
+  await admin.$storage
+    .from("exports")
+    .remove(stale.map((user) => `${user.id}.csv`));
+
+  return new Response(null, { status: 204 });
+}
+```
+
+All of them use the secret key and bypass RLS. Pass `{ as: userId }` to
+`bs.admin()` to record that user as the actor of the writes.
+
 Pass `fetch` (for example `tracedFetch()` from `better-supabase/otel`) to send
 every PostgREST and supabase-js request through it. Auth refreshes use
 `auth.fetch`.

@@ -137,13 +137,63 @@ function rawLookupTarget(
   };
 }
 
-/** A trigger value as SQL on `rec`, with one subquery per lookup. */
+/** One parent row a generated function reads into a record variable. */
+export interface TriggerLookupSql {
+  /** The record variable, `lk_<n>`; a column is `lk_<n>."column"`. */
+  readonly name: string;
+  /** The quoted `schema.table`. */
+  readonly relation: string;
+  readonly key: string;
+  /** The quoted columns read from the row. */
+  readonly columns: readonly string[];
+  /** The value it joins on: a `rec` column or an earlier lookup's column. */
+  readonly via: string;
+}
+
+/**
+ * The lookups of one generated function. Each parent row is read once per
+ * changed row, with every column the topics, values and payload need from
+ * it, and a row comes before the rows that join through it.
+ */
+export class TriggerLookups {
+  readonly #byRow = new Map<string, TriggerLookupSql & { columns: string[] }>();
+
+  add(target: LookupTarget & { readonly via: string }): string {
+    const row = [target.relation, target.key, target.via].join("\u0000");
+    const known = this.#byRow.get(row);
+
+    if (known) {
+      if (!known.columns.includes(target.select)) {
+        known.columns.push(target.select);
+      }
+
+      return `${known.name}.${target.select}`;
+    }
+
+    const name = `lk_${String(this.#byRow.size)}`;
+    this.#byRow.set(row, {
+      name,
+      relation: target.relation,
+      key: target.key,
+      columns: [target.select],
+      via: target.via,
+    });
+
+    return `${name}.${target.select}`;
+  }
+
+  get list(): readonly TriggerLookupSql[] {
+    return [...this.#byRow.values()];
+  }
+}
+
+/** A trigger value as SQL on `rec`; each lookup becomes a variable in `lookups`. */
 export function triggerValueSql(
   tables: Readonly<Record<string, TableMeta | undefined>> | undefined,
   meta: TableMeta | undefined,
   value: AnyTriggerValue,
   where: string,
-  depth = 0,
+  lookups: TriggerLookups,
 ): string {
   if (typeof value === "string") {
     return `rec.${meta ? columnSql(meta, value, where) : sqlIdent(value)}`;
@@ -154,10 +204,30 @@ export function triggerValueSql(
       ? lookupTarget(tables, value, where)
       : rawLookupTarget(value);
 
-  const alias = `j${String(depth)}`;
-  const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
+  const via = triggerValueSql(tables, meta, value.via, where, lookups);
 
-  return `(select ${alias}.${target.select} from ${target.relation} ${alias} where ${alias}.${target.key} = ${via} limit 1)`;
+  return lookups.add({ ...target, via });
+}
+
+/** The columns of `when.changed` as an `old`/`new` comparison. */
+export function changedSql(
+  meta: TableMeta | undefined,
+  changed: readonly string[],
+  where: string,
+): string {
+  if (changed.length === 0) {
+    throw new TypeError(`${where}: when.changed lists no columns`);
+  }
+
+  return changed
+    .map((column) => {
+      const db = meta
+        ? columnSql(meta, column, "when.changed")
+        : sqlIdent(column);
+
+      return `old.${db} is distinct from new.${db}`;
+    })
+    .join(" or ");
 }
 
 /** The event name: one for every operation, one per operation, or the operation. */

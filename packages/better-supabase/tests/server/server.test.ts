@@ -515,6 +515,19 @@ describe("createServer clients", () => {
     expect(sent(0).headers.get("apikey")).toBe("sb_secret_test");
   });
 
+  it("sends $authAdmin and $storage calls from admin() with the secret key", async () => {
+    const { sent } = stubFetch();
+    const server = createServer(defineSupabase(schema), { env: secretEnv });
+    const db = server.admin({}, { as: USER });
+
+    await db.$authAdmin.listUsers();
+    await db.$storage.from("logos").remove(["a.png"]);
+    expect(sent(0).url).toContain(`${PROJECT_URL}/auth/v1/admin/users`);
+    expect(sent(0).headers.get("apikey")).toBe("sb_secret_test");
+    expect(sent(1).url).toContain(`${PROJECT_URL}/storage/v1/object/logos`);
+    expect(sent(1).headers.get("apikey")).toBe("sb_secret_test");
+  });
+
   it("binds dbFor to the caller and merges extra context", () => {
     const server = createServer(defineSupabase(schema), { env: secretEnv });
     expect(server.dbFor(service).$context.actor).toEqual({

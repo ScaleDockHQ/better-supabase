@@ -201,6 +201,57 @@ export const ADOPTION_RULES: readonly Rule[] = [
     },
   },
   {
+    code: "BS344",
+    severity: "warning",
+    title: "Adopted webhook endpoints without a format",
+    description:
+      "An adopted `webhooks-out` endpoints table that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `sql sync` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
+    check: (context) => {
+      const block = context.config.blocks["webhooks-out"];
+
+      if (
+        block?.mode !== "adopt" ||
+        block.options?.["defaultFormat"] !== undefined ||
+        typeof block.columns?.["endpoints"]?.["format"] === "string"
+      ) {
+        return [];
+      }
+
+      const adopted = adoptedTables(context.config.blocks).find(
+        (entry) =>
+          entry.module === "webhooks-out" && entry.logical === "endpoints",
+      );
+
+      const table =
+        adopted === undefined
+          ? undefined
+          : catalogOf(context).tables.find(
+              (entry) =>
+                entry.schema === adopted.schema && entry.name === adopted.table,
+            );
+
+      const name =
+        adopted === undefined
+          ? "The adopted endpoints table"
+          : `${adopted.schema}.${adopted.table}`;
+
+      const unmapped = table?.columns.some(
+        (column) => column.name === "format",
+      );
+
+      const has = unmapped
+        ? "has a format column the config doesn't map"
+        : "has no format column";
+
+      return [
+        {
+          message: `${name} ${has}, so every endpoint gets blocks.webhooks-out.options.defaultFormat, which defaults to "cloudevents" since 0.9 ("standard" before). Set defaultFormat to the body your receivers expect, or map columns.endpoints.format.`,
+          target: "blocks.webhooks-out.options.defaultFormat",
+        },
+      ];
+    },
+  },
+  {
     code: "BS341",
     severity: "warning",
     title: "Data export includes a column that looks like a secret",

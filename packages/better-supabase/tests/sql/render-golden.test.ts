@@ -46,9 +46,18 @@ const VARIANTS: readonly Variant[] = [
     name: "adopt",
     applies: (module) => SQL_MODULES[module]?.modes?.includes("adopt") ?? false,
     modules: (module) => [module],
-    layout: (module) => ({ modules: { [module]: { mode: "adopt" } } }),
+    layout: (module) => ({
+      modules: {
+        [module]: { mode: "adopt", ...ADOPT_OPTIONS[module] },
+      },
+    }),
   },
 ];
+
+/** Options an adopted module refuses to render without. */
+const ADOPT_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
+  "webhooks-out": { options: { defaultFormat: "standard" } },
+};
 
 function render(variant: Variant, module: string): string {
   let files;

@@ -135,6 +135,51 @@ describe("attachments module", () => {
     );
   });
 
+  it("takes upload and manage keys from the subject registry, and lets the block override them", () => {
+    const render = (options?: Readonly<Record<string, unknown>>): string =>
+      renderModules(["attachments"], {
+        subjects: {
+          contract: {
+            table: "contracts",
+            permissions: {
+              read: "contracts.read",
+              write: "contracts.write",
+              upload: "contracts.edit",
+              manage: "contracts.admin",
+            },
+          },
+        },
+        modules: options ? { attachments: { options } } : {},
+      })
+        .filter((file) => file.module === "attachments")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const sql = render();
+
+    expect(sql).toContain(
+      `case "subject_type" when 'contract' then 'contracts.edit' else 'attachments.upload' end`,
+    );
+    expect(sql).toContain("'contracts.admin'");
+    expect(sql).not.toContain(
+      `case a."subject_type" when 'contract' then 'contracts.read'`,
+    );
+
+    const overridden = render({
+      subjects: {
+        contract: {
+          table: "contracts",
+          permissions: { upload: "contracts.upload" },
+        },
+      },
+    });
+
+    expect(overridden).toContain(
+      `case "subject_type" when 'contract' then 'contracts.upload' else 'attachments.upload' end`,
+    );
+    expect(overridden).toContain("'contracts.admin'");
+  });
+
   it("accepts any valid bucket id, short ones included", () => {
     const sql = sqlOf(["attachments"], {
       bucket: "ai",

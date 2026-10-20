@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`trigger with betterSupabase > reads each lookup once per row, however many topics and payload keys use it 1`] = `
+"-- better-supabase: broadcast customer_tags changes to org:{organizationSlug}:tags, org:{organizationSlug}:customer:{customerId}, org:{organizationSlug}:tags
+create schema if not exists "better_supabase";
+create or replace function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  rec record;
+  vals jsonb;
+  bad record;
+  body jsonb;
+  lk_0 record;
+  lk_1 record;
+begin
+  if tg_when <> 'AFTER' then
+    raise exception '% runs after the write; as a % trigger it would cancel the write', tg_name, lower(tg_when)
+      using errcode = '39P01';
+  end if;
+  if tg_op = 'DELETE' then rec := old; else rec := new; end if;
+  select j."organization_id" into lk_0 from "public"."customers" j where j."id" = rec."customer_id" limit 1;
+  if not found and tg_op = 'DELETE' and rec."customer_id" is not null then
+    raise warning 'better-supabase: realtime lookup found no row for a delete on %.%: no % row where % = %', tg_table_schema, tg_table_name, '"public"."customers"', '"id"', rec."customer_id"
+      using hint = 'The parent row was deleted in the same statement, such as a cascade, so the topic that reads it is skipped. Keep the topic value on the row itself, or add a topic trigger on the parent.';
+  end if;
+  select j."slug" into lk_1 from "public"."organizations" j where j."id" = lk_0."organization_id" limit 1;
+  if not found and tg_op = 'DELETE' and lk_0."organization_id" is not null then
+    raise warning 'better-supabase: realtime lookup found no row for a delete on %.%: no % row where % = %', tg_table_schema, tg_table_name, '"public"."organizations"', '"id"', lk_0."organization_id"
+      using hint = 'The parent row was deleted in the same statement, such as a cascade, so the topic that reads it is skipped. Keep the topic value on the row itself, or add a topic trigger on the parent.';
+  end if;
+  body := jsonb_build_object('tagId', rec."tag_id", 'organization', lk_1."slug");
+  -- org:{organizationSlug}:tags
+  vals := jsonb_build_object('organizationSlug', (lk_1."slug")::text);
+  select e.key, e.value into bad from jsonb_each_text(vals) as e
+    where e.value is null or e.value !~ '^[\\w.@+=-]+$'
+    order by e.value is null desc limit 1;
+  if not found then
+    perform realtime.send(body, tg_op, 'org:' || (vals ->> 'organizationSlug') || ':tags', true);
+  elsif bad.value is not null then
+    raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', 'org:{organizationSlug}:tags', bad.value, tg_table_schema, tg_table_name, bad.key;
+  end if;
+  -- org:{organizationSlug}:customer:{customerId}
+  vals := jsonb_build_object('organizationSlug', (lk_1."slug")::text, 'customerId', (rec."customer_id")::text);
+  select e.key, e.value into bad from jsonb_each_text(vals) as e
+    where e.value is null or e.value !~ '^[\\w.@+=-]+$'
+    order by e.value is null desc limit 1;
+  if not found then
+    perform realtime.send(body, tg_op, 'org:' || (vals ->> 'organizationSlug') || ':customer:' || (vals ->> 'customerId'), true);
+  elsif bad.value is not null then
+    raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', 'org:{organizationSlug}:customer:{customerId}', bad.value, tg_table_schema, tg_table_name, bad.key;
+  end if;
+  -- org:{organizationSlug}:tags
+  vals := jsonb_build_object('organizationSlug', (lk_1."slug")::text);
+  select e.key, e.value into bad from jsonb_each_text(vals) as e
+    where e.value is null or e.value !~ '^[\\w.@+=-]+$'
+    order by e.value is null desc limit 1;
+  if not found then
+    perform realtime.send(body, tg_op, 'org:' || (vals ->> 'organizationSlug') || ':tags', true);
+  elsif bad.value is not null then
+    raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', 'org:{organizationSlug}:tags', bad.value, tg_table_schema, tg_table_name, bad.key;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"() from public, anon, authenticated;
+
+drop trigger if exists "bs_broadcast_org_tags" on "public"."customer_tags";
+create trigger "bs_broadcast_org_tags" after insert or update or delete on "public"."customer_tags"
+  for each row execute function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"();
+"
+`;

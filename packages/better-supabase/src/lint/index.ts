@@ -38,6 +38,23 @@ interface ObjectExpression extends Node {
   readonly properties: readonly Node[];
 }
 
+interface ArrayExpression extends Node {
+  readonly type: "ArrayExpression";
+  readonly elements: readonly (Node | null)[];
+}
+
+interface TemplateLiteral extends Node {
+  readonly type: "TemplateLiteral";
+  readonly expressions: readonly Node[];
+}
+
+interface BinaryExpression extends Node {
+  readonly type: "BinaryExpression";
+  readonly operator: string;
+  readonly left: Node;
+  readonly right: Node;
+}
+
 interface MemberExpression extends Node {
   readonly type: "MemberExpression";
   readonly object: Node;
@@ -204,13 +221,94 @@ function rule(
 
 const FIND_METHODS = new Set(["findMany", "findFirst", "paginate"]);
 
+/** Whether `node` calls `escapeLike(...)`, imported bare or through a namespace. */
+function isEscapeLike(node: Node): boolean {
+  if (node.type !== "CallExpression") {
+    return false;
+  }
+
+  // SAFETY: the type check above narrows node to a CallExpression.
+  const { callee } = node as CallExpression;
+
+  if (callee.type === "Identifier") {
+    // SAFETY: the type check above narrows the callee to an Identifier.
+    return (callee as Identifier).name === "escapeLike";
+  }
+
+  // SAFETY: the type check at the top narrows node to a CallExpression.
+  return methodName(node as CallExpression) === "escapeLike";
+}
+
+/**
+ * Whether a `like` or `ilike` value may carry a caller's `%` and `_`
+ * unescaped: a variable, a property, or a template or `+` concatenation
+ * with one that isn't wrapped in `escapeLike(...)`. Literals pass.
+ */
+function unescapedPattern(node: Node): boolean {
+  const part = (child: Node): boolean =>
+    !isEscapeLike(child) && unescapedPattern(child);
+
+  switch (node.type) {
+    case "Identifier":
+    case "MemberExpression": {
+      return true;
+    }
+
+    case "TemplateLiteral": {
+      // SAFETY: the case above narrows node to a TemplateLiteral.
+      return (node as TemplateLiteral).expressions.some(part);
+    }
+
+    case "BinaryExpression": {
+      // SAFETY: the case above narrows node to a BinaryExpression.
+      const { operator, left, right } = node as BinaryExpression;
+
+      return operator === "+" && (part(left) || part(right));
+    }
+
+    default: {
+      return false;
+    }
+  }
+}
+
+/** Every `like` and `ilike` value in a `where` object, through `AND`, `OR`, `NOT` and relations. */
+function likeValues(node: Node): Node[] {
+  if (node.type === "ArrayExpression") {
+    // SAFETY: the type check above narrows node to an ArrayExpression.
+    return (node as ArrayExpression).elements.flatMap((element) =>
+      element ? likeValues(element) : [],
+    );
+  }
+
+  if (node.type !== "ObjectExpression") {
+    return [];
+  }
+
+  // SAFETY: the type check above narrows node to an ObjectExpression.
+  return (node as ObjectExpression).properties.flatMap((property) => {
+    if (property.type !== "Property") {
+      return [];
+    }
+
+    // SAFETY: the type check above narrows property to a Property.
+    const entry = property as Property;
+    const name = keyName(entry);
+
+    return name === "like" || name === "ilike"
+      ? [entry.value]
+      : likeValues(entry.value);
+  });
+}
+
 export type RuleId =
   | "no-unbounded-find-many"
   | "no-delete-many-without-where"
   | "max-limit"
   | "require-order-by"
   | "unbounded-read"
-  | "require-max-affected";
+  | "require-max-affected"
+  | "require-escape-like";
 
 /** The part of `supabase/snapshot.json` that `largeTables` reads. */
 export interface LintSnapshot {
@@ -430,6 +528,29 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       },
     ],
   ),
+  "require-escape-like": rule(
+    "Escape values passed to like and ilike",
+    "require-escape-like",
+    {
+      unescaped:
+        "This like pattern takes a value whose % and _ act as wildcards. Use ieq, contains or startsWith, or wrap the value in escapeLike().",
+    },
+    (context) => ({
+      CallExpression(node) {
+        const where = argsOf(node)?.get("where");
+
+        if (where === undefined) {
+          return;
+        }
+
+        for (const value of likeValues(where)) {
+          if (unescapedPattern(value)) {
+            context.report({ node: value, messageId: "unescaped" });
+          }
+        }
+      },
+    }),
+  ),
 };
 
 export const plugin: {
@@ -455,6 +576,7 @@ export const plugin: {
         "better-supabase/max-limit": "warn",
         "better-supabase/require-order-by": "warn",
         "better-supabase/unbounded-read": "warn",
+        "better-supabase/require-escape-like": "warn",
       },
     },
   },

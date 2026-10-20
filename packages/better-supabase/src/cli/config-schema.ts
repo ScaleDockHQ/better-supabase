@@ -513,6 +513,11 @@ const ENTRIES = {
               ),
             ),
             functionSchema: v.optional(v.string()),
+            when: v.optional(
+              v.strictObject({
+                changed: v.pipe(v.array(v.string()), v.minLength(1)),
+              }),
+            ),
           }),
         ),
       ),

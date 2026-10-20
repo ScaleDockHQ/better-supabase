@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { Db } from "../../src/core/repository-types.ts";
@@ -71,5 +73,18 @@ describe("buckets on the server db", () => {
     expectTypeOf(
       server.dbFor({ kind: "anon", reason: "none" }).$buckets.logos,
     ).toEqualTypeOf<Logos>();
+  });
+});
+
+describe("auth admin on the server db", () => {
+  it("types $authAdmin on admin() and nowhere else", () => {
+    const server = createServer(defineSupabase(schema));
+
+    expectTypeOf(server.admin().$authAdmin).toEqualTypeOf<
+      SupabaseClient["auth"]["admin"]
+    >();
+    expectTypeOf(
+      server.dbFor({ kind: "anon", reason: "none" }),
+    ).not.toHaveProperty("$authAdmin");
   });
 });

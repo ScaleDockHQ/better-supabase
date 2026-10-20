@@ -183,6 +183,74 @@ describe("better-supabase/lint", () => {
     expect(run("unbounded-read", on("tags"))).toEqual([]);
   });
 
+  it("flags like and ilike values that aren't escaped", () => {
+    const search = { type: "Identifier", name: "search" };
+
+    const escaped = {
+      type: "CallExpression",
+      callee: { type: "Identifier", name: "escapeLike" },
+      arguments: [search],
+    };
+
+    const template = (...expressions: unknown[]) => ({
+      type: "TemplateLiteral",
+      expressions,
+    });
+
+    const find = (where: unknown) =>
+      run("require-escape-like", call("findMany", object({ where })));
+
+    expect(find(object({ name: object({ ilike: search }) }))).toEqual([
+      { messageId: "unescaped" },
+    ]);
+    expect(
+      find(object({ name: object({ like: member("query") }) })),
+    ).toHaveLength(1);
+    expect(
+      find(object({ name: object({ ilike: template(search) }) })),
+    ).toHaveLength(1);
+    expect(
+      find(
+        object({
+          OR: {
+            type: "ArrayExpression",
+            elements: [object({ name: object({ ilike: search }) }), null],
+          },
+          owner: object({ email: object({ like: search }) }),
+        }),
+      ),
+    ).toHaveLength(2);
+    expect(
+      find(
+        object({
+          name: object({
+            ilike: {
+              type: "BinaryExpression",
+              operator: "+",
+              left: search,
+              right: literal("%"),
+            },
+          }),
+        }),
+      ),
+    ).toHaveLength(1);
+
+    expect(find(object({ name: object({ ilike: literal("a%") }) }))).toEqual(
+      [],
+    );
+    expect(
+      find(object({ name: object({ ilike: template(escaped) }) })),
+    ).toEqual([]);
+    expect(find(object({ name: object({ ilike: escaped }) }))).toEqual([]);
+    expect(find(object({ name: object({ ieq: search }) }))).toEqual([]);
+    expect(
+      run(
+        "require-escape-like",
+        call("findMany", object({ limit: literal(1) })),
+      ),
+    ).toEqual([]);
+  });
+
   it("ships a flat recommended config that registers itself", () => {
     expect(defaultPlugin).toBe(plugin);
     expect(plugin.configs.recommended.plugins["better-supabase"]).toBe(plugin);

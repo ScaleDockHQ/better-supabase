@@ -301,6 +301,12 @@ describe("argument checking", () => {
     db.customers.findMany({ where: { status: "deleted" } });
     // @ts-expect-error contains is only for text
     db.notes.findMany({ where: { id: { contains: "1" } } });
+    db.customers.findMany({ where: { name: { ieq: "acme" } } });
+    db.customers.findMany({
+      where: { metadata: { path: ["tier"], ieq: "Pro" } },
+    });
+    // @ts-expect-error ieq is only for text
+    db.notes.findMany({ where: { id: { ieq: "1" } } });
     db.notes.findMany({ where: { kind: { notIn: ["email"] } } });
   });
 

@@ -283,6 +283,7 @@ export default defineConfig({
         secretStorage: "column",
         eventIdType: "uuid",
         runIdType: "uuid",
+        defaultFormat: "cloudevents",
         statuses: {
           delivering: "processing",
           succeeded: "completed",
@@ -463,7 +464,12 @@ export default defineConfig({
             idType: "uuid",
             scope: "project",
           },
-          customer: { table: "centrakit.customers", idType: "bigint" },
+          // centrakit.customers checks crm.read, not tenant membership (BS345).
+          customer: {
+            table: "centrakit.customers",
+            idType: "bigint",
+            permissions: { read: "crm.read", upload: "crm.read" },
+          },
         },
       },
     },

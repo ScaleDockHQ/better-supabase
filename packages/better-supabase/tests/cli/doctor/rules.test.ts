@@ -1379,6 +1379,82 @@ describe("adopted enum columns the module writes as text (BS342)", () => {
   });
 });
 
+describe("adopted webhook endpoints without a format (BS344)", () => {
+  const withEndpoints = (columns: readonly string[]) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        name: "hook_endpoints",
+        columns: columns.map((name) => ({ ...column, name })),
+        foreignKeys: [],
+        triggers: [],
+      });
+    });
+
+  const adopt = (extra: Record<string, unknown> = {}) => ({
+    blocks: {
+      "webhooks-out": {
+        mode: "adopt" as const,
+        tables: { endpoints: "public.hook_endpoints" },
+        ...extra,
+      },
+    },
+  });
+
+  it("reports an adopted endpoints table with no format column and no defaultFormat", async () => {
+    expect(
+      await run("BS344", context(withEndpoints(["id", "url"]), {}, adopt())),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "blocks.webhooks-out.options.defaultFormat",
+        message: expect.stringContaining(
+          "public.hook_endpoints has no format column",
+        ),
+      }),
+    ]);
+    expect(
+      await run(
+        "BS344",
+        context(withEndpoints(["id", "url", "format"]), {}, adopt()),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "has a format column the config doesn't map",
+        ),
+      }),
+    ]);
+  });
+
+  it("passes an explicit defaultFormat, a mapped column and managed tables", async () => {
+    const snap = withEndpoints(["id", "url", "format"]);
+
+    expect(
+      await run(
+        "BS344",
+        context(snap, {}, adopt({ options: { defaultFormat: "standard" } })),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS344",
+        context(
+          snap,
+          {},
+          adopt({ columns: { endpoints: { format: "format" } } }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run("BS344", context(snap, {}, { blocks: { "webhooks-out": {} } })),
+    ).toEqual([]);
+  });
+});
+
 describe("subject registry (BS331, BS332)", () => {
   it("reports a missing table and each missing column", async () => {
     const findings = await run(
@@ -1438,6 +1514,246 @@ describe("subject registry (BS331, BS332)", () => {
       expect.objectContaining({
         severity: "warning",
         target: "public.notes",
+      }),
+    ]);
+  });
+});
+
+describe("attachments subject on block-wide keys (BS345)", () => {
+  const withPolicies = (select: string, insert: string) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_select",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using: select,
+          check: null,
+        },
+        {
+          name: "notes_insert",
+          command: "insert",
+          roles: ["authenticated"],
+          permissive: true,
+          using: null,
+          check: insert,
+        },
+      ];
+    });
+
+  const tenantOnly =
+    "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))";
+
+  const strict =
+    "(better_supabase.can('tenant'::text, organization_id, 'notes.read'::text) AND (owner_id = ( SELECT auth.uid() AS uid)))";
+
+  const config = (
+    subjects: Readonly<Record<string, unknown>>,
+    registry: Readonly<Record<string, { table: string }>> = {},
+  ): BetterSupabaseConfig => ({
+    subjects: registry,
+    blocks: { attachments: { options: { subjects } } },
+  });
+
+  it("reports a subject whose table checks more than tenant membership", async () => {
+    const findings = await run(
+      "BS345",
+      context(
+        withPolicies(strict, tenantOnly),
+        {},
+        config({ note: { table: "notes" } }),
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.notes",
+        message: expect.stringContaining(
+          "blocks.attachments.options.subjects.note.permissions.read",
+        ),
+      }),
+    ]);
+    expect(findings[0]?.message).not.toContain("permissions.upload");
+  });
+
+  it("passes tenant-only policies, the block's own key and a soft-delete filter", async () => {
+    const blockKey =
+      "((organization_id IN ( SELECT better_supabase.tenant_ids_with('attachments.read'::text) AS tenant_ids_with)) AND (deleted_at IS NULL))";
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          withPolicies(blockKey, tenantOnly),
+          {},
+          config({ note: { table: "notes" } }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("counts the subject's own read key, which the readable check adds", async () => {
+    const snap = withPolicies(strict, tenantOnly);
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          config({ note: { table: "notes", permission: "notes.read" } }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: {
+              note: { table: "notes", permissions: { read: "notes.read" } },
+            },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads subjects listed by name from the registry and skips unknown tables", async () => {
+    const findings = await run(
+      "BS345",
+      context(
+        withPolicies(strict, tenantOnly),
+        {},
+        {
+          subjects: {
+            note: { table: "public.notes" },
+            ghost: { table: "missing" },
+          },
+          blocks: {
+            attachments: { options: { subjects: ["note", "ghost", 1] } },
+          },
+        },
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual(["public.notes"]);
+
+    const forAll = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_all",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: true,
+          using: tenantOnly,
+          check: null,
+        },
+      ];
+    });
+
+    for (const subjects of [{ note: { table: "notes" }, bad: 1 }, "notes"]) {
+      expect(
+        await run(
+          "BS345",
+          context(
+            forAll,
+            {},
+            {
+              subjects: { note: { table: "notes" } },
+              blocks: { attachments: { options: { subjects } } },
+            },
+          ),
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  it("passes provider membership helpers, a wider or branch and a table no client inserts into", async () => {
+    const provider =
+      "(organization_id IN ( SELECT centrakit.authz_organization_member_ids() AS authz_organization_member_ids))";
+
+    const wider = `(${provider} OR (id IN ( SELECT pm.note_id FROM project_members pm WHERE (pm.user_id = ( SELECT auth.uid() AS uid)))))`;
+
+    const readOnly = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_select",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using: wider,
+          check: null,
+        },
+      ];
+    });
+
+    for (const snap of [withPolicies(provider, provider), readOnly]) {
+      expect(
+        await run(
+          "BS345",
+          context(snap, {}, config({ note: { table: "notes" } })),
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  it("passes a subject with its own keys, from the block or the registry", async () => {
+    const snap = withPolicies(tenantOnly, strict);
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          config({
+            note: { table: "notes", permissions: { upload: "notes.edit" } },
+          }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: {
+              note: { table: "notes", permissions: { upload: "notes.edit" } },
+            },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: { note: { table: "notes" } },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("subjects.note.permissions.upload"),
       }),
     ]);
   });

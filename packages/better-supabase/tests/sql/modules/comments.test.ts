@@ -96,6 +96,28 @@ describe("comments module", () => {
     ).toThrow("member must be a non-empty string");
   });
 
+  it("takes create from the subject registry and ignores keys it has no action for", () => {
+    const sql = renderModules(["comments"], {
+      subjects: {
+        deal: {
+          table: "deals",
+          permissions: {
+            read: "deals.read",
+            write: "deals.write",
+            create: "deals.comment",
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "comments")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `case "subject_type" when 'deal' then 'deals.comment' else 'comments.create' end`,
+    );
+  });
+
   it("checks a subject type's own permission per action", () => {
     const sql = sqlOf(["comments"], {
       subjects: {

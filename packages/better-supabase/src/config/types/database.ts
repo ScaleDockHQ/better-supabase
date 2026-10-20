@@ -177,6 +177,11 @@ export interface TopicTriggerConfig {
     | Readonly<Record<string, TopicTriggerPayloadValueConfig>>;
   readonly topics?: readonly TopicTriggerTopicConfig[];
   readonly functionSchema?: string;
+  /**
+   * `{ changed: ["status"] }` sends an UPDATE only when one of these
+   * columns changed. Inserts and deletes always send.
+   */
+  readonly when?: { readonly changed: readonly string[] };
 }
 
 /** `realtime.policies`: where topic policies come from and go. */

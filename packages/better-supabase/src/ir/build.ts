@@ -65,6 +65,7 @@ const FIELD_OPS = new Set([
   "lte",
   "like",
   "ilike",
+  "ieq",
   "match",
   "imatch",
   "contains",
@@ -445,6 +446,11 @@ export class IrBuilder {
           break;
         }
 
+        case "ieq": {
+          items.push(at("ilike", escapeLike(String(text(operand)))));
+          break;
+        }
+
         default: {
           invalidRequest(
             `Unknown operator "${op}" on a path of "${name}"`,
@@ -543,6 +549,10 @@ export class IrBuilder {
         }
 
         return col("ilike", `%${escapeLike(String(operand))}%`);
+      }
+
+      case "ieq": {
+        return col("ilike", escapeLike(String(operand)));
       }
 
       case "startsWith": {

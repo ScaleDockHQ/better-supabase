@@ -969,6 +969,19 @@ describe("compilePostgrest through supabase-js", () => {
     ]);
   });
 
+  it("sends ieq as an escaped ilike, with * literal", async () => {
+    const { client, last } = capturingClient();
+    const db = defineSupabase(schema).connect(client);
+    await db.customers
+      .findMany({ select: ["id"], where: { name: { ieq: "Acme*_co" } } })
+      .orThrow();
+    expect(query(last())).toEqual([
+      "select=id",
+      "name=imatch.^Acme\\*_co$",
+      "order=id.asc",
+    ]);
+  });
+
   it("sends Dates as ISO text, null in a list as is.null and * literally", async () => {
     const { client, last } = capturingClient();
     const db = defineSupabase(schema).connect(client);

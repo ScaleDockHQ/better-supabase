@@ -311,6 +311,12 @@ describe("IrBuilder.where field operators", () => {
     ["ilike", { ilike: "a%" }, col("name", "ilike", "a%")],
     ["match", { match: "^A[0-9]+$" }, col("name", "match", "^A[0-9]+$")],
     ["imatch", { imatch: "^a" }, col("name", "imatch", "^a")],
+    ["ieq", { ieq: "Acme" }, col("name", "ilike", "Acme")],
+    [
+      "ieq escapes wildcards",
+      { ieq: "50%_a\\b" },
+      col("name", "ilike", "50\\%\\_a\\\\b"),
+    ],
     ["contains on text", { contains: "50%" }, col("name", "ilike", "%50\\%%")],
     ["startsWith", { startsWith: "a_" }, col("name", "like", "a\\_%")],
     ["endsWith", { endsWith: "b" }, col("name", "like", "%b")],
@@ -452,6 +458,11 @@ describe("IrBuilder.where field operators", () => {
           pathCol("metadata", "imatch", "^2", ["at"]),
         ],
       },
+    ],
+    [
+      "ieq",
+      { path: ["code"], ieq: "a_1" },
+      pathCol("metadata", "ilike", "a\\_1", ["code"]),
     ],
   ])("filters a json path with %s", (_name, operand, expected) => {
     expect(ir.where(customers, { metadata: operand })).toEqual(expected);

@@ -653,6 +653,22 @@
               "functionSchema": {
                 "type": "string",
                 "description": "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose."
+              },
+              "when": {
+                "type": "object",
+                "properties": {
+                  "changed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "Columns (database names) whose change lets an UPDATE send. A trigger for updates alone compiles it into its WHEN clause."
+                  }
+                },
+                "required": ["changed"],
+                "additionalProperties": false,
+                "description": "Filters updates: with { changed: [columns] } an UPDATE sends only when one of those columns changed. Inserts and deletes always send."
               }
             },
             "required": ["topic", "table"],

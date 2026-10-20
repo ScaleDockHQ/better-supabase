@@ -251,7 +251,12 @@ update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $
 ```
 
 An adopted endpoints table keeps its own column. When it doesn't map
-`format`, or a row holds `null`, deliveries use `defaultFormat`.
+`format`, or a row holds `null`, deliveries use `defaultFormat`. `sql upgrade`
+can't add a column to a table it doesn't own, so an adopted table with no
+`format` column moves every endpoint to `cloudevents` at once unless you set
+`defaultFormat: "standard"`. From 0.11, `sql sync` refuses that config
+without an explicit `defaultFormat`, and doctor reports it as
+[BS344](/docs/cli/doctor#bs344).
 
 Generic problems use `type: "about:blank"` and the HTTP status phrase as
 `title`:

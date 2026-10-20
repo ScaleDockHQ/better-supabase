@@ -327,6 +327,87 @@ describe.skipIf(!live)("Realtime module", async () => {
     }
   });
 
+  it("filters updates with when.changed, and warns when a cascade hides the parent row", async () => {
+    const client = await pool.connect();
+
+    try {
+      await client.query("begin");
+      await client.query(`
+        create table public.bs_rt_parents (id int primary key, org text not null);
+        create table public.bs_rt_children (
+          id int primary key,
+          parent_id int not null references public.bs_rt_parents on delete cascade,
+          status text not null,
+          note text
+        );
+        insert into public.bs_rt_parents values (1, 'org-a'), (2, 'org-b');
+      `);
+
+      const board = defineTopic("rtboard:{org}:{parentId}");
+      await client.query(
+        board.trigger("public.bs_rt_children", {
+          values: {
+            org: {
+              from: "public.bs_rt_parents",
+              via: "parent_id",
+              select: "org",
+            },
+            parentId: "parent_id",
+          },
+          when: { changed: ["status"] },
+        }),
+      );
+
+      const sent = async (topic: string) =>
+        (
+          await client.query<{ event: string }>(
+            "select event from realtime.messages where topic = $1 order by inserted_at, id",
+            [topic],
+          )
+        ).rows.map((row) => row.event);
+
+      await client.query(
+        "insert into public.bs_rt_children values (10, 1, 'open', null), (20, 2, 'open', null)",
+      );
+      await client.query(
+        "update public.bs_rt_children set note = 'only a note' where id = 10",
+      );
+      expect(await sent("rtboard:org-a:1")).toEqual(["INSERT"]);
+
+      await client.query(
+        "update public.bs_rt_children set status = 'done' where id = 10",
+      );
+      expect(await sent("rtboard:org-a:1")).toEqual(["INSERT", "UPDATE"]);
+
+      await client.query("delete from public.bs_rt_children where id = 10");
+      expect(await sent("rtboard:org-a:1")).toEqual([
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+      ]);
+
+      const warnings: string[] = [];
+
+      const onNotice = (notice: { message?: string | undefined }) => {
+        warnings.push(notice.message ?? "");
+      };
+
+      client.on("notice", onNotice);
+      await client.query("delete from public.bs_rt_parents where id = 2");
+      client.off("notice", onNotice);
+
+      expect(await sent("rtboard:org-b:2")).toEqual(["INSERT"]);
+      expect(warnings).toEqual([
+        expect.stringContaining(
+          "better-supabase: realtime lookup found no row for a delete on public.bs_rt_children",
+        ),
+      ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   // Fails on the stack engine (see stackEngine); CI runs it on the legacy engine.
   it.skipIf(stackEngine)(
     "broadcasts row changes to the tenant topic",

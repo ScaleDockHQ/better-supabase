@@ -13,20 +13,25 @@ where: { status: 'active', kvk: null }
 
 Operators depend on the column type:
 
-| Type                 | Operators                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| All                  | `eq`, `neq`, `in`, `notIn`, `isNull`, `not`                                        |
-| Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                                           |
-| Text                 | `like`, `ilike`, `match`, `imatch`, `contains`, `startsWith`, `endsWith`, `search` |
-| Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                                        |
-| jsonb                | `contains` (`@>`), `path` with the operators below                                 |
+| Type                 | Operators                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| All                  | `eq`, `neq`, `in`, `notIn`, `isNull`, `not`                                               |
+| Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                                                  |
+| Text                 | `like`, `ilike`, `ieq`, `match`, `imatch`, `contains`, `startsWith`, `endsWith`, `search` |
+| Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                                               |
+| jsonb                | `contains` (`@>`), `path` with the operators below                                        |
 
-`contains`, `startsWith` and `endsWith` escape `%`, `_` and `\` in your input,
-so the text matches literally. Only `contains` is case-insensitive (it sends
-`ilike`); `startsWith` and `endsWith` send `like` and are case-sensitive. For
-a case-insensitive prefix or suffix, use `ilike` with an escaped pattern:
-`ilike: \`${escapeLike(prefix)}%\``. `escapeLike`is exported from`better-supabase`and escapes the same three characters, for input you put in
-a`like`or`ilike` pattern yourself.
+`ieq`, `contains`, `startsWith` and `endsWith` escape `%`, `_` and `\` in
+your input, so the text matches literally. `ieq` (from 0.11) is
+case-insensitive equality, such as an email or a slug typed in any case.
+`contains` is case-insensitive too (both send `ilike`); `startsWith` and
+`endsWith` send `like` and are case-sensitive. For a case-insensitive prefix
+or suffix, use `ilike` with an escaped pattern:
+`` ilike: `${escapeLike(prefix)}%` ``. `escapeLike` is exported from
+`better-supabase` and escapes the same three characters, for input you put
+in a `like` or `ilike` pattern yourself. The
+[`require-escape-like`](/docs/plugins/lint#require-escape-like) lint rule
+flags a variable passed to `like` or `ilike` without it.
 
 Use `like` or `ilike` when you want wildcards (`%` and `_`; a `*` in the
 pattern is a literal character, as in Postgres), and `match` (`~`) or `imatch`
@@ -46,7 +51,7 @@ where: {
 
 `path` compares the text at a key inside a jsonb column, as `->>` does.
 It takes `eq`, `neq`, `in`, `notIn`, `isNull`, `gt`, `gte`, `lt`, `lte`,
-`like` and `ilike`:
+`like`, `ilike`, `ieq`, `match` and `imatch`:
 
 ```ts
 where: {

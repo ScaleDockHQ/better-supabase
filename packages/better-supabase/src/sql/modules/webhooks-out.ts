@@ -171,6 +171,24 @@ function formatDefault(ctx: ModuleContext, n: HookNames): string {
     : "";
 }
 
+export const ADOPTED_FORMAT_ERROR =
+  'blocks.webhooks-out: the adopted endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
+
+/**
+ * Without a format column every endpoint uses `defaultFormat`, whose
+ * default changed from the 0.8 body to `cloudevents` in 0.9, so an adopted
+ * table has to choose it.
+ */
+function requireAdoptedFormat(ctx: ModuleContext, n: HookNames): void {
+  if (
+    ctx.mode === "adopt" &&
+    !n.has("endpoints", "format") &&
+    ctx.option("defaultFormat") === undefined
+  ) {
+    throw new TypeError(ADOPTED_FORMAT_ERROR);
+  }
+}
+
 /** `add column if not exists` for columns a table created by version 2 lacks. */
 function added(
   n: HookNames,
@@ -418,6 +436,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   }
 
   const n = hookNames(ctx, layout);
+
+  requireAdoptedFormat(ctx, n);
 
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}${ctx.manages ? "" : formatDefault(ctx, n)}`,
