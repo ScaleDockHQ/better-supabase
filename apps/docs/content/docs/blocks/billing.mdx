@@ -510,10 +510,10 @@ table, and `billing_plan_of_price(price)` maps a Stripe price to a key of
 In this mode `checkout` fails with a `conflict` error whose hint is
 `BILLING_ALREADY_SUBSCRIBED` when the tenant has an active, trialing or past
 due subscription. To refuse tenants that another provider bills (a
-marketplace or an invoice contract), pass `external: (tenant) => provider |
-undefined` to `createBilling`. `checkout` then fails with the hint
+marketplace or an invoice contract), pass an `external` function to
+`createBilling` that returns the provider's name, or `undefined`. `checkout` then fails with the hint
 `BILLING_EXTERNAL`. The SQL hook `public.billing_external_provider(tenant)`
-does the same for the webhook mode check, and `external` works in both modes.
+does the same in SQL, and `external` works in both modes.
 
 ## Stripe webhooks
 
