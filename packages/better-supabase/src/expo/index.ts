@@ -47,6 +47,8 @@ export interface ExpoContextOptions
   /**
    * Refresh an expired cookie session and write the new cookies with
    * `setResponseHeaders`. Defaults to true; bearer tokens never refresh.
+   * When `bs.middleware()` already ran for the request, the context reads the
+   * session it refreshed and never calls Auth again, whatever this option says.
    */
   readonly refresh?: boolean;
 }
@@ -137,6 +139,36 @@ function toRequest(request: ExpoRequest): Request {
   });
 }
 
+/**
+ * expo-server wraps the incoming request in a new `ImmutableRequest` for the
+ * middleware and for each loader, so a handoff can't key on the object. The
+ * old cookie header pins it to one session: another request with the same key
+ * carries the same cookies and would refresh to the same session.
+ */
+const HANDOFF_TTL_MS = 10_000;
+
+interface Handoff {
+  /** The cookie header after the middleware's refresh, or undefined when it wrote no cookies. */
+  readonly cookie: string | undefined;
+  readonly expires: number;
+}
+
+function handoffKey(request: ExpoRequest): string {
+  return `${request.method} ${request.url}\n${request.headers.get("cookie") ?? ""}`;
+}
+
+/** The request with its cookie header replaced, keeping method and body. */
+function withCookie(request: Request, cookie: string | undefined): Request {
+  if (cookie === undefined) {
+    return request;
+  }
+
+  const headers = new Headers(request.headers);
+  headers.set("cookie", cookie);
+
+  return new Request(request, { headers });
+}
+
 /** Sends the cookies and headers `ctx.apply` would add to a response. */
 function writeHeaders(
   ctx: Pick<ServerContext<AnyModels, AnyFunctions, unknown>, "cookies"> & {
@@ -189,17 +221,45 @@ export function createExpo<
 ): BetterExpo<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
+  const handoffs = new Map<string, Handoff>();
+
+  const handOff = (incoming: ExpoRequest, cookie: string | undefined): void => {
+    const now = Date.now();
+
+    // Insertion order is expiry order, so the expired entries lead.
+    for (const [key, entry] of handoffs) {
+      if (entry.expires > now) {
+        break;
+      }
+
+      handoffs.delete(key);
+    }
+
+    handoffs.set(handoffKey(incoming), {
+      cookie,
+      expires: now + HANDOFF_TTL_MS,
+    });
+  };
+
+  const handedOff = (incoming: ExpoRequest): Handoff | undefined => {
+    const entry = handoffs.get(handoffKey(incoming));
+
+    return entry && entry.expires > Date.now() ? entry : undefined;
+  };
 
   const request = async (
     incoming: ExpoRequest,
     contextOptions: ExpoContextOptions = {},
   ): Promise<ServerContext<M, F, E, C, P, B>> => {
     const { allow, aal, scopes, refresh = true, ...rest } = contextOptions;
+    const handoff = handedOff(incoming);
 
-    const ctx = await server.context(toRequest(incoming), {
-      ...rest,
-      refresh,
-    });
+    const ctx = await server.context(
+      handoff
+        ? withCookie(toRequest(incoming), handoff.cookie)
+        : toRequest(incoming),
+      { ...rest, refresh: handoff ? false : refresh },
+    );
 
     writeHeaders(ctx);
 
@@ -286,6 +346,17 @@ export function createExpo<
           !guard(ctx.auth, allow, aal, scopes)
         ) {
           writeHeaders(ctx);
+          handOff(
+            incoming,
+            ctx.resolution.cookies.length > 0
+              ? ctx.resolution.requestCookies
+                  .map(
+                    (cookie) =>
+                      `${cookie.name}=${encodeURIComponent(cookie.value)}`,
+                  )
+                  .join("; ")
+              : undefined,
+          );
 
           return;
         }

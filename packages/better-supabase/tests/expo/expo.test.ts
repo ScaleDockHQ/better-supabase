@@ -124,6 +124,43 @@ describe("createExpo", () => {
     expect(written.headers.getSetCookie()).toHaveLength(before);
   });
 
+  it("hands the middleware's refreshed session to the same request's loader", async () => {
+    const cookie = await sessionCookie(5, "r-handoff");
+    const url = "https://app.test/handoff";
+
+    expect(await bs.middleware()(immutable(url, { cookie }))).toBeUndefined();
+    expect(refreshed).toHaveBeenCalledTimes(1);
+
+    const cookies = written.headers.getSetCookie().length;
+    const ctx = await bs.request(immutable(url, { cookie }));
+
+    expect(ctx.auth).toMatchObject({ kind: "user", source: "cookie" });
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(written.headers.getSetCookie()).toHaveLength(cookies);
+  });
+
+  it("hands the session over to a loader with refresh off", async () => {
+    const cookie = await sessionCookie(-60, "r-handoff-off");
+    const url = "https://app.test/handoff-off";
+
+    await bs.middleware()(immutable(url, { cookie }));
+
+    const loader = bs.loader((ctx) => ctx.auth.kind, { refresh: false });
+
+    expect(await loader(immutable(url, { cookie }), {})).toBe("user");
+    expect(refreshed).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes once in a loader when no middleware ran", async () => {
+    const cookie = await sessionCookie(5, "r-no-middleware");
+    const loader = bs.loader((ctx) => ctx.auth.kind);
+
+    expect(
+      await loader(immutable("https://app.test/no-middleware", { cookie }), {}),
+    ).toBe("user");
+    expect(refreshed).toHaveBeenCalledTimes(1);
+  });
+
   it("throws a StatusError for a refused caller and in static rendering", async () => {
     const loader = bs.loader(() => "secret", { allow: ["user"] });
 
