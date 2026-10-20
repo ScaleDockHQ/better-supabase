@@ -34,8 +34,7 @@ describe("db.$buckets", () => {
     const db = betterSupabase.connect(executor, {}, { storage });
 
     expect(db.$buckets).toBe(db.$buckets);
-    // SAFETY: $with keeps the definition, so the new Db has $buckets too; its type doesn't say so.
-    const scoped = db.$with({}) as typeof db;
+    const scoped = db.$with({});
 
     expect(scoped.$buckets).toBe(scoped.$buckets);
     expect(scoped.$buckets).not.toBe(db.$buckets);

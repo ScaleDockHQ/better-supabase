@@ -6,7 +6,7 @@ import type {
   TableKey,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
-import type { BucketRegistry, BucketsHelper } from "./db-buckets.ts";
+import type { BucketRegistry } from "./db-buckets.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { Executor } from "./executor.ts";
 import type { Db } from "./repository-types.ts";
@@ -423,12 +423,12 @@ export class BetterSupabase<
     client: C,
     context?: RequestContext,
     options?: ConnectOptions,
-  ): Db<M, F, E, C> & BucketsHelper<B>;
+  ): Db<M, F, E, C, B>;
   connect(
     executor: Executor,
     context?: RequestContext,
     options?: ConnectOptions,
-  ): Db<M, F, E, undefined> & BucketsHelper<B>;
+  ): Db<M, F, E, undefined, B>;
   connect(
     source: PostgrestClientLike | Executor,
     context: RequestContext = {},

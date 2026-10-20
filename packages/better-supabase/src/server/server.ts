@@ -136,10 +136,11 @@ export function createServer<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: ServerOptions = {},
-): BetterServer<M, F, E, C, P> {
+): BetterServer<M, F, E, C, P, B> {
   const credentials =
     options.credentials === undefined
       ? {}
@@ -194,20 +195,25 @@ export function createServer<
   const dbFor = (
     auth: AuthState,
     context: RequestContext = {},
-  ): Db<M, F, E, SupabaseClient> => {
+  ): Db<M, F, E, SupabaseClient, B> => {
     let supabase: SupabaseClient | undefined;
     const rest = restAt(env().url, auth);
+
+    // `db.$storage` and `db.$buckets` build the full client on first use.
+    const storage: StorageApi = {
+      from: (bucket) => (supabase ??= supabaseFor(auth)).storage.from(bucket),
+    };
 
     // SAFETY: `$client` is redefined below to return the SupabaseClient.
     const db = betterSupabase.connect(
       rest,
       { ...authContext(auth), ...context },
       auth.kind === "invalid"
-        ? { executor: refusingExecutor(auth.error) }
+        ? { executor: refusingExecutor(auth.error), storage }
         : tunedExecutor
-          ? { executor: postgrestExecutor(rest, executorOptions) }
-          : {},
-    ) as Db<M, F, E, SupabaseClient>;
+          ? { executor: postgrestExecutor(rest, executorOptions), storage }
+          : { storage },
+    ) as Db<M, F, E, SupabaseClient, B>;
 
     return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
   };
@@ -218,7 +224,7 @@ export function createServer<
     stats?: StatsRecorder,
     session?: SessionOptions,
     storage?: StorageApi,
-  ): Db<M, F, E, undefined> => {
+  ): Db<M, F, E, undefined, B> => {
     if (!options.postgres) {
       throw new TypeError(
         "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
@@ -290,7 +296,7 @@ export function createServer<
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
     ids: RequestIds,
-  ): ServerContext<M, F, E, C, P> => {
+  ): ServerContext<M, F, E, C, P, B> => {
     const { session, claims } = active;
 
     const record = (key: string): Record<string, unknown> | undefined => {
@@ -344,8 +350,8 @@ export function createServer<
       );
     };
 
-    let db: Db<M, F, E, SupabaseClient> | undefined;
-    let sql: Db<M, F, E, undefined> | undefined;
+    let db: Db<M, F, E, SupabaseClient, B> | undefined;
+    let sql: Db<M, F, E, undefined, B> | undefined;
     let storage: StorageApi | undefined;
 
     const targetStorage = (): StorageApi => {
@@ -400,7 +406,7 @@ export function createServer<
           sqlFor(sqlClaims, context, recorder, sessionOptions, targetStorage()),
           "$client",
           { get: unavailable, enumerable: true, configurable: true },
-        ) as unknown as Db<M, F, E, SupabaseClient>;
+        ) as unknown as Db<M, F, E, SupabaseClient, B>;
 
         return db;
       },
@@ -433,7 +439,7 @@ export function createServer<
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
     ids: RequestIds,
-  ): ServerContext<M, F, E, C, P> => {
+  ): ServerContext<M, F, E, C, P, B> => {
     const scope = tenant ?? auth.organizationId;
     const base = authContext(auth);
 
@@ -442,8 +448,8 @@ export function createServer<
 
     const session = sessionWith(ids, scope);
     const recorder = new StatsRecorder(parent);
-    let db: Db<M, F, E, SupabaseClient> | undefined;
-    let sql: Db<M, F, E, undefined> | undefined;
+    let db: Db<M, F, E, SupabaseClient, B> | undefined;
+    let sql: Db<M, F, E, undefined, B> | undefined;
 
     return {
       ...credentials,
@@ -460,7 +466,7 @@ export function createServer<
           sqlFor(auth.claims, context, recorder, session),
           "$client",
           { get: apiKeyClient, enumerable: true, configurable: true },
-        ) as unknown as Db<M, F, E, SupabaseClient>;
+        ) as unknown as Db<M, F, E, SupabaseClient, B>;
 
         return db;
       },
@@ -485,7 +491,7 @@ export function createServer<
     tenant?: string,
     active?: ActiveSupport,
     ids: RequestIds = {},
-  ): ServerContext<M, F, E, C, P> => {
+  ): ServerContext<M, F, E, C, P, B> => {
     if (active) {
       return supportContextFor(resolution, active, parent, tenant, ids);
     }
@@ -511,8 +517,8 @@ export function createServer<
     const session = sessionWith(ids, tenant);
     const recorder = new StatsRecorder(parent);
     let supabase: SupabaseClient | undefined;
-    let db: Db<M, F, E, SupabaseClient> | undefined;
-    let sql: Db<M, F, E, undefined> | undefined;
+    let db: Db<M, F, E, SupabaseClient, B> | undefined;
+    let sql: Db<M, F, E, undefined, B> | undefined;
 
     const sqlClaims: SqlClaims | undefined =
       auth.kind === "user"
@@ -576,7 +582,10 @@ export function createServer<
         });
 
         // SAFETY: `$client` is redefined to return the SupabaseClient.
-        db = withLazyClient(connected as Db<M, F, E, SupabaseClient>, client);
+        db = withLazyClient(
+          connected as Db<M, F, E, SupabaseClient, B>,
+          client,
+        );
 
         return db;
       },
@@ -610,7 +619,7 @@ export function createServer<
     request: Request,
     contextOptions: ContextOptions,
     tenant: string | undefined,
-  ): ServerContext<M, F, E, C, P> =>
+  ): ServerContext<M, F, E, C, P, B> =>
     contextFor(
       resolution,
       options.headers?.(request) ?? {},
@@ -691,10 +700,10 @@ export function createServer<
   /** One context per request and `refresh`/`cookies` pair: Server Components ask repeatedly. */
   const contextMemo = new WeakMap<
     Request,
-    Map<string, Promise<ServerContext<M, F, E, C, P>>>
+    Map<string, Promise<ServerContext<M, F, E, C, P, B>>>
   >();
 
-  const server: BetterServer<M, F, E, C, P> = {
+  const server: BetterServer<M, F, E, C, P, B> = {
     get env() {
       return env();
     },
@@ -756,7 +765,7 @@ export function createServer<
         await fold(request, { ...seedContext(), [CALL]: call });
 
         // SAFETY: the fold's terminal stored this call's ServerContext.
-        return call.context as ServerContext<M, F, E, C, P>;
+        return call.context as ServerContext<M, F, E, C, P, B>;
       })();
 
       if (key) {

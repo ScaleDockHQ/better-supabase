@@ -656,7 +656,8 @@ describe("writes", () => {
 
   it("counts cursor pages with withCount, once more after the first page", async () => {
     const { client, requests } = capturingClient((request) => ({
-      body: request.method === "HEAD" ? undefined : [{ id: "c1" }],
+      body:
+        request.method === "HEAD" ? undefined : [{ id: "c1" }, { id: "c2" }],
       headers: { "content-range": "0-0/7" },
     }));
 
@@ -668,6 +669,22 @@ describe("writes", () => {
 
     expect(first.total).toBe(7);
     expect(requests).toHaveLength(1);
+
+    const second = await db.customers
+      .paginate({
+        size: 1,
+        after: first.nextCursor,
+        withCount: true,
+        select: ["id"],
+      })
+      .orThrow();
+
+    expect(second.total).toBe(7);
+    expect(requests.map((request) => request.method)).toEqual([
+      "GET",
+      "GET",
+      "HEAD",
+    ]);
 
     const plain = await db.customers
       .paginate({ size: 1, after: null, select: ["id"] })

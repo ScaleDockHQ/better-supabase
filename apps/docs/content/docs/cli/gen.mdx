@@ -247,7 +247,7 @@ extra round trips:
   the block is in `custom` mode.
 
 - **Generated columns.** A generated column (`generated always as (...)
-  stored`) or an identity column `always` is in `Row` and typed `?: never` in
+stored`) or an identity column `always` is in `Row` and typed `?: never` in
   `Insert` and `Update`. `WritableColumnOf<"table">` is the union of the
   columns the database lets you write, and `GeneratedColumnOf<"table">` is the
   rest. The generic forms, `WritableColumns<Models, T>` and

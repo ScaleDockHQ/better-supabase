@@ -24,6 +24,7 @@ import type {
   Update,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { BucketsHelper } from "./db-buckets.ts";
 import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
 import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
@@ -484,7 +485,13 @@ export type RawRpcOptions = Omit<RpcOptions<unknown>, "returns" | "raw"> & {
   readonly raw: true;
 };
 
-export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
+export interface DbHelpers<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  B = unknown,
+> {
   /** The underlying client (supabase-js), for anything the repository lacks. */
   readonly $client: C;
   /**
@@ -531,7 +538,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
     name: N,
   ): AsyncResult<OverloadReturns<F[N], Record<never, never>>>;
   /** Same connection with more context (for example a tenant). */
-  $with(context: RequestContext): Db<M, F, E, C>;
+  $with(context: RequestContext): Db<M, F, E, C, B>;
   /**
    * Same connection without plugins: no tenant scoping, soft-delete filters,
    * timestamps, rules or executor wrappers. For migrations and admin tools.
@@ -540,7 +547,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
    */
   $withoutPlugins(options?: {
     readonly keep?: readonly string[];
-  }): Db<M, F, unknown, C>;
+  }): Db<M, F, unknown, C, B>;
   /**
    * The repository for a table named at runtime (MCP tools, admin screens).
    * Throws a `TypeError` for unknown names.
@@ -581,6 +588,13 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   ): AsyncResult<(Payload<M, T, A> & SearchScore<A>)[]>;
 }
 
-export type Db<M extends AnyModels, F extends AnyFunctions, E, C> = {
+export type Db<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  B = unknown,
+> = {
   readonly [T in TableKey<M>]: RepositoryOf<M, T, E>;
-} & DbHelpers<M, F, E, C>;
+} & DbHelpers<M, F, E, C, B> &
+  BucketsHelper<B>;
