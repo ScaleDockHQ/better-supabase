@@ -12,11 +12,11 @@ import * as v from "valibot";
 import { env } from "@/env";
 
 export const PERMDOCK_API = "https://permdock.com/api";
-export const PERMDOCK_SCOPE = "projects:read policy:read";
+const PERMDOCK_SCOPE = "projects:read policy:read";
 export const PERMDOCK_PATH = "/create/permdock";
-export const PERMDOCK_SESSION_COOKIE = "bs_permdock";
+const PERMDOCK_SESSION_COOKIE = "bs_permdock";
 export const PERMDOCK_FLOW_COOKIE = "bs_permdock_flow";
-export const PERMDOCK_SESSION_MAX_AGE: number = 60 * 60 * 24 * 7;
+const PERMDOCK_SESSION_MAX_AGE: number = 60 * 60 * 24 * 7;
 
 export const permdockCookieOptions = {
   httpOnly: true,

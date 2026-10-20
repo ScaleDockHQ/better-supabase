@@ -15,7 +15,7 @@ export interface UsageKinds {
   }[];
 }
 
-export function usageKindsOf(ctx: ModuleContext): UsageKinds {
+function usageKindsOf(ctx: ModuleContext): UsageKinds {
   const meters = metersOf(ctx);
 
   const entries: readonly [string, UsageMeter][] =

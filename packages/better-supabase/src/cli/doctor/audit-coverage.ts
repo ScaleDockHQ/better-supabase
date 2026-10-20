@@ -11,7 +11,7 @@ export interface Exemption {
 }
 
 /** `exempt` entries: a glob, or `{ table, reason }` where `table` is a glob. */
-export function exemptions(value: unknown): Exemption[] {
+function exemptions(value: unknown): Exemption[] {
   const entries: unknown[] = Array.isArray(value) ? value : [];
 
   return entries.flatMap((entry): Exemption[] => {

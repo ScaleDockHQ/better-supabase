@@ -327,6 +327,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  "vercel-marketplace": {
+    schema: "better_supabase",
+    options: {},
+  },
   "saved-views": {
     schema: "better_supabase",
     options: {},
