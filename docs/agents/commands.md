@@ -29,7 +29,7 @@ what it checks.
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
 - `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
 - `tests/validation-*`: six validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`), the five apps on the docs Presets pages installed and driven end to end against the local stack (`recipes`), and every named preset installed as one migration with its generated `lib/blocks.ts` typechecked (`presets`; `gen` rewrites the wiring). `recipes` and `presets` are also part of `pnpm test:integration`.
-- `pnpm --filter marketing test:e2e`: builds the marketing site and runs its Playwright smoke test of `/create` (local only).
+- `pnpm --filter marketing test:e2e`: builds the marketing site and runs its Playwright smoke tests of the catalog, the nav and the `/create` redirect (local only).
 - `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
 
 ## Local development

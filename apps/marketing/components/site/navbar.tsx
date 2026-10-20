@@ -45,6 +45,9 @@ export function Navbar() {
             >
               <BrandLogo mark={siGithub} className="size-4" />
             </LinkButton>
+            <LinkButton variant="ghost" size="sm" href={site.signIn}>
+              Sign in
+            </LinkButton>
           </div>
           <LinkButton size="sm" href={site.getStarted}>
             Get started

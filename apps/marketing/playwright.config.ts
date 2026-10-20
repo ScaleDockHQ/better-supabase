@@ -29,15 +29,8 @@ export default defineConfig({
   ],
   webServer: {
     command: `pnpm --dir ../.. exec turbo run build --filter=marketing && pnpm exec next start -p ${String(port)}`,
-    url: `http://127.0.0.1:${String(port)}/create`,
+    url: `http://127.0.0.1:${String(port)}/`,
     reuseExistingServer: false,
     timeout: 600_000,
-    // Placeholder OAuth keys turn the Deploy button on; e2e/deploy.spec.ts
-    // mocks every /create/supabase call, so Supabase is never reached.
-    env: {
-      SUPABASE_OAUTH_CLIENT_ID: "e2e-client",
-      SUPABASE_OAUTH_CLIENT_SECRET: "e2e-secret",
-      SUPABASE_OAUTH_COOKIE_SECRET: "e2e-cookie-secret-of-at-least-32-chars",
-    },
   },
 });

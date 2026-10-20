@@ -6,7 +6,7 @@ import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig } from "./config.ts";
 
-const CREATE_URL = "https://bettersupabase.com/create";
+const CREATE_URL = "https://app.bettersupabase.com/create";
 
 /** The comment a config with the provider access model gets above `blocks`. */
 export const PROVIDER_COMMENT: readonly string[] = [

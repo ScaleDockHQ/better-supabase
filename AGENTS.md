@@ -173,6 +173,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0054: a Vercel Marketplace block and a Vercel Queues jobs backend, without `@vercel/*` dependencies.
 - 0055: the Create page connects a PermDock Cloud account through OAuth with PKCE.
 - 0056: audit resolves tenants through a path or function and names the acting member.
+- 0057: Create runs in the cloud app at `app.bettersupabase.com`; marketing redirects `/create` there.
 
 ## Pre-release pins
 

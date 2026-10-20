@@ -62,8 +62,7 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
     its own route group and layout: `app/(blocks)/layout.tsx` and
     `app/(recipes)/layout.tsx` wrap their pages in `SidebarShell`, which
     takes the section's nav as a prop and renders it in a sticky aside on
-    large screens and in a `Sheet` below `lg`. `app/(create)/layout.tsx` is
-    full width with no sidebar. Both sidebars scroll through `SidebarScroll`
+    large screens and in a `Sheet` below `lg`. Both sidebars scroll through `SidebarScroll`
     (the shadcn `ScrollArea`, with an overlay scrollbar, edges that fade while
     there is more to scroll, and the current link scrolled into view). The
     folder also holds `PageHeader`, `Breadcrumbs`, `OnThisPage` and the
@@ -73,7 +72,7 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
     category icon as the fallback), the coded mini-UI previews
     (`BlockPreview`), tiles, the search and the detail sections. `BlockIcon`
     draws a block's icon in a tile tinted with its category color; tiles, the
-    hero, the sidebars, the create picker, the schema diagram and the recipes
+    hero, the sidebars and the recipes
     use it, and category headings keep `CategoryIcon`. `BlocksNav` is the
     blocks sidebar (it was `CatalogNav`). `MigrationViewer` shows a block's
     migration files in one `Frame`: a file list next to the selected file,
@@ -86,19 +85,9 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   - `features/recipes`: tiles, the screenshot cover, the step list,
     `RecipesNav` (recipes grouped by their block's category) and the Web and
     Native tabs, kept in `?platform=`.
-  - `features/create`: the `/create` builder. It resolves the selection in the
-    browser with `better-supabase/preset` (helpers in `lib/create.ts`). The
-    options panel sits on the left (in a sheet below `lg`), and "Get code"
-    opens a `Dialog` with the commands, the config and the files from
-    `app/(create)/create/migrations/route.ts`. The content area is the ER
-    diagram: `app/(create)/create/schema/route.ts` parses the rendered SQL
-    with `parseSchema` (`lib/schema.ts`), and `SchemaCanvas` draws it with
-    `@xyflow/react` and an `elkjs` layout. The canvas is loaded with
-    `next/dynamic` and `ssr: false`, so only `/create` downloads it, and an
-    sr-only table list holds the same data. The Graph tab reuses
-    `DependencyGraph`. Presets and blocks are native radio and checkbox
-    inputs inside styled labels; selects and toggles are the shadcn `Select`
-    and `ToggleGroup`.
+  - Create is not part of this site. It runs in the cloud app at
+    `app.bettersupabase.com/create` (ADR 0057), and `next.config.ts`
+    redirects `/create` there with a 308.
 - `components/sections`: page sections. Every section renders through
   `Section`, which sets the width, padding, eyebrow, heading and description.
   `LogoCloud` on the home page lists every framework, runtime and

@@ -48,7 +48,7 @@ const DESIGN: CreateDesign = {
 };
 
 const crm = resolvePreset(namedPreset("crm"));
-const CREATE = `https://bettersupabase.com/create?preset=${encodePreset(crm.preset)}`;
+const CREATE = `https://app.bettersupabase.com/create?preset=${encodePreset(crm.preset)}`;
 
 async function deflated(text: string): Promise<string> {
   const bytes = new Uint8Array(

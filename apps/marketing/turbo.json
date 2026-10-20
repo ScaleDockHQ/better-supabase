@@ -8,11 +8,6 @@
       "passThroughEnv": [
         "PORT",
         "DOCS_ORIGIN",
-        "SUPABASE_OAUTH_CLIENT_ID",
-        "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET",
-        "PERMDOCK_OAUTH_CLIENT_ID",
-        "PERMDOCK_OAUTH_COOKIE_SECRET",
         "RESEND_API_KEY",
         "CONTACT_FROM_EMAIL"
       ]
@@ -22,11 +17,6 @@
       "env": [
         "DOCS_ORIGIN",
         "NEXT_PUBLIC_SITE_URL",
-        "SUPABASE_OAUTH_CLIENT_ID",
-        "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET",
-        "PERMDOCK_OAUTH_CLIENT_ID",
-        "PERMDOCK_OAUTH_COOKIE_SECRET",
         "RESEND_API_KEY",
         "CONTACT_FROM_EMAIL"
       ]
@@ -36,11 +26,6 @@
       "passThroughEnv": [
         "PORT",
         "DOCS_ORIGIN",
-        "SUPABASE_OAUTH_CLIENT_ID",
-        "SUPABASE_OAUTH_CLIENT_SECRET",
-        "SUPABASE_OAUTH_COOKIE_SECRET",
-        "PERMDOCK_OAUTH_CLIENT_ID",
-        "PERMDOCK_OAUTH_COOKIE_SECRET",
         "RESEND_API_KEY",
         "CONTACT_FROM_EMAIL"
       ]

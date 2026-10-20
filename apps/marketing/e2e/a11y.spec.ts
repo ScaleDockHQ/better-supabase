@@ -7,7 +7,6 @@ const PAGES = [
   "/blocks/notifications",
   "/recipes",
   "/recipes/notification-bell",
-  "/create",
   "/enterprise",
 ] as const;
 

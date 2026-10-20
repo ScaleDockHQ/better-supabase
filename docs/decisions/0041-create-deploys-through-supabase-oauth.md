@@ -1,6 +1,6 @@
 # 0041: Deploy a Create preset through a Supabase OAuth app
 
-- Status: accepted
+- Status: accepted; hosting superseded by 0057
 - Date: 2026-10-18
 
 ## Context

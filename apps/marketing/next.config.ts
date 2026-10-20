@@ -21,11 +21,15 @@ export default createNextConfig({
   // Vercel Services rewrites `/_next/(.*)` to this service, and the image
   // optimizer returns 404 through that rewrite, so images are served as is.
   images: { unoptimized: true },
-  // `/create/validate` runs PGlite through @supabase/lite, whose migrator
-  // reads pg-delta baselines from disk; bundling breaks those paths.
-  serverExternalPackages: ["@supabase/lite"],
   redirects() {
     return Promise.resolve([
+      // Create lives in the cloud app. The query string carries the preset
+      // and design, so old links and `createUrl()` output keep working.
+      {
+        source: "/create/:path*",
+        destination: "https://app.bettersupabase.com/create/:path*",
+        permanent: true,
+      },
       {
         source: "/problems/:type",
         destination: "/docs/auth/problems",

@@ -7,7 +7,6 @@ const PAGES = [
   "/blocks/notifications",
   "/recipes",
   "/recipes/notification-bell",
-  "/create",
   "/enterprise",
 ] as const;
 
@@ -44,6 +43,10 @@ test("the menu button opens the main nav and a link navigates", async ({
     /github\.com/,
   );
   await expect(menu.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    "href",
+    "https://app.bettersupabase.com/sign-in",
+  );
 
   await menu.getByRole("link", { name: "Blocks", exact: true }).click();
 

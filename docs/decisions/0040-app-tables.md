@@ -1,6 +1,6 @@
 # 0040: Render the app's own tables from `appTables`, and carry a Create design in the URL
 
-- Status: accepted
+- Status: accepted; hosting superseded by 0057
 - Date: 2026-10-18
 
 ## Context

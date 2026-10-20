@@ -4,7 +4,7 @@ description: How better-supabase/preset encodes a preset as a short code, resolv
 ---
 
 `better-supabase/preset` is the model behind `preset` in the config and
-behind [Create](https://bettersupabase.com/create). It runs on every
+behind [Create](https://app.bettersupabase.com/create). It runs on every
 runtime, including the browser: the resolver reads a generated catalog of
 the blocks and never imports the SQL renderers.
 
@@ -85,7 +85,7 @@ const code = await encodeDesign({
 
 console.log(designConfigSource(resolved, (await designOf(code))!, code));
 console.log(designInstallCommand(resolved, code));
-// npx better-supabase init --preset "https://bettersupabase.com/create?preset=...&design=0..."
+// npx better-supabase init --preset "https://app.bettersupabase.com/create?preset=...&design=0..."
 ```
 
 A design code starts with `0`, the format version, which no preset name or

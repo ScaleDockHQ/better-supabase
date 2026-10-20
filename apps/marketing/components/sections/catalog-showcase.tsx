@@ -6,6 +6,7 @@ import { categoryHref, categoryStyle } from "@/features/blocks/categories";
 import { BlockPreview } from "@/features/blocks/components/block-preview";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { blockGroups, blocks } from "@/lib/blocks";
+import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 /** The block categories with their scenes, each linking to its section on `/blocks`. */
@@ -62,7 +63,7 @@ export function CatalogShowcase() {
           Browse the blocks
           <ArrowRightIcon aria-hidden="true" />
         </LinkButton>
-        <LinkButton variant="outline" href="/create">
+        <LinkButton variant="outline" href={site.create}>
           Create an app from a preset
         </LinkButton>
       </div>

@@ -1,5 +1,7 @@
 import { env } from "@/env";
 
+const cloudUrl = "https://app.bettersupabase.com";
+
 export const site = {
   name: "better-supabase",
   tagline:
@@ -13,6 +15,9 @@ export const site = {
   install: "pnpm add better-supabase",
   getStarted: "/docs/getting-started",
   docs: "/docs",
+  cloudUrl,
+  create: `${cloudUrl}/create`,
+  signIn: `${cloudUrl}/sign-in`,
 } as const;
 
 export type NavLink = {
@@ -24,7 +29,7 @@ export const navLinks: readonly NavLink[] = [
   { href: "/docs", label: "Docs" },
   { href: "/blocks", label: "Blocks" },
   { href: "/recipes", label: "Recipes" },
-  { href: "/create", label: "Create" },
+  { href: `${cloudUrl}/create`, label: "Create" },
 ];
 
 export const footerColumns: readonly {
@@ -37,7 +42,7 @@ export const footerColumns: readonly {
       { href: "/docs/getting-started", label: "Quickstart" },
       { href: "/blocks", label: "Blocks" },
       { href: "/recipes", label: "Recipes" },
-      { href: "/create", label: "Create" },
+      { href: `${cloudUrl}/create`, label: "Create" },
       { href: "/docs/repository", label: "Repository" },
       { href: "/docs/auth", label: "Auth" },
       { href: "/docs/cli", label: "CLI" },

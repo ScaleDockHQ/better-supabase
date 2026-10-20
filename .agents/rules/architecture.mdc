@@ -62,11 +62,12 @@ alwaysApply: true
     `authorization` config key (`src/config/authorization.ts`) and ship
     their own adapter. The Create page may name PermDock as one optional
     choice next to built-in roles, permission tables, your own provider and
-    custom SQL (ADR 0039); the library, its docs elsewhere, skills and
-    examples still don't name it. `pnpm check:no-permdock` fails on the name
-    or one of its shapes (`pdk_` keys, `permitted_*` helpers,
-    `permissions.catalog`) in the library and its tests, skills, READMEs,
-    plugin manifests, changesets, the docs, the ADRs, the agent rules,
-    `scripts`, marketing, the examples, `tests/*` and `supabase`; the
-    provider page, the 0.5 to 0.6 guide, the Create page's option files,
-    the changelogs and the texts that state this rule are the exceptions.
+    custom SQL (ADR 0039); it runs in the cloud app (ADR 0057), and the
+    library, its docs, skills, marketing and examples don't name it.
+    `pnpm check:no-permdock` fails on the name or one of its shapes (`pdk_`
+    keys, `permitted_*` helpers, `permissions.catalog`) in the library and
+    its tests, skills, READMEs, plugin manifests, changesets, the docs, the
+    ADRs, the agent rules, `scripts`, marketing, the examples, `tests/*` and
+    `supabase`; the provider page, the 0.5 to 0.6 guide, the changelogs, the
+    ADRs that record the choice and the texts that state this rule are the
+    exceptions.
