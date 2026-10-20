@@ -158,7 +158,10 @@ backlogs too large to clear in the upgrade.
   savepoint it rolls back (`src/server/support-storage.ts`), instead of
   reimplementing Storage's policy checks. A delete needs
   `storage.allow_delete_query`, which the rehearsal sets in the same
-  transaction, so no row outlives it.
+  transaction, so no row outlives it. Claiming a signed upload rehearses
+  the insert of the object that already exists: Postgres checks the
+  insert policy before the unique index, so a duplicate key error means
+  the target may store the object and a policy error means it may not.
 - The library does not set supabase-js `tracePropagation`. `tracedFetch`
   from `better-supabase/otel` injects the trace headers into every
   PostgREST, Auth and Storage request of the clients the app passes it to,

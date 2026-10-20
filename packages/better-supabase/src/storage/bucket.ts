@@ -359,6 +359,14 @@ export interface BucketClient<P extends string, Id extends string = string> {
     body: UploadBody,
     options?: UploadOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
+  /**
+   * Finishes a reserved upload once the file is stored. In a support session
+   * it makes the target the owner and records the session; elsewhere
+   * Storage already set the owner, and it succeeds without a request.
+   */
+  claimReserved(
+    reservation: Pick<Reservation, "path">,
+  ): AsyncResult<{ path: StoragePath<Id> }>;
   /** Removes objects that match a template and the `within` values, are old enough and are not referenced. */
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }

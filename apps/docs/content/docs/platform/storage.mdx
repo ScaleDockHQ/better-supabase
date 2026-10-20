@@ -500,7 +500,16 @@ const reservation = await logos
   .orThrow();
 // browser
 await logos.connect(supabase).uploadReserved(reservation, file).orThrow();
+// server, once the browser is done
+await logos.connect(supabase).claimReserved(reservation).orThrow();
 ```
+
+`claimReserved(reservation)` finishes the upload. With supabase-js it
+succeeds without a request, because Storage set the owner from the caller's
+token. In a [support session](/docs/auth/impersonation#storage-in-a-support-session)
+it makes the target the owner of the uploaded object and records the
+session, so call it before you record the file wherever the code may run in
+one.
 
 ### Several files and progress
 

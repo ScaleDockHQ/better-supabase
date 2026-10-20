@@ -11,8 +11,10 @@ import {
   defineBucket,
   fromStorageError,
   parseSize,
+  type StorageApi,
   type StorageClient,
   type StoragePath,
+  type StorageResponse,
   TTL,
 } from "../../src/storage/index.ts";
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";
@@ -1386,6 +1388,72 @@ describe("BucketClient signed uploads", () => {
     expect(
       await docs.connect(failing.client).uploadReserved(reservation, "x"),
     ).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+  });
+});
+
+describe("BucketClient claimReserved", () => {
+  const claiming = (
+    reply: StorageResponse<{ readonly path: string }>,
+    claimed: string[],
+  ): StorageApi => {
+    const { client } = fakeStorage();
+
+    return {
+      from: (bucket) => ({
+        ...client.storage.from(bucket),
+        claimSignedUpload: (path) => {
+          claimed.push(`${bucket}/${path}`);
+
+          return Promise.resolve(reply);
+        },
+      }),
+    };
+  };
+
+  it("succeeds without a request when Storage has no claim step", async () => {
+    const { client, calls } = fakeStorage();
+    expect(
+      await docs.connect(client).claimReserved({ path: "o1/u1/a.txt" }),
+    ).toEqual(ok({ path: "o1/u1/a.txt" }));
+    expect(calls).toEqual([]);
+  });
+
+  it("claims through a Storage API that has the step", async () => {
+    const claimed: string[] = [];
+
+    const bucket = docs.connect(
+      claiming({ data: { path: "o1/u1/a.txt" }, error: null }, claimed),
+    );
+
+    expect(await bucket.claimReserved({ path: "o1/u1/a.txt" })).toEqual(
+      ok({ path: "o1/u1/a.txt" }),
+    );
+    expect(claimed).toEqual(["docs/o1/u1/a.txt"]);
+    expect(await bucket.claimReserved({ path: "elsewhere" })).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_input" },
+    });
+    expect(claimed).toHaveLength(1);
+
+    const refused = docs.connect(
+      claiming(
+        {
+          data: null,
+          error: {
+            name: "StorageApiError",
+            message: "taken",
+            status: 403,
+            statusCode: "403",
+          },
+        },
+        [],
+      ),
+    );
+
+    expect(await refused.claimReserved({ path: "o1/u1/a.txt" })).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
   });
 });
 

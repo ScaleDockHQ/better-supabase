@@ -23,6 +23,7 @@ const secretKey =
 const ACME = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-000000000002";
 const USER = "00000000-0000-4000-8000-0000000000ff";
+const OTHER_USER = "00000000-0000-4000-8000-0000000000fe";
 const RUN = `s${String(Date.now())}`;
 
 async function reachable(): Promise<boolean> {
@@ -416,14 +417,104 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     expect(await row(plain.id, path)).toBeUndefined();
   });
 
-  it("still refuses signed uploads, and every write when read-only", async () => {
-    expect(
-      (await asTarget.createSignedUploadUrl(own("signed.txt"))).error,
-    ).toMatchObject({
-      code: "SUPPORT_STORAGE_WRITES",
-      message: "Signed uploads are not available in a support session",
-    });
+  it("reserves an upload, takes the browser's bytes and claims them", async () => {
+    const path = own("reserved.txt");
+    const bucket = files.connect(writer);
+    const reservation = await bucket.reserve(path).orThrow();
+    const browser = createClient(url, publishableKey).storage.from(files.id);
 
+    const uploaded = await browser.uploadToSignedUrl(
+      path,
+      reservation.token,
+      text("big"),
+    );
+
+    expect(uploaded.error).toBeNull();
+    expect(await row(files.id, path)).toMatchObject({ owner_id: null });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({
+      path,
+    });
+    expect(await row(files.id, path)).toMatchObject({
+      owner_id: USER,
+      owner: USER,
+      user_metadata: {
+        supportSessionId: SESSION.id,
+        supportAdminId: SESSION.adminId,
+      },
+    });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({
+      path,
+    });
+    expect(await (await asTarget.download(path)).data?.text()).toBe("big");
+  });
+
+  it("uploads to a reservation from the server and claims it", async () => {
+    const path = own("reserved-server.txt");
+    const bucket = files.connect(writer);
+    const reservation = await bucket.reserve(path).orThrow();
+    expect(
+      (await bucket.uploadReserved(reservation, text("server"))).error,
+    ).toBeNull();
+    expect(await row(files.id, path)).toMatchObject({
+      owner_id: USER,
+      user_metadata: { supportSessionId: SESSION.id },
+    });
+  });
+
+  it("refuses to reserve a path the target may not write", async () => {
+    const path = `${OTHER}/${RUN}/w/reserved.txt`;
+    const reserved = await files.connect(writer).reserve(path);
+    expect(reserved.error).toMatchObject({
+      kind: "forbidden",
+      code: "AccessDenied",
+    });
+    expect(await row(files.id, path)).toBeUndefined();
+  });
+
+  it("claims only objects the target could have stored and nobody owns", async () => {
+    const bucket = files.connect(writer);
+    const before = await row(files.id, hidden);
+
+    expect((await bucket.claimReserved({ path: hidden })).error).toMatchObject({
+      kind: "forbidden",
+    });
+    expect(await row(files.id, hidden)).toEqual(before);
+
+    const taken = own("taken.txt");
+
+    const { error } = await service.storage
+      .from(files.id)
+      .upload(taken, text("theirs"));
+
+    if (error) {
+      throw error;
+    }
+
+    await pool.query(
+      "update storage.objects set owner_id = $3 where bucket_id = $1 and name = $2",
+      [files.id, taken, OTHER_USER],
+    );
+
+    expect((await bucket.claimReserved({ path: taken })).error).toMatchObject({
+      kind: "forbidden",
+      code: "AccessDenied",
+    });
+    expect(await row(files.id, taken)).toMatchObject({ owner_id: OTHER_USER });
+    expect(
+      (await bucket.claimReserved({ path: own("missing.txt") })).error,
+    ).toMatchObject({ kind: "not_found" });
+  });
+
+  it("claims without a request on the target's own client", async () => {
+    expect(
+      await files
+        .connect(supabase)
+        .claimReserved({ path: own("anything.txt") })
+        .orThrow(),
+    ).toEqual({ path: own("anything.txt") });
+  });
+
+  it("refuses every write when read-only", async () => {
     const readOnly = supportStorage({
       admin: service.storage,
       sql: postgres.asUser(claims, { readOnly: true }),
@@ -433,6 +524,9 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
     expect(
       (await readOnly.upload(own("ro.txt"), text("x"))).error,
+    ).toMatchObject({ code: "SUPPORT_READ_ONLY" });
+    expect(
+      (await readOnly.createSignedUploadUrl(own("ro.txt"))).error,
     ).toMatchObject({ code: "SUPPORT_READ_ONLY" });
     expect(await row(files.id, own("ro.txt"))).toBeUndefined();
   });
