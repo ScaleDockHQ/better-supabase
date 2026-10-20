@@ -204,3 +204,29 @@ pass it).
 Writes go to the local database and PowerSync uploads them. See
 [Offline-first](/docs/guides/offline-first) for replaying them through the
 repositories on the server side.
+
+## Uploaded columns
+
+A generated column is in the row you sync down, but Postgres rejects an
+insert or update that sets it. `WritableColumnOf` lists the columns of a table
+that accept writes, so a column list for the upload fails to compile when it
+names a generated one:
+
+```ts title="src/lib/powersync/connector.ts"
+import type {
+  GeneratedColumnOf,
+  WritableColumnOf,
+} from "../supabase/generated";
+
+// With `casing: "snake"` the names are the database names PowerSync uses.
+const uploadable = [
+  "organization_id",
+  "user_id",
+  "role",
+] as const satisfies readonly WritableColumnOf<"memberships">[];
+
+// Dropped from the upload payload before it reaches PostgREST.
+type Skipped = GeneratedColumnOf<"memberships">; // "tier_role"
+```
+
+Adding `"tier_role"` to `uploadable` is a type error.

@@ -304,6 +304,8 @@ const RESERVED_EXPORTS = [
   "WhereOf",
   "OrderByOf",
   "OrderTermOf",
+  "WritableColumnOf",
+  "GeneratedColumnOf",
   "buckets",
   "topics",
   "subjectTypes",
@@ -329,7 +331,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
   );
 
   lines.push(
-    `import type { EnrichDatabase, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""} } from ${q(runtime)};`,
+    `import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
     `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
   );
   const byFile = new Map<string, string[]>();
@@ -433,6 +435,10 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;",
     "/** One sort term of `T`'s `orderBy`, by column or to-one relation. */",
     "export type OrderTermOf<T extends TableName> = OrderByInput<Models, T>;",
+    "/** Columns of `T` that `Insert` and `Update` accept. */",
+    "export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;",
+    "/** Columns of `T` the database fills (generated columns): in `Row`, never writable. */",
+    "export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;",
     "",
   );
 

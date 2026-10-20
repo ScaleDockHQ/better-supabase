@@ -659,6 +659,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "tierRole": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -666,7 +672,8 @@
         "userId",
         "role",
         "createdAt",
-        "lastUsedAt"
+        "lastUsedAt",
+        "tierRole"
       ],
       "additionalProperties": false
     },

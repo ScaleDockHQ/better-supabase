@@ -14,16 +14,17 @@ export function withDb<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
+  B,
 >(): SingleKeyEntry<
   "db",
-  { readonly bs: { readonly db: Db<M, F, E, SupabaseClient> } },
-  Db<M, F, E, SupabaseClient>
+  { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+  Db<M, F, E, SupabaseClient, B>
 > {
   return defineMiddleware<
     "db",
     undefined,
-    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient> } },
-    Db<M, F, E, SupabaseClient>
+    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+    Db<M, F, E, SupabaseClient, B>
   >({
     key: "db",
     run: () => (_request, ctx) => Promise.resolve({ db: ctx.bs.db }),

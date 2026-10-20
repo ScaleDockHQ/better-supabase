@@ -11,6 +11,7 @@ import {
   createHono,
   defineAction,
 } from "../../src/hono/index.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import {
   type Functions,
@@ -287,5 +288,26 @@ describe("authorizer", () => {
     bs.require({ permission: "delete" });
     // @ts-expect-error "delete" is not a permission of this authorizer
     bs.resource("customers", { permissions: { list: "delete" } });
+  });
+});
+
+describe("createHono buckets", () => {
+  it("reads db.$buckets in a handler", async () => {
+    const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
+
+    const bs = createHono(defineSupabase(schema).buckets({ logos }), {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
+
+    const app = new Hono<typeof bs.Env>()
+      .use(bs.middleware({ allow: ["anon"] }))
+      .get(
+        "/",
+        bs.handler((_c, ctx) => ok({ id: ctx.db.$buckets.logos.bucket.id })),
+      );
+
+    const response = await app.request("/");
+    expect(await response.json()).toEqual({ id: "logos" });
   });
 });

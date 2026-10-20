@@ -320,6 +320,37 @@ also works in a [support session](/docs/auth/impersonation#storage-in-a-support-
 needs a supabase-js client with the secret key (`StorageAdminClient`), since
 it calls the bucket admin API.
 
+### Buckets on `db`
+
+Register the buckets once on the definition, and `db.$buckets.<name>` is the
+bucket connected to `db.$storage`. It runs as the same caller as the `Db`,
+keeps the tenant guard, and is created on first read and reused for that
+`Db`. The paths stay typed by each bucket's templates.
+
+```ts
+import { defineSupabase } from "better-supabase";
+import { avatars, logos } from "./buckets";
+
+export const betterSupabase = defineSupabase(schema).buckets({
+  logos,
+  avatars,
+});
+
+const db = betterSupabase.connect(supabase);
+const url = await db.$buckets.logos
+  .signedUrl({ organizationId, customerId, version }, { ttl: "hour" })
+  .orThrow();
+```
+
+A connection without storage (a bare `Executor`) throws when `$buckets` is
+read, as `db.$storage` does; pass `connect(executor, context, { storage })`.
+`db.$buckets` is typed on the `Db` that `betterSupabase.connect()` returns, on
+`$with()` and `$withoutPlugins()` results, and on the `db`, `sql` and `admin()`
+repositories of `createServer(betterSupabase)`. The framework adapters
+(`next`, `hono`, `orpc`, `edge`, `mcp` and the rest) carry it too, so
+`ctx.db.$buckets.logos` works in handlers, actions and routes. On a server it
+uses the caller's Storage client, built on first read.
+
 `publicUrl(target)` builds the URL of an object in a public bucket without a
 request. Like `path(target)`, it returns a `Result`: `invalid_input` for a
 path outside the templates and `forbidden` for another tenant's path.

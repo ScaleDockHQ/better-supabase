@@ -312,6 +312,29 @@ export interface Schema<
   };
 }
 
+/**
+ * Columns of `T` that `Insert` can set: generated columns (`?: never` in
+ * `Insert`) are left out.
+ */
+export type WritableColumns<M extends AnyModels, T extends keyof M> = [
+  M[T]["Insert"],
+] extends [never]
+  ? never
+  : {
+      [K in keyof M[T]["Insert"]]-?: [
+        Exclude<M[T]["Insert"][K], undefined>,
+      ] extends [never]
+        ? never
+        : K;
+    }[keyof M[T]["Insert"]];
+
+/** Columns of `T` the database fills (generated or identity `always`): in `Row`, never in `Insert`. */
+export type GeneratedColumns<M extends AnyModels, T extends keyof M> = [
+  M[T]["Insert"],
+] extends [never]
+  ? never
+  : Exclude<keyof M[T]["Insert"], WritableColumns<M, T>>;
+
 export type ModelsOf<S> = S extends Schema<infer M> ? M : never;
 
 export type DatabaseOf<S> = S extends Schema<AnyModels, infer D> ? D : never;

@@ -63,6 +63,12 @@ export function createRepository(
   const { builder } = runner.runtime;
   const sensitiveDb = sensitiveColumnsOf(table);
 
+  // A beforeMutation plugin (timestamps, actor) may fill an empty patch, so
+  // only without one is an empty patch known to change nothing.
+  const mutationHooks = runner.runtime.plugins.some(
+    (plugin) => plugin.beforeMutation,
+  );
+
   // SAFETY: the select option of every read method is a column list.
   const selection = (args: Args | undefined): Selection =>
     builder.selection(
@@ -373,23 +379,40 @@ export function createRepository(
           ? builder.where(table, args["expect"])
           : undefined;
 
+        const set = builder.row(table, patch, "update");
+        const empty = !mutationHooks && Object.keys(set).length === 0;
+
         const op: UpdateOp = {
           kind: "update",
           table,
-          set: builder.row(table, patch, "update"),
+          set,
           where: and(key, expect),
           returning: returning(args),
         };
 
-        const result = await run(op, args);
+        // An empty patch changes nothing, so it reads the row instead of
+        // sending an update the database rejects.
+        const result = empty
+          ? await run(
+              selectOp(args, {
+                where: and(key, expect),
+                selection: op.returning ?? { columns: [], includes: [] },
+                limit: 1,
+                orderBy: [],
+                offset: undefined,
+              }),
+              args,
+            )
+          : await run(op, args);
 
         if (!result.ok) {
           return result;
         }
 
-        const affected = op.returning
-          ? result.data.rows.length
-          : (result.data.count ?? 0);
+        const affected =
+          op.returning || empty
+            ? result.data.rows.length
+            : (result.data.count ?? 0);
 
         if (affected === 0) {
           if (!expect) {
@@ -444,15 +467,33 @@ export function createRepository(
           return runner.fail(table, dbError("invalid_request", bound.invalid));
         }
 
+        const set = builder.row(table, args["data"], "update");
+
         const op: UpdateOp = {
           kind: "update",
           table,
-          set: builder.row(table, args["data"], "update"),
+          set,
           where,
           returning: rows ? returning(args) : undefined,
           ...bound,
           ...countOf(args),
         };
+
+        if (!mutationHooks && Object.keys(set).length === 0) {
+          if (!rows) {
+            return ok({ count: 0 });
+          }
+
+          const found = await run(
+            selectOp(args, {
+              where,
+              selection: op.returning ?? selection(args),
+            }),
+            args,
+          );
+
+          return found.ok ? ok(found.data.rows) : found;
+        }
 
         const result = await run(op, args);
 
@@ -653,7 +694,10 @@ export function createRepository(
     }
 
     const { size, offset } = window;
-    const count = args["count"];
+
+    const count =
+      args["count"] ?? (args["withCount"] === true ? "exact" : undefined);
+
     const orderBy = builder.orderBy(table, args["orderBy"]);
 
     const op = selectOp(args, {
@@ -748,12 +792,37 @@ export function createRepository(
       limit: size + 1,
       lookAhead: true,
       offset: undefined,
+      // Without a cursor the request matches every row, so its count is the total.
+      count:
+        args["withCount"] === true && after === undefined ? "exact" : undefined,
     });
 
     const result = await run(op, args);
 
     if (!result.ok) {
       return result;
+    }
+
+    let total = result.data.count;
+
+    if (args["withCount"] === true && after !== undefined) {
+      const counted = await run(
+        selectOp(args, {
+          selection: { columns: [], includes: [] },
+          orderBy: [],
+          limit: undefined,
+          offset: undefined,
+          count: "exact",
+          head: true,
+        }),
+        args,
+      );
+
+      if (!counted.ok) {
+        return counted;
+      }
+
+      total = counted.data.count;
     }
 
     const rows = result.data.rows.slice(0, size);
@@ -778,6 +847,7 @@ export function createRepository(
       items: added.length > 0 ? rows.map((row) => strip(row, added)) : rows,
       nextCursor,
       hasMore,
+      ...(args["withCount"] === true ? { total: total ?? 0 } : {}),
     });
   }
 

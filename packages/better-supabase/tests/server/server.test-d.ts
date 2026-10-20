@@ -6,10 +6,11 @@ import type {
   BetterServer,
   ServerContext,
 } from "../../src/server/server-types.ts";
-import type { StorageApi } from "../../src/storage/index.ts";
+import type { BucketClient, StorageApi } from "../../src/storage/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const bs = createServer(defineSupabase(schema));
@@ -53,5 +54,22 @@ describe("storage on the context", () => {
     expectTypeOf<
       NonNullable<Ctx["sql"]>["$storage"]
     >().toEqualTypeOf<StorageApi>();
+  });
+});
+
+describe("buckets on the server db", () => {
+  it("carries $buckets into db, sql, admin and $with", () => {
+    const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
+    const server = createServer(defineSupabase(schema).buckets({ logos }));
+
+    type Logos = BucketClient<"{userId}/logo.webp", "logos">;
+
+    expectTypeOf(server.admin().$buckets.logos).toEqualTypeOf<Logos>();
+    expectTypeOf(
+      server.admin().$with({}).$buckets.logos,
+    ).toEqualTypeOf<Logos>();
+    expectTypeOf(
+      server.dbFor({ kind: "anon", reason: "none" }).$buckets.logos,
+    ).toEqualTypeOf<Logos>();
   });
 });

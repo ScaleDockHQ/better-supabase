@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "../../src/index.ts";
-import type { EnrichDatabase, MutableWhere, OrderByArg, OrderByInput, StoragePath } from "../../src/index.ts";
+import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, StoragePath, WritableColumns } from "../../src/index.ts";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
 
@@ -239,6 +239,7 @@ export type Models = {
       role: "owner" | "admin" | "member";
       created_at: string;
       last_used_at: string | null;
+      tier_role: string | null;
     };
     Insert: {
       organization_id: string;
@@ -246,6 +247,7 @@ export type Models = {
       role?: "owner" | "admin" | "member";
       created_at?: string;
       last_used_at?: string | null;
+      tier_role?: never;
     };
     Update: {
       organization_id?: string;
@@ -253,6 +255,7 @@ export type Models = {
       role?: "owner" | "admin" | "member";
       created_at?: string;
       last_used_at?: string | null;
+      tier_role?: never;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -785,6 +788,10 @@ export type WhereOf<T extends TableName> = MutableWhere<Models, T>;
 export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;
 /** One sort term of `T`'s `orderBy`, by column or to-one relation. */
 export type OrderTermOf<T extends TableName> = OrderByInput<Models, T>;
+/** Columns of `T` that `Insert` and `Update` accept. */
+export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
+/** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
+export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
 /** Bucket configs for `defineBucket` from `better-supabase/storage`. */
 export const buckets = {

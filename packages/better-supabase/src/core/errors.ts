@@ -230,6 +230,52 @@ export const isForeignKey: <C extends string = string>(
 ) => error is DbErrorOf<"foreign_key"> & { readonly constraint: C } =
   constraintGuard("foreign_key");
 
+/** Handlers for `matchDbError`: one per error kind, plus `codes` for SQLSTATE codes. */
+export type DbErrorMatchers = {
+  readonly [K in DbErrorKind]?: (error: DbErrorOf<K>) => unknown;
+} & {
+  /**
+   * Handlers by SQLSTATE or PostgREST code (`23505`, `PGRST116`). They run
+   * before the handler for the error's kind.
+   */
+  readonly codes?: Readonly<Record<string, (error: DbError) => unknown>>;
+};
+
+/**
+ * Builds the factory `.orThrow()` takes from handlers per error kind and per
+ * SQLSTATE code. A handler that returns `undefined`, and an error no handler
+ * matches, throw a `DbException`.
+ */
+export function matchDbError(
+  matchers: DbErrorMatchers,
+): (error: DbError) => unknown {
+  return (error) => {
+    const byCode =
+      error.code === undefined || !matchers.codes
+        ? undefined
+        : Object.hasOwn(matchers.codes, error.code)
+          ? matchers.codes[error.code]
+          : undefined;
+
+    const mapped = byCode?.(error) ?? kindHandler(matchers, error)?.(error);
+
+    return mapped ?? new DbException(error);
+  };
+}
+
+function kindHandler(
+  matchers: DbErrorMatchers,
+  error: DbError,
+): ((error: DbError) => unknown) | undefined {
+  if (!Object.hasOwn(matchers, error.kind)) {
+    return undefined;
+  }
+
+  // SAFETY: the handler under a kind key takes that kind's error, which is
+  // the narrowed `error` here.
+  return matchers[error.kind] as ((error: DbError) => unknown) | undefined;
+}
+
 /** Raw error shape shared by PostgREST responses and `pg` errors. */
 export interface RawDbError {
   readonly message?: string;

@@ -1,9 +1,13 @@
 import type * as Ssr from "@supabase/ssr";
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import type {
+  AuthChangeEvent,
+  Session,
+  SupabaseClient,
+} from "@supabase/supabase-js";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createClient } from "../../src/client/index.ts";
+import { bindClient, createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -74,6 +78,23 @@ function setup(options: { staleTime?: number } = {}) {
     },
   };
 }
+
+describe("bindClient without the auth module", () => {
+  it("starts signed out and disposes without a subscription", () => {
+    const supabase = {} as unknown as SupabaseClient;
+    const bound = bindClient(betterSupabase, supabase);
+
+    expect(bound.auth.current()).toEqual({
+      status: "signed-out",
+      user: null,
+      claims: null,
+    });
+    expect(bound.db.$client).toBe(supabase);
+    expect(() => {
+      bound.dispose();
+    }).not.toThrow();
+  });
+});
 
 describe("createClient", () => {
   it("stops following the session after dispose", () => {

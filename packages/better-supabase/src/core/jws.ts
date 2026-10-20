@@ -1,8 +1,19 @@
 import { fromBase64, toBase64Url } from "./base64.ts";
 import { isRecord } from "./guards.ts";
 
-const encoder = /* @__PURE__ */ new TextEncoder();
-const decoder = /* @__PURE__ */ new TextDecoder();
+// Created on first use: not every runtime has the globals at import time.
+let encoderInstance: InstanceType<typeof TextEncoder> | undefined;
+let decoderInstance: InstanceType<typeof TextDecoder> | undefined;
+
+const encoder = {
+  encode: (text: string): Uint8Array<ArrayBuffer> =>
+    (encoderInstance ??= new TextEncoder()).encode(text),
+};
+
+const decoder = {
+  decode: (bytes: Uint8Array): string =>
+    (decoderInstance ??= new TextDecoder()).decode(bytes),
+};
 
 /** The key types a signing key can have. */
 export type SigningAlgorithm = "Ed25519" | "ES256";

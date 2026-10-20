@@ -46,6 +46,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { sessionUserId, specKey } from "../bindings/keys.ts";
+import { hasAuthModule } from "../core/auth-module.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
 import { ClientContext, type ContextValue } from "./context.ts";
 import { useSession } from "./session.ts";
@@ -219,6 +220,11 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   return status;
 }
 
+const SIGNED_OUT_CALLER = {
+  status: "signed-out",
+  userId: null,
+} as const;
+
 const NO_AUTH = (): (() => void) => () => undefined;
 
 /**
@@ -245,6 +251,10 @@ export function useBroadcastAuth(
       return;
     }
 
+    if (!hasAuthModule(supabase)) {
+      return;
+    }
+
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
@@ -257,9 +267,12 @@ export function useBroadcastAuth(
     };
   }, [client, supabase]);
 
-  return client
-    ? { status: snapshot.status, userId: snapshot.user?.id ?? null }
-    : plain;
+  if (client) {
+    return { status: snapshot.status, userId: snapshot.user?.id ?? null };
+  }
+
+  // Without the auth module there is no session: the caller is signed out.
+  return hasAuthModule(supabase) ? plain : SIGNED_OUT_CALLER;
 }
 
 /**

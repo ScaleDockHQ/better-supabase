@@ -118,7 +118,8 @@ export interface ToolContext<
   E,
   C = unknown,
   P = unknown,
-> extends ServerContext<M, F, E, C, P> {
+  B = unknown,
+> extends ServerContext<M, F, E, C, P, B> {
   readonly request: Request;
   readonly signal: AbortSignal;
 }
@@ -129,6 +130,7 @@ export interface McpTool<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   readonly info: ToolInfo;
   /**
@@ -144,7 +146,7 @@ export interface McpTool<
   readonly permission?: unknown;
   /** The provider operation the tool checks, in place of `mcp.tool.<name>`. */
   readonly operation?: string;
-  run(args: never, ctx: ToolContext<M, F, E, C, P>): unknown;
+  run(args: never, ctx: ToolContext<M, F, E, C, P, B>): unknown;
 }
 
 /** What the `authorize` and `visible` hooks see of a tool. */
@@ -172,6 +174,7 @@ export interface ToolDefinition<
   C = unknown,
   P = unknown,
   Ref = unknown,
+  B = unknown,
 > {
   readonly name: string;
   readonly title?: string;
@@ -203,7 +206,7 @@ export interface ToolDefinition<
    * `mcp.tool.<name>` (`invoices.void`).
    */
   readonly operation?: string;
-  run(args: I, ctx: ToolContext<M, F, E, C, P>): unknown;
+  run(args: I, ctx: ToolContext<M, F, E, C, P, B>): unknown;
 }
 
 /** A table's tools: the REST resource options, plus `meta` per operation for `authorize` and `visible`. */
@@ -231,6 +234,7 @@ export interface McpOptions<
   C = unknown,
   P = unknown,
   Ref = string,
+  B = unknown,
 >
   extends ServerOptions, Omit<GuardOptions, "scopes"> {
   readonly name: string;
@@ -240,7 +244,7 @@ export interface McpOptions<
   readonly instructions?: string;
   /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
   readonly resources?: ToolResources<M, Ref>;
-  readonly tools?: readonly McpTool<M, F, E, C, P>[];
+  readonly tools?: readonly McpTool<M, F, E, C, P, B>[];
   /**
    * The authorization provider's operations (`authorization.operations` in
    * the config). A tool's `mcp.tool.<name>` entry replaces its `permission`,
@@ -310,7 +314,7 @@ export interface McpOptions<
    * `scopes` is a 403 `insufficient_scope` challenge naming them.
    */
   readonly authorize?: (
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
     tool: ToolRef,
     args: unknown,
   ) => ToolDecision | Promise<ToolDecision>;
@@ -319,7 +323,7 @@ export interface McpOptions<
    * like an unknown one. Lists are cached per token (`cacheScope: 'private'`).
    */
   readonly visible?: (
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
     tool: ToolRef,
   ) => boolean | Promise<boolean>;
 }
@@ -331,7 +335,8 @@ export interface BetterMcp<
   C = unknown,
   P = unknown,
   Ref = string,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /** Everything in one handler: the MCP endpoint and `/.well-known/oauth-protected-resource`. */
   readonly fetch: (request: Request) => Promise<Response>;
   /** The Streamable HTTP endpoint (POST JSON-RPC). */
@@ -341,13 +346,13 @@ export interface BetterMcp<
   readonly tools: readonly ToolInfo[];
   /** Adds a tool typed against this app's repositories. */
   tool<I = Record<string, unknown>>(
-    definition: ToolDefinition<M, F, E, I, C, P, Ref>,
+    definition: ToolDefinition<M, F, E, I, C, P, Ref, B>,
   ): this;
   /** Calls a tool directly, e.g. from tests or another transport. */
   call(
     name: string,
     args: unknown,
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
   ): Promise<ToolResult>;
 }
 
@@ -360,7 +365,10 @@ export function defineTool<
   C = unknown,
   P = unknown,
   Ref = unknown,
->(definition: ToolDefinition<M, F, E, I, C, P, Ref>): McpTool<M, F, E, C, P> {
+  B = unknown,
+>(
+  definition: ToolDefinition<M, F, E, I, C, P, Ref, B>,
+): McpTool<M, F, E, C, P, B> {
   if (!/^[A-Za-z0-9_.-]{1,64}$/.test(definition.name)) {
     throw new TypeError(
       `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
@@ -580,12 +588,13 @@ export function createMcp<
   C = unknown,
   P = unknown,
   A extends AnyAuthorizer | undefined = undefined,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
-  options: McpOptions<M, F, E, C, P, PermissionRef<A>> & {
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+  options: McpOptions<M, F, E, C, P, PermissionRef<A>, B> & {
     readonly authorizer?: A;
   },
-): BetterMcp<M, F, E, C, P, PermissionRef<A>> {
+): BetterMcp<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -607,7 +616,10 @@ export function createMcp<
     readonly permission?: unknown;
     /** The listed tool with its schemas in `target`'s dialect, built once per target. */
     infoFor(target: ToolSchemaTarget): ToolInfo;
-    call(args: unknown, ctx: ToolContext<M, F, E, C, P>): Promise<Invocation>;
+    call(
+      args: unknown,
+      ctx: ToolContext<M, F, E, C, P, B>,
+    ): Promise<Invocation>;
   }
 
   const registry = new Map<string, Entry>();
@@ -633,7 +645,7 @@ export function createMcp<
   const refused = async (
     tool: ToolRef,
     args: unknown,
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
   ): Promise<Refusal | undefined> => {
     if (!options.authorize) {
       return undefined;
@@ -653,7 +665,7 @@ export function createMcp<
 
   const isVisible = async (
     tool: ToolRef,
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
   ): Promise<boolean> => !options.visible || options.visible(ctx, tool);
 
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
@@ -710,7 +722,7 @@ export function createMcp<
     }
   }
 
-  const addTool = (declared: McpTool<M, F, E, C, P>): void => {
+  const addTool = (declared: McpTool<M, F, E, C, P, B>): void => {
     const permission = toolPermission(
       options.operations,
       declared.info.name,
@@ -812,7 +824,7 @@ export function createMcp<
 
   /** Without a `visible` hook or permissions every caller sees the same list, built once. */
   const visibleTools = async (
-    context: () => ToolContext<M, F, E, C, P>,
+    context: () => ToolContext<M, F, E, C, P, B>,
     target: ToolSchemaTarget,
   ): Promise<ToolInfo[]> => {
     const all = [...registry.values()];
@@ -860,7 +872,7 @@ export function createMcp<
   const invoke = async (
     name: string,
     args: unknown,
-    ctx: ToolContext<M, F, E, C, P>,
+    ctx: ToolContext<M, F, E, C, P, B>,
     checkVisible = true,
   ): Promise<Invocation> => {
     const entry = registry.get(name);
@@ -883,7 +895,11 @@ export function createMcp<
 
   const isRefusal = (value: Invocation): value is Refusal => "refusal" in value;
 
-  const call: BetterMcp<M, F, E, C, P>["call"] = async (name, args, ctx) => {
+  const call: BetterMcp<M, F, E, C, P, PermissionRef<A>, B>["call"] = async (
+    name,
+    args,
+    ctx,
+  ) => {
     const outcome = await invoke(name, args, ctx);
 
     return isRefusal(outcome)
@@ -1110,7 +1126,7 @@ export function createMcp<
       return new Response(null, { status: 202 });
     }
 
-    const toolContext = (): ToolContext<M, F, E, C, P> =>
+    const toolContext = (): ToolContext<M, F, E, C, P, B> =>
       withExtra(ctx, { request, signal: request.signal });
 
     const reply = (result: object): Response =>
@@ -1232,7 +1248,7 @@ export function createMcp<
     );
   };
 
-  type Mcp = BetterMcp<M, F, E, C, P, PermissionRef<A>>;
+  type Mcp = BetterMcp<M, F, E, C, P, PermissionRef<A>, B>;
 
   const mcp: Mcp = extendServer<Mcp>(server, {
     get tools() {

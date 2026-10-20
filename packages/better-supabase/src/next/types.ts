@@ -171,7 +171,8 @@ export interface BetterNext<
   C = unknown,
   P = unknown,
   Ref = string,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
   /**
@@ -182,11 +183,11 @@ export interface BetterNext<
    * const { db } = await bs.context({ tenant: organizationId });
    * ```
    */
-  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P>>;
+  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P, B>>;
   context(
     request: Request | undefined,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P>>;
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
    * per request. Wrap it in a `'use cache: private'` function with Cache
@@ -201,7 +202,7 @@ export interface BetterNext<
   contextForSession(
     session: AuthSession<C, P>,
     options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P>>;
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
    * `cacheLife` from the session's expiry (`sessionStale`, capped by
@@ -218,7 +219,7 @@ export interface BetterNext<
    */
   cached(
     options?: CachedOptions<Extract<keyof M, string>>,
-  ): Promise<CachedContext<M, F, E, C, P>>;
+  ): Promise<CachedContext<M, F, E, C, P, B>>;
   /**
    * Drops every `bs.cached()` entry of a user, e.g. after a role change,
    * and the entries tagged with `tags` (such as a permission snapshot's tag).
@@ -246,7 +247,7 @@ export interface BetterNext<
   route<Params = Record<string, string | string[]>, R extends boolean = false>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E, C, P> &
+      ctx: ServerContext<M, F, E, C, P, B> &
         AuthorizedContext<C, P, R> & { readonly params: Params },
     ) => unknown,
     options?: RouteOptions<C, P, R, Ref>,
@@ -268,7 +269,7 @@ export interface BetterNext<
     options: ActionOptions<S, C, P, R, Ref>,
     fn: (
       input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /**
@@ -283,7 +284,7 @@ export interface BetterNext<
    */
   require<R extends boolean = false>(
     options?: RequireOptions<C, P, R, Ref>,
-  ): Promise<ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
+  ): Promise<ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * REST resources for a catch-all route, matching the API model:
    * collections, items and actions, as the caller (RLS), behind the guard in
@@ -298,7 +299,7 @@ export interface BetterNext<
    * ```
    */
   resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P>["db"]>,
+    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B>["db"]>,
     options?: NextResourcesOptions,
   ): NextResourceRoutes;
   /**
@@ -395,7 +396,8 @@ export type CachedContext<
   E,
   C = unknown,
   P = unknown,
-> = ServerContext<M, F, E, C, P> & { readonly session: AuthSession<C, P> };
+  B = unknown,
+> = ServerContext<M, F, E, C, P, B> & { readonly session: AuthSession<C, P> };
 
 /** The second argument of `revalidateTag`: a `cacheLife` profile name or `{ expire }`. */
 export type RevalidateProfile = string | { readonly expire?: number };

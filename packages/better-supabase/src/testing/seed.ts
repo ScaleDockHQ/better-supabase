@@ -128,7 +128,7 @@ function literal(value: unknown, column: ColumnMeta, where: string): string {
 const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 
 /** Parents first (by forward relations), otherwise in the order given. */
-function order(meta: SchemaMeta, keys: readonly string[]): string[] {
+export function order(meta: SchemaMeta, keys: readonly string[]): string[] {
   const sorted: string[] = [];
   const visiting = new Set<string>();
 

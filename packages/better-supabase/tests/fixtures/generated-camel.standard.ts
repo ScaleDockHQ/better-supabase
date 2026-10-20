@@ -180,6 +180,7 @@ export const membershipsRow: TableSchema<RowOf<'memberships'>> = tableSchema({
     role: { kind: "enum", values: ["owner","admin","member"] },
     createdAt: { kind: "datetime", readOnly: true },
     lastUsedAt: { kind: "datetime", nullable: true },
+    tierRole: { kind: "string", nullable: true },
   },
 });
 

@@ -112,8 +112,9 @@ export function supabaseMcpHandler<
   E,
   C,
   P,
+  B,
 >(
-  auth: Pick<BetterMcpAuth<M, F, E, C, P>, "serve">,
+  auth: Pick<BetterMcpAuth<M, F, E, C, P, B>, "serve">,
   options: SupabaseMcpHandlerOptions<C, P>,
   loaders: SupabaseMcpLoaders = {},
 ): (request: Request) => Promise<Response> {

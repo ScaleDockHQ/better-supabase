@@ -5,10 +5,17 @@ import type { Db } from "../../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 /** The keys `withSql` reads. */
-export interface SqlIn<M extends AnyModels, F extends AnyFunctions, E, C, P> {
+export interface SqlIn<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+> {
   readonly bs: {
     readonly auth: AuthState<C, P>;
-    readonly sql: Db<M, F, E, undefined> | undefined;
+    readonly sql: Db<M, F, E, undefined, B> | undefined;
   };
 }
 
@@ -25,16 +32,17 @@ export function withSql<
   E,
   C,
   P,
+  B,
 >(): SingleKeyEntry<
   "sql",
-  SqlIn<M, F, E, C, P>,
-  Db<M, F, E, undefined> | undefined
+  SqlIn<M, F, E, C, P, B>,
+  Db<M, F, E, undefined, B> | undefined
 > {
   return defineMiddleware<
     "sql",
     undefined,
-    SqlIn<M, F, E, C, P>,
-    Db<M, F, E, undefined> | undefined
+    SqlIn<M, F, E, C, P, B>,
+    Db<M, F, E, undefined, B> | undefined
   >({
     key: "sql",
     run: () => (_request, ctx) => Promise.resolve({ sql: ctx.bs.sql }),

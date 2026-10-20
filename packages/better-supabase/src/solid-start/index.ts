@@ -62,7 +62,8 @@ export interface BetterSolidStart<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * Verifies the caller, refreshes the session cookie on navigations and
    * form posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
@@ -74,7 +75,7 @@ export interface BetterSolidStart<
    */
   readonly middleware: SolidStartMiddleware;
   /** The current request's `locals`, inside a `"use server"` function. */
-  readonly locals: () => FrameworkLocals<M, F, E, C, P>;
+  readonly locals: () => FrameworkLocals<M, F, E, C, P, B>;
   /**
    * The caller inside a `"use server"` function (a `query`, an `action`,
    * an API route), or a thrown refusal: a redirect to `signIn` or `mfa`
@@ -90,7 +91,7 @@ export interface BetterSolidStart<
    */
   require<R extends boolean = false>(
     options?: BlockRequireOptions<C, P, R>,
-  ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
+  ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A server function returning an `ActionResult`, for `action()` from
    * `@solidjs/router`: `FormData` or a plain object, validated by `input`.
@@ -99,7 +100,7 @@ export interface BetterSolidStart<
     options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => T,
   ): (input: unknown) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
@@ -112,15 +113,16 @@ export function createSolidStart<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: SolidStartOptions,
-): BetterSolidStart<M, F, E, C, P> {
+): BetterSolidStart<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = beforeRoute([frameworkEntry(server, options, expose)]);
 
-  type Locals = FrameworkLocals<M, F, E, C, P>;
+  type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const eventOf = (): SolidFetchEvent => {
     const event = options.getRequestEvent();
@@ -141,7 +143,7 @@ export function createSolidStart<
     return locals as Locals;
   };
 
-  return extendServer<BetterSolidStart<M, F, E, C, P>>(server, {
+  return extendServer<BetterSolidStart<M, F, E, C, P, B>>(server, {
     middleware: {
       onRequest: async (event) => {
         const env = options.platformEnv
@@ -166,7 +168,7 @@ export function createSolidStart<
 
         Object.assign(
           event.locals,
-          localsOf<M, F, E, C, P>(outcome.contributions),
+          localsOf<M, F, E, C, P, B>(outcome.contributions),
         );
 
         return;

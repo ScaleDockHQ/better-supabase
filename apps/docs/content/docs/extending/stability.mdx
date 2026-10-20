@@ -15,6 +15,10 @@ Two tests guard it:
   every subpath. A change shows up in review as a diff of that file.
 - **Type tests** for every extension interface check that the first-party
   implementations still satisfy it.
+- **Type tests for `$rpc`** pin the typing of database function calls: one
+  named argument object, required and optional arguments, the picked
+  overload's return type, and the `returns` and `raw` options. A change to
+  how `$rpc` infers arguments or results is a breaking change.
 
 ## Versioning
 

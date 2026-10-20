@@ -1,7 +1,11 @@
 // Dependency-free HMAC primitives: the workflow world bundle imports these without the webhook code.
 
-export const encoder: InstanceType<typeof TextEncoder> =
-  /* @__PURE__ */ new TextEncoder();
+let encoderInstance: InstanceType<typeof TextEncoder> | undefined;
+
+// Created on first use: not every runtime has the global at import time.
+export const encoder: Pick<InstanceType<typeof TextEncoder>, "encode"> = {
+  encode: (text) => (encoderInstance ??= new TextEncoder()).encode(text),
+};
 
 /** Constant-time string comparison. */
 export function timingSafeEqual(a: string, b: string): boolean {

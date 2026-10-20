@@ -25,6 +25,7 @@ import type {
   LiveSource,
 } from "../realtime/live.ts";
 
+import { hasAuthModule } from "../core/auth-module.ts";
 import { dbError } from "../core/errors.ts";
 import { invalidateTables } from "../query/invalidate.ts";
 import { liveCount, liveQuery } from "../realtime/live.ts";
@@ -156,6 +157,13 @@ export function plainCaller(supabase: SupabaseClient): Store<Caller> {
   return {
     current: () => caller,
     subscribe: (listener) => {
+      // Without the auth module there is no session to follow.
+      if (!hasAuthModule(supabase)) {
+        caller = { status: "signed-out", userId: null };
+
+        return () => undefined;
+      }
+
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         caller = {
           status: session ? "signed-in" : "signed-out",

@@ -68,10 +68,11 @@ export interface HonoEnv<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   Variables: {
-    readonly bs: ServerContext<M, F, E, C, P>;
-    readonly db: ServerContext<M, F, E, C, P>["db"];
+    readonly bs: ServerContext<M, F, E, C, P, B>;
+    readonly db: ServerContext<M, F, E, C, P, B>["db"];
     readonly auth: AuthState<C, P>;
     /** The caller as plain data, safe to return in a response. */
     readonly session: AuthSession<C, P>;
@@ -97,18 +98,19 @@ export interface BetterHono<
   C = unknown,
   P = unknown,
   Ref = string,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and
    * `Context<typeof bs.Env>`. Type only: `undefined` at runtime.
    */
-  readonly Env: HonoEnv<M, F, E, C, P>;
+  readonly Env: HonoEnv<M, F, E, C, P, B>;
   /** `new Hono<typeof bs.Env>()` with `onError(bs.onError)` installed. */
-  app(): Hono<HonoEnv<M, F, E, C, P>>;
+  app(): Hono<HonoEnv<M, F, E, C, P, B>>;
   /** Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`, `c.var.auth`. */
   middleware(
     options?: MiddlewareOptions,
-  ): MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
+  ): MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * A route guard after `middleware()`: `allow`, `aal`, `scopes`,
    * `requireTenant` and `authorize`. A refused caller gets Problem Details.
@@ -119,7 +121,7 @@ export interface BetterHono<
    */
   require: (
     options?: BlockRequireOptions<C, P, boolean, Ref>,
-  ) => MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
+  ) => MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * Counts a hit per request with a rate limiter, such as `createRateLimit()`,
    * and adds the `RateLimit` (and with `rule`, `RateLimit-Policy`) fields. A
@@ -133,25 +135,25 @@ export interface BetterHono<
    * ```
    */
   rateLimit(
-    options: RateLimitRouteOptions<Context<HonoEnv<M, F, E, C, P>>>,
-  ): MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
+    options: RateLimitRouteOptions<Context<HonoEnv<M, F, E, C, P, B>>>,
+  ): MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * Wraps a handler: `Result`s and `AsyncResult`s become JSON or Problem
    * Details, `undefined` becomes 204.
    */
   handler(
     fn: (
-      c: Context<HonoEnv<M, F, E, C, P>>,
-      ctx: ServerContext<M, F, E, C, P>,
+      c: Context<HonoEnv<M, F, E, C, P, B>>,
+      ctx: ServerContext<M, F, E, C, P, B>,
     ) => unknown,
     options?: { readonly status?: number },
-  ): (c: Context<HonoEnv<M, F, E, C, P>>) => Promise<Response>;
+  ): (c: Context<HonoEnv<M, F, E, C, P, B>>) => Promise<Response>;
   /**
    * `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`)
    * become Problem Details, Hono's `HTTPException`s keep their own response,
    * and anything else is a 500.
    */
-  readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P>>;
+  readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * REST routes for a table matching the API model: the collection, the
    * item and each action's path. Mount with
@@ -163,16 +165,16 @@ export interface BetterHono<
       M,
       T,
       Ref,
-      ServerContext<M, F, E, C, P>["db"]
+      ServerContext<M, F, E, C, P, B>["db"]
     >,
-  ): Hono<HonoEnv<M, F, E, C, P>>;
+  ): Hono<HonoEnv<M, F, E, C, P, B>>;
 }
 
-function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
-  c: Context<HonoEnv<M, F, E, C, P>>,
-): ServerContext<M, F, E, C, P> {
+function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P, B>(
+  c: Context<HonoEnv<M, F, E, C, P, B>>,
+): ServerContext<M, F, E, C, P, B> {
   // SAFETY: the middleware stores the ServerContext for this app's generics under "bs".
-  const ctx = c.get("bs") as ServerContext<M, F, E, C, P> | undefined;
+  const ctx = c.get("bs") as ServerContext<M, F, E, C, P, B> | undefined;
 
   if (!ctx) {
     throw new TypeError(
@@ -196,14 +198,15 @@ export function createHono<
   C = unknown,
   P = unknown,
   A extends AnyAuthorizer | undefined = undefined,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: HonoOptions & { readonly authorizer?: A } = {},
-): BetterHono<M, F, E, C, P, PermissionRef<A>> {
+): BetterHono<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
-  const onError: ErrorHandler<HonoEnv<M, F, E, C, P>> = (cause, c) => {
+  const onError: ErrorHandler<HonoEnv<M, F, E, C, P, B>> = (cause, c) => {
     if (cause instanceof HTTPException) {
       return cause.getResponse();
     }
@@ -219,7 +222,7 @@ export function createHono<
   };
 
   const waitUntilOf = (
-    c: Context<HonoEnv<M, F, E, C, P>>,
+    c: Context<HonoEnv<M, F, E, C, P, B>>,
   ): ((promise: Promise<unknown>) => void) | undefined => {
     if (options.waitUntil) {
       return options.waitUntil;
@@ -237,15 +240,15 @@ export function createHono<
     }
   };
 
-  return extendServer<BetterHono<M, F, E, C, P, PermissionRef<A>>>(server, {
+  return extendServer<BetterHono<M, F, E, C, P, PermissionRef<A>, B>>(server, {
     // SAFETY: `Env` only carries a type, like Drizzle's `$inferSelect`; reading
     // it at runtime is documented as `undefined`.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
-    Env: undefined as unknown as HonoEnv<M, F, E, C, P>,
+    Env: undefined as unknown as HonoEnv<M, F, E, C, P, B>,
     onError,
 
     app() {
-      return new Hono<HonoEnv<M, F, E, C, P>>().onError(onError);
+      return new Hono<HonoEnv<M, F, E, C, P, B>>().onError(onError);
     },
 
     middleware(middlewareOptions = {}) {
@@ -253,7 +256,9 @@ export function createHono<
         [withBetterSupabase(server, { ...middlewareOptions, expose })],
         (c, ctx) => {
           // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bs`.
-          const bs = (ctx as { readonly bs: ServerContext<M, F, E, C, P> }).bs;
+          const bs = (ctx as { readonly bs: ServerContext<M, F, E, C, P, B> })
+            .bs;
+
           // SAFETY: withBetterSupabase contributes the resolved tenant as `tenant`.
           const { tenant } = ctx as { readonly tenant: string | undefined };
           c.set("bs", bs);
@@ -343,13 +348,13 @@ export function createHono<
       );
 
       const { keyParam } = resource;
-      const app = new Hono<HonoEnv<M, F, E, C, P>>();
+      const app = new Hono<HonoEnv<M, F, E, C, P, B>>();
 
       // Every route matches through `matchResource`, which also picks an
       // action over an id; the routes are listed for `app.routes`.
       const serve =
         (pattern: string) =>
-        async (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> => {
+        async (c: Context<HonoEnv<M, F, E, C, P, B>>): Promise<Response> => {
           const { pathname } = new URL(c.req.url);
 
           const mounted =

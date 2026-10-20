@@ -7,7 +7,7 @@ import type { BetterPostgres } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
 import { ENV_VARIABLES } from "../env/index.ts";
-import { postgresExecutor } from "../postgres/executor.ts";
+import { postgresExecutor, type SqlClient } from "../postgres/executor.ts";
 import {
   type SigningJwk,
   signTestJwt,
@@ -43,17 +43,44 @@ export interface LocalStack {
   readonly postgres?: BetterPostgres;
   /** `fetch` for the user's supabase-js client, e.g. `liteStack().fetch`. */
   readonly fetch?: typeof fetch;
+  /**
+   * supabase-js warns when its trace propagation option is on and the
+   * runtime has no OpenTelemetry. Test users switch it off; set `true` to
+   * keep it.
+   */
+  readonly tracePropagation?: boolean;
 }
 
 export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
   readonly token: string;
   readonly claims: TestJwtClaims;
+  /**
+   * The server `RequestContext` for this user (actor and claims), for tests
+   * that call a command or handler directly with `{ supabase, db, context }`.
+   */
+  readonly context: RequestContext;
   /** supabase-js signed in as the user (storage, realtime, functions). */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the user; RLS applies. */
   readonly db: Db<M, F, E, SupabaseClient>;
   /** Repositories over direct Postgres as the user, when `postgres` is given. */
   readonly sql: Db<M, F, E, unknown> | undefined;
+}
+
+/** What `withRollback` needs from a user: the stack's pool and the user's identity. */
+export interface UserInternals {
+  /** The user's repositories over the given client, typed by `withRollback`. */
+  readonly connect: (client: SqlClient) => unknown;
+  readonly postgres: BetterPostgres | undefined;
+  readonly claims: TestJwtClaims;
+  readonly context: RequestContext;
+}
+
+const internals = new WeakMap<object, UserInternals>();
+
+/** The pool and identity behind a user from `asUser`, or `undefined` for any other object. */
+export function internalsOf(user: object): UserInternals | undefined {
+  return internals.get(user);
 }
 
 function env(...names: readonly string[]): string | undefined {
@@ -158,12 +185,14 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   const supabase = createClient(url, publishableKey, {
     accessToken: () => Promise.resolve(token),
+    tracePropagation: stack.tracePropagation ?? false,
     ...(stack.fetch ? { global: { fetch: stack.fetch } } : {}),
   });
 
-  return {
+  const user: TestUser<M, F, E> = {
     token,
     claims: full,
+    context,
     supabase,
     db: betterSupabase.connect(supabase, context),
     sql: stack.postgres
@@ -173,4 +202,14 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
         )
       : undefined,
   };
+
+  internals.set(user, {
+    connect: (client) =>
+      betterSupabase.connect(postgresExecutor(client), context),
+    postgres: stack.postgres,
+    claims: full,
+    context,
+  });
+
+  return user;
 }

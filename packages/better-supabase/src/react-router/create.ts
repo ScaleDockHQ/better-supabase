@@ -57,7 +57,8 @@ export interface BetterReactRouter<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /** The context key the middleware sets: `context.get(bs.contextKey)`, or `bs.locals(args)`. */
   readonly contextKey: unknown;
   /**
@@ -69,7 +70,7 @@ export interface BetterReactRouter<
     next: () => Promise<Response>,
   ) => Promise<Response>;
   /** `db`, `bs`, `auth`, `tenant` and the serializable `session` of the request. */
-  locals(args: ReactRouterArgs): FrameworkLocals<M, F, E, C, P>;
+  locals(args: ReactRouterArgs): FrameworkLocals<M, F, E, C, P, B>;
   /**
    * A loader that runs the guard first. A refused caller gets a redirect to
    * `signIn` or `mfa` when configured, else a thrown Problem Details
@@ -80,7 +81,7 @@ export interface BetterReactRouter<
     options: BlockRequireOptions<C, P, R>,
     fn: (
       args: A,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => T,
   ): (args: A) => Promise<Unwrapped<Awaited<T>>>;
   /** An action returning an `ActionResult`, for `useActionData` or `useAction`. */
@@ -93,7 +94,7 @@ export interface BetterReactRouter<
     options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
       args: A,
     ) => T,
   ): (args: A) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
@@ -107,16 +108,17 @@ export function createReactRouter<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: ReactRouterOptions,
-): BetterReactRouter<M, F, E, C, P> {
+): BetterReactRouter<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
   const key = options.createContext();
 
-  type Locals = FrameworkLocals<M, F, E, C, P>;
+  type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const locals = (args: ReactRouterArgs): Locals => {
     let value: unknown;
@@ -138,7 +140,7 @@ export function createReactRouter<
     return value as Locals;
   };
 
-  return extendServer<BetterReactRouter<M, F, E, C, P>>(server, {
+  return extendServer<BetterReactRouter<M, F, E, C, P, B>>(server, {
     contextKey: key,
 
     middleware(args, next) {

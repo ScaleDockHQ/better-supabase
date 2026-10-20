@@ -80,15 +80,16 @@ export interface BetterSvelteKit<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /** The keys on `event.locals`, for `App.Locals`. Type only: `undefined` at runtime. */
-  readonly Locals: FrameworkLocals<M, F, E, C, P>;
+  readonly Locals: FrameworkLocals<M, F, E, C, P, B>;
   /**
    * The `handle` hook: verifies the caller, refreshes the session cookie on
    * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and
    * the serializable `session` on `event.locals`.
    */
-  readonly handle: SvelteKitHandle<Partial<FrameworkLocals<M, F, E, C, P>>>;
+  readonly handle: SvelteKitHandle<Partial<FrameworkLocals<M, F, E, C, P, B>>>;
   /**
    * The caller in a `load` or endpoint, or a refusal: a redirect to
    * `signIn` or `mfa` when configured, else SvelteKit's `error()`.
@@ -103,7 +104,7 @@ export interface BetterSvelteKit<
   require<R extends boolean = false>(
     event: SvelteKitRequestEvent,
     options?: BlockRequireOptions<C, P, R>,
-  ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
+  ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A form action returning an `ActionResult`: validates the form with
    * `input`, runs the guard and `authorize`, and on failure answers with
@@ -113,7 +114,7 @@ export interface BetterSvelteKit<
     options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
       event: SvelteKitRequestEvent,
     ) => T,
   ): (
@@ -139,15 +140,16 @@ export function createSvelteKit<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: SvelteKitOptions = {},
-): BetterSvelteKit<M, F, E, C, P> {
+): BetterSvelteKit<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
 
-  type Locals = FrameworkLocals<M, F, E, C, P>;
+  type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const localsFrom = (event: SvelteKitRequestEvent): Locals => {
     const locals: Partial<Locals> = event.locals;
@@ -179,7 +181,7 @@ export function createSvelteKit<
     throw new DbException(error);
   };
 
-  const handle: BetterSvelteKit<M, F, E, C, P>["handle"] = ({
+  const handle: BetterSvelteKit<M, F, E, C, P, B>["handle"] = ({
     event,
     resolve,
   }) => {
@@ -188,7 +190,7 @@ export function createSvelteKit<
     const env = event.platform?.env;
 
     return run(event.request, env, async (contributions) => {
-      Object.assign(event.locals, localsOf<M, F, E, C, P>(contributions));
+      Object.assign(event.locals, localsOf<M, F, E, C, P, B>(contributions));
 
       return withFlush(
         server,
@@ -198,7 +200,7 @@ export function createSvelteKit<
     });
   };
 
-  return extendServer<BetterSvelteKit<M, F, E, C, P>>(server, {
+  return extendServer<BetterSvelteKit<M, F, E, C, P, B>>(server, {
     // SAFETY: `Locals` only carries a type, like Drizzle's `$inferSelect`; reading
     // it at runtime is documented as `undefined`.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.

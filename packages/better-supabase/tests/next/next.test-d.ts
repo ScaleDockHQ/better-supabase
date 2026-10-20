@@ -6,6 +6,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { ActionResult, AuthSession } from "../../src/next/index.ts";
 import type { ActionInputOf } from "../../src/react/index.ts";
+import type { BucketClient } from "../../src/storage/index.ts";
 
 import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -15,6 +16,7 @@ import { createNext } from "../../src/next/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createHooks, useSession } from "../../src/react/index.ts";
 import { createServer } from "../../src/server/server.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const bs = createNext(defineSupabase(schema));
@@ -244,5 +246,22 @@ describe("ActionInputOf", () => {
       id: string;
     }>();
     expectTypeOf<ActionInputOf<FormData>>().toEqualTypeOf<FormData>();
+  });
+});
+
+describe("betterSupabase.buckets() in Next.js", () => {
+  const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
+  const withBuckets = createNext(defineSupabase(schema).buckets({ logos }));
+
+  type Logos = BucketClient<"{userId}/logo.webp", "logos">;
+
+  it("types db.$buckets in actions and on the context", () => {
+    withBuckets.action({}, (_input, ctx) => {
+      expectTypeOf(ctx.db.$buckets.logos).toEqualTypeOf<Logos>();
+
+      return null;
+    });
+    expectTypeOf(withBuckets.admin().$buckets.logos).toEqualTypeOf<Logos>();
+    expectTypeOf(withBuckets.context()).resolves.toHaveProperty("db");
   });
 });

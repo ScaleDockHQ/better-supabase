@@ -2,6 +2,7 @@ import { defineSupabase } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 
 import { toAppError } from "../app-error.ts";
+import { avatars, logos } from "../buckets.ts";
 import { Claims, Profile } from "../claims.ts";
 import { schema } from "./generated.ts";
 
@@ -18,4 +19,5 @@ export const betterSupabase = defineSupabase(schema, {
 })
   .claims(Claims)
   .userMetadata(Profile)
-  .mapError(toAppError);
+  .mapError(toAppError)
+  .buckets({ avatars, logos });

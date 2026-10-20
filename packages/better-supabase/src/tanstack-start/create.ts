@@ -47,7 +47,8 @@ export interface BetterTanStackStart<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * The `.server()` callback of a request middleware: verifies the caller,
    * refreshes the session cookie on navigations and form posts, and puts
@@ -59,7 +60,7 @@ export interface BetterTanStackStart<
    * ```
    */
   readonly middleware: <Result extends object>(
-    args: TanStackStartServerArgs<FrameworkLocals<M, F, E, C, P>, Result>,
+    args: TanStackStartServerArgs<FrameworkLocals<M, F, E, C, P, B>, Result>,
   ) => Promise<Result>;
   /**
    * The caller in a server function or route handler, or a thrown
@@ -67,9 +68,9 @@ export interface BetterTanStackStart<
    * Problem Details response, which TanStack Start sends.
    */
   require<R extends boolean = false>(
-    context: FrameworkLocals<M, F, E, C, P>,
+    context: FrameworkLocals<M, F, E, C, P, B>,
     options?: BlockRequireOptions<C, P, R>,
-  ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
+  ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A `createServerFn().handler()` returning an `ActionResult`, for
    * `useAction`. Pass the same schema to `.inputValidator()` to type `data`
@@ -79,10 +80,10 @@ export interface BetterTanStackStart<
     options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => T,
   ): <Data>(
-    args: TanStackStartHandlerArgs<Data, FrameworkLocals<M, F, E, C, P>>,
+    args: TanStackStartHandlerArgs<Data, FrameworkLocals<M, F, E, C, P, B>>,
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
 
@@ -94,21 +95,22 @@ export function createTanStackStart<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: TanStackStartOptions = {},
-): BetterTanStackStart<M, F, E, C, P> {
+): BetterTanStackStart<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const requests = new WeakMap<object, Request>();
 
-  type Locals = FrameworkLocals<M, F, E, C, P>;
+  type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const served = tanStackStartServer(
     around([frameworkEntry(server, options, expose)]),
     options.platformEnv,
     (contributions, request): Locals => {
-      const locals = localsOf<M, F, E, C, P>(contributions);
+      const locals = localsOf<M, F, E, C, P, B>(contributions);
       requests.set(locals, request);
 
       return locals;
@@ -125,7 +127,7 @@ export function createTanStackStart<
     return context;
   };
 
-  return extendServer<BetterTanStackStart<M, F, E, C, P>>(server, {
+  return extendServer<BetterTanStackStart<M, F, E, C, P, B>>(server, {
     async middleware(args) {
       return withFlush(server, options.waitUntil, () => served(args));
     },

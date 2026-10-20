@@ -14,6 +14,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { TENANT_HEADER } from "../../src/server/server-types.ts";
 import { createServer } from "../../src/server/server.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -1038,5 +1039,21 @@ describe("createServer events", () => {
       expect.objectContaining({ ok: false, shared: false }),
     );
     expect(events).toEqual([expect.objectContaining({ ok: false })]);
+  });
+});
+
+describe("createServer buckets", () => {
+  it("reads db.$buckets from the caller's Storage", async () => {
+    const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
+
+    const server = createServer(defineSupabase(schema).buckets({ logos }), {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
+
+    const db = server.dbFor({ kind: "anon", reason: "none" });
+
+    expect(db.$buckets.logos.bucket).toBe(logos);
+    expect(db.$with({}).$buckets.logos.bucket).toBe(logos);
   });
 });

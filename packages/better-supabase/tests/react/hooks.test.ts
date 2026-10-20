@@ -72,6 +72,7 @@ import {
   createHooks,
   useAuth,
   useBroadcast,
+  useBroadcastAuth,
   useLiveCount,
   useLiveQuery,
   useSupabase,
@@ -513,6 +514,16 @@ describe("BetterSupabaseProvider", () => {
     const view = renderHook(() => useAuth(), undefined, { client: browser });
     setAuth(signedIn(OTHER));
     expect(view.result.user?.id).toBe(OTHER);
+  });
+
+  it("treats a client without the auth module as signed out", () => {
+    const view = renderHook(
+      () => useBroadcastAuth(undefined, {} as SupabaseClient),
+      undefined,
+      null,
+    );
+
+    expect(view.result).toEqual({ status: "signed-out", userId: null });
   });
 
   it("explains a missing provider", () => {

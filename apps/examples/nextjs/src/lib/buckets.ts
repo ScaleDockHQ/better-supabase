@@ -10,7 +10,7 @@ export const avatars = defineBucket(buckets.avatars);
 
 /** The image an avatar shows: the uploaded object, else the provider's picture. */
 export function avatarSrc(
-  storage: ReturnType<typeof avatars.connect>,
+  storage: Pick<ReturnType<typeof avatars.connect>, "publicUrl">,
   row: {
     readonly avatarPath: string | null;
     readonly avatarUrl: string | null;

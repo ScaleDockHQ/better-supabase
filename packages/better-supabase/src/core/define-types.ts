@@ -1,4 +1,5 @@
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { BucketRegistry } from "./db-buckets.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 import type { Logger } from "./logger.ts";
@@ -7,6 +8,8 @@ import type { StandardSchemaV1 } from "./standard.ts";
 import type { StatsRecorder } from "./stats.ts";
 
 export interface SupabaseOptions {
+  /** Set by `betterSupabase.buckets()`; read by `db.$buckets`. */
+  readonly buckets?: BucketRegistry;
   /**
    * Clock used by plugins (timestamps, soft delete) and for the `time` of
    * block events on `betterSupabase.events`. Pass it to `createJobs` too.

@@ -1,5 +1,4 @@
 import "server-only";
-import { logos } from "@/lib/buckets";
 import { customerList } from "@/lib/lists";
 import { bs } from "@/lib/supabase/server";
 
@@ -13,7 +12,7 @@ import { bs } from "@/lib/supabase/server";
  */
 export async function getCustomers() {
   "use cache: private";
-  const { db, supabase } = await bs.cached();
+  const { db } = await bs.cached();
 
   const page = await customerList
     .run(db, customerList.defaults, {
@@ -28,7 +27,7 @@ export async function getCustomers() {
 
   // Public bucket: the URL is built locally, and `next/image` resizes it
   // through Storage (see `src/image-loader.ts`).
-  const storage = logos.connect(supabase);
+  const storage = db.$buckets.logos;
 
   return {
     ...page,
@@ -44,7 +43,7 @@ export async function getCustomers() {
 /** One customer with its notes; `null` when RLS hides it or it is gone. */
 export async function getCustomer(id: string) {
   "use cache: private";
-  const { db, supabase } = await bs.cached();
+  const { db } = await bs.cached();
 
   const customer = await db.customers
     .findUnique({
@@ -67,7 +66,7 @@ export async function getCustomer(id: string) {
   return {
     ...customer,
     logoUrl: customer.logoPath
-      ? logos.connect(supabase).publicUrl(customer.logoPath).data
+      ? db.$buckets.logos.publicUrl(customer.logoPath).data
       : null,
   };
 }

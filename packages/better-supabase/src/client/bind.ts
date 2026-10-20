@@ -7,6 +7,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
+import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import { createQueries, type BetterQueries } from "../query/index.ts";
 import { identityKey } from "../query/user-change.ts";
@@ -159,7 +160,15 @@ export function bindClient<
   let db: Db<M, F, E, SupabaseClient> | undefined;
   const listeners = new Set<() => void>();
 
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+  // A client built without the auth module has no session to follow, so the
+  // snapshot starts signed out and there is nothing to unsubscribe.
+  const followsAuth = hasAuthModule(supabase);
+
+  if (!followsAuth) {
+    snapshot = snapshotOf(null);
+  }
+
+  const onChange = (_event: unknown, session: Session | null): void => {
     const next = snapshotOf(session);
 
     // A refresh only moves the time claims: keeping the snapshot keeps `db`
@@ -177,7 +186,11 @@ export function bindClient<
     for (const listener of listeners) {
       listener();
     }
-  });
+  };
+
+  const subscription = followsAuth
+    ? supabase.auth.onAuthStateChange(onChange)
+    : undefined;
 
   const client: BetterClient<M, F, E, C, P> = {
     betterSupabase,
@@ -194,7 +207,7 @@ export function bindClient<
       options.staleTime === undefined ? {} : { staleTime: options.staleTime },
     ),
     dispose: () => {
-      data.subscription.unsubscribe();
+      subscription?.data.subscription.unsubscribe();
       listeners.clear();
     },
     auth: {

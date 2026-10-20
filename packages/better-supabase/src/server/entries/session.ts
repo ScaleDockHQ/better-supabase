@@ -166,8 +166,9 @@ export function withSession<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
   config: SessionEntryConfig = {},
 ): SingleKeyEntry<"session", Record<never, never>, AuthResolution<C, P>> {
   return defineMiddleware<

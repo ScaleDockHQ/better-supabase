@@ -46,6 +46,15 @@ describe("sessionUserId", () => {
 });
 
 describe("plainCaller", () => {
+  it("is signed out for a client without the auth module", () => {
+    const caller = plainCaller({} as never);
+    const stop = caller.subscribe(vi.fn());
+    expect(caller.current()).toEqual({ status: "signed-out", userId: null });
+    expect(() => {
+      stop();
+    }).not.toThrow();
+  });
+
   it("follows the client's auth state and stops listening", () => {
     const realtime = fakeRealtime();
     const caller = plainCaller(realtime.client as never);

@@ -45,7 +45,8 @@ export type FrameworkLocals<
   E,
   C = unknown,
   P = unknown,
-> = BetterSupabaseContributions<M, F, E, C, P> & {
+  B = unknown,
+> = BetterSupabaseContributions<M, F, E, C, P, B> & {
   /** The caller as plain data, safe to return from a loader to the browser. */
   readonly session: AuthSession<C, P>;
 };
@@ -57,11 +58,12 @@ export function frameworkEntry<
   E,
   C,
   P,
+  B,
 >(
-  server: BetterServer<M, F, E, C, P>,
+  server: BetterServer<M, F, E, C, P, B>,
   options: FrameworkOptions,
   expose: boolean,
-): BetterSupabaseEntry<M, F, E, C, P> {
+): BetterSupabaseEntry<M, F, E, C, P, B> {
   return withBetterSupabase(server, {
     refresh: options.refresh ?? "navigation",
     allow: EVERY_CALLER,
@@ -80,11 +82,16 @@ export function frameworkEntry<
 }
 
 /** The contributions plus the serializable `session`. */
-export function localsOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
-  contributions: object,
-): FrameworkLocals<M, F, E, C, P> {
+export function localsOf<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+>(contributions: object): FrameworkLocals<M, F, E, C, P, B> {
   // SAFETY: frameworkEntry contributes exactly BetterSupabaseContributions for this server.
-  const base = contributions as BetterSupabaseContributions<M, F, E, C, P>;
+  const base = contributions as BetterSupabaseContributions<M, F, E, C, P, B>;
 
   return { ...base, session: toSession(base.bs.auth) };
 }

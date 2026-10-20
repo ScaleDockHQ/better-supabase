@@ -187,6 +187,7 @@ export interface ServerContext<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   readonly auth: AuthState<C, P>;
   readonly resolution: AuthResolution<C, P>;
@@ -196,9 +197,9 @@ export interface ServerContext<
    */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the caller. */
-  readonly db: Db<M, F, E, SupabaseClient>;
+  readonly db: Db<M, F, E, SupabaseClient, B>;
   /** Repositories over direct Postgres as the caller, when `postgres` is configured. */
-  readonly sql: Db<M, F, E, undefined> | undefined;
+  readonly sql: Db<M, F, E, undefined, B> | undefined;
   /** Calls, waves, tables and time for `db` and `sql` together. */
   stats(): DbStats;
   /** Where `db` reads go, when a read URL is configured. */
@@ -258,6 +259,7 @@ export interface BetterServer<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   readonly env: BetterSupabaseEnv;
   /** The definition's events; adapters pass `events.settled()` to `waitUntil`. */
@@ -277,7 +279,7 @@ export interface BetterServer<
   context(
     request: Request,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P>>;
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
    * The context for a resolution from `resolve(request)`, so one resolution
    * can back several contexts without verifying the token again.
@@ -286,12 +288,12 @@ export interface BetterServer<
     resolution: AuthResolution<C, P>,
     request: Request,
     options?: Omit<ContextOptions, "refresh">,
-  ): ServerContext<M, F, E, C, P>;
+  ): ServerContext<M, F, E, C, P, B>;
   /** The context for an auth state resolved elsewhere (the proxy, a queue message). */
   contextFor(
     auth: AuthState<C, P>,
     options?: ContextOptions,
-  ): ServerContext<M, F, E, C, P>;
+  ): ServerContext<M, F, E, C, P, B>;
   /** A stateless supabase-js client for an auth state, optionally with extra request headers. */
   supabaseFor(
     auth: AuthState,
@@ -306,9 +308,9 @@ export interface BetterServer<
     auth: AuthState,
     context?: RequestContext,
     options?: { readonly support?: ActiveSupport },
-  ): Db<M, F, E, SupabaseClient>;
+  ): Db<M, F, E, SupabaseClient, B>;
   /** Service-role repositories. Bypasses RLS; the actor is `service`. */
-  admin(context?: RequestContext): Db<M, F, E, SupabaseClient>;
+  admin(context?: RequestContext): Db<M, F, E, SupabaseClient, B>;
   /**
    * Deletes a user: the Auth user, then their objects in `buckets`, then a
    * `mutation` notice for `auth.users`. Needs the secret key. With
@@ -338,7 +340,7 @@ export interface BetterServer<
     userId: string,
     claims?: Omit<SqlClaims, "sub" | "act">,
     impersonation?: ImpersonationOptions,
-  ): Db<M, F, E, undefined>;
+  ): Db<M, F, E, undefined, B>;
   /**
    * Repositories for the user in a recorded context (`job.context`), with
    * RLS, over direct Postgres: `actingAs` with the context's tenant and
@@ -354,7 +356,7 @@ export interface BetterServer<
   forContext(
     context: RequestContext,
     options?: ForContextOptions,
-  ): AsyncResult<Db<M, F, E, undefined>>;
+  ): AsyncResult<Db<M, F, E, undefined, B>>;
   /** Support sessions; every method fails without `ServerOptions.support`. */
   readonly support: SupportApi;
   /** `options.authorizer`, when the server has one. */

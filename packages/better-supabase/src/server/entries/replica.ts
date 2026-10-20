@@ -17,17 +17,18 @@ export function withReplica<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
 ): SingleKeyEntry<
   "replica",
-  { readonly bs: ServerContext<M, F, E, C, P> },
+  { readonly bs: ServerContext<M, F, E, C, P, B> },
   ReplicaState | undefined
 > {
   return defineMiddleware<
     "replica",
     undefined,
-    { readonly bs: ServerContext<M, F, E, C, P> },
+    { readonly bs: ServerContext<M, F, E, C, P, B> },
     ReplicaState | undefined
   >({
     key: "replica",

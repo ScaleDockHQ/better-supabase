@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -114,5 +114,68 @@ describe("asUser", () => {
         },
       ),
     ).rejects.toThrow(/only for a local stack/);
+  });
+});
+
+describe("asUser tracing and request context", () => {
+  const betterSupabase = defineSupabase(schema);
+
+  const stack = {
+    publishableKey: "sb_publishable_test",
+    alg: "HS256",
+  } as const;
+
+  it("exposes the request context of the user", async () => {
+    const user = await asUser(
+      betterSupabase,
+      { sub: USER, email: "a@b.test" },
+      stack,
+    );
+
+    expect(user.context).toEqual({
+      actor: {
+        id: USER,
+        kind: "user",
+        role: "authenticated",
+        email: "a@b.test",
+      },
+      claims: user.claims,
+    });
+    expect(user.db.$context).toEqual(user.context);
+  });
+
+  it("keeps supabase-js trace propagation off, so it never warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      const user = await asUser(
+        betterSupabase,
+        { sub: USER },
+        {
+          ...stack,
+          fetch: () => Promise.resolve(new Response("[]")),
+        },
+      );
+
+      await user.supabase.from("customers").select();
+      expect(warn).not.toHaveBeenCalled();
+
+      const traced = await asUser(
+        betterSupabase,
+        { sub: USER },
+        {
+          ...stack,
+          tracePropagation: true,
+          fetch: () => Promise.resolve(new Response("[]")),
+        },
+      );
+
+      await traced.supabase.from("customers").select();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("tracePropagation is enabled"),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
