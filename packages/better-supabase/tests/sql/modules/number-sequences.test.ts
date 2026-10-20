@@ -533,6 +533,24 @@ describe("per-tenant formats", () => {
     expect(sql).toContain("NUMBER_FORMAT_INVALID");
   });
 
+  it("checks an entity's own permission in preview_number", () => {
+    const sql = sqlOf({
+      "number-sequences": {
+        permissions: { assign: "documents.number" },
+        options: {
+          entities: {
+            invoice: { ...perTenant, permission: "invoices.write" },
+            quote: { period: "year", format: "Q-{n}" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      "coalesce(better_supabase.can('tenant', p_tenant, case p_entity\n    when 'invoice' then 'invoices.write'\n    else 'documents.number'\n  end), false)",
+    );
+  });
+
   it.each([
     ["a formatFrom that is not an object", { formatFrom: "x" }, /formatFrom/],
     [
@@ -545,6 +563,7 @@ describe("per-tenant formats", () => {
       { formatFrom: { column: "public.o.f", key: "Id" } },
       /formatFrom\.key/,
     ],
+    ["an empty permission", { permission: "" }, /permission must be/],
     [
       "a sequenceColumn equal to column",
       { sequenceColumn: "formatted_number" },
@@ -701,6 +720,20 @@ const previews = (check: string): Promise<void> =>
     { permissions: { assign: "invoices.write" } },
   );
 
+const entityPreviews = (check: string): Promise<void> =>
+  withNumbers(
+    {
+      invoice: {
+        ...perTenant,
+        sequenceColumn: "number",
+        permission: "invoices.write",
+      },
+      quote: { period: "year", format: "Q-{yyyy}-{n}" },
+    },
+    TENANT_FORMATS,
+    [ORGANIZATIONS, CAN, check],
+  );
+
 describe("preview_number", BOOT, () => {
   it("previews the tenant's next number under the assign permission", async () => {
     await expect(
@@ -725,6 +758,25 @@ $$;`)}`),
     await expect(
       previews(
         asMember(`select better_supabase.preview_number('${BOB}', 'invoice');`),
+      ),
+    ).rejects.toThrow(/not allowed to number documents/);
+  });
+
+  it("checks an entity's own permission and the block key for the others", async () => {
+    await expect(
+      entityPreviews(
+        asMember(`do $$
+begin
+  if better_supabase.preview_number('${ALICE}', 'invoice', '2026-05-01') <> '2026-001' then
+    raise exception 'previewed %', better_supabase.preview_number('${ALICE}', 'invoice', '2026-05-01');
+  end if;
+end;
+$$;`),
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      entityPreviews(
+        asMember(`select better_supabase.preview_number('${ALICE}', 'quote');`),
       ),
     ).rejects.toThrow(/not allowed to number documents/);
   });

@@ -77,9 +77,25 @@ const numbers = createNumberSequences({ transport });
 const next = await numbers.preview(organizationId, "invoice", issuedOn);
 ```
 
-| Action   | Default key               | Checked by                                         |
-| -------- | ------------------------- | -------------------------------------------------- |
-| `assign` | `number_sequences.assign` | `preview_number`; the service role always holds it |
+When different people issue different documents, give an entity its own key with `permission`. `preview_number` then checks that key for the entity and `permissions.assign` for every entity without one, so a config without `permission` keeps working as before:
+
+```ts title="better-supabase.config.ts"
+"number-sequences": {
+  permissions: { assign: "documents.write" },
+  options: {
+    entities: {
+      invoice: { /* ... */ permission: "invoices.write" },
+      quote: { /* ... */ },
+    },
+  },
+},
+```
+
+| Action   | Default key               | Set by                                             | Checked by                                         |
+| -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------- |
+| `assign` | `number_sequences.assign` | `permissions.assign`, `entities.<name>.permission` | `preview_number`; the service role always holds it |
+
+`sql sync` and doctor check an entity's key against the authorization provider like the block's own keys.
 
 ## Existing numbers
 

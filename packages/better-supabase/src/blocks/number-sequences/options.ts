@@ -17,6 +17,7 @@ export type NumberSequenceEntityOptions = {
   readonly tenantColumn?: string;
   readonly periodColumn?: string;
   readonly assignOn?: string;
+  readonly permission?: string;
 };
 
 /** `blocks.number-sequences.options`. */

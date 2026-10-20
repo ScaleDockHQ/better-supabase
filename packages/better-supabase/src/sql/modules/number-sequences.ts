@@ -67,6 +67,7 @@ interface SequenceEntity {
   readonly tenantColumn: string;
   readonly assignOn: string;
   readonly periodColumn?: string;
+  readonly permission?: string;
 }
 
 const YEAR_TOKEN = /\{yy(?:yy)?\}/;
@@ -234,6 +235,17 @@ function entity(name: string, entry: unknown): SequenceEntity {
     throw new TypeError(`${where}.periodColumn must be a column name`);
   }
 
+  const permission = record["permission"];
+
+  if (
+    permission !== undefined &&
+    (typeof permission !== "string" ||
+      permission.length === 0 ||
+      permission.length > 200)
+  ) {
+    throw new TypeError(`${where}.permission must be a permission key`);
+  }
+
   const assignOn = record["assignOn"] ?? "true";
 
   if (typeof assignOn !== "string" || !PREDICATE.test(assignOn)) {
@@ -255,6 +267,7 @@ function entity(name: string, entry: unknown): SequenceEntity {
     tenantColumn,
     assignOn,
     ...(typeof periodColumn === "string" ? { periodColumn } : {}),
+    ...(typeof permission === "string" ? { permission } : {}),
   };
 }
 
@@ -536,10 +549,17 @@ function previewFunction(
   const fn = ctx.fn("preview_number");
   const table = ctx.table("sequences");
 
-  const assign = ctx.permission(
+  const fallback = ctx.permission(
     "assign",
     OPERATIONS["number-sequences.assign"],
   );
+
+  const own = items.filter((item) => item.permission !== undefined);
+
+  const assign =
+    own.length === 0
+      ? fallback
+      : `case p_entity\n${own.map((item) => `    when ${sqlString(item.name)} then ${sqlString(item.permission ?? "")}`).join("\n")}\n    else ${fallback}\n  end`;
 
   const format =
     items.length === 0
@@ -972,4 +992,17 @@ export const NUMBER_SEQUENCES: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  permissionKeys: (ctx) =>
+    sequences(ctx).flatMap((item) =>
+      item.permission === undefined
+        ? []
+        : [
+            {
+              action: "assign",
+              key: item.permission,
+              scope: "tenant",
+              setting: `blocks.number-sequences.options.entities.${item.name}.permission`,
+            },
+          ],
+    ),
 };
