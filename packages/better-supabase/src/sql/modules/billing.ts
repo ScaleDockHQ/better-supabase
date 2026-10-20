@@ -20,6 +20,10 @@ import {
 } from "../shared.ts";
 import { moduleOperations, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
+import {
+  subscriptionSourceOf,
+  webhookSubscriptions,
+} from "./billing-webhook.ts";
 
 const EVENTS: ModuleEvents<BillingEvents> = {
   "billing.customer_linked": {
@@ -31,7 +35,7 @@ const EVENTS: ModuleEvents<BillingEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["seatRoles", "plans", "tenantKey"],
+  options: ["seatRoles", "plans", "tenantKey", "subscriptions"],
   tables: {
     customers: {
       name: "billing_customers",
@@ -40,6 +44,21 @@ const NAMES: ModuleNames = {
         tenant: "organization_id",
         customer: "stripe_customer_id",
         createdAt: "created_at",
+      },
+    },
+    subscriptions: {
+      name: "billing_subscriptions",
+      lifecycle: { tenant: "tenant" },
+      columns: {
+        tenant: "organization_id",
+        subscription: "subscription_id",
+        status: "status",
+        price: "price_id",
+        plan: "plan",
+        periodEnd: "period_end",
+        cancelAt: "cancel_at",
+        eventAt: "event_at",
+        updatedAt: "updated_at",
       },
     },
   },
@@ -228,6 +247,7 @@ function build(ctx: ModuleContext): string {
     modulePermission(ctx, "viewAll", permissions.viewAll),
   );
 
+  const webhook = subscriptionSourceOf(ctx) === "webhook";
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
 
@@ -341,7 +361,19 @@ as $$
 declare
   customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_subscription_item.tenant);
   found jsonb;
-begin
+begin${
+    webhook
+      ? `
+  select jsonb_build_object(
+    'subscription', b.${ctx.col("subscriptions", "subscription")}, 'item', null, 'price', b.${ctx.col("subscriptions", "price")},
+    'quantity', null, 'status', b.${ctx.col("subscriptions", "status")}
+  ) into found
+  from ${ctx.table("subscriptions")} b
+  where b.${ctx.col("subscriptions", "tenant")} = billing_subscription_item.tenant
+    and b.${ctx.col("subscriptions", "status")} in ('active', 'trialing', 'past_due')
+    and (billing_subscription_item.price is null or b.${ctx.col("subscriptions", "price")} = billing_subscription_item.price);
+  return found;`
+      : `
   if customer is null or to_regclass('stripe.subscription_items') is null then
     return null;
   end if;
@@ -357,7 +389,8 @@ begin
     order by s.created desc nulls last, i.created nulls last
     limit 1
   $q$ into found using customer, price;
-  return found;
+  return found;`
+  }
 end;
 $$;
 
@@ -465,7 +498,14 @@ as $$
 declare
   customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_tenant_subscription.tenant);
   found jsonb;
-begin
+begin${
+    webhook
+      ? `
+  select to_jsonb(b.*) into found
+  from ${ctx.table("subscriptions")} b
+  where b.${ctx.col("subscriptions", "tenant")} = billing_tenant_subscription.tenant;
+  return found;`
+      : `
   if customer is null or to_regclass('stripe.subscriptions') is null then
     return null;
   end if;
@@ -479,7 +519,8 @@ begin
     order by (s.status in ('active', 'trialing', 'past_due')) desc, s.created desc nulls last
     limit 1
   $q$ into found using customer;
-  return found;
+  return found;`
+  }
 end;
 $$;
 
@@ -595,6 +636,7 @@ begin
 end;
 $$;
 
+${webhook ? webhookSubscriptions(ctx, platformPlans(plansOf(ctx))) : ""}
 revoke execute on function ${fn("billing_stripe_rows")}(${id}, text, integer) from public, anon;
 revoke execute on function ${fn("billing_invoices")}(${id}, integer) from public, anon;
 revoke execute on function ${fn("billing_payment_methods")}(${id}) from public, anon;
@@ -626,8 +668,30 @@ grant execute on function ${fn("billing_subscription_item")}(${id}, text) to ser
 grant execute on function ${fn("billing_status")}(${id}) to authenticated, service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const webhook: readonly ModuleContractFunction[] =
+    subscriptionSourceOf(ctx) === "webhook"
+      ? [
+          { name: "billing_plan_of_price", args: ["text"], returns: "text" },
+          {
+            name: "upsert_billing_subscription",
+            args: [
+              "{id}",
+              "text",
+              "text",
+              "text",
+              "timestamptz",
+              "timestamptz",
+              "timestamptz",
+            ],
+            returns: "boolean",
+          },
+          { name: "billing_checkout_block", args: ["{id}"], returns: "text" },
+        ]
+      : [];
+
   return [
+    ...webhook,
     { name: "billing_customer", args: ["{id}"], returns: "text" },
     { name: "billing_customer_tenant", args: ["text"], returns: "{id}" },
     { name: "link_billing_customer", args: ["{id}", "text"], returns: "text" },

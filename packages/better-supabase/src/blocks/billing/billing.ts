@@ -42,6 +42,8 @@ import {
   stripeCall,
   subscriptionItemOf,
   syncedTaxId,
+  checkoutBlockedError,
+  subscriptionRecord,
 } from "./stripe-helpers.ts";
 
 /** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
@@ -298,6 +300,18 @@ export function createBilling(options: BillingOptions): Billing {
         return ok({ ...ignored, customerId });
       }
 
+      if (options.subscriptions === "webhook") {
+        const stored = await call(
+          "upsert_billing_subscription",
+          subscriptionRecord(organizationId, object, input.created),
+          (value) => value === true,
+        );
+
+        if (!stored.ok) {
+          return stored;
+        }
+      }
+
       emit(type, {
         organizationId,
         customerId,
@@ -314,6 +328,33 @@ export function createBilling(options: BillingOptions): Billing {
         customerId,
         invalidated: await invalidate(input),
       });
+    });
+
+  const checkoutBlock = (organizationId: string): AsyncResult<undefined> =>
+    AsyncResult.from(async () => {
+      const external = await options.external?.(organizationId);
+
+      if (external !== undefined) {
+        return checkoutBlockedError(`BILLING_EXTERNAL:${external}`);
+      }
+
+      if (options.subscriptions !== "webhook") {
+        return ok(undefined);
+      }
+
+      const blocked = await call(
+        "billing_checkout_block",
+        { tenant: organizationId },
+        optionalText,
+      );
+
+      if (!blocked.ok) {
+        return blocked;
+      }
+
+      return blocked.data === undefined
+        ? ok(undefined)
+        : checkoutBlockedError(blocked.data);
     });
 
   const priceOf = (choice: {
@@ -611,62 +652,66 @@ export function createBilling(options: BillingOptions): Billing {
           : ok(updated.data.id);
       }),
     checkout: (organizationId, checkout) =>
-      priceOf(checkout).andThen((price) =>
-        ensureCustomer(organizationId, checkout).andThen(async (customerId) => {
-          const quantity =
-            checkout.quantity === "seats"
-              ? await seats(organizationId)
-              : ok(checkout.quantity ?? 1);
+      checkoutBlock(organizationId)
+        .andThen(() => priceOf(checkout))
+        .andThen((price) =>
+          ensureCustomer(organizationId, checkout).andThen(
+            async (customerId) => {
+              const quantity =
+                checkout.quantity === "seats"
+                  ? await seats(organizationId)
+                  : ok(checkout.quantity ?? 1);
 
-          if (!quantity.ok) {
-            return quantity;
-          }
+              if (!quantity.ok) {
+                return quantity;
+              }
 
-          const lineItems = [{ price, quantity: quantity.data }];
+              const lineItems = [{ price, quantity: quantity.data }];
 
-          for (const extra of checkout.items ?? []) {
-            const extraPrice = await priceOf(extra);
+              for (const extra of checkout.items ?? []) {
+                const extraPrice = await priceOf(extra);
 
-            if (!extraPrice.ok) {
-              return extraPrice;
-            }
+                if (!extraPrice.ok) {
+                  return extraPrice;
+                }
 
-            lineItems.push({
-              price: extraPrice.data,
-              quantity: extra.quantity ?? 1,
-            });
-          }
+                lineItems.push({
+                  price: extraPrice.data,
+                  quantity: extra.quantity ?? 1,
+                });
+              }
 
-          const mode = checkout.mode ?? "subscription";
+              const mode = checkout.mode ?? "subscription";
 
-          return withStripe(async (client) => {
-            const params = checkoutParams(
-              {
-                customer: customerId,
-                mode,
-                client_reference_id: organizationId,
-                line_items: lineItems,
-                success_url: checkout.successUrl,
-                ...(checkout.cancelUrl === undefined
-                  ? {}
-                  : { cancel_url: checkout.cancelUrl }),
-              },
-              checkout.params,
-              organizationId,
-              customerId,
-            );
+              return withStripe(async (client) => {
+                const params = checkoutParams(
+                  {
+                    customer: customerId,
+                    mode,
+                    client_reference_id: organizationId,
+                    line_items: lineItems,
+                    success_url: checkout.successUrl,
+                    ...(checkout.cancelUrl === undefined
+                      ? {}
+                      : { cancel_url: checkout.cancelUrl }),
+                  },
+                  checkout.params,
+                  organizationId,
+                  customerId,
+                );
 
-            const session = await client.checkout.sessions.create(
-              params,
-              checkout.idempotencyKey === undefined
-                ? undefined
-                : { idempotencyKey: checkout.idempotencyKey },
-            );
+                const session = await client.checkout.sessions.create(
+                  params,
+                  checkout.idempotencyKey === undefined
+                    ? undefined
+                    : { idempotencyKey: checkout.idempotencyKey },
+                );
 
-            return { id: session.id, url: session.url ?? undefined };
-          });
-        }),
-      ),
+                return { id: session.id, url: session.url ?? undefined };
+              });
+            },
+          ),
+        ),
     portal: (organizationId, portal) =>
       customer(organizationId).andThen(async (customerId) => {
         if (customerId === undefined) {

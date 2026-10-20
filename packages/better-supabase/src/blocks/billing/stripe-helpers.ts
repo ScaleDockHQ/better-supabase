@@ -1,7 +1,14 @@
 import type { StripeTaxId } from "../stripe.ts";
 import type { StripeEvent, SubscriptionItem } from "./types.ts";
 
-import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import {
+  AsyncResult,
+  err,
+  ok,
+  type Result,
+  toDbError,
+} from "../../core/result.ts";
 import { isRecord, optionalText, textOf } from "../shared.ts";
 
 export const ORGANIZATION_KEY = "organization_id";
@@ -124,4 +131,50 @@ export function stripeCall<T>(work: () => Promise<T>): AsyncResult<T> {
       return err(toDbError(cause));
     }
   });
+}
+
+const isoOfEpoch = (value: unknown): string | undefined =>
+  typeof value === "number" && Number.isFinite(value)
+    ? new Date(value * 1000).toISOString()
+    : undefined;
+
+/** The arguments of `upsert_billing_subscription` for a `customer.subscription.*` object. */
+export function subscriptionRecord(
+  tenant: string,
+  object: Readonly<Record<string, unknown>>,
+  created: number | undefined,
+): Readonly<Record<string, unknown>> {
+  const items = isRecord(object["items"]) ? object["items"]["data"] : undefined;
+
+  const first =
+    Array.isArray(items) && isRecord(items[0]) ? items[0] : undefined;
+
+  const price = first && isRecord(first["price"]) ? first["price"] : undefined;
+
+  return {
+    tenant,
+    subscription: textOf(object["id"]),
+    status: optionalText(object["status"]) ?? "incomplete",
+    price: price ? optionalText(price["id"]) : undefined,
+    period_end: isoOfEpoch(
+      object["current_period_end"] ?? first?.["current_period_end"],
+    ),
+    cancel_at: isoOfEpoch(object["cancel_at"]),
+    event_at: isoOfEpoch(created) ?? new Date().toISOString(),
+  };
+}
+
+/** The `conflict` error `checkout` returns for a tenant billed elsewhere or already subscribed. */
+export function checkoutBlockedError(reason: string): Result<never> {
+  const [hint = "BILLING_ALREADY_SUBSCRIBED", provider] = reason.split(":", 2);
+
+  return err(
+    dbError(
+      "conflict",
+      provider
+        ? `This tenant is billed through ${provider}`
+        : "This tenant already has a subscription",
+      { hint },
+    ),
+  );
 }
