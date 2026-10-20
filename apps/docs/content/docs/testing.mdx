@@ -228,6 +228,40 @@ await app.request("/api/customers", {
 For HS256 tokens, add `localAuth(secret)` to `auth.resolvers`. Use it in
 tests only.
 
+### Hermetic server tests
+
+A unit test that builds its own server should not depend on the variables
+your shell exports or the stack that happens to be running. Pass the
+variables as an object, and the keys inline:
+
+```ts title="server.test.ts"
+import { createServer } from "better-supabase/server";
+import { createTestSigner } from "better-supabase/testing";
+
+const signer = await createTestSigner();
+
+const bs = createServer(betterSupabase, {
+  env: {
+    SUPABASE_URL: "http://127.0.0.1:54321",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+  },
+  auth: { jwks: signer.jwks },
+});
+
+const ctx = await bs.context(
+  new Request("https://app.test/", {
+    headers: {
+      authorization: `Bearer ${await signer.sign({ sub: aliceId })}`,
+    },
+  }),
+);
+```
+
+An `env` object is the only source the server reads: `SUPABASE_JWKS` or a
+stale `SUPABASE_URL` in `process.env` is ignored. With `auth: { jwks: false }`
+no key is looked up at all, so every ES256 token resolves as invalid.
+[createServer](/docs/auth/server#env-and-keys) lists the full order.
+
 ## Authorizers
 
 `staticAuthorizer` is an in-memory [authorizer](/docs/extending/authorizers)

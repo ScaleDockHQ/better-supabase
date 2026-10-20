@@ -64,6 +64,31 @@ JWKS right away, so the first request verifies its token without waiting for
 it. Pass `prefetchJwks: false` to turn that off; it is off under
 `NODE_ENV=test`.
 
+## Env and keys
+
+`createServer` reads its settings from `env`, the first one given wins:
+
+1. The `env` option: a loaded env from [`loadEnv`](/docs/auth/env), or the
+   variables themselves (`{ SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY }`).
+   Variables passed this way are the only ones read; a missing one is an
+   error, never filled in from `process.env`.
+2. The variables `getEnv` from `@supabase/middleware` reads: Workers
+   bindings, then `process.env`, then `Deno.env`.
+
+Tokens verify against the first key source that is set:
+
+1. `auth.jwks`. Inline keys, a `URL`, or `false` (or `null`): no keys and no
+   lookup, so only HS256 tokens with `auth.jwtSecret` verify.
+2. `env.jwks`, from `SUPABASE_JWKS`.
+3. `env.jwksUrl`, from `SUPABASE_JWKS_URL`, else
+   `<url>/auth/v1/.well-known/jwks.json`.
+
+`SUPABASE_PUBLIC_URL` plays no part here; only the
+[MCP HTTP transport](/docs/frameworks/mcp) reads it.
+
+A test server that must not see your shell's variables passes both, as in
+[hermetic server tests](/docs/testing#hermetic-server-tests).
+
 ## Explicit identities
 
 ```ts
