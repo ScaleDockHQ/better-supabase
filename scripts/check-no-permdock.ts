@@ -53,6 +53,7 @@ const allowed = new Set([
   "docs/agents/commands.md",
   "docs/decisions/0011-authorization-providers.md",
   "docs/decisions/0039-name-permdock-on-create.md",
+  "docs/decisions/0055-connect-permdock-cloud-on-create.md",
   "docs/decisions/README.md",
   "packages/better-supabase/CHANGELOG.md",
   "scripts/check-no-permdock.ts",

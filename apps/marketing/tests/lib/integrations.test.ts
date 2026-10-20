@@ -17,6 +17,8 @@ const UNLISTED = new Set([
   "other",
   // A Next.js guide, reached from the Next.js page.
   "next-cache-components",
+  // A guide for running Hono and Next.js on one server, reached from both pages.
+  "hono-and-next",
 ]);
 
 function hasDocsPage(href: string): boolean {
