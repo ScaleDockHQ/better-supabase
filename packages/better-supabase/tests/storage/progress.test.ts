@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ok } from "../../src/core/result.ts";
-import { defineBucket } from "../../src/storage/index.ts";
+import {
+  defineBucket,
+  type StorageApi,
+  type StorageResponse,
+} from "../../src/storage/index.ts";
 import { sendable, xhrUpload } from "../../src/storage/progress.ts";
 import { fakeStorage } from "../fixtures/fake-storage.ts";
 
@@ -163,6 +167,46 @@ describe("upload progress", () => {
       onProgress: () => undefined,
     });
     expect(calls.at(-1)?.method).toBe("upload");
+  });
+
+  it("claims the uploaded object when Storage has a claim step", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const { client } = fakeStorage();
+    const claimed: string[] = [];
+
+    const claiming = (
+      reply: StorageResponse<{ readonly path: string }>,
+    ): StorageApi => ({
+      from: (bucket) => client.storage.from(bucket),
+      claimSignedUpload: (_bucket, path) => {
+        claimed.push(path);
+
+        return Promise.resolve(reply);
+      },
+    });
+
+    expect(
+      await docs
+        .connect(claiming({ data: { path: "o1/a.txt" }, error: null }))
+        .upload(A, "x", { onProgress: () => undefined }),
+    ).toEqual(ok({ path: "o1/a.txt" }));
+    expect(claimed).toEqual(["o1/a.txt"]);
+
+    expect(
+      await docs
+        .connect(
+          claiming({
+            data: null,
+            error: {
+              name: "StorageApiError",
+              message: "taken",
+              status: 403,
+              statusCode: "403",
+            },
+          }),
+        )
+        .upload(A, "x", { onProgress: () => undefined }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
   });
 
   it("cancels the request on abort", async () => {

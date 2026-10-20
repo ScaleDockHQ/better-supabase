@@ -129,6 +129,12 @@ function fakeAdmin() {
     ),
     upload: reply("upload", (path) => ({ path })),
     update: reply("update", (path) => ({ path })),
+    createSignedUploadUrl: reply("createSignedUploadUrl", (path) => ({
+      signedUrl: `https://storage.test/upload/sign/${String(path)}?token=t1`,
+      token: "t1",
+      path,
+    })),
+    uploadToSignedUrl: reply("uploadToSignedUrl", (path) => ({ path })),
     remove: reply("remove", (paths) =>
       (paths as unknown[]).map((entry) => ({
         name:
@@ -1027,6 +1033,294 @@ describe("supportStorage writes", () => {
   });
 });
 
+const CLAIM_SQL =
+  "update storage.objects\nset owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb\nwhere bucket_id = $1 and name = $2 and owner_id is null\nreturning name";
+
+const INSERT_SQL =
+  "insert into storage.objects (bucket_id, name, owner, owner_id, user_metadata)\nvalues ($1, $2, $3::uuid, $4, $5::jsonb)";
+
+const DUPLICATE: SqlRule = [
+  "insert into",
+  { throws: pgError("23505", "duplicate key value") },
+];
+
+function claimOf(storage: StorageApi, bucket = "docs") {
+  return (path: string) => {
+    if (!storage.claimSignedUpload) {
+      throw new TypeError("claimSignedUpload is missing");
+    }
+
+    return storage.claimSignedUpload(bucket, path);
+  };
+}
+
+describe("supportStorage signed uploads", () => {
+  it("signs an upload URL once the target may insert the object", async () => {
+    const { docs, sql, owner, calls } = writableOf([]);
+
+    const reply = await docs.createSignedUploadUrl("/org//a.txt");
+
+    expect(reply).toEqual({
+      data: {
+        signedUrl: "https://storage.test/upload/sign/org/a.txt?token=t1",
+        token: "t1",
+        path: "org/a.txt",
+      },
+      error: null,
+    });
+    expect(sql.calls).toEqual([
+      { text: SAVEPOINT, values: [] },
+      {
+        text: INSERT_SQL,
+        values: [
+          "docs",
+          "org/a.txt",
+          SESSION.targetUserId,
+          SESSION.targetUserId,
+          JSON.stringify(STAMP),
+        ],
+      },
+      { text: ROLLBACK, values: [] },
+    ]);
+    expect(calls).toEqual([
+      { method: "createSignedUploadUrl", args: ["org/a.txt", undefined] },
+    ]);
+    expect(owner.calls).toEqual([]);
+  });
+
+  it("authorises an upsert reservation against the update policy", async () => {
+    const { docs, sql, calls } = writableOf([]);
+
+    await docs.createSignedUploadUrl("a", { upsert: true });
+    expect(sql.calls[2]?.text).toContain(
+      "on conflict (bucket_id, name) do update",
+    );
+    expect(calls[0]?.args).toEqual(["a", { upsert: true }]);
+  });
+
+  it("refuses to sign what the target may not insert", async () => {
+    const { docs, owner, calls } = writableOf(
+      [],
+      [["insert into", { throws: pgError("42501", RLS) }]],
+    );
+
+    const reply = await docs.createSignedUploadUrl("a");
+    expect(reply).toEqual({
+      data: null,
+      error: {
+        name: "StorageApiError",
+        message: "new row violates row-level security policy",
+        status: 403,
+        statusCode: "403",
+        code: "AccessDenied",
+      },
+    });
+    expect(calls).toEqual([]);
+    expect(owner.calls).toEqual([]);
+  });
+
+  it("claims an uploaded object without an owner for the target", async () => {
+    const { storage, sql, owner, calls } = writableOf(
+      [],
+      [DUPLICATE],
+      [["returning name", [{ name: "org/a.txt" }]]],
+    );
+
+    const reply = await claimOf(storage)("/org/a.txt");
+
+    expect(reply).toEqual({ data: { path: "org/a.txt" }, error: null });
+    expect(sql.calls).toEqual([
+      { text: SAVEPOINT, values: [] },
+      {
+        text: INSERT_SQL,
+        values: [
+          "docs",
+          "org/a.txt",
+          SESSION.targetUserId,
+          SESSION.targetUserId,
+          JSON.stringify(STAMP),
+        ],
+      },
+      { text: ROLLBACK, values: [] },
+    ]);
+    expect(owner.calls).toEqual([
+      {
+        text: CLAIM_SQL,
+        values: [
+          "docs",
+          "org/a.txt",
+          SESSION.targetUserId,
+          SESSION.targetUserId,
+          JSON.stringify(STAMP),
+        ],
+      },
+    ]);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses to claim an object another user owns", async () => {
+    const { storage, owner } = writableOf(
+      [],
+      [DUPLICATE],
+      [
+        [
+          "select name, owner_id from storage.objects",
+          [{ name: "a", owner_id: "someone-else" }],
+        ],
+      ],
+    );
+
+    const reply = await claimOf(storage)("a");
+    expect(reply).toEqual({
+      data: null,
+      error: {
+        name: "StorageApiError",
+        message: "The object belongs to another user",
+        status: 403,
+        statusCode: "403",
+        code: "AccessDenied",
+      },
+    });
+    expect(fromStorageError(reply.error, "docs").kind).toBe("forbidden");
+    expect(owner.texts()).toEqual([
+      CLAIM_SQL,
+      "select name, owner_id from storage.objects where bucket_id = $1 and name = $2",
+    ]);
+  });
+
+  it("accepts a claim of an object the target already owns", async () => {
+    const { storage } = writableOf(
+      [],
+      [DUPLICATE],
+      [
+        [
+          "select name, owner_id from storage.objects",
+          [{ name: "a", owner_id: SESSION.targetUserId }],
+        ],
+      ],
+    );
+
+    expect(await claimOf(storage)("a")).toEqual({
+      data: { path: "a" },
+      error: null,
+    });
+  });
+
+  it("answers a claim of a missing object like Storage does", async () => {
+    const missing = writableOf([]);
+    expect((await claimOf(missing.storage)("a")).error).toMatchObject({
+      statusCode: "404",
+      code: "NoSuchKey",
+    });
+    expect(missing.owner.calls).toEqual([]);
+
+    const removed = writableOf([], [DUPLICATE]);
+    expect((await claimOf(removed.storage)("a")).error).toMatchObject({
+      code: "NoSuchKey",
+    });
+    expect(removed.owner.calls).toHaveLength(2);
+  });
+
+  it("refuses to claim what the target may not insert", async () => {
+    const { storage, owner } = writableOf(
+      [],
+      [["insert into", { throws: pgError("42501", RLS) }]],
+    );
+
+    expect((await claimOf(storage)("a")).error).toMatchObject({
+      status: 403,
+      code: "AccessDenied",
+    });
+    expect(owner.calls).toEqual([]);
+
+    const broken = writableOf(
+      [],
+      [["insert into", { throws: pgError("57014", "canceling statement") }]],
+    );
+
+    expect((await claimOf(broken.storage)("a")).error).toMatchObject({
+      name: "DbError",
+      code: "57014",
+    });
+  });
+
+  it("uploads with a token and claims the stored object", async () => {
+    const { docs, sql, owner, calls } = writableOf(
+      [],
+      [],
+      [["returning name", [{ name: "org/a.txt" }]]],
+    );
+
+    const reply = await docs.uploadToSignedUrl("org/a.txt", "t1", "x", {
+      contentType: "text/plain",
+      metadata: { kind: "note" },
+    });
+
+    expect(reply).toEqual({ data: { path: "org/a.txt" }, error: null });
+    expect(sql.calls[1]?.values.at(-1)).toBe(
+      JSON.stringify({ kind: "note", ...STAMP }),
+    );
+    expect(calls).toEqual([
+      {
+        method: "uploadToSignedUrl",
+        args: [
+          "org/a.txt",
+          "t1",
+          "x",
+          { contentType: "text/plain", metadata: { kind: "note", ...STAMP } },
+        ],
+      },
+    ]);
+    expect(owner.texts()).toEqual([CLAIM_SQL]);
+  });
+
+  it("removes a token upload whose claim fails, and reports a refused claim", async () => {
+    const failing = writableOf(
+      [],
+      [],
+      [[() => true, { throws: pgError("40001", "could not serialize") }]],
+    );
+
+    expect(
+      (await failing.docs.uploadToSignedUrl("a", "t1", "x")).error,
+    ).toMatchObject({ name: "DbError", code: "40001" });
+    expect(failing.calls.map((call) => call.method)).toEqual([
+      "uploadToSignedUrl",
+      "remove",
+    ]);
+
+    const owned = writableOf(
+      [],
+      [],
+      [
+        [
+          "select name, owner_id from storage.objects",
+          [{ name: "a", owner_id: "someone-else" }],
+        ],
+      ],
+    );
+
+    expect(
+      (await owned.docs.uploadToSignedUrl("a", "t1", "x", { upsert: true }))
+        .error,
+    ).toMatchObject({ code: "AccessDenied" });
+    expect(owned.calls.map((call) => call.method)).toEqual([
+      "uploadToSignedUrl",
+    ]);
+
+    const refused = writableOf([]);
+    refused.bucket["uploadToSignedUrl"] = () =>
+      Promise.resolve({
+        data: null,
+        error: { name: "StorageApiError", message: "expired", status: 400 },
+      });
+    expect(
+      (await refused.docs.uploadToSignedUrl("a", "t1", "x")).error,
+    ).toMatchObject({ message: "expired" });
+    expect(refused.owner.calls).toEqual([]);
+  });
+});
+
 describe("supportStorage refusals and failures", () => {
   const writes: readonly ((
     bucket: StorageBucketApi,
@@ -1058,39 +1352,26 @@ describe("supportStorage refusals and failures", () => {
     const owner = fakeSql();
     const service = fakeAdmin();
 
-    const docs = supportStorage({
+    const storage = supportStorage({
       admin: service.admin,
       sql: sql.sql,
       adminSql: owner.sql,
       session: SESSION,
-    }).from("docs");
+    });
+
+    const docs = storage.from("docs");
 
     for (const write of writes) {
       refused(await write(docs), "SUPPORT_READ_ONLY");
     }
+
+    refused(await claimOf(storage)("a"), "SUPPORT_READ_ONLY");
 
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
     expect((await docs.upload("a", "x")).error?.message).toBe(
       "The support session is read-only",
     );
-  });
-
-  it("refuses signed uploads in a writable session", async () => {
-    const { docs, calls, sql } = writableOf(["a"]);
-
-    for (const reply of [
-      await docs.createSignedUploadUrl("a"),
-      await docs.uploadToSignedUrl("a", "t", "x"),
-    ]) {
-      refused(reply, "SUPPORT_STORAGE_WRITES");
-      expect(reply.error?.message).toBe(
-        "Signed uploads are not available in a support session",
-      );
-    }
-
-    expect(calls).toEqual([]);
-    expect(sql.calls).toEqual([]);
   });
 
   it("refuses writes when the session, the admin client or transactions are missing", async () => {
@@ -1108,15 +1389,17 @@ describe("supportStorage refusals and failures", () => {
         session: SESSION,
       },
     ]) {
-      const docs = supportStorage({
+      const storage = supportStorage({
         admin: service.admin,
         readOnly: false,
         ...options,
-      }).from("docs");
+      });
 
       for (const write of writes) {
-        refused(await write(docs), "SUPPORT_STORAGE_WRITES");
+        refused(await write(storage.from("docs")), "SUPPORT_STORAGE_WRITES");
       }
+
+      refused(await claimOf(storage)("a"), "SUPPORT_STORAGE_WRITES");
     }
 
     expect(service.calls).toEqual([]);
@@ -1213,6 +1496,65 @@ describe("clients over supportStorage", () => {
       code: "SUPPORT_READ_ONLY",
     });
     expect((await bucket.remove(["o1/f0000"])).error?.kind).toBe("forbidden");
+  });
+
+  it("reserves and claims an upload in a writable session", async () => {
+    let uploaded = false;
+
+    const { storage, owner, calls } = writableOf(
+      [],
+      [
+        [
+          "insert into",
+          () =>
+            uploaded ? { throws: pgError("23505", "duplicate key value") } : [],
+        ],
+      ],
+      [["returning name", [{ name: "o1/big.bin" }]]],
+    );
+
+    const bucket = docs.connect(storage);
+    const reservation = await bucket.reserve("o1/big.bin").orThrow();
+    uploaded = true;
+    expect(reservation).toEqual({
+      path: "o1/big.bin",
+      token: "t1",
+      signedUrl: "https://storage.test/upload/sign/o1/big.bin?token=t1",
+    });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({
+      path: "o1/big.bin",
+    });
+    expect(calls.map((call) => call.method)).toEqual(["createSignedUploadUrl"]);
+    expect(owner.texts()).toEqual([CLAIM_SQL]);
+  });
+
+  it("refuses a reservation and its claim in a read-only session", async () => {
+    const { storage, calls } = docsOf([]);
+    const bucket = docs.connect(storage);
+
+    for (const result of [
+      await bucket.reserve("o1/big.bin"),
+      await bucket.claimReserved({ path: "o1/big.bin" }),
+    ]) {
+      expect(result.error).toMatchObject({
+        kind: "forbidden",
+        code: "SUPPORT_READ_ONLY",
+      });
+    }
+
+    expect(calls).toEqual([]);
+  });
+
+  it("claims a reservation without a request outside a support session", async () => {
+    const service = fakeAdmin();
+
+    expect(
+      await docs
+        .connect(service.admin)
+        .claimReserved({ path: "o1/a" })
+        .orThrow(),
+    ).toEqual({ path: "o1/a" });
+    expect(service.calls).toEqual([]);
   });
 
   it("reads attachments the target may see", async () => {

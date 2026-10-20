@@ -25,6 +25,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { claimsUploads, claimUpload } from "../upload-claim.ts";
 import {
   documentOf,
   fileOf,
@@ -95,6 +96,11 @@ export function parseAiFileUrl(
 
 const notFound = (): DbError =>
   notFoundError("No AI file you can see has this id", "AI_FILE_NOT_FOUND");
+
+const CLAIM_HINTS = {
+  notUploaded: "AI_FILE_NOT_UPLOADED",
+  forbidden: "AI_FILE_FORBIDDEN",
+} as const;
 
 const notReady = (): DbError =>
   dbError("invalid_request", "The file is not uploaded yet", {
@@ -221,12 +227,24 @@ export function createAiFiles<
               token: url.token,
             })),
           ),
-      confirm: (fileId, sha256) =>
-        call(
-          "confirm_ai_file",
-          { file_id: fileId, sha256 },
-          (value) => value,
-        ).andThen(typed),
+      confirm: (fileId, sha256) => {
+        const confirmed = () =>
+          call(
+            "confirm_ai_file",
+            { file_id: fileId, sha256 },
+            (value) => value,
+          ).andThen(typed);
+
+        return claimsUploads(options.storage)
+          ? get(fileId).andThen((row) =>
+              row.status === "pending"
+                ? claimUpload(options.storage, row, CLAIM_HINTS).andThen(
+                    confirmed,
+                  )
+                : confirmed(),
+            )
+          : confirmed();
+      },
       get,
       resolve,
       list: (chatId) =>

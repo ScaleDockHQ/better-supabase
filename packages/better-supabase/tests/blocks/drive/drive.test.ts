@@ -272,6 +272,69 @@ describe("drive client", () => {
     expect(fake.calls[0]?.[0]).toBe("better_supabase");
   });
 
+  it("claims a signed upload before it commits it", async () => {
+    const claimed: string[] = [];
+
+    const claiming = (
+      attachment: Record<string, unknown> | null,
+      error: Record<string, unknown> | null = null,
+    ) => {
+      const fake = transport({
+        drive_commit: () => ({ ...FILE, attachmentId: "a2" }),
+        get_attachment: () => attachment,
+      });
+
+      const files = storage();
+
+      const drive = createDrive({
+        transport: fake,
+        storage: {
+          from: (name: string) => files.from(name),
+          claimSignedUpload: (bucket: string, path: string) => {
+            claimed.push(`${bucket}/${path}`);
+
+            return Promise.resolve(
+              error ? { data: null, error } : { data: { path }, error: null },
+            );
+          },
+        },
+      });
+
+      return { drive, calls: fake.calls };
+    };
+
+    const fresh = claiming(ATTACHMENT);
+    expect((await fresh.drive.commit("n1", "a2").orThrow()).attachmentId).toBe(
+      "a2",
+    );
+    expect(claimed).toEqual(["attachments/o/attachments/a2"]);
+    expect(fresh.calls.map(([, fn]) => fn)).toEqual([
+      "get_attachment",
+      "drive_commit",
+    ]);
+
+    await claiming({
+      ...ATTACHMENT,
+      uploaded_at: "2026-10-02T00:00:01Z",
+    }).drive.commit("n1", "a2");
+    await claiming(null).drive.commit("n1", "a2");
+    expect(claimed).toHaveLength(1);
+
+    const refused = claiming(ATTACHMENT, {
+      name: "StorageApiError",
+      message: "The object belongs to another user",
+      status: 403,
+      statusCode: "403",
+      code: "AccessDenied",
+    });
+
+    expect(await refused.drive.commit("n1", "a2")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", hint: "DRIVE_FORBIDDEN" },
+    });
+    expect(refused.calls.map(([, fn]) => fn)).toEqual(["get_attachment"]);
+  });
+
   it("refuses file calls without storage and a download of a folder", async () => {
     const fake = transport({ drive_get: () => FOLDER });
     const drive = createDrive({ transport: fake });

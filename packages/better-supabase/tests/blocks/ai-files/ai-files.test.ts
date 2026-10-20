@@ -294,6 +294,82 @@ describe("createAiFiles", () => {
     expect(listed.ok && listed.data.map((file) => file.id)).toEqual(["f1"]);
   });
 
+  it("claims a pending upload before it confirms it", async () => {
+    const bucket = fakeBucket();
+    const claimed: string[] = [];
+    let status = "pending";
+
+    const user = vi.fn((_schema: string, fn: string) =>
+      Promise.resolve(
+        fn === "confirm_ai_file" ? fileRow() : fileRow({ status }),
+      ),
+    );
+
+    const files = createAiFiles({
+      transport: { call: user },
+      storage: {
+        from: () => bucket,
+        claimSignedUpload: (name, path) => {
+          claimed.push(`${name}/${path}`);
+
+          return Promise.resolve(
+            path.endsWith("taken.pdf")
+              ? {
+                  data: null,
+                  error: {
+                    name: "StorageApiError",
+                    message: "The object belongs to another user",
+                    status: 403,
+                    statusCode: "403",
+                    code: "AccessDenied",
+                  },
+                }
+              : { data: { path }, error: null },
+          );
+        },
+      },
+    });
+
+    expect((await files.files.confirm("f1").orThrow()).status).toBe("ready");
+    expect(claimed).toEqual(["ai-files/o1/u1/f1/report one.pdf"]);
+    expect(user.mock.calls.map((call) => call[1])).toEqual([
+      "get_ai_file",
+      "confirm_ai_file",
+    ]);
+
+    status = "ready";
+    await files.files.confirm("f1").orThrow();
+    expect(claimed).toHaveLength(1);
+
+    const taken = createAiFiles({
+      transport: {
+        call: () =>
+          Promise.resolve(
+            fileRow({ status: "pending", path: "o1/u1/f2/taken.pdf" }),
+          ),
+      },
+      storage: {
+        from: () => bucket,
+        claimSignedUpload: () =>
+          Promise.resolve({
+            data: null,
+            error: {
+              name: "StorageApiError",
+              message: "Object not found",
+              status: 400,
+              statusCode: "404",
+              code: "NoSuchKey",
+            },
+          }),
+      },
+    });
+
+    expect(await taken.files.confirm("f2")).toMatchObject({
+      ok: false,
+      error: { kind: "not_found", hint: "AI_FILE_NOT_UPLOADED" },
+    });
+  });
+
   it("lists provider references that expire soon", async () => {
     const { files } = setup(() => [
       { file_id: "f1", provider: "openai", reference: "r", expires_at: AT },

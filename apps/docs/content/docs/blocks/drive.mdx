@@ -183,7 +183,11 @@ drive: {
 | `DRIVE_LINK_NOT_FOUND`       | The link is unknown, expired or revoked, or the node isn't under it       |
 | `DRIVE_STORAGE_CLIENT`       | A file call ran on a client created without `storage`                     |
 
-A support session is read-only: every write raises `ACTOR_READ_ONLY`.
+A read-only support session refuses every write with `ACTOR_READ_ONLY`. In a
+writable [support session](/docs/auth/impersonation#storage-in-a-support-session),
+`commit` first claims the uploaded object for the user the admin acts as,
+which records the session on it. A claim Storage refuses returns `forbidden`
+with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 

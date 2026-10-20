@@ -47,7 +47,7 @@ import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
-import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { FIXTURE_HELPERS_SQL, FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 import { reloadSchemaCache } from "./schema-cache.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
@@ -225,14 +225,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
   afterAll(async () => {
     // The suite shares the local database. Installing `tenant` replaces the
-    // fixture helper, which the other integration tests read from the JWT.
-    // A fresh connection commits that restore even if a pooled client was
-    // left inside a transaction.
+    // fixture helpers, which the other integration tests read the JWT and
+    // the seed's memberships through. A fresh connection commits that
+    // restore even if a pooled client was left inside a transaction.
     const restore = new Client({ connectionString: dbUrl });
     await restore.connect();
 
     try {
-      await restore.query(FIXTURE_TENANT_SQL);
+      await restore.query(FIXTURE_HELPERS_SQL);
     } finally {
       await restore.end();
     }

@@ -32,6 +32,11 @@ import {
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
+import {
+  claimsUploads,
+  claimUpload,
+  type UploadClaimStorage,
+} from "../upload-claim.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -61,7 +66,7 @@ export interface AttachmentBucket {
 }
 
 /** `supabase.storage`, typed structurally. */
-export interface AttachmentStorage {
+export interface AttachmentStorage extends UploadClaimStorage {
   from(bucket: string): AttachmentBucket;
 }
 
@@ -233,6 +238,11 @@ export function attachmentOf(value: unknown): Attachment {
   };
 }
 
+const CLAIM_HINTS = {
+  notUploaded: "ATTACHMENT_NOT_UPLOADED",
+  forbidden: "ATTACHMENT_FORBIDDEN",
+} as const;
+
 const notFound = (): DbError =>
   dbError("not_found", "No attachment you can see has this id", {
     hint: "ATTACHMENT_NOT_FOUND",
@@ -328,8 +338,19 @@ export function createAttachments<
       isRecord(value) ? typed(value) : AsyncResult.err(notFound()),
     );
 
-  const confirm = (id: string): AsyncResult<Attachment & F> =>
+  const confirmed = (id: string): AsyncResult<Attachment & F> =>
     call("confirm_attachment", { id }, (value) => value).andThen(typed);
+
+  const confirm = (id: string): AsyncResult<Attachment & F> =>
+    claimsUploads(options.storage)
+      ? lookup(call, id).andThen((attachment) =>
+          attachment.uploadedAt === undefined
+            ? claimUpload(options.storage, attachment, CLAIM_HINTS).andThen(
+                () => confirmed(id),
+              )
+            : confirmed(id),
+        )
+      : confirmed(id);
 
   const requireScan = options.requireScan ?? true;
   const ttl = options.downloadTtl ?? 300;
@@ -463,7 +484,7 @@ export function createAttachments<
           return discard(created, sent.error);
         }
 
-        return confirm(created.id);
+        return confirmed(created.id);
       }),
     read: (id) =>
       find(id).andThen((attachment) => {

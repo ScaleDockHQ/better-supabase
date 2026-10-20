@@ -177,6 +177,16 @@ export function connectBucket<P extends string, Id extends string>(
       }
     });
 
+  const claim = (path: string): AsyncResult<unknown> => {
+    if (!storage.claimSignedUpload) {
+      return AsyncResult.ok(path);
+    }
+
+    const claiming = storage.claimSignedUpload(bucket.id, path);
+
+    return run(() => claiming);
+  };
+
   const fileOptions = (
     options: UploadOptions | undefined,
     contentType: string | undefined,
@@ -242,6 +252,12 @@ export function connectBucket<P extends string, Id extends string>(
 
         if (failure) {
           return err(fromStorageError(failure, bucket.id));
+        }
+
+        const claimed = await claim(path);
+
+        if (!claimed.ok) {
+          return claimed;
         }
 
         evict([path]);
@@ -755,6 +771,12 @@ export function connectBucket<P extends string, Id extends string>(
 
           return { path };
         });
+      }),
+    claimReserved: (reservation) =>
+      AsyncResult.from(async () => {
+        const path = resolve(reservation.path);
+
+        return claim(path).map(() => ({ path }));
       }),
     sweep: (options) =>
       AsyncResult.from(async () => {

@@ -445,6 +445,137 @@ describe("createAttachments", () => {
     });
   });
 
+  it("claims a signed upload before it confirms it", async () => {
+    const claimed: string[] = [];
+    const pending = row({ status: "pending", uploaded_at: null });
+
+    const { transport, calls } = fakeTransport({
+      get_attachment: pending,
+      confirm_attachment: row(),
+    });
+
+    const { storage } = fakeStorage();
+
+    const attachments = createAttachments({
+      transport,
+      storage: {
+        from: (bucket) => storage.from(bucket),
+        claimSignedUpload: (bucket, path) => {
+          claimed.push(`${bucket}/${path}`);
+
+          return Promise.resolve({ data: { path }, error: null });
+        },
+      },
+    });
+
+    expect((await attachments.confirm("a1").orThrow()).id).toBe("a1");
+    expect(claimed).toEqual(["attachments/org-1/attachments/a1"]);
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "get_attachment",
+      "confirm_attachment",
+    ]);
+
+    const done = createAttachments({
+      transport: fakeTransport({
+        get_attachment: row(),
+        confirm_attachment: row(),
+      }).transport,
+      storage: {
+        from: (bucket) => storage.from(bucket),
+        claimSignedUpload: (bucket, path) => {
+          claimed.push(`${bucket}/${path}`);
+
+          return Promise.resolve({ data: { path }, error: null });
+        },
+      },
+    });
+
+    expect((await done.confirm("a1").orThrow()).id).toBe("a1");
+    expect(claimed).toHaveLength(1);
+  });
+
+  it("maps a refused claim and confirms nothing", async () => {
+    const pending = row({ status: "pending", uploaded_at: null });
+    const { storage } = fakeStorage();
+
+    const refusing = (error: Record<string, unknown> | Error) => {
+      const fake = fakeTransport({
+        get_attachment: pending,
+        confirm_attachment: row(),
+      });
+
+      const attachments = createAttachments({
+        transport: fake.transport,
+        storage: {
+          from: (bucket) => storage.from(bucket),
+          claimSignedUpload: () =>
+            error instanceof Error
+              ? Promise.reject(error)
+              : Promise.resolve({ data: null, error }),
+        },
+      });
+
+      return { attachments, calls: fake.calls };
+    };
+
+    const owned = refusing({
+      name: "StorageApiError",
+      message: "The object belongs to another user",
+      status: 403,
+      statusCode: "403",
+      code: "AccessDenied",
+    });
+
+    expect(await owned.attachments.confirm("a1")).toMatchObject({
+      ok: false,
+      error: {
+        kind: "forbidden",
+        hint: "ATTACHMENT_FORBIDDEN",
+        code: "AccessDenied",
+      },
+    });
+    expect(owned.calls.map(([fn]) => fn)).toEqual(["get_attachment"]);
+
+    const missing = refusing({
+      name: "StorageApiError",
+      message: "Object not found",
+      status: 400,
+      statusCode: "404",
+      code: "NoSuchKey",
+    });
+
+    expect(await missing.attachments.confirm("a1")).toMatchObject({
+      ok: false,
+      error: { kind: "not_found", hint: "ATTACHMENT_NOT_UPLOADED" },
+    });
+
+    const down = refusing({
+      name: "StorageApiError",
+      message: "down",
+      status: 503,
+      statusCode: "503",
+    });
+
+    expect((await down.attachments.confirm("a1")).ok).toBe(false);
+
+    const thrown = refusing(new Error("offline"));
+    expect((await thrown.attachments.confirm("a1")).ok).toBe(false);
+    expect(thrown.calls.map(([fn]) => fn)).toEqual(["get_attachment"]);
+
+    const gone = createAttachments({
+      transport: fakeTransport({ get_attachment: null }).transport,
+      storage: {
+        from: (bucket) => storage.from(bucket),
+        claimSignedUpload: () => Promise.resolve({ data: null, error: null }),
+      },
+    });
+
+    expect(await gone.confirm("a1")).toMatchObject({
+      ok: false,
+      error: { hint: "ATTACHMENT_NOT_FOUND" },
+    });
+  });
+
   it("removes the file before the record, and lists and confirms", async () => {
     const { transport, calls } = fakeTransport({
       get_attachment: row(),

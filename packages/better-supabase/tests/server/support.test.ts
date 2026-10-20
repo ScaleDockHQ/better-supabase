@@ -782,8 +782,13 @@ describe("support sessions on the server", () => {
       }),
     ]);
     expect(pg.sessions.at(-1)).not.toMatchObject({ readOnly: true });
-    expect((await docs.createSignedUploadUrl("o1/b.pdf")).error?.code).toBe(
-      "SUPPORT_STORAGE_WRITES",
-    );
+    expect(await docs.createSignedUploadUrl("o1/b.pdf")).toMatchObject({
+      data: null,
+      error: { status: 403, code: "AccessDenied" },
+    });
+    expect(pg.fake.calls.at(-2)?.values.slice(0, 2)).toEqual([
+      "docs",
+      "o1/b.pdf",
+    ]);
   });
 });
