@@ -34,4 +34,52 @@ describe("env loading", () => {
       expect(() => server.env).toThrow(EnvValidationError);
     }
   });
+
+  it("reads an env object only, never the runtime's variables", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://leaked.supabase.co");
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_leaked");
+    vi.stubEnv("SUPABASE_JWKS_URL", "https://leaked.test/jwks.json");
+    vi.stubEnv("SUPABASE_JWKS", '{"keys":[]}');
+
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ keys: [] }),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    const server = createServer(defineSupabase(schema), {
+      env: {
+        SUPABASE_URL: "http://127.0.0.1:54321",
+        SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      },
+      auth: { jwks: false },
+      prefetchJwks: true,
+    });
+
+    expect(server.env.url).toBe("http://127.0.0.1:54321");
+    expect(server.env.jwks).toBeUndefined();
+    expect(String(server.env.jwksUrl)).toBe(
+      "http://127.0.0.1:54321/auth/v1/.well-known/jwks.json",
+    );
+
+    const ctx = await server.context(
+      new Request("https://app.test/", {
+        headers: { authorization: "Bearer a.b.c" },
+      }),
+    );
+
+    expect(ctx.auth.kind).toBe("invalid");
+    expect(fetch).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("fails on a missing variable in the env object instead of using the runtime's", () => {
+    vi.stubEnv("SUPABASE_URL", "https://leaked.supabase.co");
+
+    const server = createServer(defineSupabase(schema), {
+      env: { SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test" },
+    });
+
+    expect(() => server.env).toThrow(EnvValidationError);
+  });
 });

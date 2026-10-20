@@ -100,6 +100,25 @@ const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
   },
 );
 
+/**
+ * `options.env` as given when it is loaded already, parsed when it is a
+ * variable map (never merged with the runtime's), else the runtime's.
+ */
+function envOf(env: ServerOptions["env"]): BetterSupabaseEnv {
+  if (env === undefined) {
+    return loadEnv(RUNTIME_ENV);
+  }
+
+  return isLoadedEnv(env) ? env : loadEnv(env);
+}
+
+/** An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded env. */
+function isLoadedEnv(
+  env: BetterSupabaseEnv | EnvSource,
+): env is BetterSupabaseEnv {
+  return env.jwksUrl instanceof URL;
+}
+
 const needsPostgres = (method: string) =>
   dbError(
     "invalid_request",
@@ -152,8 +171,7 @@ export function createServer<
 
   let loaded: BetterSupabaseEnv | undefined;
 
-  const env = (): BetterSupabaseEnv =>
-    (loaded ??= options.env ?? loadEnv(RUNTIME_ENV));
+  const env = (): BetterSupabaseEnv => (loaded ??= envOf(options.env));
 
   const lite = liteBackend(options, env);
 

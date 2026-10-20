@@ -176,6 +176,34 @@ describe("verified token memo", () => {
     );
   });
 
+  it.each([false, null] as const)(
+    "never looks up keys with jwks: %s, even with SUPABASE_JWKS set",
+    async (jwks) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json(signer.jwks),
+      );
+
+      vi.stubGlobal("fetch", fetch);
+
+      const options: ResolveAuthOptions = {
+        env: {
+          ...env,
+          jwks: keys(),
+          jwksUrl: new URL(`${PROJECT_URL}/remote-off/jwks.json`),
+        },
+        jwks,
+      };
+
+      const token = await signer.sign({ sub: USER });
+
+      expect((await resolveAuth(bearer(token), options)).auth).toMatchObject({
+        kind: "invalid",
+        reason: "token",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
   it("maps an unreachable JWKS to a network error and keeps the cookie session", async () => {
     vi.stubGlobal(
       "fetch",
