@@ -178,7 +178,7 @@ catalog:
   stripe: 23.0.0
   # debug's optional peer. Pinned to the copy the examples resolve, so
   # better-supabase and the Next.js examples share one next instance.
-  supports-color: 11.0.0
+  supports-color: 8.1.1
   # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
   # ports when config.toml changes them.
   supabase: 2.121.0
