@@ -104,7 +104,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
 
     const good = await resolveAuth(request(await signer.sign({ sub: "u1" })), {
       env,
-      jwks: signer.jwks as never,
+      jwks: signer.jwks,
     });
 
     expect(good.auth.kind).toBe("user");
@@ -118,7 +118,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
 
     const rejected = await resolveAuth(request(hs256), {
       env,
-      jwks: signer.jwks as never,
+      jwks: signer.jwks,
     });
 
     expect(rejected.auth).toMatchObject({
@@ -144,7 +144,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${header}.${body}.${signature}` },
       }),
-      { env, jwks: mine.jwks as never },
+      { env, jwks: mine.jwks },
     );
 
     expect(auth.kind).toBe("invalid");

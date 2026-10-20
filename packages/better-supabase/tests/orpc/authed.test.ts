@@ -13,7 +13,7 @@ import {
 
 const bs = createOrpc(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   prefetchJwks: false,
 });
 
@@ -84,7 +84,7 @@ describe("bs.authed()", () => {
   it("checks roles and permission on their own", async () => {
     const guarded = createOrpc(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       prefetchJwks: false,
       authorizer: staticAuthorizer({
         roles: { authenticated: ["reports:read"] },

@@ -35,7 +35,7 @@ const betterSupabase = defineSupabase(schema);
 
 const server = createServer(betterSupabase, {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
   readUrl: "https://replica.test",
   prefetchJwks: false,
 });
@@ -171,7 +171,7 @@ describe("withBetterSupabase", () => {
       [
         withBetterSupabase(betterSupabase, {
           env,
-          auth: { jwks: signer.jwks as never },
+          auth: { jwks: signer.jwks },
           prefetchJwks: false,
         }),
       ],
@@ -196,7 +196,7 @@ describe("withBetterSupabase", () => {
 
     const withSql = createServer(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       postgres,
       prefetchJwks: false,
     });
@@ -334,7 +334,7 @@ describe("session cookies", () => {
     const refreshing = createServer(betterSupabase, {
       env,
       auth: {
-        jwks: signer.jwks as never,
+        jwks: signer.jwks,
         fetch: vi.fn<typeof globalThis.fetch>(async () =>
           Response.json({
             access_token: fresh,

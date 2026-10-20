@@ -39,7 +39,7 @@ describe("handle", () => {
 
   const server = createServer(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     readUrl: "https://replica.test",
   });
 
@@ -243,7 +243,7 @@ describe("withFlush", () => {
 describe("resolveToken", () => {
   const server = createServer(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   it("verifies a bare token and treats a missing one as anon", async () => {

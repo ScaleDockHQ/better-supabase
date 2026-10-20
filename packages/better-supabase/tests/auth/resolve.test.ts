@@ -243,7 +243,7 @@ describe("verified token memo", () => {
 });
 
 describe("cookie sessions", () => {
-  const options: ResolveAuthOptions = { env, jwks: signer.jwks as never };
+  const options: ResolveAuthOptions = { env, jwks: signer.jwks };
 
   it("reads the expiry from the access token when expires_at is missing", async () => {
     const token = await signer.sign({ sub: USER });
@@ -520,7 +520,7 @@ describe("cookie sessions", () => {
 });
 
 describe("claims and user_metadata schemas", () => {
-  const options: ResolveAuthOptions = { env, jwks: signer.jwks as never };
+  const options: ResolveAuthOptions = { env, jwks: signer.jwks };
 
   it("joins issues without a path and with numeric paths", async () => {
     const token = await signer.sign({ sub: USER });

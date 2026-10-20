@@ -18,7 +18,7 @@ const env = {
 const server = (scopes?: string[]) =>
   createMcp(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     name: "crm",
     version: "1.0.0",
     ...(scopes

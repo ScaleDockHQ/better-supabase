@@ -77,7 +77,7 @@ describe("private-cache scopes", () => {
   const bs = createNext(betterSupabase, {
     env,
     cacheTags: false,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   beforeEach(() => {
@@ -339,7 +339,7 @@ describe("explicit tenants", () => {
   const bs = createNext(defineSupabase(schema), {
     env,
     cacheTags: false,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     tenant: resolver,
   });
 

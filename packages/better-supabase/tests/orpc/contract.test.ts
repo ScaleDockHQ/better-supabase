@@ -54,7 +54,7 @@ const failed = (
 describe("a contract-first router under Hono", () => {
   const bs = createOrpc(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   const os = implement(contract)
@@ -151,7 +151,7 @@ describe("a permission on one contract procedure", () => {
 
   const bs = createOrpc(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     authorizer: staticAuthorizer({
       roles: { authenticated: ["customers.read"] },
     }),

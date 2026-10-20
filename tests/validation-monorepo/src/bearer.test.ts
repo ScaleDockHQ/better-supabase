@@ -13,7 +13,7 @@ const runtime = createRuntime({
     publishableKey: "sb_publishable_test",
     jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
   },
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
 });
 
 const sub = "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10";

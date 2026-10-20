@@ -30,7 +30,7 @@ async function setup() {
       publishableKey: "sb_publishable_test",
       jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
     },
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   };
 
   const request = async (claims: Parameters<typeof signer.sign>[0]) =>

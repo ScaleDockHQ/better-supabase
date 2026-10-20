@@ -75,7 +75,7 @@ describe("createExpo", () => {
 
   const bs = createExpo(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never, fetch: refreshed },
+    auth: { jwks: signer.jwks, fetch: refreshed },
   });
 
   beforeEach(() => {

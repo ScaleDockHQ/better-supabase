@@ -21,7 +21,7 @@ const signer = await createTestSigner();
 
 const bs = createEdge(defineSupabase(schema), {
   env,
-  auth: { jwks: signer.jwks as never },
+  auth: { jwks: signer.jwks },
 });
 
 const token = await signer.sign({ sub: USER });

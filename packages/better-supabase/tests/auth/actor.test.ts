@@ -205,7 +205,7 @@ describe("session.actor and session.delegation", () => {
             "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
           ),
         },
-        jwks: signer.jwks as never,
+        jwks: signer.jwks,
       },
     );
 

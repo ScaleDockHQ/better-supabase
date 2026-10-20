@@ -101,7 +101,7 @@ function setup(
 
   const server = createServer(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     postgres: pg.postgres,
     support: supportSessions({ store }),
     ...options,
@@ -537,7 +537,7 @@ describe("support sessions on the server", () => {
   it("ignores the cookie for another admin, a nested token or bad claims", async () => {
     const { server, store } = setup({
       auth: {
-        jwks: signer.jwks as never,
+        jwks: signer.jwks,
         claims: v.object({ organization: v.literal("o2") }),
       },
     });

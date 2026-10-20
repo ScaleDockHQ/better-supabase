@@ -59,7 +59,7 @@ describe("createHono", () => {
 
   const bs = createHono(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never, fetch: refresh },
+    auth: { jwks: signer.jwks, fetch: refresh },
   });
 
   type Env = HonoEnv<Models, Functions, unknown>;
@@ -150,7 +150,7 @@ describe("createHono", () => {
 describe("bs.require()", () => {
   const bs = createHono(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   const app = bs
@@ -208,7 +208,7 @@ describe("authorizer", () => {
 
   const bs = createHono(defineSupabase(schema), {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
     authorizer,
   });
 
@@ -297,7 +297,7 @@ describe("createHono buckets", () => {
 
     const bs = createHono(defineSupabase(schema).buckets({ logos }), {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
     });
 
     const app = new Hono<typeof bs.Env>()

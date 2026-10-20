@@ -31,7 +31,7 @@ describe("createOrpc", () => {
 
   const bs = createOrpc(betterSupabase, {
     env,
-    auth: { jwks: signer.jwks as never },
+    auth: { jwks: signer.jwks },
   });
 
   const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
@@ -97,7 +97,7 @@ describe("createOrpc", () => {
   it("serves a router and sets bs-primary-until after a write", async () => {
     const pinned = createOrpc(betterSupabase, {
       env,
-      auth: { jwks: signer.jwks as never },
+      auth: { jwks: signer.jwks },
       readUrl: "https://replica.test/rest/v1",
     });
 
@@ -145,7 +145,7 @@ describe("createOrpc", () => {
     const refreshing = createOrpc(betterSupabase, {
       env,
       auth: {
-        jwks: signer.jwks as never,
+        jwks: signer.jwks,
         onRefresh,
         fetch: async () =>
           Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
