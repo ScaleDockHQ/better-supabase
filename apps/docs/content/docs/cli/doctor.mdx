@@ -1248,6 +1248,22 @@ your receivers expect, or map `columns.endpoints.format`. `sql sync` refuses
 the same config; doctor reports it for configs it loads without that check.
 See [connectors](/docs/blocks/webhooks-out#connectors).
 
+### BS345
+
+**Warning: attachments subject on block-wide keys with stricter RLS.** An
+`attachments` subject has no `read` or `upload` key of its own, so its files
+are checked with the block-wide `attachments.read` and `attachments.upload`
+keys. The subject table's own policies check more than tenant membership: a
+permission key of their own, an owner or `auth.uid()` comparison, or another
+condition. Any member of the tenant then reads and uploads the files of rows
+they can't open. Doctor counts `current_tenant_id()`, `tenant_ids_with`,
+`member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the
+block's key as tenant membership, and a soft-delete `is null` as neutral.
+Set `subjects.<type>.permissions.upload` in the registry, or
+`blocks.attachments.options.subjects.<type>.permissions` for `read`, to the
+keys the table checks. See
+[permissions per subject](/docs/blocks/attachments#permissions-per-subject).
+
 ## Auth config
 
 ### BS401

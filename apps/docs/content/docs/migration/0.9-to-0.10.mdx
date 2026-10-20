@@ -36,7 +36,9 @@ endpoint. See [existing tables](/docs/blocks/webhooks-out#existing-tables).
 Attachments on a subject use the block-wide `upload` and `read` permissions
 unless the subject names its own. From 0.11 the subject registry
 (`config.subjects.<type>.permissions`) carries `upload` and `manage` to the
-attachments block, as it already did `read`, and doctor reports a subject
+attachments block, and `create` and `moderate` to comments. Its `read` stays
+the key for reading the subject itself, so a files `read` key still goes in
+`blocks.attachments.options.subjects.<type>.permissions`. Doctor reports a subject
 whose table has stricter row level security than the block-wide keys as
 [BS345](/docs/cli/doctor#bs345). See
 [attachments](/docs/blocks/attachments#permissions-per-subject).

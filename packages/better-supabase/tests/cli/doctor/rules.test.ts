@@ -1519,6 +1519,133 @@ describe("subject registry (BS331, BS332)", () => {
   });
 });
 
+describe("attachments subject on block-wide keys (BS345)", () => {
+  const withPolicies = (select: string, insert: string) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_select",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using: select,
+          check: null,
+        },
+        {
+          name: "notes_insert",
+          command: "insert",
+          roles: ["authenticated"],
+          permissive: true,
+          using: null,
+          check: insert,
+        },
+      ];
+    });
+
+  const tenantOnly =
+    "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))";
+
+  const strict =
+    "(better_supabase.can('tenant'::text, organization_id, 'notes.read'::text) AND (owner_id = ( SELECT auth.uid() AS uid)))";
+
+  const config = (
+    subjects: Readonly<Record<string, unknown>>,
+    registry: Readonly<Record<string, { table: string }>> = {},
+  ): BetterSupabaseConfig => ({
+    subjects: registry,
+    blocks: { attachments: { options: { subjects } } },
+  });
+
+  it("reports a subject whose table checks more than tenant membership", async () => {
+    const findings = await run(
+      "BS345",
+      context(
+        withPolicies(strict, tenantOnly),
+        {},
+        config({ note: { table: "notes" } }),
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.notes",
+        message: expect.stringContaining(
+          "blocks.attachments.options.subjects.note.permissions.read",
+        ),
+      }),
+    ]);
+    expect(findings[0]?.message).not.toContain("permissions.upload");
+  });
+
+  it("passes tenant-only policies, the block's own key and a soft-delete filter", async () => {
+    const blockKey =
+      "((organization_id IN ( SELECT better_supabase.tenant_ids_with('attachments.read'::text) AS tenant_ids_with)) AND (deleted_at IS NULL))";
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          withPolicies(blockKey, tenantOnly),
+          {},
+          config({ note: { table: "notes" } }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("passes a subject with its own keys, from the block or the registry", async () => {
+    const snap = withPolicies(tenantOnly, strict);
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          config({
+            note: { table: "notes", permissions: { upload: "notes.edit" } },
+          }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: {
+              note: { table: "notes", permissions: { upload: "notes.edit" } },
+            },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: { note: { table: "notes" } },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining("subjects.note.permissions.upload"),
+      }),
+    ]);
+  });
+});
+
 describe("partition without RLS (BS343)", () => {
   const withPartition = (rls: boolean) =>
     snapshot((tables) => {

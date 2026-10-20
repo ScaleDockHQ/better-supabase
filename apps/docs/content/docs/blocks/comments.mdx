@@ -81,6 +81,10 @@ subjects: {
 who may edit or delete other people's comments; authors always edit their
 own.
 
+From 0.11, a subject taken from the registry (`config.subjects`) also takes
+its `create` and `moderate` keys from `subjects.<type>.permissions`; the
+block's own `permissions` override them key by key.
+
 ### Access per record
 
 With `blocks.access.model: "provider"`, `scope` names a scope your
