@@ -125,6 +125,22 @@ $$;
 revoke execute on function better_supabase.number_format_period(text, timestamptz) from public, anon, authenticated;
 grant execute on function better_supabase.number_format_period(text, timestamptz) to service_role;
 
+create or replace function better_supabase.number_period_kind(p_period text, p_format text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_period <> 'format' then p_period
+    when p_format ~ '\{yy(yy)?\}' and p_format ~ '\{mm\}' then 'month'
+    when p_format ~ '\{yy(yy)?\}' then 'year'
+    else 'none'
+  end
+$$;
+revoke execute on function better_supabase.number_period_kind(text, text) from public, anon, authenticated;
+grant execute on function better_supabase.number_period_kind(text, text) to service_role;
+
 create or replace function better_supabase.number_format_pattern(p_format text)
 returns text
 language sql

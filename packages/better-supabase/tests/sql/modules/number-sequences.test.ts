@@ -821,6 +821,67 @@ describe("per-tenant periods", () => {
     );
   });
 
+  it("re-syncs from a tenant trigger when the tenant's period changes", () => {
+    const sql = sqlOf({
+      "number-sequences": {
+        options: {
+          entities: {
+            invoice: {
+              ...perTenant,
+              periodFrom: {
+                column: "public.organizations.invoice_number_reset",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `if better_supabase.number_period_kind(coalesce(nullif(btrim(old."invoice_number_reset"::text), ''), 'format'), coalesce(nullif(btrim(old."invoice_number_format"::text), ''), '{n}')) is distinct from better_supabase.number_period_kind(coalesce(nullif(btrim(new."invoice_number_reset"::text), ''), 'format'), coalesce(nullif(btrim(new."invoice_number_format"::text), ''), '{n}')) then
+    perform "better_supabase"."sync_number_sequences"(new."id", 'invoice');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bs_sync_number_period_invoice" after update on "public"."organizations"`,
+    );
+    expect(sql).toContain(
+      `revoke execute on function better_supabase."bs_sync_number_period_invoice"() from public, anon, authenticated;`,
+    );
+  });
+
+  it("adds a trigger per tenant table and none when the period cannot change or sync", () => {
+    const render = (entity: Record<string, unknown>): string =>
+      sqlOf({
+        "number-sequences": {
+          options: { entities: { invoice: { ...perTenant, ...entity } } },
+        },
+      });
+
+    const split = render({
+      periodFrom: { column: "public.settings.invoice_reset", key: "org_id" },
+    });
+
+    expect(split).toContain(
+      `create trigger "bs_sync_number_period_invoice" after update on "public"."settings"`,
+    );
+    expect(split).toContain(
+      `create trigger "bs_sync_number_period_invoice_format" after update on "public"."organizations"`,
+    );
+    expect(split).toContain(
+      `coalesce((select nullif(btrim(s."invoice_reset"::text), '') from "public"."settings" s where s."org_id" = new."id"), 'format')`,
+    );
+    expect(render({})).toContain("bs_sync_number_period_invoice");
+    expect(render({ period: "year" })).not.toContain(
+      "bs_sync_number_period_invoice",
+    );
+    expect(
+      render({
+        periodFrom: { column: "public.organizations.invoice_number_reset" },
+        periodColumn: undefined,
+      }),
+    ).not.toContain("bs_sync_number_period_invoice");
+  });
+
   it("refuses a periodFrom that is not a tenant column", () => {
     expect(() =>
       sqlOf({
@@ -906,6 +967,106 @@ $$;`,
         periodColumn: undefined,
       }),
     ).rejects.toThrow(/period is chosen per tenant/);
+  });
+});
+
+const GENERATED_PERIOD = `${TENANT_FORMATS}
+alter table public.organizations
+  add column invoice_number_period text generated always as (
+    case invoice_number_reset when 'never' then 'none' when 'yearly' then 'year' end
+  ) stored;
+`;
+
+describe("tenant period changes in PGlite", BOOT, () => {
+  it("re-syncs the counters when a tenant's period changes, so no number repeats", async () => {
+    await expect(
+      resets(
+        `update public.organizations set invoice_number_format = 'INV-{n}', invoice_number_reset = 'year' where id = '${ALICE}';
+do $$
+declare
+  v_number text;
+begin
+${send(ALICE, "2026-01-05", "INV-1")}
+${send(ALICE, "2026-02-01", "INV-2")}
+  update public.organizations set invoice_number_reset = 'none' where id = '${ALICE}';
+${send(ALICE, "2026-03-01", "INV-3")}
+  update public.organizations set invoice_number_reset = 'year' where id = '${ALICE}';
+${send(ALICE, "2026-04-01", "INV-4")}
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("re-syncs when a tenant's format moves its period", async () => {
+    await expect(
+      tenantFormats(
+        `do $$
+declare
+  v_number text;
+begin
+${send(ALICE, "2026-01-05", "2026-001")}
+${send(ALICE, "2026-02-01", "2026-002")}
+  update public.organizations set invoice_number_format = 'A{n:4}' where id = '${ALICE}';
+${send(ALICE, "2026-03-01", "A0003")}
+end;
+$$;`,
+        { sequenceColumn: "number" },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("leaves the counters alone on an update that keeps the period", async () => {
+    await expect(
+      resets(
+        `alter table public.organizations add column name text;
+update public.organizations set invoice_number_format = 'INV-{n}', invoice_number_reset = 'none' where id = '${ALICE}';
+alter table public.invoices disable trigger user;
+insert into public.invoices (organization_id, status, issued_on, formatted_number) values
+  ('${ALICE}', 'sent', '2026-01-05', 'INV-50');
+alter table public.invoices enable trigger user;
+update public.organizations set name = 'Alice' where id = '${ALICE}';
+update public.organizations set invoice_number_format = 'NR-{n}', invoice_number_reset = '' where id = '${BOB}';
+update public.organizations set invoice_number_format = 'INV-{n:2}' where id = '${ALICE}';
+do $$
+declare
+  v_number text;
+begin
+${send(ALICE, "2026-02-01", "INV-01")}
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("follows a generated period column", async () => {
+    await expect(
+      withNumbers(
+        {
+          invoice: {
+            ...perTenant,
+            periodFrom: {
+              column: "public.organizations.invoice_number_period",
+            },
+          },
+        },
+        GENERATED_PERIOD,
+        [
+          ORGANIZATIONS,
+          `update public.organizations set invoice_number_format = 'INV-{n}', invoice_number_reset = 'yearly' where id = '${ALICE}';
+do $$
+declare
+  v_number text;
+begin
+${send(ALICE, "2026-01-05", "INV-1")}
+${send(ALICE, "2026-02-01", "INV-2")}
+  update public.organizations set invoice_number_reset = 'never' where id = '${ALICE}';
+${send(ALICE, "2026-03-01", "INV-3")}
+end;
+$$;`,
+        ],
+      ),
+    ).resolves.toBeUndefined();
   });
 });
 
