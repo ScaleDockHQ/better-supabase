@@ -108,8 +108,44 @@ table that `appTables` wouldn't accept, a column type outside a plain SQL
 type, a block with no table for extra columns, or a code that inflates past
 256 KB. `encodeDesign` throws a `TypeError` for an invalid design, and a
 `DesignTooLongError` (a `TypeError` with the code's `length`) when a valid
-design would pass `MAX_DESIGN_CODE_LENGTH` (6000 characters); download the
-config then. Check for `DesignTooLongError` to tell the two apart.
+design would pass `MAX_DESIGN_CODE_LENGTH` (6000 characters); write a
+[design file](#design-files) then. Check for `DesignTooLongError` to tell the
+two apart.
+
+`parseDesign(value)` checks the shape of a design object, such as a JSON body
+or an AI tool's input, with the same rules, and returns it with its empty
+parts dropped. It throws a `TypeError` naming the first problem. To check a
+design against a preset as well, use
+[`checkDesign`](/docs/presets/create#check-a-design).
+
+### Design files
+
+A design too long for a URL travels as a file instead. `designFileSource`
+writes it, and `init --preset` and `apply --preset` read it from a path ending
+in `.json`. `DESIGN_FILE` is the default name, `better-supabase.design.json`.
+
+```ts
+import {
+  designFileSource,
+  namedPreset,
+  readDesignFile,
+  resolvePreset,
+} from "better-supabase/preset";
+
+const source = designFileSource(resolvePreset(namedPreset("saas")), design);
+// {
+//   "preset": "...",
+//   "design": { "tables": { ... }, "extraColumns": { ... } }
+// }
+
+const { preset, design: read } = readDesignFile(source);
+```
+
+The file holds the preset code and the design as plain JSON, with no length
+limit. A design that needs format 1 carries `"version": 1`, as its code would.
+`readDesignFile` accepts only the keys `preset` and `design`, decodes the
+preset and checks the design with `parseDesign`, and throws a `TypeError` for
+anything else. The canvas positions don't travel in the file.
 
 Two helpers check a design before it is encoded. `appReservedColumns(tenant)`
 lists the columns every app table can get from its scope (`id`,
@@ -150,6 +186,9 @@ The AI instructions for a design are at
 | `designConfigSource`   | `better-supabase.config.ts` with the design, and the `/create` URL with both codes in its comment     |
 | `designInstallCommand` | `init --preset` with the quoted URL; the preset command when the code is empty                        |
 | `designApplyCommand`   | `apply --preset` with the quoted URL                                                                  |
+| `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `TypeError`                   |
+| `designFileSource`     | the design file: the preset code and the design as JSON                                               |
+| `readDesignFile`       | the preset and design from a design file; throws a `TypeError` for anything else                      |
 
 ## Resolving
 

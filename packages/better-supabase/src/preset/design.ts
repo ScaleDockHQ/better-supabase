@@ -4,11 +4,13 @@ import type {
   AppTablesConfig,
 } from "../config/types/app-tables.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
+import type { Preset } from "./fields.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
-import { presetConfig } from "./config.ts";
+import { encodePreset } from "./code.ts";
+import { presetConfig, presetOf } from "./config.ts";
 import {
   type ConfigSourceKeys,
   configSource,
@@ -113,6 +115,9 @@ export function designFormat(design: CreateDesign): number {
 /** The longest design code, so a `/create` URL stays under common limits. */
 export const MAX_DESIGN_CODE_LENGTH = 6000;
 
+/** The name Create gives the design file it downloads. */
+export const DESIGN_FILE = "better-supabase.design.json";
+
 /**
  * What `encodeDesign` throws when a valid design is too long for a URL, so
  * a caller can offer the config download instead of a fix.
@@ -123,7 +128,7 @@ export class DesignTooLongError extends TypeError {
 
   constructor(length: number) {
     super(
-      `design: the code is ${String(length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the config instead, save it as better-supabase.config.ts, then run \`better-supabase init\` and \`better-supabase sql sync\`.`,
+      `design: the code is ${String(length)} characters; the most a URL carries is ${String(MAX_DESIGN_CODE_LENGTH)}. Download the design file instead, then run \`better-supabase init --preset ./${DESIGN_FILE}\`.`,
     );
     this.name = "DesignTooLongError";
     this.length = length;
@@ -267,9 +272,14 @@ function positionsOf(value: unknown): CreateDesign["positions"] {
 }
 
 /**
- * Checks a design and drops its empty parts. Throws a TypeError naming the
- * first problem.
+ * Checks a design object, such as one from storage or a request body, and
+ * drops its empty parts. It runs the same checks as `decodeDesign`, without
+ * the code. Throws a TypeError naming the first problem.
  */
+export function parseDesign(value: unknown): CreateDesign {
+  return designOfValue(value);
+}
+
 function designOfValue(
   value: unknown,
   catalog: PresetCatalog = PRESET_CATALOG,
@@ -554,6 +564,82 @@ export function designInstallCommand(
   return designCode === ""
     ? presetInstallCommand(resolved)
     : `npx better-supabase init --preset "${createUrl(resolved, designCode)}"`;
+}
+
+/**
+ * A preset and its design as one JSON file, for a design too long for a URL
+ * (ADR 0058). `init --preset` and `apply --preset` read it from a path.
+ */
+export interface DesignFile {
+  /** The preset code. */
+  readonly preset: string;
+  /** The design, with `version` set to `designFormat` when it is above 0. */
+  readonly design: CreateDesign & { readonly version?: number };
+}
+
+/**
+ * The design file for a preset and design, as JSON text. Throws a TypeError
+ * when the design is invalid; it has no length limit.
+ */
+export function designFileSource(
+  resolved: ResolvedPreset,
+  design: CreateDesign,
+): string {
+  const checked = designOfValue(design);
+  const format = designFormat(checked);
+
+  const file: DesignFile = {
+    preset: encodePreset(resolved.preset),
+    design: format === 0 ? checked : { version: format, ...checked },
+  };
+
+  return `${JSON.stringify(file, null, 2)}\n`;
+}
+
+/**
+ * Reads a design file's text. Throws a TypeError naming the first problem:
+ * text that isn't JSON, a missing or invalid preset, or an invalid design.
+ */
+export function readDesignFile(text: string): {
+  readonly preset: Preset;
+  readonly design: CreateDesign;
+} {
+  let value: unknown;
+
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new TypeError("design file: the text is not JSON", { cause: error });
+  }
+
+  if (!isRecord(value)) {
+    throw new TypeError(
+      "design file: expected an object with preset and design",
+    );
+  }
+
+  const unknownKey = Object.keys(value).find(
+    (name) => name !== "preset" && name !== "design",
+  );
+
+  if (unknownKey !== undefined) {
+    throw new TypeError(
+      `design file: unknown key "${unknownKey}"; a design file has preset and design`,
+    );
+  }
+
+  const preset = value["preset"];
+
+  if (typeof preset !== "string" || preset === "") {
+    throw new TypeError(
+      "design file: preset must be a preset name or code from /create",
+    );
+  }
+
+  return {
+    preset: presetOf(preset),
+    design: designOfValue(value["design"] ?? {}),
+  };
 }
 
 /** The command that applies the preset and design to an existing project. */

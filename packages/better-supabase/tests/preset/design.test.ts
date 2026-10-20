@@ -402,7 +402,7 @@ describe("design codes", () => {
     );
 
     await expect(encodeDesign({ appTables })).rejects.toThrow(
-      "Download the config instead, save it as better-supabase.config.ts, then run `better-supabase init` and `better-supabase sql sync`.",
+      "Download the design file instead, then run `better-supabase init --preset ./better-supabase.design.json`.",
     );
   });
 });
