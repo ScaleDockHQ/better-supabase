@@ -8,6 +8,7 @@ import {
   rpcTransport,
   setFieldAction,
 } from "better-supabase/blocks/rules";
+import { connection } from "next/server";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
@@ -49,6 +50,8 @@ const setTaskField: RuleFieldSetter = async (write) => {
  * from a cron (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
+  // Without a request-time API, Next.js runs this handler at build time.
+  await connection();
   const admin = bs.admin();
   const schema = blockConfig.rules.api;
 
