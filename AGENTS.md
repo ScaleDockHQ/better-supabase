@@ -168,6 +168,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0049: `better-supabase mcp` serves the CLI on stdio; write tools need a consent token.
 - 0050: doctor lints unapplied migrations for locking statements (BS229 to BS234).
 - 0051: app table columns restrict access to `read` or `server` with Postgres column grants.
+- 0052: billing webhooks keep subscriptions, guarded by `event_at`.
+- 0053: usage meters can count distinct values or compute a value on a schedule.
+- 0054: a Vercel Marketplace block and a Vercel Queues jobs backend, without `@vercel/*` dependencies.
+- 0055: the Create page connects a PermDock Cloud account through OAuth with PKCE.
+- 0056: audit resolves tenants through a path or function and names the acting member.
 
 ## Pre-release pins
 
