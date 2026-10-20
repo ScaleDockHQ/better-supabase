@@ -141,6 +141,10 @@ function effectText(effect: CommandEffect): string {
           : "writes to the database";
       }
 
+      case "process": {
+        return "runs the command you pass";
+      }
+
       case "network": {
         switch (effect.target) {
           case "supabase-api": {

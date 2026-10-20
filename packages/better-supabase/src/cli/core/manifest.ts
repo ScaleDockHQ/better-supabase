@@ -29,6 +29,7 @@ export type CommandEffect = (
   | { readonly kind: "files" }
   | { readonly kind: "database"; readonly access: "read" | "write" }
   | { readonly kind: "network"; readonly target: NetworkTarget }
+  | { readonly kind: "process" }
 ) & {
   /** The flag that turns the effect on, when the command doesn't always have it. */
   readonly when?: string;
@@ -310,6 +311,28 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "local",
     docs: "/docs/cli/local#env",
     effects: [FILES],
+    examples: [
+      {
+        command:
+          "better-supabase env --write .env.supabase.local --prefix next",
+        description:
+          "Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_",
+      },
+    ],
+  },
+  {
+    name: "run",
+    description:
+      "Runs a command with the local stack's URL and keys set, overriding the shell and .env files",
+    group: "local",
+    docs: "/docs/cli/local#run",
+    effects: [{ kind: "process" }],
+    examples: [
+      {
+        command: "better-supabase run -- next dev",
+        description: "Start Next.js against this worktree's stack",
+      },
+    ],
   },
   {
     name: "keys",

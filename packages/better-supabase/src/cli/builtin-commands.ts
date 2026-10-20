@@ -45,6 +45,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/completion.ts").then((m) => m.completionCommand),
   ],
   ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
+  ["run", () => import("./commands/run.ts").then((m) => m.runCommand)],
   ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
   ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
   [
