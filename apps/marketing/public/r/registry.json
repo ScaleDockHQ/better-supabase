@@ -8,7 +8,7 @@
       "type": "registry:lib",
       "title": "Block clients",
       "description": "lib/blocks.ts: the blocks as typed clients over the Data API, acting as the caller, plus the notification types.",
-      "dependencies": ["better-supabase@^0.10.0", "valibot"],
+      "dependencies": ["better-supabase@^0.11.0", "valibot"],
       "files": [
         {
           "path": "items/lib/blocks.ts",
@@ -35,7 +35,7 @@
       "type": "registry:lib",
       "title": "Server Postgres pool",
       "description": "lib/postgres.ts: one Postgres pool for the server-side blocks (outbox, jobs, webhook inbox, billing).",
-      "dependencies": ["better-supabase@^0.10.0", "pg"],
+      "dependencies": ["better-supabase@^0.11.0", "pg"],
       "files": [
         {
           "path": "items/lib/postgres.ts",
@@ -59,7 +59,7 @@
       "type": "registry:lib",
       "title": "Notification server actions (Next.js)",
       "description": "Server actions that list, count and mark the caller's notifications, for useNotifications on the web.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "registryDependencies": ["@better-supabase/blocks"],
       "files": [
         {
@@ -82,7 +82,7 @@
       "type": "registry:lib",
       "title": "Onboarding checklist",
       "description": "lib/onboarding.ts: a getting-started checklist definition to edit, shared by the config and useOnboarding.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "files": [
         {
           "path": "items/lib/onboarding.ts",
@@ -104,7 +104,7 @@
       "type": "registry:lib",
       "title": "Outbox client",
       "description": "lib/outbox.ts: the outbox on the server connection, which the relay routes use.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -129,7 +129,7 @@
       "type": "registry:file",
       "title": "Outbox relay route (Next.js)",
       "description": "app/api/outbox/route.ts: a cron route that relays each registered consumer's events.",
-      "dependencies": ["better-supabase@^0.10.0", "server-only"],
+      "dependencies": ["better-supabase@^0.11.0", "server-only"],
       "registryDependencies": ["@better-supabase/outbox"],
       "files": [
         {
@@ -154,7 +154,7 @@
       "type": "registry:file",
       "title": "Outbox relay route (Hono)",
       "description": "routes/outbox.ts: a Hono route that relays each registered consumer's events.",
-      "dependencies": ["better-supabase@^0.10.0", "hono"],
+      "dependencies": ["better-supabase@^0.11.0", "hono"],
       "registryDependencies": ["@better-supabase/outbox"],
       "files": [
         {
@@ -179,7 +179,7 @@
       "type": "registry:file",
       "title": "Stripe webhook routes (Next.js)",
       "description": "A Stripe webhook route that stores verified events, and a cron route that hands them to the billing block.",
-      "dependencies": ["better-supabase@^0.10.0", "server-only", "stripe"],
+      "dependencies": ["better-supabase@^0.11.0", "server-only", "stripe"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -216,7 +216,7 @@
       "type": "registry:file",
       "title": "Jobs drain cron route (Next.js)",
       "description": "lib/jobs.ts and app/api/jobs/drain/route.ts: the queues and the cron route that runs schedules and drains them.",
-      "dependencies": ["better-supabase@^0.10.0", "server-only"],
+      "dependencies": ["better-supabase@^0.11.0", "server-only"],
       "registryDependencies": ["@better-supabase/postgres"],
       "files": [
         {
@@ -246,7 +246,7 @@
       "type": "registry:hook",
       "title": "useCurrentOrganization",
       "description": "The signed-in user's active organization and a switchTo action, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "files": [
         {
           "path": "items/hooks/use-current-organization.ts",
@@ -268,7 +268,7 @@
       "type": "registry:hook",
       "title": "useRuleEditor",
       "description": "The editor state of one rule in the active organization: its condition tree, validation, dirty state and save, for React DOM and React Native.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "files": [
         {
           "path": "items/hooks/use-rule-editor.ts",
@@ -290,7 +290,7 @@
       "type": "registry:hook",
       "title": "usePushRegistration (Expo)",
       "description": "Registers the device's Expo push token for the signed-in user with the push block.",
-      "dependencies": ["better-supabase@^0.10.0", "expo-notifications"],
+      "dependencies": ["better-supabase@^0.11.0", "expo-notifications"],
       "registryDependencies": ["@better-supabase/expo-config-native"],
       "files": [
         {
@@ -316,7 +316,7 @@
       "title": "Expo config",
       "description": "app.config.ts: the URL scheme for auth deep links, secure session storage and push, on top of app.json.",
       "dependencies": [
-        "better-supabase@^0.10.0",
+        "better-supabase@^0.11.0",
         "expo-secure-store",
         "expo-notifications"
       ],
@@ -343,7 +343,7 @@
       "type": "registry:item",
       "title": "SaaS glue (Next.js)",
       "description": "The glue for the saas preset on Next.js: block clients, notification actions, onboarding, the organization hook and the outbox, jobs and Stripe routes.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "registryDependencies": [
         "@better-supabase/blocks",
         "@better-supabase/notifications-actions-next",
@@ -378,7 +378,7 @@
       "type": "registry:item",
       "title": "SaaS glue (Expo)",
       "description": "The glue for the saas preset on Expo: block clients, onboarding, the organization hook, push registration and the Expo config.",
-      "dependencies": ["better-supabase@^0.10.0"],
+      "dependencies": ["better-supabase@^0.11.0"],
       "registryDependencies": [
         "@better-supabase/blocks",
         "@better-supabase/onboarding-checklist",
