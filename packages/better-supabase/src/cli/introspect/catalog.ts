@@ -238,6 +238,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       triggers: extra?.triggers ?? [],
       grants: extra?.grants ?? [],
       ...(extra?.columnGrants ? { columnGrants: extra.columnGrants } : {}),
+      ...(extra?.partitionOf ? { partitionOf: extra.partitionOf } : {}),
     };
   };
 

@@ -17,6 +17,7 @@ import {
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
+import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
@@ -645,74 +646,6 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
   );
 }
 
-/** `exempt` globs (`public.*_archive`): `*` matches any run of characters. */
-const globs = (value: unknown): RegExp[] =>
-  (Array.isArray(value) ? value : [])
-    .filter((entry): entry is string => typeof entry === "string")
-    .map(
-      (glob) =>
-        new RegExp(`^${glob.split("*").map(escapeRegExp).join(".*")}$`, "i"),
-    );
-
-/** The module schemas and the app tables SQL modules adopted, which the audit trigger skips. */
-function moduleOwned(context: DoctorContext): {
-  schemas: ReadonlySet<string>;
-  tables: ReadonlySet<string>;
-} {
-  const schemas = new Set<string>(["better_supabase"]);
-  const tables = new Set<string>();
-
-  for (const module of Object.values(context.config.blocks)) {
-    if (module?.schema !== undefined) {
-      schemas.add(module.schema);
-    }
-
-    for (const table of Object.values(module?.tables ?? {})) {
-      if (table === null) {
-        continue;
-      }
-
-      tables.add(
-        table.includes(".")
-          ? table
-          : `${module?.schema ?? "better_supabase"}.${table}`,
-      );
-    }
-  }
-
-  return { schemas, tables };
-}
-
-/** Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in `blocks`. */
-function unauditedTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.blockNames.includes("audit")) {
-    return [];
-  }
-
-  const exempt = globs(context.config.blocks["audit"]?.options?.["exempt"]);
-  const owned = moduleOwned(context);
-
-  return catalogOf(context)
-    .tables.filter(
-      (table) =>
-        table.kind === "table" &&
-        context.config.schemas.includes(table.schema) &&
-        !owned.schemas.has(table.schema) &&
-        !owned.tables.has(qualified(table)) &&
-        !exempt.some((pattern) => pattern.test(qualified(table))) &&
-        !table.triggers.some(
-          (trigger) =>
-            trigger.name === "bs_audit" ||
-            trigger.function.split(".").at(-1) === "audit_row_change",
-        ),
-    )
-    .map((table) => ({
-      message: `${qualified(table)} has no audit trigger, so its inserts, updates and deletes are not in the audit log. Run \`select better_supabase.audit('${qualified(table)}')\` in a schema file, or list it in blocks.audit.options.exempt.`,
-      target: qualified(table),
-      object: tableObject(table),
-    }));
-}
-
 /** RLS tables in `config.schemas` without a restrictive `session_active()` policy, when `sessions` is in `blocks`. */
 function sessionlessTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("sessions")) {
@@ -880,7 +813,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `blocks`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
+      "The `audit` module is in `blocks`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`; a bare glob string still works but gets a finding that asks for the reason. Partitions are covered by their parent.",
     check: unauditedTables,
   },
   {

@@ -27,7 +27,11 @@ export const LARGE_TABLE_ROWS = 10_000;
 
 const RELATIONS = (schemas: string) => `
 select c.oid::int8 as id, n.nspname as schema, c.relname as name,
-  c.reltuples >= ${LARGE_TABLE_ROWS} as large
+  c.reltuples >= ${LARGE_TABLE_ROWS} as large,
+  (select pn.nspname || '.' || pc.relname from pg_inherits i
+    join pg_class pc on pc.oid = i.inhparent
+    join pg_namespace pn on pn.oid = pc.relnamespace
+    where i.inhrelid = c.oid and c.relispartition) as partition_of
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = any(${schemas}) and c.relkind in ('r', 'p', 'v', 'm', 'f')
@@ -458,6 +462,7 @@ export async function readExtras(
       schema: string;
       name: string;
       large: boolean;
+      partition_of?: string | null;
     }>(db, RELATIONS(list)),
     rows<ConstraintRow>(db, CONSTRAINTS(list)),
     rows<IndexRow>(db, INDEXES(list)),
@@ -561,6 +566,7 @@ export async function readExtras(
         privileges: grant.privileges,
       })),
       ...(relation.large ? { large: true as const } : {}),
+      ...(relation.partition_of ? { partitionOf: relation.partition_of } : {}),
     };
   });
 

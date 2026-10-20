@@ -1,10 +1,5 @@
 import type { AuditEvents } from "../../blocks/audit/events.ts";
-import type {
-  ModuleContext,
-  ModuleEvents,
-  ModuleIdType,
-  ModuleNames,
-} from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
@@ -32,6 +27,7 @@ import {
   partitionedOn,
 } from "./audit-chain.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
+import { castId, entrySql, tenantFallbackSql } from "./audit-entry.ts";
 import {
   eventInsert,
   metadataColumns,
@@ -183,33 +179,6 @@ const NAMES: ModuleNames = {
   },
   hooks: ["audit_retention"],
 };
-
-/** A text expression as the id type, or null when it doesn't parse as one. */
-function castId(value: string, idType: ModuleIdType): string {
-  switch (idType) {
-    case "uuid": {
-      return `case when ${value} ~* '^[0-9a-f-]{36}$' then (${value})::uuid end`;
-    }
-
-    case "bigint": {
-      return `case when ${value} ~ '^-?[0-9]{1,18}$' then (${value})::bigint end`;
-    }
-
-    case "integer": {
-      return `case when ${value} ~ '^-?[0-9]{1,9}$' then (${value})::integer end`;
-    }
-
-    case "text": {
-      return value;
-    }
-
-    default: {
-      const unknown: never = idType;
-
-      return unknown;
-    }
-  }
-}
 
 /** How the caller acted: service, support, impersonation, oauth-client, user or system. */
 const ACTOR_KIND = `case
@@ -589,33 +558,12 @@ declare
   row_tenant ${ctx.idType};
   v_jwt jsonb := auth.jwt();
   v_headers jsonb := better_supabase.request_headers();
+  path_value text;
+  path_step jsonb;
 begin
-  if tg_nargs > 0 then
-    settings := tg_argv[0]::jsonb;
-    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
-      coalesce(
-        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
-        (select array_agg(c.attname::text order by k.ord)
-         from pg_catalog.pg_index i
-         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
-         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
-         where i.indrelid = tg_relid and i.indisprimary),
-        '{id}'
-      ) as key_columns,
-      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
-      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
-      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
-      settings ->> 'label_column' as label_column
-    into entry;
-  else
-    select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
-      coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
-      a.label_column
-    into entry
-    from (select 1) one
-    left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
-  end if;
+${entrySql()}
   row_tenant := ${tenantValue};
+${tenantFallbackSql(ctx.idType)}
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
   if tg_op = 'UPDATE' then

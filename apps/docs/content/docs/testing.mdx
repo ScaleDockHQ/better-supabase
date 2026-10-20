@@ -405,13 +405,17 @@ select * from finish();
 rollback;
 ```
 
-| Helper                                                  | Does                                                                               |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id; call it before switching roles        |
-| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction |
-| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                 |
-| `tests.clear_authentication()`                          | Switches back to the test runner's role                                            |
-| `tests.rls_enabled(schema)`                             | Fails and lists every table in the schema without row level security               |
+| Helper                                                  | Does                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id; call it before switching roles                                  |
+| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction                           |
+| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                                           |
+| `tests.clear_authentication()`                          | Switches back to the test runner's role                                                                      |
+| `tests.every_table_has_rls(schema)`                     | Fails and lists every table in the schema without row level security (`tests.rls_enabled` is the same check) |
+| `tests.policies_use(schema, pattern)`                   | Fails and lists every policy whose `using` and `with check` expressions don't match the regular expression   |
+| `tests.no_anon_policies(schema)`                        | Fails and lists every policy that applies to `anon`, by name or through `public`                             |
+| `tests.every_table_audited(schema, exempt)`             | Fails and lists every table without an audit trigger; `exempt` holds `like` patterns for table names         |
+| `tests.partitions_have_rls(schema)`                     | Fails and lists every partition of an RLS table that has RLS off, the default partition included             |
 
 The helpers stay installed after the run, so `supabase db advisors` sees
 them too. Each one sets its own `search_path`, so the advisors report no

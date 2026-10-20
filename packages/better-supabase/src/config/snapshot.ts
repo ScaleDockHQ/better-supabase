@@ -128,6 +128,8 @@ export interface ExtrasTable {
   readonly columnGrants?: readonly CatalogColumnGrant[];
   /** Postgres estimates at least `LARGE_TABLE_ROWS` rows; the `unbounded-read` lint reads it. */
   readonly large?: true;
+  /** The partitioned parent as `schema.name`, when the table is a partition. */
+  readonly partitionOf?: string;
 }
 
 export type ForeignKeyAction =
@@ -251,6 +253,8 @@ export interface CatalogTable {
   readonly grants: readonly CatalogGrant[];
   /** Absent in snapshots taken before column grants were introspected. */
   readonly columnGrants?: readonly CatalogColumnGrant[];
+  /** The partitioned parent as `schema.name`, when the table is a partition. */
+  readonly partitionOf?: string;
 }
 
 export interface CatalogColumn {

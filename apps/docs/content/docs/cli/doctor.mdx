@@ -874,16 +874,30 @@ trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
 skips the block schemas and the tables SQL modules adopt; list other tables in
-`blocks.audit.options.exempt` as `schema.table` globs, where `*` matches any run
-of characters:
+`blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
+a `schema.table` glob (`*` matches any run of characters) and `reason` says why
+its changes need no audit entry. A bare glob string still works, but doctor
+reports it and asks for the reason. Doctor only checks tables in `schemas`, and
+a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
+    audit: {
+      options: {
+        exempt: [
+          { table: "public.*_archive", reason: "read-only copies" },
+          { table: "public.sessions", reason: "high volume, no user data" },
+        ],
+      },
+    },
   },
 });
 ```
+
+The same rule runs in pgTAP with
+`select tests.every_table_audited('public', array['sessions', '%_archive'])`
+(see [testing](/docs/testing#pgtap-helpers)).
 
 ### BS316
 
@@ -1206,6 +1220,20 @@ The columns the module casts to their declared type may stay enums: the tags
 `better-supabase adopt` refuse the same columns when the schema files declare
 the enum. See
 [existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
+
+### BS343
+
+**Error: a partition without row level security.** A table in `schemas` is a
+partition of a table that has RLS on, but RLS is off on the partition itself.
+Policies belong to the parent, so a query that names the partition (for
+example `select * from decision_events_default`) never applies them, and a
+role with a grant on it reads every row. The default partition counts too.
+Run `alter table <partition> enable row level security`, and enable RLS in
+the code that creates new partitions. The partition functions of the SQL
+modules (`ensure_partitions`, `defaultPartition`) already do this for the
+outbox, usage, webhook delivery, notification and audit tables
+(ADR 0038).
+In pgTAP, `tests.partitions_have_rls('schema')` checks the same thing.
 
 ## Auth config
 

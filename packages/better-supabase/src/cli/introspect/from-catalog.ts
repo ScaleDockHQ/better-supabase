@@ -255,6 +255,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         triggers: table.triggers,
         grants: table.grants,
         ...(table.columnGrants ? { columnGrants: table.columnGrants } : {}),
+        ...(table.partitionOf ? { partitionOf: table.partitionOf } : {}),
       })),
       buckets: catalog.buckets,
       realtime: catalog.realtime,
