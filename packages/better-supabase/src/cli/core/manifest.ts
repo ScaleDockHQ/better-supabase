@@ -323,7 +323,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "run",
     description:
-      "Runs a command with the local stack's URL and keys set, overriding the shell and .env files",
+      "Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files",
     group: "local",
     docs: "/docs/cli/local#run",
     effects: [{ kind: "process" }],

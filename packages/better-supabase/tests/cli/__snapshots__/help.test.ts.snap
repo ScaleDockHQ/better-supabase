@@ -515,11 +515,11 @@ exports[`help > documents env 1`] = `
 Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
 
 Options
-  --out <file>          Env file to write, or - to print the variables. Defaults to env.output, then .env.local
-  --prefix <prefix>     Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix
-  --status-file <file>  Read \`supabase status -o json\` output from a file
-  --dry-run             Print what would change, with a diff, and write nothing
-  --check               Write nothing; exit 1 with a diff when a file would change
+  --write <file>, --out  Env file to write, or - to print the variables. Defaults to env.output, then .env.local
+  --prefix <prefix>      Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
+  --status-file <file>   Read \`supabase status -o json\` output from a file
+  --dry-run              Print what would change, with a diff, and write nothing
+  --check                Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>            Project directory
@@ -532,6 +532,10 @@ Global options
   --no-color             Print no colors, like $NO_COLOR
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
+
+Examples
+  # Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_
+  $ better-supabase env --write .env.supabase.local --prefix next
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/local#env
@@ -783,6 +787,36 @@ Global options
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#preset
+"
+`;
+
+exports[`help > documents run 1`] = `
+"Usage: better-supabase run [options]
+
+Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
+
+Options
+  --prefix <prefix>     Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
+  --status-file <file>  Read \`supabase status -o json\` output from a file
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Start Next.js against this worktree's stack
+  $ better-supabase run -- next dev
+
+Side effects: Runs the command you pass.
+Docs: https://bettersupabase.com/docs/cli/local#run
 "
 `;
 
@@ -1303,6 +1337,7 @@ Generate
 
 Local stack
   env   Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
+  run   Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
   keys  Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
   seed  Renders the fixtures from defineSeed() (better-supabase/testing) to SQL
   db    Runs SQL files against the database: the local stack by default, or the one in the connection string

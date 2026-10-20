@@ -28,6 +28,7 @@ const PAGES: Readonly<Record<string, string>> = {
   env: "cli/local.mdx",
   db: "cli/db.mdx",
   keys: "cli/local.mdx",
+  run: "cli/local.mdx",
   seed: "cli/local.mdx",
   spec: "cli/spec.mdx",
   scaffold: "cli/scaffold.mdx",
