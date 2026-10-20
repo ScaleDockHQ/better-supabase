@@ -60,3 +60,4 @@ add one, and link it from the code or config it explains.
 | [0052](0052-billing-webhook-subscriptions.md)         | Billing can store subscriptions from webhooks, with an `event_at` guard and a checkout block                                   |
 | [0053](0053-usage-meter-kinds.md)                     | Usage meters can count distinct values or compute a value on a schedule                                                        |
 | [0054](0054-vercel-marketplace-and-queues.md)         | A Vercel Marketplace block and a Vercel Queues jobs backend, both without a `@vercel/*` runtime dependency                     |
+| [0055](0055-connect-permdock-cloud-on-create.md)      | The Create page connects a visitor's PermDock Cloud account through OAuth with PKCE                                            |

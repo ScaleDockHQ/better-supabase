@@ -1040,3 +1040,11 @@ test("a rollup added in the inspector shows as a computed row on the table", asy
     projects.getByRole("listitem").filter({ hasText: "tasks_count" }),
   ).toHaveAttribute("title", /count of tasks/u);
 });
+
+test("the PermDock connection answers 404 until its OAuth app is configured", async ({
+  request,
+}) => {
+  const response = await request.get("/create/permdock/projects");
+
+  expect(response.status()).toBe(404);
+});

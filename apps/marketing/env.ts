@@ -25,6 +25,14 @@ export const env = createEnv({
     SUPABASE_OAUTH_COOKIE_SECRET: v.optional(
       v.pipe(v.string(), v.minLength(32)),
     ),
+    // The OAuth app behind "Connect" on /create for a hosted authorization
+    // service. It is a public PKCE client, so it has no secret. The
+    // connection hides until both are set.
+    PERMDOCK_OAUTH_CLIENT_ID: v.optional(v.pipe(v.string(), v.minLength(1))),
+    // Encrypts the tokens in that connection's session cookie.
+    PERMDOCK_OAUTH_COOKIE_SECRET: v.optional(
+      v.pipe(v.string(), v.minLength(32)),
+    ),
     // Sends the /contact form through Resend. The form shows a mailto
     // fallback until the key is set.
     RESEND_API_KEY: v.optional(v.pipe(v.string(), v.minLength(1))),
@@ -46,6 +54,8 @@ export const env = createEnv({
     SUPABASE_OAUTH_CLIENT_ID: process.env["SUPABASE_OAUTH_CLIENT_ID"],
     SUPABASE_OAUTH_CLIENT_SECRET: process.env["SUPABASE_OAUTH_CLIENT_SECRET"],
     SUPABASE_OAUTH_COOKIE_SECRET: process.env["SUPABASE_OAUTH_COOKIE_SECRET"],
+    PERMDOCK_OAUTH_CLIENT_ID: process.env["PERMDOCK_OAUTH_CLIENT_ID"],
+    PERMDOCK_OAUTH_COOKIE_SECRET: process.env["PERMDOCK_OAUTH_COOKIE_SECRET"],
     RESEND_API_KEY: process.env["RESEND_API_KEY"],
     CONTACT_FROM_EMAIL: process.env["CONTACT_FROM_EMAIL"],
     NEXT_PUBLIC_SITE_URL: process.env["NEXT_PUBLIC_SITE_URL"],

@@ -122,10 +122,7 @@ async function cookieKey(secret: string): Promise<CryptoKey> {
 }
 
 /** Encrypts `value` as JSON with AES-GCM: base64url of the IV, then the ciphertext. */
-export async function seal(
-  value: SupabaseSession | OAuthFlow,
-  secret: string,
-): Promise<string> {
+export async function seal(value: object, secret: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
   const cipher = await crypto.subtle.encrypt(
