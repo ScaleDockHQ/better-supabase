@@ -1054,6 +1054,45 @@ describe("modulePermissionKeys", () => {
     expect(keys.map((entry) => entry.module)).not.toContain("notifications");
   });
 
+  it("lists a number-sequences entity's own assign key", () => {
+    const keys = modulePermissionKeys(
+      {
+        "number-sequences": {
+          options: {
+            entities: {
+              invoice: {
+                period: "year",
+                format: "{n}",
+                permission: "invoices.write",
+              },
+              quote: { period: "year", format: "{n}" },
+            },
+          },
+        },
+      },
+      ["number-sequences"],
+    );
+
+    expect(keys.filter((entry) => entry.module === "number-sequences")).toEqual(
+      [
+        {
+          module: "number-sequences",
+          action: "assign",
+          key: "number_sequences.assign",
+          scope: "tenant",
+        },
+        {
+          module: "number-sequences",
+          action: "assign",
+          key: "invoices.write",
+          scope: "tenant",
+          setting:
+            "blocks.number-sequences.options.entities.invoice.permission",
+        },
+      ],
+    );
+  });
+
   it("defaults suspendMember to the removeMember key", () => {
     const suspend = (permissions: Record<string, string>) =>
       modulePermissionKeys({ organizations: { permissions } }, [

@@ -87,6 +87,34 @@ describe("saas block clients", () => {
     ]);
   });
 
+  it("previews the formatted next number with preview_number", async () => {
+    const calls: unknown[] = [];
+
+    const numbers = createNumberSequences({
+      schema: "app",
+      transport: {
+        call(_schema: string, fn: string, args: unknown) {
+          calls.push([fn, args]);
+
+          return Promise.resolve(fn === "preview_number" ? "INV-0042" : 1);
+        },
+      },
+    });
+
+    expect(await numbers.preview("org", "invoice").orThrow()).toBe("INV-0042");
+    await numbers.preview("org", "invoice", "2026-01-01").orThrow();
+    expect(calls).toEqual([
+      ["preview_number", { p_entity: "invoice", p_tenant: "org" }],
+      [
+        "preview_number",
+        { p_at: "2026-01-01", p_entity: "invoice", p_tenant: "org" },
+      ],
+    ]);
+
+    const broken = createNumberSequences(options({ preview_number: 7 }));
+    expect((await broken.preview("org", "invoice")).ok).toBe(false);
+  });
+
   it("transitions a subject", async () => {
     const machine = createStateMachine(options({ transition: true }));
     expect(await machine.transition("quotes", "q1", "sent").orThrow()).toBe(

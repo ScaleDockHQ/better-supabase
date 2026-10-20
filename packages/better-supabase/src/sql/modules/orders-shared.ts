@@ -108,10 +108,14 @@ function machineGoverns(ctx: ModuleContext): boolean {
   });
 }
 
-/** The `number-sequences` format for `entity`, when the app configured one. */
+/**
+ * The `number-sequences` format for `entity` in `tenant` as SQL, when the app
+ * configured one.
+ */
 function sequenceFormat(
   ctx: ModuleContext,
   entity: "order" | "invoice",
+  tenant: string,
 ): string | undefined {
   if (!ctx.installed("number-sequences")) {
     return undefined;
@@ -129,7 +133,9 @@ function sequenceFormat(
     return undefined;
   }
 
-  return entry["format"];
+  return isRecord(entry["formatFrom"])
+    ? `${ctx.of("number-sequences").fn("number_format")}(${tenant}, ${sqlString(entity)})`
+    : sqlString(entry["format"]);
 }
 
 /**
@@ -144,13 +150,13 @@ export function assignNumber(
   tenant: string,
   target: { readonly seq: string; readonly number: string },
 ): string {
-  const format = sequenceFormat(ctx, entity);
+  const format = sequenceFormat(ctx, entity, tenant);
 
   if (format !== undefined) {
     const next = ctx.of("number-sequences").fn("next_number");
 
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
-  ${target.number} := better_supabase.format_assigned_number(${sqlString(format)}, ${target.seq}, now());`;
+  ${target.number} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;
   }
 
   const o = columns(ctx, "orders");

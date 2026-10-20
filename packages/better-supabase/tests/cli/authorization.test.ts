@@ -290,6 +290,26 @@ describe("moduleKeyProblems", () => {
     ]);
   });
 
+  it("names an option that sets the key outside permissions", () => {
+    expect(
+      moduleKeyProblems(stubProvider, [
+        {
+          module: "number-sequences",
+          action: "assign",
+          key: "documents.own",
+          scope: "tenant",
+          setting:
+            "blocks.number-sequences.options.entities.invoice.permission",
+        },
+      ]),
+    ).toEqual([
+      {
+        target: "blocks.number-sequences.options.entities.invoice.permission",
+        message: expect.stringContaining("documents.own"),
+      },
+    ]);
+  });
+
   it("refuses every key when the provider lists no permissions", () => {
     const provider = withProvider({ permissions: undefined });
     expect(moduleKeyProblems(provider, keys)).toEqual([

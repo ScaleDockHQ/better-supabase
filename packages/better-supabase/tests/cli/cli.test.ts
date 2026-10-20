@@ -577,6 +577,40 @@ describe("CHECK not null", () => {
       'tables.customers.insertOptional: "nope" is not a column of public.customers',
     );
   });
+
+  it("makes number-sequences columns optional on insert", async () => {
+    const numbered = (mode: "adopt" | "custom") =>
+      customersWith((table) => table, {
+        blocks: {
+          "number-sequences": {
+            mode,
+            options: {
+              entities: {
+                customer: {
+                  period: "none",
+                  format: "C-{n}",
+                  table: "customers",
+                  column: "kvk",
+                  sequenceColumn: "name",
+                },
+              },
+            },
+          },
+        },
+      });
+
+    const adopted = await numbered("adopt");
+
+    expect(adopted("kvk").column).toMatchObject({
+      nullable: false,
+      optional: true,
+    });
+    expect(adopted("kvk").meta?.hasDefault).toBe(true);
+    expect(adopted("name").column).toMatchObject({ optional: true });
+    expect((await numbered("custom"))("kvk").column).toMatchObject({
+      optional: false,
+    });
+  });
 });
 
 describe("metadata module", () => {

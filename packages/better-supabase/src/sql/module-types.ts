@@ -134,6 +134,12 @@ export interface SqlModule {
     layout: ModuleLayout,
   ) => readonly ModuleTestFile[];
   readonly topics?: (ctx: ModuleContext) => readonly string[];
+  readonly permissionKeys?: (ctx: ModuleContext) => readonly {
+    readonly action: string;
+    readonly key: string;
+    readonly scope: "tenant" | "platform";
+    readonly setting: string;
+  }[];
   /**
    * Functions granted to `anon` or `authenticated` only so the module's
    * policies and triggers can call them as the client. `api` writes no

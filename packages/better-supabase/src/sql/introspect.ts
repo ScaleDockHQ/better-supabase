@@ -24,6 +24,7 @@ export interface ModulePermissionKey {
    * `tenant_ids_with`), `platform` for `is_platform` and `platform_can`.
    */
   readonly scope: "tenant" | "platform";
+  readonly setting?: string;
 }
 
 /** Actions a module checks only when `blocks.<module>.permissions` names a key. */
@@ -98,6 +99,9 @@ export function modulePermissionKeys(
               ],
       ),
       ...optional,
+      ...(SQL_MODULES[name]?.permissionKeys?.(ctx) ?? []).map(
+        (entry): ModulePermissionKey => ({ module: name, ...entry }),
+      ),
     ];
   });
 }
