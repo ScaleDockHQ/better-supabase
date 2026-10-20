@@ -106,7 +106,8 @@ npx better-supabase init --preset 1pWEF3d578B1iGt16
 ```
 
 `--preset` takes a [named preset](/docs/presets), a code from
-[Create](https://app.bettersupabase.com/create) or its whole URL. `init` then
+[Create](https://app.bettersupabase.com/create), its whole URL or the path of
+a [design file](#a-design-from-create). `init` then
 also:
 
 - writes `preset` into `better-supabase.config.ts`, which `defineConfig`
@@ -144,10 +145,18 @@ stay in the URL. A design that doesn't decode, or that adds columns to a
 block the preset doesn't install, stops `init` with the reason.
 
 A design is capped at 6000 characters so the URL stays usable. When Create
-says a design is too large to share, download its config instead and save
-it as `better-supabase.config.ts` in the project root. `npx better-supabase
-init` keeps a config that is already there and scaffolds the rest; then
-`npx better-supabase sql sync` (or `gen`) writes the module files.
+says a design is too large to share, download the design file instead and
+pass its path to `--preset`:
+
+```bash
+npx better-supabase init --preset ./better-supabase.design.json
+```
+
+The file holds the preset code and the design as JSON, with no length limit,
+and `init` reads it like a URL: the same checks, the same config keys and the
+same module files. A path ending in `.json` is read as a design file, relative
+to `--cwd`. [`apply`](/docs/cli/presets#apply) takes the same file. The format
+is on [Preset codes](/docs/presets/codes#design-files).
 
 ## Supabase Lite
 
