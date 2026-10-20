@@ -21,11 +21,17 @@ Operators depend on the column type:
 | Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                                        |
 | jsonb                | `contains` (`@>`), `path` with the operators below                                 |
 
-`contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`,
-`_` and `*` in your input. Use `like` or `ilike` when you want wildcards (`%`
-and `_`; a `*` in the pattern is a literal character, as in Postgres), and
-`match` (`~`) or `imatch` (`~*`, case-insensitive) for a POSIX regular
-expression. SQLite (PowerSync) returns `unsupported` for `match` and `imatch`.
+`contains`, `startsWith` and `endsWith` escape `%`, `_` and `\` in your input,
+so the text matches literally. Only `contains` is case-insensitive (it sends
+`ilike`); `startsWith` and `endsWith` send `like` and are case-sensitive. For
+a case-insensitive prefix or suffix, use `ilike` with an escaped pattern:
+`ilike: \`${escapeLike(prefix)}%\``. `escapeLike`is exported from`better-supabase`and escapes the same three characters, for input you put in
+a`like`or`ilike` pattern yourself.
+
+Use `like` or `ilike` when you want wildcards (`%` and `_`; a `*` in the
+pattern is a literal character, as in Postgres), and `match` (`~`) or `imatch`
+(`~*`, case-insensitive) for a POSIX regular expression. SQLite (PowerSync)
+returns `unsupported` for `match` and `imatch`.
 
 On a jsonb column, `contains` sends its value as a JSON document, arrays
 included, so an array matches a JSON array that holds every given element:
