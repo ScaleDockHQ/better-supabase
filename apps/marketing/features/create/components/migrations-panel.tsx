@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { PlaceholderAccessNote } from "./placeholder-access-note";
+import { ValidateInPostgres } from "./validate-in-postgres";
 
 export type MigrationState =
   | { readonly status: "error"; readonly message: string }
@@ -175,6 +176,11 @@ function MigrationFiles({
           </ul>
         </FramePanel>
       </Frame>
+      <ValidateInPostgres
+        key={`${code}:${designCode}`}
+        code={code}
+        designCode={designCode}
+      />
     </div>
   );
 }
