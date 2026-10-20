@@ -108,6 +108,33 @@ oRPC adapters then still answer with Problem Details, and `isConflict`,
 `isCheck` and `isForeignKey` still match. TanStack Query hooks always see a
 `DbException`, whatever the mapper.
 
+### Map errors by kind and SQLSTATE code
+
+`matchDbError` builds the factory from one handler per error kind. Handlers
+under `codes` match a SQLSTATE or PostgREST code and run before the handler
+for the kind. A handler that returns `undefined`, and an error with no
+handler, throw a `DbException`.
+
+```ts
+import { matchDbError } from "better-supabase";
+
+const toAppError = matchDbError({
+  conflict: (error) => new ConflictError(error.constraint),
+  forbidden: (error) => new ForbiddenError(error.permission),
+  not_found: () => new NotFoundError(),
+  codes: {
+    "22000": () => new ForbiddenError(),
+    "23514": (error) => new InvalidError(error.message),
+  },
+});
+
+await db.posts.update(id, patch).orThrow(toAppError);
+```
+
+Each kind handler receives the error narrowed to its kind, so `error.constraint`
+is typed for `conflict`. The result works with `betterSupabase.mapError(toAppError)`
+too.
+
 ## better-result
 
 To return [better-result](https://github.com/dmmulroy/better-result) values
