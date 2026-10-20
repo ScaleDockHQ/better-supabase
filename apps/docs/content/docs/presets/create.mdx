@@ -4,7 +4,7 @@ description: How better-supabase/create holds the design model, previews and Sup
 ---
 
 `better-supabase/create` is the headless code behind
-[Create](https://bettersupabase.com/create). It runs on every runtime,
+[Create](https://app.bettersupabase.com/create). It runs on every runtime,
 including the browser, and has no dependency beyond the Supabase packages.
 Designs stay in the URL or in your own storage, as ADR 0040 requires.
 
@@ -80,6 +80,6 @@ doesn't ship (`pgmq` for jobs, `btree_gist` for time tracking) lands in
 `skipped` instead of failing. pgTAP is not available through
 `@supabase/lite`, so database tests still run with `supabase test db`.
 
-On [/create](https://bettersupabase.com/create), the Migrations tab of Get code
+On [/create](https://app.bettersupabase.com/create), the Migrations tab of Get code
 has a Validate in Postgres button that runs the same check on the server for
 the current selection and design.

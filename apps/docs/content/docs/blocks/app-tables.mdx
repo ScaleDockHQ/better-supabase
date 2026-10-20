@@ -46,7 +46,7 @@ export default defineConfig({
 });
 ```
 
-[Create](https://bettersupabase.com/create) edits the same key on its
+[Create](https://app.bettersupabase.com/create) edits the same key on its
 canvas, and `init --preset` or `apply --preset` with its URL writes it into
 the config (see [init](/docs/cli/init#a-design-from-create)). Dragging a
 table onto itself adds `parent_id` with `on delete set null`. A second key to
@@ -251,7 +251,7 @@ and the timestamps. A column a set names that the table doesn't have fails
 Give a table a `subject` and it becomes a subject type, the same as an entry
 in `subjects` (see [Subject registry](/docs/blocks/sql#subject-registry)). Comments, attachments, tags,
 versions, watchers, activity and search then reach its rows, because those
-blocks attach to any registered subject. On [Create](/create), the Features
+blocks attach to any registered subject. On [Create](https://app.bettersupabase.com/create), the Features
 tab of a table turns each one on, adds its block and shows it on the table.
 
 ```ts title="better-supabase.config.ts"
@@ -292,7 +292,7 @@ after the `search` block.
 Set `events` and every insert, update and delete on the table writes an event
 to the outbox in the same transaction, so writes through PostgREST, the SQL
 editor or another service emit it too. The table needs the
-[outbox](/docs/blocks/outbox) block. On [Create](/create), the Emit events
+[outbox](/docs/blocks/outbox) block. On [Create](https://app.bettersupabase.com/create), the Emit events
 switch in a table's Features tab sets it and adds the block.
 
 ```ts title="better-supabase.config.ts"
@@ -335,7 +335,7 @@ The decision is ADR 0048.
 Set `subject.versions` and the [versions](/docs/blocks/versions) block keeps a
 version of the row each time one of its columns changes, through a trigger on
 the table. The table needs the versions block; `sql sync` names it when it is
-missing. On [Create](/create), the Versions feature of a table sets it.
+missing. On [Create](https://app.bettersupabase.com/create), the Versions feature of a table sets it.
 
 ```ts title="better-supabase.config.ts"
 appTables: {

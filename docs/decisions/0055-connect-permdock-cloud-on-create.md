@@ -1,6 +1,6 @@
 # 0055: Connect PermDock Cloud on the Create page
 
-Status: accepted
+Status: accepted; hosting superseded by 0057
 
 ## Context
 
