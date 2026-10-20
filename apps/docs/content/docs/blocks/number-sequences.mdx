@@ -59,6 +59,28 @@ invoice: {
 
 `number_format(tenant, entity)` returns the format a tenant uses. Every number is still assigned in the document's transaction and never changes, and a format change only affects the numbers assigned after it.
 
+## Previews and permissions
+
+`next_number` stays service-only. Called over the API it would commit a number in its own transaction, and a document that then fails to save leaves a gap. A signed-in user gets a number by saving the document: the trigger assigns it in the same transaction, and the table's own policies decide who may save it.
+
+To show the number a document would get, such as on a send dialog, call `preview_number(tenant, entity, at)`. It returns the formatted next number in the tenant's format and period without assigning it, so a concurrent document can still take it first. It checks the block's `assign` permission in the tenant (`number_sequences.assign` by default; the owner role holds it through `*`), and refuses other callers with `NUMBER_FORBIDDEN`. Map `assign` to the key of the people who issue the documents:
+
+```ts title="better-supabase.config.ts"
+"number-sequences": {
+  permissions: { assign: "invoices.write" },
+  options: { entities: { invoice: { /* ... */ } } },
+},
+```
+
+```ts
+const numbers = createNumberSequences({ transport });
+const next = await numbers.preview(organizationId, "invoice", issuedOn);
+```
+
+| Action   | Default key               | Checked by                                         |
+| -------- | ------------------------- | -------------------------------------------------- |
+| `assign` | `number_sequences.assign` | `preview_number`; the service role always holds it |
+
 ## Existing numbers
 
 `next_number` counts from `last_number`, so rows that got their number another way leave the counter behind: seed data, an import, a restore, or a table adopted with its documents already numbered. The next number then repeats one that exists. `sync_number_sequences` raises each counter to the highest number its table holds, per tenant and period, and never lowers one:
@@ -98,7 +120,7 @@ Run it after anything that writes numbered rows directly. After seeding, end `su
 
 ## Hooks
 
-`createNumberSequences` takes `hooks` around `next`, to refuse or observe an
+`createNumberSequences` takes `hooks` around `next` and `preview`, to refuse or observe an
 allocation (see [extending blocks](/docs/extending/blocks)). The sequences
 table takes no app columns: its rows are counters the module owns.
 

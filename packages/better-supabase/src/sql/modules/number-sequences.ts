@@ -16,7 +16,9 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
+  userGrant,
 } from "../shared.ts";
+import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<NumberSequencesEvents> = {
   "number.assigned": {
@@ -506,6 +508,82 @@ function syncEntity(
   end if;`;
 }
 
+function periodCaseOf(
+  ctx: ModuleContext,
+  items: readonly SequenceEntity[],
+  args: {
+    readonly tenant: string;
+    readonly entity: string;
+    readonly at: string;
+  },
+): string {
+  if (items.length === 0) {
+    return "''";
+  }
+
+  const branches = items.map(
+    (item) =>
+      `    when ${sqlString(item.name)} then ${periodSql(item, args.at, formatOf(ctx, item, args.tenant))}`,
+  );
+
+  return `case ${args.entity}\n${branches.join("\n")}\n    else null\n  end`;
+}
+
+function previewFunction(
+  ctx: ModuleContext,
+  items: readonly SequenceEntity[],
+): string {
+  const fn = ctx.fn("preview_number");
+  const table = ctx.table("sequences");
+
+  const assign = ctx.permission(
+    "assign",
+    OPERATIONS["number-sequences.assign"],
+  );
+
+  const format =
+    items.length === 0
+      ? "'{n}'"
+      : `${ctx.fn("number_format")}(p_tenant, p_entity)`;
+
+  const period = periodCaseOf(ctx, items, {
+    tenant: "p_tenant",
+    entity: "p_entity",
+    at: "p_at",
+  });
+
+  return `
+create or replace function ${fn}(p_tenant ${ctx.idType}, p_entity text, p_at timestamptz default now())
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+  v_period text;
+  v_last bigint;
+begin
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("p_tenant", assign)}) then
+    ${fail("NUMBER_FORBIDDEN", "not allowed to number documents in this tenant")}
+  end if;
+  v_format := ${format};
+  v_period := ${period};
+  if v_format is null or v_period is null then
+    ${fail("NUMBER_ENTITY_UNKNOWN", "unknown number sequence", "22023")}
+  end if;
+  select s.${ctx.col("sequences", "lastNumber")} into v_last
+  from ${table} s
+  where s.${ctx.col("sequences", "tenant")} = p_tenant
+    and s.${ctx.col("sequences", "entity")} = ${ctx.cast("sequences", "entity", "p_entity")}
+    and s.${ctx.col("sequences", "period")} = v_period;
+  return better_supabase.format_assigned_number(v_format, coalesce(v_last, 0) + 1, p_at);
+end;
+$$;
+${userGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}`;
+}
+
 function formatFunction(
   ctx: ModuleContext,
   items: readonly SequenceEntity[],
@@ -617,15 +695,11 @@ function build(ctx: ModuleContext): string {
   const fn = ctx.fn("next_number");
   const items = sequences(ctx);
 
-  const periodCase =
-    items.length === 0
-      ? "''"
-      : `case next_number.entity\n${items
-          .map(
-            (item) =>
-              `    when ${sqlString(item.name)} then ${periodSql(item, "next_number.at", formatOf(ctx, item, "next_number.tenant"))}`,
-          )
-          .join("\n")}\n    else null\n  end`;
+  const periodCase = periodCaseOf(ctx, items, {
+    tenant: "next_number.tenant",
+    entity: "p_entity",
+    at: "next_number.at",
+  });
 
   const tables = ctx.manages
     ? `create table if not exists ${table} (
@@ -742,7 +816,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
   end if;
-  v_period := ${periodCase.replaceAll("next_number.entity", "p_entity")};
+  v_period := ${periodCase};
   if v_period is null then
     ${fail("NUMBER_ENTITY_UNKNOWN", "unknown number sequence", "22023")}
   end if;
@@ -779,6 +853,7 @@ end;
 $$;
 ${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}
 ${formatFunction(ctx, items)}
+${previewFunction(ctx, items)}
 ${syncFunction(ctx, items)}
 ${triggers}`;
 }
@@ -854,6 +929,11 @@ function contract(): readonly ModuleContractFunction[] {
       name: "next_number",
       args: ["{id}", "text", "timestamptz"],
       returns: "bigint",
+    },
+    {
+      name: "preview_number",
+      args: ["{id}", "text", "timestamptz"],
+      returns: "text",
     },
   ];
 }

@@ -216,6 +216,37 @@ $$;
 revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
+create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_format text;
+  v_period text;
+  v_last bigint;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'number_sequences.assign'), false)) then
+    raise exception 'not allowed to number documents in this tenant' using errcode = '42501', hint = 'NUMBER_FORBIDDEN';
+  end if;
+  v_format := '{n}';
+  v_period := '';
+  if v_format is null or v_period is null then
+    raise exception 'unknown number sequence' using errcode = '22023', hint = 'NUMBER_ENTITY_UNKNOWN';
+  end if;
+  select s."last_number" into v_last
+  from "centrakit"."organization_number_sequences" s
+  where s."tenant_id" = p_tenant
+    and s."entity" = better_supabase.as_column_type(p_entity, (null::"centrakit"."organization_number_sequences")."entity")
+    and s."period" = v_period;
+  return better_supabase.format_assigned_number(v_format, coalesce(v_last, 0) + 1, p_at);
+end;
+$$;
+revoke execute on function "better_supabase"."preview_number"(uuid, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."preview_number"(uuid, text, timestamptz) to authenticated, service_role;
+
 -- Raises each sequence to the highest number its table already holds, per
 -- tenant and period, for rows numbered outside next_number: seeds, imports
 -- and restores. A null tenant or entity syncs every one.

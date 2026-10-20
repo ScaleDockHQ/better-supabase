@@ -18,7 +18,15 @@ describe("number sequences", () => {
     expect(sql).toContain("last_number");
     expect(sql).toContain("grant execute on function");
     expect(sql).toContain("to service_role");
-    expect(sql).not.toContain("to authenticated, service_role");
+    expect(sql).not.toContain(
+      '"next_number"(uuid, text, timestamptz) to authenticated',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."preview_number"(uuid, text, timestamptz) to authenticated, service_role;',
+    );
+    expect(sql).toContain(
+      "coalesce(better_supabase.can('tenant', p_tenant, 'number_sequences.assign'), false)",
+    );
     expect(sql).toContain("ACTOR_READ_ONLY");
     expect(sql).toContain("on conflict");
   });
@@ -273,9 +281,10 @@ async function withNumbers(
   entities: Record<string, unknown>,
   ddl: string,
   seed: readonly string[],
+  block: Record<string, unknown> = {},
 ): Promise<void> {
   const files = renderModules(["number-sequences"], {
-    modules: { "number-sequences": { options: { entities } } },
+    modules: { "number-sequences": { ...block, options: { entities } } },
   });
 
   await using stack = await liteStack({
@@ -627,5 +636,54 @@ $$;`;
         periodColumn: undefined,
       }),
     ).rejects.toThrow(/chosen per tenant; set options/);
+  });
+});
+
+const CAN = `
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean
+language sql
+stable
+as $$ select scope_id = '${ALICE}' and permission = 'invoices.write' $$;
+`;
+
+const asMember = (check: string): string =>
+  `select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
+${check}`;
+
+const previews = (check: string): Promise<void> =>
+  withNumbers(
+    { invoice: { ...perTenant, sequenceColumn: "number" } },
+    TENANT_FORMATS,
+    [ORGANIZATIONS, CAN, check],
+    { permissions: { assign: "invoices.write" } },
+  );
+
+describe("preview_number", BOOT, () => {
+  it("previews the tenant's next number under the assign permission", async () => {
+    await expect(
+      previews(`insert into public.invoices (organization_id, status, issued_on) values ('${ALICE}', 'sent', '2026-01-02');
+${asMember(`do $$
+begin
+  if better_supabase.preview_number('${ALICE}', 'invoice', '2026-05-01') <> '2026-002' then
+    raise exception 'previewed %', better_supabase.preview_number('${ALICE}', 'invoice', '2026-05-01');
+  end if;
+  if better_supabase.preview_number('${ALICE}', 'invoice', '2027-05-01') <> '2027-001' then
+    raise exception 'previewed % for a new year', better_supabase.preview_number('${ALICE}', 'invoice', '2027-05-01');
+  end if;
+  if better_supabase.preview_number('${ALICE}', 'invoice', '2026-05-01') <> '2026-002' then
+    raise exception 'a preview took the number';
+  end if;
+end;
+$$;`)}`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a caller without the assign permission", async () => {
+    await expect(
+      previews(
+        asMember(`select better_supabase.preview_number('${BOB}', 'invoice');`),
+      ),
+    ).rejects.toThrow(/not allowed to number documents/);
   });
 });
