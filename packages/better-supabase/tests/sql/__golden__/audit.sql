@@ -24,6 +24,28 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
 returns jsonb
@@ -218,7 +240,7 @@ begin
     old_row,
     new_row,
     changed_columns,
-    auth.uid(),
+    coalesce(auth.uid(), better_supabase.acting_member()),
     coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
     case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
@@ -620,7 +642,7 @@ begin
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -1227,6 +1249,28 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
 returns jsonb
@@ -1421,7 +1465,7 @@ begin
     old_row,
     new_row,
     changed_columns,
-    auth.uid(),
+    coalesce(auth.uid(), better_supabase.acting_member()),
     coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
     case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
@@ -1823,7 +1867,7 @@ begin
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -2595,6 +2639,28 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
 returns jsonb
@@ -2789,7 +2855,7 @@ begin
     old_row,
     new_row,
     changed_columns,
-    auth.uid(),
+    coalesce(auth.uid(), better_supabase.acting_member()),
     coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
     case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
@@ -3191,7 +3257,7 @@ begin
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -3798,6 +3864,28 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
 returns jsonb
@@ -3992,7 +4080,7 @@ begin
     old_row,
     new_row,
     changed_columns,
-    auth.uid(),
+    coalesce(auth.uid(), better_supabase.acting_member()),
     coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
     case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
@@ -4394,7 +4482,7 @@ begin
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));
@@ -4956,6 +5044,15 @@ drop function if exists "api"."purge_audit_log"(interval, integer);
 drop function if exists "api"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
 
+create or replace function "api"."acting_member"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."acting_member"() $$;
+revoke execute on function "api"."acting_member"() from public;
+grant execute on function "api"."acting_member"() to anon, authenticated, service_role;
+
 create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
 returns text
 language sql
@@ -5078,6 +5175,28 @@ alter table better_supabase.audited_tables add column if not exists tenant_colum
 alter table better_supabase.audited_tables add column if not exists label_column text;
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
+
+-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
@@ -5216,7 +5335,7 @@ begin
     old_row,
     new_row,
     changed_columns,
-    auth.uid(),
+    coalesce(auth.uid(), better_supabase.acting_member()),
     coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
     case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
@@ -5603,7 +5722,7 @@ begin
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;
   if idempotency_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.audit_event'), pg_catalog.hashtext(coalesce(tenant::text, '') || ':' || idempotency_key));

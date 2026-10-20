@@ -1,6 +1,7 @@
 import type { ModuleLayout } from "./module-types.ts";
 
 import { fillTemplate, templatePlaceholders } from "../core/access-sql.ts";
+import { SERVICE_CALLER } from "./shared.ts";
 
 /**
  * Functions granted to `authenticated` that write, but a read-only support
@@ -295,3 +296,30 @@ function closingParen(text: string, open: number): number {
 
   return -1;
 }
+
+/**
+ * `acting_member()`: the member a secret-key writer names in the `x-bs-actor`
+ * request header, for a service caller only. Any other caller gets null, so a
+ * user cannot write the header to be recorded as someone else.
+ */
+export const ACTING_MEMBER: string = `-- The user a service caller acts for, from the x-bs-actor header. Null for
+-- every other caller, so the header cannot be spoofed with a user's token.
+create or replace function better_supabase.acting_member()
+returns uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  header text;
+begin
+  if not (${SERVICE_CALLER}) then
+    return null;
+  end if;
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
+exception when others then
+  return null;
+end;
+$$;
+grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;`;

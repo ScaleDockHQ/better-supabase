@@ -577,6 +577,16 @@ default), `category`, `event_prefix`, `target_type`, `tenant_column` and
 `label_column`, `tenant_path` and `tenant_function`. `audit_settings(table)`
 returns a table's settings.
 
+### Writes the secret key makes for a member
+
+`server.admin({}, { as: userId })` sends the `x-bs-actor` header on every
+request. `better_supabase.acting_member()` returns that user for a service
+caller (the `service_role` key or a direct admin connection) and null for
+anyone else, so a signed-in user cannot name another user by sending the
+header. The audit trigger and `audit_event()` record the acting member as the
+actor when `auth.uid()` is null, and `track_actor()` uses it for `created_by`
+and `updated_by`.
+
 A child table without a tenant column can still record its tenant.
 `tenant_path => 'group_id -> directory_groups.organization_id'` reads
 `organization_id` from the `directory_groups` row that `group_id` references;

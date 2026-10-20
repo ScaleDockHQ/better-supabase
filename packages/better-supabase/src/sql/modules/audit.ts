@@ -4,6 +4,7 @@ import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { ACTING_MEMBER } from "../actor-guard.ts";
 import {
   batchFunction,
   type BatchArgument,
@@ -357,6 +358,8 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 ${revokeTable("better_supabase.audited_tables")}
 
+${ACTING_MEMBER}
+
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
 returns jsonb
@@ -483,7 +486,7 @@ function triggerFunction(
         ] as const)
       : []),
     ["changed", "changed_columns"],
-    ["actor", "auth.uid()"],
+    ["actor", "coalesce(auth.uid(), better_supabase.acting_member())"],
     ["actorRole", "coalesce(auth.jwt() ->> 'role', current_user)"],
     ["tenant", "row_tenant"],
     [
@@ -773,7 +776,7 @@ begin${noRestricted}
       impersonation_reason := null;
     end if;
   elsif actor_id is null then
-    actor_id := auth.uid();
+    actor_id := coalesce(auth.uid(), better_supabase.acting_member());
   end if;`
   }${idempotent}${eventInsert(ctx, insert, extra)}${eventRestricted(ctx, restricted)}
   return entry_id::text;

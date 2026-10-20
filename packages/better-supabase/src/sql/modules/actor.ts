@@ -1,6 +1,6 @@
 import type { ModuleDefinition } from "../module-types.ts";
 
-import { actorWriteFunctions } from "../actor-guard.ts";
+import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
 import { SCHEMA } from "../shared.ts";
 
 export const ACTOR: ModuleDefinition = {
@@ -12,13 +12,15 @@ export const ACTOR: ModuleDefinition = {
   target: "schema",
   build: () => `${SCHEMA}
 
+${ACTING_MEMBER}
+
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 declare
-  actor uuid := auth.uid();
+  actor uuid := coalesce(auth.uid(), better_supabase.acting_member());
 begin
   if actor is null then
     return new;

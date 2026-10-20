@@ -309,8 +309,16 @@ export interface BetterServer<
     context?: RequestContext,
     options?: { readonly support?: ActiveSupport },
   ): Db<M, F, E, SupabaseClient, B>;
-  /** Service-role repositories. Bypasses RLS; the actor is `service`. */
-  admin(context?: RequestContext): Db<M, F, E, SupabaseClient, B>;
+  /**
+   * Service-role repositories. Bypasses RLS; the actor is `service`. With
+   * `as`, every request carries the `x-bs-actor` header, so the audit log and
+   * `track_actor` columns record that user for writes the secret key makes.
+   * Only a service caller can set it; the database ignores it for anyone else.
+   */
+  admin(
+    context?: RequestContext,
+    options?: { readonly as?: string },
+  ): Db<M, F, E, SupabaseClient, B>;
   /**
    * Deletes a user: the Auth user, then their objects in `buckets`, then a
    * `mutation` notice for `auth.users`. Needs the secret key. With
