@@ -250,6 +250,23 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     expect(written).toContain(
       "better_supabase.broadcast_topic('organization:{organizationId=organization_id}:quotes', 'quote.changed');",
     );
+
+    await sql(["sync"], {
+      realtime: {
+        policies,
+        triggers: [
+          {
+            ...triggers[0]!,
+            events: ["update"],
+            when: { changed: ["status"] },
+          },
+        ],
+      },
+      blocks: ["realtime-tables"],
+    });
+    expect(await readFile(join(root, output), "utf-8")).toContain(
+      `for each row when (old."status" is distinct from new."status") execute function better_supabase.broadcast_topic(`,
+    );
     await expect(
       sql(["sync"], { realtime: { policies, triggers } }),
     ).rejects.toThrow("add realtime-tables to blocks");
@@ -331,7 +348,7 @@ export const thread = defineTopic("thread:{threadId}");
 
     expect(written).toContain(expected);
     expect(written).toContain(
-      `vals := jsonb_build_object('organizationId', ((select j0."organization_id" from "public"."threads" j0 where j0."id" = rec."thread_id" limit 1))::text);`,
+      `vals := jsonb_build_object('organizationId', (lk_0."organization_id")::text);`,
     );
     expect(written).toContain(
       `vals := jsonb_build_object('threadId', (rec."thread_id")::text);`,

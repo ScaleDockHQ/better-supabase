@@ -281,11 +281,44 @@ per trigger. It goes into the `better_supabase` schema, which the Data API
 does not expose, so clients can't call it through `/rpc`. Pass
 `functionSchema` to put it somewhere else.
 
+The function reads each parent row once per changed row, however many
+values, payload keys and topics use it, and builds a custom payload once for
+all topics. A two-level lookup costs two queries per row.
+
+`when: { changed }` sends an update only when one of the listed columns
+differs between the old and the new row. Inserts and deletes always send.
+On a trigger for updates alone (`events: ["update"]`) the filter becomes the
+trigger's `when` clause, so Postgres skips the function entirely; with more
+events the function returns early instead:
+
+```ts
+boardTopic.trigger("cards", {
+  betterSupabase,
+  values: { boardId: "boardId" },
+  events: ["update"],
+  when: { changed: ["status", "position"] },
+});
+```
+
 A topic whose value comes out null, such as one whose parent is gone, is
 skipped. So is a value with characters a topic doesn't allow (the check
 `topic()` makes): the trigger raises a warning that names the table and
 column, skips that topic, and the write goes through. The other topics
 still get the change.
+
+### Deletes and cascades
+
+A delete reads its values and lookups from the old row, so deleting a child
+row on its own reaches the parent's topic. A cascade is different: when a
+parent's delete removes its children (`on delete cascade`), the parent row
+is already gone when the child's trigger runs, so a lookup through it finds
+nothing. The trigger then raises a warning that starts with
+`better-supabase: realtime lookup found no row`, names the table and the
+missing parent, and skips the topics that need it. The delete goes through.
+
+To still reach subscribers on a cascade, keep the topic value on the row
+itself (a denormalized `organization_id`, say), which needs no lookup, or add
+a topic trigger on the parent so its own delete is broadcast.
 
 Both kinds of trigger run after the write. Attached as a `before` trigger
 they raise an error, since returning `null` there would cancel the write.
@@ -333,7 +366,7 @@ statement-level `track_realtime`) instead.
 output after the policies. Each entry names a topic that `from` exports by its
 template, and `sql sync` passes the rest to that topic's `trigger()` without
 `betterSupabase`, so the config writes the same SQL as the call. An entry
-takes `values`, `events`, `event`, `payload`, `topics` and `functionSchema`,
+takes `values`, `events`, `event`, `payload`, `topics`, `when` and `functionSchema`,
 with database names in values and lookups:
 
 ```ts title="better-supabase.config.ts"

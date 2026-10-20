@@ -41,9 +41,11 @@ import { refreshRealtimeAuth } from "./auth.ts";
 import { joinTopic, type Subscriber } from "./channels.ts";
 import { fanOutTopic } from "./fan-out.ts";
 import {
+  changedSql,
   eventSql,
   splitTable,
   topicPermissionSql,
+  TriggerLookups,
   triggerValueSql,
   type AnyTriggerValue,
 } from "./topic-sql.ts";
@@ -322,6 +324,13 @@ export interface TriggerOptions<
     | Readonly<Record<string, TriggerValue<M, T> | { readonly sql: string }>>;
   /** More topics the row change goes to, each with its own values. */
   readonly topics?: readonly TriggerTopic<TriggerValue<M, T>>[];
+  /**
+   * Send an UPDATE only when one of these columns changed. Inserts and
+   * deletes always send.
+   */
+  readonly when?: {
+    readonly changed: readonly Extract<keyof Row<M, T>, string>[];
+  };
 }
 
 export interface TopicTriggerLookup {
@@ -352,6 +361,11 @@ export interface TopicTriggerOptions<
     | Readonly<Record<string, TopicTriggerValue | { readonly sql: string }>>;
   /** More topics the row change goes to, each with its own values. */
   readonly topics?: readonly TriggerTopic<TopicTriggerValue>[];
+  /**
+   * Send an UPDATE only when one of these columns (database names)
+   * changed. Inserts and deletes always send.
+   */
+  readonly when?: { readonly changed: readonly string[] };
 }
 
 /** A row change sent with `payload: "row"`. */
@@ -495,6 +509,7 @@ interface AnyTriggerOptions {
     | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>;
   readonly topics?: readonly TriggerTopic<AnyTriggerValue>[];
   readonly functionSchema?: string;
+  readonly when?: { readonly changed: readonly string[] };
 }
 
 const columnsOnly = (
@@ -732,9 +747,22 @@ export function defineTopic<
     const extra = trigger.topics ?? [];
     const { payload } = trigger;
 
-    const events = (trigger.events ?? ["insert", "update", "delete"]).join(
-      " or ",
-    );
+    const operations = trigger.events ?? ["insert", "update", "delete"];
+    const events = operations.join(" or ");
+
+    if (trigger.when && !operations.includes("update")) {
+      throw new TypeError(
+        `${where}: when.changed filters updates, but events has no "update"`,
+      );
+    }
+
+    // Postgres allows OLD and NEW in WHEN only on a trigger for UPDATE alone.
+    const changed = trigger.when
+      ? {
+          sql: changedSql(meta, trigger.when.changed, where),
+          when: operations.length === 1,
+        }
+      : undefined;
 
     const checkKeys = (
       params: readonly string[],
@@ -759,7 +787,8 @@ export function defineTopic<
       columns !== undefined &&
       extra.length === 0 &&
       typeof trigger.event !== "object" &&
-      (payload === undefined || typeof payload === "string")
+      (payload === undefined || typeof payload === "string") &&
+      (changed === undefined || changed.when)
     ) {
       const sqlTemplate = template.replaceAll(
         /\{([^}]+)\}/g,
@@ -790,13 +819,15 @@ export function defineTopic<
         `-- better-supabase: broadcast ${schema}.${relation} changes to ${template}`,
         `drop trigger if exists ${sqlIdent(triggerName)} on ${target};`,
         `create trigger ${sqlIdent(triggerName)} after ${events} on ${target}`,
-        `  for each row execute function better_supabase.broadcast_topic(${args.join(", ")});`,
+        `  for each row${changed ? ` when (${changed.sql})` : ""} execute function better_supabase.broadcast_topic(${args.join(", ")});`,
         "",
       ].join("\n");
     }
 
+    const lookups = new TriggerLookups();
+
     const valueSql = (value: AnyTriggerValue, label: string): string =>
-      triggerValueSql(tables, meta, value, label);
+      triggerValueSql(tables, meta, value, label, lookups);
 
     const topicValues = (
       params: readonly string[],
@@ -874,6 +905,8 @@ export function defineTopic<
       event: eventSql(trigger.event),
       topics,
       payload: payloadSql,
+      lookups: lookups.list,
+      ...(changed ? { changed } : {}),
     });
   };
 
