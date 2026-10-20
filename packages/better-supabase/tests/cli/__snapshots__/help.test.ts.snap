@@ -442,6 +442,7 @@ Arguments
 Options
   --single-transaction  Wrap every file in one transaction, so a failure keeps none
   --db-url-stdin        Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>        Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
 
 Global options
   --cwd <dir>            Project directory
@@ -883,6 +884,7 @@ Options
   --entry <file>  Defaults to seed.entry (supabase/seed.ts)
   --out <file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)
   --db-url-stdin  Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>  Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
   --dry-run       Print what would change, with a diff, and write nothing
   --check         Write nothing; exit 1 with a diff when a file would change
   --force         Overwrite files the CLI did not generate

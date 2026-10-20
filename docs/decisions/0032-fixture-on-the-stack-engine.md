@@ -67,3 +67,12 @@ after starting a stack in a new worktree. The stack engine is experimental,
 so a CLI bump can change its behavior; run the full flow before bumping.
 When a CLI release passes the three Realtime tests on the stack engine,
 remove the `stackEngine` skips and the legacy CI job.
+
+## Amendment: a stack per purpose
+
+`better-supabase seed --apply` and `db query` take `--stack <name>` (or
+`$BSB_STACK`), which reads the `[db] port` of `supabase/stacks/<name>/config.toml`.
+That lets one checkout address a second stack kept for tests or a demo. The
+CLI does not start it: whether two stacks can coexist in one checkout depends
+on the Supabase CLI, so the docs also name the fallback of one worktree per
+purpose, since the engine already gives every worktree its own ports.

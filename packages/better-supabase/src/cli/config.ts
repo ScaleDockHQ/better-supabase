@@ -1,6 +1,8 @@
 import { loadConfig as loadC12Config } from "c12";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { parse as parseToml } from "smol-toml";
 
 import type { CliEnv } from "./env.ts";
 
@@ -266,11 +268,16 @@ export async function databaseUrl(
   config: ResolvedConfig,
   env: CliEnv,
   fromStdin?: string,
+  stack: string | undefined = env.BSB_STACK,
 ): Promise<string> {
   const given = databaseUrlCredential(config, env, fromStdin);
 
   if (given) {
     return given.value;
+  }
+
+  if (stack !== undefined && stack !== "") {
+    return namedStackUrl(config.root, stack);
   }
 
   let resolved = localUrls.get(config);
@@ -281,6 +288,46 @@ export async function databaseUrl(
   }
 
   return resolved;
+}
+
+/** The database of `supabase/stacks/<name>/config.toml`, a stack kept for one purpose such as tests or a demo. */
+async function namedStackUrl(root: string, name: string): Promise<string> {
+  if (!/^[a-z0-9][a-z0-9_-]*$/u.test(name)) {
+    throw new CliError(
+      "invalid_value",
+      `--stack "${name}" must be lowercase letters, digits, dashes or underscores.`,
+      { flag: "--stack" },
+    );
+  }
+
+  const toml = await readSupabaseToml(root);
+
+  const file = toml
+    ? join(dirname(resolve(root, toml.path)), "stacks", name, "config.toml")
+    : undefined;
+
+  const db: unknown =
+    file !== undefined && existsSync(file)
+      ? parseToml(await readFile(file, "utf-8"))["db"]
+      : undefined;
+
+  const port =
+    typeof db === "object" &&
+    db !== null &&
+    "port" in db &&
+    typeof db.port === "number"
+      ? db.port
+      : undefined;
+
+  if (port === undefined) {
+    throw new CliError(
+      "not_found",
+      `The stack "${name}" has no [db] port in supabase/stacks/${name}/config.toml.`,
+      { flag: "--stack" },
+    );
+  }
+
+  return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
 }
 
 /** One lookup per loaded config, so a run asks `supabase status` at most once. */

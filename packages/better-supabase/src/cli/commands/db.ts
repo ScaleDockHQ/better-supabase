@@ -14,7 +14,7 @@ import { CliError, errorText } from "../core/errors.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
-import { DB_URL_STDIN_ARG } from "./source-args.ts";
+import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
 const ARGS = {
   file: {
@@ -29,7 +29,9 @@ const ARGS = {
   },
 } as const;
 
-type DbQueryFlags = CliOptions<typeof ARGS & typeof DB_URL_STDIN_ARG> & {
+type DbQueryFlags = CliOptions<
+  typeof ARGS & typeof DB_URL_STDIN_ARG & typeof STACK_ARG
+> & {
   readonly _: readonly string[];
 };
 
@@ -68,7 +70,12 @@ export async function runDbQuery(
     }
   }
 
-  const url = await databaseUrl(config, env, dbUrl);
+  const url = await databaseUrl(
+    config,
+    env,
+    dbUrl,
+    args.stack ?? env.BSB_STACK,
+  );
 
   if (!isLocalDatabaseUrl(url)) {
     requireConsent({
@@ -120,7 +127,7 @@ export async function runDbQuery(
 
 export const dbQueryCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("db query"),
-  args: { ...ARGS, ...DB_URL_STDIN_ARG },
+  args: { ...ARGS, ...DB_URL_STDIN_ARG, ...STACK_ARG },
   run: async (args, { config, env, io, log, requireConsent }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
 

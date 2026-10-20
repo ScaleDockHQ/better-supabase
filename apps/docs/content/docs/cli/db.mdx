@@ -14,10 +14,11 @@ pnpm better-supabase db query --single-transaction a.sql b.sql
 can hold many statements, so a data migration or a fixture file runs as it
 would in `psql -f`, without a `psql` install.
 
-| Flag                   | Effect                                                            |
-| ---------------------- | ----------------------------------------------------------------- |
-| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.     |
-| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv. |
+| Flag                   | Effect                                                                            |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.                     |
+| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
+| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                 |
 
 Without `--db-url-stdin`, the command connects through `$DATABASE_URL`,
 `$SUPABASE_DB_URL`, or the local stack. Against a database that is not local,
