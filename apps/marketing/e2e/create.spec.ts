@@ -312,6 +312,19 @@ test("PermDock is an optional auth choice kept in the URL", async ({
   await expect(page).not.toHaveURL(/authz=/u);
 });
 
+test("Validate in Postgres applies the migrations to PGlite", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+
+  const dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "Migrations" }).click();
+  await dialog.getByRole("button", { name: "Validate in Postgres" }).click();
+  await expect(dialog.getByText("Postgres accepted every file")).toBeVisible({
+    timeout: 60_000,
+  });
+});
+
 test("the diagram lists the tables and asks for a block when there are none", async ({
   page,
 }) => {

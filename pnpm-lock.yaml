@@ -1565,6 +1565,9 @@ importers:
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.9.0(@types/react@19.3.0)(date-fns@4.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@supabase/lite':
+        specifier: 'catalog:'
+        version: 0.11.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@supabase/supabase-js@2.118.0(@opentelemetry/api@1.9.1))(hono@4.13.13)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@8.1.1)(typescript@7.0.2)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
       '@t3-oss/env-nextjs':
         specifier: 'catalog:'
         version: 0.13.11(arktype@2.2.8)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
