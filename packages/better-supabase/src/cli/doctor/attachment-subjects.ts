@@ -50,9 +50,10 @@ function attachmentSubjects(context: DoctorContext): {
 
 /**
  * Whether `expression` only checks that the caller is a member of the row's
- * tenant: `current_tenant_id()`, `tenant_ids_with`, `member_<tenant>_ids`,
- * `can('tenant', ...)` or `member_can`, joined by `and`, with a soft-delete
- * `is null` allowed. A permission call passes only with one of `keys`.
+ * tenant: `current_tenant_id()`, a `*_ids_with` or `*member_*ids` function in
+ * any schema (the provider's own helpers included), `can('tenant', ...)` or
+ * `member_can`, joined by `and`, with a soft-delete `is null` allowed. A
+ * permission call passes only with one of `keys`.
  */
 function tenantOnly(
   expression: string,
@@ -64,8 +65,8 @@ function tenantOnly(
 
   const atoms = [
     `${col}\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)(?:\\s+as\\s+\\w+)?`,
-    `${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.tenant_ids_with\\(\\s*${key}\\s*\\)(?:\\s+as\\s+\\w+)?\\s*\\)`,
-    `${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.member_\\w+_ids\\(\\s*\\)(?:\\s+as\\s+\\w+)?\\s*\\)`,
+    `${col}\\s+in\\s+\\(\\s*select\\s+(?:\\w+\\.)?\\w*_ids_with\\(\\s*${key}\\s*\\)(?:\\s+as\\s+\\w+)?\\s*\\)`,
+    `${col}\\s+in\\s+\\(\\s*select\\s+(?:\\w+\\.)?\\w*member_\\w*ids\\(\\s*\\)(?:\\s+as\\s+\\w+)?\\s*\\)`,
     `better_supabase\\.can\\(\\s*'tenant'(?:::text)?\\s*,\\s*${col}\\s*,\\s*${key}\\s*\\)`,
     `better_supabase\\.member_can\\(\\s*${col}\\s*,\\s*${key}\\s*\\)`,
     `(?:"?\\w+"?\\.)?"?\\w+"?\\s+is\\s+null`,
@@ -87,6 +88,66 @@ function tenantOnly(
   return (
     used.every((key) => keys.has(key)) &&
     rest.replaceAll(/\band\b|[()\s]/gi, "") === ""
+  );
+}
+
+/** The top-level `or` branches of `expression`, outer parentheses removed. */
+function branches(expression: string): string[] {
+  let text = expression.trim();
+
+  while (text.startsWith("(") && closingParen(text) === text.length - 1) {
+    text = text.slice(1, -1).trim();
+  }
+
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (depth === 0 && /^\sor\s/i.test(text.slice(index, index + 4))) {
+      parts.push(text.slice(start, index));
+      start = index + 4;
+    }
+  }
+
+  parts.push(text.slice(start));
+
+  return parts;
+}
+
+/** The index of the parenthesis closing the one at the start of `text`. */
+function closingParen(text: string): number {
+  let depth = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "(") {
+      depth += 1;
+    } else if (text[index] === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+/** Tenant membership alone lets the caller through: the whole check, or one `or` branch of it. */
+function tenantSuffices(
+  expression: string,
+  column: string,
+  keys: ReadonlySet<string>,
+): boolean {
+  return [expression, ...branches(expression)].some((part) =>
+    tenantOnly(part, column, keys),
   );
 }
 
@@ -134,8 +195,8 @@ export function attachmentSubjectsOnDefaults(
               appliesTo(policy, "authenticated"),
           );
 
-          // Many tables let nobody update; that says nothing about who may add rows.
-          if (command === "update" && applying.length === 0) {
+          // Many tables let no client add or change rows; that says nothing about who may attach files.
+          if (command !== "select" && applying.length === 0) {
             return false;
           }
 
@@ -147,7 +208,7 @@ export function attachmentSubjectsOnDefaults(
 
             return (
               expression !== null &&
-              tenantOnly(expression, tenant, new Set([blockKey]))
+              tenantSuffices(expression, tenant, new Set([blockKey]))
             );
           });
         });

@@ -1596,6 +1596,37 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ).toEqual([]);
   });
 
+  it("passes provider membership helpers, a wider or branch and a table no client inserts into", async () => {
+    const provider =
+      "(organization_id IN ( SELECT centrakit.authz_organization_member_ids() AS authz_organization_member_ids))";
+
+    const wider = `(${provider} OR (id IN ( SELECT pm.note_id FROM project_members pm WHERE (pm.user_id = ( SELECT auth.uid() AS uid)))))`;
+
+    const readOnly = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.rls = true;
+      notes.policies = [
+        {
+          name: "notes_select",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using: wider,
+          check: null,
+        },
+      ];
+    });
+
+    for (const snap of [withPolicies(provider, provider), readOnly]) {
+      expect(
+        await run(
+          "BS345",
+          context(snap, {}, config({ note: { table: "notes" } })),
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it("passes a subject with its own keys, from the block or the registry", async () => {
     const snap = withPolicies(tenantOnly, strict);
 

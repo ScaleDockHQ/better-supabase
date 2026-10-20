@@ -1257,8 +1257,12 @@ keys. The subject table's own policies check more than tenant membership: a
 permission key of their own, an owner or `auth.uid()` comparison, or another
 condition. Any member of the tenant then reads and uploads the files of rows
 they can't open. Doctor counts `current_tenant_id()`, `tenant_ids_with`,
-`member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the
-block's key as tenant membership, and a soft-delete `is null` as neutral.
+`member_<tenant>_ids` (and an authorization provider's own `*_ids_with` and
+`*member_*ids` helpers), `can('tenant', ...)` and `member_can` with the
+block's key as tenant membership, and a soft-delete `is null` as neutral. A
+policy with an `or` branch that needs only membership is wider, not
+stricter, and a table with no insert or update policy for clients doesn't
+count against `upload`.
 Set `subjects.<type>.permissions.upload` in the registry, or
 `blocks.attachments.options.subjects.<type>.permissions` for `read`, to the
 keys the table checks. See
