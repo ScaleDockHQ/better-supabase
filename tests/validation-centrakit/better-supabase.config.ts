@@ -283,6 +283,7 @@ export default defineConfig({
         secretStorage: "column",
         eventIdType: "uuid",
         runIdType: "uuid",
+        defaultFormat: "cloudevents",
         statuses: {
           delivering: "processing",
           succeeded: "completed",

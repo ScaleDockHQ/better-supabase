@@ -1,0 +1,77 @@
+---
+title: From 0.9 to 0.10
+description: What to check when upgrading from better-supabase 0.9 to 0.10 and 0.11, starting with the webhook format of adopted endpoints, the attachment permission defaults and the regenerated realtime triggers.
+---
+
+Most of 0.10 needs no change in your code. Check the items below, then run
+`better-supabase sql upgrade`, `better-supabase sql sync` and
+`better-supabase doctor`. Items marked 0.11 arrive in the release after
+0.10.
+
+## Webhook format of adopted endpoints
+
+`defaultFormat` has defaulted to `cloudevents` since 0.9. A managed
+endpoints table kept its old rows on the 0.8 body (`format = 'standard'`),
+but an adopted table without a `format` column has no per-row value, so
+every endpoint switched to CloudEvents with no change to the config.
+
+From 0.11, `sql sync` refuses an adopted `webhooks-out` whose endpoints
+table maps no `format` column unless `options.defaultFormat` is set, and
+doctor reports the same config as [BS344](/docs/cli/doctor#bs344). Set it to
+the body your receivers read today:
+
+```ts title="better-supabase.config.ts"
+"webhooks-out": {
+  mode: "adopt",
+  options: { defaultFormat: "standard" },
+},
+```
+
+Use `"cloudevents"` if your receivers already read CloudEvents, or add a
+`format` column and map it in `columns.endpoints.format` to choose per
+endpoint. See [existing tables](/docs/blocks/webhooks-out#existing-tables).
+
+## Attachment permissions per subject
+
+Attachments on a subject use the block-wide `upload` and `read` permissions
+unless the subject names its own. From 0.11 the subject registry
+(`config.subjects.<type>.permissions`) carries `upload` and `manage` to the
+attachments block, as it already did `read`, and doctor reports a subject
+whose table has stricter row level security than the block-wide keys as
+[BS345](/docs/cli/doctor#bs345). See
+[attachments](/docs/blocks/attachments#permissions-per-subject).
+
+## Realtime topic triggers (0.11)
+
+`sql sync` rewrites the functions behind `topic.trigger()` and
+`realtime.triggers`. They read each parent row once per changed row, and the
+messages they send don't change. Two additions:
+
+- `when: { changed: [...] }` sends an update only when a listed column
+  changed.
+- A delete whose lookup finds no parent row, as in an `on delete cascade`,
+  raises a warning instead of skipping the topic silently.
+
+See [deletes and cascades](/docs/platform/realtime#deletes-and-cascades).
+
+## Case-insensitive equality (0.11)
+
+`where: { email: { ieq: input } }` matches a value regardless of case and
+escapes `%`, `_` and `\` in it, so user input can't widen the match. Replace
+`ilike` filters that pass user input without `escapeLike`; the new
+`better-supabase/require-escape-like` lint rule finds them. See
+[filtering](/docs/repository/filtering).
+
+## Expo session refresh (0.11)
+
+`bs.middleware` hands the session it refreshed to the loaders of the same
+request, so a loader with `refresh: false` sees the new session on the first
+render, and each request makes at most one Auth call. Loaders without
+middleware still refresh on their own. See [Expo](/docs/frameworks/expo).
+
+## Auth admin from cron jobs (0.11)
+
+`bs.admin().$authAdmin` is the typed Auth admin API of the secret-key
+client. Use it instead of creating a second client for cron jobs and
+webhook handlers. See
+[cron jobs and webhooks](/docs/auth/server#cron-jobs-and-webhooks).

@@ -1379,6 +1379,82 @@ describe("adopted enum columns the module writes as text (BS342)", () => {
   });
 });
 
+describe("adopted webhook endpoints without a format (BS344)", () => {
+  const withEndpoints = (columns: readonly string[]) =>
+    snapshot((tables) => {
+      const notes = table(tables, "notes");
+      const column = notes.columns[0]!;
+
+      tables.push({
+        ...notes,
+        name: "hook_endpoints",
+        columns: columns.map((name) => ({ ...column, name })),
+        foreignKeys: [],
+        triggers: [],
+      });
+    });
+
+  const adopt = (extra: Record<string, unknown> = {}) => ({
+    blocks: {
+      "webhooks-out": {
+        mode: "adopt" as const,
+        tables: { endpoints: "public.hook_endpoints" },
+        ...extra,
+      },
+    },
+  });
+
+  it("reports an adopted endpoints table with no format column and no defaultFormat", async () => {
+    expect(
+      await run("BS344", context(withEndpoints(["id", "url"]), {}, adopt())),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "blocks.webhooks-out.options.defaultFormat",
+        message: expect.stringContaining(
+          "public.hook_endpoints has no format column",
+        ),
+      }),
+    ]);
+    expect(
+      await run(
+        "BS344",
+        context(withEndpoints(["id", "url", "format"]), {}, adopt()),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "has a format column the config doesn't map",
+        ),
+      }),
+    ]);
+  });
+
+  it("passes an explicit defaultFormat, a mapped column and managed tables", async () => {
+    const snap = withEndpoints(["id", "url", "format"]);
+
+    expect(
+      await run(
+        "BS344",
+        context(snap, {}, adopt({ options: { defaultFormat: "standard" } })),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS344",
+        context(
+          snap,
+          {},
+          adopt({ columns: { endpoints: { format: "format" } } }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run("BS344", context(snap, {}, { blocks: { "webhooks-out": {} } })),
+    ).toEqual([]);
+  });
+});
+
 describe("subject registry (BS331, BS332)", () => {
   it("reports a missing table and each missing column", async () => {
     const findings = await run(
