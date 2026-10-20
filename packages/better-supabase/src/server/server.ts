@@ -78,6 +78,7 @@ import {
 import { defaultPrefetchJwks } from "./respond.ts";
 import {
   TENANT_HEADER,
+  type AdminDb,
   type BetterServer,
   type ContextOptions,
   type ServerContext,
@@ -807,7 +808,7 @@ export function createServer<
               { [ACTOR_HEADER]: adminOptions.as },
             );
 
-      return betterSupabase.connect(
+      const db = betterSupabase.connect(
         client,
         {
           actor: { id: "service", kind: "service", role: "service_role" },
@@ -818,6 +819,11 @@ export function createServer<
           ? { executor: postgrestExecutor(client, executorOptions) }
           : {},
       );
+
+      // SAFETY: `$authAdmin` is the one property AdminDb adds to Db.
+      return Object.defineProperty(db, "$authAdmin", {
+        get: () => client.auth.admin,
+      }) as AdminDb<M, F, E, B>;
     },
     support,
     deleteAccount: (userId, deleteOptions) =>

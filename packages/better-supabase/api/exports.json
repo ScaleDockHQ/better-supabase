@@ -956,6 +956,7 @@
       "ActionResult",
       "ActiveSupport",
       "ActorOutcome",
+      "AdminDb",
       "AgentActOptions",
       "AmrEntry",
       "AnyAuthorizer",

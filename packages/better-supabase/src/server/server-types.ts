@@ -253,6 +253,21 @@ export interface ContextOptions {
   readonly correlationId?: string;
 }
 
+/** The repositories `bs.admin()` returns: a secret-key `Db` with the Auth admin API. */
+export type AdminDb<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  B = unknown,
+> = Db<M, F, E, SupabaseClient, B> & {
+  /**
+   * `auth.admin` of the secret-key client: create, invite, list, update and
+   * delete users. Request repositories have no such handle, since their
+   * client holds no secret key.
+   */
+  readonly $authAdmin: SupabaseClient["auth"]["admin"];
+};
+
 /** A server built by `createServer`, `createHono` or `createNext`, handed to another adapter to share. */
 export type SharedServer = Pick<
   BetterServer<AnyModels, AnyFunctions, unknown>,
@@ -324,7 +339,7 @@ export interface BetterServer<
   admin(
     context?: RequestContext,
     options?: { readonly as?: string },
-  ): Db<M, F, E, SupabaseClient, B>;
+  ): AdminDb<M, F, E, B>;
   /**
    * Deletes a user: the Auth user, then their objects in `buckets`, then a
    * `mutation` notice for `auth.users`. Needs the secret key. With

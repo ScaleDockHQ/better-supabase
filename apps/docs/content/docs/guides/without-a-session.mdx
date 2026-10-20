@@ -20,7 +20,9 @@ better-supabase gives each of these paths an explicit identity instead:
 `forContext` and `actingAs` run over direct Postgres with the user's claims
 set for the transaction, the way PostgREST does after checking a token, so
 policies see `auth.uid() = userId`. Both need
-[`postgres`](/docs/auth/postgres) in `createServer`.
+[`postgres`](/docs/auth/postgres) in `createServer`. For the work no user
+owns, [cron jobs and webhooks](/docs/auth/server#cron-jobs-and-webhooks)
+lists which `bs.admin()` handle covers rows, Storage and Auth admin.
 
 ## Jobs
 

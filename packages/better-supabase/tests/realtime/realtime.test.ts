@@ -1190,9 +1190,9 @@ describe("trigger with betterSupabase", () => {
     ).toThrow("when.changed lists no columns");
     expect(() =>
       customers.trigger("customers", {
+        // @ts-expect-error `missing` is not a column, so no overload matches and tsc reports the first key
         betterSupabase,
         values: { organizationId: "organizationId" },
-        // @ts-expect-error not a column of customers
         when: { changed: ["missing"] },
       }),
     ).toThrow('no column for when.changed on "customers" ("missing")');
