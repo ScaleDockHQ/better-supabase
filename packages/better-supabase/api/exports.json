@@ -7758,6 +7758,7 @@
       "localAuth",
       "localSigningKey",
       "PROBE_INITIAL",
+      "scopedSeed",
       "signLocalJwt",
       "signTestJwt",
       "signTestJwtWithKey",
@@ -7794,7 +7795,8 @@
       "testTaxProvider",
       "testWebhookSecretStore",
       "testWebhookSigner",
-      "testWebhookTransport"
+      "testWebhookTransport",
+      "withRollback"
     ],
     "types": [
       "ActCase",
@@ -7826,6 +7828,11 @@
       "ReceivedDelivery",
       "ResponseBudgetExpectation",
       "ResponseDbStats",
+      "Scope",
+      "ScopedRows",
+      "ScopedSeed",
+      "ScopedSeedOptions",
+      "ScopedTenant",
       "Seed",
       "SeedFixtures",
       "SigningJwk",
