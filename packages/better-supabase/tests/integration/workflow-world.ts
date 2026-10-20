@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 
 import { renderModules } from "../../src/sql/render.ts";
-import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 
 /**
  * Commits the `workflow-sdk-world` module (and the modules it requires)
@@ -28,7 +28,7 @@ export async function installWorld(pool: Pool): Promise<void> {
       }
     }
 
-    await client.query(FIXTURE_TENANT_SQL);
+    await client.query(FIXTURE_HELPERS_SQL);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");

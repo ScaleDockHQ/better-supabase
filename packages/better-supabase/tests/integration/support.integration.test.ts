@@ -5,7 +5,7 @@ import { sqlSupportStore, supportClaims } from "../../src/auth/support.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { renderModules } from "../../src/sql/render.ts";
 import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
-import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { FIXTURE_HELPERS_SQL, FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -68,6 +68,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     await postgres.admin.queryRaw("delete from auth.users where id = $1", [
       OTHER,
     ]);
+    await postgres.admin.queryRaw(FIXTURE_HELPERS_SQL);
     await postgres.end();
   });
 
