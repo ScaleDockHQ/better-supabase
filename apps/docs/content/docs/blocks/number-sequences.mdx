@@ -17,7 +17,126 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 | ------------------ | ----------------------------------------------- |
 | `number_sequences` | The last number for a tenant, entity and period |
 
-Set `options.entities` to install a trigger. `period` is `none`, `year`, `month` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `periodColumn` is only read by `sync_number_sequences` (see [existing numbers](#existing-numbers)).
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month`, `format` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). It takes letters, digits, `_`, `.`, quoted strings and identifiers, `=`, `<`, `>`, `!`, `-` and parentheses. A comma may only separate the string or number literals of an `in` or `not in` list, as in `new.status in ('sent', 'overdue')`, so the expression cannot call a function with several arguments. Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `gen` makes `column` optional on insert, so the typed client and the insert validators accept a row without it.
+
+## Period from the row
+
+By default the trigger takes the period and the `{yyyy}`, `{mm}` and `{dd}` tokens from the time of assignment. Set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as an invoice's issue date, and the trigger reads them from that column instead, in UTC. An invoice issued on 31 December and sent on 2 January then gets a number of the old year. A row whose column is still null falls back to the time of assignment. `sync_number_sequences` reads the same column (see [existing numbers](#existing-numbers)).
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "year",
+  format: "INV-{yyyy}-{n:4}",
+  table: "public.invoices",
+  column: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
+
+## Formats per tenant
+
+Some tenants number invoices continuously and others restart every year. Set `formatFrom` to the column that holds each tenant's format, as `schema.table.column`, with `key` naming the column that matches the tenant id (default `id`). A tenant whose column is null or empty gets the entity's `format`. A format a tenant sets must hold `{n}`, or the assignment fails with `NUMBER_FORMAT_INVALID`.
+
+With `period: "format"` the format decides when the counter restarts: a format with `{yyyy}` or `{yy}` and `{mm}` restarts every month, one with only the year every year, and one without either never. `2026-{n}` style numbers then never repeat, and a tenant who changes `{yyyy}-{n:3}` to `{n}` continues on the continuous counter. A fixed `period` still works with `formatFrom`, and `period: "format"` without `formatFrom` follows the entity's own `format`.
+
+`sequenceColumn` also stores the bare number, for sorting or for an app that keeps the formatted and the bare number apart. It cannot change either once set, and like `column` only the trigger or the service role writes it: a client that sends it on insert, or changes it on update, gets `NUMBER_MANUAL`.
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "format",
+  format: "{yyyy}-{n:4}",
+  formatFrom: { column: "public.organizations.invoice_number_format" },
+  table: "public.invoices",
+  column: "formatted_number",
+  sequenceColumn: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
+
+## Periods per tenant
+
+A format says how a number looks, not always when its counter restarts. `INV-{yyyy}{mm}-{n}` shows the month, and with `period: "format"` it restarts every month, but a tenant may want it to count on through the year. Set `periodFrom` to the column that holds each tenant's period, as `schema.table.column`, with `key` naming the column that matches the tenant id (default `id`). The column holds `none`, `year`, `month` or `format`, as text or an enum:
+
+| Value         | The counter restarts                                    |
+| ------------- | ------------------------------------------------------- |
+| `none`        | Never                                                   |
+| `year`        | Every year, whatever the format shows                   |
+| `month`       | Every month                                             |
+| `format`      | As the tenant's format decides, like `period: "format"` |
+| null or empty | As the entity's `period` decides                        |
+
+Any other value fails the assignment with `NUMBER_PERIOD_INVALID`. The year and month come from `periodColumn` when it is set, otherwise from the time of assignment, in UTC. `number_period(tenant, entity)` returns the value a tenant chose, or null.
+
+A tenant with the format `INV-{yyyy}{mm}-{n}` and the period `year` gets `INV-202601-1`, `INV-202602-2` and then `INV-202701-1` in the next year. Another tenant with the same format and an empty period follows `period: "format"` and restarts every month:
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "format",
+  format: "{yyyy}-{n:4}",
+  formatFrom: { column: "public.organizations.invoice_number_format" },
+  periodFrom: { column: "public.organizations.invoice_number_reset" },
+  table: "public.invoices",
+  column: "formatted_number",
+  sequenceColumn: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
+
+```sql
+update public.organizations
+set invoice_number_format = 'INV-{yyyy}{mm}-{n}', invoice_number_reset = 'year'
+where id = '6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69';
+```
+
+The counters are kept per period, so a tenant who changes its period starts a counter for the new one. `sql sync` keeps that counter in step: for an entity with `table`, `column` and `periodColumn` that sets `periodFrom`, or `formatFrom` with `period: "format"`, it adds an `after update` trigger to each tenant table those columns name, `bs_sync_number_period_<entity>`. When an update changes the period a tenant numbers in, the trigger runs `sync_number_sequences(tenant, entity)` in the same transaction, so the new counter starts past the numbers the tenant already has in that period. Other updates, and a format change that keeps the period, leave the counters alone. The trigger compares the old and new rows, not a column list, so `periodFrom` and `formatFrom` can name generated columns.
+
+Sync reads the period each tenant has chosen now, so it needs `periodColumn` (see [existing numbers](#existing-numbers)). Without `periodColumn`, `sql sync` adds no trigger, `sync_number_sequences` fails with `NUMBER_SYNC_UNSUPPORTED`, and a tenant who changes its period can repeat a number. Set `periodColumn` on such an entity.
+
+`number_format(tenant, entity)` returns the format a tenant uses. Every number is still assigned in the document's transaction and never changes, and a format change only affects the numbers assigned after it.
+
+## Previews and permissions
+
+`next_number` stays service-only. Called over the API it would commit a number in its own transaction, and a document that then fails to save leaves a gap. A signed-in user gets a number by saving the document: the trigger assigns it in the same transaction, and the table's own policies decide who may save it.
+
+To show the number a document would get, such as on a send dialog, call `preview_number(tenant, entity, at)`. It returns the formatted next number in the tenant's format and period without assigning it, so a concurrent document can still take it first. It checks the block's `assign` permission in the tenant (`number_sequences.assign` by default; the owner role holds it through `*`), and refuses other callers with `NUMBER_FORBIDDEN`. Map `assign` to the key of the people who issue the documents:
+
+```ts title="better-supabase.config.ts"
+"number-sequences": {
+  permissions: { assign: "invoices.write" },
+  options: { entities: { invoice: { /* ... */ } } },
+},
+```
+
+```ts
+const numbers = createNumberSequences({ transport });
+const next = await numbers.preview(organizationId, "invoice", issuedOn);
+```
+
+When different people issue different documents, give an entity its own key with `permission`. `preview_number` then checks that key for the entity and `permissions.assign` for every entity without one, so a config without `permission` keeps working as before:
+
+```ts title="better-supabase.config.ts"
+"number-sequences": {
+  permissions: { assign: "documents.write" },
+  options: {
+    entities: {
+      invoice: { /* ... */ permission: "invoices.write" },
+      quote: { /* ... */ },
+    },
+  },
+},
+```
+
+| Action   | Default key               | Set by                                             | Checked by                                         |
+| -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------- |
+| `assign` | `number_sequences.assign` | `permissions.assign`, `entities.<name>.permission` | `preview_number`; the service role always holds it |
+
+`sql sync` and doctor check an entity's key against the authorization provider like the block's own keys.
 
 ## Existing numbers
 
@@ -31,7 +150,7 @@ select better_supabase.sync_number_sequences();
 select better_supabase.sync_number_sequences('6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69', 'invoice');
 ```
 
-It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC:
+It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC, as it does when the trigger assigns a number:
 
 ```ts title="better-supabase.config.ts"
 "number-sequences": {
@@ -50,13 +169,15 @@ It reads the entities that set `table` and `column`, matches each value against 
 },
 ```
 
-Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
+Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity.
+
+With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `periodFrom`, the period comes from `periodColumn` in the period each tenant has chosen, and the entity always needs `periodColumn`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
 
 Run it after anything that writes numbered rows directly. After seeding, end `supabase/seed.sql` with `select better_supabase.sync_number_sequences();`, so `supabase db reset` leaves the counters past the seeded documents. After an import, call it in the same transaction as the import. After adopting tables whose documents already have numbers, run it once in a data migration.
 
 ## Hooks
 
-`createNumberSequences` takes `hooks` around `next`, to refuse or observe an
+`createNumberSequences` takes `hooks` around `next` and `preview`, to refuse or observe an
 allocation (see [extending blocks](/docs/extending/blocks)). The sequences
 table takes no app columns: its rows are counters the module owns.
 

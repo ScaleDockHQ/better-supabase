@@ -356,7 +356,8 @@ export function moduleKeyProblems(
         ? "authorization.functions.isPlatform"
         : "authorization.functions.idsWith";
 
-    const setting = `blocks.${entry.module}.permissions.${entry.action}`;
+    const setting =
+      entry.setting ?? `blocks.${entry.module}.permissions.${entry.action}`;
 
     const fix =
       problem.status === "incomplete"

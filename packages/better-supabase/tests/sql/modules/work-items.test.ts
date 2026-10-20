@@ -63,6 +63,27 @@ describe("work-items module", () => {
         ["number-sequences"],
       ),
     ).toContain("format_assigned_number('ENG-{n}'");
+    expect(
+      body(
+        "work-items",
+        {
+          modules: {
+            "number-sequences": {
+              options: {
+                entities: {
+                  work_item: {
+                    period: "format",
+                    format: "ENG-{n}",
+                    formatFrom: { column: "public.organizations.task_format" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        ["number-sequences"],
+      ),
+    ).toContain(`format_assigned_number("better_supabase"."number_format"(`);
   });
 
   it("rejects a bad assignee cap and renders nothing in custom mode", () => {

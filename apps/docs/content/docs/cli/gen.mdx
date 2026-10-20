@@ -241,7 +241,10 @@ extra round trips:
   });
   ```
 
-  `gen` fails when a listed name is not a column of the table.
+  `gen` fails when a listed name is not a column of the table. The `column`
+  and `sequenceColumn` of each [number-sequences](/docs/blocks/number-sequences)
+  entity with a `table` are optional on insert without being listed, unless
+  the block is in `custom` mode.
 
 - **Function arguments and results.** Every argument in `Functions` accepts
   `null`, since Postgres passes `null` to any function, and arguments with a

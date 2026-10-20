@@ -28,12 +28,30 @@ export interface NumberSequences {
     entity: string,
     at?: string,
   ): AsyncResult<string>;
+  /**
+   * The number the next document would get, formatted, without assigning
+   * it. Needs the `assign` permission in the organization; a concurrent
+   * document can still take it first.
+   */
+  preview(
+    organizationId: string,
+    entity: string,
+    at?: string,
+  ): AsyncResult<string>;
 }
 
 export function createNumberSequences(
   options: NumberSequencesOptions,
 ): NumberSequences {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
+  const text = (value: unknown): string => {
+    if (typeof value === "string") {
+      return value;
+    }
+
+    throw new TypeError("preview_number did not return a number");
+  };
 
   const client: NumberSequences = {
     next: (organizationId, entity, at) =>
@@ -51,6 +69,16 @@ export function createNumberSequences(
 
           throw new TypeError("next_number did not return a number");
         },
+      ),
+    preview: (organizationId, entity, at) =>
+      call(
+        "preview_number",
+        {
+          p_tenant: organizationId,
+          p_entity: entity,
+          ...(at === undefined ? {} : { p_at: at }),
+        },
+        text,
       ),
   };
 

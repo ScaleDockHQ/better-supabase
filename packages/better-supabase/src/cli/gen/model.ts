@@ -16,6 +16,7 @@ import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
 import { resolveProviderSql } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
+import { isRecord } from "../guards.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,
@@ -114,6 +115,46 @@ function tableKey(
 const TEXT_UDTS = new Set(["text", "varchar", "bpchar"]);
 
 /** `config.storagePaths` resolved to bucket ids, with a check that every key is used. */
+function numberedColumnsOf(
+  config: ResolvedConfig,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const columns = new Map<string, Set<string>>();
+  const block = config.blocks["number-sequences"];
+
+  if (
+    !config.blockNames.includes("number-sequences") ||
+    block?.mode === "custom" ||
+    !isRecord(block?.options?.["entities"])
+  ) {
+    return columns;
+  }
+
+  for (const entry of Object.values(block.options["entities"])) {
+    if (
+      !isRecord(entry) ||
+      typeof entry["table"] !== "string" ||
+      typeof entry["column"] !== "string"
+    ) {
+      continue;
+    }
+
+    const key = entry["table"].includes(".")
+      ? entry["table"]
+      : `public.${entry["table"]}`;
+
+    const set = columns.get(key) ?? new Set<string>();
+    set.add(entry["column"]);
+
+    if (typeof entry["sequenceColumn"] === "string") {
+      set.add(entry["sequenceColumn"]);
+    }
+
+    columns.set(key, set);
+  }
+
+  return columns;
+}
+
 function storagePathsOf(config: ResolvedConfig) {
   const bucketId = (name: string): string => {
     const bucket = config.buckets[name];
@@ -263,6 +304,7 @@ function prepareCatalog(
 function draftTables(ctx: ModelContext): DraftTable[] {
   const { config, included, enumsByName, tsType, jsonTypeFor, optionsOf } = ctx;
   const storagePaths = storagePathsOf(config);
+  const numbered = numberedColumnsOf(config);
 
   const tables = included.map((table) => {
     const casing = optionsOf(table)?.casing ?? config.casing;
@@ -289,6 +331,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
     );
 
     const insertOptional = new Set(optionsOf(table)?.insertOptional);
+    const numberedColumns = numbered.get(`${table.schema}.${table.name}`);
 
     for (const name of insertOptional) {
       if (!table.columns.some((column) => column.name === name)) {
@@ -346,6 +389,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
       const filled =
         column.hasDefault ||
         insertOptional.has(column.name) ||
+        (numberedColumns?.has(column.name) ?? false) ||
         (narrowed && beforeInsert);
 
       // A view's computed columns are neither insertable nor updatable;
