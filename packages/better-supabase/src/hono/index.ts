@@ -1,5 +1,6 @@
 import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
+import { withCors } from "@supabase/middleware/cors";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
@@ -14,6 +15,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
+  SharedServer,
 } from "../server/server-types.ts";
 
 import { toSession } from "../auth/view.ts";
@@ -22,6 +24,7 @@ import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import { type CorsOptions, corsConfig } from "../server/cors.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
 import {
   type RateLimitRouteOptions,
@@ -82,6 +85,14 @@ export interface HonoEnv<
 }
 
 export interface HonoOptions extends ServerOptions {
+  /**
+   * An existing server, such as the one `createNext` returned, so both
+   * frameworks share one `createServer`: the same cookies, clients,
+   * credentials and event sinks. The server options are then ignored.
+   */
+  readonly server?: SharedServer;
+  /** Answer preflights and add CORS headers to every route of `app()`. `true` uses Supabase's defaults. */
+  readonly cors?: boolean | CorsOptions;
   /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
   /**
@@ -203,7 +214,11 @@ export function createHono<
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: HonoOptions & { readonly authorizer?: A } = {},
 ): BetterHono<M, F, E, C, P, PermissionRef<A>, B> {
-  const server = createServer(betterSupabase, options);
+  // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
+  const server =
+    (options.server as BetterServer<M, F, E, C, P, B> | undefined) ??
+    createServer(betterSupabase, options);
+
   const expose = options.exposeErrors ?? defaultExpose();
 
   const onError: ErrorHandler<HonoEnv<M, F, E, C, P, B>> = (cause, c) => {
@@ -220,6 +235,17 @@ export function createHono<
 
     return unexpectedResponse(cause, { instance, expose });
   };
+
+  const cors: CorsOptions | undefined =
+    options.cors === true
+      ? {}
+      : options.cors === false
+        ? undefined
+        : options.cors;
+
+  const corsMiddleware = cors
+    ? honoMiddleware([withCors(corsConfig(cors))])
+    : undefined;
 
   const waitUntilOf = (
     c: Context<HonoEnv<M, F, E, C, P, B>>,
@@ -248,7 +274,13 @@ export function createHono<
     onError,
 
     app() {
-      return new Hono<HonoEnv<M, F, E, C, P, B>>().onError(onError);
+      const app = new Hono<HonoEnv<M, F, E, C, P, B>>().onError(onError);
+
+      if (corsMiddleware) {
+        app.use("*", corsMiddleware);
+      }
+
+      return app;
     },
 
     middleware(middlewareOptions = {}) {

@@ -95,7 +95,11 @@ export function createNext<
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: NextOptions & { readonly authorizer?: A } = {},
 ): BetterNext<M, F, E, C, P, PermissionRef<A>, B> {
-  const base = createServer(betterSupabase, options);
+  // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
+  const base =
+    (options.server as BetterServer<M, F, E, C, P, B> | undefined) ??
+    createServer(betterSupabase, options);
+
   const core = serverCore(base);
   const expose = options.exposeErrors ?? defaultExpose();
 

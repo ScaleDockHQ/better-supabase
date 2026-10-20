@@ -24,12 +24,18 @@ import type {
   ContextOptions,
   ServerContext,
   ServerOptions,
+  SharedServer,
 } from "../server/server-types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
 
 export interface NextOptions extends ServerOptions {
+  /**
+   * An existing server, such as the one `createHono` returned, so both
+   * frameworks share one `createServer`. The server options are then ignored.
+   */
+  readonly server?: SharedServer;
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
   readonly cacheTags?: boolean;
   /** Include internal error messages in Problem Details. Defaults to development only. */

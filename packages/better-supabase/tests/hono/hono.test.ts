@@ -311,3 +311,44 @@ describe("createHono buckets", () => {
     expect(await response.json()).toEqual({ id: "logos" });
   });
 });
+
+describe("createHono options", () => {
+  it("answers a preflight and adds CORS headers with cors", async () => {
+    const bs = createHono(defineSupabase(schema), {
+      env,
+      cors: { origin: "https://app.example.com" },
+    });
+
+    const app = bs.app().get("/ping", (c) => c.text("pong"));
+
+    const preflight = await app.request("/ping", {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.example.com",
+        "access-control-request-method": "GET",
+      },
+    });
+
+    expect(preflight.status).toBeLessThan(300);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(
+      "https://app.example.com",
+    );
+
+    const reply = await app.request("/ping", {
+      headers: { origin: "https://app.example.com" },
+    });
+
+    expect(await reply.text()).toBe("pong");
+    expect(reply.headers.get("access-control-allow-origin")).toBe(
+      "https://app.example.com",
+    );
+  });
+
+  it("takes an existing server instead of building one", () => {
+    const definition = defineSupabase(schema);
+    const first = createHono(definition, { env });
+    const second = createHono(definition, { server: first });
+    // oxlint-disable-next-line typescript/unbound-method -- compares the shared function, never calls it.
+    expect(second.contextFor).toBe(first.contextFor);
+  });
+});

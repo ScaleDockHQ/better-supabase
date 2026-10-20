@@ -253,6 +253,12 @@ export interface ContextOptions {
   readonly correlationId?: string;
 }
 
+/** A server built by `createServer`, `createHono` or `createNext`, handed to another adapter to share. */
+export type SharedServer = Pick<
+  BetterServer<AnyModels, AnyFunctions, unknown>,
+  "env" | "events" | "resolve"
+>;
+
 export interface BetterServer<
   M extends AnyModels,
   F extends AnyFunctions,

@@ -1,4 +1,4 @@
-import { withCors, type WithCorsConfig } from "@supabase/middleware/cors";
+import { withCors } from "@supabase/middleware/cors";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
@@ -16,6 +16,11 @@ import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
 import { withFlush, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import {
+  type CorsOptions,
+  corsConfig,
+  SUPABASE_CORS_HEADERS,
+} from "../server/cors.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
@@ -56,15 +61,6 @@ export type {
   FunctionDefinition,
   TypedFunction,
 } from "./function.ts";
-
-export interface CorsOptions {
-  /** Allowed origins, or `*`. Defaults to `*`. */
-  readonly origin?: string | readonly string[];
-  /** Defaults to the headers supabase-js sends. */
-  readonly headers?: readonly string[];
-  readonly methods?: readonly string[];
-  readonly maxAge?: number;
-}
 
 export interface EdgeOptions extends ServerOptions {
   /** Answer preflights and add CORS headers. `true` uses Supabase's defaults. */
@@ -200,28 +196,6 @@ export interface BetterEdge<
     map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B>["db"]>,
     options?: ResourcesOptions,
   ): EdgeHandler;
-}
-
-export const SUPABASE_CORS_HEADERS: readonly string[] = [
-  "authorization",
-  "x-client-info",
-  "apikey",
-  "content-type",
-];
-
-/** `CorsOptions` as `withCors` from `@supabase/middleware/cors` takes them. */
-export function corsConfig(cors: CorsOptions): WithCorsConfig {
-  return {
-    origin:
-      cors.origin === undefined || typeof cors.origin === "string"
-        ? (cors.origin ?? "*")
-        : [...cors.origin],
-    allowedHeaders: [...(cors.headers ?? SUPABASE_CORS_HEADERS)],
-    methods: [
-      ...(cors.methods ?? ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]),
-    ],
-    ...(cors.maxAge === undefined ? {} : { maxAge: cors.maxAge }),
-  };
 }
 
 /** Fetch-handler integration for Supabase Edge Functions, Deno, Bun and Workers. */
@@ -438,3 +412,5 @@ export function createEdge<
     },
   });
 }
+
+export { type CorsOptions, corsConfig, SUPABASE_CORS_HEADERS };
