@@ -527,6 +527,9 @@ describe("per-tenant formats", () => {
     );
     expect(sql).toContain('new."number" := v_n;');
     expect(sql).toContain('or new."number" is distinct from old."number"');
+    expect(sql).toContain(
+      'elsif new."number" is distinct from old."number" then',
+    );
     expect(sql).toContain("NUMBER_FORMAT_INVALID");
   });
 
@@ -592,6 +595,45 @@ update public.invoices set number = 7;`,
         { sequenceColumn: "number" },
       ),
     ).rejects.toThrow(/a number cannot change/);
+  });
+
+  it("refuses a client that writes the sequence column", async () => {
+    const asClient = (sql: string): string =>
+      `select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
+${sql}`;
+
+    await expect(
+      tenantFormats(
+        asClient(
+          `insert into public.invoices (organization_id, number) values ('${ALICE}', 7);`,
+        ),
+        { sequenceColumn: "number" },
+      ),
+    ).rejects.toThrow(/not set by hand/);
+    await expect(
+      tenantFormats(
+        `insert into public.invoices (organization_id) values ('${ALICE}');
+${asClient("update public.invoices set number = 7;")}`,
+        { sequenceColumn: "number" },
+      ),
+    ).rejects.toThrow(/not set by hand/);
+    await expect(
+      tenantFormats(
+        `insert into public.invoices (organization_id) values ('${ALICE}');
+${asClient(`do $$
+declare
+  v_number bigint;
+begin
+  update public.invoices set issued_on = '2026-01-02';
+  update public.invoices set status = 'sent' returning number into v_number;
+  if v_number <> 1 then
+    raise exception 'numbered %', v_number;
+  end if;
+end;
+$$;`)}`,
+        { sequenceColumn: "number" },
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it("refuses a tenant format without {n}", async () => {

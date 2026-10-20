@@ -876,6 +876,26 @@ function trigger(ctx: ModuleContext, item: SequenceEntity): string {
 
   const fn = sqlIdent(`bs_assign_number_${item.name}`);
 
+  const manual = fail(
+    "NUMBER_MANUAL",
+    "a number is assigned by the sequence, not set by hand",
+    "42501",
+  );
+
+  const manualSequence =
+    sequence === undefined
+      ? ""
+      : `
+  if not (${SERVICE_CALLER}) then
+    if tg_op = 'INSERT' then
+      if new.${sequence} is not null then
+        ${manual}
+      end if;
+    elsif new.${sequence} is distinct from old.${sequence} then
+      ${manual}
+    end if;
+  end if;`;
+
   return `
 create or replace function better_supabase.${fn}()
 returns trigger
@@ -896,10 +916,10 @@ begin
     end if;
     return new;
   end if;
-  -- A number is assigned here or by the service role, never sent by a client.
+  -- A number is assigned here or by the service role, never sent by a client.${manualSequence}
   if new.${col} is not null then
     if not (${SERVICE_CALLER}) then
-      ${fail("NUMBER_MANUAL", "a number is assigned by the sequence, not set by hand", "42501")}
+      ${manual}
     end if;
     return new;
   end if;
