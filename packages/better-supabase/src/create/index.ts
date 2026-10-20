@@ -21,3 +21,5 @@ export * from "./schema-meta.ts";
 export * from "./schema.ts";
 
 export type * from "./types.ts";
+
+export * from "./migration.ts";

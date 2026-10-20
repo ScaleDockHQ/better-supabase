@@ -33,3 +33,49 @@ const projects = await client.projects();
 ```
 
 Pass your own `fetch` to trace or stub the calls in tests.
+
+## Migrate between versions
+
+`migrationBetween(code, base, next)` writes the migration that takes a project
+deployed from one design to the next. It covers added tables and added
+columns, which the app-table SQL applies idempotently.
+
+```ts
+import { migrationBetween } from "better-supabase/create";
+
+const plan = migrationBetween(code, deployed, edited);
+
+if (plan.ok) {
+  await client.applyMigration(ref, "better_supabase_design", plan.sql);
+} else {
+  console.log(
+    plan.reason,
+    plan.changes.map((change) => change.steps),
+  );
+}
+```
+
+A `breaking` refusal lists the expand and contract steps for each change. An
+`unsupported` refusal covers any other change, such as a new default or a
+change outside `appTables`, so a deploy never guesses.
+
+## Validate in Postgres
+
+`better-supabase/create/lite` applies the generated files to an in-memory
+PGlite database through the optional `@supabase/lite` peer, and reports what
+Postgres rejects before anything reaches a project.
+
+```ts
+import { previewFiles } from "better-supabase/create";
+import { validateDesign } from "better-supabase/create/lite";
+import { encodePreset, namedPreset } from "better-supabase/preset";
+
+const files = previewFiles(encodePreset(namedPreset("saas")));
+const { ok, issues, skipped } = await validateDesign(files);
+```
+
+PGlite starts without a Supabase project's roles and `auth` schema, so the
+function creates a minimal copy first. A module that needs an extension PGlite
+doesn't ship (`pgmq` for jobs, `btree_gist` for time tracking) lands in
+`skipped` instead of failing. pgTAP is not available through
+`@supabase/lite`, so database tests still run with `supabase test db`.
