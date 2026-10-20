@@ -61,6 +61,21 @@ const { client, clientSecret, registrationAccessToken } = await oauth
 `readClient` or `updateClient`. `rotateSecret` returns a new secret, and
 `deleteClient` removes the client with its grants and codes.
 
+### Client ids
+
+`registerClient` generates a client id. To choose your own, such as `acme-cli`,
+pass `{ clientId }` as the second argument. The database checks every id
+against `clientIdPattern`, a block option. The default accepts
+`[A-Za-z0-9._~-]{8,128}`, so existing clients keep working. The preset
+`"slug"` accepts lower-case slugs (`^[a-z0-9][a-z0-9-]{2,63}$`), and any other
+value is a regular expression:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "oauth-server": { options: { clientIdPattern: "slug" } },
+},
+```
+
 ## Authorization codes
 
 After the user consents, store the code with the request's PKCE challenge.
@@ -86,13 +101,24 @@ mismatch. A code presented a second time also revokes its grant, so tokens
 issued from a stolen code stop working (RFC 9700 section 4.5). Codes live 60
 seconds (`codeSeconds`).
 
+### Resource indicators
+
+Pass `resource` (RFC 8707) to `createAuthorizationCode` with the APIs the
+token may be used at. The code, the device code and the user's grant store
+them. At the token endpoint, pass the request's `resource` to
+`redeemAuthorizationCode`: it has to be a subset of the code's resources, and
+anything wider returns `null` (the `invalid_target` case). The returned
+`authorization.resource` is what you put in the token's `aud`; without a
+`resource` in the exchange it is every resource of the code.
+
 ## Device codes
 
-`createDeviceCode(clientId, scope)` returns a `deviceCode` for the client
+`createDeviceCode(clientId, scope, resource?)` returns a `deviceCode` for the client
 and a `userCode` such as `BDFG-HJKL` for the user. The verification page
 reads the request with `deviceRequest(userCode)` and calls
 `approveDeviceCode` or `denyDeviceCode` with the signed-in user. The client
-polls `pollDeviceCode(deviceCode, clientId)`:
+polls `pollDeviceCode(deviceCode, clientId, resource?)`. A `resource` that is
+not a subset of the device code's resources answers `invalid_grant`.
 
 | Status                  | Token response (RFC 8628 section 3.5)                   |
 | ----------------------- | ------------------------------------------------------- |
@@ -103,13 +129,22 @@ polls `pollDeviceCode(deviceCode, clientId)`:
 | `invalid_grant`         | unknown code, another client, or already exchanged      |
 | `ok`                    | issue tokens for `authorization`; the code is now spent |
 
+`deviceRequest(userCode)` returns `null` for a code that is unknown, expired
+or already decided, so the verification page can show "code not found" for all
+three. A client that polls before `interval` has passed gets `slow_down` and
+the stored interval grows by 5 seconds up to 300, so honor the `interval` of
+the last response.
+
 ## Grants and revocation
 
 A grant is a user's consent for a client. Approving a code or a device code
 reuses the user's active grant for the client and widens its scopes. Put the
 grant id in the tokens you issue as `grant_id`.
 
-`revokeGrant(grantId)` ends every token and code issued under it.
+`revokeGrant(grantId)` ends every token and code issued under it. For the
+RFC 7009 revocation endpoint, look up the token's `jti` and `grant_id`
+claims, then call `revokeToken(jti, expiresAt, { grantId })` for one access
+token, or `revokeGrant` when the client revokes a refresh token.
 `revokeToken(jti, expiresAt)` puts one access token on the revocation list
 until it would expire anyway. `isRevoked(jti, grantId)` checks both, and
 treats an unknown grant as revoked, so deleting a client ends its tokens.

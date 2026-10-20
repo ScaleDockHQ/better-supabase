@@ -73,12 +73,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scopes" text[] not null default '{}',
+  "resource" text[] not null default '{}',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
 create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
@@ -91,6 +93,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
@@ -100,6 +103,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
 create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
 create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
 create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
@@ -110,6 +114,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
@@ -124,6 +129,7 @@ create unique index if not exists oauth_device_codes_user_code_idx on "better_su
 create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
 create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
 create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
@@ -142,7 +148,8 @@ grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[])
+drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
 security definer
@@ -156,22 +163,24 @@ begin
   end if;
   update "better_supabase"."oauth_grants" g
   set "scopes" = array(select distinct s from unnest(g."scopes" || oauth_grant_for.scopes) s order by s),
+    "resource" = array(select distinct r from unnest(g."resource" || coalesce(oauth_grant_for.resource, '{}')) r order by r),
     "updated_at" = now()
   where g."user_id" = oauth_grant_for.user_id
     and g."client_id" = oauth_grant_for.client_id
     and g."revoked_at" is null
   returning g.* into v_row;
   if v_row."id" is null then
-    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes")
+    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes", "resource")
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
+      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
     returning * into v_row;
     null;
   end if;
   return v_row."id";
 end;
 $$;
-revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[]) from public, anon, authenticated, service_role;
+revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;
 
 -- Registers a client (RFC 7591). The secret and registration token arrive hashed.
 create or replace function "better_supabase"."register_oauth_client"(
@@ -380,9 +389,10 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
+drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
-  code_challenge text, ttl interval, nonce text default null)
+  code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -404,23 +414,26 @@ begin
     raise exception 'the client is unknown, can''t use codes, or didn''t register the redirect URI' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   v_grant := "better_supabase"."oauth_grant_for"(create_oauth_authorization_code.user_id,
-    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''));
+    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''),
+    coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into "better_supabase"."oauth_authorization_codes" ("code_hash", "client_id", "user_id", "grant_id", "redirect_uri",
-    "scope", "code_challenge", "nonce", "expires_at")
+    "scope", "resource", "code_challenge", "nonce", "expires_at")
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
-    coalesce(create_oauth_authorization_code.scope, ''), create_oauth_authorization_code.code_challenge,
+    coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
+    create_oauth_authorization_code.code_challenge,
     create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) to service_role;
+revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) to service_role;
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
+drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
-  code_hash text, client_id text, redirect_uri text, code_challenge text)
+  code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -460,16 +473,25 @@ begin
     ) then
     return jsonb_build_object('status', 'invalid');
   end if;
+  -- RFC 8707 section 2.2: a token request may narrow the resources of the
+  -- code but never widen them.
+  if redeem_oauth_authorization_code.resource is not null
+    and not redeem_oauth_authorization_code.resource <@ v_code."resource" then
+    return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code."user_id", 'clientId', v_code."client_id",
-    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce");
+    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce",
+    'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
+drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
 create or replace function "better_supabase"."create_oauth_device_code"(
-  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
+  resource text[] default null)
 returns boolean
 language plpgsql
 security definer
@@ -487,15 +509,16 @@ begin
     raise exception 'the client is unknown or can''t use the device flow' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   insert into "better_supabase"."oauth_device_codes" ("device_code_hash", "user_code", "client_id", "scope",
-    "poll_interval", "expires_at")
+    "resource", "poll_interval", "expires_at")
   values (create_oauth_device_code.device_code_hash, create_oauth_device_code.user_code,
     create_oauth_device_code.client_id, coalesce(create_oauth_device_code.scope, ''),
+    coalesce(create_oauth_device_code.resource, '{}'),
     coalesce(create_oauth_device_code.poll_interval, 5), now() + create_oauth_device_code.ttl);
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) to service_role;
+revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) to service_role;
 
 -- The pending request behind a user code, for the verification page, or null.
 create or replace function "better_supabase"."oauth_device_request"(user_code text)
@@ -510,7 +533,7 @@ begin
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'expiresAt', d."expires_at")
+    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'resource', to_jsonb(d."resource"), 'expiresAt', d."expires_at")
     from "better_supabase"."oauth_device_codes" d
     where d."user_code" = oauth_device_request.user_code
       and d."status" = 'pending'
@@ -546,7 +569,7 @@ begin
   end if;
   if decide_oauth_device_code.approve then
     v_grant := "better_supabase"."oauth_grant_for"(decide_oauth_device_code.user_id, v_device."client_id",
-      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''));
+      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''), v_device."resource");
   end if;
   update "better_supabase"."oauth_device_codes" d set
     "status" = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
@@ -561,7 +584,8 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text)
+drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -608,12 +632,17 @@ begin
   ) then
     return jsonb_build_object('status', 'invalid_grant');
   end if;
+  if poll_oauth_device_code.resource is not null
+    and not poll_oauth_device_code.resource <@ v_device."resource" then
+    return jsonb_build_object('status', 'invalid_grant', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_device."user_id", 'clientId', v_device."client_id",
-    'grantId', v_device."grant_id", 'scope', v_device."scope");
+    'grantId', v_device."grant_id", 'scope', v_device."scope",
+    'resource', to_jsonb(coalesce(poll_oauth_device_code.resource, v_device."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."poll_oauth_device_code"(text, text) to service_role;
+revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) to service_role;
 
 -- A user's grants, newest first; revoked ones only with include_revoked.
 create or replace function "better_supabase"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
@@ -633,6 +662,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -687,6 +717,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -907,12 +938,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scopes" text[] not null default '{}',
+  "resource" text[] not null default '{}',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
 create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
@@ -925,6 +958,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
@@ -934,6 +968,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
 create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
 create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
 create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
@@ -944,6 +979,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
@@ -958,6 +994,7 @@ create unique index if not exists oauth_device_codes_user_code_idx on "better_su
 create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
 create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
 create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
@@ -976,7 +1013,8 @@ grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[])
+drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
 security definer
@@ -990,15 +1028,17 @@ begin
   end if;
   update "better_supabase"."oauth_grants" g
   set "scopes" = array(select distinct s from unnest(g."scopes" || oauth_grant_for.scopes) s order by s),
+    "resource" = array(select distinct r from unnest(g."resource" || coalesce(oauth_grant_for.resource, '{}')) r order by r),
     "updated_at" = now()
   where g."user_id" = oauth_grant_for.user_id
     and g."client_id" = oauth_grant_for.client_id
     and g."revoked_at" is null
   returning g.* into v_row;
   if v_row."id" is null then
-    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes")
+    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes", "resource")
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
+      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
     returning * into v_row;
     perform "better_supabase".emit_event('oauth_grant.created', jsonb_build_object('grantId', v_row."id"::text, 'userId', v_row."user_id"::text, 'clientId', v_row."client_id"), 'oauth-grants/' || v_row."id"::text, null, null, 'better-supabase/oauth-server');
   perform better_supabase.audit_event(
@@ -1013,7 +1053,7 @@ begin
   return v_row."id";
 end;
 $$;
-revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[]) from public, anon, authenticated, service_role;
+revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;
 
 -- Registers a client (RFC 7591). The secret and registration token arrive hashed.
 create or replace function "better_supabase"."register_oauth_client"(
@@ -1236,9 +1276,10 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
+drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
-  code_challenge text, ttl interval, nonce text default null)
+  code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1260,23 +1301,26 @@ begin
     raise exception 'the client is unknown, can''t use codes, or didn''t register the redirect URI' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   v_grant := "better_supabase"."oauth_grant_for"(create_oauth_authorization_code.user_id,
-    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''));
+    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''),
+    coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into "better_supabase"."oauth_authorization_codes" ("code_hash", "client_id", "user_id", "grant_id", "redirect_uri",
-    "scope", "code_challenge", "nonce", "expires_at")
+    "scope", "resource", "code_challenge", "nonce", "expires_at")
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
-    coalesce(create_oauth_authorization_code.scope, ''), create_oauth_authorization_code.code_challenge,
+    coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
+    create_oauth_authorization_code.code_challenge,
     create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) to service_role;
+revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) to service_role;
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
+drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
-  code_hash text, client_id text, redirect_uri text, code_challenge text)
+  code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1324,16 +1368,25 @@ begin
     ) then
     return jsonb_build_object('status', 'invalid');
   end if;
+  -- RFC 8707 section 2.2: a token request may narrow the resources of the
+  -- code but never widen them.
+  if redeem_oauth_authorization_code.resource is not null
+    and not redeem_oauth_authorization_code.resource <@ v_code."resource" then
+    return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code."user_id", 'clientId', v_code."client_id",
-    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce");
+    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce",
+    'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
+drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
 create or replace function "better_supabase"."create_oauth_device_code"(
-  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
+  resource text[] default null)
 returns boolean
 language plpgsql
 security definer
@@ -1351,15 +1404,16 @@ begin
     raise exception 'the client is unknown or can''t use the device flow' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   insert into "better_supabase"."oauth_device_codes" ("device_code_hash", "user_code", "client_id", "scope",
-    "poll_interval", "expires_at")
+    "resource", "poll_interval", "expires_at")
   values (create_oauth_device_code.device_code_hash, create_oauth_device_code.user_code,
     create_oauth_device_code.client_id, coalesce(create_oauth_device_code.scope, ''),
+    coalesce(create_oauth_device_code.resource, '{}'),
     coalesce(create_oauth_device_code.poll_interval, 5), now() + create_oauth_device_code.ttl);
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) to service_role;
+revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) to service_role;
 
 -- The pending request behind a user code, for the verification page, or null.
 create or replace function "better_supabase"."oauth_device_request"(user_code text)
@@ -1374,7 +1428,7 @@ begin
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'expiresAt', d."expires_at")
+    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'resource', to_jsonb(d."resource"), 'expiresAt', d."expires_at")
     from "better_supabase"."oauth_device_codes" d
     where d."user_code" = oauth_device_request.user_code
       and d."status" = 'pending'
@@ -1410,7 +1464,7 @@ begin
   end if;
   if decide_oauth_device_code.approve then
     v_grant := "better_supabase"."oauth_grant_for"(decide_oauth_device_code.user_id, v_device."client_id",
-      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''));
+      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''), v_device."resource");
   end if;
   update "better_supabase"."oauth_device_codes" d set
     "status" = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
@@ -1425,7 +1479,8 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text)
+drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1472,12 +1527,17 @@ begin
   ) then
     return jsonb_build_object('status', 'invalid_grant');
   end if;
+  if poll_oauth_device_code.resource is not null
+    and not poll_oauth_device_code.resource <@ v_device."resource" then
+    return jsonb_build_object('status', 'invalid_grant', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_device."user_id", 'clientId', v_device."client_id",
-    'grantId', v_device."grant_id", 'scope', v_device."scope");
+    'grantId', v_device."grant_id", 'scope', v_device."scope",
+    'resource', to_jsonb(coalesce(poll_oauth_device_code.resource, v_device."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."poll_oauth_device_code"(text, text) to service_role;
+revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) to service_role;
 
 -- A user's grants, newest first; revoked ones only with include_revoked.
 create or replace function "better_supabase"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
@@ -1497,6 +1557,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -1559,6 +1620,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -1789,12 +1851,14 @@ create table if not exists "app_private"."oauth_grants" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scopes" text[] not null default '{}',
+  "resource" text[] not null default '{}',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on "app_private"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
 create index if not exists oauth_grants_client_idx on "app_private"."oauth_grants" ("client_id");
+alter table "app_private"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "app_private"."oauth_grants" ("user_id");
 alter table "app_private"."oauth_grants" enable row level security;
 revoke all on "app_private"."oauth_grants" from anon, authenticated;
@@ -1807,6 +1871,7 @@ create table if not exists "app_private"."oauth_authorization_codes" (
   "grant_id" uuid not null references "app_private"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
@@ -1816,6 +1881,7 @@ create table if not exists "app_private"."oauth_authorization_codes" (
 create index if not exists oauth_authorization_codes_expires_idx on "app_private"."oauth_authorization_codes" ("expires_at");
 create index if not exists oauth_authorization_codes_grant_idx on "app_private"."oauth_authorization_codes" ("grant_id");
 create index if not exists oauth_authorization_codes_client_idx on "app_private"."oauth_authorization_codes" ("client_id");
+alter table "app_private"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "app_private"."oauth_authorization_codes" ("user_id");
 alter table "app_private"."oauth_authorization_codes" enable row level security;
 revoke all on "app_private"."oauth_authorization_codes" from anon, authenticated;
@@ -1826,6 +1892,7 @@ create table if not exists "app_private"."oauth_device_codes" (
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "app_private"."oauth_grants" ("id") on delete cascade,
@@ -1840,6 +1907,7 @@ create unique index if not exists oauth_device_codes_user_code_idx on "app_priva
 create index if not exists oauth_device_codes_expires_idx on "app_private"."oauth_device_codes" ("expires_at");
 create index if not exists oauth_device_codes_grant_idx on "app_private"."oauth_device_codes" ("grant_id");
 create index if not exists oauth_device_codes_client_idx on "app_private"."oauth_device_codes" ("client_id");
+alter table "app_private"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "app_private"."oauth_device_codes" ("user_id");
 alter table "app_private"."oauth_device_codes" enable row level security;
 revoke all on "app_private"."oauth_device_codes" from anon, authenticated;
@@ -1858,7 +1926,8 @@ grant all on "app_private"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-create or replace function "app_private"."oauth_grant_for"(user_id uuid, client_id text, scopes text[])
+drop function if exists "app_private"."oauth_grant_for"(uuid, text, text[]);
+create or replace function "app_private"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
 security definer
@@ -1872,22 +1941,24 @@ begin
   end if;
   update "app_private"."oauth_grants" g
   set "scopes" = array(select distinct s from unnest(g."scopes" || oauth_grant_for.scopes) s order by s),
+    "resource" = array(select distinct r from unnest(g."resource" || coalesce(oauth_grant_for.resource, '{}')) r order by r),
     "updated_at" = now()
   where g."user_id" = oauth_grant_for.user_id
     and g."client_id" = oauth_grant_for.client_id
     and g."revoked_at" is null
   returning g.* into v_row;
   if v_row."id" is null then
-    insert into "app_private"."oauth_grants" ("user_id", "client_id", "scopes")
+    insert into "app_private"."oauth_grants" ("user_id", "client_id", "scopes", "resource")
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
+      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
     returning * into v_row;
     null;
   end if;
   return v_row."id";
 end;
 $$;
-revoke execute on function "app_private"."oauth_grant_for"(uuid, text, text[]) from public, anon, authenticated, service_role;
+revoke execute on function "app_private"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;
 
 -- Registers a client (RFC 7591). The secret and registration token arrive hashed.
 create or replace function "app_private"."register_oauth_client"(
@@ -2096,9 +2167,10 @@ revoke execute on function "app_private"."delete_oauth_client"(text) from public
 grant execute on function "app_private"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
+drop function if exists "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
 create or replace function "app_private"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
-  code_challenge text, ttl interval, nonce text default null)
+  code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2120,23 +2192,26 @@ begin
     raise exception 'the client is unknown, can''t use codes, or didn''t register the redirect URI' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   v_grant := "app_private"."oauth_grant_for"(create_oauth_authorization_code.user_id,
-    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''));
+    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''),
+    coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into "app_private"."oauth_authorization_codes" ("code_hash", "client_id", "user_id", "grant_id", "redirect_uri",
-    "scope", "code_challenge", "nonce", "expires_at")
+    "scope", "resource", "code_challenge", "nonce", "expires_at")
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
-    coalesce(create_oauth_authorization_code.scope, ''), create_oauth_authorization_code.code_challenge,
+    coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
+    create_oauth_authorization_code.code_challenge,
     create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
-revoke execute on function "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) from public, anon, authenticated;
-grant execute on function "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) to service_role;
+revoke execute on function "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) from public, anon, authenticated;
+grant execute on function "app_private"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) to service_role;
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
+drop function if exists "app_private"."redeem_oauth_authorization_code"(text, text, text, text);
 create or replace function "app_private"."redeem_oauth_authorization_code"(
-  code_hash text, client_id text, redirect_uri text, code_challenge text)
+  code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2176,16 +2251,25 @@ begin
     ) then
     return jsonb_build_object('status', 'invalid');
   end if;
+  -- RFC 8707 section 2.2: a token request may narrow the resources of the
+  -- code but never widen them.
+  if redeem_oauth_authorization_code.resource is not null
+    and not redeem_oauth_authorization_code.resource <@ v_code."resource" then
+    return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code."user_id", 'clientId', v_code."client_id",
-    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce");
+    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce",
+    'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code."resource")));
 end;
 $$;
-revoke execute on function "app_private"."redeem_oauth_authorization_code"(text, text, text, text) from public, anon, authenticated;
-grant execute on function "app_private"."redeem_oauth_authorization_code"(text, text, text, text) to service_role;
+revoke execute on function "app_private"."redeem_oauth_authorization_code"(text, text, text, text, text[]) from public, anon, authenticated;
+grant execute on function "app_private"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
+drop function if exists "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer);
 create or replace function "app_private"."create_oauth_device_code"(
-  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
+  resource text[] default null)
 returns boolean
 language plpgsql
 security definer
@@ -2203,15 +2287,16 @@ begin
     raise exception 'the client is unknown or can''t use the device flow' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   insert into "app_private"."oauth_device_codes" ("device_code_hash", "user_code", "client_id", "scope",
-    "poll_interval", "expires_at")
+    "resource", "poll_interval", "expires_at")
   values (create_oauth_device_code.device_code_hash, create_oauth_device_code.user_code,
     create_oauth_device_code.client_id, coalesce(create_oauth_device_code.scope, ''),
+    coalesce(create_oauth_device_code.resource, '{}'),
     coalesce(create_oauth_device_code.poll_interval, 5), now() + create_oauth_device_code.ttl);
   return true;
 end;
 $$;
-revoke execute on function "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer) to service_role;
+revoke execute on function "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) from public, anon, authenticated;
+grant execute on function "app_private"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) to service_role;
 
 -- The pending request behind a user code, for the verification page, or null.
 create or replace function "app_private"."oauth_device_request"(user_code text)
@@ -2226,7 +2311,7 @@ begin
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'expiresAt', d."expires_at")
+    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'resource', to_jsonb(d."resource"), 'expiresAt', d."expires_at")
     from "app_private"."oauth_device_codes" d
     where d."user_code" = oauth_device_request.user_code
       and d."status" = 'pending'
@@ -2262,7 +2347,7 @@ begin
   end if;
   if decide_oauth_device_code.approve then
     v_grant := "app_private"."oauth_grant_for"(decide_oauth_device_code.user_id, v_device."client_id",
-      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''));
+      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''), v_device."resource");
   end if;
   update "app_private"."oauth_device_codes" d set
     "status" = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
@@ -2277,7 +2362,8 @@ grant execute on function "app_private"."decide_oauth_device_code"(text, uuid, b
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-create or replace function "app_private"."poll_oauth_device_code"(device_code_hash text, client_id text)
+drop function if exists "app_private"."poll_oauth_device_code"(text, text);
+create or replace function "app_private"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2324,12 +2410,17 @@ begin
   ) then
     return jsonb_build_object('status', 'invalid_grant');
   end if;
+  if poll_oauth_device_code.resource is not null
+    and not poll_oauth_device_code.resource <@ v_device."resource" then
+    return jsonb_build_object('status', 'invalid_grant', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_device."user_id", 'clientId', v_device."client_id",
-    'grantId', v_device."grant_id", 'scope', v_device."scope");
+    'grantId', v_device."grant_id", 'scope', v_device."scope",
+    'resource', to_jsonb(coalesce(poll_oauth_device_code.resource, v_device."resource")));
 end;
 $$;
-revoke execute on function "app_private"."poll_oauth_device_code"(text, text) from public, anon, authenticated;
-grant execute on function "app_private"."poll_oauth_device_code"(text, text) to service_role;
+revoke execute on function "app_private"."poll_oauth_device_code"(text, text, text[]) from public, anon, authenticated;
+grant execute on function "app_private"."poll_oauth_device_code"(text, text, text[]) to service_role;
 
 -- A user's grants, newest first; revoked ones only with include_revoked.
 create or replace function "app_private"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
@@ -2349,6 +2440,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -2403,6 +2495,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -2623,12 +2716,14 @@ create table if not exists "better_supabase"."oauth_grants" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scopes" text[] not null default '{}',
+  "resource" text[] not null default '{}',
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on "better_supabase"."oauth_grants" ("user_id", "client_id") where "revoked_at" is null;
 create index if not exists oauth_grants_client_idx on "better_supabase"."oauth_grants" ("client_id");
+alter table "better_supabase"."oauth_grants" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on "better_supabase"."oauth_grants" ("user_id");
 alter table "better_supabase"."oauth_grants" enable row level security;
 revoke all on "better_supabase"."oauth_grants" from anon, authenticated;
@@ -2641,6 +2736,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
@@ -2650,6 +2746,7 @@ create table if not exists "better_supabase"."oauth_authorization_codes" (
 create index if not exists oauth_authorization_codes_expires_idx on "better_supabase"."oauth_authorization_codes" ("expires_at");
 create index if not exists oauth_authorization_codes_grant_idx on "better_supabase"."oauth_authorization_codes" ("grant_id");
 create index if not exists oauth_authorization_codes_client_idx on "better_supabase"."oauth_authorization_codes" ("client_id");
+alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on "better_supabase"."oauth_authorization_codes" ("user_id");
 alter table "better_supabase"."oauth_authorization_codes" enable row level security;
 revoke all on "better_supabase"."oauth_authorization_codes" from anon, authenticated;
@@ -2660,6 +2757,7 @@ create table if not exists "better_supabase"."oauth_device_codes" (
   "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
+  "resource" text[] not null default '{}',
   "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
@@ -2674,6 +2772,7 @@ create unique index if not exists oauth_device_codes_user_code_idx on "better_su
 create index if not exists oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
 create index if not exists oauth_device_codes_grant_idx on "better_supabase"."oauth_device_codes" ("grant_id");
 create index if not exists oauth_device_codes_client_idx on "better_supabase"."oauth_device_codes" ("client_id");
+alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on "better_supabase"."oauth_device_codes" ("user_id");
 alter table "better_supabase"."oauth_device_codes" enable row level security;
 revoke all on "better_supabase"."oauth_device_codes" from anon, authenticated;
@@ -2692,7 +2791,8 @@ grant all on "better_supabase"."oauth_revocations" to service_role;
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[])
+drop function if exists "better_supabase"."oauth_grant_for"(uuid, text, text[]);
+create or replace function "better_supabase"."oauth_grant_for"(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
 security definer
@@ -2706,22 +2806,24 @@ begin
   end if;
   update "better_supabase"."oauth_grants" g
   set "scopes" = array(select distinct s from unnest(g."scopes" || oauth_grant_for.scopes) s order by s),
+    "resource" = array(select distinct r from unnest(g."resource" || coalesce(oauth_grant_for.resource, '{}')) r order by r),
     "updated_at" = now()
   where g."user_id" = oauth_grant_for.user_id
     and g."client_id" = oauth_grant_for.client_id
     and g."revoked_at" is null
   returning g.* into v_row;
   if v_row."id" is null then
-    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes")
+    insert into "better_supabase"."oauth_grants" ("user_id", "client_id", "scopes", "resource")
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
+      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
     returning * into v_row;
     null;
   end if;
   return v_row."id";
 end;
 $$;
-revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[]) from public, anon, authenticated, service_role;
+revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;
 
 -- Registers a client (RFC 7591). The secret and registration token arrive hashed.
 create or replace function "better_supabase"."register_oauth_client"(
@@ -2930,9 +3032,10 @@ revoke execute on function "better_supabase"."delete_oauth_client"(text) from pu
 grant execute on function "better_supabase"."delete_oauth_client"(text) to service_role;
 
 -- Stores an authorization code after consent, under the user's grant.
+drop function if exists "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
 create or replace function "better_supabase"."create_oauth_authorization_code"(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
-  code_challenge text, ttl interval, nonce text default null)
+  code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2954,23 +3057,26 @@ begin
     raise exception 'the client is unknown, can''t use codes, or didn''t register the redirect URI' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   v_grant := "better_supabase"."oauth_grant_for"(create_oauth_authorization_code.user_id,
-    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''));
+    create_oauth_authorization_code.client_id, array(select s from unnest(regexp_split_to_array(btrim(coalesce(create_oauth_authorization_code.scope, '')), '\s+')) s where s <> ''),
+    coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into "better_supabase"."oauth_authorization_codes" ("code_hash", "client_id", "user_id", "grant_id", "redirect_uri",
-    "scope", "code_challenge", "nonce", "expires_at")
+    "scope", "resource", "code_challenge", "nonce", "expires_at")
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
-    coalesce(create_oauth_authorization_code.scope, ''), create_oauth_authorization_code.code_challenge,
+    coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
+    create_oauth_authorization_code.code_challenge,
     create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) to service_role;
+revoke execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) to service_role;
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
+drop function if exists "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text);
 create or replace function "better_supabase"."redeem_oauth_authorization_code"(
-  code_hash text, client_id text, redirect_uri text, code_challenge text)
+  code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3010,16 +3116,25 @@ begin
     ) then
     return jsonb_build_object('status', 'invalid');
   end if;
+  -- RFC 8707 section 2.2: a token request may narrow the resources of the
+  -- code but never widen them.
+  if redeem_oauth_authorization_code.resource is not null
+    and not redeem_oauth_authorization_code.resource <@ v_code."resource" then
+    return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code."user_id", 'clientId', v_code."client_id",
-    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce");
+    'grantId', v_code."grant_id", 'scope', v_code."scope", 'nonce', v_code."nonce",
+    'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
 -- Starts a device authorization (RFC 8628 section 3.2).
+drop function if exists "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer);
 create or replace function "better_supabase"."create_oauth_device_code"(
-  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
+  resource text[] default null)
 returns boolean
 language plpgsql
 security definer
@@ -3037,15 +3152,16 @@ begin
     raise exception 'the client is unknown or can''t use the device flow' using errcode = '22023', hint = 'OAUTH_CLIENT_INVALID';
   end if;
   insert into "better_supabase"."oauth_device_codes" ("device_code_hash", "user_code", "client_id", "scope",
-    "poll_interval", "expires_at")
+    "resource", "poll_interval", "expires_at")
   values (create_oauth_device_code.device_code_hash, create_oauth_device_code.user_code,
     create_oauth_device_code.client_id, coalesce(create_oauth_device_code.scope, ''),
+    coalesce(create_oauth_device_code.resource, '{}'),
     coalesce(create_oauth_device_code.poll_interval, 5), now() + create_oauth_device_code.ttl);
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer) to service_role;
+revoke execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) to service_role;
 
 -- The pending request behind a user code, for the verification page, or null.
 create or replace function "better_supabase"."oauth_device_request"(user_code text)
@@ -3060,7 +3176,7 @@ begin
     raise exception 'only the service role calls the oauth-server functions' using errcode = '42501', hint = 'OAUTH_SERVER_FORBIDDEN';
   end if;
   return (
-    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'expiresAt', d."expires_at")
+    select jsonb_build_object('clientId', d."client_id", 'scope', d."scope", 'resource', to_jsonb(d."resource"), 'expiresAt', d."expires_at")
     from "better_supabase"."oauth_device_codes" d
     where d."user_code" = oauth_device_request.user_code
       and d."status" = 'pending'
@@ -3096,7 +3212,7 @@ begin
   end if;
   if decide_oauth_device_code.approve then
     v_grant := "better_supabase"."oauth_grant_for"(decide_oauth_device_code.user_id, v_device."client_id",
-      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''));
+      array(select s from unnest(regexp_split_to_array(btrim(coalesce(v_device."scope", '')), '\s+')) s where s <> ''), v_device."resource");
   end if;
   update "better_supabase"."oauth_device_codes" d set
     "status" = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
@@ -3111,7 +3227,8 @@ grant execute on function "better_supabase"."decide_oauth_device_code"(text, uui
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text)
+drop function if exists "better_supabase"."poll_oauth_device_code"(text, text);
+create or replace function "better_supabase"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3158,12 +3275,17 @@ begin
   ) then
     return jsonb_build_object('status', 'invalid_grant');
   end if;
+  if poll_oauth_device_code.resource is not null
+    and not poll_oauth_device_code.resource <@ v_device."resource" then
+    return jsonb_build_object('status', 'invalid_grant', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_device."user_id", 'clientId', v_device."client_id",
-    'grantId', v_device."grant_id", 'scope', v_device."scope");
+    'grantId', v_device."grant_id", 'scope', v_device."scope",
+    'resource', to_jsonb(coalesce(poll_oauth_device_code.resource, v_device."resource")));
 end;
 $$;
-revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."poll_oauth_device_code"(text, text) to service_role;
+revoke execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."poll_oauth_device_code"(text, text, text[]) to service_role;
 
 -- A user's grants, newest first; revoked ones only with include_revoked.
 create or replace function "better_supabase"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
@@ -3183,6 +3305,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -3237,6 +3360,7 @@ begin
       'userId', g."user_id",
       'clientId', g."client_id",
       'scopes', to_jsonb(g."scopes"),
+      'resource', to_jsonb(g."resource"),
       'createdAt', g."created_at",
       'updatedAt', g."updated_at",
       'revokedAt', g."revoked_at") || jsonb_build_object('clientName', c."client_name") order by g."created_at" desc)
@@ -3361,6 +3485,11 @@ grant execute on function "better_supabase"."purge_oauth_server"() to service_ro
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text);
+drop function if exists "api"."redeem_oauth_authorization_code"(text, text, text, text);
+drop function if exists "api"."create_oauth_device_code"(text, text, text, text, interval, integer);
+drop function if exists "api"."poll_oauth_device_code"(text, text);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -3442,32 +3571,32 @@ as $$ select "better_supabase"."delete_oauth_client"($1) $$;
 revoke execute on function "api"."delete_oauth_client"(text) from public, anon, authenticated;
 grant execute on function "api"."delete_oauth_client"(text) to service_role;
 
-create or replace function "api"."create_oauth_authorization_code"(code_hash text, client_id text, user_id uuid, redirect_uri text, scope text, code_challenge text, ttl interval, nonce text default null)
+create or replace function "api"."create_oauth_authorization_code"(code_hash text, client_id text, user_id uuid, redirect_uri text, scope text, code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_oauth_authorization_code"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) from public, anon, authenticated;
-grant execute on function "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text) to service_role;
+as $$ select "better_supabase"."create_oauth_authorization_code"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) from public, anon, authenticated;
+grant execute on function "api"."create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[]) to service_role;
 
-create or replace function "api"."redeem_oauth_authorization_code"(code_hash text, client_id text, redirect_uri text, code_challenge text)
+create or replace function "api"."redeem_oauth_authorization_code"(code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."redeem_oauth_authorization_code"($1, $2, $3, $4) $$;
-revoke execute on function "api"."redeem_oauth_authorization_code"(text, text, text, text) from public, anon, authenticated;
-grant execute on function "api"."redeem_oauth_authorization_code"(text, text, text, text) to service_role;
+as $$ select "better_supabase"."redeem_oauth_authorization_code"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."redeem_oauth_authorization_code"(text, text, text, text, text[]) from public, anon, authenticated;
+grant execute on function "api"."redeem_oauth_authorization_code"(text, text, text, text, text[]) to service_role;
 
-create or replace function "api"."create_oauth_device_code"(device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+create or replace function "api"."create_oauth_device_code"(device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5, resource text[] default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_oauth_device_code"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."create_oauth_device_code"(text, text, text, text, interval, integer) from public, anon, authenticated;
-grant execute on function "api"."create_oauth_device_code"(text, text, text, text, interval, integer) to service_role;
+as $$ select "better_supabase"."create_oauth_device_code"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) from public, anon, authenticated;
+grant execute on function "api"."create_oauth_device_code"(text, text, text, text, interval, integer, text[]) to service_role;
 
 create or replace function "api"."oauth_device_request"(user_code text)
 returns jsonb
@@ -3487,14 +3616,14 @@ as $$ select "better_supabase"."decide_oauth_device_code"($1, $2, $3) $$;
 revoke execute on function "api"."decide_oauth_device_code"(text, uuid, boolean) from public, anon, authenticated;
 grant execute on function "api"."decide_oauth_device_code"(text, uuid, boolean) to service_role;
 
-create or replace function "api"."poll_oauth_device_code"(device_code_hash text, client_id text)
+create or replace function "api"."poll_oauth_device_code"(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."poll_oauth_device_code"($1, $2) $$;
-revoke execute on function "api"."poll_oauth_device_code"(text, text) from public, anon, authenticated;
-grant execute on function "api"."poll_oauth_device_code"(text, text) to service_role;
+as $$ select "better_supabase"."poll_oauth_device_code"($1, $2, $3) $$;
+revoke execute on function "api"."poll_oauth_device_code"(text, text, text[]) from public, anon, authenticated;
+grant execute on function "api"."poll_oauth_device_code"(text, text, text[]) to service_role;
 
 create or replace function "api"."list_oauth_grants"(user_id uuid, include_revoked boolean default false)
 returns jsonb

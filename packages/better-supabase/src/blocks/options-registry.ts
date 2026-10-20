@@ -146,6 +146,10 @@ import {
   numberSequencesSqlOptions,
 } from "./number-sequences/options.ts";
 import {
+  type OAuthServerSqlOptions,
+  oauthServerSqlOptions,
+} from "./oauth-server/options.ts";
+import {
   type OnboardingSqlOptions,
   onboardingSqlOptions,
 } from "./onboarding/options.ts";
@@ -338,7 +342,7 @@ export interface BlockOptionsRegistry {
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
   readonly imports: None;
-  readonly "oauth-server": None;
+  readonly "oauth-server": OAuthServerSqlOptions;
   readonly inbox: InboxSqlOptions;
   readonly inventory: InventorySqlOptions;
   readonly invitations: InvitationsSqlOptions;
@@ -457,7 +461,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   idempotency: NO_OPTIONS,
   identities: identitiesSqlOptions,
   imports: NO_OPTIONS,
-  "oauth-server": NO_OPTIONS,
+  "oauth-server": oauthServerSqlOptions,
   inbox: inboxSqlOptions,
   inventory: inventorySqlOptions,
   invitations: invitationsSqlOptions,

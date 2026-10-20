@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -37,7 +38,7 @@ const EVENTS: ModuleEvents<OAuthServerEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: [],
+  options: ["clientIdPattern"],
   tables: {
     clients: {
       name: "oauth_clients",
@@ -64,6 +65,7 @@ const NAMES: ModuleNames = {
         userId: "user_id",
         clientId: "client_id",
         scopes: "scopes",
+        resource: "resource",
         createdAt: "created_at",
         updatedAt: "updated_at",
         revokedAt: "revoked_at",
@@ -78,6 +80,7 @@ const NAMES: ModuleNames = {
         grantId: "grant_id",
         redirectUri: "redirect_uri",
         scope: "scope",
+        resource: "resource",
         codeChallenge: "code_challenge",
         nonce: "nonce",
         expiresAt: "expires_at",
@@ -92,6 +95,7 @@ const NAMES: ModuleNames = {
         userCode: "user_code",
         clientId: "client_id",
         scope: "scope",
+        resource: "resource",
         status: "status",
         userId: "user_id",
         grantId: "grant_id",
@@ -113,6 +117,13 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** `clientIdPattern: "slug"` accepts lower-case slugs such as `acme-cli`. */
+const CLIENT_ID_PATTERNS: Readonly<Record<string, string>> = {
+  slug: "^[a-z0-9][a-z0-9-]{2,63}$",
+};
+
+const DEFAULT_CLIENT_ID_PATTERN = "^[A-Za-z0-9._~-]{8,128}$";
 
 const guard = `
   if not (${SERVICE_CALLER}) then
@@ -172,6 +183,16 @@ function build(ctx: ModuleContext): string {
   const dc = (logical: string): string => ctx.col("devices", logical);
   const rc = (logical: string): string => ctx.col("revocations", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const configured = ctx.text("clientIdPattern", DEFAULT_CLIENT_ID_PATTERN);
+  const clientIdPattern = CLIENT_ID_PATTERNS[configured] ?? configured;
+
+  try {
+    new RegExp(clientIdPattern, "u").test("");
+  } catch {
+    throw new TypeError(
+      "blocks.oauth-server.options.clientIdPattern must be a regular expression or the preset slug",
+    );
+  }
 
   const clientJson = (alias: string): string => `jsonb_build_object(
       'clientId', ${alias}.${cc("clientId")},
@@ -190,6 +211,7 @@ function build(ctx: ModuleContext): string {
       'userId', ${alias}.${gc("userId")},
       'clientId', ${alias}.${gc("clientId")},
       'scopes', to_jsonb(${alias}.${gc("scopes")}),
+      'resource', to_jsonb(${alias}.${gc("resource")}),
       'createdAt', ${alias}.${gc("createdAt")},
       'updatedAt', ${alias}.${gc("updatedAt")},
       'revokedAt', ${alias}.${gc("revokedAt")})`;
@@ -204,7 +226,7 @@ function build(ctx: ModuleContext): string {
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 create table if not exists ${clients} (
   ${cc("id")} uuid primary key default gen_random_uuid(),
-  ${cc("clientId")} text not null unique check (${cc("clientId")} ~ '^[A-Za-z0-9._~-]{8,128}$'),
+  ${cc("clientId")} text not null unique check (${cc("clientId")} ~ ${sqlString(clientIdPattern)}),
   ${cc("secretHash")} text check (${cc("secretHash")} ~ '^[0-9a-f]{64}$'),
   ${cc("registrationTokenHash")} text check (${cc("registrationTokenHash")} ~ '^[0-9a-f]{64}$'),
   ${cc("name")} text check (length(${cc("name")}) <= 200),
@@ -228,12 +250,14 @@ create table if not exists ${grants} (
   ${gc("userId")} uuid not null references auth.users (id) on delete cascade,
   ${gc("clientId")} text not null references ${clients} (${cc("clientId")}) on delete cascade on update cascade,
   ${gc("scopes")} text[] not null default '{}',
+  ${gc("resource")} text[] not null default '{}',
   ${gc("createdAt")} timestamptz not null default now(),
   ${gc("updatedAt")} timestamptz not null default now(),
   ${gc("revokedAt")} timestamptz
 );
 create unique index if not exists oauth_grants_active_idx on ${grants} (${gc("userId")}, ${gc("clientId")}) where ${gc("revokedAt")} is null;
 create index if not exists oauth_grants_client_idx on ${grants} (${gc("clientId")});
+alter table ${grants} add column if not exists ${gc("resource")} text[] not null default '{}';
 create index if not exists oauth_grants_user_idx on ${grants} (${gc("userId")});
 ${lockTable(grants)}
 
@@ -244,6 +268,7 @@ create table if not exists ${codes} (
   ${ac("grantId")} uuid not null references ${grants} (${gc("id")}) on delete cascade,
   ${ac("redirectUri")} text,
   ${ac("scope")} text not null default '',
+  ${ac("resource")} text[] not null default '{}',
   ${ac("codeChallenge")} text not null check (${ac("codeChallenge")} ~ '^[A-Za-z0-9_-]{43}$'),
   ${ac("nonce")} text,
   ${ac("expiresAt")} timestamptz not null,
@@ -253,6 +278,7 @@ create table if not exists ${codes} (
 create index if not exists oauth_authorization_codes_expires_idx on ${codes} (${ac("expiresAt")});
 create index if not exists oauth_authorization_codes_grant_idx on ${codes} (${ac("grantId")});
 create index if not exists oauth_authorization_codes_client_idx on ${codes} (${ac("clientId")});
+alter table ${codes} add column if not exists ${ac("resource")} text[] not null default '{}';
 create index if not exists oauth_authorization_codes_user_idx on ${codes} (${ac("userId")});
 ${lockTable(codes)}
 
@@ -261,6 +287,7 @@ create table if not exists ${devices} (
   ${dc("userCode")} text not null check (${dc("userCode")} ~ '^[A-Z0-9]{6,12}$'),
   ${dc("clientId")} text not null references ${clients} (${cc("clientId")}) on delete cascade on update cascade,
   ${dc("scope")} text not null default '',
+  ${dc("resource")} text[] not null default '{}',
   ${dc("status")} text not null default 'pending' check (${dc("status")} in ('pending', 'approved', 'denied')),
   ${dc("userId")} uuid references auth.users (id) on delete cascade,
   ${dc("grantId")} uuid references ${grants} (${gc("id")}) on delete cascade,
@@ -275,6 +302,7 @@ create unique index if not exists oauth_device_codes_user_code_idx on ${devices}
 create index if not exists oauth_device_codes_expires_idx on ${devices} (${dc("expiresAt")});
 create index if not exists oauth_device_codes_grant_idx on ${devices} (${dc("grantId")});
 create index if not exists oauth_device_codes_client_idx on ${devices} (${dc("clientId")});
+alter table ${devices} add column if not exists ${dc("resource")} text[] not null default '{}';
 create index if not exists oauth_device_codes_user_idx on ${devices} (${dc("userId")});
 ${lockTable(devices)}
 
@@ -289,7 +317,8 @@ ${lockTable(revocations)}
 
 -- The user's active grant for the client, widened to the scopes; a new one
 -- when there is none. Only the definer functions below call it.
-create or replace function ${fn("oauth_grant_for")}(user_id uuid, client_id text, scopes text[])
+drop function if exists ${fn("oauth_grant_for")}(uuid, text, text[]);
+create or replace function ${fn("oauth_grant_for")}(user_id uuid, client_id text, scopes text[], resource text[] default '{}')
 returns uuid
 language plpgsql
 security definer
@@ -300,22 +329,24 @@ declare
 begin${guard}
   update ${grants} g
   set ${gc("scopes")} = array(select distinct s from unnest(g.${gc("scopes")} || oauth_grant_for.scopes) s order by s),
+    ${gc("resource")} = array(select distinct r from unnest(g.${gc("resource")} || coalesce(oauth_grant_for.resource, '{}')) r order by r),
     ${gc("updatedAt")} = now()
   where g.${gc("userId")} = oauth_grant_for.user_id
     and g.${gc("clientId")} = oauth_grant_for.client_id
     and g.${gc("revokedAt")} is null
   returning g.* into v_row;
   if v_row.${gc("id")} is null then
-    insert into ${grants} (${gc("userId")}, ${gc("clientId")}, ${gc("scopes")})
+    insert into ${grants} (${gc("userId")}, ${gc("clientId")}, ${gc("scopes")}, ${gc("resource")})
     values (oauth_grant_for.user_id, oauth_grant_for.client_id,
-      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s))
+      array(select distinct s from unnest(oauth_grant_for.scopes) s order by s),
+      array(select distinct r from unnest(coalesce(oauth_grant_for.resource, '{}')) r order by r))
     returning * into v_row;
     ${grantEvent(ctx, "oauth_grant.created", "v_row")}
   end if;
   return v_row.${gc("id")};
 end;
 $$;
-revoke execute on function ${fn("oauth_grant_for")}(uuid, text, text[]) from public, anon, authenticated, service_role;
+revoke execute on function ${fn("oauth_grant_for")}(uuid, text, text[], text[]) from public, anon, authenticated, service_role;
 
 -- Registers a client (RFC 7591). The secret and registration token arrive hashed.
 create or replace function ${fn("register_oauth_client")}(
@@ -456,9 +487,10 @@ $$;
 ${serviceGrant(`${fn("delete_oauth_client")}(text)`)}
 
 -- Stores an authorization code after consent, under the user's grant.
+drop function if exists ${fn("create_oauth_authorization_code")}(text, text, uuid, text, text, text, interval, text);
 create or replace function ${fn("create_oauth_authorization_code")}(
   code_hash text, client_id text, user_id uuid, redirect_uri text, scope text,
-  code_challenge text, ttl interval, nonce text default null)
+  code_challenge text, ttl interval, nonce text default null, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -477,22 +509,25 @@ begin${guard}
     ${fail("OAUTH_CLIENT_INVALID", "the client is unknown, can't use codes, or didn't register the redirect URI", "22023")}
   end if;
   v_grant := ${fn("oauth_grant_for")}(create_oauth_authorization_code.user_id,
-    create_oauth_authorization_code.client_id, ${scopes("create_oauth_authorization_code.scope")});
+    create_oauth_authorization_code.client_id, ${scopes("create_oauth_authorization_code.scope")},
+    coalesce(create_oauth_authorization_code.resource, '{}'));
   insert into ${codes} (${ac("codeHash")}, ${ac("clientId")}, ${ac("userId")}, ${ac("grantId")}, ${ac("redirectUri")},
-    ${ac("scope")}, ${ac("codeChallenge")}, ${ac("nonce")}, ${ac("expiresAt")})
+    ${ac("scope")}, ${ac("resource")}, ${ac("codeChallenge")}, ${ac("nonce")}, ${ac("expiresAt")})
   values (create_oauth_authorization_code.code_hash, create_oauth_authorization_code.client_id,
     create_oauth_authorization_code.user_id, v_grant, create_oauth_authorization_code.redirect_uri,
-    coalesce(create_oauth_authorization_code.scope, ''), create_oauth_authorization_code.code_challenge,
+    coalesce(create_oauth_authorization_code.scope, ''), coalesce(create_oauth_authorization_code.resource, '{}'),
+    create_oauth_authorization_code.code_challenge,
     create_oauth_authorization_code.nonce, now() + create_oauth_authorization_code.ttl);
   return jsonb_build_object('grantId', v_grant);
 end;
 $$;
-${serviceGrant(`${fn("create_oauth_authorization_code")}(text, text, uuid, text, text, text, interval, text)`)}
+${serviceGrant(`${fn("create_oauth_authorization_code")}(text, text, uuid, text, text, text, interval, text, text[])`)}
 
 -- Consumes a code once. code_challenge is S256 of the presented verifier.
 -- A code presented twice revokes its grant (RFC 9700 section 4.5).
+drop function if exists ${fn("redeem_oauth_authorization_code")}(text, text, text, text);
 create or replace function ${fn("redeem_oauth_authorization_code")}(
-  code_hash text, client_id text, redirect_uri text, code_challenge text)
+  code_hash text, client_id text, redirect_uri text, code_challenge text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -529,15 +564,24 @@ begin${guard}
     ) then
     return jsonb_build_object('status', 'invalid');
   end if;
+  -- RFC 8707 section 2.2: a token request may narrow the resources of the
+  -- code but never widen them.
+  if redeem_oauth_authorization_code.resource is not null
+    and not redeem_oauth_authorization_code.resource <@ v_code.${ac("resource")} then
+    return jsonb_build_object('status', 'invalid', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_code.${ac("userId")}, 'clientId', v_code.${ac("clientId")},
-    'grantId', v_code.${ac("grantId")}, 'scope', v_code.${ac("scope")}, 'nonce', v_code.${ac("nonce")});
+    'grantId', v_code.${ac("grantId")}, 'scope', v_code.${ac("scope")}, 'nonce', v_code.${ac("nonce")},
+    'resource', to_jsonb(coalesce(redeem_oauth_authorization_code.resource, v_code.${ac("resource")})));
 end;
 $$;
-${serviceGrant(`${fn("redeem_oauth_authorization_code")}(text, text, text, text)`)}
+${serviceGrant(`${fn("redeem_oauth_authorization_code")}(text, text, text, text, text[])`)}
 
 -- Starts a device authorization (RFC 8628 section 3.2).
+drop function if exists ${fn("create_oauth_device_code")}(text, text, text, text, interval, integer);
 create or replace function ${fn("create_oauth_device_code")}(
-  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5)
+  device_code_hash text, user_code text, client_id text, scope text, ttl interval, poll_interval integer default 5,
+  resource text[] default null)
 returns boolean
 language plpgsql
 security definer
@@ -552,14 +596,15 @@ begin${guard}
     ${fail("OAUTH_CLIENT_INVALID", "the client is unknown or can't use the device flow", "22023")}
   end if;
   insert into ${devices} (${dc("deviceCodeHash")}, ${dc("userCode")}, ${dc("clientId")}, ${dc("scope")},
-    ${dc("pollInterval")}, ${dc("expiresAt")})
+    ${dc("resource")}, ${dc("pollInterval")}, ${dc("expiresAt")})
   values (create_oauth_device_code.device_code_hash, create_oauth_device_code.user_code,
     create_oauth_device_code.client_id, coalesce(create_oauth_device_code.scope, ''),
+    coalesce(create_oauth_device_code.resource, '{}'),
     coalesce(create_oauth_device_code.poll_interval, 5), now() + create_oauth_device_code.ttl);
   return true;
 end;
 $$;
-${serviceGrant(`${fn("create_oauth_device_code")}(text, text, text, text, interval, integer)`)}
+${serviceGrant(`${fn("create_oauth_device_code")}(text, text, text, text, interval, integer, text[])`)}
 
 -- The pending request behind a user code, for the verification page, or null.
 create or replace function ${fn("oauth_device_request")}(user_code text)
@@ -571,7 +616,7 @@ set search_path = ''
 as $$
 begin${guard}
   return (
-    select jsonb_build_object('clientId', d.${dc("clientId")}, 'scope', d.${dc("scope")}, 'expiresAt', d.${dc("expiresAt")})
+    select jsonb_build_object('clientId', d.${dc("clientId")}, 'scope', d.${dc("scope")}, 'resource', to_jsonb(d.${dc("resource")}), 'expiresAt', d.${dc("expiresAt")})
     from ${devices} d
     where d.${dc("userCode")} = oauth_device_request.user_code
       and d.${dc("status")} = 'pending'
@@ -603,7 +648,7 @@ begin${guard}
   end if;
   if decide_oauth_device_code.approve then
     v_grant := ${fn("oauth_grant_for")}(decide_oauth_device_code.user_id, v_device.${dc("clientId")},
-      ${scopes(`v_device.${dc("scope")}`)});
+      ${scopes(`v_device.${dc("scope")}`)}, v_device.${dc("resource")});
   end if;
   update ${devices} d set
     ${dc("status")} = case when decide_oauth_device_code.approve then 'approved' else 'denied' end,
@@ -617,7 +662,8 @@ ${serviceGrant(`${fn("decide_oauth_device_code")}(text, uuid, boolean)`)}
 
 -- A token request's poll (RFC 8628 section 3.5): pending, slow_down,
 -- access_denied, expired_token, invalid_grant, or ok once.
-create or replace function ${fn("poll_oauth_device_code")}(device_code_hash text, client_id text)
+drop function if exists ${fn("poll_oauth_device_code")}(text, text);
+create or replace function ${fn("poll_oauth_device_code")}(device_code_hash text, client_id text, resource text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -661,11 +707,16 @@ begin${guard}
   ) then
     return jsonb_build_object('status', 'invalid_grant');
   end if;
+  if poll_oauth_device_code.resource is not null
+    and not poll_oauth_device_code.resource <@ v_device.${dc("resource")} then
+    return jsonb_build_object('status', 'invalid_grant', 'invalidTarget', true);
+  end if;
   return jsonb_build_object('status', 'ok', 'userId', v_device.${dc("userId")}, 'clientId', v_device.${dc("clientId")},
-    'grantId', v_device.${dc("grantId")}, 'scope', v_device.${dc("scope")});
+    'grantId', v_device.${dc("grantId")}, 'scope', v_device.${dc("scope")},
+    'resource', to_jsonb(coalesce(poll_oauth_device_code.resource, v_device.${dc("resource")})));
 end;
 $$;
-${serviceGrant(`${fn("poll_oauth_device_code")}(text, text)`)}
+${serviceGrant(`${fn("poll_oauth_device_code")}(text, text, text[])`)}
 
 -- A user's grants, newest first; revoked ones only with include_revoked.
 create or replace function ${fn("list_oauth_grants")}(user_id uuid, include_revoked boolean default false)
@@ -868,17 +919,18 @@ function contract(): readonly ModuleContractFunction[] {
         "text",
         "interval",
         "text",
+        "text[]",
       ],
       returns: "jsonb",
     },
     {
       name: "redeem_oauth_authorization_code",
-      args: ["text", "text", "text", "text"],
+      args: ["text", "text", "text", "text", "text[]"],
       returns: "jsonb",
     },
     {
       name: "create_oauth_device_code",
-      args: ["text", "text", "text", "text", "interval", "integer"],
+      args: ["text", "text", "text", "text", "interval", "integer", "text[]"],
       returns: "boolean",
     },
     { name: "oauth_device_request", args: ["text"], returns: "jsonb" },
@@ -889,7 +941,7 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "poll_oauth_device_code",
-      args: ["text", "text"],
+      args: ["text", "text", "text[]"],
       returns: "jsonb",
     },
     { name: "list_oauth_grants", args: ["uuid", "boolean"], returns: "jsonb" },

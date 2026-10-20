@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+
 import { moduleBody } from "../../../src/sql/render.ts";
 
-const body = () => moduleBody("oauth-server", {})!;
+const body = (modules: AnyBlocksConfig = {}) =>
+  moduleBody("oauth-server", { modules })!;
 
 const SERVICE_FUNCTIONS = [
   '"register_oauth_client"(text, text, text, text, text[], text[], text, text, jsonb, uuid)',
@@ -12,12 +15,12 @@ const SERVICE_FUNCTIONS = [
   '"update_oauth_client"(text, text, text[], text[], text, jsonb)',
   '"rotate_oauth_client_secret"(text, text)',
   '"delete_oauth_client"(text)',
-  '"create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text)',
-  '"redeem_oauth_authorization_code"(text, text, text, text)',
-  '"create_oauth_device_code"(text, text, text, text, interval, integer)',
+  '"create_oauth_authorization_code"(text, text, uuid, text, text, text, interval, text, text[])',
+  '"redeem_oauth_authorization_code"(text, text, text, text, text[])',
+  '"create_oauth_device_code"(text, text, text, text, interval, integer, text[])',
   '"oauth_device_request"(text)',
   '"decide_oauth_device_code"(text, uuid, boolean)',
-  '"poll_oauth_device_code"(text, text)',
+  '"poll_oauth_device_code"(text, text, text[])',
   '"list_oauth_grants"(uuid, boolean)',
   '"revoke_oauth_grant"(uuid)',
   '"revoke_oauth_token"(text, timestamptz, uuid)',
@@ -43,7 +46,7 @@ describe("oauth-server module", () => {
       SERVICE_FUNCTIONS.length + 1,
     );
     expect(sql).toContain(
-      'revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[]) from public, anon, authenticated, service_role;',
+      'revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;',
     );
   });
 
@@ -100,5 +103,27 @@ describe("oauth-server module", () => {
     );
 
     expect(check).toContain("return not exists (");
+  });
+
+  it("stores RFC 8707 resources and refuses a wider request at exchange", () => {
+    const sql = body();
+
+    expect(sql).toContain(`"resource" text[] not null default '{}'`);
+    expect(sql).toContain(
+      'not redeem_oauth_authorization_code.resource <@ v_code."resource"',
+    );
+    expect(sql).toContain("'invalidTarget', true");
+  });
+
+  it("checks client ids against a configurable pattern", () => {
+    expect(body()).toContain(
+      `check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$')`,
+    );
+    expect(
+      body({ "oauth-server": { options: { clientIdPattern: "slug" } } }),
+    ).toContain(`check ("client_id" ~ '^[a-z0-9][a-z0-9-]{2,63}$')`);
+    expect(() =>
+      body({ "oauth-server": { options: { clientIdPattern: "(" } } }),
+    ).toThrow("clientIdPattern");
   });
 });
