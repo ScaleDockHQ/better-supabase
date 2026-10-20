@@ -9,10 +9,10 @@ packages:
 catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react and
   # workflow move together.
-  "@ai-sdk/anthropic": 4.0.81
-  "@ai-sdk/mcp": 2.0.77
-  "@ai-sdk/react": 4.0.146
-  "@ai-sdk/workflow": 2.0.74
+  "@ai-sdk/anthropic": 4.0.82
+  "@ai-sdk/mcp": 2.0.78
+  "@ai-sdk/react": 4.0.147
+  "@ai-sdk/workflow": 2.0.75
   "@arethetypeswrong/cli": 0.18.5
   "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
@@ -40,9 +40,9 @@ catalog:
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
   "@opentelemetry/api": 1.9.1
-  "@orpc/contract": 2.0.0-beta.43
-  "@orpc/openapi": 2.0.0-beta.43
-  "@orpc/server": 2.0.0-beta.43
+  "@orpc/contract": 2.0.0-beta.44
+  "@orpc/openapi": 2.0.0-beta.44
+  "@orpc/server": 2.0.0-beta.44
   "@playwright/test": 1.64.1
   "@powersync/common": 2.3.1
   "@powersync/react-native": 2.3.1
@@ -63,15 +63,15 @@ catalog:
   "@t3-oss/env-nextjs": 0.13.11
   "@tailwindcss/postcss": 4.3.3
   "@tanstack/db": 0.15.0
-  "@tanstack/query-core": 5.104.3
-  "@tanstack/react-query": 5.104.3
-  "@tanstack/react-start": 1.169.2
+  "@tanstack/query-core": 5.104.4
+  "@tanstack/react-query": 5.104.4
+  "@tanstack/react-start": 1.169.3
   "@tanstack/react-table": 9.3.1
   "@tanstack/react-virtual": 3.14.21
   "@types/express": 5.0.6
   "@types/koa": 3.0.3
   "@types/mdx": 2.0.14
-  "@types/node": 24.19.2
+  "@types/node": 26.6.5
   "@types/pg": 8.23.1
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
@@ -84,9 +84,9 @@ catalog:
   "@workflow/world": 5.0.4
   "@workflow/world-postgres": 5.0.4
   "@workflow/world-testing": 5.0.5
-  "@wrksz/themes": 2.0.3
+  "@wrksz/themes": 2.0.4
   "@xyflow/react": 12.12.0
-  ai: 7.0.142
+  ai: 7.0.143
   ajv: 8.20.0
   ajv-formats: 3.0.1
   astro: 7.4.0
@@ -111,15 +111,15 @@ catalog:
   elkjs: 0.12.0
   elysia: 1.4.30
   # eve peers on a recent ai floor (0.80.0 on ^7.0.137), so it moves with the ai pin above.
-  eve: 0.80.0
+  eve: 0.80.1
   expo: 57.0.26
   expo-constants: 57.0.20
   expo-linking: 57.0.11
-  expo-notifications: 58.1.4
+  expo-notifications: 58.1.5
   expo-router: 57.0.24
-  expo-secure-store: 57.0.4
-  expo-server: 57.0.3
-  expo-web-browser: 57.0.3
+  expo-secure-store: 58.0.2
+  expo-server: 58.0.5
+  expo-web-browser: 58.0.6
   express: 5.3.0
   fastest-levenshtein: 1.0.16
   fastify: 5.12.7
@@ -129,7 +129,7 @@ catalog:
   fumadocs-typescript: 5.5.2
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
   fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
-  h3: 2.0.2
+  h3: 2.0.5
   hono: 4.13.13
   html-to-image: 1.11.13
   input-otp: 1.5.0
@@ -137,7 +137,7 @@ catalog:
   knip: 6.41.0
   koa: 3.2.1
   lefthook: 2.2.1
-  lucide-react: 1.56.0
+  lucide-react: 1.59.0
   next: 16.4.2
   next-intl: 4.14.9
   next-themes: 0.4.6
@@ -145,7 +145,7 @@ catalog:
   oxfmt: 0.71.0
   "@shadcn/lint": 0.2.1
   eslint-plugin-playwright: 2.12.1
-  eslint-plugin-turbo: 2.11.8
+  eslint-plugin-turbo: 2.11.9
   oxlint-plugin-react-doctor: 0.9.18
   oxlint: 1.88.0
   oxlint-tsgolint: 7.0.2004
@@ -165,11 +165,11 @@ catalog:
   # React Native 0.86 only.
   react-native: 0.86.3
   react-native-safe-area-context: 5.10.1
-  react-native-screens: 4.29.0
+  react-native-screens: 4.30.0
   react-native-web: 0.21.4
   rolldown: 1.2.14
   server-only: 0.0.1
-  shadcn: 4.21.5
+  shadcn: 4.22.0
   shiki: 4.5.0
   simple-icons: 16.35.0
   smol-toml: 1.9.1
@@ -178,7 +178,7 @@ catalog:
   stripe: 23.0.0
   # debug's optional peer. Pinned to the copy the examples resolve, so
   # better-supabase and the Next.js examples share one next instance.
-  supports-color: 8.1.1
+  supports-color: 11.0.0
   # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
   # ports when config.toml changes them.
   supabase: 2.121.0
@@ -188,7 +188,7 @@ catalog:
   temporal-polyfill: 1.0.6
   tinyexec: 1.3.1
   tsdown: 0.23.1
-  turbo: 2.11.8
+  turbo: 2.11.9
   tw-animate-css: 1.4.0
   typescript: 7.0.2
   valibot: 1.5.0
