@@ -11,6 +11,7 @@ export type NumberSequenceEntityOptions = {
   readonly format: string;
   /** A tenant's own format: `column` is `schema.table.column`, `key` holds the tenant id (default `id`). */
   readonly formatFrom?: { readonly column: string; readonly key?: string };
+  readonly periodFrom?: { readonly column: string; readonly key?: string };
   readonly table?: string;
   readonly column?: string;
   readonly sequenceColumn?: string;

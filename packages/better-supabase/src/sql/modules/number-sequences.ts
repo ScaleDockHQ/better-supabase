@@ -51,16 +51,19 @@ const NAMES: ModuleNames = {
 const ENTITY = /^[a-z][a-z0-9_]*$/;
 const PREDICATE = /^[A-Za-z0-9_.'"=<>!() \t-]+$/;
 
+interface TenantColumn {
+  readonly table: string;
+  readonly column: string;
+  readonly key: string;
+}
+
 interface SequenceEntity {
   readonly name: string;
   readonly period: "none" | "year" | "month" | "fiscal" | "format";
   readonly fiscalMonth: number;
   readonly format: string;
-  readonly formatFrom?: {
-    readonly table: string;
-    readonly column: string;
-    readonly key: string;
-  };
+  readonly formatFrom?: TenantColumn;
+  readonly periodFrom?: TenantColumn;
   readonly table?: string;
   readonly column?: string;
   readonly sequenceColumn?: string;
@@ -80,17 +83,14 @@ function formatPeriod(format: string): "none" | "year" | "month" {
   return format.includes("{mm}") ? "month" : "year";
 }
 
-function formatSource(
-  where: string,
-  value: unknown,
-): SequenceEntity["formatFrom"] {
+function tenantSource(where: string, value: unknown): TenantColumn | undefined {
   if (value === undefined) {
     return undefined;
   }
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(
-      `${where}.formatFrom must be { column: "schema.table.column", key? }`,
+      `${where} must be { column: "schema.table.column", key? }`,
     );
   }
 
@@ -99,16 +99,14 @@ function formatSource(
   const key = record["key"] ?? "id";
 
   if (typeof column !== "string") {
-    throw new TypeError(
-      `${where}.formatFrom.column must be "schema.table.column"`,
-    );
+    throw new TypeError(`${where}.column must be "schema.table.column"`);
   }
 
   if (typeof key !== "string" || !ENTITY.test(key)) {
-    throw new TypeError(`${where}.formatFrom.key must be a column name`);
+    throw new TypeError(`${where}.key must be a column name`);
   }
 
-  return { ...columnRef(`${where}.formatFrom.column`, column), key };
+  return { ...columnRef(`${where}.column`, column), key };
 }
 
 function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
@@ -181,7 +179,8 @@ function entity(name: string, entry: unknown): SequenceEntity {
     throw new TypeError(`${where}.format must be a short template`);
   }
 
-  const formatFrom = formatSource(where, record["formatFrom"]);
+  const formatFrom = tenantSource(`${where}.formatFrom`, record["formatFrom"]);
+  const periodFrom = tenantSource(`${where}.periodFrom`, record["periodFrom"]);
 
   const kind =
     stated === "format" && formatFrom === undefined
@@ -260,6 +259,7 @@ function entity(name: string, entry: unknown): SequenceEntity {
     fiscalMonth,
     format,
     ...(formatFrom === undefined ? {} : { formatFrom }),
+    ...(periodFrom === undefined ? {} : { periodFrom }),
     ...(typeof table === "string" && typeof column === "string"
       ? { table, column }
       : {}),
@@ -311,6 +311,32 @@ function periodSql(item: SequenceEntity, at: string, format: string): string {
       return never;
     }
   }
+}
+
+function periodOf(
+  ctx: ModuleContext,
+  item: SequenceEntity,
+  args: {
+    readonly at: string;
+    readonly format: string;
+    readonly tenant: string;
+  },
+): string {
+  const own = periodSql(item, args.at, args.format);
+
+  if (item.periodFrom === undefined) {
+    return own;
+  }
+
+  const stamp = `${args.at} at time zone 'utc'`;
+
+  return `case ${ctx.fn("number_period")}(${args.tenant}, ${sqlString(item.name)})
+      when 'none' then ''
+      when 'year' then to_char(${stamp}, 'YYYY')
+      when 'month' then to_char(${stamp}, 'YYYY-MM')
+      when 'format' then better_supabase.number_format_period(${args.format}, ${args.at})
+      else ${own}
+    end`;
 }
 
 const rowAt = (column: string): string =>
@@ -433,15 +459,23 @@ function syncSource(ctx: ModuleContext, item: SequenceEntity): SyncSource {
       ? undefined
       : `t.${sqlIdent(item.sequenceColumn)}`;
 
-  if (item.formatFrom !== undefined) {
-    const format = formatOf(ctx, item, `t.${sqlIdent(item.tenantColumn)}`);
+  const owner = `t.${sqlIdent(item.tenantColumn)}`;
+  const format = formatOf(ctx, item, owner);
 
+  const rowPeriod =
+    item.periodColumn === undefined
+      ? undefined
+      : periodOf(ctx, item, {
+          at: rowAt(`t.${sqlIdent(item.periodColumn)}`),
+          format,
+          tenant: owner,
+        });
+
+  if (item.formatFrom !== undefined) {
     const period =
-      item.period === "none"
+      item.periodFrom === undefined && item.period === "none"
         ? "''"
-        : item.periodColumn === undefined
-          ? undefined
-          : periodSql(item, rowAt(`t.${sqlIdent(item.periodColumn)}`), format);
+        : rowPeriod;
 
     return sequence === undefined
       ? {
@@ -453,7 +487,10 @@ function syncSource(ctx: ModuleContext, item: SequenceEntity): SyncSource {
   }
 
   const { pattern, groups } = formatPattern(item.format);
-  const period = syncPeriod(item, groups);
+
+  const period =
+    item.periodFrom === undefined ? syncPeriod(item, groups) : rowPeriod;
+
   const group = groups.get("n");
 
   const number =
@@ -477,9 +514,11 @@ function syncEntity(
     const problem =
       number === undefined
         ? `the ${item.name} format has no {n} to read a number from`
-        : item.formatFrom === undefined
-          ? `the ${item.name} format holds no period; set options.entities.${item.name}.periodColumn`
-          : `the ${item.name} format is chosen per tenant; set options.entities.${item.name}.periodColumn`;
+        : item.periodFrom === undefined
+          ? item.formatFrom === undefined
+            ? `the ${item.name} format holds no period; set options.entities.${item.name}.periodColumn`
+            : `the ${item.name} format is chosen per tenant; set options.entities.${item.name}.periodColumn`
+          : `the ${item.name} period is chosen per tenant; set options.entities.${item.name}.periodColumn`;
 
     return `  if ${where} then
     ${fail("NUMBER_SYNC_UNSUPPORTED", problem, "22023")}
@@ -536,7 +575,7 @@ function periodCaseOf(
 
   const branches = items.map(
     (item) =>
-      `    when ${sqlString(item.name)} then ${periodSql(item, args.at, formatOf(ctx, item, args.tenant))}`,
+      `    when ${sqlString(item.name)} then ${periodOf(ctx, item, { at: args.at, format: formatOf(ctx, item, args.tenant), tenant: args.tenant })}`,
   );
 
   return `case ${args.entity}\n${branches.join("\n")}\n    else null\n  end`;
@@ -648,6 +687,48 @@ declare
 begin
   v_format := ${resolve};${check}
   return v_format;
+end;
+$$;
+${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
+}
+
+function periodFunction(
+  ctx: ModuleContext,
+  items: readonly SequenceEntity[],
+): string {
+  const fn = ctx.fn("number_period");
+
+  const branches = items.flatMap((item) => {
+    const from = item.periodFrom;
+
+    return from === undefined
+      ? []
+      : [
+          `    when ${sqlString(item.name)} then (select nullif(btrim(s.${from.column}::text), '') from ${from.table} s where s.${sqlIdent(from.key)} = p_tenant)`,
+        ];
+  });
+
+  const resolve =
+    branches.length === 0
+      ? "null"
+      : `case p_entity\n${branches.join("\n")}\n    else null\n  end`;
+
+  return `
+create or replace function ${fn}(p_tenant ${ctx.idType}, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := ${resolve};
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    ${fail("NUMBER_PERIOD_INVALID", "the tenant's number period must be none, year, month or format", "22023")}
+  end if;
+  return v_period;
 end;
 $$;
 ${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
@@ -873,6 +954,7 @@ end;
 $$;
 ${serviceGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}
 ${formatFunction(ctx, items)}
+${periodFunction(ctx, items)}
 ${previewFunction(ctx, items)}
 ${syncFunction(ctx, items)}
 ${triggers}`;

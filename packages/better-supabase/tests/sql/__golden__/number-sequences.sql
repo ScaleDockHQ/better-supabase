@@ -204,6 +204,26 @@ $$;
 revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
+create or replace function "better_supabase"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := null;
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    raise exception 'the tenant''s number period must be none, year, month or format' using errcode = '22023', hint = 'NUMBER_PERIOD_INVALID';
+  end if;
+  return v_period;
+end;
+$$;
+revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
+
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text
 language plpgsql
@@ -501,6 +521,26 @@ $$;
 revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
+create or replace function "better_supabase"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := null;
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    raise exception 'the tenant''s number period must be none, year, month or format' using errcode = '22023', hint = 'NUMBER_PERIOD_INVALID';
+  end if;
+  return v_period;
+end;
+$$;
+revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
+
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text
 language plpgsql
@@ -791,6 +831,26 @@ $$;
 revoke execute on function "app_private"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."number_format"(uuid, text) to service_role;
 
+create or replace function "app_private"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := null;
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    raise exception 'the tenant''s number period must be none, year, month or format' using errcode = '22023', hint = 'NUMBER_PERIOD_INVALID';
+  end if;
+  return v_period;
+end;
+$$;
+revoke execute on function "app_private"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "app_private"."number_period"(uuid, text) to service_role;
+
 create or replace function "app_private"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text
 language plpgsql
@@ -1079,6 +1139,26 @@ $$;
 revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
 
+create or replace function "better_supabase"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := null;
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    raise exception 'the tenant''s number period must be none, year, month or format' using errcode = '22023', hint = 'NUMBER_PERIOD_INVALID';
+  end if;
+  return v_period;
+end;
+$$;
+revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
+
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text
 language plpgsql
@@ -1229,6 +1309,15 @@ set search_path = ''
 as $$ select "better_supabase"."number_format"($1, $2) $$;
 revoke execute on function "api"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."number_format"(uuid, text) to service_role;
+
+create or replace function "api"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."number_period"($1, $2) $$;
+revoke execute on function "api"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "api"."number_period"(uuid, text) to service_role;
 
 create or replace function "api"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text
@@ -1482,6 +1571,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_format"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_format"(uuid, text) to service_role;
+
+create or replace function "better_supabase"."number_period"(p_tenant uuid, p_entity text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_period text;
+begin
+  v_period := null;
+  if v_period is not null and v_period not in ('none', 'year', 'month', 'format') then
+    raise exception 'the tenant''s number period must be none, year, month or format' using errcode = '22023', hint = 'NUMBER_PERIOD_INVALID';
+  end if;
+  return v_period;
+end;
+$$;
+revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
 
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now())
 returns text

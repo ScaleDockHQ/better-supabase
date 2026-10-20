@@ -57,6 +57,45 @@ invoice: {
 },
 ```
 
+## Periods per tenant
+
+A format says how a number looks, not always when its counter restarts. `INV-{yyyy}{mm}-{n}` shows the month, and with `period: "format"` it restarts every month, but a tenant may want it to count on through the year. Set `periodFrom` to the column that holds each tenant's period, as `schema.table.column`, with `key` naming the column that matches the tenant id (default `id`). The column holds `none`, `year`, `month` or `format`, as text or an enum:
+
+| Value         | The counter restarts                                    |
+| ------------- | ------------------------------------------------------- |
+| `none`        | Never                                                   |
+| `year`        | Every year, whatever the format shows                   |
+| `month`       | Every month                                             |
+| `format`      | As the tenant's format decides, like `period: "format"` |
+| null or empty | As the entity's `period` decides                        |
+
+Any other value fails the assignment with `NUMBER_PERIOD_INVALID`. The year and month come from `periodColumn` when it is set, otherwise from the time of assignment, in UTC. `number_period(tenant, entity)` returns the value a tenant chose, or null.
+
+A tenant with the format `INV-{yyyy}{mm}-{n}` and the period `year` gets `INV-202601-1`, `INV-202602-2` and then `INV-202701-1` in the next year. Another tenant with the same format and an empty period follows `period: "format"` and restarts every month:
+
+```ts title="better-supabase.config.ts"
+invoice: {
+  period: "format",
+  format: "{yyyy}-{n:4}",
+  formatFrom: { column: "public.organizations.invoice_number_format" },
+  periodFrom: { column: "public.organizations.invoice_number_reset" },
+  table: "public.invoices",
+  column: "formatted_number",
+  sequenceColumn: "number",
+  tenantColumn: "organization_id",
+  periodColumn: "issued_on",
+  assignOn: "new.status = 'sent'",
+},
+```
+
+```sql
+update public.organizations
+set invoice_number_format = 'INV-{yyyy}{mm}-{n}', invoice_number_reset = 'year'
+where id = '6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69';
+```
+
+The counters are kept per period, so a tenant who changes its period starts a counter for the new one. Run `sync_number_sequences(tenant, entity)` in the same transaction as the change, and the new counter starts past the numbers the tenant already has in that period. Sync reads the period each tenant has chosen now, so an entity with `periodFrom` needs `periodColumn` to sync (see [existing numbers](#existing-numbers)).
+
 `number_format(tenant, entity)` returns the format a tenant uses. Every number is still assigned in the document's transaction and never changes, and a format change only affects the numbers assigned after it.
 
 ## Previews and permissions
@@ -130,7 +169,7 @@ It reads the entities that set `table` and `column`, matches each value against 
 
 Without either, the function fails with `NUMBER_SYNC_UNSUPPORTED` for that entity.
 
-With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
+With `formatFrom`, each row is read with its tenant's format, and the period comes from `periodColumn`, which such an entity needs unless its `period` is `none`. With `periodFrom`, the period comes from `periodColumn` in the period each tenant has chosen, and the entity always needs `periodColumn`. With `sequenceColumn`, the number comes from that column instead of the formatted value. It returns the number of counters it wrote. It is service-only, like `next_number`, and runs in the caller's transaction.
 
 Run it after anything that writes numbered rows directly. After seeding, end `supabase/seed.sql` with `select better_supabase.sync_number_sequences();`, so `supabase db reset` leaves the counters past the seeded documents. After an import, call it in the same transaction as the import. After adopting tables whose documents already have numbers, run it once in a data migration.
 
