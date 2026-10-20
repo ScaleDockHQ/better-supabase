@@ -110,6 +110,35 @@ counts. Every column, relation and operator is typed, and enum columns only
 accept their allowed values. See [Filtering](/docs/repository/filtering) and
 [Writing](/docs/repository/writing) for the full list.
 
+## Replacing a supabase-js access layer
+
+An app that wraps supabase-js in its own access layer usually casts CHECK
+columns and embedded rows by hand. After `better-supabase gen`, the typed
+client from `betterSupabase.$client` (and any `SupabaseClient<Database>` built
+with the generated `Database`) already carries both:
+
+```ts
+const { data } = await client
+  .from("customers")
+  .select("id, status, customer_tags(tag_id)")
+  .throwOnError();
+// data[number]: { id: string; status: 'lead' | 'active' | 'archived'; customer_tags: { tag_id: string }[] }
+```
+
+The `status` union comes from the column's CHECK constraint, so the
+`as 'lead' | 'active'` casts can go. The embedded `customer_tags` shape comes
+from the foreign keys in `database.types.ts`.
+
+Repositories express the same embed as `include`:
+
+| supabase-js select                     | Repository                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `.select('id, customer_tags(tag_id)')` | `findMany({ select: ['id'], include: { customerTags: { select: ['tagId'] } } })` |
+
+Move a call over when you want camelCase rows, a `Result` instead of
+`{ data, error }`, or plugins such as tenant scoping. Leave the others on
+`$client`, which always uses database names.
+
 ## Errors
 
 supabase-js returns `{ data, error }` with a `PostgrestError`. Repositories
