@@ -107,4 +107,53 @@ describe("vercelQueueBackend", () => {
 
     expect(() => backend.unschedule("x")).toThrow(/SQL connection/);
   });
+
+  it("settles held messages, and ignores jobs it does not hold", async () => {
+    const backend = vercelQueueBackend(fakeClient(), {
+      retryAfter: 0,
+      settle: 1,
+    });
+
+    const ghost = {
+      queue: "q",
+      id: "nope",
+      attempts: 1,
+      maxAttempts: 2,
+    } as never;
+
+    expect(await backend.complete(ghost)).toBe(false);
+    expect(await backend.fail(ghost, "x", undefined)).toBeNull();
+    expect(await backend.extend(ghost, 30)).toBe(false);
+
+    for (const [attempts, expected] of [
+      [1, "queued"],
+      [2, "dead"],
+    ] as const) {
+      await backend.send("q", { n: attempts }, 0, 2, undefined);
+      const [row] = await backend.read("q", 30, 1);
+
+      expect(row).toBeDefined();
+
+      const job = {
+        queue: "q",
+        id: row?.id,
+        attempts,
+        maxAttempts: 2,
+      } as never;
+
+      expect(await backend.fail(job, "boom", 0)).toBe(expected);
+    }
+
+    await backend.send("q", { n: 3 }, 0, 2, undefined);
+    const [held] = await backend.read("q", 30, 1);
+
+    expect(
+      await backend.complete({
+        queue: "q",
+        id: held?.id,
+        attempts: 1,
+        maxAttempts: 2,
+      } as never),
+    ).toBe(true);
+  });
 });

@@ -78,4 +78,27 @@ describe("db query", () => {
     expect(sent.at(-1)).toBe("rollback");
     expect(result).toMatchObject({ code: 1, data: { failed: "b.sql" } });
   });
+
+  it("reports an unreadable file", async () => {
+    await expect(run(["missing.sql"]).done).rejects.toThrow("Could not read");
+  });
+
+  it("asks for consent on a remote database", async () => {
+    const requests: string[] = [];
+    const open = fakeConnect({ query: () => Promise.resolve({ rows: [] }) });
+
+    const result = await runDbQuery(
+      resolveConfig({}, root),
+      parseCommandArgs(dbQueryCommand, ["a.sql"]),
+      {},
+      open.connect,
+      "postgresql://postgres@db.example.com:5432/postgres",
+      (request) => {
+        requests.push(request.effect);
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(requests).toEqual(["database-write"]);
+  });
 });

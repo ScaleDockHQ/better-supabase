@@ -72,6 +72,18 @@ describe("run", () => {
     });
   });
 
+  it("runs db query and reports a file it cannot read", async () => {
+    const result = await createCli().run(
+      ["db", "query", "missing.sql", "--cwd", dir],
+      {
+        env: { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" },
+      },
+    );
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("Could not read");
+  });
+
   it("runs the codemod command over the project", async () => {
     await writeFile(join(dir, "a.ts"), "export const a = 1;\n");
     expect(
