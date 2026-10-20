@@ -83,6 +83,43 @@ describe("number sequences", () => {
     ).toThrow(/assignOn/);
   });
 
+  const assignOn = (predicate: string) => () =>
+    sqlOf({
+      "number-sequences": {
+        options: {
+          entities: {
+            invoice: {
+              period: "none",
+              format: "{n}",
+              table: "public.invoices",
+              column: "number",
+              assignOn: predicate,
+            },
+          },
+        },
+      },
+    });
+
+  it.each([
+    "new.status in ('sent', 'overdue')",
+    "new.status not in ('sent','overdue') and new.kind IN (1, 2.5, -3)",
+    "new.status = 'sent' or new.\"Kind\" in ('it''s', 'a,b')",
+    "new.note = 'a, b'",
+  ])("accepts the predicate %s", (predicate) => {
+    expect(assignOn(predicate)()).toContain(predicate);
+  });
+
+  it.each([
+    "coalesce(new.status, 'sent') = 'sent'",
+    "new.status in ('sent', new.other)",
+    "new.status in ('sent', 'overdue'",
+    "f(' in (', 1, ')') = 'x'",
+    "new.status = 'sent",
+    "new.status in ('sent'); drop table invoices",
+  ])("refuses the predicate %s", (predicate) => {
+    expect(assignOn(predicate)).toThrow(/assignOn/);
+  });
+
   it("syncs counters from the numbers a table already holds", () => {
     const sql = sqlOf({
       "number-sequences": {
@@ -386,6 +423,48 @@ const issued = (check: string): Promise<void> =>
     ISSUED,
     [check],
   );
+
+describe("assignOn lists", BOOT, () => {
+  it("numbers a row when its status enters the list", async () => {
+    await expect(
+      withNumbers(
+        {
+          invoice: {
+            period: "none",
+            format: "INV-{n}",
+            table: "public.invoices",
+            column: "number",
+            tenantColumn: "organization_id",
+            assignOn: "new.status in ('sent', 'overdue')",
+          },
+        },
+        ISSUED,
+        [
+          `do $$
+declare
+  v_id uuid;
+  v_number text;
+begin
+  insert into public.invoices (organization_id) values ('${ALICE}') returning id into v_id;
+  update public.invoices set status = 'review' where id = v_id returning number into v_number;
+  if v_number is not null then
+    raise exception 'numbered % in review', v_number;
+  end if;
+  update public.invoices set status = 'overdue' where id = v_id returning number into v_number;
+  if v_number is distinct from 'INV-1' then
+    raise exception 'numbered %', v_number;
+  end if;
+  insert into public.invoices (organization_id, status) values ('${ALICE}', 'sent') returning number into v_number;
+  if v_number is distinct from 'INV-2' then
+    raise exception 'numbered %', v_number;
+  end if;
+end;
+$$;`,
+        ],
+      ),
+    ).resolves.toBeUndefined();
+  });
+});
 
 describe("periodColumn at assignment", BOOT, () => {
   it("takes the period and the date tokens from the row's issue date", async () => {

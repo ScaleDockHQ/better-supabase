@@ -49,7 +49,26 @@ const NAMES: ModuleNames = {
 };
 
 const ENTITY = /^[a-z][a-z0-9_]*$/;
-const PREDICATE = /^[A-Za-z0-9_.'"=<>!() \t-]+$/;
+const PREDICATE = /^[A-Za-z0-9_.'"=<>!(), \t-]+$/;
+const QUOTED = /'(?:[^']|'')*'|"(?:[^"]|"")*"/g;
+const LITERAL = String.raw`(?:\x01|-?[0-9]+(?:\.[0-9]+)?)`;
+
+const IN_LIST = new RegExp(
+  String.raw`\bin\s*\(\s*${LITERAL}(?:\s*,\s*${LITERAL})*\s*\)`,
+  "gi",
+);
+
+function isPredicate(text: string): boolean {
+  if (!PREDICATE.test(text)) {
+    return false;
+  }
+
+  const bare = text.replaceAll(QUOTED, (quoted) =>
+    quoted.startsWith("'") ? "\u0001" : "\u0002",
+  );
+
+  return !/['",]/.test(bare.replaceAll(IN_LIST, "in (\u0001)"));
+}
 
 interface TenantColumn {
   readonly table: string;
@@ -247,9 +266,9 @@ function entity(name: string, entry: unknown): SequenceEntity {
 
   const assignOn = record["assignOn"] ?? "true";
 
-  if (typeof assignOn !== "string" || !PREDICATE.test(assignOn)) {
+  if (typeof assignOn !== "string" || !isPredicate(assignOn)) {
     throw new TypeError(
-      `${where}.assignOn must be a boolean expression over new, such as new.status = 'sent'`,
+      `${where}.assignOn must be a boolean expression over new, such as new.status = 'sent' or new.status in ('sent', 'overdue')`,
     );
   }
 

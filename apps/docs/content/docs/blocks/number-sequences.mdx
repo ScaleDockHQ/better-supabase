@@ -17,7 +17,7 @@ import { createNumberSequences } from "better-supabase/blocks/number-sequences";
 | ------------------ | ----------------------------------------------- |
 | `number_sequences` | The last number for a tenant, entity and period |
 
-Set `options.entities` to install a trigger. `period` is `none`, `year`, `month`, `format` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `gen` makes `column` optional on insert, so the typed client and the insert validators accept a row without it.
+Set `options.entities` to install a trigger. `period` is `none`, `year`, `month`, `format` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). It takes letters, digits, `_`, `.`, quoted strings and identifiers, `=`, `<`, `>`, `!`, `-` and parentheses. A comma may only separate the string or number literals of an `in` or `not in` list, as in `new.status in ('sent', 'overdue')`, so the expression cannot call a function with several arguments. Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `gen` makes `column` optional on insert, so the typed client and the insert validators accept a row without it.
 
 ## Period from the row
 
