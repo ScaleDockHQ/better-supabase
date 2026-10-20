@@ -12,10 +12,10 @@ import { createHono } from "better-supabase/hono";
 import { createNext } from "better-supabase/next";
 import { betterSupabase } from "./supabase";
 
-export const next = createNext(betterSupabase);
+export const bsNext = createNext(betterSupabase);
 
 export const api = createHono(betterSupabase, {
-  server: next,
+  server: bsNext,
   cors: { origin: ["https://app.example.com"] },
 });
 ```

@@ -1,0 +1,27 @@
+---
+title: db
+description: Run SQL files against the local stack or another database.
+---
+
+## query
+
+```bash
+pnpm better-supabase db query supabase/tests/seed.sql supabase/tests/more.sql
+pnpm better-supabase db query --single-transaction a.sql b.sql
+```
+
+`db query` runs each file as one script, in the order you pass them. A file
+can hold many statements, so a data migration or a fixture file runs as it
+would in `psql -f`, without a `psql` install.
+
+| Flag                   | Effect                                                            |
+| ---------------------- | ----------------------------------------------------------------- |
+| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.     |
+| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv. |
+
+Without `--db-url-stdin`, the command connects through `$DATABASE_URL`,
+`$SUPABASE_DB_URL`, or the local stack. Against a database that is not local,
+an agent needs the user's consent first. A failing file stops the run, and
+the error names it. The JSON envelope lists the files that ran in `data.ran`.
+
+Side effects: Writes to the database.

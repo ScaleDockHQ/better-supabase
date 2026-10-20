@@ -26,6 +26,7 @@ const PAGES: Readonly<Record<string, string>> = {
   preset: "cli/presets.mdx",
   blocks: "cli/presets.mdx",
   env: "cli/local.mdx",
+  db: "cli/db.mdx",
   keys: "cli/local.mdx",
   seed: "cli/local.mdx",
   spec: "cli/spec.mdx",

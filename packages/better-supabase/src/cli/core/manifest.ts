@@ -328,6 +328,30 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES, { kind: "database", access: "write", when: "--apply" }],
   },
   {
+    name: "db",
+    description:
+      "Runs SQL files against the database: the local stack by default, or the one in the connection string",
+    group: "local",
+    docs: "/docs/cli/db",
+    effects: [{ kind: "database", access: "write" }],
+    subcommands: [
+      {
+        name: "query",
+        description:
+          "Runs each file as one multi-statement script, in order, optionally in a single transaction",
+        docs: "/docs/cli/db#query",
+        examples: [
+          {
+            command:
+              "better-supabase db query --single-transaction a.sql b.sql",
+            description: "Runs both files, or neither when one fails",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
+    ],
+  },
+  {
     name: "doctor",
     description:
       "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning",
