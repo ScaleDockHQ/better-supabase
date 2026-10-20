@@ -3,13 +3,17 @@ import type {
   AppColumnConfig,
   AppReference,
   AppTableConfig,
+  AppTableEventKind,
 } from "../../config/types/app-tables.ts";
 import type { ModuleContext, ModuleIdType } from "../context.ts";
 import type { ModuleFile, ModuleLayout } from "../module-types.ts";
 
+import { hasColumnAccess } from "../../config/app-access.ts";
 import {
   APP_DELETED_AT_COLUMN,
   APP_RANK_COLUMN,
+  appTableEventKinds,
+  appTableVersions,
   AUTH_USERS,
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
@@ -17,6 +21,13 @@ import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { revokeTable } from "../shared.ts";
+import {
+  columnAccessChecks,
+  columnAccessRefusals,
+  readableColumns,
+  writableColumns,
+} from "./app-table-access.ts";
+import { appTableSetSql, settableColumns } from "./app-table-set.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
@@ -538,14 +549,42 @@ function grantsSql(table: AppTable): string {
   const target = qualified(table.name);
 
   if (table.exposed) {
+    if (hasColumnAccess(table.config)) {
+      throw new TypeError(
+        `appTables.${table.name}: expose sets the grants, so its columns can't set access; drop access or the expose entry`,
+      );
+    }
+
     return `-- expose sets the grants on ${target}.`;
   }
 
-  const privileges = table.scope ? "select, insert, update, delete" : "select";
+  if (!hasColumnAccess(table.config)) {
+    const privileges = table.scope
+      ? "select, insert, update, delete"
+      : "select";
 
-  return `${revokeTable(target)}
+    return `${revokeTable(target)}
 grant ${privileges} on ${target} to authenticated;
 grant all on ${target} to service_role;`;
+  }
+
+  const list = (columns: readonly string[]): string =>
+    columns.map((column) => sqlIdent(column)).join(", ");
+
+  const readable = readableColumns(table.config, columnNames(table));
+  const writable = writableColumns(table.config, columnNames(table));
+
+  return [
+    revokeTable(target),
+    `grant select (${list(readable)}) on ${target} to authenticated;`,
+    ...(table.scope
+      ? [
+          `grant insert (${list(writable)}), update (${list(writable)}) on ${target} to authenticated;`,
+          `grant delete on ${target} to authenticated;`,
+        ]
+      : []),
+    `grant all on ${target} to service_role;`,
+  ].join("\n");
 }
 
 function triggerSql(table: AppTable): string {
@@ -561,7 +600,236 @@ create trigger ${trigger} before update on ${target}
   for each row execute function better_supabase.set_updated_at();`;
 }
 
+/** The event type prefix: the subject type, or the table name. */
+function eventBase(table: AppTable): string {
+  return table.config.subject?.type ?? table.name;
+}
+
+/** The event kinds the table emits; empty without `events`. */
+function eventKinds(table: AppTable): readonly AppTableEventKind[] {
+  return appTableEventKinds(table.config);
+}
+
+/**
+ * The trigger that writes `<base>.created`, `.updated` and `.deleted` to the
+ * outbox (ADR 0048). An update that changes no column but `updated_at`
+ * emits nothing.
+ */
+function eventsSql(table: AppTable): string {
+  const kinds = eventKinds(table);
+
+  if (kinds.length === 0) {
+    return "";
+  }
+
+  const { ctx } = table;
+
+  if (!ctx.installed("outbox")) {
+    throw new TypeError(
+      `appTables.${table.name}.events needs the outbox block; add it to blocks`,
+    );
+  }
+
+  const target = qualified(table.name);
+  const fn = ctx.fn(`${table.name}_emit_event`);
+  const trigger = ctx.trigger("emit_event");
+  const base = eventBase(table);
+  const events = table.config.events;
+
+  const include =
+    events === true || events === undefined ? [] : (events.include ?? []);
+
+  const tenant = ctx.scope.kind === "tenant" ? table.scope?.name : undefined;
+  const subject = table.config.subject;
+
+  const fields = [
+    `'id', v_row -> 'id'`,
+    ...(tenant === undefined
+      ? []
+      : [`'organizationId', v_row -> ${sqlString(tenant)}`]),
+    ...(subject === undefined
+      ? []
+      : [
+          `'subjectType', ${sqlString(subject.type)}`,
+          `'subjectId', v_row ->> 'id'`,
+        ]),
+    ...include.map(
+      (column) => `${sqlString(column)}, v_row -> ${sqlString(column)}`,
+    ),
+  ];
+
+  const emit = (kind: AppTableEventKind): string =>
+    ctx.emit({
+      type: `${base}.${kind}`,
+      payload: `jsonb_build_object(${[...fields, ...(kind === "updated" ? ["'changed', to_jsonb(v_changed)"] : [])].join(", ")})`,
+      subject: `${sqlString(`${table.name.replaceAll("_", "-")}/`)} || (v_row ->> 'id')`,
+      ...(tenant === undefined
+        ? {}
+        : { tenant: `v_row ->> ${sqlString(tenant)}` }),
+    });
+
+  const branch = (kind: AppTableEventKind): string => {
+    switch (kind) {
+      case "created": {
+        return `  if tg_op = 'INSERT' then
+    v_row := to_jsonb(new);
+    ${emit(kind)}
+  end if;`;
+      }
+
+      case "updated": {
+        return `  if tg_op = 'UPDATE' then
+    v_row := to_jsonb(new);
+    select coalesce(array_agg(n.key order by n.key), array[]::text[]) into v_changed
+      from jsonb_each(v_row) n
+      join jsonb_each(to_jsonb(old)) o on o.key = n.key
+     where n.value is distinct from o.value and n.key <> 'updated_at';
+    if cardinality(v_changed) > 0 then
+      ${emit(kind)}
+    end if;
+  end if;`;
+      }
+
+      case "deleted": {
+        return `  if tg_op = 'DELETE' then
+    v_row := to_jsonb(old);
+    ${emit(kind)}
+  end if;`;
+      }
+
+      default: {
+        const never: never = kind;
+
+        throw new TypeError(`Unknown app table event "${String(never)}"`);
+      }
+    }
+  };
+
+  if (emit(kinds[0] ?? "created") === "") {
+    return "";
+  }
+
+  const operations = kinds.map((kind) => TRIGGER_OPERATIONS[kind]).join(" or ");
+
+  return `create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_changed text[];
+begin
+${kinds.map((kind) => branch(kind)).join("\n")}
+  return null;
+end;
+$$;
+revoke all on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${target};
+create trigger ${trigger} after ${operations} on ${target}
+  for each row execute function ${fn}();`;
+}
+
+/** Whether `eventsSql` renders a trigger: the table sets `events` and the outbox takes them. */
+function emitsEvents(table: AppTable): boolean {
+  const kind = eventKinds(table)[0];
+
+  return (
+    kind !== undefined &&
+    table.ctx.installed("outbox") &&
+    table.ctx.emit({ type: `${eventBase(table)}.${kind}`, payload: "null" }) !==
+      ""
+  );
+}
+
+/** pgTAP checks, run as a signed-in user, that `app_table_set` refuses a column it may not set. */
+function setRefusals(table: AppTable): readonly string[] {
+  const subject = table.config.subject;
+
+  if (
+    !table.ctx.installed("bulk") ||
+    subject === undefined ||
+    settableColumns(table.config).length === 0
+  ) {
+    return [];
+  }
+
+  const call = (values: string): string =>
+    `$$select public.app_table_set(${FOREIGN_ID[table.ctx.idType]}, ${sqlString(subject.type)}, '1', '{"values": ${values}}'::jsonb)$$`;
+
+  return [
+    `select extensions.throws_ok(${call('{"id": "1"}')}, '22023', null, ${sqlString(`appTables.set refuses the id of ${SCHEMA}.${table.name}`)});`,
+    `select extensions.throws_ok(${call("{}")}, '22023', null, ${sqlString(`appTables.set on ${SCHEMA}.${table.name} needs values`)});`,
+  ];
+}
+
+/** pgTAP checks for the auto snapshot trigger; `seeded` adds one for the seeded row's version. */
+function versionChecks(table: AppTable, seeded: boolean): readonly string[] {
+  const subject = table.config.subject;
+  const versions = appTableVersions(table.config);
+
+  if (!subject || !versions?.auto || versions.columns.length === 0) {
+    return [];
+  }
+
+  const trigger = table.ctx.trigger(`versions_${subject.type}_auto`);
+
+  const checks = [
+    `select extensions.has_trigger('${SCHEMA}'::name, ${sqlString(table.name)}::name, ${sqlString(trigger.replaceAll('"', ""))}::name, ${sqlString(`${SCHEMA}.${table.name} snapshots a version on each change`)});`,
+  ];
+
+  if (seeded) {
+    const versions = table.ctx.of("versions");
+
+    checks.push(
+      `select extensions.ok(exists (select 1 from ${versions.table("versions")} v where v.${versions.col("versions", "subjectType")} = ${sqlString(subject.type)}), ${sqlString(`an insert into ${SCHEMA}.${table.name} snapshots a ${subject.type} version`)});`,
+    );
+  }
+
+  return checks;
+}
+
+/** pgTAP checks for the events trigger; `seeded` adds one that the seeded row emitted. */
+function eventChecks(table: AppTable, seeded: boolean): readonly string[] {
+  if (!emitsEvents(table)) {
+    return [];
+  }
+
+  const label = `${SCHEMA}.${table.name}`;
+
+  const checks = [
+    `select extensions.has_trigger('${SCHEMA}'::name, ${sqlString(table.name)}::name, ${sqlString(table.ctx.trigger("emit_event").replaceAll('"', ""))}::name, ${sqlString(`${label} emits outbox events`)});`,
+  ];
+
+  if (seeded && eventKinds(table).includes("created")) {
+    const outbox = table.ctx.of("outbox");
+    const type = `${eventBase(table)}.created`;
+
+    checks.push(
+      `select extensions.ok(exists (select 1 from ${outbox.table("events")} e where e.${outbox.col("events", "type")} = ${sqlString(type)}), ${sqlString(`an insert into ${label} emits ${type}`)});`,
+    );
+  }
+
+  return checks;
+}
+
+const TRIGGER_OPERATIONS: Readonly<Record<AppTableEventKind, string>> = {
+  created: "insert",
+  updated: "update",
+  deleted: "delete",
+};
+
 function tableSql(table: AppTable): string {
+  if (
+    table.config.subject?.versions !== undefined &&
+    !table.ctx.installed("versions")
+  ) {
+    throw new TypeError(
+      `appTables.${table.name}.subject.versions needs the versions block; add it to blocks`,
+    );
+  }
+
   return [
     `alter table ${qualified(table.name)} enable row level security;`,
     grantsSql(table),
@@ -570,6 +838,7 @@ function tableSql(table: AppTable): string {
     indexesSql(table),
     commentsSql(table),
     triggerSql(table),
+    eventsSql(table),
   ]
     .filter((part) => part !== "")
     .join("\n");
@@ -612,6 +881,151 @@ function isExposed(name: string, layout: ModuleLayout): boolean {
   return (layout.grants ?? []).some(
     (grant) => grant.table === name || grant.table === `${SCHEMA}.${name}`,
   );
+}
+
+/**
+ * A literal that meets a required column's type, options, format and
+ * bounds, for the row the read test inserts. `null` when the column needs
+ * no value (nullable, defaulted or an identity); `undefined` when no literal
+ * can stand in for it (a reference, which needs a parent row).
+ */
+function sampleValue(column: AppColumnConfig): string | null | undefined {
+  if (
+    column.nullable !== false ||
+    column.default !== undefined ||
+    column.identity === true
+  ) {
+    return null;
+  }
+
+  if (column.references !== undefined) {
+    return undefined;
+  }
+
+  const first = column.options?.[0];
+
+  if (first !== undefined) {
+    return column.type === "text[]"
+      ? `array[${sqlString(first)}]::text[]`
+      : sqlString(first);
+  }
+
+  const format =
+    column.format === undefined ? undefined : FIELD_FORMATS[column.format];
+
+  const low = column.min ?? format?.bounds?.[0];
+
+  switch (column.type) {
+    case "text": {
+      if (column.format === "email") {
+        return "'test@example.com'";
+      }
+
+      if (column.format === "url") {
+        return "'https://example.com'";
+      }
+
+      return `repeat('x', ${String(Math.max(low ?? 1, 1))})`;
+    }
+
+    case "integer":
+    case "bigint":
+    case "numeric": {
+      return String(low ?? 0);
+    }
+
+    case "uuid": {
+      return "gen_random_uuid()";
+    }
+
+    case "boolean": {
+      return "false";
+    }
+
+    case "timestamptz": {
+      return "now()";
+    }
+
+    case "date": {
+      return "current_date";
+    }
+
+    case "jsonb": {
+      return "'{}'::jsonb";
+    }
+
+    case "text[]": {
+      return "array[]::text[]";
+    }
+
+    default: {
+      const never: never = column.type;
+
+      throw new TypeError(`Unknown app column type "${String(never)}"`);
+    }
+  }
+}
+
+/**
+ * The statement, run as the table owner before the role switch, that puts
+ * one row of another tenant (or user) in the table, so the read check sees
+ * a row it must not return. `undefined` when a required column has no
+ * stand-in value.
+ */
+function foreignRow(table: AppTable): string | undefined {
+  const scope = table.scope;
+
+  if (scope === undefined) {
+    return undefined;
+  }
+
+  const values: [string, string][] = [];
+
+  for (const [name, column] of Object.entries(table.config.columns ?? {})) {
+    const value = sampleValue(column);
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value !== null) {
+      values.push([sqlIdent(name), value]);
+    }
+  }
+
+  const { ctx } = table;
+  const columns = [sqlIdent(scope.name), ...values.map(([name]) => name)];
+  const rest = values.map(([, value]) => value);
+
+  const insert = (owner: string): string =>
+    `insert into ${qualified(table.name)} (${columns.join(", ")}) select ${[owner, ...rest].join(", ")}`;
+
+  if (ctx.scope.kind === "user") {
+    return `with u as (
+  insert into auth.users (id, email, aud, role, instance_id)
+  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  returning id
+)
+${insert("u.id")} from u;`;
+  }
+
+  if (ctx.installed("organizations")) {
+    const organizations = ctx.of("organizations");
+
+    const org = (column: string): string =>
+      organizations.col("organizations", column);
+
+    const slug = organizations.has("organizations", "slug");
+
+    return `with o as (
+  insert into ${organizations.table("organizations")} (${org("name")}${slug ? `, ${org("slug")}` : ""})
+  values ('bs-app-tables-test'${slug ? ", 'bs-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
+  returning ${org("id")} as id
+)
+${insert("o.id")} from o;`;
+  }
+
+  return `${insert(FOREIGN_ID[scope.idType])};`;
 }
 
 function testSql(table: AppTable): string {
@@ -660,29 +1074,58 @@ function testSql(table: AppTable): string {
     );
   }
 
+  const access = {
+    name: table.name,
+    config: table.config,
+    scoped: !!table.scope,
+  };
+
   if (!table.exposed) {
+    const privileges = hasColumnAccess(table.config)
+      ? table.scope
+        ? ["DELETE"]
+        : []
+      : table.scope
+        ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
+        : ["SELECT"];
+
     checks.push(
       `select extensions.table_privs_are('${SCHEMA}', ${name}, 'anon', array[]::text[], ${sqlString(`anon has no privileges on ${label}`)});`,
-      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', array[${(table.scope ? ["DELETE", "INSERT", "SELECT", "UPDATE"] : ["SELECT"]).map((privilege) => sqlString(privilege)).join(", ")}], ${sqlString(`authenticated has the privileges for its scope on ${label}`)});`,
+      `select extensions.table_privs_are('${SCHEMA}', ${name}, 'authenticated', ${privileges.length === 0 ? "array[]::text[]" : `array[${privileges.map((privilege) => sqlString(privilege)).join(", ")}]`}, ${sqlString(`authenticated has the privileges for its scope on ${label}`)});`,
+      ...columnAccessChecks(access),
     );
   }
 
   checks.push(...appViewChecks(table.name, table.config));
 
+  const seeded = foreignRow(table);
+
+  const readCheck =
+    seeded === undefined
+      ? `select extensions.skip(${sqlString(`${label} has a required reference, so the read test can't insert a row of another ${table.ctx.scope.kind}`)}, 1);`
+      : `select extensions.is((select count(*)::integer from ${qualified(table.name)}), 0, ${sqlString(`a signed-in user does not read a row of ${label} outside their scope`)});`;
+
   const behaviour = table.scope
     ? [
-        `select extensions.is((select count(*)::integer from ${qualified(table.name)} where not (${ownRows(table) ?? "true"})), 0, ${sqlString(`a signed-in user reads only the rows of ${label} their scope reaches`)});`,
+        readCheck,
         `select extensions.throws_ok($$insert into ${qualified(table.name)} (${sqlIdent(table.scope.name)}) values (${FOREIGN_ID[table.scope.idType]})$$, '42501', null, ${sqlString(`a signed-in user cannot insert a row of ${label} outside their scope`)});`,
       ]
     : [
         `select extensions.throws_ok($$insert into ${qualified(table.name)} default values$$, '42501', null, ${sqlString(`a signed-in user cannot write ${label}; only the service role does`)});`,
       ];
 
-  return `${checks.join("\n")}
+  const seededSql = table.scope && seeded !== undefined ? seeded : undefined;
 
+  const emitted = [
+    ...eventChecks(table, seededSql !== undefined),
+    ...versionChecks(table, seededSql !== undefined),
+  ];
+
+  return `${[...checks, ...(seededSql === undefined ? emitted : [])].join("\n")}
+${seededSql === undefined ? "" : `\n${[seededSql, ...emitted].join("\n")}\n`}
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-${[...behaviour, ...appViewBehaviour(table.name, table.config, table.scope !== undefined)].join("\n")}
+${[...behaviour, ...setRefusals(table), ...appViewBehaviour(table.name, table.config, table.scope !== undefined), ...(table.exposed ? [] : columnAccessRefusals(access))].join("\n")}
 reset role;`;
 }
 
@@ -773,11 +1216,30 @@ export function appTablesFiles(
     ...tables.map((table) => tableSql(table)),
     tenantKeysSql(tables),
     tables
-      .map((table) => appViewSql(table.name, table.config))
+      .map((table) =>
+        appViewSql(
+          table.name,
+          table.config,
+          hasColumnAccess(table.config)
+            ? readableColumns(table.config, columnNames(table))
+            : undefined,
+        ),
+      )
       .filter((part) => part !== "")
       .join("\n\n"),
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
+      : "",
+    installed.includes("bulk") && tables[0]
+      ? appTableSetSql(
+          tables.map((table) => ({
+            name: table.name,
+            config: table.config,
+            tenant:
+              table.ctx.scope.kind === "tenant" ? table.scope?.name : undefined,
+          })),
+          tables[0].ctx.idType,
+        )
       : "",
   ]
     .filter((part) => part !== "")

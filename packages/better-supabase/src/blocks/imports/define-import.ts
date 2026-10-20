@@ -29,7 +29,7 @@ export interface DryRunResult<T> {
   readonly errors: readonly ImportRowError[];
 }
 
-/** Registers an import. The jobs handler calls `insert` in batches. */
+/** Registers an import. `runImport` calls `insert` in batches. */
 export function defineImport<T>(
   definition: ImportDefinition<T>,
 ): ImportDefinition<T> {
@@ -113,6 +113,8 @@ export interface RunImportResult<T> {
 /**
  * Validates the file, skips rows whose key was already imported, inserts the
  * rest in batches and finishes the run as `import.completed` or `import.failed`.
+ * A batch that throws finishes the run as failed with the rows inserted so
+ * far, and the result says so instead of the error escaping.
  */
 export async function runImport<T>(
   definition: ImportDefinition<T>,
@@ -122,6 +124,8 @@ export async function runImport<T>(
     readonly organizationId: string;
     readonly importedKeys?: ReadonlySet<string>;
     readonly start: () => Promise<string>;
+    /** Marks the run `running` before the first batch (`mark_import_running`). */
+    readonly running?: (id: string) => Promise<void>;
     readonly finish: (
       id: string,
       status: "completed" | "failed",
@@ -163,10 +167,37 @@ export async function runImport<T>(
     return true;
   });
 
+  await hooks.running?.(id);
+  let inserted = 0;
+
   for (let index = 0; index < fresh.length; index += BATCH) {
-    await definition.insert(fresh.slice(index, index + BATCH), {
-      organizationId: hooks.organizationId,
-    });
+    const batch = fresh.slice(index, index + BATCH);
+
+    try {
+      await definition.insert(batch, {
+        organizationId: hooks.organizationId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const first = index + 1;
+
+      await hooks.finish(id, "failed", inserted, message);
+
+      return {
+        id,
+        status: "failed",
+        imported: inserted,
+        errors: [
+          {
+            row: first,
+            message: `the batch starting at imported row ${first} failed: ${message}`,
+          },
+        ],
+        rows: fresh.slice(0, inserted),
+      };
+    }
+
+    inserted += batch.length;
   }
 
   await hooks.finish(id, "completed", fresh.length, null);

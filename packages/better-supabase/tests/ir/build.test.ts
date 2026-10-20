@@ -648,6 +648,36 @@ describe("IrBuilder.selection", () => {
     ]);
   });
 
+  it("leaves a column signed-in users can't read out of a default selection", () => {
+    const projects: TableMeta = {
+      ...ledger,
+      key: "projects",
+      name: "projects",
+      columns: {
+        name: { db: "name", type: "text", nullable: false, hasDefault: false },
+        notes: {
+          db: "internal_notes",
+          type: "text",
+          nullable: true,
+          hasDefault: false,
+          selectable: false,
+        },
+      },
+    };
+
+    const builder = new IrBuilder({
+      ...meta,
+      tables: { ...meta.tables, projects },
+    });
+
+    expect(builder.selection(projects, undefined, undefined).columns).toEqual([
+      { alias: "name", column: "name" },
+    ]);
+    expect(builder.selection(projects, ["notes"], undefined).columns).toEqual([
+      { alias: "notes", column: "internal_notes" },
+    ]);
+  });
+
   it("builds includes with their options", () => {
     const selection = ir.selection(customers, ["id"], {
       organization: true,

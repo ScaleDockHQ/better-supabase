@@ -18,6 +18,7 @@ export function CopyButton({
   className,
   variant = "ghost",
   size = "icon-sm",
+  disabled = false,
   children,
 }: {
   text: string;
@@ -25,6 +26,7 @@ export function CopyButton({
   className?: string;
   variant?: ComponentProps<typeof Button>["variant"];
   size?: ComponentProps<typeof Button>["size"];
+  disabled?: boolean;
   children?: ReactNode;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
@@ -45,6 +47,7 @@ export function CopyButton({
         size={size}
         aria-label={label}
         className={className}
+        disabled={disabled}
         onClick={() => {
           void navigator.clipboard.writeText(text).then(() => {
             setCopied(true);

@@ -195,7 +195,7 @@ export interface CatalogGrant {
   readonly privileges: readonly string[];
 }
 
-/** A column-level `insert` or `update` grant to `anon` or `authenticated`. */
+/** A column-level `select`, `insert` or `update` grant to `anon` or `authenticated`. */
 export interface CatalogColumnGrant {
   readonly column: string;
   readonly role: string;

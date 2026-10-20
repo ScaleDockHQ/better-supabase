@@ -126,6 +126,26 @@ describe.skipIf(!live)("saved views in Postgres", () => {
     expect(defaults.map((v) => v.id)).toEqual([b]);
   });
 
+  it("drops the default when a view moves to another scope", async () => {
+    await db.as(owner);
+
+    const shared = (await db.value<{ id: string }>(save("tenant", "Shared")))
+      .id;
+
+    await db.value(`sv_it.set_default_view('${shared}', true)`);
+    const mine = (await db.value<{ id: string }>(save("user", "Moving"))).id;
+    await db.value(`sv_it.set_default_view('${mine}', true)`);
+
+    await db.value(save("tenant", "Moving", { id: mine }));
+
+    const defaults = (await views(owner))
+      .filter((v) => v.isDefault)
+      .map((v) => v.id);
+
+    expect(defaults).toContain(shared);
+    expect(defaults).not.toContain(mine);
+  });
+
   it("orders by rank key and rejects a bad key", async () => {
     await db.as(member);
     const id = (await db.value<{ id: string }>(save("user", "First"))).id;

@@ -1082,6 +1082,25 @@ describe("createWorkflowBuilder", () => {
     );
 
     expect(failing.ok).toBe(false);
+
+    const started: string[] = [];
+
+    const sinkBuilder = createWorkflowBuilder({
+      transport,
+      start: async () => {
+        started.push("run");
+
+        return `wrun_${String(++n)}`;
+      },
+    });
+
+    await sinkBuilder.sink()([
+      { id: "e1", type: "x", tenant: "t1", actorId: null },
+    ]);
+    expect(started).toHaveLength(2);
+    await expect(
+      createWorkflowBuilder({ transport }).sink()([{ id: "e2", type: "x" }]),
+    ).rejects.toBeInstanceOf(Error);
   });
 
   it("syncs schedule triggers and routes scheduled builder starts", async () => {

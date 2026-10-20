@@ -22,6 +22,20 @@ export const META_VERSION = "io.modelcontextprotocol/protocolVersion";
 export const META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
 export const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 
+/** A JSON-RPC error message. */
+export function rpcErrorBody(
+  id: JsonRpcRequest["id"],
+  code: number,
+  message: string,
+  data?: Json,
+): Json {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    error: { code, message, ...(data ? { data } : {}) },
+  };
+}
+
 /** A JSON-RPC error response. */
 export function rpcError(
   id: JsonRpcRequest["id"],
@@ -30,14 +44,7 @@ export function rpcError(
   status = 200,
   data?: Json,
 ): Response {
-  return Response.json(
-    {
-      jsonrpc: "2.0",
-      id: id ?? null,
-      error: { code, message, ...(data ? { data } : {}) },
-    },
-    { status },
-  );
+  return Response.json(rpcErrorBody(id, code, message, data), { status });
 }
 
 /** A non-array object. */

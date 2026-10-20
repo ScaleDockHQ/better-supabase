@@ -1,4 +1,4 @@
--- better-supabase module: sso (0.8.0)
+-- better-supabase module: sso (0.9.0)
 -- @bs-module sso@1 managed
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -175,7 +175,8 @@ begin
   if not v_row."active" then
     delete from "public"."memberships" mm where mm."organization_id" = v_tenant and mm."user_id" = v_user;
     if found then
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('organization.member_removed', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
     event_type => 'organization.member_removed',
     category => 'membership',
     target_type => 'user',
@@ -194,7 +195,8 @@ begin
   ), 'member') into v_role;
   if v_current is null then
     insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, v_role);
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_role), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
     event_type => 'organization.member_added',
     category => 'membership',
     target_type => 'user',
@@ -204,7 +206,8 @@ begin
   );
   elsif v_current is distinct from v_role then
     update "public"."memberships" mm set "role" = v_role where mm."organization_id" = v_tenant and mm."user_id" = v_user;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('organization.role_changed', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_role, 'previousRole', v_current), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
     event_type => 'organization.role_changed',
     category => 'membership',
     target_type => 'user',
@@ -241,6 +244,7 @@ begin
   insert into "better_supabase"."organization_domains" as x ("organization_id", "domain") values (add_organization_domain.tenant, v_domain)
   on conflict ("organization_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
+  perform "better_supabase".emit_event('organization.domain_added', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.domain_added',
     category => 'security',
@@ -323,6 +327,7 @@ begin
   update "better_supabase"."organization_domains" x set "auto_join_role" = update_organization_domain.auto_join_role, "enforce_sso" = update_organization_domain.enforce_sso
   where x."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('organization.domain_updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.domain_updated',
     category => 'security',
@@ -357,6 +362,7 @@ begin
     raise exception 'An SSO provider uses this domain; remove it first' using errcode = '23503', hint = 'SSO_DOMAIN_IN_USE';
   end if;
   delete from "better_supabase"."organization_domains" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('organization.domain_removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.domain_removed',
     category => 'security',
@@ -396,6 +402,7 @@ begin
     raise exception 'Another organization has verified %', v_row."domain" using errcode = '23505', hint = 'SSO_DOMAIN_TAKEN';
   end if;
   update "better_supabase"."organization_domains" x set "verified_at" = now() where x."id" = v_row."id" returning * into v_row;
+  perform "better_supabase".emit_event('organization.domain_verified', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', verify_organization_domain.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'organization.domain_verified',
     category => 'security',
@@ -457,6 +464,7 @@ begin
   if v_row."id" is null then
     raise exception 'The provider belongs to another organization' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
+  perform "better_supabase".emit_event('sso_provider.registered', jsonb_build_object('organizationId', v_row."organization_id"::text, 'providerId', v_row."id", 'domains', to_jsonb(v_row."domains"), 'userId', register_sso_provider.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'sso_provider.registered',
     category => 'security',
@@ -517,6 +525,7 @@ begin
     raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   delete from "better_supabase"."organization_sso_providers" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('sso_provider.unregistered', jsonb_build_object('organizationId', v_row."organization_id"::text, 'providerId', v_row."id", 'domains', to_jsonb(v_row."domains"), 'userId', unregister_sso_provider.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'sso_provider.unregistered',
     category => 'security',
@@ -646,7 +655,8 @@ begin
     loop
       v_tenant := v_join.tenant;
       insert into "public"."memberships" ("organization_id", "user_id", "role") values (v_tenant, v_user, v_join.role);
-      perform better_supabase.audit_event(
+      perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user, 'role', v_join.role), 'organizations/' || v_tenant::text, (v_tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
     event_type => 'organization.member_added',
     category => 'membership',
     target_type => 'user',
@@ -779,6 +789,7 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
+  perform "better_supabase".emit_event('scim_user.saved', jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id"), 'organizations/' || scim_save_user.tenant::text, (scim_save_user.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'scim_user.saved',
     category => 'security',
@@ -816,6 +827,7 @@ begin
   end if;
   perform "better_supabase"."scim_sync_member"(v_id);
   delete from "better_supabase"."scim_users" x where x."id" = v_id;
+  perform "better_supabase".emit_event('scim_user.deleted', jsonb_build_object('organizationId', scim_delete_user.tenant::text, 'scimUserId', v_id), 'organizations/' || scim_delete_user.tenant::text, (scim_delete_user.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'scim_user.deleted',
     category => 'security',
@@ -935,6 +947,7 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
+  perform "better_supabase".emit_event('scim_group.saved', jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id"), 'organizations/' || scim_save_group.tenant::text, (scim_save_group.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'scim_group.saved',
     category => 'security',
@@ -974,6 +987,7 @@ begin
   foreach v_member in array v_members loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
+  perform "better_supabase".emit_event('scim_group.deleted', jsonb_build_object('organizationId', scim_delete_group.tenant::text, 'scimGroupId', scim_delete_group.id), 'organizations/' || scim_delete_group.tenant::text, (scim_delete_group.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'scim_group.deleted',
     category => 'security',

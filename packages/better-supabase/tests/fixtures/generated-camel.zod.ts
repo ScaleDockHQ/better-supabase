@@ -253,6 +253,7 @@ export const projectsRow: z.ZodType<RowOf<'projects'>> = z.object({
   leadId: z.guid().nullable(),
   labelId: z.guid().nullable(),
   deletedAt: z.iso.datetime({ offset: true }).nullable(),
+  internalNotes: z.string().nullable(),
 }).meta({ title: "Projects" });
 export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
@@ -265,6 +266,7 @@ export const projectsInsert: z.ZodType<InsertOf<'projects'>> = z.object({
   leadId: z.guid().nullable().exactOptional(),
   labelId: z.guid().nullable().exactOptional(),
   deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  internalNotes: z.string().nullable().exactOptional(),
 }).meta({ title: "Projects insert" });
 export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   id: z.guid().exactOptional(),
@@ -277,6 +279,7 @@ export const projectsUpdate: z.ZodType<UpdateOf<'projects'>> = z.object({
   leadId: z.guid().nullable().exactOptional(),
   labelId: z.guid().nullable().exactOptional(),
   deletedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  internalNotes: z.string().nullable().exactOptional(),
 }).meta({ title: "Projects update" });
 
 export const projectsViewRow: z.ZodType<RowOf<'projectsView'>> = z.object({

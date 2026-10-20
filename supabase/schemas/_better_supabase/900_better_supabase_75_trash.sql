@@ -1,4 +1,4 @@
--- better-supabase module: trash (0.8.0)
+-- better-supabase module: trash (0.9.0)
 -- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -119,6 +119,7 @@ begin
   insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
+  perform "better_supabase".emit_event('subject.trashed', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
   perform better_supabase.audit_event(
     event_type => 'subject.trashed',
     category => 'data',
@@ -223,7 +224,8 @@ begin
         where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('subject.restored', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
+  perform better_supabase.audit_event(
     event_type => 'subject.restored',
     category => 'data',
     target_type => 'trash_item',
@@ -360,7 +362,8 @@ begin
         where s."id" = (v_item.subject_id)::uuid;
     else null;
   end case;
-    perform better_supabase.audit_event(
+    perform "better_supabase".emit_event('subject.purged', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
+  perform better_supabase.audit_event(
     event_type => 'subject.purged',
     category => 'data',
     target_type => 'trash_item',

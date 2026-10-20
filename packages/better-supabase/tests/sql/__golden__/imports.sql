@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_64_imports.sql
 -- better-supabase module: imports
 -- @bs-module imports@1 managed
--- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
+-- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -81,6 +81,27 @@ end;
 $$;
 revoke execute on function "better_supabase"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_import"(uuid, text, jsonb) to authenticated, service_role;
+
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function "better_supabase"."mark_import_running"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_runs" set "status" = 'running'
+  where "id" = mark_import_running.id and "status" = 'pending';
+  if not found then
+    raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."mark_import_running"(uuid) to service_role;
 
 create or replace function "better_supabase"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
@@ -139,7 +160,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_64_imports.sql
 -- better-supabase module: imports
 -- @bs-module imports@1 managed
--- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
+-- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -220,6 +241,27 @@ $$;
 revoke execute on function "better_supabase"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_import"(uuid, text, jsonb) to authenticated, service_role;
 
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function "better_supabase"."mark_import_running"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_runs" set "status" = 'running'
+  where "id" = mark_import_running.id and "status" = 'pending';
+  if not found then
+    raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."mark_import_running"(uuid) to service_role;
+
 create or replace function "better_supabase"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
 language plpgsql
@@ -277,7 +319,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_64_imports.sql
 -- better-supabase module: imports
 -- @bs-module imports@1 managed
--- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
+-- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -360,6 +402,27 @@ $$;
 revoke execute on function "app_private"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "app_private"."start_import"(uuid, text, jsonb) to authenticated, service_role;
 
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function "app_private"."mark_import_running"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "app_private"."import_runs" set "status" = 'running'
+  where "id" = mark_import_running.id and "status" = 'pending';
+  if not found then
+    raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."mark_import_running"(uuid) to service_role;
+
 create or replace function "app_private"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
 language plpgsql
@@ -417,7 +480,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_64_imports.sql
 -- better-supabase module: imports
 -- @bs-module imports@1 managed
--- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
+-- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -498,6 +561,27 @@ $$;
 revoke execute on function "better_supabase"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_import"(uuid, text, jsonb) to authenticated, service_role;
 
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function "better_supabase"."mark_import_running"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_runs" set "status" = 'running'
+  where "id" = mark_import_running.id and "status" = 'pending';
+  if not found then
+    raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."mark_import_running"(uuid) to service_role;
+
 create or replace function "better_supabase"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
 language plpgsql
@@ -558,6 +642,15 @@ as $$ select "better_supabase"."start_import"($1, $2, $3) $$;
 revoke execute on function "api"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "api"."start_import"(uuid, text, jsonb) to authenticated, service_role;
 
+create or replace function "api"."mark_import_running"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."mark_import_running"($1) $$;
+revoke execute on function "api"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "api"."mark_import_running"(uuid) to service_role;
+
 create or replace function "api"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean
 language sql
@@ -595,7 +688,7 @@ on conflict (name) do update
 -- ==== adopt: schema supabase/schemas/900_better_supabase_64_imports.sql
 -- better-supabase module: imports
 -- @bs-module imports@1 adopt
--- Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.
+-- Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -659,6 +752,27 @@ end;
 $$;
 revoke execute on function "better_supabase"."start_import"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."start_import"(uuid, text, jsonb) to authenticated, service_role;
+
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function "better_supabase"."mark_import_running"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_runs" set "status" = 'running'
+  where "id" = mark_import_running.id and "status" = 'pending';
+  if not found then
+    raise exception 'no pending import with this id' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."mark_import_running"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."mark_import_running"(uuid) to service_role;
 
 create or replace function "better_supabase"."finish_import"(id uuid, status text, count integer, error text)
 returns boolean

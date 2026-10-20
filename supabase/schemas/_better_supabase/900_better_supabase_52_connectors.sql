@@ -1,4 +1,4 @@
--- better-supabase module: connectors (0.8.0)
+-- better-supabase module: connectors (0.9.0)
 -- @bs-module connectors@1 managed
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -183,6 +183,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform "better_supabase".emit_event('connector.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.saved',
     category => 'integration',
@@ -220,6 +221,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('connector.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.deleted',
     category => 'integration',
@@ -305,6 +307,7 @@ begin
   values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
+  perform "better_supabase".emit_event('connector_grant.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector_grant.created',
     category => 'integration',
@@ -341,6 +344,7 @@ begin
     return null;
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
+  perform "better_supabase".emit_event('connector_grant.revoked', jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector_grant.revoked',
     category => 'integration',
@@ -502,6 +506,7 @@ begin
   if not found then
     return false;
   end if;
+  perform "better_supabase".emit_event('connector.fingerprint_decided', jsonb_build_object('organizationId', v_server."organization_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved), 'organizations/' || v_server."organization_id"::text || '/connectors/' || v_server."id"::text, (v_server."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.fingerprint_decided',
     category => 'integration',

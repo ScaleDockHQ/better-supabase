@@ -491,6 +491,22 @@ describe("buildModel comments", () => {
     expect(customers.description).toBe("Companies the organization sells to.");
     expect(customers.columns["name"]?.description).toBe("Trading name.");
   });
+
+  it("marks an app table column with access server as not selectable", async () => {
+    const built = await model(() => ({}), {
+      appTables: {
+        customers: { columns: { name: { type: "text", access: "server" } } },
+      },
+    });
+
+    const customers = built.tables.find((table) => table.key === "customers")!;
+
+    expect(customers.meta.columns["name"]?.selectable).toBe(false);
+    expect(customers.meta.columns["id"]).not.toHaveProperty("selectable");
+    expect(emitModule(built, { importPathFor: (from) => from })).toMatch(
+      /\bname\?: string;/u,
+    );
+  });
 });
 
 describe("views", () => {

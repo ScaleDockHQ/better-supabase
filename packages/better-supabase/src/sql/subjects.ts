@@ -80,6 +80,8 @@ function fromRegistry(
       extraKeys.includes("deletedAt") && { deletedAt: entry.deletedAt }),
     ...(entry.title !== undefined &&
       extraKeys.includes("title") && { title: entry.title }),
+    ...(entry.versions !== undefined &&
+      extraKeys.includes("versions") && { versions: entry.versions }),
   };
 }
 
@@ -153,6 +155,23 @@ function rawSubjects(
   );
 }
 
+function withAlways(
+  ctx: ModuleContext,
+  raw: Record<string, unknown>,
+  extraKeys: readonly string[],
+  always: ((entry: SubjectConfig) => boolean) | undefined,
+): Record<string, unknown> {
+  if (always === undefined) {
+    return raw;
+  }
+
+  const joined = Object.entries(ctx.subjects)
+    .filter(([type, entry]) => !Object.hasOwn(raw, type) && always(entry))
+    .map(([type, entry]) => [type, fromRegistry(entry, extraKeys)] as const);
+
+  return { ...Object.fromEntries(joined), ...raw };
+}
+
 /**
  * `blocks.<module>.options.subjects`: subject type to
  * `{ table, id?, tenant?, permission?, cascade? }` plus the `extra` keys the
@@ -170,10 +189,23 @@ export function subjectsOption(
      * subject type column has no format check.
      */
     readonly hyphens?: boolean;
+    /**
+     * Registered types this picks join the module's subjects even when
+     * `options.subjects` lists others, such as app tables with
+     * `subject.versions` for the versions block.
+     */
+    readonly always?: (entry: SubjectConfig) => boolean;
   } = {},
 ): readonly [string, Subject][] {
   const where = `blocks.${ctx.module}.options.subjects`;
-  const raw = rawSubjects(ctx, where, extraKeys, allow);
+
+  const raw = withAlways(
+    ctx,
+    rawSubjects(ctx, where, extraKeys, allow),
+    extraKeys,
+    allow.always,
+  );
+
   const hyphens = allow.hyphens === true;
 
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {

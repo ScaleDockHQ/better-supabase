@@ -379,6 +379,7 @@ export type Database = {
           currency: string
           deleted_at: string | null
           id: string
+          internal_notes: string | null
           label_id: string | null
           lead_id: string | null
           name: string
@@ -392,6 +393,7 @@ export type Database = {
           currency?: string
           deleted_at?: string | null
           id?: string
+          internal_notes?: string | null
           label_id?: string | null
           lead_id?: string | null
           name: string
@@ -404,6 +406,7 @@ export type Database = {
           currency?: string
           deleted_at?: string | null
           id?: string
+          internal_notes?: string | null
           label_id?: string | null
           lead_id?: string | null
           name?: string
@@ -660,6 +663,15 @@ export type Database = {
       }
     }
     Functions: {
+      app_table_set: {
+        Args: {
+          args: Json
+          subject_id: string
+          subject_type: string
+          tenant: string
+        }
+        Returns: undefined
+      }
       customer_note_counts: {
         Args: { p_customer_ids?: string[] }
         Returns: {

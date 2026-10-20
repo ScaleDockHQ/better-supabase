@@ -645,3 +645,89 @@ export function createRuleDispatcher<C = unknown>(
       }),
   };
 }
+
+/** An outbox event as the rule sink reads it; an `OutboxEvent` fits. */
+export interface RuleSinkEvent {
+  readonly id: string;
+  readonly type: string;
+  readonly payload?: unknown;
+  readonly tenant?: string | null;
+}
+
+/** What `load` returns for an event the rules should see: the subject and the dispatch context. */
+export interface RuleSinkTarget<C> {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId?: string;
+  /** The record the field catalog's columns read. */
+  readonly subject: Readonly<Record<string, unknown>>;
+  readonly timeZone?: string;
+  readonly context: C;
+}
+
+export interface RuleSinkOptions<C> {
+  /** `rules.run` from `createRulesAdmin`, which logs each evaluation live. */
+  readonly rules: Pick<RulesAdmin, "run">;
+  readonly dispatcher: RuleDispatcher<C>;
+  /**
+   * Reads the subject an event is about, such as the app table row named by
+   * `payload.id`. `undefined` skips the event.
+   */
+  readonly load: (
+    event: RuleSinkEvent,
+  ) =>
+    | RuleSinkTarget<C>
+    | undefined
+    | PromiseLike<RuleSinkTarget<C> | undefined>;
+  /** Receives each event's action outcomes, failed ones included. */
+  readonly onOutcomes?: (
+    event: RuleSinkEvent,
+    outcomes: readonly RuleActionOutcome[],
+  ) => void;
+}
+
+/**
+ * An outbox consumer handler that tests the rules whose trigger is the
+ * event's type and runs the actions of the ones that match, for
+ * `outbox.consume("rules", createRuleSink(...))`. It throws
+ * when the evaluation fails, so the outbox retries the event; a failed
+ * action goes to `onOutcomes` instead, since a retry would run the others
+ * again.
+ */
+export function createRuleSink<C = unknown>(
+  options: RuleSinkOptions<C>,
+): (events: readonly RuleSinkEvent[]) => Promise<void> {
+  return async (events) => {
+    for (const event of events) {
+      const target = await options.load(event);
+
+      if (target === undefined) {
+        continue;
+      }
+
+      const matches = await options.rules
+        .run(target.organizationId, {
+          subjectType: target.subjectType,
+          trigger: event.type,
+          subject: target.subject,
+          ...(target.subjectId === undefined
+            ? {}
+            : { subjectId: target.subjectId }),
+          ...(target.timeZone === undefined
+            ? {}
+            : { timeZone: target.timeZone }),
+        })
+        .orThrow();
+
+      if (matches.length === 0) {
+        continue;
+      }
+
+      const outcomes = await options.dispatcher
+        .dispatch(matches, target.context)
+        .orThrow();
+
+      options.onOutcomes?.(event, outcomes);
+    }
+  };
+}

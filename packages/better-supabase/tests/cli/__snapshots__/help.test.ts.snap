@@ -82,7 +82,7 @@ Options
   --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
   --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
   --adopt                                   Map the preset's blocks onto tables the database already has under their default names (adopt mode)
-  --allow-breaking                          Write a design that drops, renames or retypes app table columns, or makes one required without a default
+  --allow-breaking                          Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements
   --dry-run                                 Show the config diff and write nothing
   --check                                   Write nothing; exit 1 with the diff when the config lacks the preset
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
@@ -622,6 +622,37 @@ Global options
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/local#keys
+"
+`;
+
+exports[`help > documents mcp 1`] = `
+"Usage: better-supabase mcp [options]
+
+Serves the CLI to coding agents as an MCP server on stdio: read-only tools, and file writes with --allow-writes and the user's consent
+
+Options
+  --allow-writes  Add the tools that write files (gen, sql_sync, apply, add); each call still needs the user's consent token
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Starts the read-only server; add it to the agent's MCP config
+  $ better-supabase mcp
+  # Adds gen, sql_sync, apply and add, each behind a consent token
+  $ better-supabase mcp --allow-writes
+
+Side effects: Reads the database, writes files with --allow-writes.
+Docs: https://bettersupabase.com/docs/cli/mcp
 "
 `;
 
@@ -1219,6 +1250,7 @@ Local stack
 Inspect
   doctor  Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning
   config  Prints the resolved config: the file it came from, the active environment and every option with its default
+  mcp     Serves the CLI to coding agents as an MCP server on stdio: read-only tools, and file writes with --allow-writes and the user's consent
 
 Maintain
   sql      Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration

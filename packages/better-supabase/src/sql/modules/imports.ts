@@ -90,6 +90,27 @@ end;
 $$;
 ${userGrant(`${ctx.fn("start_import")}(${ctx.idType}, text, jsonb)`)}
 
+-- The run moves from pending to running before the first batch, so a run
+-- that dies mid-way is visible as running rather than pending.
+create or replace function ${ctx.fn("mark_import_running")}(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update ${runs} set ${ctx.col("runs", "status")} = 'running'
+  where ${ctx.col("runs", "id")} = mark_import_running.id and ${ctx.col("runs", "status")} = 'pending';
+  if not found then
+    ${fail("IMPORT_NOT_FOUND", "no pending import with this id", "P0002")}
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function ${ctx.fn("mark_import_running")}(uuid) from public, anon, authenticated;
+grant execute on function ${ctx.fn("mark_import_running")}(uuid) to service_role;
+
 create or replace function ${ctx.fn("finish_import")}(id uuid, status text, count integer, error text)
 returns boolean
 language plpgsql
@@ -136,6 +157,7 @@ grant execute on function ${ctx.fn("finish_import")}(uuid, text, integer, text) 
 function contract(): readonly ModuleContractFunction[] {
   return [
     { name: "start_import", args: ["{id}", "text", "jsonb"], returns: "jsonb" },
+    { name: "mark_import_running", args: ["uuid"], returns: "boolean" },
     {
       name: "finish_import",
       args: ["uuid", "text", "integer", "text"],
@@ -149,7 +171,7 @@ export const IMPORTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Imports",
   description:
-    "Import runs. Parsing, mapping and the dry run live in TypeScript. The job records import.completed or import.failed.",
+    "Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.",
   requires: ["tenant", "access", "jobs"],
   integrates: ["attachments", "outbox"],
   target: "schema",

@@ -61,6 +61,7 @@ import {
   deleteTaskView,
   runTaskBulkAction,
   saveTaskView,
+  setTaskField,
 } from "../project-actions";
 import {
   type MemberOption,
@@ -336,6 +337,170 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
   );
 }
 
+const UNASSIGNED = "unassigned";
+
+type SetField = "due_on" | "assignee_id";
+
+/**
+ * Sets one field on the selected tasks with the bulk block's
+ * `appTables.set`. An empty value clears the field.
+ */
+function SetFieldDialog({
+  ids,
+  members,
+  onDone,
+}: {
+  ids: readonly string[];
+  members: readonly MemberOption[];
+  onDone: () => void;
+}) {
+  const t = useExtracted("projects");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+  const [open, setOpen] = useState(false);
+  const [field, setField] = useState<SetField>("due_on");
+  const [dueOn, setDueOn] = useState("");
+  const [assignee, setAssignee] = useState(UNASSIGNED);
+
+  const set = useAction(setTaskField, {
+    onSuccess: (count) => {
+      toast.success(
+        t("{count, plural, one {# task} other {# tasks}} changed", { count }),
+      );
+      setOpen(false);
+      onDone();
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const fields = [
+    { value: "due_on", label: t("Due date") },
+    { value: "assignee_id", label: t("Assignee") },
+  ] as const satisfies readonly { value: SetField; label: string }[];
+
+  const people = [
+    { value: UNASSIGNED, label: t("Unassigned") },
+    ...members.map((member) => ({ value: member.userId, label: member.name })),
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
+        {t("Set field")}
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="grid gap-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void set.run({
+              ids: [...ids],
+              values:
+                field === "due_on"
+                  ? { due_on: dueOn === "" ? null : dueOn }
+                  : {
+                      assignee_id: assignee === UNASSIGNED ? null : assignee,
+                    },
+            });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {t(
+                "Set a field on {count, plural, one {# task} other {# tasks}}",
+                { count: ids.length },
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {t("Leave the value empty to clear the field.")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-field`}>{t("Field")}</FieldLabel>
+              <Select
+                value={field}
+                items={fields}
+                onValueChange={(value) => {
+                  const picked = fields.find((each) => each.value === value);
+
+                  if (picked) {
+                    setField(picked.value);
+                  }
+                }}
+              >
+                <SelectTrigger id={`${fieldId}-field`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fields.map((each) => (
+                    <SelectItem key={each.value} value={each.value}>
+                      {each.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {field === "due_on" ? (
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-due`}>
+                  {t("Due date")}
+                </FieldLabel>
+                <Input
+                  id={`${fieldId}-due`}
+                  type="date"
+                  value={dueOn}
+                  onChange={(event) => {
+                    setDueOn(event.target.value);
+                  }}
+                />
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor={`${fieldId}-assignee`}>
+                  {t("Assignee")}
+                </FieldLabel>
+                <Select
+                  value={assignee}
+                  items={people}
+                  onValueChange={(value) => {
+                    const person = people.find((each) => each.value === value);
+
+                    if (person) {
+                      setAssignee(person.value);
+                    }
+                  }}
+                >
+                  <SelectTrigger id={`${fieldId}-assignee`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {people.map((person) => (
+                      <SelectItem key={person.value} value={person.value}>
+                        {person.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              {t("Cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={set.pending}>
+              {t("Apply")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type GridRow = TaskRow & {
   readonly projectName: string;
   readonly assigneeName: string;
@@ -367,7 +532,8 @@ function StatusCell({ row }: GridCell) {
 
 /**
  * Tasks in a ReUI data grid. The checkboxes feed a bulk bar that sets the
- * status of the selected rows or deletes them in one statement.
+ * status of the selected rows, sets another field through the bulk block,
+ * or deletes them in one statement.
  */
 export function TaskGrid({
   rows,
@@ -451,6 +617,13 @@ export function TaskGrid({
               {t("Mark {status}", { status: statusLabel(status) })}
             </Button>
           ))}
+          <SetFieldDialog
+            ids={ids}
+            members={members}
+            onDone={() => {
+              setSelection({});
+            }}
+          />
           <Button
             size="sm"
             variant="destructive"

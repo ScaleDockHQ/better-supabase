@@ -129,4 +129,17 @@ export interface DoctorConfig {
    * Otherwise it limits the whole token's claims (default 2048).
    */
   readonly claimsLimit?: number;
+  /** Which migrations the lock checks (BS229 to BS234) read. */
+  readonly migrationSafety?: MigrationSafetyConfig;
+}
+
+export interface MigrationSafetyConfig {
+  /**
+   * The newest migration that is already applied everywhere, by file name
+   * (`20260101000000_init.sql`) or version (`20260101000000`). Offline,
+   * doctor checks only the migrations after it; with `--db-url` it checks
+   * the ones the database hasn't applied. `init` and `adopt` set it to the
+   * latest migration.
+   */
+  readonly since?: string;
 }

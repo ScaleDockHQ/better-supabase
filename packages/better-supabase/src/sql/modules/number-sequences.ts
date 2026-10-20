@@ -13,6 +13,7 @@ import {
   lockTable,
   quotedTable,
   schemaPreamble,
+  SERVICE_CALLER,
   serviceGrant,
 } from "../shared.ts";
 
@@ -559,7 +560,14 @@ begin
     end if;
     return new;
   end if;
-  if new.${col} is not null or not (${item.assignOn}) then
+  -- A number is assigned here or by the service role, never sent by a client.
+  if new.${col} is not null then
+    if not (${SERVICE_CALLER}) then
+      ${fail("NUMBER_MANUAL", "a number is assigned by the sequence, not set by hand", "42501")}
+    end if;
+    return new;
+  end if;
+  if not (${item.assignOn}) then
     return new;
   end if;
   v_n := ${ctx.fn("next_number")}(new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, now());

@@ -171,6 +171,27 @@ describe("versions client", () => {
     );
   });
 
+  it("restores the named fields only", async () => {
+    const fake = transport({
+      restore_version: () => ({
+        id: "v4",
+        number: 4,
+        contentHash: "b",
+        unchanged: false,
+        restoredFrom: 1,
+        content: { title: "A", tags: ["x", "y"] },
+      }),
+    });
+
+    const versions = createVersions({ transport: fake, schema: "app" });
+    expect(
+      (await versions.restoreFields("v1", ["title"]).orThrow()).content,
+    ).toEqual({ title: "A", tags: ["x", "y"] });
+    expect(fake.calls).toEqual([
+      ["restore_version", { version_id: "v1", fields: ["title"] }],
+    ]);
+  });
+
   it("rejects a row with an unknown source", async () => {
     const versions = createVersions({
       transport: transport({
