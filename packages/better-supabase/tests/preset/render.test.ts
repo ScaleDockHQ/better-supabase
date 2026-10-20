@@ -25,7 +25,7 @@ describe("presetConfigSource", () => {
       [
         'import { defineConfig } from "better-supabase/config";',
         "",
-        `// https://bettersupabase.com/create?preset=${encodePreset(preset)}`,
+        `// https://app.bettersupabase.com/create?preset=${encodePreset(preset)}`,
         "export default defineConfig({",
         '  casing: "camel",',
         '  sql: { api: "api" },',

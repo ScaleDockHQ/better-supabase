@@ -235,7 +235,7 @@ export function renderConfigSchema(): string {
       ...properties,
       preset: {
         ...child(properties, "preset"),
-        description: `A named preset (${PRESET_NAMES.join(", ")}), a code from bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win.`,
+        description: `A named preset (${PRESET_NAMES.join(", ")}), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win.`,
       },
       blocks,
     },
