@@ -79,6 +79,7 @@ catalog:
   "@vercel/analytics": 2.0.1
   "@vercel/connect": 2.2.0
   "@vercel/detect-agent": 1.2.5
+  "@vercel/queue": 0.8.0
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
   "@workflow/world": 5.0.4
@@ -322,6 +323,8 @@ catalogs:
     "@powersync/common": ">=1 <3"
     # 2.x has getTokenResponse, revokeToken and startAuthorization.
     "@vercel/connect": ">=2 <3"
+    # 0.8 has PollingQueueClient with send and receive; the 0.x line may still change.
+    "@vercel/queue": ">=0.8 <0.9"
     # 4.1.0 added bulkDecide and adapterId; 4.2.0 resolves an adapter factory passed by reference.
     flags: ">=4.2 <5"
 

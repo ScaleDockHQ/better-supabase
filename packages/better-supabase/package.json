@@ -2718,6 +2718,7 @@
     "@valibot/to-json-schema": "catalog:",
     "@vercel/connect": "catalog:",
     "@vercel/detect-agent": "catalog:",
+    "@vercel/queue": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
@@ -2797,6 +2798,7 @@
     "@tanstack/query-core": "catalog:peers",
     "@tanstack/react-start": "catalog:peers",
     "@vercel/connect": "catalog:peers",
+    "@vercel/queue": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
@@ -2893,6 +2895,9 @@
       "optional": true
     },
     "@vercel/connect": {
+      "optional": true
+    },
+    "@vercel/queue": {
       "optional": true
     },
     "@workflow/world": {

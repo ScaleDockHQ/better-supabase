@@ -22,6 +22,7 @@ const INTEGRATIONS = [
   "@powersync/common",
   "@supabase-labs/middleware-openfeature",
   "@vercel/connect",
+  "@vercel/queue",
   "flags",
   "stripe",
   "yjs",
