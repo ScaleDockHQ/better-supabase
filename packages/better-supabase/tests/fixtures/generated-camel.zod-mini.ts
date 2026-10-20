@@ -131,6 +131,7 @@ export const membershipsRow: z.ZodMiniType<RowOf<'memberships'>> = z.object({
   role: z.enum(["owner", "admin", "member"]),
   createdAt: z.iso.datetime({ offset: true }),
   lastUsedAt: z.nullable(z.iso.datetime({ offset: true })),
+  tierRole: z.nullable(z.string()),
 }).check(z.meta({ title: "Memberships" }));
 export const membershipsInsert: z.ZodMiniType<InsertOf<'memberships'>> = z.object({
   organizationId: z.guid(),

@@ -8,6 +8,8 @@ create table public.memberships (
   role text not null default 'member',
   created_at timestamptz not null default now(),
   last_used_at timestamptz,
+  -- Stored generated column: the database fills it, so it is in Row but never writable.
+  tier_role text generated always as (case when role in ('owner', 'admin') then 'manager' else 'member' end) stored,
   primary key (organization_id, user_id),
   constraint memberships_role_check check (role in ('owner', 'admin', 'member'))
 );

@@ -246,6 +246,15 @@ extra round trips:
   entity with a `table` are optional on insert without being listed, unless
   the block is in `custom` mode.
 
+- **Generated columns.** A generated column (`generated always as (...)
+  stored`) or an identity column `always` is in `Row` and typed `?: never` in
+  `Insert` and `Update`. `WritableColumnOf<"table">` is the union of the
+  columns the database lets you write, and `GeneratedColumnOf<"table">` is the
+  rest. The generic forms, `WritableColumns<Models, T>` and
+  `GeneratedColumns<Models, T>`, come from `better-supabase`. Use them to
+  check a column list against the table, for example the columns an offline
+  client uploads (see [PowerSync](/docs/repository/powersync#uploaded-columns)).
+
 - **Function arguments and results.** Every argument in `Functions` accepts
   `null`, since Postgres passes `null` to any function, and arguments with a
   default are optional. Functions that return rows of a table or a

@@ -135,6 +135,7 @@ export const membershipsRow: v.GenericSchema<RowOf<'memberships'>> = v.pipe(v.ob
   role: v.picklist(["owner", "admin", "member"]),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   lastUsedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+  tierRole: v.nullable(v.string()),
 }), v.title("Memberships"));
 export const membershipsInsert: v.GenericSchema<InsertOf<'memberships'>> = v.pipe(v.object({
   organizationId: v.pipe(v.string(), v.uuid()),

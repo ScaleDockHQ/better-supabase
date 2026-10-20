@@ -213,6 +213,7 @@ export type Database = {
           last_used_at: string | null
           organization_id: string
           role: string
+          tier_role: string | null
           user_id: string
         }
         ComputedFields: never
@@ -221,6 +222,7 @@ export type Database = {
           last_used_at?: string | null
           organization_id: string
           role?: string
+          tier_role?: never
           user_id: string
         }
         Update: {
@@ -228,6 +230,7 @@ export type Database = {
           last_used_at?: string | null
           organization_id?: string
           role?: string
+          tier_role?: never
           user_id?: string
         }
         Relationships: [
