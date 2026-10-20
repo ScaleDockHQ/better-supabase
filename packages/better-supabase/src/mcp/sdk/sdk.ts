@@ -90,7 +90,8 @@ export interface BetterMcpAuth<
   E = unknown,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /** An `OAuthTokenVerifier` for the SDK's bearer helpers; it verifies the token locally. */
   readonly verifier: OAuthTokenVerifier;
   /** The RFC 9728 Protected Resource Metadata document. */
@@ -104,7 +105,7 @@ export interface BetterMcpAuth<
    */
   serve(handler: McpFetchHandler): (request: Request) => Promise<Response>;
   /** The caller's context for a tool call, from `ctx.http.authInfo`. */
-  contextOf(ctx: McpContext): Promise<ServerContext<M, F, E, C, P>>;
+  contextOf(ctx: McpContext): Promise<ServerContext<M, F, E, C, P, B>>;
 }
 
 /** What `withBetterSupabaseMcp` adds to the SDK's tool context. */
@@ -114,12 +115,13 @@ export interface BetterToolExtra<
   E = unknown,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   /** Repositories bound to the verified caller, with RLS. */
-  readonly db: ServerContext<M, F, E, C, P>["db"];
+  readonly db: ServerContext<M, F, E, C, P, B>["db"];
   readonly auth: AuthState<C, P>;
   /** The full server context: `db`, `auth`, `supabase` and the rest. */
-  readonly bs: ServerContext<M, F, E, C, P>;
+  readonly bs: ServerContext<M, F, E, C, P, B>;
 }
 
 export type BetterToolContext<
@@ -128,7 +130,8 @@ export type BetterToolContext<
   E = unknown,
   C = unknown,
   P = unknown,
-> = McpContext & BetterToolExtra<M, F, E, C, P>;
+  B = unknown,
+> = McpContext & BetterToolExtra<M, F, E, C, P, B>;
 
 export interface BetterToolConfig<
   InputArgs extends StandardSchemaWithJSON | undefined,
@@ -169,6 +172,7 @@ export type BetterMcpServer<
   E = unknown,
   C = unknown,
   P = unknown,
+  B = unknown,
 > = Omit<S, "registerTool"> & {
   registerTool<
     OutputArgs extends StandardSchemaWithJSON | undefined = undefined,
@@ -176,7 +180,7 @@ export type BetterMcpServer<
   >(
     name: string,
     config: BetterToolConfig<InputArgs, OutputArgs>,
-    cb: BetterToolCallback<InputArgs, BetterToolContext<M, F, E, C, P>>,
+    cb: BetterToolCallback<InputArgs, BetterToolContext<M, F, E, C, P, B>>,
   ): RegisteredTool;
 };
 
@@ -224,10 +228,11 @@ export function createMcpAuth<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: McpAuthOptions = {},
-): BetterMcpAuth<M, F, E, C, P> {
+): BetterMcpAuth<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   /** Auth states this instance verified and guarded; any other `AuthInfo.extra` is ignored. */
   const verified = new WeakSet<object>();
@@ -299,7 +304,7 @@ export function createMcpAuth<
 
   const contextOf = async (
     ctx: McpContext,
-  ): Promise<ServerContext<M, F, E, C, P>> => {
+  ): Promise<ServerContext<M, F, E, C, P, B>> => {
     const info = ctx.http?.authInfo;
     const state = info?.extra?.[MCP_AUTH_STATE_KEY];
 
@@ -372,7 +377,7 @@ export function createMcpAuth<
     }
   };
 
-  return extendServer<BetterMcpAuth<M, F, E, C, P>>(server, {
+  return extendServer<BetterMcpAuth<M, F, E, C, P, B>>(server, {
     verifier,
     metadata,
     metadataUrl,
@@ -393,9 +398,10 @@ export function withBetterSupabaseMcp<
   E,
   C,
   P,
+  B,
 >(
   server: S,
-  auth: Pick<BetterMcpAuth<M, F, E, C, P>, "contextOf">,
+  auth: Pick<BetterMcpAuth<M, F, E, C, P, B>, "contextOf">,
 ): BetterMcpServer<S, M, F, E, C, P> {
   const register = server.registerTool.bind(server);
 

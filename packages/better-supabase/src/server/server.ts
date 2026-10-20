@@ -563,6 +563,7 @@ export function createServer<
 
         const connected = betterSupabase.connect(rest, context, {
           stats: recorder,
+          storage: { from: (bucket) => client().storage.from(bucket) },
           ...(auth.kind === "invalid"
             ? { executor: refusingExecutor(auth.error) }
             : url && replica
@@ -942,7 +943,7 @@ export function createServer<
       }),
   };
 
-  const core: ServerCore<M, F, E, C, P> = {
+  const core: ServerCore<M, F, E, C, P, B> = {
     events: betterSupabase.events,
     pinMs,
     resolve,

@@ -110,9 +110,10 @@ export type EdgeRouteHandler<
   C = unknown,
   P = unknown,
   Params = Readonly<Record<string, string>>,
+  B = unknown,
 > = (
   request: Request,
-  ctx: ServerContext<M, F, E, C, P> & {
+  ctx: ServerContext<M, F, E, C, P, B> & {
     readonly params: Params;
     readonly session: AuthSession<C, P>;
     readonly tenant: string | undefined;
@@ -127,8 +128,9 @@ export interface EdgeRoute<
   C = unknown,
   P = unknown,
   Params = Readonly<Record<string, string>>,
+  B = unknown,
 > extends BlockRequireOptions<C, P> {
-  readonly handler: EdgeRouteHandler<M, F, E, C, P, Params>;
+  readonly handler: EdgeRouteHandler<M, F, E, C, P, Params, B>;
 }
 
 /**
@@ -141,8 +143,13 @@ export type EdgeRoutes<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > = Readonly<
-  Record<string, EdgeRouteHandler<M, F, E, C, P> | EdgeRoute<M, F, E, C, P>>
+  Record<
+    string,
+    | EdgeRouteHandler<M, F, E, C, P, Readonly<Record<string, string>>, B>
+    | EdgeRoute<M, F, E, C, P, Readonly<Record<string, string>>, B>
+  >
 >;
 
 export interface BetterEdge<
@@ -152,13 +159,14 @@ export interface BetterEdge<
   C = unknown,
   P = unknown,
   Ref = string,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * A fetch handler (`Deno.serve`, Workers `fetch`) running as the caller.
    * `Result`s become JSON or Problem Details; `undefined` becomes 204.
    */
   handler(
-    fn: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
+    fn: (request: Request, ctx: ServerContext<M, F, E, C, P, B>) => unknown,
     options?: MiddlewareOptions,
   ): EdgeHandler;
   /**
@@ -178,8 +186,8 @@ export interface BetterEdge<
   routes<K extends string>(
     routes: {
       readonly [Key in K]:
-        | EdgeRouteHandler<M, F, E, C, P, RouteParams<Key>>
-        | EdgeRoute<M, F, E, C, P, RouteParams<Key>>;
+        | EdgeRouteHandler<M, F, E, C, P, RouteParams<Key>, B>
+        | EdgeRoute<M, F, E, C, P, RouteParams<Key>, B>;
     },
     options?: ResourcesOptions,
   ): EdgeHandler;
@@ -189,7 +197,7 @@ export interface BetterEdge<
    * action paths. An unknown path answers 404 before auth resolves.
    */
   resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P>["db"]>,
+    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B>["db"]>,
     options?: ResourcesOptions,
   ): EdgeHandler;
 }
@@ -225,10 +233,11 @@ export function createEdge<
   C = unknown,
   P = unknown,
   A extends AnyAuthorizer | undefined = undefined,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: EdgeOptions & { readonly authorizer?: A } = {},
-): BetterEdge<M, F, E, C, P, PermissionRef<A>> {
+): BetterEdge<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -244,7 +253,7 @@ export function createEdge<
   const serve = (
     run: (
       request: Request,
-      ctx: ServerContext<M, F, E, C, P>,
+      ctx: ServerContext<M, F, E, C, P, B>,
       tenant: string | undefined,
     ) => unknown,
     handlerOptions: MiddlewareOptions,
@@ -288,14 +297,14 @@ export function createEdge<
       );
   };
 
-  return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>>>(server, {
+  return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>, B>>(server, {
     handler(fn, handlerOptions = {}) {
       return serve(fn, handlerOptions);
     },
 
     routes(routes, routesOptions = {}) {
       const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
-      const compiled = compileRoutes<M, F, E, C, P>(routes);
+      const compiled = compileRoutes<M, F, E, C, P, B>(routes);
       const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
 
       const shared = {
@@ -304,7 +313,9 @@ export function createEdge<
         ...(scopes === undefined ? {} : { scopes }),
       };
 
-      const find = (request: Request): RouteMatch<M, F, E, C, P> | Response => {
+      const find = (
+        request: Request,
+      ): RouteMatch<M, F, E, C, P, B> | Response => {
         const { pathname } = new URL(request.url);
 
         const path =

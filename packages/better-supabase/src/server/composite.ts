@@ -50,17 +50,18 @@ export interface BetterSupabaseContributions<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   /** The full request context: `auth`, `supabase`, `stats()`, `apply()` and the rest. */
-  bs: ServerContext<M, F, E, C, P>;
+  bs: ServerContext<M, F, E, C, P, B>;
   /** The verified token's payload, or `null`; the key `withSupabase` uses. */
   jwtClaims: (JWTClaims & C) | null;
   userClaims: UserClaims | null;
   authMode: AuthMode;
   /** Repositories over PostgREST as the caller. */
-  db: Db<M, F, E, SupabaseClient>;
+  db: Db<M, F, E, SupabaseClient, B>;
   /** Repositories over direct Postgres as the caller, when Postgres is configured or upstream. */
-  sql: Db<M, F, E, undefined> | undefined;
+  sql: Db<M, F, E, undefined, B> | undefined;
   tenant: string | undefined;
   support: ActiveSupport | undefined;
   replica: ReplicaState | undefined;
@@ -73,15 +74,17 @@ export type BetterSupabaseEntry<
   E,
   C = unknown,
   P = unknown,
-> = Entry<BetterSupabaseContributions<M, F, E, C, P>>;
+  B = unknown,
+> = Entry<BetterSupabaseContributions<M, F, E, C, P, B>>;
 
-type Ctx<M extends AnyModels, F extends AnyFunctions, E, C, P> = ServerContext<
-  M,
-  F,
+type Ctx<
+  M extends AnyModels,
+  F extends AnyFunctions,
   E,
   C,
-  P
->;
+  P,
+  B,
+> = ServerContext<M, F, E, C, P, B>;
 
 /** The single-key entries `withBetterSupabase` bundles, outermost first. */
 export type BetterSupabaseParts<
@@ -90,6 +93,7 @@ export type BetterSupabaseParts<
   E,
   C,
   P,
+  B,
 > = readonly [
   SingleKeyEntry<"session", Record<never, never>, AuthResolution<C, P>>,
   SingleKeyEntry<
@@ -102,7 +106,7 @@ export type BetterSupabaseParts<
     { readonly session: AuthResolution<C, P> },
     ActiveSupport | undefined
   >,
-  SingleKeyEntry<"bs", ServerContextIn<C, P>, Ctx<M, F, E, C, P>>,
+  SingleKeyEntry<"bs", ServerContextIn<C, P>, Ctx<M, F, E, C, P, B>>,
   SingleKeyEntry<
     "auth",
     { readonly bs: { readonly auth: AuthState<C, P> } },
@@ -122,17 +126,17 @@ export type BetterSupabaseParts<
   SingleKeyEntry<"authMode", { readonly auth: AuthState<C, P> }, AuthMode>,
   SingleKeyEntry<
     "db",
-    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient> } },
-    Db<M, F, E, SupabaseClient>
+    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+    Db<M, F, E, SupabaseClient, B>
   >,
   SingleKeyEntry<
     "sql",
-    SqlIn<M, F, E, C, P>,
-    Db<M, F, E, undefined> | undefined
+    SqlIn<M, F, E, C, P, B>,
+    Db<M, F, E, undefined, B> | undefined
   >,
   SingleKeyEntry<
     "replica",
-    { readonly bs: Ctx<M, F, E, C, P> },
+    { readonly bs: Ctx<M, F, E, C, P, B> },
     ReplicaState | undefined
   >,
 ];
@@ -147,10 +151,11 @@ function betterSupabaseParts<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
   config: BetterSupabaseConfig = {},
-): BetterSupabaseParts<M, F, E, C, P> {
+): BetterSupabaseParts<M, F, E, C, P, B> {
   const {
     refresh,
     cookies,
@@ -178,15 +183,23 @@ function betterSupabaseParts<
     withJwtClaims<C, P>(),
     withUserClaims<C, P>(),
     withAuthMode<C, P>(),
-    withDb<M, F, E>(),
-    withSql<M, F, E, C, P>(),
+    withDb<M, F, E, B>(),
+    withSql<M, F, E, C, P, B>(),
     withReplica(core),
   ] as const;
 }
 
-function isDefinition<M extends AnyModels, D, F extends AnyFunctions, E, C, P>(
-  source: BetterSupabase<M, D, F, E, C, P> | BetterServer<M, F, E, C, P>,
-): source is BetterSupabase<M, D, F, E, C, P> {
+function isDefinition<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+>(
+  source: BetterSupabase<M, D, F, E, C, P, B> | BetterServer<M, F, E, C, P, B>,
+): source is BetterSupabase<M, D, F, E, C, P, B> {
   return "connect" in source && typeof source.connect === "function";
 }
 
@@ -216,20 +229,22 @@ export function withBetterSupabase<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   config?: BetterSupabaseConfig & ServerOptions,
-): BetterSupabaseEntry<M, F, E, C, P>;
+): BetterSupabaseEntry<M, F, E, C, P, B>;
 export function withBetterSupabase<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  server: BetterServer<M, F, E, C, P>,
+  server: BetterServer<M, F, E, C, P, B>,
   config?: BetterSupabaseConfig,
-): BetterSupabaseEntry<M, F, E, C, P>;
+): BetterSupabaseEntry<M, F, E, C, P, B>;
 export function withBetterSupabase<
   M extends AnyModels,
   D,
@@ -237,10 +252,11 @@ export function withBetterSupabase<
   E,
   C,
   P,
+  B,
 >(
-  source: BetterSupabase<M, D, F, E, C, P> | BetterServer<M, F, E, C, P>,
+  source: BetterSupabase<M, D, F, E, C, P, B> | BetterServer<M, F, E, C, P, B>,
   config: BetterSupabaseConfig & ServerOptions = {},
-): BetterSupabaseEntry<M, F, E, C, P> {
+): BetterSupabaseEntry<M, F, E, C, P, B> {
   const server = isDefinition(source) ? createServer(source, config) : source;
   const core = serverCore(server);
 

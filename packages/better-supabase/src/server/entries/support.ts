@@ -17,8 +17,9 @@ export function withSupport<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
 ): SingleKeyEntry<
   "support",
   { readonly session: AuthResolution<C, P> },

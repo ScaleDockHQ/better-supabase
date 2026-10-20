@@ -25,14 +25,19 @@ export function withServerContext<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
-): SingleKeyEntry<"bs", ServerContextIn<C, P>, ServerContext<M, F, E, C, P>> {
+  core: ServerCore<M, F, E, C, P, B>,
+): SingleKeyEntry<
+  "bs",
+  ServerContextIn<C, P>,
+  ServerContext<M, F, E, C, P, B>
+> {
   return defineMiddleware<
     "bs",
     undefined,
     ServerContextIn<C, P>,
-    ServerContext<M, F, E, C, P>
+    ServerContext<M, F, E, C, P, B>
   >({
     key: "bs",
     run: () => (request, ctx) => {

@@ -3,10 +3,12 @@ import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
+import type { BucketClient } from "../../src/storage/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createHono, type HonoEnv } from "../../src/hono/index.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const Claims = v.object({ tenant_id: v.string(), user_role: v.string() });
@@ -74,5 +76,25 @@ describe("bs.Env and bs.app()", () => {
         return c.json({});
       });
     expectTypeOf(bs.app()).toEqualTypeOf<Hono<Env>>();
+  });
+});
+
+describe("betterSupabase.buckets() in Hono", () => {
+  const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
+  const bs = createHono(defineSupabase(schema).buckets({ logos }));
+
+  type Logos = BucketClient<"{userId}/logo.webp", "logos">;
+
+  it("types db.$buckets in c.var, the handler context and the server", () => {
+    new Hono<typeof bs.Env>().use(bs.middleware()).get(
+      "/",
+      bs.handler((c, ctx) => {
+        expectTypeOf(c.var.db.$buckets.logos).toEqualTypeOf<Logos>();
+        expectTypeOf(ctx.db.$buckets.logos).toEqualTypeOf<Logos>();
+
+        return null;
+      }),
+    );
+    expectTypeOf(bs.admin().$buckets.logos).toEqualTypeOf<Logos>();
   });
 });

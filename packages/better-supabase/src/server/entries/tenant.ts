@@ -18,8 +18,9 @@ export function withTenant<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
 ): SingleKeyEntry<
   "tenant",
   { readonly session: AuthResolution<C, P> },

@@ -94,10 +94,11 @@ export async function handle<
   E,
   C,
   P,
+  B,
 >(
-  server: BetterServer<M, F, E, C, P>,
+  server: BetterServer<M, F, E, C, P, B>,
   request: Request,
-  run: (ctx: ServerContext<M, F, E, C, P>) => unknown,
+  run: (ctx: ServerContext<M, F, E, C, P, B>) => unknown,
   options: HandleOptions = {},
 ): Promise<Response> {
   const expose = options.expose ?? defaultExpose();

@@ -346,9 +346,10 @@ A connection without storage (a bare `Executor`) throws when `$buckets` is
 read, as `db.$storage` does; pass `connect(executor, context, { storage })`.
 `db.$buckets` is typed on the `Db` that `betterSupabase.connect()` returns, on
 `$with()` and `$withoutPlugins()` results, and on the `db`, `sql` and `admin()`
-repositories of `createServer(betterSupabase)`. Framework adapters (`next`,
-`hono` and the rest) do not carry the type yet; use `bucket.connect(db.$storage)`
-there. On a server it uses the caller's Storage client, built on first read.
+repositories of `createServer(betterSupabase)`. The framework adapters
+(`next`, `hono`, `orpc`, `edge`, `mcp` and the rest) carry it too, so
+`ctx.db.$buckets.logos` works in handlers, actions and routes. On a server it
+uses the caller's Storage client, built on first read.
 
 `publicUrl(target)` builds the URL of an object in a public bucket without a
 request. Like `path(target)`, it returns a `Result`: `invalid_input` for a

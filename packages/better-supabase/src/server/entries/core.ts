@@ -16,6 +16,7 @@ export interface ServerCore<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   readonly events: EventHub;
   /** How long reads stay on the primary after a write. */
@@ -45,11 +46,11 @@ export interface ServerCore<
     request: Request,
     options: ContextOptions,
     tenant: string | undefined,
-  ): ServerContext<M, F, E, C, P>;
+  ): ServerContext<M, F, E, C, P, B>;
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any -- the registry holds servers of every schema.
-type AnyCore = ServerCore<any, any, any, any, any>;
+type AnyCore = ServerCore<any, any, any, any, any, any>;
 
 const cores = new WeakMap<object, AnyCore>();
 
@@ -74,10 +75,11 @@ export function serverCore<
   E,
   C,
   P,
+  B,
 >(server: {
   readonly events: EventHub;
-  context(request: Request): Promise<ServerContext<M, F, E, C, P>>;
-}): ServerCore<M, F, E, C, P> {
+  context(request: Request): Promise<ServerContext<M, F, E, C, P, B>>;
+}): ServerCore<M, F, E, C, P, B> {
   const core = cores.get(server);
 
   if (!core) {
@@ -87,7 +89,7 @@ export function serverCore<
   }
 
   // SAFETY: the registry maps each server to the core createServer built for it, with the same generics.
-  return core as ServerCore<M, F, E, C, P>;
+  return core as ServerCore<M, F, E, C, P, B>;
 }
 
 /**
@@ -118,8 +120,9 @@ export function startSupportLookup<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
   request: Request,
   session: AuthResolution<C, P>,
 ): void {
@@ -140,8 +143,9 @@ export function supportLookup<
   E,
   C,
   P,
+  B,
 >(
-  core: ServerCore<M, F, E, C, P>,
+  core: ServerCore<M, F, E, C, P, B>,
   request: Request,
   session: AuthResolution<C, P>,
 ): Promise<ActiveSupport | undefined> {

@@ -90,10 +90,11 @@ export function createNext<
   C = unknown,
   P = unknown,
   A extends AnyAuthorizer | undefined = undefined,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: NextOptions & { readonly authorizer?: A } = {},
-): BetterNext<M, F, E, C, P, PermissionRef<A>> {
+): BetterNext<M, F, E, C, P, PermissionRef<A>, B> {
   const base = createServer(betterSupabase, options);
   const core = serverCore(base);
   const expose = options.exposeErrors ?? defaultExpose();
@@ -144,7 +145,7 @@ export function createNext<
 
   /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
   const writeCookies = async (
-    ctx: ServerContext<M, F, E, C, P>,
+    ctx: ServerContext<M, F, E, C, P, B>,
   ): Promise<void> => {
     const writes = ctx.cookies();
 
@@ -187,14 +188,14 @@ export function createNext<
   const scopedTenants = new WeakMap<object, string>();
 
   const tenantFor = (
-    ctx: ServerContext<M, F, E, C, P>,
+    ctx: ServerContext<M, F, E, C, P, B>,
     view: AuthSession<C, P>,
   ): string | undefined =>
     scopedTenants.get(ctx) ?? tenantOf(view, tenantClaim);
 
   /** `requireTenant`, `roles`, `permission` and `authorize`, for the context's tenant. */
   const authorizeCaller = <I>(
-    ctx: ServerContext<M, F, E, C, P>,
+    ctx: ServerContext<M, F, E, C, P, B>,
     checks: AuthorizeOptions<I, C, P, boolean>,
     input: I,
   ): ReturnType<typeof authorizeAuth<I, C, P>> =>
@@ -208,7 +209,9 @@ export function createNext<
 
   /** `null` runs `NextOptions.tenant`; a string is the caller's explicit tenant. */
   const scoped = cache(
-    async (explicit: string | null): Promise<ServerContext<M, F, E, C, P>> => {
+    async (
+      explicit: string | null,
+    ): Promise<ServerContext<M, F, E, C, P, B>> => {
       const { request, resolution } = await incoming();
 
       const [tenant, support] = await Promise.all([
@@ -232,13 +235,13 @@ export function createNext<
     },
   );
 
-  const current = (tenant?: string): Promise<ServerContext<M, F, E, C, P>> =>
+  const current = (tenant?: string): Promise<ServerContext<M, F, E, C, P, B>> =>
     scoped(tenant ?? null);
 
   const context = (
     first?: Request | ScopeOptions,
     contextOptions?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P>> =>
+  ): Promise<ServerContext<M, F, E, C, P, B>> =>
     first instanceof Request
       ? base.context(first, contextOptions)
       : current(first?.tenant ?? contextOptions?.tenant);
@@ -265,7 +268,7 @@ export function createNext<
   const contextForSession = async (
     view: AuthSession<C, P>,
     { token }: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P>> => {
+  ): Promise<ServerContext<M, F, E, C, P, B>> => {
     const ctx = await base.context(bearerRequest(token));
 
     // An expired token or an unreachable JWKS keeps its own error.
@@ -299,22 +302,22 @@ export function createNext<
         invalidateAll([sessionTag(userId)]);
 
         return result;
-      })) satisfies BetterServer<M, F, E, C, P>["deleteAccount"],
+      })) satisfies BetterServer<M, F, E, C, P, B>["deleteAccount"],
     endSessions: ((userId) =>
       base.endSessions(userId).map((result) => {
         invalidateAll([sessionTag(userId)]);
 
         return result;
-      })) satisfies BetterServer<M, F, E, C, P>["endSessions"],
+      })) satisfies BetterServer<M, F, E, C, P, B>["endSessions"],
     suspendAccount: ((userId, suspendOptions) =>
       base.suspendAccount(userId, suspendOptions).map((result) => {
         invalidateAll([sessionTag(userId)]);
 
         return result;
-      })) satisfies BetterServer<M, F, E, C, P>["suspendAccount"],
+      })) satisfies BetterServer<M, F, E, C, P, B>["suspendAccount"],
   });
 
-  return extendServer<BetterNext<M, F, E, C, P, PermissionRef<A>>>(
+  return extendServer<BetterNext<M, F, E, C, P, PermissionRef<A>, B>>(
     withAccounts,
     {
       session,
@@ -511,7 +514,7 @@ export function createNext<
       route(handler, guardOptions = {}) {
         return async (request, segment) => {
           let stats: (() => DbStats) | undefined;
-          let current: ServerContext<M, F, E, C, P> | undefined;
+          let current: ServerContext<M, F, E, C, P, B> | undefined;
           let response: Response;
 
           try {

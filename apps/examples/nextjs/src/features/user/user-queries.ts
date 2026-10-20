@@ -3,7 +3,7 @@ import type { AuthSession } from "better-supabase/next";
 
 import type { Claims, Profile } from "@/lib/claims";
 
-import { avatars, avatarSrc } from "@/lib/buckets";
+import { avatarSrc } from "@/lib/buckets";
 import { bs } from "@/lib/supabase/server";
 
 /**
@@ -36,7 +36,7 @@ export interface MyProfile {
  */
 export async function getMyProfile(): Promise<MyProfile | null> {
   "use cache: private";
-  const { db, session, supabase } = await bs.cached();
+  const { db, session } = await bs.cached();
 
   if (session.kind !== "user") {
     return null;
@@ -53,7 +53,7 @@ export async function getMyProfile(): Promise<MyProfile | null> {
     fullName: row.fullName,
     email: row.email,
     username: row.username,
-    avatarUrl: avatarSrc(avatars.connect(supabase), row),
+    avatarUrl: avatarSrc(db.$buckets.avatars, row),
     avatarPath: row.avatarPath,
   };
 }

@@ -50,6 +50,7 @@ export interface FunctionDefinition<
   E,
   C,
   P,
+  B,
 > extends MiddlewareOptions {
   /** Parses the JSON body. A body it rejects answers 422 with the issues. */
   readonly input: I;
@@ -63,7 +64,7 @@ export interface FunctionDefinition<
   /** Runs as the caller with the parsed input. Returns data or a `Result`. */
   readonly handler: (
     input: StandardSchemaV1.InferOutput<I>,
-    ctx: ServerContext<M, F, E, C, P> & { readonly request: Request },
+    ctx: ServerContext<M, F, E, C, P, B> & { readonly request: Request },
   ) => Returned<Out>;
 }
 
@@ -108,9 +109,10 @@ export function defineFunction<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  edge: Pick<BetterEdge<M, F, E, C, P>, "handler">,
-  definition: FunctionDefinition<I, Out, M, F, E, C, P>,
+  edge: Pick<BetterEdge<M, F, E, C, P, string, B>, "handler">,
+  definition: FunctionDefinition<I, Out, M, F, E, C, P, B>,
 ): TypedFunction<StandardSchemaV1.InferInput<I>, Out> {
   const { input, output, summary, handler, ...options } = definition;
 

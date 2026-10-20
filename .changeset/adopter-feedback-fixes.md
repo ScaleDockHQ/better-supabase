@@ -8,7 +8,7 @@ New API:
 
 - `matchDbError(error, matchers)` maps a `DbError` kind to a value, for `orThrow` factories.
 - `paginate({ withCount: true })` returns `total` on offset and cursor pages and narrows its type to `number`. On a cursor page after the first, it sends one extra request to count the matching rows.
-- `db.$buckets.<name>` is each bucket registered with `betterSupabase.buckets()`, connected to `db.$storage`. The type follows `$with()`, `$withoutPlugins()` and the `db`, `sql` and `admin()` repositories of `createServer(betterSupabase)`, and `db.$storage` on a server `Db` now uses the caller's Storage client. Framework adapters do not carry the type yet.
+- `db.$buckets.<name>` is each bucket registered with `betterSupabase.buckets()`, connected to `db.$storage`. The type follows `$with()`, `$withoutPlugins()` and the `db`, `sql` and `admin()` repositories of `createServer(betterSupabase)`, and `db.$storage` on a server `Db` now uses the caller's Storage client. Every framework adapter (`next`, `hono`, `orpc`, `edge`, `mcp`, `astro`, `sveltekit`, `react-router`, `solid-start`, `tanstack-start` and `expo`) carries the registry through a new trailing `B` type parameter, so `ctx.db.$buckets.<name>` is typed in handlers, actions and routes. `ctx.db.$storage` and `ctx.db.$buckets` now work on request contexts.
 - `better-supabase/testing` adds `scopedSeed`, `withRollback` and `TestUser.context`. `asUser` also turns off supabase-js trace propagation.
 - `gen` emits `WritableColumnOf` and `GeneratedColumnOf`, and the schema types export `WritableColumns` and `GeneratedColumns`.
 

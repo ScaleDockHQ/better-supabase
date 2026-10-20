@@ -49,7 +49,8 @@ export interface BetterAstro<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * Astro middleware: verifies the caller, refreshes the session cookie on
    * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and
@@ -64,7 +65,7 @@ export interface BetterAstro<
     next: () => Promise<Response>,
   ) => Promise<Response>;
   /** The request's `locals`, typed. */
-  locals(context: AstroContextLike): FrameworkLocals<M, F, E, C, P>;
+  locals(context: AstroContextLike): FrameworkLocals<M, F, E, C, P, B>;
   /**
    * The refusal for a caller `options` refuses (a redirect to `signIn` or
    * `mfa`, else Problem Details), or `undefined`. Return it from a page's
@@ -88,7 +89,7 @@ export interface BetterAstro<
   require<R extends boolean = false>(
     context: AstroContextLike,
     options?: BlockRequireOptions<C, P, R>,
-  ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
+  ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * The `handler` of `defineAction`, returning an `ActionResult`:
    *
@@ -102,7 +103,7 @@ export interface BetterAstro<
     options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
+      ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => T,
   ): (
     input: unknown,
@@ -126,15 +127,16 @@ export function createAstro<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: AstroOptions = {},
-): BetterAstro<M, F, E, C, P> {
+): BetterAstro<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
 
-  type Locals = FrameworkLocals<M, F, E, C, P>;
+  type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const scopeOf = (context: AstroContextLike): Locals => {
     if (!("bs" in context.locals)) {
@@ -163,7 +165,7 @@ export function createAstro<
     return { scope, caller };
   };
 
-  return extendServer<BetterAstro<M, F, E, C, P>>(server, {
+  return extendServer<BetterAstro<M, F, E, C, P, B>>(server, {
     onRequest: async (context, next) => {
       const env = options.platformEnv
         ? options.platformEnv(context)
@@ -171,7 +173,10 @@ export function createAstro<
 
       try {
         return await run(context.request, env, (contributions) => {
-          Object.assign(context.locals, localsOf<M, F, E, C, P>(contributions));
+          Object.assign(
+            context.locals,
+            localsOf<M, F, E, C, P, B>(contributions),
+          );
 
           return next();
         });

@@ -81,7 +81,8 @@ export interface BetterExpo<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * The verified caller for a server loader, API route or middleware: a
    * bearer token first, the session cookie second. Refreshed session
@@ -91,7 +92,7 @@ export interface BetterExpo<
   request(
     request: ExpoRequest,
     options?: ExpoContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P>>;
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
    * A server loader (`export const loader = bs.loader(...)`) that runs `fn`
    * as the caller. A `DbException` from `.orThrow()` becomes a `StatusError`
@@ -99,7 +100,7 @@ export interface BetterExpo<
    */
   loader<T>(
     fn: (
-      ctx: ServerContext<M, F, E, C, P>,
+      ctx: ServerContext<M, F, E, C, P, B>,
       params: ExpoParams,
       request: ImmutableRequest,
     ) => Promise<T> | T,
@@ -112,7 +113,7 @@ export interface BetterExpo<
   handler(
     fn: (
       request: Request,
-      ctx: ServerContext<M, F, E, C, P>,
+      ctx: ServerContext<M, F, E, C, P, B>,
       params: ExpoParams,
     ) => unknown,
     options?: MiddlewareOptions,
@@ -181,17 +182,18 @@ export function createExpo<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: ExpoOptions = {},
-): BetterExpo<M, F, E, C, P> {
+): BetterExpo<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
   const request = async (
     incoming: ExpoRequest,
     contextOptions: ExpoContextOptions = {},
-  ): Promise<ServerContext<M, F, E, C, P>> => {
+  ): Promise<ServerContext<M, F, E, C, P, B>> => {
     const { allow, aal, scopes, refresh = true, ...rest } = contextOptions;
 
     const ctx = await server.context(toRequest(incoming), {
@@ -212,7 +214,7 @@ export function createExpo<
     return ctx;
   };
 
-  return extendServer<BetterExpo<M, F, E, C, P>>(server, {
+  return extendServer<BetterExpo<M, F, E, C, P, B>>(server, {
     request,
 
     loader(fn, loaderOptions) {

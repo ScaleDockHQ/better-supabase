@@ -60,9 +60,10 @@ export interface OrpcContext<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
-  readonly bs: ServerContext<M, F, E, C, P>;
-  readonly db: ServerContext<M, F, E, C, P>["db"];
+  readonly bs: ServerContext<M, F, E, C, P, B>;
+  readonly db: ServerContext<M, F, E, C, P, B>["db"];
   readonly auth: AuthState<C, P>;
 }
 
@@ -101,9 +102,10 @@ export type OrpcMiddleware<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > = DecoratedMiddleware<
   OrpcRequestContext,
-  OrpcContext<M, F, E, C, P>,
+  OrpcContext<M, F, E, C, P, B>,
   unknown,
   // oxlint-disable-next-line typescript/no-explicit-any -- as oRPC's `middleware()` default; `unknown` is rejected by `.use()` on a contract procedure with a typed output
   any,
@@ -138,9 +140,10 @@ export type OrpcAuthed<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > = BuilderWithMiddlewares<
   OrpcRequestContext,
-  OrpcContext<M, F, E, C, P>,
+  OrpcContext<M, F, E, C, P, B>,
   Record<never, never>
 >;
 
@@ -155,14 +158,17 @@ export interface BetterOrpc<
   E,
   C = unknown,
   P = unknown,
-> extends BetterServer<M, F, E, C, P> {
+  B = unknown,
+> extends BetterServer<M, F, E, C, P, B> {
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
    * and `context.bs`. Thrown `DbException`s, and errors caused by a
    * `DbError`, become `ORPCError`s. Serve the router with `fetchHandler` so
    * refreshed session cookies and `bs-primary-until` reach the response.
    */
-  middleware(options?: OrpcGuardOptions<C, P>): OrpcMiddleware<M, F, E, C, P>;
+  middleware(
+    options?: OrpcGuardOptions<C, P>,
+  ): OrpcMiddleware<M, F, E, C, P, B>;
   /**
    * A procedure builder behind `middleware(options)`, so each procedure
    * starts from the caller's context instead of repeating `.use()`:
@@ -172,7 +178,7 @@ export interface BetterOrpc<
    *   .handler(({ context }) => bs.unwrap(context.db.customers.findMany()))
    * ```
    */
-  authed(options?: OrpcGuardOptions<C, P>): OrpcAuthed<M, F, E, C, P>;
+  authed(options?: OrpcGuardOptions<C, P>): OrpcAuthed<M, F, E, C, P, B>;
   /**
    * A fetch handler for an oRPC handler: passes `{ request }` as the initial
    * context, answers 404 when no procedure matched, and applies the cookies
@@ -246,17 +252,18 @@ export function createOrpc<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: OrpcOptions = {},
-): BetterOrpc<M, F, E, C, P> {
+): BetterOrpc<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
 
   const contexts = new WeakMap<
     Request,
-    { ctx: ServerContext<M, F, E, C, P>; refresh: boolean }
+    { ctx: ServerContext<M, F, E, C, P, B>; refresh: boolean }
   >();
 
   const limits = new WeakMap<Request, Headers>();
@@ -272,7 +279,7 @@ export function createOrpc<
 
   const middleware = (
     middlewareOptions: OrpcGuardOptions<C, P> = {},
-  ): OrpcMiddleware<M, F, E, C, P> =>
+  ): OrpcMiddleware<M, F, E, C, P, B> =>
     os.$context<OrpcRequestContext>().middleware(async ({ context, next }) => {
       // Nested middleware resolves the request once; the context is kept
       // before the guard so a denied call still returns rotated cookies.
@@ -329,7 +336,7 @@ export function createOrpc<
       }
     });
 
-  return extendServer<BetterOrpc<M, F, E, C, P>>(server, {
+  return extendServer<BetterOrpc<M, F, E, C, P, B>>(server, {
     toOrpcError,
 
     middleware,
