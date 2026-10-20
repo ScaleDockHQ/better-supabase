@@ -1,6 +1,6 @@
+import { addTable, isAppTable, withDesign } from "better-supabase/create";
 import { describe, expect, test } from "vitest";
 
-import { addTable, isAppTable, withDesign } from "../../lib/design";
 import {
   groupId,
   layoutSchema,

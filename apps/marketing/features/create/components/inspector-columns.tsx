@@ -3,10 +3,30 @@
 import type { Preset } from "better-supabase/preset";
 import type { ReactElement } from "react";
 
+import {
+  type SchemaData,
+  type SchemaTable,
+  COLUMN_KINDS,
+  type ColumnKind,
+  kindById,
+  kindOf,
+  setColumnKind,
+  type AppColumn,
+  appTableId,
+  columnError,
+  defaultError,
+  deleteColumn,
+  deleteExtraColumn,
+  identifierError,
+  isAppTable,
+  renameColumn,
+  renameTable,
+  setColumn,
+  setExtraColumn,
+  takesBounds,
+} from "better-supabase/create";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useId, useState } from "react";
-
-import type { SchemaData, SchemaTable } from "@/lib/schema";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,28 +44,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { takesBounds } from "@/lib/column-keys";
-import {
-  COLUMN_KINDS,
-  type ColumnKind,
-  kindById,
-  kindOf,
-  setColumnKind,
-} from "@/lib/column-kinds";
-import {
-  type AppColumn,
-  appTableId,
-  columnError,
-  defaultError,
-  deleteColumn,
-  deleteExtraColumn,
-  identifierError,
-  isAppTable,
-  renameColumn,
-  renameTable,
-  setColumn,
-  setExtraColumn,
-} from "@/lib/design";
 
 import type { InspectorTab } from "./schema-nodes";
 

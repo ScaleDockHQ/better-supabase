@@ -1,4 +1,4 @@
-import type { AppColumnType, AppTable } from "./design";
+import type { AppColumnType, AppTable } from "./design.ts";
 
 /** The aggregates a rollup takes (`APP_ROLLUP_AGGREGATES`). */
 export const ROLLUP_AGGREGATES = ["count", "sum", "min", "max", "avg"] as const;

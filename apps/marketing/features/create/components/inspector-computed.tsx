@@ -2,6 +2,24 @@
 
 import type { ReactElement } from "react";
 
+import {
+  type AppTable,
+  columnError,
+  editTable,
+  singular,
+  type AppLookup,
+  type AppRollup,
+  filterColumns,
+  fittedRollup,
+  isRollupAggregate,
+  lookupSources,
+  readableColumns,
+  ROLLUP_AGGREGATES,
+  rollupColumns,
+  rollupSources,
+  tableWithComputed,
+  tableWithoutComputed,
+} from "better-supabase/create";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useId } from "react";
 
@@ -21,21 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type AppTable, columnError, editTable, singular } from "@/lib/design";
-import {
-  type AppLookup,
-  type AppRollup,
-  filterColumns,
-  fittedRollup,
-  isRollupAggregate,
-  lookupSources,
-  readableColumns,
-  ROLLUP_AGGREGATES,
-  rollupColumns,
-  rollupSources,
-  tableWithComputed,
-  tableWithoutComputed,
-} from "@/lib/design-computed";
 
 import type { InspectorPreset } from "./inspector-columns";
 

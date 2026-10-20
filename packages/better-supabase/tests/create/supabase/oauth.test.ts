@@ -3,17 +3,17 @@ import { describe, expect, test, vi } from "vitest";
 import {
   authorizeUrl,
   exchangeCode,
-  flowSchema,
+  isFlow,
   needsRefresh,
   OAuthError,
   pkcePair,
   refreshSession,
   returnPath,
   seal,
-  sessionSchema,
+  isSession,
   unseal,
   withDeployFlag,
-} from "../../lib/supabase-oauth";
+} from "../../../src/create/supabase/index.ts";
 
 const SECRET = "a-cookie-secret-of-at-least-32-characters";
 
@@ -55,25 +55,19 @@ describe("seal", () => {
     const sealed = await seal(session, SECRET);
 
     expect(sealed).not.toContain("token");
-    await expect(unseal(sealed, SECRET, sessionSchema)).resolves.toEqual(
-      session,
-    );
+    await expect(unseal(sealed, SECRET, isSession)).resolves.toEqual(session);
   });
 
   test("rejects a tampered value, another secret or another shape", async () => {
     const sealed = await seal(session, SECRET);
     const tampered = `${sealed.slice(0, -2)}${sealed.endsWith("A") ? "B" : "A"}`;
 
-    await expect(unseal(tampered, SECRET, sessionSchema)).resolves.toBe(
+    await expect(unseal(tampered, SECRET, isSession)).resolves.toBe(undefined);
+    await expect(unseal(sealed, `${SECRET}-other`, isSession)).resolves.toBe(
       undefined,
     );
-    await expect(
-      unseal(sealed, `${SECRET}-other`, sessionSchema),
-    ).resolves.toBe(undefined);
-    await expect(unseal(sealed, SECRET, flowSchema)).resolves.toBe(undefined);
-    await expect(unseal("garbage", SECRET, sessionSchema)).resolves.toBe(
-      undefined,
-    );
+    await expect(unseal(sealed, SECRET, isFlow)).resolves.toBe(undefined);
+    await expect(unseal("garbage", SECRET, isSession)).resolves.toBe(undefined);
   });
 });
 

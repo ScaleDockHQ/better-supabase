@@ -1,15 +1,15 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-
 import {
   COOKIE_PATH,
   exchangeCode,
   FLOW_COOKIE,
-  flowSchema,
+  isFlow,
   OAuthError,
   unseal,
   withDeployFlag,
-} from "@/lib/supabase-oauth";
+} from "better-supabase/create/supabase";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+
 import {
   errorResponse,
   oauthConfig,
@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
   const flow = await unseal(
     jar.get(FLOW_COOKIE)?.value,
     config.cookieSecret,
-    flowSchema,
+    isFlow,
   );
 
   jar.delete({ name: FLOW_COOKIE, path: COOKIE_PATH });

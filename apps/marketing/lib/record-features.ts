@@ -1,9 +1,7 @@
+import type { AppSubject, AppTable, Design } from "better-supabase/create";
+
+import { singular, updateTable } from "better-supabase/create";
 import { type Preset, resolvePreset } from "better-supabase/preset";
-
-import type { AppTable, Design } from "./design";
-import type { AppSubject } from "./design-subject";
-
-import { singular, updateTable } from "./design";
 
 /** A feature an app table's rows get by being a subject (`appTables.<name>.subject`). */
 export type RecordFeature =

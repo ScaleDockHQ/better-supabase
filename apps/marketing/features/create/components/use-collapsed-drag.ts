@@ -1,8 +1,8 @@
 import type { NodeChange, OnNodeDrag, XYPosition } from "@xyflow/react";
+import type { Design } from "better-supabase/create";
 
 import { useCallback, useEffect, useRef } from "react";
 
-import type { Design } from "@/lib/design";
 import type { LayoutGroup } from "@/lib/schema-layout";
 
 import type { SchemaNode } from "./schema-nodes";

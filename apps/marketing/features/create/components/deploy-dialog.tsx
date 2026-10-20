@@ -3,6 +3,20 @@
 import type { ReactElement } from "react";
 
 import {
+  type CreatedProjectResponse,
+  dashboardUrl,
+  type DeployResponse,
+  type ErrorResponse,
+  type ProjectsResponse,
+  type ProjectStatusResponse,
+  suggestedProjectName,
+} from "better-supabase/create";
+import {
+  SMART_REGIONS,
+  type SmartRegion,
+  type SupabaseProject,
+} from "better-supabase/create/supabase";
+import {
   designInstallCommand,
   type ResolvedPreset,
 } from "better-supabase/preset";
@@ -50,20 +64,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { commandFor, withPackage } from "@/lib/create";
-import {
-  type CreatedProjectResponse,
-  dashboardUrl,
-  type DeployResponse,
-  type ErrorResponse,
-  type ProjectsResponse,
-  type ProjectStatusResponse,
-  suggestedProjectName,
-} from "@/lib/supabase-deploy";
-import {
-  SMART_REGIONS,
-  type SmartRegion,
-  type SupabaseProject,
-} from "@/lib/supabase-management";
 
 import { CommandRow } from "./get-code-dialog";
 

@@ -4,10 +4,16 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import type { ReactElement } from "react";
 
 import { useTable } from "@tanstack/react-table";
+import {
+  type SchemaTable,
+  type SampleRow,
+  sampleRows,
+  type SampleViewer,
+  hiddenColumns,
+  isAppTable,
+} from "better-supabase/create";
 import { Columns3Icon, TableIcon } from "lucide-react";
 import { useId, useState } from "react";
-
-import type { SchemaTable } from "@/lib/schema";
 
 import {
   DataGrid,
@@ -27,13 +33,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isAppTable } from "@/lib/design";
-import {
-  hiddenColumns,
-  type SampleRow,
-  sampleRows,
-  type SampleViewer,
-} from "@/lib/sample-rows";
 
 import type { InspectorTab } from "./schema-nodes";
 

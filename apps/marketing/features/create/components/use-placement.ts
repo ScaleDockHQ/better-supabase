@@ -1,11 +1,11 @@
 "use client";
 
 import type { Node } from "@xyflow/react";
+import type { SchemaData } from "better-supabase/create";
 
 import { useReactFlow } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
 
-import type { SchemaData } from "@/lib/schema";
 import type { LayoutRect, Point, SchemaLayout } from "@/lib/schema-layout";
 
 import { type PendingPlacement, settleTables } from "@/lib/canvas-place";

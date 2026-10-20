@@ -1,7 +1,6 @@
-import type { AppTableVersions } from "better-supabase/config";
-
-import type { Design } from "./design";
-import type { SchemaColumn } from "./schema";
+import type { AppTableVersions } from "../config/index.ts";
+import type { Design } from "./design.ts";
+import type { SchemaColumn } from "./schema.ts";
 
 /** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
 export interface AppSubject {

@@ -1,4 +1,5 @@
-import { type Design, moveTables } from "./design";
+import { type Design, moveTables } from "better-supabase/create";
+
 import { GROUP_PADDING, type LayoutRect, type Point } from "./schema-layout";
 
 /** The space kept between a new table's group and its neighbours. */

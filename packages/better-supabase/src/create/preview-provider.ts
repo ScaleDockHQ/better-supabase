@@ -1,18 +1,18 @@
-import { resolveConfig } from "better-supabase/config";
+import type { PresetMigrationFile } from "./types.ts";
+
+import { resolveConfig } from "../config/index.ts";
 import {
   type CreateDesign,
   designConfig,
   type Preset,
   presetOf,
   resolvePreset,
-} from "better-supabase/preset";
+} from "../preset/index.ts";
 import {
   type ModuleAccessProvider,
   moduleLayout,
   renderModules,
-} from "better-supabase/sql";
-
-import type { PresetMigrationFile } from "./create";
+} from "../sql/index.ts";
 
 /**
  * A stand-in for the app's authorization provider, so `/create` can render

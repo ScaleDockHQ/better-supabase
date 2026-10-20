@@ -4,6 +4,15 @@ import type { Preset, ResolvedPreset } from "better-supabase/preset";
 import type { ReactElement } from "react";
 
 import {
+  addTable,
+  type DesignIssue,
+  designIssues,
+  isAppTable,
+  withDesign,
+  type SchemaData,
+  schemaRelations,
+} from "better-supabase/create";
+import {
   CircleAlertIcon,
   DatabaseIcon,
   FolderTreeIcon,
@@ -39,14 +48,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { blocks } from "@/lib/blocks";
 import { CONFIG_FILE, packagePath } from "@/lib/create";
-import {
-  addTable,
-  type DesignIssue,
-  designIssues,
-  isAppTable,
-  withDesign,
-} from "@/lib/design";
-import { type SchemaData, schemaRelations } from "@/lib/schema";
 
 import { useDesign } from "./design-provider";
 import { PlaceholderAccessNote } from "./placeholder-access-note";

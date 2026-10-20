@@ -7,6 +7,8 @@ const entries = [
   "index",
   "config/index",
   "preset/index",
+  "create/index",
+  "create/supabase/index",
   "client/index",
   "client/native/index",
   "react/index",

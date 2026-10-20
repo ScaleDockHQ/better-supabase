@@ -1,13 +1,16 @@
 import {
+  previewFiles,
+  parseSchema,
+  type SchemaData,
+  tenantColumnOf,
+  schemaData,
+} from "better-supabase/create";
+import {
   encodePreset,
   namedPreset,
   type Preset,
   type PresetName,
 } from "better-supabase/preset";
-
-import { previewFiles } from "../../lib/preview-provider";
-import { parseSchema, type SchemaData, tenantColumnOf } from "../../lib/schema";
-import { schemaData } from "../../lib/schema-meta";
 
 /** A preset with its code and the schema the canvas draws for it. */
 export interface PresetSchema {

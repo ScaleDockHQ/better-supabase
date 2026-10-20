@@ -1,8 +1,11 @@
 import type { Preset } from "better-supabase/preset";
 
-import type { Design } from "./design";
-
-import { type History, initialHistory, undoHistory } from "./design-history";
+import {
+  type Design,
+  type History,
+  initialHistory,
+  undoHistory,
+} from "better-supabase/create";
 
 /**
  * One undo step: the design and the blocks. The other preset fields stay out

@@ -1,7 +1,12 @@
-import type { AppColumn, AppColumnType, Design, NamedDesign } from "./design";
+import type {
+  AppColumn,
+  AppColumnType,
+  Design,
+  NamedDesign,
+} from "./design.ts";
 
-import { fitted, withBounds } from "./column-keys";
-import { renameColumn, setColumn } from "./design";
+import { fitted, withBounds } from "./column-keys.ts";
+import { renameColumn, setColumn } from "./design.ts";
 
 /** The groups of the column type picker, in the order it shows them. */
 export const KIND_GROUPS = [

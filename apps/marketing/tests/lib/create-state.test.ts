@@ -1,3 +1,9 @@
+import {
+  addTable,
+  appTableId,
+  EMPTY_DESIGN,
+  moveTables,
+} from "better-supabase/create";
 import { namedPreset } from "better-supabase/preset";
 import { describe, expect, test } from "vitest";
 
@@ -8,12 +14,6 @@ import {
   initialCreateState,
   presetOfState,
 } from "../../lib/create-state";
-import {
-  addTable,
-  appTableId,
-  EMPTY_DESIGN,
-  moveTables,
-} from "../../lib/design";
 
 const minimal = namedPreset("minimal");
 const start = initialCreateState(minimal, EMPTY_DESIGN);

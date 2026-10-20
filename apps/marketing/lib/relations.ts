@@ -1,9 +1,7 @@
 import type { Preset } from "better-supabase/preset";
 
-import type { SchemaData } from "./schema";
-import type { LayoutRect } from "./schema-layout";
-
 import {
+  type SchemaData,
   addTable,
   type AppTable,
   appTableId,
@@ -13,7 +11,9 @@ import {
   referenceFrom,
   renameColumn,
   setColumn,
-} from "./design";
+} from "better-supabase/create";
+
+import type { LayoutRect } from "./schema-layout";
 
 const AUTH_USERS = "auth.users";
 const MEMBER = "member_id";

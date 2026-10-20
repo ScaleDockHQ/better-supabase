@@ -1,7 +1,7 @@
-import { PRESET_CATALOG } from "better-supabase/preset";
-import { type ModuleTableSpec, SQL_MODULES } from "better-supabase/sql";
+import type { SchemaData, SchemaSoftRef, SchemaTable } from "./schema.ts";
 
-import type { SchemaData, SchemaSoftRef, SchemaTable } from "./schema";
+import { PRESET_CATALOG } from "../preset/index.ts";
+import { type ModuleTableSpec, SQL_MODULES } from "../sql/index.ts";
 
 const AUTH_USERS = "auth.users";
 

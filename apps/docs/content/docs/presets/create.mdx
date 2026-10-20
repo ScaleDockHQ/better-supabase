@@ -1,0 +1,35 @@
+---
+title: The Create core
+description: How better-supabase/create holds the design model, previews and Supabase deploy client that /create and other apps share.
+---
+
+`better-supabase/create` is the headless code behind
+[Create](https://bettersupabase.com/create). It runs on every runtime,
+including the browser, and has no dependency beyond the Supabase packages.
+Designs stay in the URL or in your own storage, as ADR 0040 requires.
+
+```ts
+import { previewFiles, diffDesigns } from "better-supabase/create";
+import { namedPreset } from "better-supabase/preset";
+
+const base = { preset: namedPreset("saas") };
+const files = previewFiles(base);
+console.log(files.map((file) => file.path));
+```
+
+`diffDesigns(base, next)` classifies each change as safe or breaking, so an
+app can block a breaking change before it deploys.
+
+## Supabase deploy
+
+`better-supabase/create/supabase` signs a user in with Supabase OAuth and
+PKCE, seals the session in a cookie value, and wraps the Management API.
+
+```ts
+import { managementClient } from "better-supabase/create/supabase";
+
+const client = managementClient(accessToken, fetch);
+const projects = await client.projects();
+```
+
+Pass your own `fetch` to trace or stub the calls in tests.

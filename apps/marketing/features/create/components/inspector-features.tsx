@@ -1,12 +1,12 @@
 "use client";
 
+import type { SchemaTable } from "better-supabase/create";
 import type { ReactElement } from "react";
 
+import { subjectTypeError, updateTable } from "better-supabase/create";
 import { presetBlockConflict, resolvePreset } from "better-supabase/preset";
 import { LayersIcon } from "lucide-react";
 import { useId, useMemo } from "react";
-
-import type { SchemaTable } from "@/lib/schema";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -18,8 +18,6 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
-import { updateTable } from "@/lib/design";
-import { subjectTypeError } from "@/lib/design-subject";
 import {
   EVENTS_BLOCK,
   featureBlocker,

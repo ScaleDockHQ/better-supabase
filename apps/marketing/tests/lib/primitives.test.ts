@@ -1,6 +1,6 @@
+import { appTableId, EMPTY_DESIGN, withDesign } from "better-supabase/create";
 import { describe, expect, test } from "vitest";
 
-import { appTableId, EMPTY_DESIGN, withDesign } from "../../lib/design";
 import { addPrimitive, isPrimitiveKind } from "../../lib/primitives";
 import { presetSchema } from "./schema-fixture";
 

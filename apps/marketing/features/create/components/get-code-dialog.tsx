@@ -3,6 +3,11 @@
 import type { ReactElement } from "react";
 
 import {
+  type Design,
+  EMPTY_DESIGN,
+  isEmptyDesign,
+} from "better-supabase/create";
+import {
   designApplyCommand,
   designConfigSource,
   designInstallCommand,
@@ -43,7 +48,6 @@ import {
   withPermDock,
 } from "@/lib/create-options";
 import { presetPrompt, screensCommands } from "@/lib/create-prompt";
-import { type Design, EMPTY_DESIGN, isEmptyDesign } from "@/lib/design";
 import { site } from "@/lib/site";
 
 import { ChangesPanel } from "./changes-panel";

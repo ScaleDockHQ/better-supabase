@@ -1,11 +1,11 @@
-import * as v from "valibot";
-
 import {
   type CreatedProjectResponse,
   generatePassword,
   type ProjectsResponse,
-} from "@/lib/supabase-deploy";
-import { SMART_REGIONS } from "@/lib/supabase-management";
+} from "better-supabase/create";
+import { SMART_REGIONS } from "better-supabase/create/supabase";
+import * as v from "valibot";
+
 import {
   errorResponse,
   sameOrigin,

@@ -1,3 +1,4 @@
+import { previewFiles } from "better-supabase/create";
 import {
   decodeDesign,
   isDesignCode,
@@ -6,8 +7,6 @@ import {
 import { cacheLife } from "next/cache";
 
 import type { PresetMigrationFile } from "@/lib/create";
-
-import { previewFiles } from "@/lib/preview-provider";
 
 /**
  * The files `sql sync` writes for a config with only this preset and the

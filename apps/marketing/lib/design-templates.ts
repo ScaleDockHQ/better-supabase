@@ -1,6 +1,5 @@
+import type { AppColumn, Design } from "better-supabase/create";
 import type { Preset, PresetName } from "better-supabase/preset";
-
-import type { AppColumn, Design } from "./design";
 
 import { applyNamedPreset } from "./create";
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { SchemaData, SchemaTable } from "better-supabase/create";
 import type { Preset } from "better-supabase/preset";
 import type { ReactElement } from "react";
 
@@ -15,6 +16,18 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
+import {
+  APP_MODULE,
+  appTableId,
+  connect,
+  deleteTable,
+  duplicateTable,
+  isAppTable,
+  isEmptyDesign,
+  moveTables,
+  referenceFrom,
+  tidy,
+} from "better-supabase/create";
 import { useTheme } from "next-themes";
 import {
   use,
@@ -27,20 +40,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import type { SchemaData, SchemaTable } from "@/lib/schema";
-
-import {
-  APP_MODULE,
-  appTableId,
-  connect,
-  deleteTable,
-  duplicateTable,
-  isAppTable,
-  isEmptyDesign,
-  moveTables,
-  referenceFrom,
-  tidy,
-} from "@/lib/design";
 import { addPrimitive, type PrimitiveKind } from "@/lib/primitives";
 import {
   GROUP_PADDING,

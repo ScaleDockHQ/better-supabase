@@ -1,20 +1,20 @@
-import { resolveConfig } from "better-supabase/config";
-import {
-  encodePreset,
-  namedPreset,
-  type Preset,
-  type PresetName,
-} from "better-supabase/preset";
-import { moduleLayout, renderModules } from "better-supabase/sql";
 import { describe, expect, test } from "vitest";
 
+import { resolveConfig } from "../../src/config/index.ts";
 import {
   parseSchema,
   type SchemaSource,
   schemaRelations,
   tableStatements,
   tenantColumnOf,
-} from "../../lib/schema";
+} from "../../src/create/index.ts";
+import {
+  encodePreset,
+  namedPreset,
+  type Preset,
+  type PresetName,
+} from "../../src/preset/index.ts";
+import { moduleLayout, renderModules } from "../../src/sql/index.ts";
 
 interface Rendered {
   readonly files: readonly SchemaSource[];

@@ -1,13 +1,11 @@
 import type { Node } from "@xyflow/react";
+import type { Design, SchemaData } from "better-supabase/create";
 
 import { getNodesBounds, getViewportForBounds } from "@xyflow/react";
+import { isAppTable } from "better-supabase/create";
 import { toPng, toSvg } from "html-to-image";
 import { toast } from "sonner";
 
-import type { Design } from "@/lib/design";
-import type { SchemaData } from "@/lib/schema";
-
-import { isAppTable } from "@/lib/design";
 import { toDbml, toJson, toMermaid } from "@/lib/schema-export";
 import { layoutSchema, type SchemaLayout } from "@/lib/schema-layout";
 

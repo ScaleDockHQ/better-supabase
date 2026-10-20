@@ -1,9 +1,12 @@
+import {
+  previewFiles,
+  parseSchema,
+  type SchemaData,
+  tenantColumnOf,
+  schemaData,
+} from "better-supabase/create";
 import { isPresetCode, presetOf } from "better-supabase/preset";
 import { cacheLife } from "next/cache";
-
-import { previewFiles } from "@/lib/preview-provider";
-import { parseSchema, type SchemaData, tenantColumnOf } from "@/lib/schema";
-import { schemaData } from "@/lib/schema-meta";
 
 /**
  * The tables the preset's modules create, read from the same SQL

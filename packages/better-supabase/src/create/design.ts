@@ -2,7 +2,8 @@ import type {
   AppColumnAccess,
   AppColumnType,
   AppOnDeleteAction as OnDeleteAction,
-} from "better-supabase/config";
+} from "../config/index.ts";
+import type { SchemaColumn, SchemaData, SchemaTable } from "./schema.ts";
 
 import {
   type AppColumnFormat,
@@ -11,11 +12,8 @@ import {
   appNameLengthError,
   appReservedColumns,
   type Preset,
-} from "better-supabase/preset";
-
-import type { SchemaColumn, SchemaData, SchemaTable } from "./schema";
-
-import { columnLabel, fitted, lockedWithoutDefault } from "./column-keys";
+} from "../preset/index.ts";
+import { columnLabel, fitted, lockedWithoutDefault } from "./column-keys.ts";
 import {
   type AppLookup,
   type AppRollup,
@@ -23,16 +21,16 @@ import {
   computedRows,
   computedTableRenamed,
   prunedComputed,
-} from "./design-computed";
+} from "./design-computed.ts";
 import {
   type AppEvents,
   type AppSubject,
   eventsColumnsEdited,
   subjectColumns,
   subjectColumnsEdited,
-} from "./design-subject";
+} from "./design-subject.ts";
 
-export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "better-supabase/config";
+export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "../config/index.ts";
 
 export type { AppColumnAccess, AppColumnType, OnDeleteAction };
 
