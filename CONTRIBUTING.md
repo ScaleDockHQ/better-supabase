@@ -95,7 +95,7 @@ The npm package is released by `.github/workflows/release.yml`: changesets open 
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). Lefthook runs commitlint on `commit-msg`.
 
-Allowed types: `feat`, `fix`, `docs`, `chore`, `ci`, `refactor`, `test`, `perf`, `style`, `revert`. The subject is lower-case and the header is at most 72 characters.
+Allowed types: `feat`, `fix`, `docs`, `chore`, `ci`, `refactor`, `test`, `perf`, `style`, `revert`. The subject is lower-case. The header has no length limit.
 
 ```
 feat(sql): add the vector search module
