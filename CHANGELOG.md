@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.11.0 (2026-10-20)
+
+- `bs.admin()` returns an `AdminDb` with `$authAdmin`, the typed Auth admin API (`auth.admin`) of the secret-key client, so cron jobs and webhook handlers can create, invite, ban and delete users without a second client. Request repositories don't have it. The `AdminDb` type is exported from `better-supabase/server`.
+- Fixes and additions from adopter feedback.
+
+  New API:
+
+  - `matchDbError(error, matchers)` maps a `DbError` kind to a value, for `orThrow` factories.
+  - `paginate({ withCount: true })` returns `total` on offset and cursor pages and narrows its type to `number`. On a cursor page after the first, it sends one extra request to count the matching rows.
+  - `db.$buckets.<name>` is each bucket registered with `betterSupabase.buckets()`, connected to `db.$storage`. The type follows `$with()`, `$withoutPlugins()` and the `db`, `sql` and `admin()` repositories of `createServer(betterSupabase)`, and `db.$storage` on a server `Db` now uses the caller's Storage client. Every framework adapter (`next`, `hono`, `orpc`, `edge`, `mcp`, `astro`, `sveltekit`, `react-router`, `solid-start`, `tanstack-start` and `expo`) carries the registry through a new trailing `B` type parameter, so `ctx.db.$buckets.<name>` is typed in handlers, actions and routes. `ctx.db.$storage` and `ctx.db.$buckets` now work on request contexts.
+  - `better-supabase/testing` adds `scopedSeed`, `withRollback` and `TestUser.context`. `asUser` also turns off supabase-js trace propagation.
+  - `gen` emits `WritableColumnOf` and `GeneratedColumnOf`, and the schema types export `WritableColumns` and `GeneratedColumns`.
+
+  Fixes:
+
+  - `update` with no columns to write reads the row and returns it, and `updateMany` returns a count of 0, instead of failing with `invalid_request`. A caller that relied on that error needs to check for empty data itself. A plugin that leaves the patch empty still gets `invalid_request`.
+  - `createMany`, `upsertMany`, `updateMany` and `deleteMany` type their result by `returning`. `orderBy` accepts `undefined` values and `updateMany` data no longer infers readonly arrays.
+  - The client follows auth state only when the supabase client has it.
+  - Text filter escaping and case rules are documented, and `$rpc` typing is pinned as stable API.
+
+  The generated column `memberships.tier_role` in `supabase/` is a repo-only test fixture and does not ship in the package.
+- Attachments and comments subjects taken from the subject registry now carry the registry's per-action keys: `subjects.<type>.permissions.upload` and `manage` for attachments, `create` and `moderate` for comments. The registry's `read` stays the key for reading the subject itself. `blocks.<block>.options.subjects.<type>.permissions` overrides them key by key.
+
+  Doctor `BS345` warns when an attachments subject has no `read` or `upload` key of its own while its table's policies check more than tenant membership, so any member of the tenant would get the files of rows they can't open.
+- Adds `better-supabase db query <file...>`, which runs SQL files as multi-statement scripts against the local stack or the database in the connection string. `--single-transaction` keeps all files or none.
+- `seed --apply` and `db query` accept `--stack <name>` (or `$BSB_STACK`) to connect to the stack in `supabase/stacks/<name>/config.toml` instead of the default local stack.
+- Closes the gaps found on 0.9.0: `audit()` takes `tenant_path` and `tenant_function`, `admin({}, { as })` names the acting member, optional RPC arguments accept `undefined`, `createHono` and `createNext` share one server, OAuth server resources follow RFC 8707, `jwtType` validates `typ`, billing webhooks cover subscriptions, usage meters count distinct or computed values, and the doctor flags partitions without RLS (BS343).
+- `bs.middleware()` from `better-supabase/expo` hands the session it refreshed to the loaders and `bs.request` calls of the same request. They read the new cookies without calling Auth again, so a loader with `refresh: false` renders signed in on the first paint after an expired token, and each request makes at most one Auth call. Loaders that run without middleware still refresh on their own.
+- Add the `ieq` filter operator for case-insensitive equality, on text columns and jsonb `path` filters. It sends `ilike` with `%`, `_` and `\` escaped, so `where: { email: { ieq: input } }` matches only that address in any case.
+
+  Add the `require-escape-like` rule to `better-supabase/lint`, on as a warning in `configs.recommended`. It flags a `like` or `ilike` value taken from a variable, a property, or a template or concatenation without `escapeLike(...)`.
+- Realtime topic triggers read less and send less.
+
+  - A generated trigger function reads each parent row once per changed row, into a local record, however many values, payload keys and topics use it. A custom payload is built once for all topics. Before, every lookup ran again for the payload, for each topic's values and for each nested level. Run `sql sync` to rewrite the functions; the messages they send don't change.
+  - `topic.trigger(table, { when: { changed: ["status"] } })`, and `when` on a `realtime.triggers` entry, send an update only when one of the listed columns changed. On a trigger for updates alone it becomes the trigger's `when` clause, otherwise an early return in the function. Inserts and deletes always send.
+  - A delete whose lookup finds no parent row, such as a child removed by `on delete cascade`, raises a warning that starts with `better-supabase: realtime lookup found no row` instead of skipping the topic silently. The Realtime docs have a new "Deletes and cascades" section.
+- New block `better-supabase/blocks/vercel-marketplace` (`better-supabase add vercel-marketplace`): installations, resources, plans, invoices and meter reports for an app listed on the Vercel Marketplace. `createVercelMarketplace()` verifies webhooks (`x-vercel-signature`, HMAC-SHA1), applies `integration-configuration.removed` and invoice events (the newest event wins), exchanges SSO codes and verifies the `id_token` against Vercel's JWKS, submits invoices and reports usage with retries. Only the service role calls it.
+- `vercelQueueBackend(client)` in `better-supabase/blocks/jobs` runs jobs on Vercel Queues. Pass a `PollingQueueClient` from `@vercel/queue` (new optional peer, `>=0.8 <0.9`). It passes `testQueueBackend`. Vercel Queues keeps no dead letters and has no schedules, so `schedule` still needs the SQL backend.
+- An adopted `webhooks-out` endpoints table has to choose its body format.
+
+  Breaking config change: in adopt mode, when `columns.endpoints.format` maps no column, `sql sync` now refuses the config unless `blocks.webhooks-out.options.defaultFormat` is set. Without a format column every endpoint gets `defaultFormat`, whose default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers broke without any change to the config. Set `defaultFormat: "standard"` to keep the 0.8 body, `"cloudevents"` if your receivers read CloudEvents, or map a format column.
+
+  Doctor reports the same config as `BS344` (warning), and says whether the table has no `format` column or one the config doesn't map. The webhooks-out page lists `defaultFormat` and the version 3 columns, and the new 0.9 to 0.10 guide covers the change.
+- `seal` from `better-supabase/create/supabase` now accepts any object, so other OAuth connections on the Create page can reuse the sealed session cookie.
+
 ## 0.10.0 (2026-10-20)
 
 - Adopt mode takes enum columns where a block writes kinds and subject types. In adopt mode the tags block casts the `kind` and `subjectType` values it writes and compares, and `next_number` casts the `entity`, to the adopted column's type through the new `better_supabase.as_column_type(value, target)`, so `kind public.organization_tag_kind` or `entity public.workflow_subject_type` works. An enum on any other text column a block writes a parameter or computed value into is refused instead of failing at runtime (columns a block writes only string literals into, such as the teams `status`, may stay enums): `sql sync` and `better-supabase adopt` report it when the schema files declare the enum, and doctor reports it as BS342. A module table spec lists its castable columns in `typed`, and `ModuleContext.cast(table, column, value)` renders the cast.
