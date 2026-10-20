@@ -1262,7 +1262,9 @@ they can't open. Doctor counts `current_tenant_id()`, `tenant_ids_with`,
 block's key as tenant membership, and a soft-delete `is null` as neutral. A
 policy with an `or` branch that needs only membership is wider, not
 stricter, and a table with no insert or update policy for clients doesn't
-count against `upload`.
+count against `upload`. A subject with its own read key (`permission`, or
+`permissions.read` in the registry) passes for `read`, since the block checks
+that key on top of `attachments.read`.
 Set `subjects.<type>.permissions.upload` in the registry, or
 `blocks.attachments.options.subjects.<type>.permissions` for `read`, to the
 keys the table checks. See

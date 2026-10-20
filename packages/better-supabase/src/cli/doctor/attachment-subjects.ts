@@ -44,7 +44,22 @@ function attachmentSubjects(context: DoctorContext): {
       (key) => key !== "read",
     );
 
-    return [{ type, table, tenant, keys: new Set([...own, ...fromRegistry]) }];
+    // The subject's own read key (`permission`, or `read` in the registry) is
+    // checked by `attachment_subject_readable` on top of `attachments.read`.
+    const subjectRead =
+      typeof entry["permission"] === "string" ||
+      registered?.permissions?.["read"] !== undefined
+        ? ["read"]
+        : [];
+
+    return [
+      {
+        type,
+        table,
+        tenant,
+        keys: new Set([...own, ...fromRegistry, ...subjectRead]),
+      },
+    ];
   });
 }
 

@@ -1596,6 +1596,36 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ).toEqual([]);
   });
 
+  it("counts the subject's own read key, which the readable check adds", async () => {
+    const snap = withPolicies(strict, tenantOnly);
+
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          config({ note: { table: "notes", permission: "notes.read" } }),
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS345",
+        context(
+          snap,
+          {},
+          {
+            subjects: {
+              note: { table: "notes", permissions: { read: "notes.read" } },
+            },
+            blocks: { attachments: {} },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("reads subjects listed by name from the registry and skips unknown tables", async () => {
     const findings = await run(
       "BS345",
