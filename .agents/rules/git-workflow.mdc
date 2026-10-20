@@ -7,8 +7,8 @@ alwaysApply: true
 
 - One branch and one PR per chat or plan. Branch from `main`, commit as you
   go, and push once `pnpm verify` passes.
-- Commit messages follow Conventional Commits (`commitlint.config.ts`): a
-  header of at most 72 characters and body lines of at most 100. Group
+- Commit messages follow Conventional Commits (`commitlint.config.ts`) with
+  body lines of at most 100; the header has no length limit. Group
   commits by track (`ci:`, `build:`, `docs:`), not by file.
 - Lefthook runs `ultracite fix` and the affected lint on commit, commitlint
   on the message, and the affected lint, typecheck and tests on push. Fix
