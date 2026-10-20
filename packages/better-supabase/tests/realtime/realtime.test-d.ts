@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import { defineSupabase } from "../../src/core/define.ts";
 import { useBroadcast } from "../../src/react/index.ts";
 import {
   defineTopic,
@@ -9,7 +10,9 @@ import {
   type RealtimeClient,
 } from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
-import { buckets, topics } from "../fixtures/generated-camel.ts";
+import { buckets, schema, topics } from "../fixtures/generated-camel.ts";
+
+const betterSupabase = defineSupabase(schema);
 
 declare const client: RealtimeClient;
 
@@ -17,6 +20,25 @@ declare const title: StandardSchemaV1<
   { title: string },
   { title: string; at: Date }
 >;
+
+describe("topic trigger types", () => {
+  it("takes when.changed columns of the app table", () => {
+    const board = defineTopic("organization:{organizationId}:customers");
+
+    board.trigger("customers", {
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      when: { changed: ["name", "kvk"] },
+    });
+    board.trigger("customers", {
+      // @ts-expect-error "nope" is not a column of customers, so no overload matches
+      betterSupabase,
+      values: { organizationId: "organizationId" },
+      when: { changed: ["nope"] },
+    });
+    board.trigger("public.customers", { when: { changed: ["any_column"] } });
+  });
+});
 
 describe("topic types", () => {
   it("types values, handlers and sends", () => {
