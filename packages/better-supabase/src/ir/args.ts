@@ -30,6 +30,8 @@ interface TextOps {
   readonly like?: string;
   /** Case-insensitive LIKE pattern. */
   readonly ilike?: string;
+  /** Case-insensitive equality; `%`, `_` and backslashes in the value match themselves. */
+  readonly ieq?: string;
   /** POSIX regular expression (`~`). */
   readonly match?: string;
   /** Case-insensitive POSIX regular expression (`~*`). */
@@ -89,6 +91,8 @@ export interface JsonPathOps {
   readonly lte?: string;
   readonly like?: string;
   readonly ilike?: string;
+  /** Case-insensitive equality; `%`, `_` and backslashes in the value match themselves. */
+  readonly ieq?: string;
   readonly match?: string;
   readonly imatch?: string;
 }

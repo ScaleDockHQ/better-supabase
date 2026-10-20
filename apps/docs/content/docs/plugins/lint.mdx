@@ -100,6 +100,29 @@ export default [
 Table names match regardless of casing: `order_items`, `orderItems` and
 `public.order_items` are the same table.
 
+### require-escape-like
+
+A `where` value for `like` or `ilike` that comes from a variable, a property,
+or a template or `+` concatenation, without `escapeLike(...)` around it. A
+`%` or `_` in user input then acts as a wildcard, so `ilike: email` matches
+other users' addresses. Use `ieq` for case-insensitive equality, `contains`
+or `startsWith` for a substring or prefix, or wrap the value in
+`escapeLike()` when you build the pattern yourself. String literals pass.
+Recommended: `warn`. From 0.11.
+
+```ts
+where: {
+  email: {
+    ieq: email;
+  }
+}
+where: {
+  name: {
+    ilike: `${escapeLike(prefix)}%`;
+  }
+}
+```
+
 ## How calls are matched
 
 Rules match calls by method name with an inline object literal. When the

@@ -199,6 +199,24 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
         orderBy,
       }),
     );
+    expect(
+      names(
+        await both((db) =>
+          db.customers.findMany({
+            where: { ...scoped, name: { ieq: "ACME" } },
+            select,
+            orderBy,
+          }),
+        ),
+      ),
+    ).toEqual(["Acme"]);
+    await both((db) =>
+      db.customers.findMany({
+        where: { ...scoped, name: { ieq: "crate_" } },
+        select,
+        orderBy,
+      }),
+    );
     await both((db) =>
       db.customers.findMany({
         where: {
