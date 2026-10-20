@@ -34,6 +34,31 @@ const projects = await client.projects();
 
 Pass your own `fetch` to trace or stub the calls in tests.
 
+## Migrate between versions
+
+`migrationBetween(code, base, next)` writes the migration that takes a project
+deployed from one design to the next. It covers added tables and added
+columns, which the app-table SQL applies idempotently.
+
+```ts
+import { migrationBetween } from "better-supabase/create";
+
+const plan = migrationBetween(code, deployed, edited);
+
+if (plan.ok) {
+  await client.applyMigration(ref, "better_supabase_design", plan.sql);
+} else {
+  console.log(
+    plan.reason,
+    plan.changes.map((change) => change.steps),
+  );
+}
+```
+
+A `breaking` refusal lists the expand and contract steps for each change. An
+`unsupported` refusal covers any other change, such as a new default or a
+change outside `appTables`, so a deploy never guesses.
+
 ## Validate in Postgres
 
 `better-supabase/create/lite` applies the generated files to an in-memory
