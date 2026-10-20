@@ -95,6 +95,8 @@
       "BlockEventType",
       "BlockProblemOptions",
       "CacheAdapter",
+      "BucketRegistry",
+      "BucketsHelper",
       "CacheTarget",
       "CallOptions",
       "Compiler",

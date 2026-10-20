@@ -42,6 +42,7 @@ export {
   isDbError,
   isForeignKey,
   mapDbError,
+  matchDbError,
   statusOf,
 } from "./core/errors.ts";
 
@@ -49,6 +50,7 @@ export type {
   DbError,
   DbErrorKind,
   DbErrorKinds,
+  DbErrorMatchers,
   DbErrorOf,
   ErrorMapper,
   RawDbError,
@@ -165,6 +167,8 @@ export type {
   EventMap,
   Events,
 } from "./core/block-events.ts";
+
+export type { BucketRegistry, BucketsHelper } from "./core/db-buckets.ts";
 
 export type { Policy, PolicyDecision } from "./core/policy.ts";
 

@@ -6,6 +6,7 @@ import type {
   TableKey,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { BucketRegistry, BucketsHelper } from "./db-buckets.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { Executor } from "./executor.ts";
 import type { Db } from "./repository-types.ts";
@@ -130,6 +131,7 @@ export class BetterSupabase<
   E = unknown,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   readonly schema: Schema<M, D, F>;
   readonly plugins: readonly AnyPlugin[];
@@ -226,7 +228,7 @@ export class BetterSupabase<
    */
   claims<S extends StandardSchemaV1>(
     schema: S,
-  ): BetterSupabase<M, D, F, E, StandardSchemaV1.InferOutput<S>, P> {
+  ): BetterSupabase<M, D, F, E, StandardSchemaV1.InferOutput<S>, P, B> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
@@ -249,7 +251,7 @@ export class BetterSupabase<
    */
   userMetadata<S extends StandardSchemaV1>(
     schema: S,
-  ): BetterSupabase<M, D, F, E, C, StandardSchemaV1.InferOutput<S>> {
+  ): BetterSupabase<M, D, F, E, C, StandardSchemaV1.InferOutput<S>, B> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
@@ -269,11 +271,31 @@ export class BetterSupabase<
    */
   mapError(
     mapper: (error: DbError) => unknown,
-  ): BetterSupabase<M, D, F, E, C, P> {
+  ): BetterSupabase<M, D, F, E, C, P, B> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
       { ...this.options, throwAs: mapper },
+      this.events,
+    );
+  }
+
+  /**
+   * Returns a new instance whose `db.$buckets` has one client per bucket,
+   * connected to `db.$storage` so Storage runs as the same caller.
+   *
+   * ```ts
+   * const betterSupabase = defineSupabase(schema).buckets({ logos, avatars });
+   * betterSupabase.connect(client).$buckets.logos.signedUrl({ ... });
+   * ```
+   */
+  buckets<const R extends BucketRegistry>(
+    registered: R,
+  ): BetterSupabase<M, D, F, E, C, P, R> {
+    return new BetterSupabase(
+      this.schema,
+      this.plugins,
+      { ...this.options, buckets: registered },
       this.events,
     );
   }
@@ -309,7 +331,7 @@ export class BetterSupabase<
   /** Returns a new instance with the plugin appended. */
   use<Q extends AnyPlugin>(
     plugin: Q,
-  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P> {
+  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P, B> {
     return new BetterSupabase(
       this.schema,
       [...this.plugins, plugin],
@@ -329,7 +351,7 @@ export class BetterSupabase<
   defineRpc(
     name: Extract<keyof F, string>,
     options: { readonly invalidates: readonly TableKey<M>[] },
-  ): BetterSupabase<M, D, F, E, C, P> {
+  ): BetterSupabase<M, D, F, E, C, P, B> {
     for (const table of options.invalidates) {
       if (!this.meta.tables[table]) {
         throw new TypeError(
@@ -401,12 +423,12 @@ export class BetterSupabase<
     client: C,
     context?: RequestContext,
     options?: ConnectOptions,
-  ): Db<M, F, E, C>;
+  ): Db<M, F, E, C> & BucketsHelper<B>;
   connect(
     executor: Executor,
     context?: RequestContext,
     options?: ConnectOptions,
-  ): Db<M, F, E, undefined>;
+  ): Db<M, F, E, undefined> & BucketsHelper<B>;
   connect(
     source: PostgrestClientLike | Executor,
     context: RequestContext = {},
@@ -520,6 +542,26 @@ export class BetterSupabase<
       get: () => storageOf(source),
       configurable: true,
     });
+    const { buckets } = this.options;
+
+    if (buckets) {
+      let connected: Record<string, unknown> | undefined;
+
+      Object.defineProperty(db, "$buckets", {
+        get: () => {
+          connected ??= Object.fromEntries(
+            Object.entries(buckets).map(([name, bucket]) => [
+              name,
+              bucket.connect(storageOf(source)),
+            ]),
+          );
+
+          return connected;
+        },
+        configurable: true,
+      });
+    }
+
     Object.assign(db, {
       $client: client,
       $executor: executor,
