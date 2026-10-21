@@ -185,15 +185,41 @@ Postgres the same wrappers work. A transport's own `schema` option sends
 every call there instead. The executor needs `rpc()`: the built-in PostgREST
 and Postgres executors have it.
 
-### Renamed functions
+### Renamed blocks
 
-When the config renames the tenant or sets `blocks.<name>.functions`, the SQL writes
-the block functions under other names. `gen` writes those names into each
-block's `naming` entry in `blocks.generated.ts`, and `defineBlocks` wraps that
-block's transport with `blockNames(naming)`, so the clients call the renamed
-functions with no change to `lib/blocks.ts`. Rows that a function returns
-whole get their renamed tenant columns (`workspace_id`) back under the names
-the clients read (`organization_id`).
+When the config renames the tenant (`blocks.tenant.entities.organization`),
+a block's entities (`blocks.<name>.entities`) or its functions
+(`blocks.<name>.functions`), the SQL writes the block functions under other
+names. `gen` writes those names into each block's `names` entry in
+`blocks.generated.ts`, and `defineBlocks` wraps that block's transport with
+`blockNames(names)`, so the clients call the renamed functions with no change
+to `lib/blocks.ts`. Rows that a function returns whole get their renamed
+tenant columns (`workspace_id`) back under the names the clients read
+(`organization_id`).
+
+A renamed entity also renames the TypeScript side. For each block whose
+entities the config renames, `gen` writes the block and its types under the
+new names, so you import `tasksBlock` and `Task` instead of `workItemsBlock`
+and `WorkItem`:
+
+```ts title="src/lib/supabase/blocks.generated.ts"
+export const tasksBlock = renameBlock(
+  workItemsBlock,
+  blockConfig["work-items"].names,
+);
+export type Task<F extends object = Record<never, never>> = RenamedType<
+  WorkItem<F>,
+  WorkItemsRenames
+>;
+export type TasksEvents = RenamedEvents<WorkItemsEvents, WorkItemsRenames>;
+```
+
+`renameBlock` renames the client's methods (`createWorkItem` to `createTask`),
+the keys of their arguments and results (`workItemId` to `taskId`) and the
+block's event types (`work_item.created` to `task.created`). The block keeps
+its name, SQL and ports, and hooks see the renamed client. The tenant rename
+stays in SQL: payloads and client types keep `organizationId`. See
+[Typed blocks](/docs/blocks/typed-blocks) for the config key.
 
 A creator you call yourself takes the same middleware:
 
@@ -210,8 +236,8 @@ import { blockConfig } from "./supabase/blocks.generated";
 const entry = blockConfig.organizations;
 const organizations = createOrganizations({
   ...generatedOptions(entry),
-  transport: entry.naming
-    ? wrapTransport(transport, blockNames(entry.naming))
+  transport: entry.names
+    ? wrapTransport(transport, blockNames(entry.names))
     : transport,
 });
 ```

@@ -59,10 +59,10 @@ export const markAllRead = bs.action(
 );
 
 /** The badge numbers, loaded by `useNotifications` after each broadcast. */
-export const loadNotificationCounts = bs.action(
-  { requireTenant: true },
-  async (_input, { tenant, supabase }) =>
-    blocks(supabase).notifications.counts({ tenant }),
+export const loadNotificationCounts = bs.blockAction(
+  ({ supabase }) => blocks(supabase).notifications,
+  "counts",
+  { requireTenant: true, args: (_input, { tenant }) => [{ tenant }] },
 );
 
 /**

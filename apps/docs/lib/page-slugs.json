@@ -107,6 +107,7 @@
   "blocks/templates",
   "blocks/time-tracking",
   "blocks/trash",
+  "blocks/typed-blocks",
   "blocks/undo",
   "blocks/usage",
   "blocks/vector-search",

@@ -373,6 +373,26 @@ blocks: {
 },
 ```
 
+`blocks.<name>.entities` renames a block's own entities. A string is the new
+singular noun; an object takes it as `name`, plus `plural` when the English
+plural is wrong, `url` for the page of one row and `subject: false` to keep
+the entity out of the subject registry. A bare string for `entities` renames
+the block's primary entity. `work_item: "task"` turns the `work_items` table
+into `tasks`, `work_item_id` into `task_id`, `create_work_item` into
+`create_task`, `work_item.created` into `task.created` and the
+`work_items.read` permission into `tasks.read`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "work-items": { entities: { work_item: { name: "task", url: "/tasks/{id}" } } },
+  parties: { entities: { company: "account" } },
+},
+```
+
+An entity rename reaches the TypeScript side too: method names, argument and
+result keys, event types and the generated types. See
+[Typed blocks](/docs/blocks/typed-blocks).
+
 Some names stay as they are, so the TypeScript clients and event consumers
 work under any tenant name:
 
@@ -390,7 +410,7 @@ other blocks with a `team_id` column.
 
 `better-supabase gen` writes the names to `blocks.generated.ts`, and
 `defineBlocks` makes the block clients call the renamed functions; see
-[renamed functions](/docs/blocks/create-blocks#renamed-functions).
+[renamed blocks](/docs/blocks/create-blocks#renamed-blocks).
 
 ## Existing tables: managed, adopt and custom
 

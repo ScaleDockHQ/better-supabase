@@ -1,0 +1,152 @@
+---
+title: Typed blocks
+description: Rename a block's entities once in the config, and get typed config keys, renamed clients, subjects, name constants and input schemas from better-supabase gen.
+---
+
+You name a block's entities once, in `blocks.<name>.entities`, and the SQL,
+the clients, the events, the permissions and the generated types all use
+that name. The config keys are typed from the installed blocks, so a wrong
+entity, column or function name fails in your editor instead of in
+`better-supabase gen`.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  blocks: {
+    tenant: { entities: { organization: "workspace" } },
+    "work-items": {
+      entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+    },
+  },
+});
+```
+
+With this config the SQL writes a `tasks` table with a `workspace_id`
+column, `create_task` and `task.created`, and `gen` writes `tasksBlock`,
+`Task` and `TasksEvents` into `blocks.generated.ts`. The tenant rename stays
+in SQL: event payloads and client types keep `organizationId`, so code that
+reads them works under any tenant name.
+
+## Typed config keys
+
+`defineConfig` returns the config with its literal types, and the `blocks`
+key is typed from each block's names:
+
+| Key                               | Checked against                                                |
+| --------------------------------- | -------------------------------------------------------------- |
+| `blocks.<name>`                   | the installable blocks                                         |
+| `blocks.<name>.entities.<entity>` | the block's own entities, such as `work_item` for `work-items` |
+| `entities.<entity>.url`           | `{column}` placeholders from the entity's columns              |
+| `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one                 |
+| `blocks.<name>.functions`         | the block's function names                                     |
+| `blocks.<name>.permissions`       | the block's actions                                            |
+| `blocks.<name>.hooks.functions`   | the `before_*` and `after_*` hooks the block calls             |
+| `blocks.<name>.options`           | the options schema in the block's manifest                     |
+
+The package ships the same keys as JSON Schema, in
+`better-supabase/schemas/config-v1.json`, for editors that read it.
+
+## Subjects
+
+A block's entities register as subjects on their own: `deals` registers
+`deal`, `catalog` registers `product` and `product_variant`, `work-items`
+registers `work_item` under its final name. Comments, attachments, reactions
+and the other subject blocks then accept them with no entry in `subjects`.
+`url` sets the page `subject_url` returns, and `subject: false` keeps an
+entity out of the registry:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  catalog: { entities: { product: { url: "/admin/products/{id}" } } },
+  deals: { entities: { deal: { subject: false } } },
+},
+```
+
+A `subjects` entry with the name of a block entity is an error, because the
+block already registers it.
+
+## Renamed clients
+
+For each block whose entities the config renames, `gen` writes the block
+under its new names with `renameBlock`. List that one in `defineBlocks`:
+
+```ts title="src/lib/blocks.ts"
+import { defineBlocks, rpcTransport } from "better-supabase/blocks";
+
+import { blockConfig, tasksBlock } from "./supabase/blocks.generated";
+
+export const blockSet = defineBlocks(blockConfig, { tasks: tasksBlock });
+
+const { tasks } = blockSet.create({ transport: rpcTransport(supabase) });
+const task = (await tasks.create(workspaceId, { title: "Ship it" })).orThrow();
+await tasks.update([{ taskId: task.id, field: "title", value: "Shipped" }]);
+```
+
+Method names that contain the noun (`saveWorkItem` to `saveTask`), argument
+and result keys (`workItemId` to `taskId`) and event types follow the rename,
+and hooks keyed under `tasks` see the renamed client. See
+[Renamed blocks](/docs/blocks/create-blocks#renamed-blocks) for the
+transport side.
+
+## Name constants
+
+`blocks.generated.ts` also exports the names the SQL uses, so code that
+checks a permission, filters events or builds a link uses a constant instead
+of a string:
+
+| Export          | What it holds                                                                          |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `permissions`   | Permission keys by block and action: `permissions["work-items"].write`                 |
+| `PermissionKey` | The union of every permission key, for `permission` options                            |
+| `RoleName`      | The roles `blocks.access.roles` defines                                                |
+| `BlockEvents`   | Every installed block's events, type to data                                           |
+| `blockEvents`   | The same events as a value, for `onBlockEvent`, `useBlockEvent` and the sinks          |
+| `urls`          | A function per entity with a `url`: `urls.task({ id })`                                |
+| `topics`        | The realtime topics with their placeholders filled: `topics.notifications({ userId })` |
+| `paths`         | Object paths per bucket, from `buckets.<name>.path`                                    |
+
+```ts title="app/tasks/actions.ts"
+"use server";
+
+import * as v from "valibot";
+
+import { bs } from "@/lib/bs";
+import { blocks } from "@/lib/blocks";
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export const renameTask = bs.blockAction(
+  ({ supabase }) => blocks(supabase).tasks,
+  "update",
+  {
+    input: v.object({ taskId: v.string(), title: v.string() }),
+    permission: permissions["work-items"].write,
+    args: ({ taskId, title }) => [[{ taskId, field: "title", value: title }]],
+  },
+);
+```
+
+`urls.task({ id: task.id })` builds the link to the same row.
+
+## Input schemas
+
+The entity blocks (catalog, deals, employees, parties and work-items) export
+a Standard Schema for each input, such as `workItemInputSchema`. It
+validates without a validation library and converts to JSON Schema. A
+renamed block carries its schemas under the new names, with renamed
+property names and titles: `tasksBlock.schemas.task.input`.
+
+The [zod and valibot generators](/docs/cli/gen#schemas-for-functions-and-blocks)
+write the same inputs in your validation library, named after the final
+noun: `taskInput`, `taskChange` and `taskListFilter`.
+
+## Helpers built on these types
+
+| Helper                                                               | From                                              | What it does                                            |
+| -------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| [`blockQueries`](/docs/frontend/query#block-queries)                 | `better-supabase/query`                           | TanStack Query options for every block method           |
+| [`useBlockQuery`](/docs/frontend/block-controllers#any-block-method) | `better-supabase/react`, `vue`, `svelte`, `solid` | Calls any block method from a component                 |
+| [`blockAction`](/docs/frameworks/next#block-actions)                 | `createNext`                                      | A server action that calls one block method             |
+| [`blockRouter`](/docs/frameworks/orpc#block-routers)                 | `createOrpc`                                      | oRPC procedures and documented routes for block methods |
+| [`nuqs`](/docs/cli/gen#search-params-for-nuqs)                       | `better-supabase/config`                          | Search-param parsers for each table list                |
+| [`factories`](/docs/testing#factories)                               | `better-supabase/config`                          | Test rows with valid defaults for each table            |

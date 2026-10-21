@@ -243,6 +243,37 @@ const token = await signer.sign(supabaseClaimFixtures.supportSession.claims);
 [Impersonation](/docs/auth/impersonation#reading-the-act-claim) lists what
 each `act.kind` means.
 
+## Factories
+
+`factories()` from `better-supabase/config` writes `<output>.factories.ts`,
+with one factory per table that returns a valid insert row. Defaults follow
+enums, CHECK bounds and `StoragePath` buckets, a foreign key takes the parent
+row or its id, and a column without a safe default is a required input.
+Block entities also get a factory under their final singular noun, such as
+`factories.task`.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, factories } from "better-supabase/config";
+
+export default defineConfig({ generators: [factories()] });
+```
+
+```ts title="tests/tasks.test.ts"
+import { factories } from "@/lib/supabase/generated.factories";
+
+const acme = await alice.db.customers.create(factories.customers()).orThrow();
+const task = factories.tasks({ customerId: acme, title: "Call back" });
+const many = factories.tasks.many(20, { customerId: acme });
+await factories.tasks.create(alice.db.tasks, { customerId: acme });
+```
+
+Each call numbers its row, and text and uuid defaults include that number, so
+rows from one factory differ. `many(count, input)` builds a list, and `create(repository, input)` passes
+the row to a repository's `create`. `tables` limits the file to some tables,
+and `testingImport` changes where it imports `defineFactory` and
+`factoryTime` from (`better-supabase/testing` by default). Both are exported
+for factories you write by hand.
+
 ## APIs
 
 ES256 test tokens verify against the local stack's JWKS, so your

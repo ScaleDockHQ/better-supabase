@@ -389,6 +389,39 @@ from an action: they set or clear its cookie, and every read after that
 renders as the target. `bs.cached()` reads add a `bs:support:<id>` tag
 (`supportTag(id)`), so ending the session drops the target's cached pages.
 
+### Block actions
+
+`bs.blockAction(client, method, options)` is an action that calls one block
+method as the caller. It runs the same guard, validation, `permission` and
+`authorize` checks as `bs.action`, and its result is typed from the method's
+data. Without `args` the validated input is the method's only argument;
+`args(input, ctx)` returns the arguments when the method takes anything
+else, and TypeScript requires it then.
+
+```ts title="src/app/tasks/actions.ts"
+"use server";
+
+import * as v from "valibot";
+
+import { blocks } from "@/lib/blocks";
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export const createTask = bs.blockAction(
+  ({ supabase }) => blocks(supabase).tasks,
+  "create",
+  {
+    input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
+    requireTenant: true,
+    permission: permissions["work-items"].write,
+    args: (input, { tenant }) => [tenant, input],
+  },
+);
+```
+
+The client is built per call from the request's context, so the block runs
+as the signed-in user. A refused caller, a failed validation and a database
+error all come back as `{ ok: false, error }`, like any other action.
+
 ## Cache tags
 
 Every mutation invalidates `bs:<table>`, its tenant's `bs:<table>@<tenant>`

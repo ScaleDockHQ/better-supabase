@@ -31,11 +31,19 @@ workflow; this page is the checklist for a new block.
   `tests/sql/__golden__/scope-*`.
 - Name module functions, triggers, indexes and policies through `ctx.fn`,
   `ctx.trigger` or `ctx.naming.rename(...)`, never a literal that contains
-  `organization`, so `sql.naming.tenant` renames them
-  (`tests/sql/__golden__/naming-workspace`). Parameter names stay. Add the module's keys to
+  `organization` or one of the module's entity nouns, so
+  `blocks.tenant.entities.organization` and `blocks.<name>.entities` rename
+  them (`tests/sql/__golden__/naming-workspace`,
+  `tests/sql/entity-renames.test.ts`). Parameter names stay. Add the module's keys to
   `MODULE_PERMISSIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/access-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
+- Every entity a user can rename goes in `NAMES.entities` (ADR 0060): its
+  table, its `singular`, `primary: true` for the one a bare string renames,
+  and `subject` when it registers as a subject. Event types, hooks, payload
+  keys and client methods derive from the singular, so a rename reaches all
+  of them; `tests/core/entity-naming.test.ts` and
+  `tests/sql/resolved-names.test.ts` cover the renamer.
 - A table that holds a user's or a tenant's rows declares `lifecycle: {
   user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `data-lifecycle` module exports and purges it. Secrets that only the
@@ -122,6 +130,10 @@ block with only SQL gets a directory with just the manifest (and
   change, which rewrites `schemas/config-v1.json`.
 - `events` is the block's own map from `events.ts`. Never add a type to a
   shared map in core.
+- `schemas` holds a Standard Schema `input`, `change` and `listFilter` per
+  entity from the block's `schemas.ts`, built with `entitySchema`.
+  `tests/blocks/entity-schema.test-d.ts` checks each one agrees with the
+  client's types, and `renameBlock` renames their keys.
 - `consumes` and `provides` name ports from `src/blocks/ports.ts`
   (`notifier`, `files`, `attachments`, `workflows`, `sink`). A block reaches
   another block only through a consumed port: never import or call a
