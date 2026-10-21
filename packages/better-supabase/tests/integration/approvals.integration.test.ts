@@ -93,7 +93,11 @@ describe.skipIf(!live)("approvals", () => {
         viewer: deputy,
       });
 
-      const approvals = createApprovals({ transport: sqlTransport(s.sql) });
+      const approvals = createApprovals({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
       await s.service();
 
       const invoice = (
@@ -121,34 +125,21 @@ describe.skipIf(!live)("approvals", () => {
       ).toBe("STATE_APPROVAL_REQUIRED");
 
       const request = await approvals
-        .request({
-          organizationId: tenant,
-          subjectType: "invoice",
-          subjectId: invoice,
-          action: "send",
-          reason: "Q3",
-        })
+        .request(
+          { type: "invoice", id: invoice },
+          { action: "send", reason: "Q3" },
+        )
         .orThrow();
 
       expect(request).toMatchObject({ status: "pending", step: 0 });
       expect(
         await approvals
-          .request({
-            organizationId: tenant,
-            subjectType: "invoice",
-            subjectId: invoice,
-            action: "send",
-          })
+          .request({ type: "invoice", id: invoice }, { action: "send" })
           .then(hint),
       ).toBe("APPROVAL_PENDING");
       expect(
         await approvals
-          .request({
-            organizationId: tenant,
-            subjectType: "invoice",
-            subjectId: invoice,
-            action: "archive",
-          })
+          .request({ type: "invoice", id: invoice }, { action: "archive" })
           .then(hint),
       ).toBe("APPROVAL_POLICY_UNKNOWN");
       expect(await approvals.approve(request.id).then(hint)).toBe(
@@ -179,7 +170,7 @@ describe.skipIf(!live)("approvals", () => {
 
       await s.asRole(finance);
       expect(
-        (await approvals.list(tenant, { assigned: true }).orThrow()).map(
+        (await approvals.list({ assigned: true }).orThrow()).map(
           (row) => row.id,
         ),
       ).toEqual([request.id]);
@@ -193,7 +184,9 @@ describe.skipIf(!live)("approvals", () => {
       expect(done.status).toBe("approved");
       expect(await status()).toBe("sent");
       expect(
-        await approvals.isApproved("invoice", invoice, "send").orThrow(),
+        await approvals
+          .isApproved({ type: "invoice", id: invoice }, "send")
+          .orThrow(),
       ).toBe(true);
 
       await s.asRole(requester);
@@ -241,7 +234,12 @@ describe.skipIf(!live)("approvals", () => {
       const requester = await s.user("requester");
       await s.install(MODULES, layoutFor(owner.id));
       const tenant = await s.organization(owner, { member: requester });
-      const approvals = createApprovals({ transport: sqlTransport(s.sql) });
+
+      const approvals = createApprovals({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
       await s.service();
 
       const [a, b, c] = await s.rows<{ id: string }>(
@@ -251,12 +249,7 @@ describe.skipIf(!live)("approvals", () => {
 
       const ask = (subjectId: string) =>
         approvals
-          .request({
-            organizationId: tenant,
-            subjectType: "invoice",
-            subjectId,
-            action: "void",
-          })
+          .request({ type: "invoice", id: subjectId }, { action: "void" })
           .orThrow();
 
       await s.asRole(requester);
@@ -296,7 +289,7 @@ describe.skipIf(!live)("approvals", () => {
 
       await s.asRole(requester);
       expect(
-        (await approvals.list(tenant, { status: null }).orThrow())
+        (await approvals.list({ status: null }).orThrow())
           .map((row) => `${row.id}:${row.status}`)
           .toSorted((a, b) => a.localeCompare(b)),
       ).toEqual(
@@ -306,7 +299,7 @@ describe.skipIf(!live)("approvals", () => {
           `${expired.id}:expired`,
         ].toSorted((a, b) => a.localeCompare(b)),
       );
-      expect(await approvals.list(tenant).orThrow()).toEqual([]);
+      expect(await approvals.list().orThrow()).toEqual([]);
     } finally {
       await s.close();
     }

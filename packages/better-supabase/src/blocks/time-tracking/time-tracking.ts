@@ -5,15 +5,19 @@ import type {
   FieldsOf,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -38,7 +42,8 @@ import {
 
 export interface TimeTrackingOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -64,8 +69,8 @@ export interface TimeEntry<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly userId: string;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  /** The record the time is tracked on; `undefined` for an unattached entry. */
+  readonly subject: SubjectRef | undefined;
   readonly startedAt: Temporal.Instant;
   /** Missing while the timer runs. */
   readonly endedAt?: Temporal.Instant;
@@ -83,8 +88,8 @@ export interface TimeEntry<F extends object = Record<never, never>> {
 
 /** The record time is tracked on, how it bills, and the extra columns. */
 export interface TimeEntryFields<F extends object = Record<never, never>> {
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  /** The record the time is on. Default: none. */
+  readonly subject?: SubjectRef;
   readonly billable?: boolean;
   /** The hourly rate, in minor units of its currency. */
   readonly rate?: Money;
@@ -106,10 +111,7 @@ export interface LogTimeInput<
 export interface TimeEntryPatch<F extends object = Record<never, never>> {
   readonly startedAt?: Temporal.Instant;
   readonly endedAt?: Temporal.Instant;
-  readonly subject?: {
-    readonly subjectType: string;
-    readonly subjectId: string;
-  } | null;
+  readonly subject?: SubjectRef | null;
   readonly billable?: boolean;
   readonly rate?: Money | null;
   readonly note?: string | null;
@@ -126,8 +128,8 @@ export interface TimeEntryListOptions {
   readonly from?: Temporal.Instant;
   /** Entries that start before this instant. */
   readonly to?: Temporal.Instant;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  /** Entries on this record only. */
+  readonly subject?: SubjectRef;
   readonly pageSize?: number;
 }
 
@@ -175,45 +177,36 @@ export interface TimesheetListOptions {
   readonly before?: Temporal.PlainDate;
 }
 
+/**
+ * `F` is the extra fields `options.fields` describes. The methods that don't
+ * take an entry or timesheet id act in the block's `tenant`.
+ */
 export interface TimeTracking<F extends object = Record<never, never>> {
-  /** Starts a timer for the caller and stops the one that runs. */
-  start(
-    organizationId: string,
-    fields?: TimeEntryFields<F>,
-  ): AsyncResult<TimeEntry<F>>;
-  stop(organizationId: string): AsyncResult<TimeEntry<F>>;
+  /**
+   * Starts a timer for the caller, on `fields.subject` when set, and stops the
+   * one that runs.
+   */
+  start(fields?: TimeEntryFields<F>): AsyncResult<TimeEntry<F>>;
+  stop(): AsyncResult<TimeEntry<F>>;
   /** The caller's running timer. */
-  running(organizationId: string): AsyncResult<TimeEntry<F> | undefined>;
-  log(
-    organizationId: string,
-    input: LogTimeInput<F>,
-  ): AsyncResult<TimeEntry<F>>;
+  running(): AsyncResult<TimeEntry<F> | undefined>;
+  /** Records a finished entry, on `input.subject` when set. */
+  log(input: LogTimeInput<F>): AsyncResult<TimeEntry<F>>;
   update(entryId: string, patch: TimeEntryPatch<F>): AsyncResult<TimeEntry<F>>;
   remove(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Newest first. */
-  list(
-    organizationId: string,
-    options?: TimeEntryListOptions,
-  ): AsyncResult<readonly TimeEntry<F>[]>;
+  list(options?: TimeEntryListOptions): AsyncResult<readonly TimeEntry<F>[]>;
   /** A member's week (the caller's by default) with its entries and totals. */
   timesheet(
-    organizationId: string,
     week: Temporal.PlainDate,
     userId?: string,
   ): AsyncResult<TimesheetDetail<F>>;
   /** Sends the caller's week for approval; it locks until a rejection. */
-  submit(
-    organizationId: string,
-    week: Temporal.PlainDate,
-    note?: string,
-  ): AsyncResult<Timesheet>;
+  submit(week: Temporal.PlainDate, note?: string): AsyncResult<Timesheet>;
   /** Unlocks an approved week; needs `time_tracking.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /** Newest week first. */
-  timesheets(
-    organizationId: string,
-    options?: TimesheetListOptions,
-  ): AsyncResult<readonly Timesheet[]>;
+  timesheets(options?: TimesheetListOptions): AsyncResult<readonly Timesheet[]>;
 }
 
 const STATUSES: readonly TimesheetStatus[] = [
@@ -243,12 +236,11 @@ function entryOf(value: unknown, fn: string): TimeEntry {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     userId: textOf(row["userId"]),
+    subject: optionalSubjectRefOf(row["subjectType"], row["subjectId"]),
     startedAt: requiredInstant(row["startedAt"], "startedAt"),
     billable: row["billable"] === true,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("subjectType", optionalText(row["subjectType"])),
-    ...optional("subjectId", optionalText(row["subjectId"])),
     ...optional("endedAt", optionalInstant(row["endedAt"])),
     ...optional("seconds", numberOf(row["seconds"])),
     ...optional(
@@ -310,8 +302,8 @@ function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   }
 
   if (patch.subject !== undefined) {
-    out["subjectType"] = patch.subject?.subjectType ?? null;
-    out["subjectId"] = patch.subject?.subjectId ?? null;
+    out["subjectType"] = patch.subject?.type ?? null;
+    out["subjectId"] = patch.subject?.id ?? null;
   }
 
   if (patch.billable !== undefined) {
@@ -344,73 +336,83 @@ export function createTimeTracking<
     "time entry fields",
   );
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const client: TimeTracking<F> = {
-    start: (organizationId, entry = {}) => {
+    start: (entry = {}) => {
       const invalid = rateError(entry.rate);
 
       if (invalid !== undefined) {
         return AsyncResult.err(invalid);
       }
 
-      return fields
-        .args(entry.fields)
-        .andThen((checked) =>
-          call(
-            "start_timer",
-            {
-              tenant: organizationId,
-              subject_type: entry.subjectType ?? null,
-              subject_id: entry.subjectId ?? null,
-              billable: entry.billable ?? false,
-              rate: entry.rate === undefined ? null : amountText(entry.rate),
-              rate_currency: entry.rate?.currency ?? null,
-              note: entry.note ?? null,
-              fields: checked,
-            },
-            (value) => entryOf(value, "start_timer"),
-          ).andThen(fields.row),
-        );
+      return tenant().andThen((organizationId) =>
+        fields
+          .args(entry.fields)
+          .andThen((checked) =>
+            call(
+              "start_timer",
+              {
+                tenant: organizationId,
+                subject_type: entry.subject?.type ?? null,
+                subject_id: entry.subject?.id ?? null,
+                billable: entry.billable ?? false,
+                rate: entry.rate === undefined ? null : amountText(entry.rate),
+                rate_currency: entry.rate?.currency ?? null,
+                note: entry.note ?? null,
+                fields: checked,
+              },
+              (value) => entryOf(value, "start_timer"),
+            ).andThen(fields.row),
+          ),
+      );
     },
-    stop: (organizationId) =>
-      call("stop_timer", { tenant: organizationId }, (value) =>
-        entryOf(value, "stop_timer"),
-      ).andThen(fields.row),
-    running: (organizationId) =>
-      call("running_timer", { tenant: organizationId }, (value) =>
-        value === null || value === undefined
-          ? undefined
-          : entryOf(value, "running_timer"),
-      ).andThen((entry) =>
-        entry === undefined ? AsyncResult.ok(undefined) : fields.row(entry),
+    stop: () =>
+      tenant().andThen((organizationId) =>
+        call("stop_timer", { tenant: organizationId }, (value) =>
+          entryOf(value, "stop_timer"),
+        ).andThen(fields.row),
       ),
-    log: (organizationId, input) => {
+    running: () =>
+      tenant().andThen((organizationId) =>
+        call("running_timer", { tenant: organizationId }, (value) =>
+          value === null || value === undefined
+            ? undefined
+            : entryOf(value, "running_timer"),
+        ).andThen((entry) =>
+          entry === undefined ? AsyncResult.ok(undefined) : fields.row(entry),
+        ),
+      ),
+    log: (input) => {
       const invalid = rateError(input.rate);
 
       if (invalid !== undefined) {
         return AsyncResult.err(invalid);
       }
 
-      return fields
-        .args(input.fields)
-        .andThen((checked) =>
-          call(
-            "log_time",
-            {
-              tenant: organizationId,
-              started_at: instantArg(input.startedAt),
-              ended_at: instantArg(input.endedAt),
-              subject_type: input.subjectType ?? null,
-              subject_id: input.subjectId ?? null,
-              billable: input.billable ?? false,
-              rate: input.rate === undefined ? null : amountText(input.rate),
-              rate_currency: input.rate?.currency ?? null,
-              note: input.note ?? null,
-              user_id: input.userId ?? null,
-              fields: checked,
-            },
-            (value) => entryOf(value, "log_time"),
-          ).andThen(fields.row),
-        );
+      return tenant().andThen((organizationId) =>
+        fields
+          .args(input.fields)
+          .andThen((checked) =>
+            call(
+              "log_time",
+              {
+                tenant: organizationId,
+                started_at: instantArg(input.startedAt),
+                ended_at: instantArg(input.endedAt),
+                subject_type: input.subject?.type ?? null,
+                subject_id: input.subject?.id ?? null,
+                billable: input.billable ?? false,
+                rate: input.rate === undefined ? null : amountText(input.rate),
+                rate_currency: input.rate?.currency ?? null,
+                note: input.note ?? null,
+                user_id: input.userId ?? null,
+                fields: checked,
+              },
+              (value) => entryOf(value, "log_time"),
+            ).andThen(fields.row),
+          ),
+      );
     },
     update: (entryId, patch) => {
       const invalid = rateError(patch.rate);
@@ -439,70 +441,80 @@ export function createTimeTracking<
       call("delete_time_entry", { entry_id: entryId }, (value) =>
         entryOf(value, "delete_time_entry"),
       ).andThen(fields.row),
-    list: (organizationId, list = {}) =>
-      call(
-        "list_time_entries",
-        {
-          tenant: organizationId,
-          user_id: list.userId ?? null,
-          starts: instantArg(list.from) ?? null,
-          ends: instantArg(list.to) ?? null,
-          subject_type: list.subjectType ?? null,
-          subject_id: list.subjectId ?? null,
-          everyone: list.everyone ?? false,
-          page_size: list.pageSize ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_time_entries").map((row) =>
-            entryOf(row, "list_time_entries"),
-          ),
-      ).andThen(fields.rows),
-    timesheet: (organizationId, week, userId) =>
-      call(
-        "get_timesheet",
-        {
-          tenant: organizationId,
-          week: week.toString(),
-          user_id: userId ?? null,
-        },
-        (value) => {
-          const row = recordOf(value, "get_timesheet");
-
-          return {
-            ...timesheetOf(row, "get_timesheet"),
-            entries: recordsOf(row["entries"], "get_timesheet").map((item) =>
-              entryOf(item, "get_timesheet"),
+    list: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_time_entries",
+          {
+            tenant: organizationId,
+            user_id: list.userId ?? null,
+            starts: instantArg(list.from) ?? null,
+            ends: instantArg(list.to) ?? null,
+            subject_type: list.subject?.type ?? null,
+            subject_id: list.subject?.id ?? null,
+            everyone: list.everyone ?? false,
+            page_size: list.pageSize ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_time_entries").map((row) =>
+              entryOf(row, "list_time_entries"),
             ),
-            totals: totalsOf(row["totals"]),
-          };
-        },
-      ).andThen((detail) =>
-        fields.rows(detail.entries).map((entries) => ({ ...detail, entries })),
+        ).andThen(fields.rows),
       ),
-    submit: (organizationId, week, note) =>
-      call(
-        "submit_timesheet",
-        { tenant: organizationId, week: week.toString(), note: note ?? null },
-        (value) => timesheetOf(value, "submit_timesheet"),
+    timesheet: (week, userId) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "get_timesheet",
+          {
+            tenant: organizationId,
+            week: week.toString(),
+            user_id: userId ?? null,
+          },
+          (value) => {
+            const row = recordOf(value, "get_timesheet");
+
+            return {
+              ...timesheetOf(row, "get_timesheet"),
+              entries: recordsOf(row["entries"], "get_timesheet").map((item) =>
+                entryOf(item, "get_timesheet"),
+              ),
+              totals: totalsOf(row["totals"]),
+            };
+          },
+        ).andThen((detail) =>
+          fields
+            .rows(detail.entries)
+            .map((entries) => ({ ...detail, entries })),
+        ),
+      ),
+    submit: (week, note) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "submit_timesheet",
+          { tenant: organizationId, week: week.toString(), note: note ?? null },
+          (value) => timesheetOf(value, "submit_timesheet"),
+        ),
       ),
     reopen: (timesheetId) =>
       call("reopen_timesheet", { timesheet_id: timesheetId }, (value) =>
         timesheetOf(value, "reopen_timesheet"),
       ),
-    timesheets: (organizationId, list = {}) =>
-      call(
-        "list_timesheets",
-        {
-          tenant: organizationId,
-          user_id: list.userId ?? null,
-          status: list.status ?? null,
-          page_size: list.pageSize ?? null,
-          before: list.before?.toString() ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_timesheets").map((row) =>
-            timesheetOf(row, "list_timesheets"),
-          ),
+    timesheets: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_timesheets",
+          {
+            tenant: organizationId,
+            user_id: list.userId ?? null,
+            status: list.status ?? null,
+            page_size: list.pageSize ?? null,
+            before: list.before?.toString() ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_timesheets").map((row) =>
+              timesheetOf(row, "list_timesheets"),
+            ),
+        ),
       ),
   };
 

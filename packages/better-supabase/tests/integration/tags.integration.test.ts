@@ -46,34 +46,31 @@ describe.skipIf(!live)("tags", () => {
       );
 
       const project = inserted!.id;
-      const tags = createTags({ transport: sqlTransport(s.sql) });
+      const tags = createTags({ transport: sqlTransport(s.sql), tenant: org });
+      const subject = { type: "project", id: project };
 
       await s.as(owner);
-      const vip = await tags.create(org, "project", "VIP").orThrow();
-      const risk = await tags.create(org, "project", "At risk").orThrow();
-      await tags.create(org, "invoice", "Overdue").orThrow();
+      const vip = await tags.create("project", "VIP").orThrow();
+      const risk = await tags.create("project", "At risk").orThrow();
+      await tags.create("invoice", "Overdue").orThrow();
 
       await s.asRole(member);
       expect(
-        (await tags.list(org, "project").orThrow()).map((tag) => tag.name),
+        (await tags.list("project").orThrow()).map((tag) => tag.name),
       ).toEqual(["VIP", "At risk"]);
-      expect((await tags.list(org).orThrow()).map((tag) => tag.kind)).toEqual(
+      expect((await tags.list().orThrow()).map((tag) => tag.kind)).toEqual(
         expect.arrayContaining(["project", "invoice"]),
       );
-      expect(await tags.forSubject(org, "project", project).orThrow()).toEqual(
-        [],
-      );
-      await tags.tag(org, "project", project, risk.id).orThrow();
-      await tags.tag(org, "project", project, vip.id).orThrow();
+      expect(await tags.forSubject(subject).orThrow()).toEqual([]);
+      await tags.tag(subject, risk.id).orThrow();
+      await tags.tag(subject, vip.id).orThrow();
       expect(
-        (await tags.forSubject(org, "project", project).orThrow()).map(
-          (tag) => tag.id,
-        ),
+        (await tags.forSubject(subject).orThrow()).map((tag) => tag.id),
       ).toEqual([vip.id, risk.id]);
 
       await s.asRole(outsider);
-      expect((await tags.list(org)).error?.hint).toBe("TAG_FORBIDDEN");
-      expect((await tags.forSubject(org, "project", project)).error?.hint).toBe(
+      expect((await tags.list()).error?.hint).toBe("TAG_FORBIDDEN");
+      expect((await tags.forSubject(subject)).error?.hint).toBe(
         "TAG_FORBIDDEN",
       );
     } finally {

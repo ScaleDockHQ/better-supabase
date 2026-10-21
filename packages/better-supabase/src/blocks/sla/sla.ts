@@ -7,10 +7,13 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { compact } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -66,8 +69,7 @@ export interface SlaPolicy<F extends object = Record<never, never>> {
 
 export interface SlaClock {
   readonly id: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   readonly metric: SlaMetric;
   readonly state: SlaState;
   readonly startedAt: Temporal.Instant;
@@ -96,24 +98,16 @@ export interface SlaPolicyInput<F extends object = Record<never, never>> {
 }
 
 export interface Sla<F extends object = Record<never, never>> {
-  savePolicy(
-    organizationId: string,
-    policy: SlaPolicyInput<F>,
-  ): AsyncResult<SlaPolicy<F>>;
-  /** Starts a record's clocks, or recomputes them for a new priority. */
-  start(
-    subject: { readonly type: string; readonly id: string },
-    priority?: string,
-  ): AsyncResult<SlaClock[]>;
+  /** Creates or updates a policy in the block's `tenant`. */
+  savePolicy(policy: SlaPolicyInput<F>): AsyncResult<SlaPolicy<F>>;
+  /**
+   * Starts a record's clocks, or recomputes them for a new priority. The tenant
+   * comes from the record.
+   */
+  start(subject: SubjectRef, priority?: string): AsyncResult<SlaClock[]>;
   /** Moves a record's clocks: a reply, a resolution, a pause. */
-  record(
-    subject: { readonly type: string; readonly id: string },
-    event: SlaEvent,
-  ): AsyncResult<SlaClock[]>;
-  clocks(subject: {
-    readonly type: string;
-    readonly id: string;
-  }): AsyncResult<SlaClock[]>;
+  record(subject: SubjectRef, event: SlaEvent): AsyncResult<SlaClock[]>;
+  clocks(subject: SubjectRef): AsyncResult<SlaClock[]>;
   /** Records warnings and breaches. Service role only; run it from a job. */
   check(): AsyncResult<number>;
   /** The time `minutes` of working time after `start`. */
@@ -162,8 +156,7 @@ function clockOf(value: unknown): SlaClock {
 
   return compact<SlaClock>({
     id: textOf(row["id"]),
-    subjectType: textOf(row["subject_type"]),
-    subjectId: textOf(row["subject_id"]),
+    subject: subjectRefOf(row["subject_type"], row["subject_id"]),
     metric: enumOrThrow(row["metric"], METRICS, "sla metric"),
     state: enumOrThrow(row["state"], STATES, "sla state"),
     startedAt: requiredInstant(row["started_at"], "startedAt"),
@@ -196,24 +189,28 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
     "sla policy fields",
   );
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const client: Sla<F> = {
-    savePolicy: (organizationId, policy) => {
+    savePolicy: (policy) => {
       const { id, fields: extra, ...attrs } = policy;
 
-      return fields
-        .args(extra)
-        .andThen((checked) =>
-          call(
-            "save_sla_policy",
-            {
-              tenant: organizationId,
-              policy: id ?? null,
-              attrs:
-                checked === undefined ? attrs : { ...attrs, fields: checked },
-            },
-            policyOf,
-          ).andThen(fields.row),
-        );
+      return tenant().andThen((organizationId) =>
+        fields
+          .args(extra)
+          .andThen((checked) =>
+            call(
+              "save_sla_policy",
+              {
+                tenant: organizationId,
+                policy: id ?? null,
+                attrs:
+                  checked === undefined ? attrs : { ...attrs, fields: checked },
+              },
+              policyOf,
+            ).andThen(fields.row),
+          ),
+      );
     },
     start: (subject, priority) =>
       call(

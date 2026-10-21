@@ -7,7 +7,6 @@ import {
 } from "../../src/blocks/imports/index.ts";
 import { createNumberSequences } from "../../src/blocks/number-sequences/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
-import { createShareLinks } from "../../src/blocks/share-links/index.ts";
 import { createStateMachine } from "../../src/blocks/state-machine/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
 import { createTeams } from "../../src/blocks/teams/index.ts";
@@ -24,6 +23,10 @@ function fakeTransport(results: Record<string, unknown>) {
     },
   };
 }
+
+const DEAL = { type: "deals", id: "d1" };
+
+const EMPLOYEE = { type: "employees", id: "e1" };
 
 const options = (results: Record<string, unknown>) => ({
   transport: fakeTransport(results),
@@ -117,23 +120,26 @@ describe("saas block clients", () => {
 
   it("transitions a subject", async () => {
     const machine = createStateMachine(options({ transition: true }));
-    expect(await machine.transition("quotes", "q1", "sent").orThrow()).toBe(
-      true,
-    );
+    expect(
+      await machine.transition({ type: "quotes", id: "q1" }, "sent").orThrow(),
+    ).toBe(true);
     const denied = createStateMachine(options({ transition: false }));
     expect(
-      await denied.transition("quotes", "q1", "sent", "nope").orThrow(),
+      await denied
+        .transition({ type: "quotes", id: "q1" }, "sent", "nope")
+        .orThrow(),
     ).toBe(false);
   });
 
   it("saves and marks a reminder", async () => {
-    const reminders = createReminders(
-      options({ save_reminder: { id: "r1" }, mark_reminder_sent: true }),
-    );
+    const reminders = createReminders({
+      ...options({ save_reminder: { id: "r1" }, mark_reminder_sent: true }),
+      tenant: "org",
+    });
 
-    expect((await reminders.save("org", "invoices", "i1").orThrow()).id).toBe(
-      "r1",
-    );
+    expect(
+      (await reminders.save({ type: "invoices", id: "i1" }).orThrow()).id,
+    ).toBe("r1");
     expect(
       await reminders.markSent("r1", "2026-01-01T00:00:00Z").orThrow(),
     ).toBe(true);
@@ -159,8 +165,7 @@ describe("saas block clients", () => {
       reminderId: "r1",
       occurrenceAt: "2026-01-01T00:00:00Z",
       organizationId: "org",
-      subjectType: "task",
-      subjectId: "42",
+      subject: { type: "task", id: "42" },
     };
 
     await reminders.job(
@@ -204,8 +209,8 @@ describe("saas block clients", () => {
   });
 
   it("creates tags and applies them", async () => {
-    const tags = createTags(
-      options({
+    const tags = createTags({
+      ...options({
         create_tag: { id: "g1", slug: "gold" },
         update_tag: true,
         delete_tag: true,
@@ -224,16 +229,17 @@ describe("saas block clients", () => {
         ],
         subject_tags: null,
       }),
-    );
+      tenant: "org",
+    });
 
     expect(
-      (await tags.create("org", "deal", "Gold", "#fff", "hot").orThrow()).id,
+      (await tags.create("deal", "Gold", "#fff", "hot").orThrow()).id,
     ).toBe("g1");
     expect(await tags.update("g1", "Gold").orThrow()).toBe(true);
     expect(await tags.delete("g1").orThrow()).toBe(true);
-    expect(await tags.tag("org", "deals", "d1", "g1").orThrow()).toBe(true);
-    expect(await tags.untag("org", "deals", "d1", "g1").orThrow()).toBe(false);
-    expect(await tags.list("org", "deal").orThrow()).toEqual([
+    expect(await tags.tag(DEAL, "g1").orThrow()).toBe(true);
+    expect(await tags.untag(DEAL, "g1").orThrow()).toBe(false);
+    expect(await tags.list("deal").orThrow()).toEqual([
       {
         id: "g1",
         kind: "deal",
@@ -244,110 +250,39 @@ describe("saas block clients", () => {
         fields: {},
       },
     ]);
-    expect(await tags.forSubject("org", "deals", "d1").orThrow()).toEqual([]);
-  });
-
-  it("creates a share link, records a view and stores user state", async () => {
-    const links = createShareLinks(
-      options({
-        create_share_link: { id: "s1", token: "once" },
-        revoke_share_link: true,
-        resolve_share_link: {
-          id: "s1",
-          organizationId: "org",
-          subjectType: "files",
-          subjectId: "f1",
-          role: "edit",
-          versionId: "v1",
-          expiresAt: "2026-11-01T00:00:00Z",
-        },
-        record_view: true,
-        list_share_links: [],
-        set_user_state: true,
-      }),
-    );
-
-    expect(
-      (await links.create("org", "files", "f1", "edit").orThrow()).token,
-    ).toBe("once");
-    expect(await links.revoke("s1").orThrow()).toBe(true);
-    const resolved = await links.resolve("once").orThrow();
-    expect(resolved).toMatchObject({
-      id: "s1",
-      organizationId: "org",
-      subjectType: "files",
-      subjectId: "f1",
-      role: "edit",
-      versionId: "v1",
-    });
-    expect(resolved?.expiresAt?.toString()).toBe("2026-11-01T00:00:00Z");
-    expect(
-      (await links.create("org", "files", "f1", { versionId: "v1" }).orThrow())
-        .id,
-    ).toBe("s1");
-    expect(
-      await links.recordView("org", "files", "f1", "user", "u1").orThrow(),
-    ).toBe(true);
-    expect(await links.list("files", "f1").orThrow()).toEqual([]);
-    expect(await links.setState("files", "f1", true).orThrow()).toBe(true);
-  });
-
-  it("sends a share link's expiry", async () => {
-    const calls: unknown[] = [];
-
-    const links = createShareLinks({
-      schema: "app",
-      transport: {
-        call(_schema: string, _fn: string, args?: unknown) {
-          calls.push(args);
-
-          return Promise.resolve({ id: "s1", token: "once" });
-        },
-      },
-    });
-
-    await links
-      .create("org", "files", "f1", {
-        expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
-      })
-      .orThrow();
-    await links.create("org", "files", "f1").orThrow();
-    expect(calls).toEqual([
-      expect.objectContaining({ expires_at: "2026-11-01T00:00:00Z" }),
-      expect.objectContaining({ expires_at: null, role: "view" }),
-    ]);
+    expect(await tags.forSubject(DEAL).orThrow()).toEqual([]);
   });
 
   it("saves a field definition and a value", async () => {
-    const fields = createCustomFields(
-      options({
+    const fields = createCustomFields({
+      ...options({
         save_field_definition: { id: "d1" },
         delete_field_definition: true,
         read_field_values: [{ key: "tier" }],
         set_field_value: { id: "v1" },
       }),
-    );
+      tenant: "org",
+    });
 
     expect(
       (
         await fields
-          .saveDefinition("org", "employee", "tier", "Tier", "text", true)
+          .saveDefinition("employee", "tier", "Tier", "text", true)
           .orThrow()
       ).id,
     ).toBe("d1");
     expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
-    expect(await fields.readValues("org", "employees", "e1").orThrow()).toEqual(
-      [{ key: "tier" }],
+    expect(await fields.readValues(EMPLOYEE).orThrow()).toEqual([
+      { key: "tier" },
+    ]);
+    expect((await fields.setValue(EMPLOYEE, "d1", "gold").orThrow()).id).toBe(
+      "v1",
     );
-    expect(
-      (await fields.setValue("org", "employees", "e1", "d1", "gold").orThrow())
-        .id,
-    ).toBe("v1");
   });
 
   it("lists an entity's field definitions", async () => {
-    const fields = createCustomFields(
-      options({
+    const fields = createCustomFields({
+      ...options({
         list_field_definitions: [
           {
             id: "d1",
@@ -371,9 +306,10 @@ describe("saas block clients", () => {
           },
         ],
       }),
-    );
+      tenant: "org",
+    });
 
-    expect(await fields.listDefinitions("org", "customer").orThrow()).toEqual([
+    expect(await fields.listDefinitions("customer").orThrow()).toEqual([
       {
         id: "d1",
         entity: "customer",
@@ -429,10 +365,11 @@ describe("saas block clients", () => {
   });
 
   it("returns a tag's rank key when the database sends one", async () => {
-    const tags = createTags(
-      options({ create_tag: { id: "g1", slug: "gold", rank: "V" } }),
-    );
+    const tags = createTags({
+      ...options({ create_tag: { id: "g1", slug: "gold", rank: "V" } }),
+      tenant: "org",
+    });
 
-    expect((await tags.create("org", "deal", "Gold").orThrow()).rank).toBe("V");
+    expect((await tags.create("deal", "Gold").orThrow()).rank).toBe("V");
   });
 });

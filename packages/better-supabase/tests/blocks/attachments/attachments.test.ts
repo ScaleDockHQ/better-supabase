@@ -126,11 +126,11 @@ describe("createAttachments", () => {
     const attachments = createAttachments({
       transport,
       storage: storage.storage,
+      tenant: "org-1",
     });
 
     const upload = await attachments
-      .upload({
-        organizationId: "org-1",
+      .upload(null, {
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 2048,
@@ -162,7 +162,7 @@ describe("createAttachments", () => {
       attachment: {
         status: "pending",
         size: 2048,
-        subjectType: "project",
+        subject: { type: "project", id: "p1" },
         uploadedAt: undefined,
       },
     });
@@ -181,17 +181,14 @@ describe("createAttachments", () => {
     const attachments = createAttachments({
       transport,
       storage: storage.storage,
+      tenant: "org-1",
     });
 
     expect(
       await attachments
         .put(
-          {
-            organizationId: "org-1",
-            name: "plan.pdf",
-            mimeType: "application/pdf",
-            size: 5,
-          },
+          { type: "project", id: "p1" },
+          { name: "plan.pdf", mimeType: "application/pdf", size: 5 },
           new Uint8Array([1, 2, 3, 4, 5]),
         )
         .orThrow(),
@@ -221,6 +218,7 @@ describe("createAttachments", () => {
 
     const noUpload = createAttachments({
       transport,
+      tenant: "org-1",
       storage: {
         from: (name) => {
           const full = storage.storage.from(name);
@@ -237,7 +235,8 @@ describe("createAttachments", () => {
 
     expect(
       await noUpload.put(
-        { organizationId: "org-1", name: "x", mimeType: "text/plain", size: 1 },
+        null,
+        { name: "x", mimeType: "text/plain", size: 1 },
         new Blob(["x"]),
       ),
     ).toMatchObject({ error: { hint: "ATTACHMENT_STORAGE_CLIENT" } });
@@ -248,6 +247,7 @@ describe("createAttachments", () => {
 
     const denied = createAttachments({
       transport,
+      tenant: "org-1",
       storage: fakeStorage({
         createSignedUploadUrl: {
           data: null,
@@ -259,8 +259,7 @@ describe("createAttachments", () => {
       }).storage,
     });
 
-    const upload = await denied.upload({
-      organizationId: "org-1",
+    const upload = await denied.upload(null, {
       name: "x",
       mimeType: "text/plain",
       size: 1,
@@ -270,13 +269,13 @@ describe("createAttachments", () => {
 
     const empty = createAttachments({
       transport,
+      tenant: "org-1",
       storage: fakeStorage({
         createSignedUploadUrl: { data: null, error: null },
       }).storage,
     });
 
-    const none = await empty.upload({
-      organizationId: "org-1",
+    const none = await empty.upload(null, {
       name: "x",
       mimeType: "text/plain",
       size: 1,
@@ -288,12 +287,12 @@ describe("createAttachments", () => {
 
     const thrown = createAttachments({
       transport,
+      tenant: "org-1",
       storage: fakeStorage({ createSignedUploadUrl: new Error("offline") })
         .storage,
     });
 
-    const failed = await thrown.upload({
-      organizationId: "org-1",
+    const failed = await thrown.upload(null, {
       name: "x",
       mimeType: "text/plain",
       size: 1,
@@ -303,12 +302,7 @@ describe("createAttachments", () => {
   });
 
   it("deletes the pending record when Storage refuses the file", async () => {
-    const file = {
-      organizationId: "org-1",
-      name: "plan.pdf",
-      mimeType: "application/pdf",
-      size: 5,
-    };
+    const file = { name: "plan.pdf", mimeType: "application/pdf", size: 5 };
 
     const refusal = {
       data: null,
@@ -332,7 +326,8 @@ describe("createAttachments", () => {
     const refusedUrl = await createAttachments({
       transport: signing.transport,
       storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
-    }).upload(file);
+      tenant: "org-1",
+    }).upload(null, file);
 
     expect(refusedUrl.error).toMatchObject({
       kind: "forbidden",
@@ -348,7 +343,8 @@ describe("createAttachments", () => {
     const refusedUpload = await createAttachments({
       transport: sending.transport,
       storage: fakeStorage({ upload: refusal }).storage,
-    }).put(file, new Blob(["hello"]));
+      tenant: "org-1",
+    }).put(null, file, new Blob(["hello"]));
 
     expect(refusedUpload.error?.code).toBe("SUPPORT_READ_ONLY");
     expect(sending.calls.map(([fn]) => fn)).toEqual([
@@ -364,7 +360,8 @@ describe("createAttachments", () => {
     const kept = await createAttachments({
       transport: cleanupFails.transport,
       storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
-    }).upload(file);
+      tenant: "org-1",
+    }).upload(null, file);
 
     expect(kept.error?.code).toBe("SUPPORT_READ_ONLY");
     expect(cleanupFails.calls.at(-1)?.[0]).toBe("delete_attachment");
@@ -580,7 +577,10 @@ describe("createAttachments", () => {
     const { transport, calls } = fakeTransport({
       get_attachment: row(),
       delete_attachment: true,
-      list_attachments: [row(), row({ id: "a2", status: "failed" })],
+      list_attachments: [
+        row({ author: { id: "u1", name: "Ada", avatarUrl: null } }),
+        row({ id: "a2", status: "failed" }),
+      ],
       confirm_attachment: row(),
     });
 
@@ -589,6 +589,7 @@ describe("createAttachments", () => {
     const attachments = createAttachments({
       transport,
       storage: storage.storage,
+      tenant: () => "org-1",
     });
 
     expect(await attachments.remove("a1").orThrow()).toBe(true);
@@ -599,18 +600,32 @@ describe("createAttachments", () => {
     ]);
 
     const listed = await attachments
-      .list("org-1", { type: "project", id: "p1" })
+      .list({ type: "project", id: "p1" })
       .orThrow();
 
     expect(listed.map((attachment) => attachment.status)).toEqual([
       "clean",
       "failed",
     ]);
+    expect(listed.map((attachment) => attachment.author)).toEqual([
+      { id: "u1", name: "Ada", avatarUrl: undefined },
+      undefined,
+    ]);
+    expect(listed.map((attachment) => attachment.author)).toEqual([
+      { id: "u1", name: "Ada", avatarUrl: undefined },
+      undefined,
+    ]);
     expect(calls.at(-1)).toEqual([
       "list_attachments",
       { tenant: "org-1", subject_type: "project", subject_id: "p1" },
     ]);
     expect((await attachments.confirm("a1").orThrow()).id).toBe("a1");
+
+    await attachments.list().orThrow();
+    expect(calls.at(-1)).toEqual([
+      "list_attachments",
+      { tenant: "org-1", subject_type: undefined, subject_id: undefined },
+    ]);
 
     const odd = createAttachments({
       transport: fakeTransport({ get_attachment: row({ status: "lost" }) })
@@ -621,6 +636,58 @@ describe("createAttachments", () => {
     await expect(odd.get("a1").orThrow()).rejects.toThrow(
       /Unknown attachment status/,
     );
+  });
+
+  it("fails without a tenant", async () => {
+    const { transport, calls } = fakeTransport({});
+
+    const attachments = createAttachments({
+      transport,
+      storage: fakeStorage().storage,
+      tenant: () => undefined,
+    });
+
+    const file = { name: "x", mimeType: "text/plain", size: 1 };
+
+    for (const result of [
+      await attachments.upload({ type: "project", id: "p1" }, file),
+      await attachments.put(null, file, new Blob(["x"])),
+      await attachments.list(),
+    ]) {
+      expect(result.error).toMatchObject({
+        kind: "invalid_request",
+        hint: "TENANT_REQUIRED",
+      });
+    }
+
+    expect(calls).toEqual([]);
+  });
+
+  it("sends no tenant for a tenantless subject type", async () => {
+    const { transport, calls } = fakeTransport({
+      create_attachment: row({ organization_id: null, subject_type: "note" }),
+      list_attachments: [],
+    });
+
+    const attachments = createAttachments({
+      transport,
+      storage: fakeStorage().storage,
+      tenantless: ["note"],
+      tenant: "org-1",
+    });
+
+    const note = { type: "note", id: "n1" };
+
+    const upload = await attachments
+      .upload(note, { name: "x", mimeType: "text/plain", size: 1 })
+      .orThrow();
+
+    expect(upload.attachment.organizationId).toBeUndefined();
+    await attachments.list(note).orThrow();
+    expect(calls.map(([fn, args]) => [fn, args["tenant"]])).toEqual([
+      ["create_attachment", null],
+      ["list_attachments", null],
+    ]);
   });
 });
 

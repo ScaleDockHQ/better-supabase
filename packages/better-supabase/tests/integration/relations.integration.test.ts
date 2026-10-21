@@ -199,25 +199,29 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
 
   it("undoes a replaced parent through the client", async () => {
     const transport = sqlTransport(db.sql);
-    const relations = createRelations({ transport, schema: "rel_it" });
+
+    const relations = createRelations({
+      transport,
+      schema: "rel_it",
+      tenant: org,
+    });
+
     await db.as(owner);
 
     const moved = await relations
-      .link({
-        organizationId: org,
-        kind: "parent",
-        source: { type: "task", id: task(3) },
-        target: { type: "task", id: task(1) },
-      })
+      .link(
+        { type: "task", id: task(3) },
+        { type: "task", id: task(1) },
+        { kind: "parent" },
+      )
       .orThrow();
 
     const again = await relations
-      .link({
-        organizationId: org,
-        kind: "parent",
-        source: { type: "task", id: task(3) },
-        target: { type: "task", id: task(5) },
-      })
+      .link(
+        { type: "task", id: task(3) },
+        { type: "task", id: task(5) },
+        { kind: "parent" },
+      )
       .orThrow();
 
     expect(moved.created && again.replaced?.target.id).toBe(task(1));
@@ -226,7 +230,7 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
       .orThrow();
 
     const up = await relations
-      .ancestors(org, "parent", { type: "task", id: task(3) })
+      .ancestors({ type: "task", id: task(3) }, "parent")
       .orThrow();
 
     expect(up.map((node) => node.id)).toEqual([task(1)]);
@@ -251,17 +255,18 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     const relations = createRelations({
       transport: sqlTransport(db.sql),
       schema: "rel_it",
+      tenant: org,
     });
 
     const lineage = await relations
-      .lineage(org, { type: "task", id: task(8) })
+      .lineage({ type: "task", id: task(8) })
       .orThrow();
 
     expect(lineage.origins.map((node) => node.id)).toEqual([task(7)]);
     expect(lineage.conversions.map((node) => node.id)).toEqual([task(9)]);
     expect(
       await relations
-        .convertedInto(org, { type: "task", id: task(8) }, "task")
+        .convertedInto({ type: "task", id: task(8) }, "task")
         .orThrow(),
     ).toBe(task(9));
   });

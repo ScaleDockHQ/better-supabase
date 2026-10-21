@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createVersions } from "../../../src/blocks/versions/index.ts";
 
+const DOC = { type: "doc", id: "d1" };
+
 const ROW = {
   id: "v1",
   number: 1,
@@ -52,21 +54,20 @@ describe("versions client", () => {
       delete_version: () => true,
     });
 
-    const versions = createVersions({ transport: fake, schema: "app" });
+    const versions = createVersions({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
     expect(
       await versions
-        .snapshot({
-          organizationId: "o",
-          subjectType: "doc",
-          subjectId: "d1",
-          content: { a: 1 },
-          label: "Final",
-        })
+        .snapshot(DOC, { content: { a: 1 }, label: "Final" })
         .orThrow(),
     ).toEqual({ id: "v2", number: 2, contentHash: "def", unchanged: false });
 
     const listed = await versions
-      .list("o", "doc", "d1", { pageSize: 10, before: 5 })
+      .list(DOC, { pageSize: 10, before: 5 })
       .orThrow();
 
     expect(listed[0]).toMatchObject({
@@ -75,6 +76,7 @@ describe("versions client", () => {
       createdBy: "u1",
     });
     expect(listed[1]).not.toHaveProperty("label");
+    expect(listed[1]!.subject).toEqual(DOC);
     expect(listed[1]!.createdAt.toString()).toBe("2026-10-01T00:00:00Z");
     expect(await versions.label("v1", null).orThrow()).toBe(true);
     expect(await versions.delete("v1").orThrow()).toBe(true);
@@ -103,11 +105,14 @@ describe("versions client", () => {
       list_versions: () => null,
     });
 
-    const versions = createVersions({ transport: fake, schema: "app" });
-    await versions
-      .snapshot({ organizationId: "o", subjectType: "doc", subjectId: "d1" })
-      .orThrow();
-    expect(await versions.list("o", "doc", "d1").orThrow()).toEqual([]);
+    const versions = createVersions({
+      transport: fake,
+      schema: "app",
+      tenant: () => "o",
+    });
+
+    await versions.snapshot(DOC).orThrow();
+    expect(await versions.list(DOC).orThrow()).toEqual([]);
     expect(fake.calls.map(([, args]) => args)).toEqual([
       {
         tenant: "o",
@@ -125,6 +130,23 @@ describe("versions client", () => {
         before: null,
       },
     ]);
+  });
+
+  it("fails without a tenant", async () => {
+    const fake = transport({});
+    const versions = createVersions({ transport: fake, schema: "app" });
+
+    for (const result of [
+      await versions.snapshot(DOC, { content: { a: 1 } }),
+      await versions.list(DOC),
+    ]) {
+      expect(result.error).toMatchObject({
+        kind: "invalid_request",
+        hint: "TENANT_REQUIRED",
+      });
+    }
+
+    expect(fake.calls).toEqual([]);
   });
 
   it("restores and diffs two versions as a JSON Patch", async () => {

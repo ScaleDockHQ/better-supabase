@@ -175,13 +175,12 @@ describe.skipIf(!live)("work items", () => {
 
       await s.as(owner);
 
-      const link = await createRelations({ transport })
-        .link({
-          organizationId: org,
-          kind: "blocks",
-          source: { type: "work_item", id: api.id },
-          target: { type: "work_item", id: ui.id },
-        })
+      const link = await createRelations({ transport, tenant: org })
+        .link(
+          { type: "work_item", id: api.id },
+          { type: "work_item", id: ui.id },
+          { kind: "blocks" },
+        )
         .orThrow();
 
       expect(link.created).toBe(true);

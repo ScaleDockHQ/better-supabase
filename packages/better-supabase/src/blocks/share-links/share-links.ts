@@ -7,10 +7,13 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -87,8 +90,7 @@ export interface ResolvedShareLink {
   readonly id: string;
   /** The organization the link was created in. */
   readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   readonly role: string;
   /** The version the link is pinned to, when it has one. */
   readonly versionId?: string;
@@ -98,12 +100,14 @@ export interface ResolvedShareLink {
   readonly maxUses?: number;
 }
 
+/**
+ * `F` is the extra fields `options.fields` describes. `create` and `recordView`
+ * act in the block's `tenant`.
+ */
 export interface ShareLinks<F extends object = Record<never, never>> {
-  /** A role string is the same as `{ role }`. */
+  /** A link to `subject`. A role string is the same as `{ role }`. */
   create(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     options?: string | CreateShareLinkOptions<F>,
   ): AsyncResult<CreatedShareLink<F>>;
   /** The link's creator, or a member with `share_links.create`. */
@@ -113,27 +117,19 @@ export interface ShareLinks<F extends object = Record<never, never>> {
    * one use.
    */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
-  /** A member of the organization records a view. */
+  /** A member of the tenant records a view of `subject`. */
   recordView(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
   /**
-   * The links the caller created or may read (`share_links.read`), revoked ones
-   * included.
+   * The links to `subject` the caller created or may read (`share_links.read`),
+   * revoked ones included.
    */
-  list(
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<readonly ShareLink<F>[]>;
-  setState(
-    subjectType: string,
-    subjectId: string,
-    starred: boolean,
-  ): AsyncResult<boolean>;
+  list(subject: SubjectRef): AsyncResult<readonly ShareLink<F>[]>;
+  /** Stars or unstars `subject` for the caller. */
+  setState(subject: SubjectRef, starred: boolean): AsyncResult<boolean>;
 }
 
 const fieldsOf = (row: Readonly<Record<string, unknown>>) =>
@@ -153,8 +149,10 @@ export function createShareLinks<
     "share link fields",
   );
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const client: ShareLinks<F> = {
-    create: (organizationId, subjectType, subjectId, link = {}) => {
+    create: (subject, link = {}) => {
       const {
         role,
         versionId,
@@ -165,29 +163,31 @@ export function createShareLinks<
         ? { role: link }
         : link;
 
-      return fields.args(extra).andThen((checked) =>
-        call(
-          "create_share_link",
-          {
-            tenant: organizationId,
-            subject_type: subjectType,
-            subject_id: subjectId,
-            role: role ?? "view",
-            version_id: versionId ?? null,
-            expires_at: instantArg(expiresAt) ?? null,
-            max_uses: maxUses ?? null,
-            fields: checked,
-          },
-          (value) => {
-            const row = recordOf(value, "create_share_link");
+      return tenant().andThen((organizationId) =>
+        fields.args(extra).andThen((checked) =>
+          call(
+            "create_share_link",
+            {
+              tenant: organizationId,
+              subject_type: subject.type,
+              subject_id: subject.id,
+              role: role ?? "view",
+              version_id: versionId ?? null,
+              expires_at: instantArg(expiresAt) ?? null,
+              max_uses: maxUses ?? null,
+              fields: checked,
+            },
+            (value) => {
+              const row = recordOf(value, "create_share_link");
 
-            return {
-              id: textOf(row["id"]),
-              token: textOf(row["token"]),
-              fields: fieldsOf(row),
-            };
-          },
-        ).andThen(fields.row),
+              return {
+                id: textOf(row["id"]),
+                token: textOf(row["token"]),
+                fields: fieldsOf(row),
+              };
+            },
+          ).andThen(fields.row),
+        ),
       );
     },
     revoke: (id) =>
@@ -208,30 +208,31 @@ export function createShareLinks<
         return {
           id: textOf(row["id"]),
           organizationId: textOf(row["organizationId"]),
-          subjectType: textOf(row["subjectType"]),
-          subjectId: textOf(row["subjectId"]),
+          subject: subjectRefOf(row["subjectType"], row["subjectId"]),
           role: textOf(row["role"]),
           ...(versionId === undefined ? {} : { versionId }),
           ...(expiresAt === undefined ? {} : { expiresAt }),
           ...(maxUses === undefined ? {} : { maxUses }),
         };
       }),
-    recordView: (organizationId, subjectType, subjectId, viewerKind, viewer) =>
-      call(
-        "record_view",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          viewer_kind: viewerKind,
-          viewer: viewer ?? null,
-        },
-        (value) => value === true,
+    recordView: (subject, viewerKind, viewer) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "record_view",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            viewer_kind: viewerKind,
+            viewer: viewer ?? null,
+          },
+          (value) => value === true,
+        ),
       ),
-    list: (subjectType, subjectId) =>
+    list: (subject) =>
       call(
         "list_share_links",
-        { subject_type: subjectType, subject_id: subjectId },
+        { subject_type: subject.type, subject_id: subject.id },
         (value) =>
           recordsOf(value, "list_share_links").map((row) => ({
             id: textOf(row["id"]),
@@ -241,10 +242,10 @@ export function createShareLinks<
             fields: fieldsOf(row),
           })),
       ).andThen(fields.rows),
-    setState: (subjectType, subjectId, starred) =>
+    setState: (subject, starred) =>
       call(
         "set_user_state",
-        { subject_type: subjectType, subject_id: subjectId, starred },
+        { subject_type: subject.type, subject_id: subject.id, starred },
         (value) => value === true,
       ),
   };

@@ -4,11 +4,13 @@ import type {
   RowFields,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
 import {
@@ -19,6 +21,8 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import {
   blockCall,
   isRecord,
@@ -29,21 +33,12 @@ import {
 } from "../shared.ts";
 import { undoToken } from "../undo/undo.ts";
 
-/** A record a link points at: its subject type and id. */
-export interface SubjectRef {
-  readonly type: string;
-  readonly id: string;
-}
-
 export interface LinkInput<F extends object = Record<never, never>> {
-  readonly organizationId: string;
   /**
    * A kind, or its inverse name (`blocked_by` stores `blocks` from the other
    * end).
    */
   readonly kind: string;
-  readonly source: SubjectRef;
-  readonly target: SubjectRef;
   /** Data on the link, such as a Gantt dependency's `type` and `lag`. */
   readonly data?: Readonly<Record<string, unknown>>;
   /**
@@ -53,7 +48,7 @@ export interface LinkInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export type UnlinkInput = Omit<LinkInput, "data" | "fields">;
+export type UnlinkInput = Pick<LinkInput, "kind">;
 
 export interface LinkResult<F extends object = Record<never, never>> {
   readonly id: string;
@@ -114,9 +109,7 @@ export interface RelationNode extends SubjectRef {
 export type RelationRollup = "count" | "sum" | "avg" | "min" | "max";
 
 export interface RollupInput {
-  readonly organizationId: string;
   readonly kind: string;
-  readonly subject: SubjectRef;
   /** The descendants' subject type whose table holds `column`. */
   readonly of: string;
   readonly agg: RelationRollup;
@@ -126,7 +119,7 @@ export interface RollupInput {
 
 export interface RelationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> {
+> extends BlockTenantOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -142,42 +135,39 @@ export interface RelationsOptions<
   readonly logger?: Logger;
 }
 
+/** Every method acts in the block's `tenant`. */
 export interface Relations<F extends object = Record<never, never>> {
-  link(input: LinkInput<F>): AsyncResult<LinkResult<F>>;
-  unlink(input: UnlinkInput): AsyncResult<UnlinkResult>;
+  /** Links `source` to `target` with a kind. */
+  link(
+    source: SubjectRef,
+    target: SubjectRef,
+    input: LinkInput<F>,
+  ): AsyncResult<LinkResult<F>>;
+  unlink(
+    source: SubjectRef,
+    target: SubjectRef,
+    input: UnlinkInput,
+  ): AsyncResult<UnlinkResult>;
   /** A subject's links in both directions, optionally of one kind. */
-  of(
-    organizationId: string,
-    subject: SubjectRef,
-    kind?: string,
-  ): AsyncResult<Relation<F>[]>;
-  /**
-   * Every link of a kind in the organization (up to 10,000), for a chart or a
-   * tree.
-   */
-  edges(organizationId: string, kind: string): AsyncResult<RelationEdge<F>[]>;
-  ancestors(
-    organizationId: string,
-    kind: string,
-    subject: SubjectRef,
-  ): AsyncResult<RelationNode[]>;
-  descendants(
-    organizationId: string,
-    kind: string,
-    subject: SubjectRef,
-  ): AsyncResult<RelationNode[]>;
+  of(subject: SubjectRef, kind?: string): AsyncResult<Relation<F>[]>;
+  /** Every link of a kind in the tenant (up to 10,000), for a chart or a tree. */
+  edges(kind: string): AsyncResult<RelationEdge<F>[]>;
+  ancestors(subject: SubjectRef, kind: string): AsyncResult<RelationNode[]>;
+  descendants(subject: SubjectRef, kind: string): AsyncResult<RelationNode[]>;
   /**
    * Aggregates a column over a subject's descendants, such as estimates under
    * an epic.
    */
-  rollup(input: RollupInput): AsyncResult<number | string | null>;
+  rollup(
+    subject: SubjectRef,
+    input: RollupInput,
+  ): AsyncResult<number | string | null>;
   /**
    * The id of the record of `intoType` that `origin` was already converted into
    * through a `created_from` link, or `undefined`. Check it before a conversion
    * so converting twice returns the first record.
    */
   convertedInto(
-    organizationId: string,
     origin: SubjectRef,
     intoType: string,
   ): AsyncResult<string | undefined>;
@@ -187,7 +177,6 @@ export interface Relations<F extends object = Record<never, never>> {
    * order and the invoice.
    */
   lineage(
-    organizationId: string,
     subject: SubjectRef,
   ): AsyncResult<{
     readonly origins: RelationNode[];
@@ -197,11 +186,6 @@ export interface Relations<F extends object = Record<never, never>> {
 
 const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
   isRecord(value) ? value : {};
-
-const ref = (type: unknown, id: unknown): SubjectRef => ({
-  type: textOf(type),
-  id: textOf(id),
-});
 
 const linkArgs = (
   organizationId: string,
@@ -217,14 +201,25 @@ const linkArgs = (
   target_id: target.id,
 });
 
+const walkArgs = (
+  organizationId: string,
+  kind: string,
+  subject: SubjectRef,
+): Record<string, unknown> => ({
+  tenant: organizationId,
+  kind,
+  subject_type: subject.type,
+  subject_id: subject.id,
+});
+
 function edgeOf(value: unknown): RelationEdge {
   const row = recordOf(value, "relation");
 
   return {
     id: textOf(row["id"]),
     kind: textOf(row["kind"]),
-    source: ref(row["sourceType"], row["sourceId"]),
-    target: ref(row["targetType"], row["targetId"]),
+    source: subjectRefOf(row["sourceType"], row["sourceId"]),
+    target: subjectRefOf(row["targetType"], row["targetId"]),
     data: objectOf(row["data"]),
     fields: rowFields(row["fields"]),
   };
@@ -240,6 +235,7 @@ function nodeOf(value: unknown): RelationNode {
   };
 }
 
+/** Relations over the `relations` module's functions, as the caller. */
 export function createRelations<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: RelationsOptions<S>): Relations<FieldsOf<S>> {
@@ -247,198 +243,181 @@ export function createRelations<
 
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "relation fields");
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Relations<F> = {
-    link: (input) =>
-      writeFields(fields, input.fields, (checked) =>
+    link: (source, target, input) =>
+      tenant().andThen((organizationId) =>
+        writeFields(fields, input.fields, (checked) =>
+          call(
+            "link",
+            {
+              ...linkArgs(organizationId, input.kind, source, target),
+              data: input.data ?? null,
+              fields: checked,
+            },
+            (value) => {
+              const row = recordOf(value, "link");
+              const kind = textOf(row["kind"]);
+              const stored = subjectRefOf(row["sourceType"], row["sourceId"]);
+              const to = subjectRefOf(row["targetType"], row["targetId"]);
+              const created = row["created"] === true;
+              const replacedRow = row["replaced"];
+
+              const replaced = isRecord(replacedRow)
+                ? {
+                    target: subjectRefOf(
+                      replacedRow["targetType"],
+                      replacedRow["targetId"],
+                    ),
+                    data: objectOf(replacedRow["data"]),
+                  }
+                : null;
+
+              const calls: UndoCall[] = [];
+              const args = linkArgs(organizationId, kind, stored, to);
+
+              if (created) {
+                calls.push({ fn: "unlink", args });
+              }
+
+              if (replaced) {
+                calls.push({
+                  fn: "link",
+                  args: {
+                    ...linkArgs(organizationId, kind, stored, replaced.target),
+                    data: replaced.data,
+                  },
+                });
+              }
+
+              const previous = row["previousData"];
+
+              if (!created && input.data !== undefined && isRecord(previous)) {
+                calls.push({ fn: "link", args: { ...args, data: previous } });
+              }
+
+              return {
+                id: textOf(row["id"]),
+                kind,
+                source: stored,
+                target: to,
+                created,
+                replaced,
+                undo: calls.length > 0 ? undoToken(calls) : null,
+                fields: rowFields(row["fields"]),
+              };
+            },
+          ).andThen((result) => readFields(fields, result)),
+        ),
+      ),
+    unlink: (source, target, input) =>
+      tenant().andThen((organizationId) =>
         call(
-          "link",
-          {
-            ...linkArgs(
-              input.organizationId,
-              input.kind,
-              input.source,
-              input.target,
-            ),
-            data: input.data ?? null,
-            fields: checked,
-          },
+          "unlink",
+          linkArgs(organizationId, input.kind, source, target),
           (value) => {
-            const row = recordOf(value, "link");
-            const kind = textOf(row["kind"]);
-            const source = ref(row["sourceType"], row["sourceId"]);
-            const target = ref(row["targetType"], row["targetId"]);
-            const created = row["created"] === true;
-            const replacedRow = row["replaced"];
-
-            const replaced = isRecord(replacedRow)
-              ? {
-                  target: ref(
-                    replacedRow["targetType"],
-                    replacedRow["targetId"],
-                  ),
-                  data: objectOf(replacedRow["data"]),
-                }
-              : null;
-
-            const calls: UndoCall[] = [];
-            const args = linkArgs(input.organizationId, kind, source, target);
-
-            if (created) {
-              calls.push({ fn: "unlink", args });
-            }
-
-            if (replaced) {
-              calls.push({
-                fn: "link",
-                args: {
-                  ...linkArgs(
-                    input.organizationId,
-                    kind,
-                    source,
-                    replaced.target,
-                  ),
-                  data: replaced.data,
-                },
-              });
-            }
-
-            const previous = row["previousData"];
-
-            if (!created && input.data !== undefined && isRecord(previous)) {
-              calls.push({ fn: "link", args: { ...args, data: previous } });
-            }
+            const row = recordOf(value, "unlink");
+            const removed = row["removed"] === true;
 
             return {
-              id: textOf(row["id"]),
-              kind,
-              source,
-              target,
-              created,
-              replaced,
-              undo: calls.length > 0 ? undoToken(calls) : null,
-              fields: rowFields(row["fields"]),
+              removed,
+              undo: removed
+                ? undoToken([
+                    {
+                      fn: "link",
+                      args: {
+                        ...linkArgs(organizationId, input.kind, source, target),
+                        data: objectOf(row["data"]),
+                      },
+                    },
+                  ])
+                : null,
             };
           },
-        ).andThen((result) => readFields(fields, result)),
+        ),
       ),
-    unlink: (input) =>
-      call(
-        "unlink",
-        linkArgs(input.organizationId, input.kind, input.source, input.target),
-        (value) => {
-          const row = recordOf(value, "unlink");
-          const removed = row["removed"] === true;
+    of: (subject, kind) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "relations_of",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            kind: kind ?? null,
+          },
+          (value) =>
+            recordsOf(value, "relations_of").map((row): Relation => ({
+              id: textOf(row["id"]),
+              kind: textOf(row["kind"]),
+              direction: row["direction"] === "in" ? "in" : "out",
+              subject: subjectRefOf(row["type"], row["subjectId"]),
+              data: objectOf(row["data"]),
+              createdAt: optionalText(row["createdAt"]) ?? "",
+              fields: rowFields(row["fields"]),
+            })),
+        ).andThen((relations) => readAllFields(fields, relations)),
+      ),
+    edges: (kind) =>
+      tenant().andThen((organizationId) =>
+        call("relations_by_kind", { tenant: organizationId, kind }, (value) =>
+          recordsOf(value, "relations_by_kind").map(edgeOf),
+        ).andThen((edges) => readAllFields(fields, edges)),
+      ),
+    ancestors: (subject, kind) =>
+      tenant().andThen((organizationId) =>
+        call("ancestors", walkArgs(organizationId, kind, subject), (value) =>
+          recordsOf(value, "ancestors").map(nodeOf),
+        ),
+      ),
+    descendants: (subject, kind) =>
+      tenant().andThen((organizationId) =>
+        call("descendants", walkArgs(organizationId, kind, subject), (value) =>
+          recordsOf(value, "descendants").map(nodeOf),
+        ),
+      ),
+    convertedInto: (origin, intoType) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "converted_into",
+          {
+            tenant: organizationId,
+            origin_type: origin.type,
+            origin_id: origin.id,
+            into_type: intoType,
+          },
+          (value) => (typeof value === "string" ? value : undefined),
+        ),
+      ),
+    lineage: (subject) =>
+      tenant().andThen((organizationId) => {
+        const args = walkArgs(organizationId, "created_from", subject);
 
-          return {
-            removed,
-            undo: removed
-              ? undoToken([
-                  {
-                    fn: "link",
-                    args: {
-                      ...linkArgs(
-                        input.organizationId,
-                        input.kind,
-                        input.source,
-                        input.target,
-                      ),
-                      data: objectOf(row["data"]),
-                    },
-                  },
-                ])
-              : null,
-          };
-        },
-      ),
-    of: (organizationId, subject, kind) =>
-      call(
-        "relations_of",
-        {
-          tenant: organizationId,
-          subject_type: subject.type,
-          subject_id: subject.id,
-          kind: kind ?? null,
-        },
-        (value) =>
-          recordsOf(value, "relations_of").map((row): Relation => ({
-            id: textOf(row["id"]),
-            kind: textOf(row["kind"]),
-            direction: row["direction"] === "in" ? "in" : "out",
-            subject: ref(row["type"], row["subjectId"]),
-            data: objectOf(row["data"]),
-            createdAt: optionalText(row["createdAt"]) ?? "",
-            fields: rowFields(row["fields"]),
+        return call("ancestors", args, (value) =>
+          recordsOf(value, "ancestors").map(nodeOf),
+        ).andThen((origins) =>
+          call("descendants", args, (value) => ({
+            origins,
+            conversions: recordsOf(value, "descendants").map(nodeOf),
           })),
-      ).andThen((relations) => readAllFields(fields, relations)),
-    edges: (organizationId, kind) =>
-      call("relations_by_kind", { tenant: organizationId, kind }, (value) =>
-        recordsOf(value, "relations_by_kind").map(edgeOf),
-      ).andThen((edges) => readAllFields(fields, edges)),
-    ancestors: (organizationId, kind, subject) =>
-      call(
-        "ancestors",
-        {
-          tenant: organizationId,
-          kind,
-          subject_type: subject.type,
-          subject_id: subject.id,
-        },
-        (value) => recordsOf(value, "ancestors").map(nodeOf),
-      ),
-    descendants: (organizationId, kind, subject) =>
-      call(
-        "descendants",
-        {
-          tenant: organizationId,
-          kind,
-          subject_type: subject.type,
-          subject_id: subject.id,
-        },
-        (value) => recordsOf(value, "descendants").map(nodeOf),
-      ),
-    convertedInto: (organizationId, origin, intoType) =>
-      call(
-        "converted_into",
-        {
-          tenant: organizationId,
-          origin_type: origin.type,
-          origin_id: origin.id,
-          into_type: intoType,
-        },
-        (value) => (typeof value === "string" ? value : undefined),
-      ),
-    lineage: (organizationId, subject) => {
-      const args = {
-        tenant: organizationId,
-        kind: "created_from",
-        subject_type: subject.type,
-        subject_id: subject.id,
-      };
-
-      return call("ancestors", args, (value) =>
-        recordsOf(value, "ancestors").map(nodeOf),
-      ).andThen((origins) =>
-        call("descendants", args, (value) => ({
-          origins,
-          conversions: recordsOf(value, "descendants").map(nodeOf),
-        })),
-      );
-    },
-    rollup: (input) =>
-      call(
-        "relation_rollup",
-        {
-          tenant: input.organizationId,
-          kind: input.kind,
-          subject_type: input.subject.type,
-          subject_id: input.subject.id,
-          of_type: input.of,
-          column_name: input.column ?? null,
-          agg: input.agg,
-        },
-        (value) =>
-          typeof value === "number" || typeof value === "string" ? value : null,
+        );
+      }),
+    rollup: (subject, input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "relation_rollup",
+          {
+            ...walkArgs(organizationId, input.kind, subject),
+            of_type: input.of,
+            column_name: input.column ?? null,
+            agg: input.agg,
+          },
+          (value) =>
+            typeof value === "number" || typeof value === "string"
+              ? value
+              : null,
+        ),
       ),
   };
 

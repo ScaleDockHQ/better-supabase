@@ -39,44 +39,48 @@ describe.skipIf(!live)("time-tracking", () => {
       const stranger = await s.user("stranger");
       await s.install(MODULES, {});
       const tenant = await s.organization(owner, { member: ada });
-      const time = createTimeTracking({ transport: sqlTransport(s.sql) });
+
+      const time = createTimeTracking({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       await s.as(stranger);
-      expect(await time.start(tenant).then(hint)).toBe("TIME_FORBIDDEN");
+      expect(await time.start().then(hint)).toBe("TIME_FORBIDDEN");
 
       await s.as(ada);
-      expect(await time.running(tenant).orThrow()).toBeUndefined();
-      const first = await time.start(tenant, { note: "Inbox" }).orThrow();
+      expect(await time.running().orThrow()).toBeUndefined();
+      const first = await time.start({ note: "Inbox" }).orThrow();
       expect(first.endedAt).toBeUndefined();
 
       const second = await time
-        .start(tenant, {
-          subjectType: "project",
-          subjectId: "apollo",
+        .start({
+          subject: { type: "project", id: "apollo" },
           billable: true,
           rate: money(8000n, "EUR"),
         })
         .orThrow();
 
-      const running = await time.running(tenant).orThrow();
+      const running = await time.running().orThrow();
       expect(running?.id).toBe(second.id);
-      const stopped = await time.stop(tenant).orThrow();
+      const stopped = await time.stop().orThrow();
       expect(stopped.seconds).toBeGreaterThanOrEqual(0);
       expect(stopped).toMatchObject({
         billable: true,
         rate: money(8000n, "EUR"),
       });
-      expect(await time.stop(tenant).then(hint)).toBe("TIME_NO_TIMER");
+      expect(await time.stop().then(hint)).toBe("TIME_NO_TIMER");
       expect(
-        await time.start(tenant, { subjectType: "project" }).then(hint),
+        await time
+          .start({ subject: { type: "project", id: undefined as never } })
+          .then(hint),
       ).toBe("TIME_SUBJECT_INVALID");
 
       const logged = await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T11:00:00Z"),
-          subjectType: "project",
-          subjectId: "apollo",
+          subject: { type: "project", id: "apollo" },
           billable: true,
           rate: money(10_000n, "EUR"),
         })
@@ -85,7 +89,7 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(logged.seconds).toBe(7200);
       expect(
         await time
-          .log(tenant, {
+          .log({
             startedAt: at("2026-10-06T10:00:00Z"),
             endedAt: at("2026-10-06T12:00:00Z"),
           })
@@ -93,7 +97,7 @@ describe.skipIf(!live)("time-tracking", () => {
       ).toBe("TIME_ENTRY_OVERLAP");
       expect(
         await time
-          .log(tenant, {
+          .log({
             startedAt: at("2026-10-06T12:00:00Z"),
             endedAt: at("2026-10-06T12:00:00Z"),
           })
@@ -101,7 +105,7 @@ describe.skipIf(!live)("time-tracking", () => {
       ).toBe("TIME_ENTRY_INVALID");
       expect(
         await time
-          .log(tenant, {
+          .log({
             startedAt: at("2026-10-07T09:00:00Z"),
             endedAt: at("2026-10-07T10:00:00Z"),
             userId: owner.id,
@@ -110,7 +114,7 @@ describe.skipIf(!live)("time-tracking", () => {
       ).toBe("TIME_FORBIDDEN");
 
       const internal = await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-07T23:00:00Z"),
           endedAt: at("2026-10-08T01:00:00Z"),
           note: "Release",
@@ -136,9 +140,7 @@ describe.skipIf(!live)("time-tracking", () => {
           .then(hint),
       ).toBe("TIME_ENTRY_OVERLAP");
 
-      const sheet = await time
-        .timesheet(tenant, WEEK.add({ days: 2 }))
-        .orThrow();
+      const sheet = await time.timesheet(WEEK.add({ days: 2 })).orThrow();
 
       expect(sheet).toMatchObject({ status: "open", userId: ada.id });
       expect(sheet.week.toString()).toBe("2026-10-05");
@@ -161,23 +163,21 @@ describe.skipIf(!live)("time-tracking", () => {
         0, 7200, 3600, 3600, 0, 0, 0,
       ]);
 
-      const submitted = await time.submit(tenant, WEEK, "Week 41").orThrow();
+      const submitted = await time.submit(WEEK, "Week 41").orThrow();
       expect(submitted).toMatchObject({ status: "submitted", note: "Week 41" });
-      expect(await time.submit(tenant, WEEK).then(hint)).toBe(
-        "TIMESHEET_SUBMITTED",
-      );
+      expect(await time.submit(WEEK).then(hint)).toBe("TIMESHEET_SUBMITTED");
       expect(await time.remove(logged.id).then(hint)).toBe(
         "TIME_PERIOD_LOCKED",
       );
       expect(
         await time
-          .log(tenant, {
+          .log({
             startedAt: at("2026-10-09T09:00:00Z"),
             endedAt: at("2026-10-09T10:00:00Z"),
           })
           .then(hint),
       ).toBe("TIME_PERIOD_LOCKED");
-      expect(await time.list(tenant, { everyone: true }).then(hint)).toBe(
+      expect(await time.list({ everyone: true }).then(hint)).toBe(
         "TIME_FORBIDDEN",
       );
 
@@ -187,16 +187,14 @@ describe.skipIf(!live)("time-tracking", () => {
         [submitted.approvalId],
       );
       await s.as(ada);
-      expect((await time.timesheet(tenant, WEEK).orThrow()).status).toBe(
-        "rejected",
-      );
+      expect((await time.timesheet(WEEK).orThrow()).status).toBe("rejected");
       await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-09T09:00:00Z"),
           endedAt: at("2026-10-09T10:00:00Z"),
         })
         .orThrow();
-      const again = await time.submit(tenant, WEEK).orThrow();
+      const again = await time.submit(WEEK).orThrow();
 
       await s.as(owner);
       await s.value("better_supabase.decide_approval($1, 'approved')", [
@@ -204,14 +202,12 @@ describe.skipIf(!live)("time-tracking", () => {
       ]);
 
       const everyone = await time
-        .list(tenant, { everyone: true, subjectId: "apollo" })
+        .list({ everyone: true, subject: { type: "project", id: "apollo" } })
         .orThrow();
 
       expect(everyone.map((entry) => entry.id)).toEqual([second.id, logged.id]);
 
-      const approved = await time
-        .timesheets(tenant, { userId: ada.id })
-        .orThrow();
+      const approved = await time.timesheets({ userId: ada.id }).orThrow();
 
       expect(approved.map((row) => row.status)).toEqual(["approved"]);
       expect(approved[0]?.approvedAt).toBeDefined();
@@ -220,13 +216,11 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(await time.update(logged.id, { note: "late" }).then(hint)).toBe(
         "TIME_PERIOD_LOCKED",
       );
-      expect(await time.submit(tenant, WEEK).then(hint)).toBe(
-        "TIMESHEET_APPROVED",
-      );
+      expect(await time.submit(WEEK).then(hint)).toBe("TIMESHEET_APPROVED");
       expect(await time.reopen(again.id!).then(hint)).toBe("TIME_FORBIDDEN");
-      expect(
-        await time.timesheets(tenant, { userId: owner.id }).then(hint),
-      ).toBe("TIME_FORBIDDEN");
+      expect(await time.timesheets({ userId: owner.id }).then(hint)).toBe(
+        "TIME_FORBIDDEN",
+      );
 
       await s.as(owner);
       const reopened = await time.reopen(again.id!).orThrow();
@@ -237,9 +231,9 @@ describe.skipIf(!live)("time-tracking", () => {
       await s.as(ada);
       await time.remove(logged.id).orThrow();
 
-      await time.start(tenant).orThrow();
+      await time.start().orThrow();
       const today = Temporal.Now.plainDateISO("UTC");
-      expect(await time.submit(tenant, today).then(hint)).toBe(
+      expect(await time.submit(today).then(hint)).toBe(
         "TIMESHEET_TIMER_RUNNING",
       );
 
@@ -265,18 +259,23 @@ describe.skipIf(!live)("time-tracking", () => {
       const ada = await s.user("ada");
       await s.install(MODULES, {});
       const tenant = await s.organization(owner, { member: ada });
-      const time = createTimeTracking({ transport: sqlTransport(s.sql) });
+
+      const time = createTimeTracking({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
       await s.as(ada);
 
       const entry = await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T10:00:00Z"),
         })
         .orThrow();
 
       await time.update(entry.id, { billable: true }).orThrow();
-      const sheet = await time.submit(tenant, WEEK).orThrow();
+      const sheet = await time.submit(WEEK).orThrow();
       await s.as(owner);
       await s.value("better_supabase.decide_approval($1, 'approved')", [
         sheet.approvalId,
@@ -313,10 +312,15 @@ describe.skipIf(!live)("time-tracking", () => {
         modules: { metrics: { options: { metrics: timeTrackingMetrics() } } },
       });
       const tenant = await s.organization(owner, { member: ada });
-      const time = createTimeTracking({ transport: sqlTransport(s.sql) });
+
+      const time = createTimeTracking({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
       await s.as(ada);
       await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T10:30:00Z"),
           billable: true,
@@ -324,13 +328,13 @@ describe.skipIf(!live)("time-tracking", () => {
         .orThrow();
 
       const moved = await time
-        .log(tenant, {
+        .log({
           startedAt: at("2026-10-07T09:00:00Z"),
           endedAt: at("2026-10-07T09:30:00Z"),
         })
         .orThrow();
 
-      await time.start(tenant).orThrow();
+      await time.start().orThrow();
 
       await s.service();
 

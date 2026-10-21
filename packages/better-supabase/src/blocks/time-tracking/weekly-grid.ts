@@ -1,3 +1,4 @@
+import type { SubjectRef } from "../../schema/types.ts";
 import type { TimeEntry } from "./time-tracking.ts";
 
 import { nowInstant } from "../../core/temporal.ts";
@@ -5,8 +6,8 @@ import { nowInstant } from "../../core/temporal.ts";
 /** The fields `toWeeklyGrid` reads from an entry. */
 export type WeeklyGridEntry = Pick<
   TimeEntry,
-  "id" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable"
->;
+  "id" | "startedAt" | "endedAt" | "billable"
+> & { readonly subject?: SubjectRef | undefined };
 
 export interface WeeklyGridOptions<E extends WeeklyGridEntry> {
   /** Any day of the week; the grid starts on its Monday. */
@@ -35,8 +36,8 @@ export interface WeeklyGridDay {
 /** One row of the grid: the time one record (or key) took each day. */
 export interface WeeklyGridRow {
   readonly id: string;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  /** The record of the row's first entry; `undefined` when it has none. */
+  readonly subject: SubjectRef | undefined;
   readonly billable: boolean;
   /** Seconds per day, Monday first. */
   readonly days: readonly number[];
@@ -53,7 +54,7 @@ export interface WeeklyGrid {
 }
 
 const defaultKey = (entry: WeeklyGridEntry): string =>
-  `${entry.subjectType ?? ""}:${entry.subjectId ?? ""}:${String(entry.billable)}`;
+  `${entry.subject?.type ?? ""}:${entry.subject?.id ?? ""}:${String(entry.billable)}`;
 
 interface MutableRow {
   readonly id: string;
@@ -132,16 +133,11 @@ export function toWeeklyGrid<E extends WeeklyGridEntry>(
     })),
     rows: [...rows.values()].map((row) => ({
       id: row.id,
+      subject: row.entry.subject,
       billable: row.entry.billable,
       days: row.days,
       seconds: row.days.reduce((sum, value) => sum + value, 0),
       entryIds: row.entryIds,
-      ...(row.entry.subjectType === undefined
-        ? {}
-        : { subjectType: row.entry.subjectType }),
-      ...(row.entry.subjectId === undefined
-        ? {}
-        : { subjectId: row.entry.subjectId }),
     })),
     seconds: totals.reduce((sum, value) => sum + value, 0),
     billableSeconds: billable,

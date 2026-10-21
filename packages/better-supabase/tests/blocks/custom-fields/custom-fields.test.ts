@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+
+import { createCustomFields } from "../../../src/blocks/custom-fields/index.ts";
+
+const EMPLOYEE = { type: "employees", id: "e1" };
+
+function fakeTransport(results: Record<string, unknown>) {
+  const calls: [string, Record<string, unknown>][] = [];
+
+  return {
+    calls,
+    transport: {
+      call(
+        _schema: string,
+        fn: string,
+        args: Readonly<Record<string, unknown>>,
+      ) {
+        calls.push([fn, { ...args }]);
+
+        return Promise.resolve(results[fn]);
+      },
+    },
+  };
+}
+
+describe("createCustomFields", () => {
+  it("sends the subject and the block's tenant", async () => {
+    const fake = fakeTransport({
+      read_field_values: [],
+      set_field_value: { id: "v1" },
+    });
+
+    const fields = createCustomFields({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await fields.readValues(EMPLOYEE).orThrow();
+    await fields.setValue(EMPLOYEE, "d1", "gold").orThrow();
+    expect(fake.calls).toEqual([
+      [
+        "read_field_values",
+        { tenant: "org-1", subject_type: "employees", subject_id: "e1" },
+      ],
+      [
+        "set_field_value",
+        {
+          tenant: "org-1",
+          subject_type: "employees",
+          subject_id: "e1",
+          definition: "d1",
+          value: "gold",
+        },
+      ],
+    ]);
+  });
+
+  it("fails without a tenant", async () => {
+    const fake = fakeTransport({
+      list_field_definitions: [],
+      delete_field_definition: true,
+    });
+
+    const session: { tenant?: string } = {};
+
+    const fields = createCustomFields({
+      transport: fake.transport,
+      tenant: () => session.tenant,
+    });
+
+    expect(await fields.listDefinitions("customer")).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+    });
+    expect(await fields.readValues(EMPLOYEE)).toMatchObject({ ok: false });
+    expect(fake.calls).toHaveLength(0);
+    expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
+    session.tenant = "org-2";
+    expect(await fields.listDefinitions("customer").orThrow()).toEqual([]);
+    expect(fake.calls.at(-1)).toEqual([
+      "list_field_definitions",
+      { tenant: "org-2", entity: "customer" },
+    ]);
+  });
+});

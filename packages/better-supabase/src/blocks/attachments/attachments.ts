@@ -1,15 +1,19 @@
+import type { Author } from "../../core/block-authors.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
 
+import { authorOf } from "../../core/block-authors.ts";
 import {
   allWithFields,
   blockFields,
@@ -18,6 +22,8 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -69,7 +75,14 @@ export interface AttachmentStorage extends UploadClaimStorage {
 
 export interface AttachmentsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
+  /**
+   * The subject types configured with `tenant: false`. Their files have no
+   * organization, so `upload`, `put` and `list` on such a subject send no
+   * tenant and need none.
+   */
+  readonly tenantless?: readonly string[];
   /**
    * A Standard Schema for the attachment columns the app adds
    * (`blocks.attachments.options.extraColumns`), keyed by column name. It types
@@ -106,8 +119,8 @@ export interface Attachment {
   readonly id: string;
   /** `undefined` for a file of a subject without a tenant (`tenant: false`). */
   readonly organizationId: string | undefined;
-  readonly subjectType: string | undefined;
-  readonly subjectId: string | undefined;
+  /** `undefined` for a file uploaded without a subject. */
+  readonly subject: SubjectRef | undefined;
   readonly bucket: string;
   /**
    * The object path in the bucket, `{organizationId}/attachments/{id}` unless
@@ -123,6 +136,11 @@ export interface Attachment {
   /** What `upload` stored with the file; `{}` without any. */
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly uploadedBy: string | undefined;
+  /**
+   * The uploader's name and avatar from `profiles`, on `list()`; `undefined`
+   * without the `profiles` module or once the account is deleted.
+   */
+  readonly author: Author | undefined;
   readonly createdAt: Temporal.Instant;
   /** Set by `confirm()` once the object exists. */
   readonly uploadedAt: Temporal.Instant | undefined;
@@ -130,14 +148,10 @@ export interface Attachment {
 }
 
 export interface NewAttachment {
-  /** `null` for a subject type configured with `tenant: false`. */
-  readonly organizationId: string | null;
   readonly name: string;
   readonly mimeType: string;
   /** Bytes; `confirm()` replaces it with the stored size. */
   readonly size: number;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
   /**
    * App data about the file, such as a caption or its source, kept with the
    * record.
@@ -160,13 +174,19 @@ export interface AttachmentDownload<F extends object = Record<never, never>> {
   readonly signedUrl: string;
 }
 
-/** `F` is the extra attachment fields `options.fields` describes. */
+/**
+ * `F` is the extra attachment fields `options.fields` describes. The methods
+ * that create or list files act in the block's `tenant`, except on a subject
+ * type in `options.tenantless`.
+ */
 export interface Attachments<F extends object = Record<never, never>> {
   /**
-   * Creates the pending record and a signed upload URL for its path. When
-   * Storage refuses the URL, the record is deleted again.
+   * Creates the pending record on `subject` (`null` for a file without one) and
+   * a signed upload URL for its path. When Storage refuses the URL, the record
+   * is deleted again.
    */
   upload(
+    subject: SubjectRef | null,
     attachment: NewAttachment & Partial<F>,
   ): AsyncResult<AttachmentUpload<F>>;
   /**
@@ -175,10 +195,8 @@ export interface Attachments<F extends object = Record<never, never>> {
    */
   confirm(id: string): AsyncResult<Attachment & F>;
   get(id: string): AsyncResult<Attachment & F>;
-  list(
-    organizationId: string | null,
-    subject?: { readonly type: string; readonly id: string },
-  ): AsyncResult<readonly (Attachment & F)[]>;
+  /** The files of `subject`, or every file of the tenant without one. */
+  list(subject?: SubjectRef | null): AsyncResult<readonly (Attachment & F)[]>;
   /**
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
@@ -190,13 +208,14 @@ export interface Attachments<F extends object = Record<never, never>> {
   /** Deletes the file, then the record (the uploader, or `attachments.manage`). */
   remove(id: string): AsyncResult<boolean>;
   /**
-   * Creates the record, uploads `file` from the server and confirms it, for
-   * files the server makes or fetches (an export, a generated PDF, an import).
-   * Returns the confirmed attachment, which still waits for the scan when the
-   * module requires one. When Storage refuses the upload, the record is deleted
-   * again, so no pending record is left behind.
+   * Creates the record on `subject` (`null` for none), uploads `file` from the
+   * server and confirms it, for files the server makes or fetches (an export, a
+   * generated PDF, an import). Returns the confirmed attachment, which still
+   * waits for the scan when the module requires one. When Storage refuses the
+   * upload, the record is deleted again, so no pending record is left behind.
    */
   put(
+    subject: SubjectRef | null,
     attachment: NewAttachment & Partial<F>,
     file: Blob | ArrayBuffer | Uint8Array,
   ): AsyncResult<Attachment & F>;
@@ -233,8 +252,7 @@ export function attachmentOf(value: unknown): Attachment {
   return {
     id: textOf(row["id"]),
     organizationId: optionalText(row["organization_id"]),
-    subjectType: optionalText(row["subject_type"]),
-    subjectId: optionalText(row["subject_id"]),
+    subject: optionalSubjectRefOf(row["subject_type"], row["subject_id"]),
     bucket: textOf(row["bucket"]),
     path: textOf(row["object_path"]),
     name: textOf(row["name"]),
@@ -244,6 +262,7 @@ export function attachmentOf(value: unknown): Attachment {
     scanDetail: optionalText(row["scan_detail"]),
     metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
     uploadedBy: optionalText(row["uploaded_by"]),
+    author: authorOf(row["author"]),
     createdAt: toInstant(textOf(row["created_at"])),
     uploadedAt: optionalInstant(row["uploaded_at"]),
     scannedAt: optionalInstant(row["scanned_at"]),
@@ -320,12 +339,9 @@ function lookup(
 
 /** Attachments as the caller: the table's and the bucket's policies apply. */
 const NEW_ATTACHMENT: ReadonlySet<string> = new Set([
-  "organizationId",
   "name",
   "mimeType",
   "size",
-  "subjectType",
-  "subjectId",
   "metadata",
 ]);
 
@@ -341,6 +357,15 @@ export function createAttachments<
     options.fields,
     "attachment fields",
   );
+
+  const tenantless: ReadonlySet<string> = new Set(options.tenantless);
+
+  const tenantOf = (
+    subject: SubjectRef | null | undefined,
+  ): AsyncResult<string | null> =>
+    subject !== null && subject !== undefined && tenantless.has(subject.type)
+      ? AsyncResult.ok(null)
+      : requireTenant(options.tenant).map((tenant): string | null => tenant);
 
   const typed = (value: unknown): AsyncResult<Attachment & F> =>
     AsyncResult.from(() => withFields(fields, value, attachmentOf(value)));
@@ -398,32 +423,38 @@ export function createAttachments<
     return err(error);
   };
 
-  const create = (attachment: NewAttachment): AsyncResult<Attachment & F> =>
-    AsyncResult.from(() =>
-      extraFieldsArg(fields, extraOf(attachment, NEW_ATTACHMENT)),
-    )
-      .andThen((more) =>
-        call(
-          "create_attachment",
-          {
-            tenant: attachment.organizationId,
-            name: attachment.name,
-            mime_type: attachment.mimeType,
-            size: attachment.size,
-            subject_type: attachment.subjectType,
-            subject_id: attachment.subjectId,
-            metadata: attachment.metadata,
-            ...more,
-          },
-          (value) => value,
+  const create = (
+    subject: SubjectRef | null,
+    attachment: NewAttachment,
+  ): AsyncResult<Attachment & F> =>
+    tenantOf(subject)
+      .andThen((organizationId) =>
+        AsyncResult.from(() =>
+          extraFieldsArg(fields, extraOf(attachment, NEW_ATTACHMENT)),
+        ).andThen((more) =>
+          call(
+            "create_attachment",
+            {
+              tenant: organizationId,
+              name: attachment.name,
+              mime_type: attachment.mimeType,
+              size: attachment.size,
+              subject_type: subject?.type,
+              subject_id: subject?.id,
+              metadata: attachment.metadata,
+              ...more,
+            },
+            (value) => value,
+          ),
         ),
       )
       .andThen(typed);
 
   const upload = (
+    subject: SubjectRef | null,
     attachment: NewAttachment,
   ): AsyncResult<AttachmentUpload<F>> =>
-    create(attachment).andThen(async (created) => {
+    create(subject, attachment).andThen(async (created) => {
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
       );
@@ -443,19 +474,21 @@ export function createAttachments<
     upload,
     confirm,
     get: find,
-    list: (organizationId, subject) =>
-      call(
-        "list_attachments",
-        {
-          tenant: organizationId,
-          subject_type: subject?.type,
-          subject_id: subject?.id,
-        },
-        (value) =>
-          recordsOf(value, "list_attachments").map(
-            (raw) => [raw, attachmentOf(raw)] as const,
-          ),
-      ).andThen((rows) => allWithFields(fields, rows)),
+    list: (subject) =>
+      tenantOf(subject).andThen((organizationId) =>
+        call(
+          "list_attachments",
+          {
+            tenant: organizationId,
+            subject_type: subject?.type,
+            subject_id: subject?.id,
+          },
+          (value) =>
+            recordsOf(value, "list_attachments").map(
+              (raw) => [raw, attachmentOf(raw)] as const,
+            ),
+        ).andThen((rows) => allWithFields(fields, rows)),
+      ),
     download: (id, download = {}) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
@@ -472,8 +505,8 @@ export function createAttachments<
           ),
         ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
       }),
-    put: (attachment, file) =>
-      create(attachment).andThen(async (created) => {
+    put: (subject, attachment, file) =>
+      create(subject, attachment).andThen(async (created) => {
         const target = bucket(created);
 
         if (!target.upload) {

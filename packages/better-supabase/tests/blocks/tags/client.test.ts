@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Tag } from "../../../src/blocks/tags/tags.ts";
+import type { SubjectRef } from "../../../src/schema/types.ts";
 
 import { createTagInputController } from "../../../src/blocks/tags/client.ts";
 import {
@@ -19,29 +20,24 @@ const tag = (id: string, name: string): Tag => ({
   fields: {},
 });
 
-function setup(organizationId: string | null = "org-1") {
+const CUSTOMER: SubjectRef = { type: "customer", id: "cu1" };
+
+function setup(subject: SubjectRef | null = CUSTOMER) {
   const auth = fakeAuth();
 
-  const forSubject = vi.fn(
-    (_organizationId: string, _subjectType: string, _subjectId: string) =>
-      resolved<readonly Tag[]>([tag("t1", "VIP")]),
+  const forSubject = vi.fn((_subject: SubjectRef) =>
+    resolved<readonly Tag[]>([tag("t1", "VIP")]),
   );
 
-  const list = vi.fn((_organizationId: string, _kind?: string) =>
+  const list = vi.fn((_kind?: string) =>
     resolved<readonly Tag[]>([tag("t1", "VIP"), tag("t2", "Churn")]),
   );
 
-  const tagFn = vi.fn(
-    (_organizationId: string, _type: string, _id: string, _tagId: string) =>
-      resolved(true),
-  );
+  const tagFn = vi.fn((_subject: SubjectRef, _tagId: string) => resolved(true));
 
-  const untag = vi.fn(
-    (_organizationId: string, _type: string, _id: string, _tagId: string) =>
-      resolved(true),
-  );
+  const untag = vi.fn((_subject: SubjectRef, _tagId: string) => resolved(true));
 
-  const create = vi.fn((_organizationId: string, _kind: string, name: string) =>
+  const create = vi.fn((_kind: string, name: string) =>
     resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),
   );
 
@@ -50,9 +46,7 @@ function setup(organizationId: string | null = "org-1") {
   const controller = createTagInputController({
     client: { forSubject, list, tag: tagFn, untag, create },
     auth,
-    organizationId,
-    subjectType: "customer",
-    subjectId: "cu1",
+    subject,
     kind: "customer",
     onChanged,
   });
@@ -65,8 +59,8 @@ describe("createTagInputController", () => {
     const { forSubject, list, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(forSubject).toHaveBeenCalledWith("org-1", "customer", "cu1");
-    expect(list).toHaveBeenCalledWith("org-1", "customer");
+    expect(forSubject).toHaveBeenCalledWith(CUSTOMER);
+    expect(list).toHaveBeenCalledWith("customer");
     expect(view().tags?.map((each) => each.id)).toEqual(["t1"]);
     expect(view().available?.map((each) => each.id)).toEqual(["t1", "t2"]);
     unmount();
@@ -83,7 +77,7 @@ describe("createTagInputController", () => {
     expect(view().pending).toEqual(["t2"]);
     write.release();
     expect((await adding).ok).toBe(true);
-    expect(tagFn).toHaveBeenCalledWith("org-1", "customer", "cu1", "t2");
+    expect(tagFn).toHaveBeenCalledWith(CUSTOMER, "t2");
     expect(onChanged).toHaveBeenCalledWith({
       kind: "added",
       tag: tag("t2", "Churn"),
@@ -128,13 +122,13 @@ describe("createTagInputController", () => {
     await flush();
     expect((await view().create("  churn ")).ok).toBe(true);
     expect(create).not.toHaveBeenCalled();
-    expect(tagFn).toHaveBeenLastCalledWith("org-1", "customer", "cu1", "t2");
+    expect(tagFn).toHaveBeenLastCalledWith(CUSTOMER, "t2");
 
     expect(await view().create("New")).toMatchObject({
       ok: true,
       data: { id: "t3", kind: "customer" },
     });
-    expect(create).toHaveBeenCalledWith("org-1", "customer", "New");
+    expect(create).toHaveBeenCalledWith("customer", "New");
     expect(view().available?.map((each) => each.id)).toEqual([
       "t1",
       "t2",
@@ -152,7 +146,7 @@ describe("createTagInputController", () => {
     unmount();
   });
 
-  it("keeps load and onChanged errors, and waits without an organization", async () => {
+  it("keeps load and onChanged errors, and waits without a subject", async () => {
     const { forSubject, list, onChanged, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();

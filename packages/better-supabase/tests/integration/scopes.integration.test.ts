@@ -73,15 +73,21 @@ describe.skipIf(!live)("blocks without organizations", () => {
     });
 
     it("keeps each user's tags their own", async () => {
+      let tenant = ann.id;
+
       const tags = createTags({
         transport: sqlTransport(s.sql),
         schema: "scope_it",
+        tenant: () => tenant,
       });
 
+      const note = { type: "note", id: "n1" };
+
       await s.as(ann);
-      const urgent = await tags.create(ann.id, "label", "Urgent").orThrow();
+      const urgent = await tags.create("label", "Urgent").orThrow();
       // Ann can't put a tag in Bob's set: the scope id is always the caller.
-      const other = await tags.create(bob.id, "label", "Later").orThrow();
+      tenant = bob.id;
+      const other = await tags.create("label", "Later").orThrow();
       expect(
         await s.value<string>(
           "(select tenant_id::text from scope_it.tags where id = $1)",
@@ -91,24 +97,22 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
       await s.as(bob);
       // The same name in Bob's own set is a different tag.
-      const bobs = await tags.create(bob.id, "label", "Urgent").orThrow();
+      const bobs = await tags.create("label", "Urgent").orThrow();
       expect(bobs.id).not.toBe(urgent.id);
       expect((await tags.update(urgent.id, "Mine")).ok).toBe(false);
-      expect((await tags.tag(bob.id, "note", "n1", urgent.id)).ok).toBe(false);
-      expect(await tags.tag(bob.id, "note", "n1", bobs.id).orThrow()).toBe(
-        true,
-      );
+      expect((await tags.tag(note, urgent.id)).ok).toBe(false);
+      expect(await tags.tag(note, bobs.id).orThrow()).toBe(true);
       // Reads also stay in the caller's own set.
-      expect(
-        (await tags.list(bob.id, "label").orThrow()).map((tag) => tag.id),
-      ).toEqual([bobs.id]);
-      expect((await tags.list(ann.id).orThrow()).map((tag) => tag.id)).toEqual([
+      expect((await tags.list("label").orThrow()).map((tag) => tag.id)).toEqual(
+        [bobs.id],
+      );
+      tenant = ann.id;
+      expect((await tags.list().orThrow()).map((tag) => tag.id)).toEqual([
         bobs.id,
       ]);
+      tenant = bob.id;
       expect(
-        (await tags.forSubject(bob.id, "note", "n1").orThrow()).map(
-          (tag) => tag.name,
-        ),
+        (await tags.forSubject(note).orThrow()).map((tag) => tag.name),
       ).toEqual(["Urgent"]);
     });
 
@@ -116,25 +120,21 @@ describe.skipIf(!live)("blocks without organizations", () => {
       const comments = createComments({
         transport: sqlTransport(s.sql),
         schema: "scope_it",
+        tenant: ann.id,
       });
+
+      const note = { type: "note", id: "n1" };
 
       await s.asRole(ann);
 
-      const comment = await comments
-        .create({
-          organizationId: ann.id,
-          subjectType: "note",
-          subjectId: "n1",
-          body: "first",
-        })
-        .orThrow();
+      const comment = await comments.create(note, { body: "first" }).orThrow();
 
       expect(comment.organizationId).toBe(ann.id);
-      const thread = await comments.list(ann.id, "note", "n1").orThrow();
+      const thread = await comments.list(note).orThrow();
       expect(thread.map((each) => each.body)).toEqual(["first"]);
 
       await s.asRole(bob);
-      expect(await comments.list(ann.id, "note", "n1").orThrow()).toEqual([]);
+      expect(await comments.list(note).orThrow()).toEqual([]);
       expect(
         await s.hint(
           "insert into scope_it.comments (organization_id, subject_type, subject_id, body) values ($1, 'note', 'n1', 'into ann''s scope')",
@@ -305,8 +305,8 @@ describe.skipIf(!live)("a workspace-named app", () => {
       ),
     ).toBe(true);
 
-    const tags = createTags({ transport, schema: "ws_it" });
-    const tag = await tags.create(id, "label", "Urgent").orThrow();
+    const tags = createTags({ transport, schema: "ws_it", tenant: id });
+    const tag = await tags.create("label", "Urgent").orThrow();
     expect(tag.name).toBe("Urgent");
   });
 });

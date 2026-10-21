@@ -53,8 +53,8 @@ describe("sla block", () => {
       }),
     });
 
-    const policy = await createSla({ transport: t })
-      .savePolicy("o", {
+    const policy = await createSla({ transport: t, tenant: "o" })
+      .savePolicy({
         subjectType: "ticket",
         name: "Urgent",
         priority: "urgent",
@@ -104,6 +104,7 @@ describe("sla block", () => {
     const sla = createSla({ transport: t });
     const ticket = { type: "ticket", id: "t1" };
     expect((await sla.start(ticket, "urgent").orThrow())[0]).toMatchObject({
+      subject: ticket,
       state: "paused",
       secondsLeft: 3600,
     });
@@ -127,5 +128,17 @@ describe("sla block", () => {
     ]);
     await sla.start(ticket).orThrow();
     expect(t.calls[5]?.[1]).toMatchObject({ priority: null });
+  });
+
+  it("fails to save a policy without a tenant", async () => {
+    const t = transport({});
+
+    expect(
+      await createSla({ transport: t }).savePolicy({ name: "x" }),
+    ).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+    });
+    expect(t.calls).toHaveLength(0);
   });
 });

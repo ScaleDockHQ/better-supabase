@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReactionCount } from "../../../src/blocks/reactions/reactions.ts";
+import type { SubjectRef } from "../../../src/schema/types.ts";
 
 import { createReactionsController } from "../../../src/blocks/reactions/client.ts";
 import {
@@ -20,11 +21,20 @@ const count = (emoji: string, reacted: boolean): ReactionCount => ({
   actors: [],
 });
 
-function setup(topicName?: string | null) {
+const comment = (id: string): SubjectRef => ({ type: "comment", id });
+
+function setup(topicName?: string | null, tenant: string | null = "org-1") {
   const topic = fakeTopic();
 
-  const summary = vi.fn((_org: string, _type: string, ids: readonly string[]) =>
-    resolved(Object.fromEntries(ids.map((id) => [id, [count("+1", false)]]))),
+  const summary = vi.fn((subjects: readonly SubjectRef[]) =>
+    resolved(
+      Object.fromEntries(
+        subjects.map((subject) => [
+          `${subject.type}:${subject.id}`,
+          [count("+1", false)],
+        ]),
+      ),
+    ),
   );
 
   const react = vi.fn(() => resolved([count("+1", true)]));
@@ -33,9 +43,8 @@ function setup(topicName?: string | null) {
     client: { summary, react },
     auth: fakeAuth(),
     ports: { topic: topic.port },
-    organizationId: "org-1",
-    subjectType: "comment",
-    subjectIds: ["c1"],
+    tenant,
+    subjects: [comment("c1")],
     ...(topicName === undefined ? {} : { topic: topicName }),
   });
 
@@ -47,7 +56,7 @@ describe("createReactionsController", () => {
     const { topic, summary, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(view().reactions).toEqual({ c1: [count("+1", false)] });
+    expect(view().reactions).toEqual({ "comment:c1": [count("+1", false)] });
     expect(topic.open()).toEqual(["reactions:org-1"]);
 
     topic.emit("reactions:org-1", "reaction.added", {
@@ -71,14 +80,17 @@ describe("createReactionsController", () => {
     topic.rejoin("reactions:org-1");
     expect(summary).toHaveBeenCalledTimes(4);
 
-    view().setSubjects(["c1"]);
+    view().setSubjects([comment("c1")]);
     expect(summary).toHaveBeenCalledTimes(4);
-    view().setSubjects(["c1", "c2"]);
+    view().setSubjects([comment("c1"), comment("c2")]);
     await flush();
-    expect(summary).toHaveBeenLastCalledWith("org-1", "comment", ["c1", "c2"]);
-    expect(Object.keys(view().reactions ?? {})).toEqual(["c1", "c2"]);
+    expect(summary).toHaveBeenLastCalledWith([comment("c1"), comment("c2")]);
+    expect(Object.keys(view().reactions ?? {})).toEqual([
+      "comment:c1",
+      "comment:c2",
+    ]);
     unmount();
-    view().setSubjects(["c3"]);
+    view().setSubjects([comment("c3")]);
     expect(summary).toHaveBeenCalledTimes(5);
   });
 
@@ -86,17 +98,17 @@ describe("createReactionsController", () => {
     const { react, summary, controller } = setup(null);
     const { view, unmount } = mount(controller);
     await flush();
-    await view().toggle("c1", "+1");
-    expect(react).toHaveBeenLastCalledWith("org-1", "comment", "c1", "+1", {
+    await view().toggle(comment("c1"), "+1");
+    expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
       present: true,
     });
-    expect(view().reactions?.["c1"]).toEqual([count("+1", true)]);
-    await view().toggle("c1", "+1");
-    expect(react).toHaveBeenLastCalledWith("org-1", "comment", "c1", "+1", {
+    expect(view().reactions?.["comment:c1"]).toEqual([count("+1", true)]);
+    await view().toggle(comment("c1"), "+1");
+    expect(react).toHaveBeenLastCalledWith(comment("c1"), "+1", {
       present: false,
     });
     react.mockReturnValue(failed("denied"));
-    await view().toggle("c1", "+1");
+    await view().toggle(comment("c1"), "+1");
     expect(view().error?.message).toBe("denied");
     summary.mockReturnValue(failed("down"));
     await view().refresh();
@@ -113,7 +125,18 @@ describe("createReactionsController", () => {
     await view().refresh();
     slow.release();
     await flush();
-    expect(Object.keys(view().reactions ?? {})).toEqual(["c1"]);
+    expect(Object.keys(view().reactions ?? {})).toEqual(["comment:c1"]);
+    unmount();
+  });
+
+  it("waits without a tenant", async () => {
+    const { topic, summary, controller } = setup(undefined, null);
+    const { view, unmount } = mount(controller);
+    await flush();
+    await view().refresh();
+    expect(summary).not.toHaveBeenCalled();
+    expect(topic.open()).toEqual([]);
+    expect(view().reactions).toBeUndefined();
     unmount();
   });
 });

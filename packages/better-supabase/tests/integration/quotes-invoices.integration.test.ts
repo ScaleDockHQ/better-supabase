@@ -309,8 +309,8 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       await s.as(owner);
 
-      const lineage = await createRelations({ transport })
-        .lineage(org, { type: "quote", id: quote.id })
+      const lineage = await createRelations({ transport, tenant: org })
+        .lineage({ type: "quote", id: quote.id })
         .orThrow();
 
       expect(lineage.origins).toEqual([

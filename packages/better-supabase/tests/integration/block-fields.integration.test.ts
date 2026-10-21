@@ -341,24 +341,25 @@ describe.skipIf(!live)("block fields", () => {
 
       const approvals = createApprovals({
         transport: sqlTransport(s.sql),
+        tenant,
         fields: Fields,
       });
-
-      const input = {
-        organizationId: tenant,
-        subjectType: "doc",
-        action: "publish",
-      };
 
       await s.asRole(member);
       expect(
         await approvals
-          .request({ ...input, subjectId: "d0", priority: 0 })
+          .request(
+            { type: "doc", id: "d0" },
+            { action: "publish", priority: 0 },
+          )
           .then(kind),
       ).toBe("validation");
 
       const request = await approvals
-        .request({ ...input, subjectId: "d1", label: "launch" })
+        .request(
+          { type: "doc", id: "d1" },
+          { action: "publish", label: "launch" },
+        )
         .orThrow();
 
       expect(request).toMatchObject({ status: "pending", label: "launch" });
@@ -369,7 +370,7 @@ describe.skipIf(!live)("block fields", () => {
       await s.asRole(owner);
       const approved = await approvals.approve(request.id).orThrow();
       expect(approved).toMatchObject({ status: "approved", label: "launch" });
-      const [listed] = await approvals.list(tenant, { status: null }).orThrow();
+      const [listed] = await approvals.list({ status: null }).orThrow();
       expect(listed).toMatchObject({ label: "launch" });
     } finally {
       await s.close();
@@ -420,26 +421,22 @@ describe.skipIf(!live)("block fields", () => {
           label: v.nullable(v.string()),
           priority: v.pipe(v.number(), v.minValue(1)),
         }),
+        tenant,
       });
 
-      const file = {
-        organizationId: tenant,
-        name: "a.pdf",
-        mimeType: "application/pdf",
-        size: 3,
-      };
+      const file = { name: "a.pdf", mimeType: "application/pdf", size: 3 };
 
       await s.asRole(owner);
       expect(
-        await attachments.upload({ ...file, priority: 0 }).then(kind),
+        await attachments.upload(null, { ...file, priority: 0 }).then(kind),
       ).toBe("validation");
 
       const { attachment } = await attachments
-        .upload({ ...file, label: "contract" })
+        .upload(null, { ...file, label: "contract" })
         .orThrow();
 
       expect(attachment).toMatchObject({ label: "contract", priority: 1 });
-      const [listed] = await attachments.list(tenant).orThrow();
+      const [listed] = await attachments.list().orThrow();
       expect(listed).toMatchObject({ label: "contract", priority: 1 });
       expect(await attachments.get(attachment.id).orThrow()).toMatchObject({
         label: "contract",
@@ -650,23 +647,22 @@ describe.skipIf(!live)("block fields", () => {
       const comments = createComments({
         transport: sqlTransport(s.sql),
         fields: Fields,
+        tenant,
       });
 
       await s.asRole(owner);
 
-      const input = {
-        organizationId: tenant,
-        subjectType: "project",
-        subjectId: "p1",
-        body: "Looks good",
-      };
+      const project = { type: "project", id: "p1" };
+      const input = { body: "Looks good" };
 
       expect(
-        await comments.create({ ...input, fields: { priority: 0 } }).then(kind),
+        await comments
+          .create(project, { ...input, fields: { priority: 0 } })
+          .then(kind),
       ).toBe("validation");
 
       const created = await comments
-        .create({ ...input, fields: { label: "review" } })
+        .create(project, { ...input, fields: { label: "review" } })
         .orThrow();
 
       expect(created.fields).toMatchObject({ label: "review", priority: null });
@@ -680,7 +676,7 @@ describe.skipIf(!live)("block fields", () => {
         body: "Looks great",
         fields: { label: "review", priority: 2 },
       });
-      const [listed] = await comments.list(tenant, "project", "p1").orThrow();
+      const [listed] = await comments.list(project).orThrow();
       expect(listed?.fields).toMatchObject({ label: "review", priority: 2 });
     } finally {
       await s.close();

@@ -333,8 +333,7 @@ describe("createBlocks", () => {
         occurrenceAt: "2026-10-14T09:00:00Z",
         organizationId: "o1",
         userId: "u1",
-        subjectType: "task",
-        subjectId: "42",
+        subject: { type: "task", id: "42" },
       })
       .orThrow();
     expect(send).toHaveBeenCalledWith("reminder.due", {

@@ -7,10 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -52,10 +54,13 @@ export interface Tag<F extends object = Record<never, never>> {
   readonly fields: ExtraFields<F>;
 }
 
+/**
+ * `F` is the extra fields `options.fields` describes. Every method that takes
+ * no tag id acts in the block's `tenant`.
+ */
 export interface Tags<F extends object = Record<never, never>> {
-  /** Creates a tag; `fields` sets its extra columns. */
+  /** Creates a tag of `kind` in the tenant; `fields` sets its extra columns. */
   create(
-    organizationId: string,
     kind: string,
     name: string,
     color?: string,
@@ -77,26 +82,14 @@ export interface Tags<F extends object = Record<never, never>> {
    */
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
-  tag(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-    tagId: string,
-  ): AsyncResult<boolean>;
-  untag(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-    tagId: string,
-  ): AsyncResult<boolean>;
+  /** Puts a tag on `subject`. */
+  tag(subject: SubjectRef, tagId: string): AsyncResult<boolean>;
+  /** Takes a tag off `subject`. */
+  untag(subject: SubjectRef, tagId: string): AsyncResult<boolean>;
   /** The tenant's tags of `kind` (every kind without it), in rank order. */
-  list(organizationId: string, kind?: string): AsyncResult<readonly Tag<F>[]>;
-  /** The tags on one subject, in rank order; the caller must be able to read it. */
-  forSubject(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<readonly Tag<F>[]>;
+  list(kind?: string): AsyncResult<readonly Tag<F>[]>;
+  /** The tags on `subject`, in rank order; the caller must be able to read it. */
+  forSubject(subject: SubjectRef): AsyncResult<readonly Tag<F>[]>;
 }
 
 function tagOf(value: unknown): Tag {
@@ -133,24 +126,28 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "tag fields");
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const client: Tags<F> = {
-    create: (organizationId, kind, name, color, description, extra) =>
-      fields
-        .args(extra)
-        .andThen((checked) =>
-          call(
-            "create_tag",
-            {
-              tenant: organizationId,
-              kind,
-              name,
-              color: color ?? null,
-              description: description ?? null,
-              fields: checked,
-            },
-            (value) => ({ ...tagOf(value), name }),
-          ).andThen(fields.row),
-        ),
+    create: (kind, name, color, description, extra) =>
+      tenant().andThen((organizationId) =>
+        fields
+          .args(extra)
+          .andThen((checked) =>
+            call(
+              "create_tag",
+              {
+                tenant: organizationId,
+                kind,
+                name,
+                color: color ?? null,
+                description: description ?? null,
+                fields: checked,
+              },
+              (value) => ({ ...tagOf(value), name }),
+            ).andThen(fields.row),
+          ),
+      ),
     update: (id, name, extra) =>
       fields
         .args(extra)
@@ -172,44 +169,52 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
     },
     delete: (id) =>
       call("delete_tag", { tag_id: id }, (value) => value === true),
-    tag: (organizationId, subjectType, subjectId, tagId) =>
-      call(
-        "tag",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          tag_id: tagId,
-        },
-        (value) => value === true,
+    tag: (subject, tagId) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "tag",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            tag_id: tagId,
+          },
+          (value) => value === true,
+        ),
       ),
-    untag: (organizationId, subjectType, subjectId, tagId) =>
-      call(
-        "untag",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          tag_id: tagId,
-        },
-        (value) => value === true,
+    untag: (subject, tagId) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "untag",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            tag_id: tagId,
+          },
+          (value) => value === true,
+        ),
       ),
-    list: (organizationId, kind) =>
-      call(
-        "list_tags",
-        { tenant: organizationId, kind: kind ?? null },
-        tagsOf,
-      ).andThen(fields.rows),
-    forSubject: (organizationId, subjectType, subjectId) =>
-      call(
-        "subject_tags",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-        },
-        tagsOf,
-      ).andThen(fields.rows),
+    list: (kind) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_tags",
+          { tenant: organizationId, kind: kind ?? null },
+          tagsOf,
+        ).andThen(fields.rows),
+      ),
+    forSubject: (subject) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "subject_tags",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+          },
+          tagsOf,
+        ).andThen(fields.rows),
+      ),
   };
 
   return withBlockHooks(client, options.hooks, {

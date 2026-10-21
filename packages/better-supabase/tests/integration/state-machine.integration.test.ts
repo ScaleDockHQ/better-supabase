@@ -105,6 +105,8 @@ describe.skipIf(!live)("state machine", () => {
         transport: sqlTransport(s.sql),
       });
 
+      const subject = { type: "quote", id: quote } as const;
+
       const errorOf = async (
         result: PromiseLike<
           { ok: true } | { ok: false; error: { hint?: string | undefined } }
@@ -121,7 +123,7 @@ describe.skipIf(!live)("state machine", () => {
           quote,
         ]),
       ).toBe("STATE_SUBJECT_NOT_FOUND");
-      expect(await errorOf(machine.state("quote", quote))).toBe(
+      expect(await errorOf(machine.state(subject))).toBe(
         "STATE_SUBJECT_NOT_FOUND",
       );
 
@@ -131,18 +133,16 @@ describe.skipIf(!live)("state machine", () => {
           quote,
         ]),
       ).toBe("STATE_SUBJECT_NOT_FOUND");
-      expect(
-        await errorOf(machine.pause("quote", quote, { reason: "look" })),
-      ).toBe("STATE_SUBJECT_NOT_FOUND");
-      expect((await machine.state("quote", quote).orThrow()).status).toBe(
-        "draft",
+      expect(await errorOf(machine.pause(subject, { reason: "look" }))).toBe(
+        "STATE_SUBJECT_NOT_FOUND",
       );
+      expect((await machine.state(subject).orThrow()).status).toBe("draft");
 
       await s.asRole(member);
-      expect(
-        await machine.transition("quote", quote, "sent", "ready").orThrow(),
-      ).toBe(true);
-      const sent = await machine.state("quote", quote).orThrow();
+      expect(await machine.transition(subject, "sent", "ready").orThrow()).toBe(
+        true,
+      );
+      const sent = await machine.state(subject).orThrow();
       expect(sent).toMatchObject({
         status: "sent",
         step: 2,
@@ -153,40 +153,38 @@ describe.skipIf(!live)("state machine", () => {
       });
 
       expect(
-        await machine
-          .pause("quote", quote, { reason: "client away" })
-          .orThrow(),
+        await machine.pause(subject, { reason: "client away" }).orThrow(),
       ).toBe(true);
-      expect((await machine.state("quote", quote).orThrow()).pauseReason).toBe(
+      expect((await machine.state(subject).orThrow()).pauseReason).toBe(
         "client away",
       );
-      expect(await machine.resume("quote", quote).orThrow()).toBe(true);
-      expect(await machine.resume("quote", quote).orThrow()).toBe(false);
+      expect(await machine.resume(subject).orThrow()).toBe(true);
+      expect(await machine.resume(subject).orThrow()).toBe(false);
 
-      expect(
-        await machine.setFlag("quote", quote, "urgent", true).orThrow(),
-      ).toBe(true);
-      expect(
-        await machine.setFlag("quote", quote, "urgent", true).orThrow(),
-      ).toBe(false);
-      expect(await errorOf(machine.setFlag("quote", quote, "vip", true))).toBe(
+      expect(await machine.setFlag(subject, "urgent", true).orThrow()).toBe(
+        true,
+      );
+      expect(await machine.setFlag(subject, "urgent", true).orThrow()).toBe(
+        false,
+      );
+      expect(await errorOf(machine.setFlag(subject, "vip", true))).toBe(
         "STATE_FLAG_UNKNOWN",
       );
-      expect((await machine.state("quote", quote).orThrow()).flags).toEqual([
+      expect((await machine.state(subject).orThrow()).flags).toEqual([
         "urgent",
       ]);
 
-      const history = await machine.history("quote", quote).orThrow();
+      const history = await machine.history(subject).orThrow();
       expect(history.map((change) => [change.from, change.to])).toEqual([
         ["draft", "sent"],
       ]);
       expect(history[0]?.reason).toBe("ready");
-      const stages = await machine.stages("quote", quote).orThrow();
+      const stages = await machine.stages(subject).orThrow();
       expect(stages.map((stage) => stage.label)).toEqual(["draft", "sent"]);
       expect(stages[0]?.clearedAt).toBeDefined();
 
       await s.asRole(viewer);
-      expect(await machine.history("quote", quote).orThrow()).toHaveLength(1);
+      expect(await machine.history(subject).orThrow()).toHaveLength(1);
       expect(
         await s.value<number>(
           "(select count(*)::int from better_supabase.subject_lifecycles)",
@@ -222,15 +220,14 @@ describe.skipIf(!live)("state machine", () => {
           [quote],
         ),
       ).toBe("STATE_APPROVAL_REQUIRED");
-      const approvals = createApprovals({ transport: sqlTransport(s.sql) });
+
+      const approvals = createApprovals({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       const request = await approvals
-        .request({
-          organizationId: tenant,
-          subjectType: "quote",
-          subjectId: quote,
-          action: "accept",
-        })
+        .request(subject, { action: "accept" })
         .orThrow();
 
       await s.asRole(owner);

@@ -82,18 +82,18 @@ describe("block hooks", () => {
       }).register({ token: "t", platform: "ios" }),
       createRelations({
         transport,
+        tenant: "o",
         hooks: { unlink: { before: refuse } },
-      }).unlink({
-        organizationId: "o",
-        kind: "blocks",
-        source: { type: "task", id: "a" },
-        target: { type: "task", id: "b" },
-      }),
-      createReminders({ transport, hooks: { save: { before: refuse } } }).save(
-        "o",
-        "task",
-        "t1",
+      }).unlink(
+        { type: "task", id: "a" },
+        { type: "task", id: "b" },
+        { kind: "blocks" },
       ),
+      createReminders({
+        transport,
+        tenant: "o",
+        hooks: { save: { before: refuse } },
+      }).save({ type: "task", id: "t1" }),
       createSavedViews({
         transport,
         hooks: { delete: { before: refuse } },
@@ -235,24 +235,24 @@ describe("block fields", () => {
       ],
     });
 
-    const relations = createRelations({ transport, fields: region });
+    const relations = createRelations({
+      transport,
+      tenant: "o",
+      fields: region,
+    });
 
     const linked = await relations
-      .link({
-        organizationId: "o",
-        kind: "blocks",
-        source: { type: "task", id: "a" },
-        target: { type: "task", id: "b" },
-        fields: { region: "us" },
-      })
+      .link(
+        { type: "task", id: "a" },
+        { type: "task", id: "b" },
+        { kind: "blocks", fields: { region: "us" } },
+      )
       .orThrow();
 
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "us" } });
     expect(linked.fields).toEqual({ region: "us" });
 
-    const [relation] = await relations
-      .of("o", { type: "task", id: "a" })
-      .orThrow();
+    const [relation] = await relations.of({ type: "task", id: "a" }).orThrow();
 
     expect(relation?.fields.region).toBe("us");
   });
@@ -276,9 +276,16 @@ describe("block fields", () => {
       ],
     });
 
-    const reminders = createReminders({ transport, fields: region });
+    const reminders = createReminders({
+      transport,
+      tenant: "o",
+      fields: region,
+    });
+
     expect(
-      await reminders.save("o", "task", "t1", 15, { region: "eu" }).orThrow(),
+      await reminders
+        .save({ type: "task", id: "t1" }, 15, { region: "eu" })
+        .orThrow(),
     ).toEqual({ id: "r1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     const views = createSavedViews({ transport, fields: region });

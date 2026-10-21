@@ -4,6 +4,7 @@ import type {
   RowFields,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   AuthorizationHooks,
@@ -12,6 +13,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
 import type { DeliveryPayload } from "./schedule.ts";
@@ -23,6 +25,8 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
@@ -51,9 +55,7 @@ function notifyThrough(
       recipients: delivery.userId === undefined ? [] : [delivery.userId],
       tenant: delivery.organizationId,
       key: `reminder:${delivery.reminderId}:${delivery.occurrenceAt}`,
-      ...(delivery.subjectType === undefined || delivery.subjectId === undefined
-        ? {}
-        : { subject: { type: delivery.subjectType, id: delivery.subjectId } }),
+      ...(delivery.subject === undefined ? {} : { subject: delivery.subject }),
       data: {
         reminderId: delivery.reminderId,
         occurrenceAt: delivery.occurrenceAt,
@@ -66,7 +68,7 @@ export const REMINDER_DELIVERY_QUEUE = "reminders.deliver";
 
 export interface RemindersOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> {
+> extends BlockTenantOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -120,24 +122,22 @@ export interface ReminderEntry {
   readonly offsetMinutes: number;
 }
 
+/**
+ * `F` is the extra fields `options.fields` describes. `save` and `list` act in
+ * the block's `tenant`.
+ */
 export interface Reminders<F extends object = Record<never, never>> {
-  /** Sets a reminder on a subject; `fields` fills the app's extra columns. */
+  /** Sets a reminder on `subject`; `fields` fills the app's extra columns. */
   save(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     offsetMinutes?: number,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
   ): AsyncResult<SavedReminder<F>>;
   /**
-   * The caller's reminders on a subject, the earliest before the occurrence
+   * The caller's reminders on `subject`, the earliest before the occurrence
    * first.
    */
-  list(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<readonly ReminderEntry[]>;
+  list(subject: SubjectRef): AsyncResult<readonly ReminderEntry[]>;
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
@@ -160,16 +160,19 @@ function deliveryOf(value: unknown): DeliveryPayload {
   }
 
   const userId = optionalText(value["userId"]);
-  const subjectType = optionalText(value["subjectType"]);
-  const subjectId = optionalText(value["subjectId"]);
+  const nested = isRecord(value["subject"]) ? value["subject"] : undefined;
+
+  // Jobs enqueued before `subject` replaced the flat keys still carry them.
+  const subject = nested
+    ? optionalSubjectRefOf(nested["type"], nested["id"])
+    : optionalSubjectRefOf(value["subjectType"], value["subjectId"]);
 
   return {
     reminderId: textOf(value["reminderId"]),
     occurrenceAt: textOf(value["occurrenceAt"]),
     organizationId: textOf(value["organizationId"]),
     ...(userId === undefined ? {} : { userId }),
-    ...(subjectType === undefined ? {} : { subjectType }),
-    ...(subjectId === undefined ? {} : { subjectId }),
+    ...(subject === undefined ? {} : { subject }),
   };
 }
 
@@ -180,6 +183,7 @@ export function createReminders<
 
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "reminder fields");
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
 
   const audience =
@@ -212,10 +216,9 @@ export function createReminders<
           actorId: null,
           payload: delivery,
           subject:
-            delivery.subjectType === undefined ||
-            delivery.subjectId === undefined
+            delivery.subject === undefined
               ? null
-              : `subjects/${delivery.subjectType}/${delivery.subjectId}`,
+              : `subjects/${delivery.subject.type}/${delivery.subject.id}`,
         },
         [subscriber],
       );
@@ -263,38 +266,45 @@ export function createReminders<
     );
 
   const client: Reminders<F> = {
-    save: (organizationId, subjectType, subjectId, offsetMinutes, values) =>
-      writeFields(fields, values, (checked) =>
+    save: (subject, offsetMinutes, values) =>
+      tenant().andThen((organizationId) =>
+        writeFields(fields, values, (checked) =>
+          call(
+            "save_reminder",
+            {
+              tenant: organizationId,
+              subject_type: subject.type,
+              subject_id: subject.id,
+              offset_minutes: offsetMinutes ?? 0,
+              fields: checked,
+            },
+            (value) => {
+              const row = recordOf(value, "save_reminder");
+
+              return {
+                id: textOf(row["id"]),
+                fields: rowFields(row["fields"]),
+              };
+            },
+          ),
+        ).andThen((saved) => readFields(fields, saved)),
+      ),
+    list: (subject) =>
+      tenant().andThen((organizationId) =>
         call(
-          "save_reminder",
+          "list_my_reminders",
           {
             tenant: organizationId,
-            subject_type: subjectType,
-            subject_id: subjectId,
-            offset_minutes: offsetMinutes ?? 0,
-            fields: checked,
+            subject_type: subject.type,
+            subject_id: subject.id,
           },
-          (value) => {
-            const row = recordOf(value, "save_reminder");
-
-            return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
-          },
+          (value) =>
+            recordsOf(value, "list_my_reminders").map((row) => ({
+              id: textOf(row["id"]),
+              method: textOf(row["method"]),
+              offsetMinutes: Number(row["offsetMinutes"]),
+            })),
         ),
-      ).andThen((saved) => readFields(fields, saved)),
-    list: (organizationId, subjectType, subjectId) =>
-      call(
-        "list_my_reminders",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-        },
-        (value) =>
-          recordsOf(value, "list_my_reminders").map((row) => ({
-            id: textOf(row["id"]),
-            method: textOf(row["method"]),
-            offsetMinutes: Number(row["offsetMinutes"]),
-          })),
       ),
     remove: (reminderId) =>
       call(
