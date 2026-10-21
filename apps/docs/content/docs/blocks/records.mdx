@@ -15,11 +15,114 @@ section never takes the page down:
 | `error`  | `error` holds a plain `DbError`; show it with a Retry      |
 | `hidden` | The caller can't read the section, and no query ran for it |
 
-| Block         | Section       | Rows                    | Optimistic reducer      |
-| ------------- | ------------- | ----------------------- | ----------------------- |
-| `comments`    | `comments`    | the thread              | `commentsOptimistic`    |
-| `attachments` | `attachments` | the files, newest first | `attachmentsOptimistic` |
-| `tags`        | `tags`        | the record's tags       | `tagsOptimistic`        |
+| Block         | Section       | Rows                         | Writes                | Optimistic reducer      |
+| ------------- | ------------- | ---------------------------- | --------------------- | ----------------------- |
+| `comments`    | `comments`    | the thread                   | `add`, `remove`       | `commentsOptimistic`    |
+| `attachments` | `attachments` | the files, newest first      | `remove`              | `attachmentsOptimistic` |
+| `tags`        | `tags`        | the record's tags            | `apply`, `remove`     | `tagsOptimistic`        |
+| `share-links` | `shareLinks`  | the record's share links     | `create`, `revoke`    | none                    |
+| `relations`   | `relations`   | links to and from the record | `link`, `unlink`      | none                    |
+| `versions`    | `versions`    | the versions, newest first   | `snapshot`, `restore` | none                    |
+| `sla`         | `sla`         | the record's clocks          | `start`               | none                    |
+
+A write takes the record's id and the write's input, such as
+`{ id, input: { kind: "relates", target } }` for `relations.link`.
+
+## Generated features
+
+With a block that adds sections installed, [`gen`](/docs/cli/gen) writes one
+feature per subject in `features/<subject>/` next to the main module, with a
+section for each installed block that serves the subject. A block serves the
+subject types its `options.subjects` names, or every tenant subject when it
+names none; `versions` serves the subjects that set `versions`. Set
+`generateFeatures: false` in the config to write none. `gen` writes no UI:
+the cards come from the [UI recipes](/docs/registry/ui-recipes).
+
+| File                    | Written when                     | Exports                                                    |
+| ----------------------- | -------------------------------- | ---------------------------------------------------------- |
+| `<subject>-feature.ts`  | always                           | `<subject>Feature`, from `defineRecordFeature`             |
+| `<subject>-server.ts`   | Next.js is installed             | `<subject>Record`, from `recordServer(bs, feature)`        |
+| `<subject>-actions.ts`  | Next.js is installed             | one Server Action per write, such as `addCustomerComments` |
+| `<subject>-provider.ts` | Next.js, Vite or Expo is used    | `<Subject>RecordProvider` and `use<Subject>Record`         |
+| `<subject>-queries.ts`  | `@tanstack/react-query` is found | `<subject>Queries(clients)`, from `recordQueries`          |
+
+`features/index.ts` re-exports every feature. The files carry the
+`@generated` header; change the config and run `gen` again instead of
+editing them.
+
+### In a Server Component
+
+`<subject>Record.load(id, options?)` loads the sections and the caller's
+`can` flags as plain data (Temporal values become ISO strings), so the view
+passes straight to a Client Component. It reads the request, so call it
+outside `"use cache"`:
+
+```tsx title="src/app/customers/[id]/page.tsx"
+import { CustomerRecordProvider } from "@/lib/supabase/features/customer/customer-provider";
+import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
+
+export default async function CustomerPage({
+  params,
+}: PageProps<"/customers/[id]">) {
+  const { id } = await params;
+  const view = await customerRecord.load(id, {
+    sections: ["comments", "versions"],
+    options: { versions: { pageSize: 20 } },
+  });
+
+  return (
+    <CustomerRecordProvider id={id} initial={view} topic={`customer:${id}`}>
+      <CommentsCard />
+    </CustomerRecordProvider>
+  );
+}
+```
+
+Each Server Action builds the block's client over the caller's `Db` and its
+`supabase.storage`, runs the write, and drops the section's
+[cache tags](/docs/frameworks/next#record-sections). RLS and the block's SQL
+decide what the caller may write; check `can` to hide a button.
+
+### In a Client Component
+
+`use<Subject>Record()` returns `{ state, actions, meta }`: the settled
+sections and `can` flags, `refresh(names?)`, and `write(section, write,
+input)`, which runs the Server Action and loads that section again:
+
+```tsx
+const { state, actions } = useCustomerRecord();
+const comments = state.sections.comments;
+
+await actions.write("comments", "add", { body });
+```
+
+Without Next.js the provider runs the writes on the client, over the
+supabase-js client of [`BetterSupabaseProvider`](/docs/frontend/react).
+
+### With TanStack Query
+
+`<subject>Queries(clients)` returns query options per section, mutation
+options per write, and `can()`. Pass the block clients keyed like the
+feature's blocks; `invalidateOnRecordEvents(queryClient, betterSupabase,
+feature)` makes a section stale when one of its events arrives:
+
+```ts
+const customer = customerQueries(blocks(supabase), {
+  access: blocks(supabase).access,
+});
+const comments = useQuery(customer.sections.comments(id));
+const add = useMutation(customer.writes.comments.add(id));
+add.mutate({ body: "Shipped" });
+```
+
+### Vite and Expo
+
+A Vite app runs `gen` like any other, so it gets the feature, the client
+provider and, with TanStack Query installed, the queries file. An Expo app
+usually doesn't run `gen` itself: in a monorepo, import the features from
+the package that does, or run `gen` once with `output` inside the Expo app.
+`defineRecordFeature`, `createRecordProvider` and `recordQueries` are plain
+functions, so a hand-written feature works the same way.
 
 ## Load a record
 

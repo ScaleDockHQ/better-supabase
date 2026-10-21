@@ -489,7 +489,11 @@ running.
 ## Record sections
 
 A record page's [sections](/docs/blocks/records) have their own cache tags,
-so a write to one section keeps the others cached:
+so a write to one section keeps the others cached. The
+[generated features](/docs/blocks/records#generated-features) use them for
+you: `recordServer(bs, feature)` returns a `load(id, options?)` for Server
+Components and one Server Action per section write, each of which drops its
+section's tags.
 
 | Function                                        | Tag                                                                   |
 | ----------------------------------------------- | --------------------------------------------------------------------- |
