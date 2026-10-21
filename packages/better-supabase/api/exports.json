@@ -2924,6 +2924,153 @@
       "SolidController"
     ]
   },
+  "./blocks/access": {
+    "values": [
+      "accessBlock",
+      "batchPermissions",
+      "can",
+      "createAccess",
+      "createPermissionsController",
+      "dbTransport",
+      "permissionFlags",
+      "permissionMatches",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Access",
+      "AccessCallOptions",
+      "AccessOptions",
+      "BlockTransport",
+      "PermissionFlags",
+      "PermissionsActions",
+      "PermissionsController",
+      "PermissionsControllerOptions",
+      "PermissionSet",
+      "PermissionSource",
+      "PermissionsSnapshot"
+    ]
+  },
+  "./blocks/access/react": {
+    "values": [
+      "Can",
+      "usePermission",
+      "usePermissions"
+    ],
+    "types": [
+      "CanProps",
+      "PermissionSet",
+      "PermissionsState",
+      "UsePermissionsOptions"
+    ]
+  },
+  "./blocks/access/vue": {
+    "values": [
+      "usePermissions"
+    ],
+    "types": [
+      "BlockOptions",
+      "PermissionsActions",
+      "PermissionsControllerOptions",
+      "PermissionsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/access/svelte": {
+    "values": [
+      "usePermissions"
+    ],
+    "types": [
+      "BlockOptions",
+      "PermissionsActions",
+      "PermissionsControllerOptions",
+      "PermissionsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/access/solid": {
+    "values": [
+      "usePermissions"
+    ],
+    "types": [
+      "BlockOptions",
+      "PermissionsActions",
+      "PermissionsControllerOptions",
+      "PermissionsSnapshot",
+      "SolidController"
+    ]
+  },
+  "./blocks/subjects": {
+    "values": [
+      "batchSubjects",
+      "createSubjects",
+      "createSubjectsController",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport",
+      "SUBJECT_TITLES_LIMIT",
+      "subjectKey",
+      "subjectsBlock"
+    ],
+    "types": [
+      "BlockTransport",
+      "ResolvedSubject",
+      "SubjectRef",
+      "Subjects",
+      "SubjectsActions",
+      "SubjectsController",
+      "SubjectsControllerOptions",
+      "SubjectsOptions",
+      "SubjectsSnapshot"
+    ]
+  },
+  "./blocks/subjects/react": {
+    "values": [
+      "useSubject",
+      "useSubjects"
+    ],
+    "types": [
+      "ResolvedSubject",
+      "SubjectsState",
+      "SubjectState"
+    ]
+  },
+  "./blocks/subjects/vue": {
+    "values": [
+      "useSubjects"
+    ],
+    "types": [
+      "BlockOptions",
+      "SubjectsActions",
+      "SubjectsControllerOptions",
+      "SubjectsSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/subjects/svelte": {
+    "values": [
+      "useSubjects"
+    ],
+    "types": [
+      "BlockOptions",
+      "SubjectsActions",
+      "SubjectsControllerOptions",
+      "SubjectsSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/subjects/solid": {
+    "values": [
+      "useSubjects"
+    ],
+    "types": [
+      "BlockOptions",
+      "SolidController",
+      "SubjectsActions",
+      "SubjectsControllerOptions",
+      "SubjectsSnapshot"
+    ]
+  },
   "./blocks/api-keys": {
     "values": [
       "apiKeyChecksum",

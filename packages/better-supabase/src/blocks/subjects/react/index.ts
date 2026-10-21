@@ -76,6 +76,7 @@ export interface SubjectState {
   /** `undefined` while loading, `null` when the caller can't read it. */
   readonly subject: ResolvedSubject | null | undefined;
   readonly error: SubjectsSnapshot["error"];
+  readonly refresh: SubjectsActions["refresh"];
 }
 
 /**
@@ -83,7 +84,7 @@ export interface SubjectState {
  * `useSubjects` calls of the same render.
  */
 export function useSubject(ref: SubjectRef | null | undefined): SubjectState {
-  const { subjects, error, get } = useSubjects(ref ? [ref] : []);
+  const { subjects, error, get, refresh } = useSubjects(ref ? [ref] : []);
 
   return {
     subject:
@@ -93,5 +94,6 @@ export function useSubject(ref: SubjectRef | null | undefined): SubjectState {
           ? undefined
           : (get(ref) ?? null),
     error,
+    refresh,
   };
 }

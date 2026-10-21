@@ -633,16 +633,18 @@ describe("add <block>", () => {
     });
     const result = await run(["add", "outbox", "comments", "--cwd", dir]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Wired comments, outbox in lib/blocks.ts.");
+    expect(result.stdout).toContain(
+      "Wired access, comments, outbox in lib/blocks.ts.",
+    );
     expect(result.stdout).toContain(
       "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
     );
     const wiring = await readFile(join(dir, "lib/blocks.ts"), "utf-8");
     expect(wiring).toContain(
-      'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
+      'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { accessBlock } from "better-supabase/blocks/access";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
     );
     expect(wiring).toContain(
-      "      profiles: profilesBlock,\n      comments: commentsBlock,\n      outbox: outboxBlock,\n",
+      "      profiles: profilesBlock,\n      access: accessBlock,\n      comments: commentsBlock,\n      outbox: outboxBlock,\n",
     );
     expect(
       JSON.parse(

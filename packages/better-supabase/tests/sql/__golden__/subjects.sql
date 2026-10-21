@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -57,6 +57,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_url"(text, text) from public, anon;
 grant execute on function "better_supabase"."subject_url"(text, text) to authenticated, service_role;
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function "better_supabase"."subject_titles"(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > 500 then
+    raise exception 'subject_titles takes at most 500 refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+revoke execute on function "better_supabase"."subject_titles"(jsonb) from public, anon;
+grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
@@ -135,7 +167,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -191,6 +223,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_url"(text, text) from public, anon;
 grant execute on function "better_supabase"."subject_url"(text, text) to authenticated, service_role;
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function "better_supabase"."subject_titles"(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > 500 then
+    raise exception 'subject_titles takes at most 500 refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+revoke execute on function "better_supabase"."subject_titles"(jsonb) from public, anon;
+grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
@@ -269,7 +333,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -327,6 +391,38 @@ end;
 $$;
 revoke execute on function "app_private"."subject_url"(text, text) from public, anon;
 grant execute on function "app_private"."subject_url"(text, text) to authenticated, service_role;
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function "app_private"."subject_titles"(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > 500 then
+    raise exception 'subject_titles takes at most 500 refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+revoke execute on function "app_private"."subject_titles"(jsonb) from public, anon;
+grant execute on function "app_private"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
@@ -405,7 +501,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_65_subjects.sql
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -461,6 +557,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_url"(text, text) from public, anon;
 grant execute on function "better_supabase"."subject_url"(text, text) to authenticated, service_role;
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function "better_supabase"."subject_titles"(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > 500 then
+    raise exception 'subject_titles takes at most 500 refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+revoke execute on function "better_supabase"."subject_titles"(jsonb) from public, anon;
+grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
@@ -541,6 +669,15 @@ set search_path = ''
 as $$ select "better_supabase"."subject_url"($1, $2) $$;
 revoke execute on function "api"."subject_url"(text, text) from public, anon;
 grant execute on function "api"."subject_url"(text, text) to authenticated, service_role;
+
+create or replace function "api"."subject_titles"(refs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_titles"($1) $$;
+revoke execute on function "api"."subject_titles"(jsonb) from public, anon;
+grant execute on function "api"."subject_titles"(jsonb) to authenticated, service_role;
 
 create or replace function "api"."can_subject"(subject_type text, subject_id text, action text)
 returns boolean
