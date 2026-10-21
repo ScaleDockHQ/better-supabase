@@ -67,3 +67,5 @@ add one, and link it from the code or config it explains.
 | [0059](0059-diff-inside-the-running-stack.md)             | db diff falls back to a diff inside the running stack when the shadow database cannot start; stack ls and prune free segments  |
 | [0060](0060-typed-block-config-and-entity-names.md)       | Blocks rename their entities per block, with typed config keys and automatic subjects                                          |
 | [0061](0061-generated-block-helpers.md)                   | gen writes typed block helpers; zod, valibot, nuqs, TanStack Query and oRPC stay optional peers                                |
+| [0062](0062-messaging-core-and-breaking-moves.md)         | One messaging core; channels first, then comments and the inbox move onto it (breaking)                                        |
+| [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                          |
