@@ -12,6 +12,8 @@ export * from "./design-history.ts";
 
 export * from "./design-subject.ts";
 
+export * from "./design-issues.ts";
+
 export * from "./design.ts";
 
 export * from "./preview-provider.ts";

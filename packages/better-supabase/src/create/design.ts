@@ -9,11 +9,10 @@ import {
   type AppColumnFormat,
   appDefaultError,
   appIdentifierError,
-  appNameLengthError,
   appReservedColumns,
   type Preset,
 } from "../preset/index.ts";
-import { columnLabel, fitted, lockedWithoutDefault } from "./column-keys.ts";
+import { columnLabel, fitted } from "./column-keys.ts";
 import {
   type AppLookup,
   type AppRollup,
@@ -22,6 +21,7 @@ import {
   computedTableRenamed,
   prunedComputed,
 } from "./design-computed.ts";
+import { AUTH_USERS, scopeColumnOf } from "./design-scope.ts";
 import {
   type AppEvents,
   type AppSubject,
@@ -114,40 +114,6 @@ export function isEmptyDesign(design: Design): boolean {
     Object.keys(design.extraColumns ?? {}).length === 0 &&
     Object.keys(design.positions ?? {}).length === 0
   );
-}
-
-/** The column that scopes an app table's rows, or `null` for `scope: "none"` and unscoped presets. */
-function scopeColumnOf(
-  table: AppTable,
-  preset: Pick<Preset, "scope" | "tenantName" | "idType">,
-): SchemaColumn | null {
-  const scope = table.scope ?? "inherit";
-
-  if (scope === "none") {
-    return null;
-  }
-
-  if (scope === "inherit" && preset.scope === "tenant") {
-    return {
-      name: `${preset.tenantName}_id`,
-      type: preset.idType,
-      nullable: false,
-      default: null,
-      unique: false,
-    };
-  }
-
-  if (scope === "user" || preset.scope === "user") {
-    return {
-      name: "user_id",
-      type: "uuid",
-      nullable: false,
-      default: "auth.uid()",
-      unique: false,
-    };
-  }
-
-  return null;
 }
 
 /** Why `name` can't name an app table or column, by the library's rules. */
@@ -712,8 +678,6 @@ export function singular(name: string): string {
   return name;
 }
 
-const AUTH_USERS = "auth.users";
-
 /** The column types a foreign key can point at, from the target's primary key type. */
 function referenceType(type: string): AppColumnType | undefined {
   const normal = type.toLowerCase();
@@ -900,182 +864,6 @@ export function referenceFrom(
       },
     }),
   };
-}
-
-export interface DesignIssue {
-  /** The app table or block module the issue is on. */
-  readonly table: string;
-  readonly message: string;
-}
-
-/**
- * What would stop `sql sync` from writing the design: a table name a block
- * already uses, a reference to a table the preset no longer installs, a
- * set-null delete on a required column, a composite key on a column the
- * table doesn't have, and extra columns for a block that is gone or no
- * longer takes them.
- */
-export function designIssues(
-  design: Design,
-  data: SchemaData,
-  preset: Pick<Preset, "scope" | "tenantName" | "idType">,
-): readonly DesignIssue[] {
-  const issues: DesignIssue[] = [];
-
-  const names = new Set(
-    data.tables
-      .filter((table) => !isAppTable(table))
-      .map((table) => table.name),
-  );
-
-  const logical = new Set(
-    Object.values(data.blockTables).map(
-      (each) => `${each.block}.${each.table}`,
-    ),
-  );
-
-  const modules = new Set(
-    data.tables
-      .filter((table) => data.extraColumns.includes(table.id))
-      .map((table) => table.module),
-  );
-
-  const subjectTypes = new Map<string, string>();
-
-  for (const [name, table] of Object.entries(design.appTables ?? {})) {
-    const type = table.subject?.type;
-
-    if (type !== undefined && !subjectTypes.has(type)) {
-      subjectTypes.set(type, name);
-    }
-  }
-
-  for (const [name, table] of Object.entries(design.appTables ?? {})) {
-    const invalid = identifierError(name);
-
-    if (invalid !== undefined) {
-      issues.push({
-        table: name,
-        message: `The name ${name} is invalid. ${invalid}`,
-      });
-    }
-
-    if (names.has(name)) {
-      issues.push({
-        table: name,
-        message: `A block already creates a ${name} table. Rename this one.`,
-      });
-    }
-
-    const long = appNameLengthError(name, table);
-
-    if (long !== undefined) {
-      issues.push({ table: name, message: `${long}.` });
-    }
-
-    const type = table.subject?.type;
-
-    if (type !== undefined && subjectTypes.get(type) !== name) {
-      issues.push({
-        table: name,
-        message: `${subjectTypes.get(type)} already has the subject type ${type}. Choose another.`,
-      });
-    }
-
-    for (const [column, config] of Object.entries(table.columns ?? {})) {
-      const fallback =
-        config.default === undefined
-          ? undefined
-          : defaultError(config, config.default);
-
-      if (fallback !== undefined) {
-        issues.push({ table: name, message: `${name}.${column}: ${fallback}` });
-      }
-
-      if (lockedWithoutDefault(config)) {
-        issues.push({
-          table: name,
-          message: `${name}.${column} is required, and signed-in users can't write it, so give it a default.`,
-        });
-      }
-    }
-
-    for (const column of subjectColumns(table.subject)) {
-      if (Object.hasOwn(table.columns ?? {}, column.name)) {
-        issues.push({
-          table: name,
-          message: `${name}.${column.name} clashes with the column its record features add. Rename it.`,
-        });
-      }
-    }
-
-    const known = new Set([
-      "id",
-      ...Object.keys(table.columns ?? {}),
-      ...(table.timestamps === false ? [] : ["created_at", "updated_at"]),
-    ]);
-
-    const scope = scopeColumnOf(table, preset);
-
-    if (scope !== null) {
-      known.add(scope.name);
-    }
-
-    for (const [key, sets] of [
-      ["unique key", table.unique],
-      ["index", table.indexes],
-    ] as const) {
-      for (const columns of sets ?? []) {
-        const gone = columns.filter((column) => !known.has(column));
-
-        if (gone.length > 0) {
-          issues.push({
-            table: name,
-            message: `The ${key} on ${columns.join(", ")} names ${gone.join(", ")}, which ${name} doesn't have.`,
-          });
-        }
-      }
-    }
-
-    for (const [column, config] of Object.entries(table.columns ?? {})) {
-      const reference = config.references;
-
-      if (reference === undefined) {
-        continue;
-      }
-
-      const missing =
-        reference.block === undefined
-          ? reference.table !== AUTH_USERS &&
-            design.appTables?.[reference.table] === undefined
-          : !logical.has(`${reference.block}.${reference.table}`);
-
-      if (missing) {
-        issues.push({
-          table: name,
-          message: `${name}.${column} references ${reference.block === undefined ? reference.table : `${reference.block}.${reference.table}`}, which the preset does not install.`,
-        });
-      }
-
-      if (reference.onDelete === "set null" && config.nullable === false) {
-        issues.push({
-          table: name,
-          message: `${name}.${column} is required, so deleting the row it references can't set it to null.`,
-        });
-      }
-    }
-  }
-
-  for (const block of Object.keys(design.extraColumns ?? {})) {
-    if (!modules.has(block)) {
-      issues.push({
-        table: block,
-        message: `The extra columns for ${block} have no table: the block is not installed or takes no extra columns.`,
-      });
-    }
-  }
-
-  return issues;
 }
 
 function appColumn(name: string, column: AppColumn): SchemaColumn {

@@ -33,22 +33,47 @@ import { checkDesign } from "better-supabase/create";
 const check = await checkDesign(body.design, body.preset);
 
 if (check.ok) {
-  // check.code is null when the design is too long for a URL
-  save(check.design, check.code);
+  if (check.fitsUrl) {
+    save(check.design, check.code);
+  } else {
+    offerDesignFile(check.design);
+  }
 } else {
   console.log(check.issues);
-  // [{ table: "profiles", message: "A block already creates a profiles table. Rename this one." }]
+  // [{ code: "table_name_taken", path: "/appTables/profiles",
+  //    table: "profiles", message: "A block already creates a profiles table. Rename this one." }]
 }
 ```
 
-It never throws for a bad design or preset. Each problem is an issue with the
-`table` it is on, or `design` or `preset` for one outside a table: a design
-that doesn't parse, a preset that can't install, extra columns on a block the
-preset doesn't install, a table name a block already uses, or a reference to a
-block table the preset doesn't install. On success, `design` has its empty
-parts dropped and `code` is its `encodeDesign` code, or `null` when it would
-pass the URL limit; offer the [design file](/docs/presets/codes#design-files)
-then.
+It never throws for a bad design or preset. Each problem is an issue with a
+stable `code`, a `path`, the `table` it is on (or `design` or `preset` for one
+outside a table) and a `message`: a design that doesn't parse, a preset that
+can't install, extra columns on a block the preset doesn't install, a table
+name a block already uses, or a reference to a block table the preset doesn't
+install. `path` is a [JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901)
+into the design, such as `/appTables/tasks/columns/title`, so a form can mark
+the field; it is `""` for an issue with the preset. A design that doesn't
+parse carries a [`DesignErrorCode`](/docs/presets/codes#designs); the
+rules that need the preset add these codes:
+
+| Code                 | What it means                                                       |
+| -------------------- | ------------------------------------------------------------------- |
+| `table_name_taken`   | a block already creates a table with this name                      |
+| `name_too_long`      | a table name too long for the names Postgres derives from it        |
+| `subject_type_taken` | another app table already has this subject type                     |
+| `invalid_default`    | a column default its type doesn't accept                            |
+| `default_required`   | a required column signed-in users can't write, with no default      |
+| `column_clash`       | a column that clashes with one its record features add              |
+| `unknown_column`     | a unique key or index naming a column the table doesn't have        |
+| `missing_reference`  | a reference to a table the preset doesn't install                   |
+| `set_null_required`  | a set-null delete on a required column                              |
+| `preset_conflict`    | a conflict in the preset itself, such as a block that needs tenants |
+| `invalid_preset`     | a preset that isn't a preset name, code or object                   |
+
+On success, `design` has its empty parts dropped and `fitsUrl` says whether
+its code fits in a `/create` URL. `code` is its `encodeDesign` code, and
+`null` only when `fitsUrl` is false; offer the
+[design file](/docs/presets/codes#design-files) then.
 
 To check only the shape of an untrusted payload, without a preset, use
 `parseDesign` from `better-supabase/preset`.

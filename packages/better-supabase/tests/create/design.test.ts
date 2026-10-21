@@ -571,6 +571,8 @@ describe("column keys", () => {
 
     expect(designIssues(design, data, preset)).toEqual([
       {
+        code: "unknown_column",
+        path: "/appTables/projects/unique/0",
         table: "projects",
         message: expect.stringMatching(/missing/u),
       },
