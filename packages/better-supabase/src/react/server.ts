@@ -3,6 +3,11 @@ import type { AuthSession } from "../auth/view.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
 import type {
+  useBlockEvent as clientUseBlockEvent,
+  useBlockMutation as clientUseBlockMutation,
+  useBlockQuery as clientUseBlockQuery,
+} from "./block-hooks.ts";
+import type {
   ActionForm,
   ActionHandle,
   ActionInputOf,
@@ -163,6 +168,24 @@ export const useSignIn: typeof clientUseSignIn = clientOnly("useSignIn");
  * a Server Action.
  */
 export const useSignOut: typeof clientUseSignOut = clientOnly("useSignOut");
+
+/**
+ * The `react-server` build of `useBlockQuery`: call the block method and await
+ * it instead.
+ */
+export const useBlockQuery: typeof clientUseBlockQuery =
+  clientOnly("useBlockQuery");
+
+/**
+ * The `react-server` build of `useBlockMutation`: call the block method from a
+ * Server Action instead.
+ */
+export const useBlockMutation: typeof clientUseBlockMutation =
+  clientOnly("useBlockMutation");
+
+/** The `react-server` build of `useBlockEvent`: listen from a Client Component. */
+export const useBlockEvent: typeof clientUseBlockEvent =
+  clientOnly("useBlockEvent");
 
 /**
  * The `react-server` build of `useDebouncedSearch`: read the term from
