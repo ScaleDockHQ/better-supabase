@@ -31,6 +31,7 @@ again once you restore it.
 
 ```ts
 import { defineSeed } from "better-supabase/testing";
+
 import { betterSupabase } from "../src/lib/supabase/index.ts";
 
 export const seed = defineSeed(betterSupabase, {

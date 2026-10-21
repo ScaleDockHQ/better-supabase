@@ -9,7 +9,7 @@
 - Revert unrelated regenerated output, such as a version header that a
   generator rewrote, instead of committing it.
 - Oxfmt keeps Markdown and MDX line breaks as written (`proseWrap:
-"preserve"`); don't rewrap a paragraph you didn't change.
+  "preserve"`); don't rewrap a paragraph you didn't change.
 - Generated files (`database.types.ts`, `generated*.ts`, `api/exports.json`)
   are in the Oxfmt and Oxlint ignore lists. Regenerate them; never format
   them by hand.
