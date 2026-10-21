@@ -4,6 +4,8 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { createComments } from "../../../src/blocks/comments/index.ts";
 import { fieldsTransport } from "../fields-transport.ts";
 
+const PROJECT = { type: "project", id: "p1" };
+
 const ROW = {
   id: "c1",
   organization_id: "org-1",
@@ -29,16 +31,14 @@ describe("comments fields", () => {
       list_comments: () => [ROW, ROW],
     });
 
-    const comments = createComments({ transport: t, fields: Fields });
+    const comments = createComments({
+      transport: t,
+      fields: Fields,
+      tenant: "org-1",
+    });
 
     const created = await comments
-      .create({
-        organizationId: "org-1",
-        subjectType: "project",
-        subjectId: "p1",
-        body: "Hello",
-        fields: { visibility: "internal" },
-      })
+      .create(PROJECT, { body: "Hello", fields: { visibility: "internal" } })
       .orThrow();
 
     expectTypeOf(created.fields.visibility).toEqualTypeOf<
@@ -50,7 +50,7 @@ describe("comments fields", () => {
       .edit("c1", { body: "Changed", fields: { visibility: "customer" } })
       .orThrow();
     expect(t.calls[1]?.[1]["fields"]).toEqual({ visibility: "customer" });
-    const list = await comments.list("org-1", "project", "p1").orThrow();
+    const list = await comments.list(PROJECT).orThrow();
     expect(list.map((comment) => comment.fields.visibility)).toEqual([
       "internal",
       "internal",
@@ -59,13 +59,8 @@ describe("comments fields", () => {
 
   it("leaves fields out of a write that sets none", async () => {
     const t = fieldsTransport({ create_comment: () => ROW });
-    await createComments({ transport: t })
-      .create({
-        organizationId: "org-1",
-        subjectType: "project",
-        subjectId: "p1",
-        body: "Hello",
-      })
+    await createComments({ transport: t, tenant: "org-1" })
+      .create(PROJECT, { body: "Hello" })
       .orThrow();
     expect(t.calls[0]?.[1]["fields"]).toBeUndefined();
   });
@@ -75,7 +70,11 @@ describe("comments fields", () => {
       list_comments: () => [{ ...ROW, fields: { visibility: "public" } }],
     });
 
-    const comments = createComments({ transport: t, fields: Fields });
+    const comments = createComments({
+      transport: t,
+      fields: Fields,
+      tenant: "org-1",
+    });
 
     const edited = await comments.edit("c1", {
       body: "Changed",
@@ -84,7 +83,7 @@ describe("comments fields", () => {
 
     expect(edited.ok ? undefined : edited.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
-    const listed = await comments.list("org-1", "project", "p1");
+    const listed = await comments.list(PROJECT);
     expect(listed.ok ? undefined : listed.error.kind).toBe("validation");
   });
 });

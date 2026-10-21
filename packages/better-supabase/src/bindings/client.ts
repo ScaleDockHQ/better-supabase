@@ -2,8 +2,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
+import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { AuthSnapshot, ClientAuth } from "../client/index.ts";
 import type { ClientPorts } from "../client/ports.ts";
+import type { BlockTenant } from "../core/block-tenant.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type {
@@ -40,6 +42,10 @@ export interface ClientLike {
   readonly queries: object;
   /** The platform services block controllers use; see `ClientPorts`. */
   readonly ports?: ClientPorts;
+  /** `blockConfig` from `blocks.generated.ts`, for the block hooks. */
+  readonly blocks?: GeneratedBlocks;
+  /** The tenant block hooks act in; default the session's tenant claim. */
+  readonly tenant?: BlockTenant;
 }
 
 /** A value that changes, read with `current()` and watched with `subscribe()`. */

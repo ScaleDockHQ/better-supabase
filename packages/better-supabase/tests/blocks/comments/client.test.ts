@@ -15,12 +15,14 @@ import {
   USER,
 } from "../../fixtures/ports.ts";
 
+const CUSTOMER = { type: "customer", id: "cu1" };
+
 const comment = (id: string, body = id): Comment => ({
   id,
   organizationId: "org-1",
-  subjectType: "customer",
-  subjectId: "cu1",
+  subject: CUSTOMER,
   authorId: USER,
+  author: undefined,
   body,
   document: null,
   mentions: [],
@@ -32,7 +34,10 @@ const comment = (id: string, body = id): Comment => ({
 });
 
 function setup(
-  options: { topic?: string | null; organizationId?: string | null } = {},
+  options: {
+    topic?: string | null;
+    subject?: { type: string; id: string } | null;
+  } = {},
 ) {
   const topic = fakeTopic();
   const auth = fakeAuth();
@@ -45,10 +50,7 @@ function setup(
     client: { list, create, edit, remove },
     auth,
     ports: { topic: topic.port },
-    organizationId:
-      options.organizationId === undefined ? "org-1" : options.organizationId,
-    subjectType: "customer",
-    subjectId: "cu1",
+    subject: options.subject === undefined ? CUSTOMER : options.subject,
     limit: 20,
     ...(options.topic === undefined ? {} : { topic: options.topic }),
   });
@@ -61,17 +63,12 @@ describe("createCommentsController", () => {
     const { list, create, edit, remove, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(list).toHaveBeenCalledWith("org-1", "customer", "cu1", {
-      limit: 20,
-    });
+    expect(list).toHaveBeenCalledWith(CUSTOMER, { limit: 20 });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1"]);
 
     expect((await view().add("New", { parentId: "c1" })).ok).toBe(true);
-    expect(create).toHaveBeenCalledWith({
+    expect(create).toHaveBeenCalledWith(CUSTOMER, {
       parentId: "c1",
-      organizationId: "org-1",
-      subjectType: "customer",
-      subjectId: "cu1",
       body: "New",
     });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1", "c2"]);
@@ -119,8 +116,8 @@ describe("createCommentsController", () => {
     unmount();
   });
 
-  it("waits without an organization", async () => {
-    const { list, create, controller } = setup({ organizationId: null });
+  it("waits without a subject", async () => {
+    const { list, create, controller } = setup({ subject: null });
     const { view, unmount } = mount(controller);
     await flush();
     await view().refresh();

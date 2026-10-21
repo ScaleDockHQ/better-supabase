@@ -1,10 +1,13 @@
 export {
   BLOCK_EVENT_SOURCE,
+  createBlockClient,
   createBlocks,
   defineBlocks,
 } from "./create-blocks.ts";
 
 export type {
+  BlockClientOptions,
+  BlockClientSource,
   BlockContext,
   BlockMap,
   Blocks,
@@ -36,6 +39,12 @@ export type {
 export { fillTopic, generatedOptions } from "./block-config.ts";
 
 export { entityNames } from "../core/entity-naming.ts";
+
+export { subjectKey } from "../core/block-subjects.ts";
+
+export type { BlockTenant, BlockTenantOptions } from "../core/block-tenant.ts";
+
+export type { SubjectRef } from "../schema/types.ts";
 
 export type {
   EntityNames,

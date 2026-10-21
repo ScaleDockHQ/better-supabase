@@ -10,16 +10,13 @@ const FIELDS = {
 } as const;
 
 /**
- * What `create` takes. The body's length limit is `options.maxBody`, so the SQL
- * checks it.
+ * What `create` takes after the subject. The body's length limit is
+ * `options.maxBody`, so the SQL checks it.
  */
 export const commentInputSchema: EntitySchema<NewComment> =
   entitySchema<NewComment>({
     title: "NewComment",
     fields: {
-      organizationId: { kind: "uuid" },
-      subjectType: { kind: "string", minLength: 1 },
-      subjectId: { kind: "string", minLength: 1, maxLength: 200 },
       body: { kind: "string", minLength: 1 },
       document: {
         kind: "unknown",

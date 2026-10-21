@@ -2,6 +2,7 @@ import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { SubscriptionStatus } from "../../realtime/index.ts";
 import type { TopicPort } from "../../realtime/watch-topic.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Comment, CommentEdit, Comments, NewComment } from "./comments.ts";
 
@@ -13,10 +14,8 @@ export interface CommentsControllerOptions {
   readonly client: Pick<Comments, "list" | "create" | "edit" | "remove">;
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
-  /** The organization; the thread waits without one. */
-  readonly organizationId: string | null;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  /** The subject whose thread to follow; the thread waits without one. */
+  readonly subject: SubjectRef | null;
   /**
    * A private topic that hears of new comments on the subject, such as a
    * `realtime-tables` topic on the comments table. Each message loads the
@@ -67,7 +66,7 @@ export type CommentsController = Controller<CommentsSnapshot, CommentsActions>;
 export function createCommentsController(
   options: CommentsControllerOptions,
 ): CommentsController {
-  const { client, organizationId, subjectType, subjectId } = options;
+  const { client, subject } = options;
   const topic = options.topic ?? null;
 
   return defineController<CommentsSnapshot, CommentsActions>(
@@ -76,7 +75,7 @@ export function createCommentsController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) {
+        if (subject === null) {
           return;
         }
 
@@ -84,9 +83,7 @@ export function createCommentsController(
         const request = ticket;
 
         const result = await client.list(
-          organizationId,
-          subjectType,
-          subjectId,
+          subject,
           options.limit === undefined ? {} : { limit: options.limit },
         );
 
@@ -122,17 +119,11 @@ export function createCommentsController(
         actions: {
           refresh,
           add: async (body, draft = {}) => {
-            if (organizationId === null) {
-              return err(dbError("invalid_input", "No organization is active"));
+            if (subject === null) {
+              return err(dbError("invalid_input", "No subject is open"));
             }
 
-            const result = await client.create({
-              ...draft,
-              organizationId,
-              subjectType,
-              subjectId,
-              body,
-            });
+            const result = await client.create(subject, { ...draft, body });
 
             if (result.ok) {
               replace(result.data);
@@ -166,7 +157,7 @@ export function createCommentsController(
           },
         },
         start: () =>
-          organizationId === null
+          subject === null
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();

@@ -37,6 +37,10 @@ export {
   bigintOf,
 } from "../core/block-helpers.ts";
 
+export type { BlockTenantOptions } from "../core/block-tenant.ts";
+
+export type { SubjectRef } from "../schema/types.ts";
+
 export type {
   BlockCall,
   BlockOptions,

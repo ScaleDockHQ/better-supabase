@@ -3601,18 +3601,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "input": {
             "title": "NewComment",
             "fields": {
-              "organizationId": {
-                "kind": "uuid"
-              },
-              "subjectType": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "subjectId": {
-                "kind": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
               "body": {
                 "kind": "string",
                 "minLength": 1
@@ -3642,19 +3630,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "NewComment",
               "type": "object",
               "properties": {
-                "organizationId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "subjectType": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "subjectId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
                 "body": {
                   "type": "string",
                   "minLength": 1
@@ -3678,9 +3653,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 }
               },
               "required": [
-                "organizationId",
-                "subjectType",
-                "subjectId",
                 "body"
               ],
               "additionalProperties": false

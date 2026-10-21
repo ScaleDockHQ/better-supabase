@@ -10,6 +10,7 @@ import type {
 import type { BlockOptions } from "../core/block-helpers.ts";
 import type { BlockHooks } from "../core/block-hooks.ts";
 import type { BlockNaming } from "../core/block-names.ts";
+import type { DbTransportSource } from "../core/block-transport.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
@@ -21,6 +22,7 @@ import { onBlockEvent } from "../core/block-event-listener.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
 import { blockNames } from "../core/block-names.ts";
+import { dbTransport } from "../core/block-transport.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
 
@@ -52,6 +54,22 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
    * per request.
    */
   readonly audit?: EventSink;
+}
+
+/** The part of a `Db` that `createBlockClient` reads. */
+export interface BlockClientSource extends DbTransportSource {
+  readonly $context?: { readonly tenant?: string | undefined };
+}
+
+/** Options for `createBlockClient` and `BlockSet.client`. */
+export interface BlockClientOptions extends Omit<
+  CreateBlocksOptions,
+  "transport" | "audit" | "config"
+> {
+  /** Default `dbTransport(db)`. */
+  readonly transport?: BlockContext["transport"];
+  /** `blockConfig` from `blocks.generated.ts`; `BlockSet.client` passes it. */
+  readonly config?: GeneratedBlocks;
 }
 
 /** Blocks keyed by the name the app gives each one. */
@@ -118,6 +136,24 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
       readonly hooks?: BlocksHooks<B>;
     },
   ): Blocks<B>;
+  /**
+   * One block's client over a `Db`, built with the generated config: its calls
+   * run through `dbTransport(db)` and act in the `Db`'s tenant
+   * (`db.$context.tenant`) unless `options.tenant` names one. The blocks it
+   * consumes ports from are built on demand.
+   *
+   * ```ts
+   * const comments = blockSet.client(ctx.db, "comments");
+   * await comments.list({ type: "customer", id });
+   * ```
+   */
+  client<const K extends CreatedKeys<B>>(
+    db: BlockClientSource,
+    key: K,
+    options?: BlockClientOptions & {
+      readonly hooks?: BlockHooks<ClientOf<B[K]>>;
+    },
+  ): ClientOf<B[K]>;
   /** `onBlockEvent` typed by these blocks' events and the app's. */
   on<const P extends BlockEventPattern<M>>(
     betterSupabase: { readonly events: EventHub },
@@ -158,6 +194,11 @@ export function defineBlocks<
     config,
     events,
     create: (options) => buildBlocks({ ...options, config }, blocks),
+    client: (db, key, options = {}) =>
+      // SAFETY: `build(key)` returns the client of the block under `key`.
+      blockBuilder(clientContext(db, { config, ...options }), blocks).build(
+        String(key),
+      ) as never,
     on: (betterSupabase, pattern, handler) =>
       onBlockEvent(betterSupabase, events, pattern, handler),
   };
@@ -180,6 +221,51 @@ export function createBlocks<const B extends BlockMap>(
   blocks: B,
 ): Blocks<B> {
   return buildBlocks(options, blocks);
+}
+
+/**
+ * One block's client over a `Db`: its calls run through `dbTransport(db)` and
+ * act in the `Db`'s tenant (`db.$context.tenant`) unless `options.tenant` names
+ * one. Pass `config: blockConfig` so it calls the schema and function names
+ * `gen` wrote; `BlockSet.client(db, key)` does that for you.
+ *
+ * ```ts
+ * const comments = createBlockClient(ctx.db, commentsBlock, {
+ *   config: blockConfig,
+ * });
+ * ```
+ */
+export function createBlockClient<const B extends AnyBlock>(
+  db: BlockClientSource,
+  block: B,
+  options: BlockClientOptions & {
+    readonly hooks?: NoInfer<BlockHooks<ClientOf<B>>>;
+  } = {},
+): ClientOf<B> {
+  const { hooks, ...rest } = options;
+
+  // SAFETY: `build` returns the client of the one block passed under its name.
+  return blockBuilder(
+    {
+      ...clientContext(db, rest),
+      ...(hooks === undefined ? {} : { hooks: { [block.name]: hooks } }),
+    },
+    { [block.name]: block },
+  ).build(block.name) as ClientOf<B>;
+}
+
+function clientContext(
+  db: BlockClientSource,
+  options: BlockClientOptions & { readonly hooks?: object },
+): CreateBlocksOptions & { readonly hooks?: object } {
+  const { hooks, ...rest } = options;
+
+  return {
+    tenant: () => db.$context?.tenant,
+    ...rest,
+    transport: rest.transport ?? dbTransport(db),
+    ...(hooks === undefined ? {} : { hooks }),
+  };
 }
 
 const UNIQUE_PORTS: readonly Exclude<PortName, "sink">[] = [
@@ -205,15 +291,20 @@ function hooksOf(
   return isRecord(entry) ? entry : undefined;
 }
 
-function buildBlocks<B extends BlockMap>(
-  options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
-  blocks: B,
-): Blocks<B> {
-  const { audit, hooks, config, ...shared } = options;
+interface BlockBuilder {
+  readonly build: (key: string) => unknown;
+  readonly portOf: <P extends PortName>(
+    key: string,
+    port: P,
+  ) => BlockPorts[P] | undefined;
+}
 
-  if (audit !== undefined && shared.events === undefined) {
-    throw new TypeError("createBlocks: `audit` needs `events` to forward");
-  }
+/** Builds the blocks of `blocks` on demand, each one once, wired on ports. */
+function blockBuilder(
+  options: CreateBlocksOptions & { readonly hooks?: object },
+  blocks: BlockMap,
+): BlockBuilder {
+  const { audit: _audit, hooks, config, ...shared } = options;
 
   const providers = new Map<string, string>();
 
@@ -374,6 +465,20 @@ function buildBlocks<B extends BlockMap>(
     }
   }
 
+  return { build, portOf };
+}
+
+function buildBlocks<B extends BlockMap>(
+  options: CreateBlocksOptions & { readonly hooks?: BlocksHooks<B> },
+  blocks: B,
+): Blocks<B> {
+  const { audit, events } = options;
+
+  if (audit !== undefined && events === undefined) {
+    throw new TypeError("createBlocks: `audit` needs `events` to forward");
+  }
+
+  const { build, portOf } = blockBuilder(options, blocks);
   const result: Record<string, unknown> = {};
   const sinks: Record<string, EventSink> = {};
 
@@ -393,11 +498,9 @@ function buildBlocks<B extends BlockMap>(
   result["sinks"] = sinks;
 
   const stop =
-    audit === undefined || shared.events === undefined
+    audit === undefined || events === undefined
       ? undefined
-      : forwardBlockEvents({ events: shared.events }, audit, {
-          source: BLOCK_EVENT_SOURCE,
-        });
+      : forwardBlockEvents({ events }, audit, { source: BLOCK_EVENT_SOURCE });
 
   result["close"] = () => stop?.();
 
