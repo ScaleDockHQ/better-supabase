@@ -438,6 +438,98 @@ export const RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "channel-sidebar",
+    title: "Channel sidebar",
+    blocks: ["channels", "messaging"],
+    kind: "component",
+    description:
+      "The caller's channels with unread and mention counts, kept live, with dialogs to browse, join and create channels.",
+    hook: {
+      name: "useConversations",
+      entry: "better-supabase/blocks/messaging/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/chat/components/channel-sidebar.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "label",
+        "scroll-area",
+        "skeleton",
+        "switch",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "message-list",
+    title: "Message list",
+    blocks: ["messaging", "channels"],
+    kind: "component",
+    description:
+      "A conversation's messages over Realtime, with older pages on demand, who is typing, reply counts and the composer.",
+    hook: {
+      name: "useMessages",
+      entry: "better-supabase/blocks/messaging/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/chat/components/message-list.tsx`,
+      components: [
+        "alert",
+        "button",
+        "card",
+        "empty",
+        "scroll-area",
+        "skeleton",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "message-composer",
+    title: "Message composer",
+    blocks: ["messaging", "attachments"],
+    kind: "component",
+    description:
+      "A message box that sends on Enter, signals typing, and uploads dropped, pasted or picked files onto the message.",
+    web: {
+      file: `${WEB_APP}/src/features/chat/components/message-composer.tsx`,
+      components: ["badge", "button", "label", "spinner", "textarea"],
+      glue: [],
+    },
+  },
+  {
+    slug: "thread-panel",
+    title: "Thread panel",
+    blocks: ["messaging", "channels"],
+    kind: "component",
+    description:
+      "A thread beside the channel: the root message, its replies live over Realtime, and a composer that replies into it.",
+    hook: {
+      name: "useMessages",
+      entry: "better-supabase/blocks/messaging/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/chat/components/thread-panel.tsx`,
+      components: [
+        "alert",
+        "button",
+        "card",
+        "empty",
+        "scroll-area",
+        "separator",
+        "skeleton",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "workspace-url-field",
     title: "Workspace URL field",
     blocks: ["organizations", "reserved-slugs"],

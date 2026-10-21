@@ -1,0 +1,242 @@
+// #region recipe:message-composer
+"use client";
+
+import type { Result } from "better-supabase";
+import type { MessageDraft } from "better-supabase/blocks/messaging/react";
+import type { DragEvent, Ref } from "react";
+
+import { useAction } from "better-supabase/react";
+import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useId, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { useSupabase } from "@/lib/hooks";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { confirmChatUpload, startChatUpload } from "../chat-actions";
+
+interface PendingFile {
+  readonly key: string;
+  readonly name: string;
+  /** Set once the bytes are uploaded and confirmed. */
+  readonly id: string | null;
+}
+
+/** How often a held key press tells the others the caller is typing. */
+const TYPING_EVERY_MS = 2000;
+
+/**
+ * Writes a message with files: drop them on the box, paste them, or pick them.
+ * Each file uploads to the conversation first; `send` moves it onto the
+ * message.
+ */
+export function MessageComposer({
+  conversationId,
+  placeholder,
+  inputRef,
+  onSend,
+  onTyping,
+}: {
+  conversationId: string;
+  placeholder: string;
+  inputRef?: Ref<HTMLTextAreaElement>;
+  onSend: (body: string, draft: MessageDraft) => Promise<Result<unknown>>;
+  onTyping: (typing: boolean) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const supabase = useSupabase();
+  const bodyId = useId();
+  const picker = useRef<HTMLInputElement>(null);
+  const lastPing = useRef(0);
+  const [body, setBody] = useState("");
+  const [files, setFiles] = useState<readonly PendingFile[]>([]);
+  const [sending, setSending] = useState(false);
+
+  const start = useAction(startChatUpload);
+  const confirm = useAction(confirmChatUpload);
+
+  const uploading = files.some((file) => file.id === null);
+
+  const drop = (key: string) => {
+    setFiles((current) => current.filter((file) => file.key !== key));
+  };
+
+  const upload = async (file: File) => {
+    const key = crypto.randomUUID();
+    setFiles((current) => [...current, { key, name: file.name, id: null }]);
+
+    const started = await start.run({
+      conversationId,
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+    });
+
+    if (!started.ok) {
+      drop(key);
+      toast.error(errorMessage(started.error));
+
+      return;
+    }
+
+    const { id, bucket, path, token } = started.data;
+
+    const sent = await supabase.storage
+      .from(bucket)
+      .uploadToSignedUrl(path, token, file, { contentType: file.type });
+
+    const confirmed = sent.error ? undefined : await confirm.run({ id });
+
+    if (!confirmed?.ok) {
+      drop(key);
+      toast.error(t("{name} did not upload. Try again.", { name: file.name }));
+
+      return;
+    }
+
+    setFiles((current) =>
+      current.map((each) => (each.key === key ? { ...each, id } : each)),
+    );
+  };
+
+  const add = (list: FileList | null) => {
+    for (const file of list ?? []) {
+      void upload(file);
+    }
+  };
+
+  const submit = async () => {
+    const text = body.trim();
+
+    if ((text === "" && files.length === 0) || uploading) {
+      return;
+    }
+
+    setSending(true);
+
+    const result = await onSend(text, {
+      attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+    });
+
+    setSending(false);
+
+    if (result.ok) {
+      setBody("");
+      setFiles([]);
+    } else {
+      toast.error(errorMessage(result.error));
+    }
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <Label htmlFor={bodyId} className="sr-only">
+        {t("Message")}
+      </Label>
+      <Textarea
+        ref={inputRef}
+        id={bodyId}
+        value={body}
+        rows={2}
+        maxLength={4000}
+        placeholder={placeholder}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault();
+        }}
+        onDrop={(event: DragEvent) => {
+          event.preventDefault();
+          add(event.dataTransfer.files);
+        }}
+        onChange={(event) => {
+          setBody(event.target.value);
+
+          if (event.timeStamp - lastPing.current > TYPING_EVERY_MS) {
+            lastPing.current = event.timeStamp;
+            onTyping(true);
+          }
+        }}
+        onPaste={(event) => {
+          if (event.clipboardData.files.length > 0) {
+            event.preventDefault();
+            add(event.clipboardData.files);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void submit();
+          }
+        }}
+      />
+      {files.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" aria-live="polite">
+          {files.map((file) => (
+            <li key={file.key}>
+              <Badge variant="outline">
+                {file.id === null ? <Spinner /> : <PaperclipIcon aria-hidden />}
+                {file.name}
+                <button
+                  type="button"
+                  aria-label={t("Remove {name}", { name: file.name })}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => {
+                    drop(file.key);
+                  }}
+                >
+                  <XIcon aria-hidden />
+                </button>
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          onChange={(event) => {
+            add(event.target.files);
+            event.target.value = "";
+          }}
+        />
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("Attach files")}
+          onClick={() => picker.current?.click()}
+        >
+          <PaperclipIcon aria-hidden />
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {t("Drop or paste files to attach them.")}
+        </span>
+        <Button
+          type="submit"
+          size="sm"
+          className="ml-auto"
+          disabled={sending || uploading}
+        >
+          <SendIcon aria-hidden />
+          {t("Send")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+// #endregion recipe:message-composer

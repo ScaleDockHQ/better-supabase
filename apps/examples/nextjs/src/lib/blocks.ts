@@ -10,6 +10,7 @@ import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { catalogBlock } from "better-supabase/blocks/catalog";
+import { channelsBlock } from "better-supabase/blocks/channels";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
@@ -24,6 +25,7 @@ import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { messagingBlock } from "better-supabase/blocks/messaging";
 import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
 import {
   createNotifications,
@@ -93,6 +95,8 @@ const blockSet = defineBlocks(blockConfig, {
     }),
   ),
   inbox: inboxBlock,
+  messaging: messagingBlock,
+  channels: channelsBlock,
   search: searchBlock,
   metrics: metricsBlock.using((options) =>
     createMetrics({ ...options, metrics }),

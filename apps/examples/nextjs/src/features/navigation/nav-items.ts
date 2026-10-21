@@ -30,6 +30,7 @@ export type NavId =
   | "workflows"
   | "workflowBuilder"
   | "inbox"
+  | "chat"
   | "assistant"
   | "knowledge"
   | "agentActivity"
@@ -178,6 +179,7 @@ export const navItems: readonly NavItem[] = [
     requires: "workflow.read",
   },
   { id: "inbox", href: "/inbox", group: "workspace", requires: "inbox.read" },
+  { id: "chat", href: "/chat", group: "workspace", requires: "messages.read" },
   {
     id: "assistant",
     href: "/assistant",
