@@ -171,6 +171,18 @@ describe("renameBlock", () => {
     }).toEqual({ method: "listed", port: undefined });
   });
 
+  it("renames the events and read methods `invalidates` lists", () => {
+    const block = defineBlock({
+      name: "items",
+      category: "work",
+      invalidates: { "work_item.*": ["listWorkItems", "getWorkItem"] },
+    });
+
+    expect(renameBlock(block, NAMES).invalidates).toEqual({
+      "task.*": ["listTasks", "getTask"],
+    });
+  });
+
   it("returns the block itself when nothing is renamed", () => {
     expect(renameBlock(workItemsBlock, undefined)).toBe(workItemsBlock);
   });

@@ -476,6 +476,12 @@ function renamed(
     ...block,
     events: { types: block.events.types.map((type) => names.rename(type)) },
     schemas: renameSchemas(block.schemas ?? {}, names, renamer),
+    invalidates: Object.fromEntries(
+      Object.entries(block.invalidates ?? {}).map(([pattern, methods]) => [
+        names.rename(pattern),
+        methods.map((method) => names.rename(method)),
+      ]),
+    ),
     provides,
     create:
       create === undefined

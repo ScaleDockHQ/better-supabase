@@ -891,9 +891,12 @@
   },
   "./query": {
     "values": [
+      "BLOCK_READ_PREFIXES",
+      "blockQueries",
       "clearOnUserChange",
       "createQueries",
       "escapeLike",
+      "invalidateOnBlockEvents",
       "invalidateOnMutation",
       "invalidateTables",
       "optimistic",
@@ -902,6 +905,12 @@
     "types": [
       "BetterQueries",
       "BetterQueryMeta",
+      "BlockClientQueries",
+      "BlockClients",
+      "BlockInvalidation",
+      "BlockMethodQuery",
+      "BlockQueries",
+      "BlockVariablesOf",
       "InfiniteExtras",
       "InfiniteOptionsOf",
       "MutationOptionsOf",
@@ -1977,6 +1986,7 @@
       "BlockFields",
       "BlockHookInfo",
       "BlockHooks",
+      "BlockInvalidates",
       "BlockMap",
       "BlockMethodHooks",
       "BlockMethodName",

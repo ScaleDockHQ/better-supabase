@@ -74,6 +74,7 @@ export type {
   Block,
   BlockCategory,
   BlockConsumes,
+  BlockInvalidates,
   BlockDefinition,
   BlockOf,
   BlockOptionSchemas,
