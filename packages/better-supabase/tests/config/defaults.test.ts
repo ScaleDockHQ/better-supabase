@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_DEFAULTS } from "../../src/config/defaults.ts";
 import { GEN_TASKS, INTEGRATION_NAMES } from "../../src/config/names.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
-import { tenantNames } from "../../src/core/tenant-naming.ts";
+import { tenantNames } from "../../src/core/entity-naming.ts";
 import { registeredSubjects } from "../../src/sql/subject-registry.ts";
 
 describe("CONFIG_DEFAULTS", () => {

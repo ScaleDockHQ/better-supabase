@@ -1,3 +1,8 @@
+import type {
+  AnyModuleNames,
+  ModuleNameSet,
+  NamesOf,
+} from "../blocks/name-registry.ts";
 import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
 
 /**
@@ -37,11 +42,40 @@ export interface SqlNaming {
 }
 
 /**
+ * A new name for one of a block's entities: its singular, an irregular plural
+ * and, for an entity the block registers as a subject, the URL of one row with
+ * `{column}` placeholders.
+ */
+export interface EntityConfig<Columns extends string = string> {
+  readonly singular: string;
+  /** Defaults to the English plural of `singular`. */
+  readonly plural?: string;
+  readonly url?: `${string}{${Columns}}${string}`;
+}
+
+/**
+ * `blocks.<name>.entities`: entity to its new name, e.g. `{ work_item: "task"
+ * }`, or the new name of the block's primary entity alone (`"task"`). The
+ * module's tables, columns, functions, events, permission keys, hooks and
+ * TypeScript names follow.
+ */
+export type EntitiesConfig<Names extends ModuleNameSet = AnyModuleNames> =
+  | ([Names["primary"]] extends [never] ? never : string)
+  | ([keyof Names["entities"]] extends [never]
+      ? never
+      : {
+          readonly [E in keyof Names["entities"]]?:
+            | string
+            | EntityConfig<Names["entities"][E]>;
+        });
+
+/**
  * Options every module takes; `Options` types `options`
- * (`blocks.<module>.options`).
+ * (`blocks.<module>.options`) and `Names` the names the other keys accept.
  */
 export interface BlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
+  Names extends ModuleNameSet = AnyModuleNames,
 > {
   readonly mode?: BlockMode;
   /**
@@ -54,31 +88,37 @@ export interface BlockConfig<
    * 'public.organization_users' }`. An unqualified name is in `schema`. `null`
    * marks an optional table the app doesn't have.
    */
-  readonly tables?: Readonly<Record<string, string | null>>;
+  readonly tables?: {
+    readonly [T in keyof Names["tables"]]?: string | null;
+  };
   /**
    * Logical table to logical column to column name, e.g. `{ memberships: {
    * tenant: 'organization_id', role: 'role_id' } }`. `null` marks an optional
    * column the adopted table doesn't have.
    */
-  readonly columns?: Readonly<
-    Record<string, Readonly<Record<string, string | null>>>
-  >;
+  readonly columns?: {
+    readonly [T in keyof Names["tables"]]?: {
+      readonly [C in Names["tables"][T]]?: string | null;
+    };
+  };
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
   /** Who the block's rows belong to. Defaults to `sql.scope`, then `tenant`. */
   readonly scope?: BlockScope;
   /**
    * Function name to the name the module writes it under, e.g. `{
-   * create_organization: 'start_company' }`. Keys are the default names or the
-   * names after `sql.naming`; an unknown function is an error.
-   * `blocks.access.functions` is the custom model's templates instead.
+   * create_organization: 'start_company' }`. Keys are the default names; an
+   * unknown function is an error. `blocks.access.functions` is the custom
+   * model's templates instead.
    */
-  readonly functions?: Readonly<Record<string, string>>;
+  readonly functions?: { readonly [F in Names["functions"]]?: string };
   /**
    * Module action to permission key, checked through the access contract, e.g.
    * `{ invite: 'organization.members.invite' }`.
    */
-  readonly permissions?: Readonly<Record<string, string>>;
+  readonly permissions?: { readonly [A in Names["actions"]]?: string };
+  /** New names for the block's entities. */
+  readonly entities?: EntitiesConfig<Names>;
   /**
    * Module-specific options, typed from the block manifest's options schema;
    * each module's docs page lists them.
@@ -93,7 +133,7 @@ export interface BlockConfig<
    */
   readonly hooks?: {
     readonly schema?: string;
-    readonly functions?: Readonly<Record<string, string>>;
+    readonly functions?: { readonly [H in Names["hooks"]]?: string };
   };
   /**
    * Whether the module writes its events to the outbox (`emit_event`) when the
@@ -167,7 +207,8 @@ export interface DisabledRow {
 
 export interface AccessBlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
-> extends BlockConfig<Options> {
+  Names extends ModuleNameSet = AnyModuleNames,
+> extends Omit<BlockConfig<Options, Names>, "functions"> {
   /**
    * `roles`: a fixed role list from `roles` (the default without
    * `authorization`; with it, `provider` is the default). `catalog`: role,
@@ -253,8 +294,8 @@ export interface AccessBlockConfig<
  */
 export type BlocksConfig = {
   readonly [M in keyof BlockOptionsRegistry]?: M extends "access"
-    ? AccessBlockConfig<BlockOptionsRegistry[M]>
-    : BlockConfig<BlockOptionsRegistry[M]>;
+    ? AccessBlockConfig<BlockOptionsRegistry[M], NamesOf<M>>
+    : BlockConfig<BlockOptionsRegistry[M], NamesOf<M>>;
 };
 
 /**
@@ -268,6 +309,16 @@ export interface AnyBlocksConfig {
    * signature.
    */
   readonly [module: string]: BlockConfig | AccessBlockConfig | undefined;
+}
+
+/**
+ * Block configs built at runtime (a preset, a `/create` design) as the typed
+ * `BlocksConfig`. `resolveConfig` checks every module, table, column, function
+ * and entity name, so nothing this skips at compile time goes unchecked.
+ */
+export function asBlocksConfig(blocks: AnyBlocksConfig): BlocksConfig {
+  // SAFETY: the config checks in resolveConfig validate every key at runtime.
+  return blocks as BlocksConfig;
 }
 
 /** A module's config with defaults applied. */
@@ -297,20 +348,36 @@ export interface ResolvedModule {
 
 const MODULE_SCHEMA = "better_supabase";
 
+/** `record` without the keys a typed config leaves `undefined`. */
+function defined<V>(
+  record: { readonly [key: string]: V | undefined } | undefined,
+): Readonly<Record<string, V>> {
+  return Object.fromEntries(
+    Object.entries(record ?? {}).filter(
+      (entry): entry is [string, V] => entry[1] !== undefined,
+    ),
+  );
+}
+
 export function resolveModule(config: BlockConfig = {}): ResolvedModule {
   return {
     mode: config.mode ?? "managed",
     schema: config.schema ?? MODULE_SCHEMA,
-    tables: config.tables ?? {},
-    columns: config.columns ?? {},
+    tables: defined(config.tables),
+    columns: Object.fromEntries(
+      Object.entries(defined(config.columns)).map(([table, columns]) => [
+        table,
+        defined(columns),
+      ]),
+    ),
     ...(config.idType === undefined ? {} : { idType: config.idType }),
     ...(config.scope === undefined ? {} : { scope: config.scope }),
-    functions: config.functions ?? {},
-    permissions: config.permissions ?? {},
+    functions: defined(config.functions),
+    permissions: defined(config.permissions),
     options: config.options ?? {},
     hooks: {
       schema: config.hooks?.schema ?? "public",
-      functions: config.hooks?.functions ?? {},
+      functions: defined(config.hooks?.functions),
     },
     events: config.events ?? true,
     audit: config.audit ?? true,

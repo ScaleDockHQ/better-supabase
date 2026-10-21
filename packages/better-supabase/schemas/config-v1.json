@@ -2718,6 +2718,43 @@
             "type": "string"
           }
         },
+        "entities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "singular": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "plural": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["singular"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
         "options": {
           "type": "object",
           "additionalProperties": {}
@@ -2853,6 +2890,43 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "entities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "singular": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "plural": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["singular"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          ]
         },
         "options": {
           "type": "object",

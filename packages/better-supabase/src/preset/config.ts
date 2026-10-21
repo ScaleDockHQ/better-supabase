@@ -2,11 +2,13 @@ import type {
   AccessBlockConfig,
   BlockConfig,
   AnyBlocksConfig,
+  BlocksConfig,
 } from "../config/blocks.ts";
 import type { BetterSupabaseConfig } from "../config/types/config.ts";
 import type { Preset } from "./fields.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
+import { asBlocksConfig } from "../config/blocks.ts";
 import { decodePreset, isPresetCode } from "./code.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
 import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
@@ -105,7 +107,7 @@ export function conventionConfig(
 export function presetConfig(
   resolved: ResolvedPreset,
 ): Pick<BetterSupabaseConfig, "casing" | "sql" | "integrations"> & {
-  readonly blocks: AnyBlocksConfig;
+  readonly blocks: BlocksConfig;
 } {
   const { preset } = resolved;
   const sql = sqlOf(preset);
@@ -116,11 +118,13 @@ export function presetConfig(
     ...(preset.integrations.length === 0
       ? {}
       : { integrations: preset.integrations }),
-    blocks: Object.fromEntries(
-      resolved.blocks.map((block) => [
-        block.name,
-        conventionEntry(block.name, preset),
-      ]),
+    blocks: asBlocksConfig(
+      Object.fromEntries(
+        resolved.blocks.map((block) => [
+          block.name,
+          conventionEntry(block.name, preset),
+        ]),
+      ),
     ),
   };
 }

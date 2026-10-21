@@ -2,6 +2,7 @@ import * as v from "valibot";
 
 import type {
   BetterSupabaseConfig,
+  BlocksConfig,
   EnvironmentConfig,
   ExposePrivilege,
   Generator,
@@ -73,6 +74,14 @@ const generator = v.custom<Generator>(
  * checks the leaves a typo or an old value breaks; nested objects the library
  * reads loosely stay loose.
  */
+const entityName = v.pipe(
+  v.string(),
+  v.regex(
+    /^[a-z][a-z0-9_]{0,40}$/,
+    "an entity name is lowercase letters, digits and underscores",
+  ),
+);
+
 const blockEntries = {
   mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
@@ -84,6 +93,22 @@ const blockEntries = {
   scope: v.optional(v.picklist(["tenant", "user", "none"])),
   functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
+  entities: v.optional(
+    v.union([
+      entityName,
+      v.record(
+        v.string(),
+        v.union([
+          entityName,
+          v.strictObject({
+            singular: entityName,
+            plural: v.optional(entityName),
+            url: v.optional(v.string()),
+          }),
+        ]),
+      ),
+    ]),
+  ),
   options: v.optional(v.record(v.string(), v.unknown())),
   hooks: v.optional(
     v.strictObject({
@@ -144,6 +169,21 @@ const accessBlock = v.strictObject({
     ]),
   ),
 });
+
+/**
+ * `blocks`: a list of names, or each block's config. The schema checks the keys
+ * every block shares; `resolveConfig` checks the tables, columns, functions,
+ * actions, hooks and entities each module declares.
+ */
+// SAFETY: resolveConfig checks the names `BlocksConfig` narrows per module.
+const blocksSchema = v.lazy((input) =>
+  Array.isArray(input)
+    ? strings
+    : v.objectWithRest(
+        { access: v.optional(accessBlock) },
+        v.strictObject(blockEntries),
+      ),
+) as v.GenericSchema<unknown, readonly string[] | BlocksConfig>;
 
 const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
 
@@ -722,16 +762,7 @@ const ENTRIES = {
     ),
   ),
   appTables: v.optional(appTables),
-  blocks: v.optional(
-    v.lazy((input) =>
-      Array.isArray(input)
-        ? strings
-        : v.objectWithRest(
-            { access: v.optional(accessBlock) },
-            v.strictObject(blockEntries),
-          ),
-    ),
-  ),
+  blocks: v.optional(blocksSchema),
   sql: v.optional(
     v.strictObject({
       workflow: v.optional(v.picklist(["pg-delta", "migra", "migrations"])),

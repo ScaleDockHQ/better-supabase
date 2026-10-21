@@ -6,7 +6,7 @@ import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
-import { tenantNames } from "../core/tenant-naming.ts";
+import { tenantNames } from "../core/entity-naming.ts";
 import { expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";

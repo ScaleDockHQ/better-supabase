@@ -406,6 +406,10 @@ export function moduleOperations<M extends OperationModule>(
   return (operationsByModule.get(module) ?? {}) as ModuleOperations<M>;
 }
 
+/** Whether `name` is a module with actions in `OPERATIONS`. */
+export const isOperationModule = (name: string): name is OperationModule =>
+  operationsByModule.has(name);
+
 /**
  * Where each module action checks its key: `tenant` through `member_can`, `can`
  * or `tenant_ids_with` (a provider's `idsWith`), and `platform` through

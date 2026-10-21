@@ -141,6 +141,8 @@ export type {
   AnyBlocksConfig,
   BlockScope,
   BlocksConfig,
+  EntitiesConfig,
+  EntityConfig,
   SqlNaming,
 } from "./blocks.ts";
 

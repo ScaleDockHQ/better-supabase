@@ -433,7 +433,7 @@ describe("design config", () => {
   it("merges extra columns into the blocks and adds appTables", () => {
     const config = designConfig(crm, DESIGN);
 
-    expect(config.blocks["tags"]).toEqual({
+    expect(config.blocks.tags).toEqual({
       options: { extraColumns: { color: "text not null default 'gray'" } },
     });
     expect(Object.keys(config.appTables ?? {})).toEqual(["projects", "tasks"]);

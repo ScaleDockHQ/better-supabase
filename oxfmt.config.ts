@@ -30,6 +30,8 @@ const config: OxfmtConfig = defineConfig({
     "tests/validation-*/src/**/generated.*",
     // `introspect --check` compares the file byte for byte with its own output.
     "supabase/snapshot.json",
+    // `catalog:check` compares it with `formatNameRegistry` byte for byte.
+    "packages/better-supabase/src/blocks/name-registry.generated.ts",
     // `recipes:check` compares it with the example sources, whose Tailwind
     // classes sort against the app's stylesheet, which this path can't see.
     "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",

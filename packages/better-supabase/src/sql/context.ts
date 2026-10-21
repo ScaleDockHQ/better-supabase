@@ -7,15 +7,15 @@ import type {
 } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
-import type { TenantNames } from "../core/tenant-naming.ts";
+import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { ModuleScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveModule } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { tenantNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { tenantNames } from "../core/tenant-naming.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 
@@ -86,8 +86,43 @@ export interface ModuleTableLifecycle {
   readonly credentialSubject?: "app" | "user";
 }
 
+/**
+ * What makes an entity a `config.subjects` entry when the block is installed.
+ * Columns are the table's logical columns; permissions are module actions.
+ */
+export interface ModuleEntitySubject {
+  readonly title: string;
+  readonly deletedAt?: string;
+  readonly permissions: { readonly read: string; readonly write: string };
+  readonly rank?: { readonly column: string; readonly group: string };
+  readonly search?: {
+    readonly title: string;
+    readonly body: readonly string[];
+  };
+  readonly url?: string;
+  readonly cascade?: boolean;
+}
+
+/**
+ * A noun the module names its tables, functions, events, permissions and hooks
+ * after (`work_item`), renamed through `blocks.<name>.entities`.
+ */
+export interface ModuleEntitySpec {
+  /** The logical table that holds the entity. */
+  readonly table: string;
+  readonly singular: string;
+  /** Defaults to the English plural of `singular`. */
+  readonly plural?: string;
+  /** The entity `entities: "<noun>"` renames. */
+  readonly primary?: boolean;
+  /** Renamed in every module, not only this one (the tenant). */
+  readonly global?: boolean;
+  readonly subject?: ModuleEntitySubject;
+}
+
 export interface ModuleNames {
   readonly tables: Readonly<Record<string, ModuleTableSpec>>;
+  readonly entities?: Readonly<Record<string, ModuleEntitySpec>>;
   /**
    * The `before_*` and `after_*` hooks the module calls, so
    * `blocks.<name>.hooks.functions` is checked.
@@ -270,7 +305,7 @@ export interface ModuleContext {
    */
   readonly scope: ModuleScope;
   /** The tenant concept's names (`sql.naming.tenant`). */
-  readonly naming: TenantNames;
+  readonly naming: EntityNames;
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
    * `sql.naming` and `blocks.<name>.functions` rename it.

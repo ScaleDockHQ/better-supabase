@@ -1,6 +1,6 @@
 import type { SqlModule } from "./module-types.ts";
 
-import { tenantNames } from "../core/tenant-naming.ts";
+import { tenantNames } from "../core/entity-naming.ts";
 
 const isDefault = (name: string): boolean => name.includes("organization");
 

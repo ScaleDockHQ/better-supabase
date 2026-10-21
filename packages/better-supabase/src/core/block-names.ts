@@ -1,7 +1,7 @@
 import type { BlockTransportMiddleware } from "./block-hooks.ts";
 
 import { defineTransportMiddleware } from "./block-hooks.ts";
-import { tenantNames } from "./tenant-naming.ts";
+import { tenantNames } from "./entity-naming.ts";
 
 // The block columns that carry the tenant concept in their default name.
 // `sql.naming.tenant` refuses a name that would make one of them collide

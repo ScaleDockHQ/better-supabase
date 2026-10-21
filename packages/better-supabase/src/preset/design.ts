@@ -11,6 +11,7 @@ import type { ConfigSourceKeys } from "./render.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
+import { asBlocksConfig } from "../config/blocks.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig, presetOf } from "./config.ts";
@@ -824,7 +825,7 @@ export function designConfig(
 
   return {
     ...base,
-    blocks,
+    blocks: asBlocksConfig(blocks),
     ...(Object.keys(appTables).length === 0 ? {} : { appTables }),
   };
 }

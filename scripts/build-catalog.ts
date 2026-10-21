@@ -37,6 +37,7 @@ import {
   SQL_MODULES,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
+import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
 import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-clashes.ts";
 
@@ -52,6 +53,11 @@ export const CATALOG_FILE: string = join(
 export const PRESET_CATALOG_FILE: string = join(
   ROOT,
   "packages/better-supabase/src/preset/catalog.generated.ts",
+);
+
+export const NAME_REGISTRY_FILE: string = join(
+  ROOT,
+  "packages/better-supabase/src/blocks/name-registry.generated.ts",
 );
 
 const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
@@ -548,6 +554,7 @@ export function formatPresetCatalog(catalog: PresetCatalog): string {
 if (import.meta.main) {
   try {
     const preset = formatPresetCatalog(buildPresetCatalog());
+    const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
 
     if (argv.includes("--check")) {
       if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
@@ -556,8 +563,16 @@ if (import.meta.main) {
         );
         exit(1);
       }
+
+      if (readFileSync(NAME_REGISTRY_FILE, "utf-8") !== nameSets) {
+        console.error(
+          "build-catalog: src/blocks/name-registry.generated.ts is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
+      writeFileSync(NAME_REGISTRY_FILE, nameSets);
       mkdirSync(dirname(CATALOG_FILE), { recursive: true });
       writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
     }
