@@ -204,9 +204,10 @@ function statusOf(
  * pipelines.
  */
 /**
- * The binding a record block brings when it is installed: the subject type, its
- * module and table, and the binding entry. An app's own entry for the type in
- * options.subjects is merged over it.
+ * The binding a record block brings when it is installed: the subject type
+ * (renamed with the module's entities), its module and table, and the binding
+ * entry. An app's own entry for the type in options.subjects is merged over
+ * it.
  */
 interface BuiltInBinding {
   readonly module: string;
@@ -362,10 +363,12 @@ export function pipelineBindings(
       continue;
     }
 
-    const own = configured[builtIn.type];
-    raw[builtIn.type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
-    const { schema, name } = ctx.of(builtIn.module).tableName(builtIn.table);
-    builtInSubjects[builtIn.type] = {
+    const owner = ctx.of(builtIn.module);
+    const type = owner.resolved.entityNaming.rename(builtIn.type);
+    const own = configured[type];
+    raw[type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
+    const { schema, name } = owner.tableName(builtIn.table);
+    builtInSubjects[type] = {
       table: `${schema}.${name}`,
       idType: "uuid",
       tenant: "tenant_id",

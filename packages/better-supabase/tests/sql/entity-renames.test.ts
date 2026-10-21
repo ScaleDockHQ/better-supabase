@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { entityRenameChanges, renderModules } from "../../src/sql/index.ts";
 
 const BLOCKS = ["tenant", "access", "outbox", "work-items"];
@@ -58,6 +59,42 @@ describe("blocks.<name>.entities in the SQL", () => {
     expect(sql).toContain("'work_item.created'");
     expect(sql).toContain("'organizationId'");
     expect(sql).toContain("'work_items.read'");
+  });
+
+  it("leaves the default nouns only in parameter names, hints and prose", () => {
+    const modules = {
+      "work-items": {
+        entities: {
+          work_item: "task",
+          project: "initiative",
+          iteration: "cycle",
+        },
+      },
+    } as const;
+
+    const names = [...BLOCKS, "pipelines", "rank", "subjects", "notifications"];
+
+    const layout: ModuleLayout = {
+      modules,
+      subjects: withBlockSubjects({}, names, modules),
+    };
+
+    const parameter =
+      /\b(?:\w+\.)?(?:work_item|project|iteration)\b(?= uuid|[^_\w'"]|$)/g;
+
+    const left = renderModules(names, layout)
+      .flatMap((file) => file.contents.split("\n"))
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .map((line) =>
+        line.replaceAll(/'[^']*\s[^']*'/g, "").replaceAll(parameter, ""),
+      )
+      .filter((line) =>
+        /work_?items?|workItem|projects?(?:_id|Id)|iterations?(?:_id|Id)/.test(
+          line,
+        ),
+      );
+
+    expect(left).toEqual([]);
   });
 
   it("refuses a rename onto another block's table", () => {

@@ -23,11 +23,18 @@ export interface WorkItemNames {
    * name.
    */
   readonly extras: readonly ExtraColumn[];
+  /**
+   * An entity name, event type or payload key after
+   * `blocks.work-items.entities`: `work_item` to `task`, `projectId` to
+   * `initiativeId`.
+   */
+  readonly e: (name: string) => string;
 }
 
 /** The fields `update_work_items` writes, by camelCase name. */
 function fields(
   w: (column: string) => string,
+  e: (name: string) => string,
 ): readonly { readonly field: string; readonly set: (v: string) => string }[] {
   const text = (column: string) => (v: string) =>
     `${w(column)} = nullif(trim(${v} #>> '{}'), '')`;
@@ -40,8 +47,8 @@ function fields(
     { field: "body", set: text("body") },
     { field: "parentId", set: cast("parent", "uuid") },
     { field: "teamId", set: cast("team", "uuid") },
-    { field: "projectId", set: cast("project", "uuid") },
-    { field: "iterationId", set: cast("iteration", "uuid") },
+    { field: e("projectId"), set: cast("project", "uuid") },
+    { field: e("iterationId"), set: cast("iteration", "uuid") },
     { field: "priority", set: cast("priority", "smallint") },
     { field: "estimate", set: cast("estimate", "numeric") },
     { field: "progress", set: cast("progress", "smallint") },
@@ -57,9 +64,11 @@ export function workItemFunctions(
   ctx: ModuleContext,
   n: WorkItemNames,
 ): string {
-  const { fn, t, c } = n;
+  const { fn, t, c, e } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
+  const item = sqlString(e("work_item"));
+  const itemId = sqlString(e("workItemId"));
 
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
@@ -70,14 +79,14 @@ export function workItemFunctions(
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'workItemId', ${alias}.${w("id")}, 'subjectType', 'work_item', 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
+      payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'workItemId', ${alias}.${w("id")}, 'subjectType', ${item}, 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
       subject: `'work-items/' || ${alias}.${w("id")}::text`,
       tenant: `${alias}.${w("tenant")}::text`,
       audit: false,
     });
 
   const writes = [
-    ...fields(w).map(
+    ...fields(w, e).map(
       (field) => `      when ${sqlString(field.field)} then
         update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`,
     ),
@@ -90,7 +99,7 @@ export function workItemFunctions(
   const watch = watchSql(ctx, {
     tenant: `v_row.${w("tenant")}`,
     user: "v_user",
-    subjectType: "'work_item'",
+    subjectType: item,
     subjectId: `v_row.${w("id")}::text`,
   });
 
@@ -99,16 +108,16 @@ export function workItemFunctions(
   if cardinality(v_new) > 0 then
     ${ctx.notify(
       `jsonb_build_object(
-      'type', 'work_item.assigned',
+      'type', ${sqlString(e("work_item.assigned"))},
       'tenant', v_row.${w("tenant")},
       'actor', auth.uid(),
-      'subject_type', 'work_item',
+      'subject_type', ${item},
       'subject_id', v_row.${w("id")}::text,
       'summary', v_row.${w("title")},
       'recipients', to_jsonb(v_new),
       'watchers', false,
-      'key', 'work_item.assigned:' || v_row.${w("id")}::text || ':' || md5(array_to_string(v_new, ',')),
-      'data', jsonb_build_object('workItemId', v_row.${w("id")})
+      'key', ${sqlString(e("work_item.assigned:"))} || v_row.${w("id")}::text || ':' || md5(array_to_string(v_new, ',')),
+      'data', jsonb_build_object(${itemId}, v_row.${w("id")})
     )`,
       { indent: "    " },
     )}
@@ -251,7 +260,7 @@ begin
   ])}
   ${assignNumberSql(
     ctx,
-    "work_item",
+    e("work_item"),
     "create_work_item.tenant",
     { seq: "v_seq", identifier: "v_identifier" },
     {
@@ -265,8 +274,8 @@ begin
     insert into ${t("items")} (${w("tenant")}, ${w("number")}, ${w("identifier")}, ${w("title")}, ${w("body")}, ${w("parent")}, ${w("team")}, ${w("project")}, ${w("iteration")},
       ${w("priority")}, ${w("estimate")}, ${w("progress")}, ${w("startAt")}, ${w("endAt")}, ${w("dueAt")}, ${w("pipeline")}, ${w("stage")}, ${w("createdBy")})
     values (create_work_item.tenant, v_seq, v_identifier, trim(create_work_item.attrs ->> 'title'), create_work_item.attrs ->> 'body',
-      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> 'projectId')::uuid,
-      (create_work_item.attrs ->> 'iterationId')::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
+      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> ${sqlString(e("projectId"))})::uuid,
+      (create_work_item.attrs ->> ${sqlString(e("iterationId"))})::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
       (create_work_item.attrs ->> 'estimate')::numeric, (create_work_item.attrs ->> 'progress')::smallint,
       (create_work_item.attrs ->> 'startAt')::timestamptz, (create_work_item.attrs ->> 'endAt')::timestamptz, (create_work_item.attrs ->> 'dueAt')::timestamptz,
       (create_work_item.attrs ->> 'pipelineId')::uuid, (create_work_item.attrs ->> 'stageId')::uuid, auth.uid())
@@ -306,12 +315,12 @@ declare
   v_touched uuid[] := '{}';
 begin
   if jsonb_typeof(coalesce(update_work_items.changes, '[]')) <> 'array' then
-    ${fail("WORK_ITEM_CHANGES_INVALID", "changes must be a list of { workItemId, field, value }", "22023")}
+    ${fail("WORK_ITEM_CHANGES_INVALID", `changes must be a list of { ${e("workItemId")}, field, value }`, "22023")}
   end if;
   for v_change in select value from jsonb_array_elements(update_work_items.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> ${itemId})::uuid;
       if not exists (select 1 from ${t("items")} x where x.${w("id")} = v_item and ${editable("x")} and x.${w("archivedAt")} is null) then
         ${fail("WORK_ITEM_NOT_FOUND", "no such work item you can edit", "P0002")}
       end if;
@@ -325,7 +334,7 @@ ${writes}
       else
         ${fail("WORK_ITEM_FIELD_UNKNOWN", "that field can't be written", "22023")}
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object(${itemId}, v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       ${ctx.hook("after_work_item_update", [
         ["uuid", "v_item"],
@@ -333,11 +342,11 @@ ${writes}
       ])}
     exception when others then
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object(${itemId}, v_change ->> ${itemId}, 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from ${t("items")} x where x.${w("id")} = any (v_touched) loop
-    ${record("work_item.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row.${w("id")})`)}
+    ${record("work_item.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> ${itemId})::uuid = v_row.${w("id")})`)}
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -475,8 +484,8 @@ as $$
     from ${t("items")} x
     where x.${w("tenant")} = list_work_items.tenant and x.${w("archivedAt")} is null
       and (list_work_items.filter ->> 'teamId' is null or x.${w("team")} = (list_work_items.filter ->> 'teamId')::uuid)
-      and (list_work_items.filter ->> 'projectId' is null or x.${w("project")} = (list_work_items.filter ->> 'projectId')::uuid)
-      and (list_work_items.filter ->> 'iterationId' is null or x.${w("iteration")} = (list_work_items.filter ->> 'iterationId')::uuid)
+      and (list_work_items.filter ->> ${sqlString(e("projectId"))} is null or x.${w("project")} = (list_work_items.filter ->> ${sqlString(e("projectId"))})::uuid)
+      and (list_work_items.filter ->> ${sqlString(e("iterationId"))} is null or x.${w("iteration")} = (list_work_items.filter ->> ${sqlString(e("iterationId"))})::uuid)
       and (list_work_items.filter ->> 'parentId' is null or x.${w("parent")} = (list_work_items.filter ->> 'parentId')::uuid)
       and (list_work_items.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_work_items.filter ->> 'assigneeId')::uuid))
       and (list_work_items.filter -> 'states' is null or x.${w("state")} = any (array(select jsonb_array_elements_text(list_work_items.filter -> 'states'))))
