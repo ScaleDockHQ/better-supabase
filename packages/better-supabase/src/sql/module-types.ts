@@ -198,7 +198,11 @@ export interface ModuleLayout {
   readonly testsDir?: string;
   /** The `better_supabase.audit(...)` calls in the SQL files: the `audit` module writes a pgTAP file per table. */
   readonly auditedTables?: readonly AuditedTable[];
-  /** Version stamped into the header. */
+  /**
+   * Ignored: the header names only the module, so a release doesn't rewrite
+   * every file. The `@bs-module name@N` marker carries the module version.
+   * @deprecated Remove it; it has no effect.
+   */
   readonly version?: string;
   /** `config.realtime.tables`: registered at the end of the `realtime-tables` module. */
   readonly realtimeTables?: readonly string[];

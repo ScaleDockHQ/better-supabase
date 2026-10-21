@@ -116,7 +116,7 @@ export function renderModules(
       return [];
     }
 
-    const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
+    const title = `-- better-supabase module: ${module.name}`;
 
     const managed = [
       "-- Managed by `better-supabase add`; re-running it overwrites this file.",

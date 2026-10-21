@@ -106,13 +106,10 @@ describe("renderModules", () => {
   it("writes pgtap to the tests directory with a managed header", () => {
     const [file] = renderModules(["pgtap"], {
       testsDir: "db/tests/",
-      version: "1.2.3",
     });
 
     expect(file!.path).toBe("db/tests/000_better_supabase_pgtap.test.sql");
-    expect(file!.contents).toMatch(
-      /^-- better-supabase module: pgtap \(1\.2\.3\)\n/,
-    );
+    expect(file!.contents).toMatch(/^-- better-supabase module: pgtap\n/);
     expect(file!.contents).toContain("Managed by `better-supabase add`");
     expect(file!.contents.endsWith("\n")).toBe(true);
   });
@@ -363,15 +360,28 @@ describe("ensure-rls", () => {
 });
 
 describe("sameModuleFile", () => {
-  it("ignores the version in the header only", () => {
-    const [file] = renderModules(["updated-at"], { version: "1.2.0" });
-    const older = file!.contents.replace(" (1.2.0)", " (0.0.1)");
+  it("ignores a version in the header only", () => {
+    const [file] = renderModules(["updated-at"]);
+
+    const older = file!.contents.replace(
+      "-- better-supabase module: updated-at\n",
+      "-- better-supabase module: updated-at (0.12.0)\n",
+    );
+
     expect(older).not.toBe(file!.contents);
     expect(sameModuleFile(older, file!.contents)).toBe(true);
     expect(sameModuleFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
       false,
     );
     expect(sameModuleFile(undefined, file!.contents)).toBe(false);
+  });
+
+  it("keeps the package version out of the header", () => {
+    for (const file of renderModules(["audit", "updated-at"])) {
+      expect(file.contents.split("\n", 1)[0]).toMatch(
+        /^-- better-supabase module: [a-z-]+$/,
+      );
+    }
   });
 
   it("registers realtime tables with the tenant column", () => {

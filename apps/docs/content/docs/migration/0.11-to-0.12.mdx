@@ -78,8 +78,9 @@ The first line of a module file used to carry the package version, as in
 file in `supabase/schemas/better_supabase` and the diff hid the real change.
 From 0.13 the header names only the module, and `sql sync` and `sql upgrade`
 leave a file alone when nothing but that header differs. The version a file
-was written at stays in its `@bs-module name@N` marker. The first sync after
-the upgrade rewrites each header once.
+was written at stays in its `@bs-module name@N` marker. A file that still
+carries a version in its header counts as current, so it keeps that header
+until the module's SQL changes.
 
 ## Create moved to the cloud app
 

@@ -1193,7 +1193,7 @@ export function appTablesFiles(
     checkKeyColumns(table);
   }
 
-  const title = `-- better-supabase module: app-tables${layout.version ? ` (${layout.version})` : ""}`;
+  const title = "-- better-supabase module: app-tables";
 
   const managed = [
     "-- Managed by `better-supabase sql sync`; re-running it overwrites this file.",
