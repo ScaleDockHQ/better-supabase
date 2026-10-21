@@ -213,6 +213,7 @@
   "guides/without-a-session",
   "migration",
   "migration/0.1-to-0.2",
+  "migration/0.11-to-0.12",
   "migration/0.3-to-0.4",
   "migration/0.4-to-0.5",
   "migration/0.5-to-0.6",

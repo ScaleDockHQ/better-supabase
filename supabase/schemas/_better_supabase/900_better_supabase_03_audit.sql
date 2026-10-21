@@ -1,4 +1,4 @@
--- better-supabase module: audit (0.10.0)
+-- better-supabase module: audit
 -- @bs-module audit@9 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -59,6 +59,8 @@ revoke all on better_supabase.audited_tables from anon, authenticated;
 
 -- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -77,7 +79,8 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
@@ -1458,8 +1461,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acting_member"() $$;
-revoke execute on function "api"."acting_member"() from public;
-grant execute on function "api"."acting_member"() to anon, authenticated, service_role;
+revoke execute on function "api"."acting_member"() from public, anon, authenticated;
+grant execute on function "api"."acting_member"() to service_role;
 
 create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
 returns text

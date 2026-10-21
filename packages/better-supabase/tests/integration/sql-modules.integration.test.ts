@@ -618,6 +618,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).rejects.toMatchObject({ code: "42501" });
   });
 
+  it("lets only service_role execute acting_member()", async () => {
+    const { rows } = await pool.query<Record<string, boolean>>(
+      `select
+        has_function_privilege('anon', 'better_supabase.acting_member()', 'execute') as anon,
+        has_function_privilege('authenticated', 'better_supabase.acting_member()', 'execute') as authenticated,
+        has_function_privilege('service_role', 'better_supabase.acting_member()', 'execute') as service`,
+    );
+
+    expect(rows[0]).toEqual({
+      anon: false,
+      authenticated: false,
+      service: true,
+    });
+  });
+
   it("stamps impersonated_by from the act claim", async () => {
     const user = crypto.randomUUID();
     const admin = crypto.randomUUID();

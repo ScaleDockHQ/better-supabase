@@ -5,6 +5,7 @@ import {
   deployBlocker,
   deployQuery,
   generatePassword,
+  newDeployId,
   suggestedProjectName,
 } from "../../src/create/index.ts";
 import { encodePreset, namedPreset } from "../../src/preset/index.ts";
@@ -37,6 +38,30 @@ describe("deployQuery", () => {
     expect(query).toContain("create table");
     expect(query).not.toContain("plan(");
   });
+
+  test("writes the deploy id on the first line", () => {
+    const id = newDeployId();
+    const query = deployQuery(files, { id });
+
+    expect(query.split("\n")[0]).toBe(`-- better-supabase deploy ${id}`);
+    expect(query.endsWith(deployQuery(files))).toBe(true);
+  });
+
+  test.each(["", "a\nselect 1;", "a b", "x".repeat(65)])(
+    "rejects the id %j",
+    (id) => {
+      expect(() => deployQuery(files, { id })).toThrow(TypeError);
+    },
+  );
+});
+
+test("newDeployId returns a fresh UUID", () => {
+  const id = newDeployId();
+
+  expect(id).toMatch(
+    /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u,
+  );
+  expect(newDeployId()).not.toBe(id);
 });
 
 test("deployBlocker blocks provider access only", () => {

@@ -82,8 +82,16 @@ describe("splitStatements", () => {
 });
 
 describe("migration safety", () => {
-  it("registers BS229 to BS234", () => {
-    for (const code of ["BS229", "BS230", "BS231", "BS232", "BS233", "BS234"]) {
+  it("registers BS229 to BS235", () => {
+    for (const code of [
+      "BS229",
+      "BS230",
+      "BS231",
+      "BS232",
+      "BS233",
+      "BS234",
+      "BS235",
+    ]) {
       expect(RULE_CODES).toContain(code);
     }
   });
@@ -203,6 +211,29 @@ describe("migration safety", () => {
       expect.stringContaining("drops a table"),
       expect.stringContaining("drops a column of public.tasks"),
       expect.stringContaining("renames public.tasks"),
+    ]);
+  });
+
+  it("BS235 flags a better_supabase function dropped without the same signature", async () => {
+    const files = [
+      migration(
+        "20260101000000",
+        [
+          "drop function if exists better_supabase.audit(regclass, text[], text[], text, text, text, text, text, text);",
+          "create or replace function better_supabase.audit(target regclass, ignore text[] default '{}', redact text[] default '{}', key_columns text[] default null, category text default null, event_prefix text default null, target_type text default null, tenant_column text default null, label_column text default null, tenant_path text default null, tenant_function text default null) returns void language sql as $$ select 1 $$;",
+          'drop function "better_supabase"."purge"(interval);',
+          "drop function better_supabase.set_actor();",
+          "create function better_supabase.set_actor() returns trigger language plpgsql as $$ begin return new; end $$;",
+          "drop function public.mine(numeric(10, 2), out total int);",
+          "drop function better_supabase.pick(numeric(10, 2), out total int);",
+          "create function better_supabase.pick(value numeric(10, 2), out total int, out rest int) language sql as $$ select 1, 2 $$;",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(await run("BS235", files)).toEqual([
+      expect.stringContaining(":1: drops better_supabase.audit"),
+      expect.stringContaining(":3: drops better_supabase.purge"),
     ]);
   });
 

@@ -304,6 +304,8 @@ function closingParen(text: string, open: number): number {
  */
 export const ACTING_MEMBER: string = `-- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -322,4 +324,5 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;`;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;`;

@@ -355,6 +355,9 @@
       "decodeDesign",
       "decodePreset",
       "DEFAULT_CONVENTIONS",
+      "DEFAULT_PRESET_NAME",
+      "defaultPreset",
+      "defaultPresetCode",
       "DESIGN_FILE",
       "DESIGN_FORMAT",
       "designApplyCommand",
@@ -364,6 +367,8 @@
       "designFormat",
       "designInstallCommand",
       "designOf",
+      "DesignParseError",
+      "designSchema",
       "DesignTooLongError",
       "diffAppTables",
       "diffDesigns",
@@ -402,6 +407,8 @@
       "PROVIDER_COMMENT",
       "readDesignFile",
       "resolvePreset",
+      "safeDesignFileSource",
+      "safeParseDesign",
       "withPresetField"
     ],
     "types": [
@@ -411,7 +418,10 @@
       "DecodedPreset",
       "DesignChange",
       "DesignChangeKind",
+      "DesignErrorCode",
       "DesignFile",
+      "DesignParseIssue",
+      "DesignParseResult",
       "DiffOptions",
       "NamedPreset",
       "Preset",
@@ -484,6 +494,7 @@
       "MIGRATION_NAME",
       "migrationBetween",
       "moveTables",
+      "newDeployId",
       "ON_DELETE_ACTIONS",
       "optionError",
       "parseSchema",
@@ -539,14 +550,33 @@
       "ValidateDesignOptions"
     ]
   },
+  "./create/oauth": {
+    "values": [
+      "DEFAULT_SEAL_INFO",
+      "isFlow",
+      "isOAuthSession",
+      "needsRefresh",
+      "OAuthError",
+      "pkcePair",
+      "randomToken",
+      "seal",
+      "unseal"
+    ],
+    "types": [
+      "OAuthFlow",
+      "OAuthSession"
+    ]
+  },
   "./create/supabase": {
     "values": [
       "authorizeUrl",
       "COOKIE_PATH",
+      "DEFAULT_SEAL_INFO",
       "exchangeCode",
       "FLOW_COOKIE",
       "FLOW_MAX_AGE",
       "isFlow",
+      "isOAuthSession",
       "isProjectRef",
       "isSession",
       "managementClient",

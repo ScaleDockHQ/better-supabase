@@ -20,21 +20,64 @@ export function deployBlocker(preset: Preset): string | undefined {
     : undefined;
 }
 
+/** A new deploy id: a random UUID. */
+export function newDeployId(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * What a host app stores for one deploy, so it can show the project's
+ * preset later and match the project to the record by the `id` comment at
+ * the top of the migration.
+ */
+export interface DeployRecord {
+  readonly id: string;
+  readonly ref: string;
+  /** The preset code. */
+  readonly preset: string;
+  /** The design code, or `null` when the preset had no design. */
+  readonly design: string | null;
+  readonly migration: string;
+  /** An ISO 8601 instant, such as `Temporal.Now.instant().toString()`. */
+  readonly deployedAt: string;
+}
+
+export interface DeployQueryOptions {
+  /** Written as `-- better-supabase deploy <id>` on the first line. */
+  readonly id?: string | undefined;
+}
+
+const DEPLOY_ID = /^[\w-]{1,64}$/u;
+
 /**
  * The SQL of one migration for the rendered files: every schema file, then
  * every data file, each in render order, which is the order `sql sync` and
- * `sql data` apply them. pgTAP tests stay out.
+ * `sql data` apply them. pgTAP tests stay out. Throws a `TypeError` when
+ * `id` holds anything but letters, digits, `_` and `-`.
  */
-export function deployQuery(files: readonly PresetMigrationFile[]): string {
+export function deployQuery(
+  files: readonly PresetMigrationFile[],
+  options: DeployQueryOptions = {},
+): string {
+  const { id } = options;
+
+  if (id !== undefined && !DEPLOY_ID.test(id)) {
+    throw new TypeError(
+      "A deploy id holds 1 to 64 letters, digits, '_' or '-'.",
+    );
+  }
+
   const schema = files.filter((file) => file.path.includes("/schemas/"));
 
   const data = files.filter((file) =>
     file.path.includes("/better-supabase-data/"),
   );
 
-  return [...schema, ...data]
+  const body = [...schema, ...data]
     .map((file) => `-- ${file.path}\n${file.contents.trim()}\n`)
     .join("\n");
+
+  return id === undefined ? body : `-- better-supabase deploy ${id}\n\n${body}`;
 }
 
 /** A database password for a new project: 32 base64url characters. */
@@ -85,7 +128,13 @@ export interface ProjectStatusResponse {
 
 /** `POST /create/supabase/deploy`. */
 export interface DeployResponse {
+  /** The id written at the top of the migration; store it in a `DeployRecord`. */
+  readonly id: string;
   readonly ref: string;
+  /** The preset code. */
+  readonly preset: string;
+  /** The design code, or `null` when the preset had no design. */
+  readonly design: string | null;
   readonly migration: string;
   readonly lints: readonly SupabaseLint[];
 }

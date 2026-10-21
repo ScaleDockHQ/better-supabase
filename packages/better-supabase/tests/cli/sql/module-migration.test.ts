@@ -61,10 +61,11 @@ describe("sameModuleMigration and migrationHolds", () => {
     expect(sameModuleMigration(upgraded, plain)).toBe(true);
 
     const older = plain.replace(
-      /^(-- better-supabase module: [^\n(]*?) \([^)]*\)$/m,
+      /^(-- better-supabase module: [^\n(]*?)$/m,
       "$1 (0.0.1)",
     );
 
+    expect(older).not.toBe(plain);
     expect(sameModuleMigration(older, plain)).toBe(true);
     expect(sameModuleMigration(undefined, plain)).toBe(false);
     expect(sameModuleMigration(`${plain}select 2;\n`, plain)).toBe(false);

@@ -350,6 +350,155 @@ const dropOrRename: Check = (parsed, statement) => {
     : undefined;
 };
 
+const LIBRARY_FUNCTION = String.raw`(?:"better_supabase"|better_supabase)\s*\.\s*("[^"]+"|[\w$]+)\s*\(`;
+
+const DROP_FUNCTION = /^drop\s+(?:function|procedure)\s+(?:if\s+exists\s+)?/iu;
+
+const CREATE_FUNCTION = new RegExp(
+  String.raw`^create\s+(?:or\s+replace\s+)?(?:function|procedure)\s+${LIBRARY_FUNCTION}`,
+  "iu",
+);
+
+/** The text between the parenthesis at `open` and its match, or undefined. */
+function parenthesized(text: string, open: number): string | undefined {
+  let depth = 0;
+  let quote: string | undefined;
+
+  for (let index = open; index < text.length; index += 1) {
+    const char = text.charAt(index);
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return text.slice(open + 1, index);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * How many input arguments a function argument list has: the top-level
+ * commas, without `out` arguments, which are not part of the signature.
+ */
+function inputArity(args: string): number {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const char = args.charAt(index);
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (char === "," && depth === 0) {
+      parts.push(args.slice(start, index));
+      start = index + 1;
+    }
+  }
+
+  parts.push(args.slice(start));
+
+  return parts.filter((part) => {
+    const trimmed = part.trim();
+
+    return trimmed !== "" && !/^out\s/iu.test(trimmed);
+  }).length;
+}
+
+const functionName = (name: string): string =>
+  name.replaceAll('"', "").toLowerCase();
+
+/** Each `better_supabase` function a `drop function` statement names, with its arity. */
+function droppedFunctions(
+  text: string,
+): readonly { readonly name: string; readonly arity: number }[] {
+  const head = DROP_FUNCTION.exec(text);
+
+  if (head === null) {
+    return [];
+  }
+
+  const pattern = new RegExp(LIBRARY_FUNCTION, "giu");
+  const dropped: { name: string; arity: number }[] = [];
+
+  for (const match of text.slice(head[0].length).matchAll(pattern)) {
+    const open = head[0].length + match.index + match[0].length - 1;
+    const args = parenthesized(text, open);
+
+    if (match[1] !== undefined && args !== undefined) {
+      dropped.push({ name: functionName(match[1]), arity: inputArity(args) });
+    }
+  }
+
+  return dropped;
+}
+
+const createdSignatures = new WeakMap<Statements, ReadonlySet<string>>();
+
+/** `name/arity` for every `better_supabase` function the file creates. */
+function createdFunctions(parsed: Statements): ReadonlySet<string> {
+  let created = createdSignatures.get(parsed);
+
+  if (created === undefined) {
+    created = new Set(
+      parsed.statements.flatMap((statement) => {
+        const match = CREATE_FUNCTION.exec(statement.text);
+
+        if (match?.[1] === undefined) {
+          return [];
+        }
+
+        const args = parenthesized(statement.text, match[0].length - 1);
+
+        return args === undefined
+          ? []
+          : [`${functionName(match[1])}/${String(inputArity(args))}`];
+      }),
+    );
+    createdSignatures.set(parsed, created);
+  }
+
+  return created;
+}
+
+const droppedLibraryFunction: Check = (parsed, statement) => {
+  const created = createdFunctions(parsed);
+
+  const changed = droppedFunctions(statement.text).filter(
+    (each) => !created.has(`${each.name}/${String(each.arity)}`),
+  );
+
+  if (changed.length === 0) {
+    return;
+  }
+
+  const names = changed
+    .map((each) => `better_supabase.${each.name}`)
+    .join(", ");
+
+  return `drops ${names} without creating it again with the same arguments. A call with positional arguments, or a grant on the old signature, fails once this runs.`;
+};
+
 const EXPAND =
   "Expand and contract: add the new shape, deploy app code that uses it, then remove the old one in a later migration.";
 
@@ -400,5 +549,13 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     title: "Migration drops or renames",
     description: `A migration drops or renames a table or column. App code deployed before it still uses the old name and fails once it runs. ${EXPAND}`,
     check: perStatement(dropOrRename),
+  },
+  {
+    code: "BS235",
+    severity: "warning",
+    title: "Migration drops a better-supabase function",
+    description:
+      "A migration drops a `better_supabase` function and doesn't create it again with the same number of arguments. A schema diff does this when a better-supabase release changes a function's signature, such as `audit()` in 0.12. Calls with positional arguments and grants on the old signature fail once it runs. Read the upgrade notes for the release (/docs/migration), then update your calls and grants in the same migration.",
+    check: perStatement(droppedLibraryFunction),
   },
 ];

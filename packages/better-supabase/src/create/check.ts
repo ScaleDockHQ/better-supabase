@@ -1,8 +1,9 @@
-import type { DesignIssue } from "./design.ts";
+import type { DesignIssue } from "./design-issues.ts";
 
 import {
   type CreateDesign,
   designConfig,
+  DesignParseError,
   DesignTooLongError,
   designOf,
   encodeDesign,
@@ -13,7 +14,7 @@ import {
   presetOf,
   resolvePreset,
 } from "../preset/index.ts";
-import { designIssues } from "./design.ts";
+import { designIssues } from "./design-issues.ts";
 import { previewFiles } from "./preview-provider.ts";
 import { schemaData } from "./schema-meta.ts";
 import { parseSchema, tenantColumnOf } from "./schema.ts";
@@ -24,17 +25,44 @@ export type DesignCheck =
       readonly ok: true;
       /** The design, with its empty parts dropped. */
       readonly design: CreateDesign;
-      /** Its `encodeDesign` code, or `null` when it is too long for a URL. */
+      /** Whether its code fits in a `/create` URL (`MAX_DESIGN_CODE_LENGTH`). */
+      readonly fitsUrl: boolean;
+      /**
+       * Its `encodeDesign` code. `null` only when `fitsUrl` is false; send a
+       * design file then.
+       */
       readonly code: string | null;
     }
   | {
       readonly ok: false;
-      /** Each problem; `table` is `design` or `preset` for one outside a table. */
+      /**
+       * Each problem, with a stable `code` and a JSON Pointer `path` into the
+       * design; `table` is `design` or `preset` for one outside a table.
+       */
       readonly issues: readonly DesignIssue[];
     };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+/** The issue for a design that failed to parse, with its code and path. */
+function parseIssue(error: unknown): DesignIssue {
+  const { code, path } =
+    error instanceof DesignParseError
+      ? error
+      : { code: "invalid_design" as const, path: "" };
+
+  return { code, path, table: tableAt(path), message: messageOf(error) };
+}
+
+/** The app table or block module a design path is in, or `design`. */
+function tableAt(path: string): string {
+  const [, key, name] = path.split("/");
+
+  return (key === "appTables" || key === "extraColumns") && name !== undefined
+    ? name.replaceAll("~1", "/").replaceAll("~0", "~")
+    : "design";
+}
 
 async function designFrom(input: unknown): Promise<CreateDesign> {
   if (typeof input !== "string") {
@@ -44,7 +72,9 @@ async function designFrom(input: unknown): Promise<CreateDesign> {
   const design = await designOf(input);
 
   if (design === undefined) {
-    throw new TypeError(
+    throw new DesignParseError(
+      "invalid_code",
+      "",
       `design: "${input.slice(0, 40)}" is neither a design code nor a /create URL with &design=`,
     );
   }
@@ -68,10 +98,7 @@ export async function checkDesign(
   try {
     design = await designFrom(input);
   } catch (error) {
-    return {
-      ok: false,
-      issues: [{ table: "design", message: messageOf(error) }],
-    };
+    return { ok: false, issues: [parseIssue(error)] };
   }
 
   let resolvedPreset: Preset;
@@ -81,7 +108,14 @@ export async function checkDesign(
   } catch (error) {
     return {
       ok: false,
-      issues: [{ table: "preset", message: messageOf(error) }],
+      issues: [
+        {
+          code: "invalid_preset",
+          path: "",
+          table: "preset",
+          message: messageOf(error),
+        },
+      ],
     };
   }
 
@@ -91,6 +125,8 @@ export async function checkDesign(
     return {
       ok: false,
       issues: resolved.conflicts.map((conflict) => ({
+        code: "preset_conflict",
+        path: "",
         table: "preset",
         message: `${conflict.block ?? conflict.field ?? "preset"}: ${conflict.reason}`,
       })),
@@ -100,10 +136,7 @@ export async function checkDesign(
   try {
     designConfig(resolved, design);
   } catch (error) {
-    return {
-      ok: false,
-      issues: [{ table: "design", message: messageOf(error) }],
-    };
+    return { ok: false, issues: [parseIssue(error)] };
   }
 
   const code = encodePreset(resolvedPreset);
@@ -122,15 +155,17 @@ export async function checkDesign(
   }
 
   try {
-    return { ok: true, design, code: await encodeDesign(design) };
+    return {
+      ok: true,
+      design,
+      fitsUrl: true,
+      code: await encodeDesign(design),
+    };
   } catch (error) {
     if (error instanceof DesignTooLongError) {
-      return { ok: true, design, code: null };
+      return { ok: true, design, fitsUrl: false, code: null };
     }
 
-    return {
-      ok: false,
-      issues: [{ table: "design", message: messageOf(error) }],
-    };
+    return { ok: false, issues: [parseIssue(error)] };
   }
 }

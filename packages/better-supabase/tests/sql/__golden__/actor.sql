@@ -10,6 +10,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -28,11 +30,13 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -200,6 +204,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -218,11 +224,13 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -390,6 +398,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -408,11 +418,13 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -580,6 +592,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The user a service caller acts for, from the x-bs-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
+-- Only service_role may call it; the security definer functions and triggers
+-- that record an actor call it as their owner.
 create or replace function better_supabase.acting_member()
 returns uuid
 language plpgsql
@@ -598,11 +612,13 @@ exception when others then
   return null;
 end;
 $$;
-grant execute on function better_supabase.acting_member() to anon, authenticated, service_role;
+revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
+grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
@@ -743,8 +759,8 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."acting_member"() $$;
-revoke execute on function "api"."acting_member"() from public;
-grant execute on function "api"."acting_member"() to anon, authenticated, service_role;
+revoke execute on function "api"."acting_member"() from public, anon, authenticated;
+grant execute on function "api"."acting_member"() to service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

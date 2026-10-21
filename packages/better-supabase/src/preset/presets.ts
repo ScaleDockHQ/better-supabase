@@ -1,6 +1,7 @@
 import type { Preset, PresetConventions } from "./fields.ts";
 
 import { PRESET_BLOCKS } from "./blocks.ts";
+import { encodePreset } from "./code.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
 
 /** Where a named preset sits in the `/create` and `init` pickers. */
@@ -403,4 +404,17 @@ export function namedPreset(name: PresetName): Preset {
   const { blocks, conventions } = PRESETS[name];
 
   return { ...DEFAULT_CONVENTIONS, ...conventions, blocks };
+}
+
+/** The preset `/create` and `init` start from. */
+export const DEFAULT_PRESET_NAME = "saas" as const;
+
+/** The default preset as a `Preset`, so a new design can start from it. */
+export function defaultPreset(): Preset {
+  return namedPreset(DEFAULT_PRESET_NAME);
+}
+
+/** The default preset's code, for a `/create` URL or `init --preset`. */
+export function defaultPresetCode(): string {
+  return encodePreset(defaultPreset());
 }

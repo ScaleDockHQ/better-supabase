@@ -152,6 +152,15 @@ created, and a plain `supabase start` picks Docker when it is running.
 - A stack keeps running after its shell exits. `supabase stack list` shows
   every stack on the machine, `supabase stop` stops the current one and
   `supabase stop --stack-id <id>` or `--all` stops others.
+- Each running stack holds a shared memory segment, and macOS allows 32 on
+  the machine (`kern.sysv.shmmni`), so `supabase start` fails once a few
+  dozen worktrees and branches have run a stack. `ipcs -m` counts the
+  segments. `pnpm supabase:prune` stops the stacks of branches merged into
+  `main` in this checkout and its worktrees (`--dry-run` lists them); it
+  keeps their data. Stop other idle stacks with `supabase stop --stack-id`.
+- A new worktree has no `supabase/signing_keys.json` (it is gitignored).
+  Run `node packages/better-supabase/src/cli/bin.ts keys --cwd .` before
+  `pnpm supabase:start`.
 
 ## Integration tests leave objects behind
 

@@ -1,7 +1,21 @@
 -- acting_member() reads the x-bs-actor header for a service caller only, so a
 -- signed-in user cannot name another user as the actor of an audited write.
+-- Only service_role may execute it; the audit functions call it as their owner.
 begin;
-select plan(4);
+select plan(7);
+
+select ok(
+  not has_function_privilege('anon', 'better_supabase.acting_member()', 'execute'),
+  'anon cannot execute acting_member()'
+);
+select ok(
+  not has_function_privilege('authenticated', 'better_supabase.acting_member()', 'execute'),
+  'authenticated cannot execute acting_member()'
+);
+select ok(
+  has_function_privilege('service_role', 'better_supabase.acting_member()', 'execute'),
+  'service_role can execute acting_member()'
+);
 
 select set_config(
   'request.headers',
@@ -15,11 +29,6 @@ select set_config(
   true
 );
 set local role authenticated;
-select is(
-  better_supabase.acting_member(),
-  null::uuid,
-  'an authenticated caller gets no acting member'
-);
 select better_supabase.audit_event('test.spoof');
 
 reset role;
@@ -43,6 +52,18 @@ select results_eq(
   $$values ('00000000-0000-4000-8000-0000000000b1')$$,
   'a service write records the acting member'
 );
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+select lives_ok(
+  $$select better_supabase.audit_event('test.user-after-revoke')$$,
+  'a signed-in user still writes audit events after the revoke'
+);
+reset role;
 
 select * from finish();
 rollback;

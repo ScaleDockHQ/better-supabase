@@ -6,7 +6,6 @@ import type {
 } from "./module-types.ts";
 
 import { resolveJsonSchema } from "../config/json.ts";
-import { VERSION } from "../core/version.ts";
 
 /** Where and how `sql add` writes module files for this config. */
 export function moduleLayout(
@@ -27,7 +26,6 @@ export function moduleLayout(
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,
-    version: VERSION,
     readSets,
     realtimeTables: config.realtime.tables,
     realtimeGlobal: config.realtime.global,

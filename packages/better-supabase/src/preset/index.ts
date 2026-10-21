@@ -43,6 +43,8 @@ export {
   decodeDesign,
   DESIGN_FILE,
   DESIGN_FORMAT,
+  DesignParseError,
+  designSchema,
   DesignTooLongError,
   designFileSource,
   designFormat,
@@ -56,9 +58,17 @@ export {
   MAX_DESIGN_CODE_LENGTH,
   parseDesign,
   readDesignFile,
+  safeDesignFileSource,
+  safeParseDesign,
 } from "./design.ts";
 
-export type { CreateDesign, DesignFile } from "./design.ts";
+export type {
+  CreateDesign,
+  DesignErrorCode,
+  DesignFile,
+  DesignParseIssue,
+  DesignParseResult,
+} from "./design.ts";
 
 export { diffAppTables, diffDesigns } from "./design-diff.ts";
 
@@ -95,6 +105,9 @@ export type {
 } from "./fields.ts";
 
 export {
+  DEFAULT_PRESET_NAME,
+  defaultPreset,
+  defaultPresetCode,
   isPresetName,
   namedPreset,
   PRESET_GROUPS,

@@ -19,7 +19,7 @@ const DESIGN: CreateDesign = {
 describe("checkDesign", () => {
   it("accepts a design object, a code and a /create URL alike", async () => {
     const code = await encodeDesign(DESIGN);
-    const expected = { ok: true, design: DESIGN, code };
+    const expected = { ok: true, design: DESIGN, fitsUrl: true, code };
 
     expect(await checkDesign(DESIGN, SAAS)).toEqual(expected);
     expect(await checkDesign(code, SAAS)).toEqual(expected);
@@ -36,6 +36,8 @@ describe("checkDesign", () => {
       ok: false,
       issues: [
         {
+          code: "unknown_key",
+          path: "/tables",
           table: "design",
           message:
             'design: unknown key "tables"; a design has appTables, extraColumns and positions',
@@ -44,11 +46,29 @@ describe("checkDesign", () => {
     });
     expect(await checkDesign("hello", SAAS)).toMatchObject({
       ok: false,
-      issues: [{ table: "design" }],
+      issues: [{ code: "invalid_code", path: "", table: "design" }],
     });
     expect(await checkDesign(DESIGN, "not-a-preset")).toMatchObject({
       ok: false,
-      issues: [{ table: "preset" }],
+      issues: [{ code: "invalid_preset", path: "", table: "preset" }],
+    });
+  });
+
+  it("points a parse issue at the app table it is in", async () => {
+    expect(
+      await checkDesign(
+        { appTables: { tasks: { columns: { title: { type: "money" } } } } },
+        SAAS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      issues: [
+        {
+          code: "invalid_app_table",
+          path: "/appTables/tasks/columns/title/type",
+          table: "tasks",
+        },
+      ],
     });
   });
 
@@ -71,11 +91,20 @@ describe("checkDesign", () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(
-      result.ok ? [] : result.issues.map((issue) => issue.message),
-    ).toEqual([
-      "A block already creates a profiles table. Rename this one.",
-      "tasks.booking_id references bookings.bookings, which the preset does not install.",
+    expect(result.ok ? [] : result.issues).toEqual([
+      {
+        code: "table_name_taken",
+        path: "/appTables/profiles",
+        table: "profiles",
+        message: "A block already creates a profiles table. Rename this one.",
+      },
+      {
+        code: "missing_reference",
+        path: "/appTables/tasks/columns/booking_id/references",
+        table: "tasks",
+        message:
+          "tasks.booking_id references bookings.bookings, which the preset does not install.",
+      },
     ]);
   });
 
@@ -89,7 +118,9 @@ describe("checkDesign", () => {
       ok: false,
       issues: [
         {
-          table: "design",
+          code: "block_not_installed",
+          path: "/extraColumns/organizations",
+          table: "organizations",
           message: expect.stringContaining(
             "the preset doesn't install the organizations block",
           ),
@@ -98,7 +129,7 @@ describe("checkDesign", () => {
     });
   });
 
-  it("passes a design too long for a URL with a null code", async () => {
+  it("passes a design too long for a URL with fitsUrl false", async () => {
     let seed = 11;
 
     const word = (): string => {
@@ -123,6 +154,7 @@ describe("checkDesign", () => {
 
     expect(await checkDesign({ appTables }, SAAS)).toMatchObject({
       ok: true,
+      fitsUrl: false,
       code: null,
     });
   });

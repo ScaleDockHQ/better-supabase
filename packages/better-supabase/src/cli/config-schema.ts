@@ -371,6 +371,105 @@ const bucket = v.strictObject({
   ),
 });
 
+const appTables = v.record(
+  v.string(),
+  v.strictObject({
+    columns: v.optional(
+      v.record(
+        v.string(),
+        v.strictObject({
+          type: v.picklist(APP_COLUMN_TYPES),
+          nullable: v.optional(v.boolean()),
+          default: v.optional(v.string()),
+          unique: v.optional(v.boolean()),
+          references: v.optional(
+            v.union([
+              v.strictObject({ table: v.string(), onDelete }),
+              v.strictObject({
+                block: v.string(),
+                table: v.string(),
+                onDelete,
+              }),
+            ]),
+          ),
+          format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
+          options: v.optional(v.array(v.string())),
+          min: v.optional(v.number()),
+          max: v.optional(v.number()),
+          comment: v.optional(v.string()),
+          identity: v.optional(v.boolean()),
+          access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
+        }),
+      ),
+    ),
+    scope: v.optional(v.picklist(["inherit", "user", "none"])),
+    timestamps: v.optional(v.boolean()),
+    id: v.optional(v.picklist(["uuid", "bigint"])),
+    unique: v.optional(v.array(v.array(v.string()))),
+    indexes: v.optional(v.array(v.array(v.string()))),
+    comment: v.optional(v.string()),
+    subject: v.optional(
+      v.strictObject({
+        type: v.string(),
+        title: v.optional(v.string()),
+        url: v.optional(v.string()),
+        search: v.optional(
+          v.strictObject({
+            title: v.optional(v.string()),
+            body: v.optional(v.array(v.string())),
+          }),
+        ),
+        permissions: v.optional(v.record(v.string(), v.string())),
+        rank: v.optional(
+          v.union([
+            v.literal(true),
+            v.strictObject({ group: v.optional(v.string()) }),
+          ]),
+        ),
+        softDelete: v.optional(v.boolean()),
+        versions: v.optional(
+          v.union([
+            v.literal(true),
+            v.strictObject({
+              columns: v.optional(strings),
+              auto: v.optional(v.boolean()),
+            }),
+          ]),
+        ),
+      }),
+    ),
+    rollups: v.optional(
+      v.record(
+        v.string(),
+        v.strictObject({
+          table: v.string(),
+          via: v.string(),
+          aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
+          column: v.optional(v.string()),
+          where: v.optional(
+            v.strictObject({ column: v.string(), equals: v.string() }),
+          ),
+        }),
+      ),
+    ),
+    lookups: v.optional(
+      v.record(
+        v.string(),
+        v.strictObject({ via: v.string(), column: v.string() }),
+      ),
+    ),
+    events: v.optional(
+      v.union([
+        v.literal(true),
+        v.strictObject({
+          on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
+          include: v.optional(strings),
+        }),
+      ]),
+    ),
+  }),
+);
+
 const ENTRIES = {
   source: v.optional(
     v.strictObject({
@@ -628,106 +727,7 @@ const ENTRIES = {
       }),
     ),
   ),
-  appTables: v.optional(
-    v.record(
-      v.string(),
-      v.strictObject({
-        columns: v.optional(
-          v.record(
-            v.string(),
-            v.strictObject({
-              type: v.picklist(APP_COLUMN_TYPES),
-              nullable: v.optional(v.boolean()),
-              default: v.optional(v.string()),
-              unique: v.optional(v.boolean()),
-              references: v.optional(
-                v.union([
-                  v.strictObject({ table: v.string(), onDelete }),
-                  v.strictObject({
-                    block: v.string(),
-                    table: v.string(),
-                    onDelete,
-                  }),
-                ]),
-              ),
-              format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
-              options: v.optional(v.array(v.string())),
-              min: v.optional(v.number()),
-              max: v.optional(v.number()),
-              comment: v.optional(v.string()),
-              identity: v.optional(v.boolean()),
-              access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
-            }),
-          ),
-        ),
-        scope: v.optional(v.picklist(["inherit", "user", "none"])),
-        timestamps: v.optional(v.boolean()),
-        id: v.optional(v.picklist(["uuid", "bigint"])),
-        unique: v.optional(v.array(v.array(v.string()))),
-        indexes: v.optional(v.array(v.array(v.string()))),
-        comment: v.optional(v.string()),
-        subject: v.optional(
-          v.strictObject({
-            type: v.string(),
-            title: v.optional(v.string()),
-            url: v.optional(v.string()),
-            search: v.optional(
-              v.strictObject({
-                title: v.optional(v.string()),
-                body: v.optional(v.array(v.string())),
-              }),
-            ),
-            permissions: v.optional(v.record(v.string(), v.string())),
-            rank: v.optional(
-              v.union([
-                v.literal(true),
-                v.strictObject({ group: v.optional(v.string()) }),
-              ]),
-            ),
-            softDelete: v.optional(v.boolean()),
-            versions: v.optional(
-              v.union([
-                v.literal(true),
-                v.strictObject({
-                  columns: v.optional(strings),
-                  auto: v.optional(v.boolean()),
-                }),
-              ]),
-            ),
-          }),
-        ),
-        rollups: v.optional(
-          v.record(
-            v.string(),
-            v.strictObject({
-              table: v.string(),
-              via: v.string(),
-              aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
-              column: v.optional(v.string()),
-              where: v.optional(
-                v.strictObject({ column: v.string(), equals: v.string() }),
-              ),
-            }),
-          ),
-        ),
-        lookups: v.optional(
-          v.record(
-            v.string(),
-            v.strictObject({ via: v.string(), column: v.string() }),
-          ),
-        ),
-        events: v.optional(
-          v.union([
-            v.literal(true),
-            v.strictObject({
-              on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
-              include: v.optional(strings),
-            }),
-          ]),
-        ),
-      }),
-    ),
-  ),
+  appTables: v.optional(appTables),
   blocks: v.optional(
     v.lazy((input) =>
       Array.isArray(input)
@@ -848,6 +848,16 @@ const ENTRIES = {
 
 const EnvironmentSchema = v.strictObject(ENTRIES);
 
+/** The shape of a `/create` design; `parseDesign` adds the rules a schema can't state. */
+const DesignSchema = v.strictObject({
+  version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  appTables: v.optional(appTables),
+  extraColumns: v.optional(v.record(v.string(), stringRecord)),
+  positions: v.optional(
+    v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
+  ),
+});
+
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
   preset: v.optional(v.pipe(v.string(), v.minLength(1))),
@@ -956,6 +966,8 @@ export interface ConfigSchemas {
   readonly triggerValue: v.GenericSchema;
   /** Checked by a function, so the renderer writes its JSON Schema. */
   readonly generator: v.GenericSchema;
+  /** A `/create` design, rendered into `schemas/design-v1.json`. */
+  readonly design: v.GenericSchema;
 }
 
 const SCHEMAS = {
@@ -966,6 +978,7 @@ const SCHEMAS = {
   privilege,
   triggerValue,
   generator,
+  design: DesignSchema,
 } satisfies InStep<ConfigSchemas, ConfigDrift>;
 
 export const configSchemas = (): ConfigSchemas => SCHEMAS;

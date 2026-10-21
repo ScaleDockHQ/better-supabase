@@ -176,6 +176,19 @@ with `not_found` when that stack isn't running. A connection string from
 by side on your Supabase CLI, use one git worktree per purpose instead; each
 worktree gets its own stack.
 
+### Too many stacks on macOS
+
+The native stack engine keeps one stack per checkout and branch, and a stack
+keeps running after its shell exits. Each running stack's Postgres holds a
+System V shared memory segment, and macOS allows 32 of them on the whole
+machine (`sysctl kern.sysv.shmmni`). Once they are used up, the next
+`supabase start` fails because its Postgres can't get a segment. `ipcs -m`
+lists the segments in use.
+
+Stop the stacks you aren't using. `supabase stack list` shows every stack on
+the machine, and `supabase stop --stack-id <id>` stops one without deleting
+its data. Stop the stacks of branches you have merged first.
+
 Side effects: Writes files, writes to the database with `--apply`.
 
 ## OpenAPI files

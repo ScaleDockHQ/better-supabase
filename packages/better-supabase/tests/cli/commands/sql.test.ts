@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
-import { VERSION } from "../../../src/cli/version.ts";
 import {
   type BetterSupabaseConfig,
   resolveConfig,
@@ -70,10 +69,10 @@ describe("moduleLayout", () => {
     ]);
     expect(layout).toMatchObject({
       testsDir: "tests/sql",
-      version: VERSION,
       tenantColumn: "org_id",
     });
     expect(layout).not.toHaveProperty("accessProvider");
+    expect(layout).not.toHaveProperty("version");
   });
 });
 
