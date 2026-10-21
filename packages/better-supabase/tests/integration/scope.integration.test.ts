@@ -3,7 +3,11 @@ import { afterAll, describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/index.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { scopedSeed, withRollback } from "../../src/testing/scope.ts";
+import {
+  scopedSeed,
+  withClaims,
+  withRollback,
+} from "../../src/testing/scope.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
@@ -110,5 +114,42 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
     await expect(
       withRollback(alice, () => Promise.reject(new Error("boom"))),
     ).rejects.toThrow("boom");
+  });
+
+  it("runs raw SQL as the claims' user and leaves no rows behind", async () => {
+    await using scope = await scopedSeed(betterSupabase, () => ({}), {
+      tenant: organization,
+    });
+
+    const seen = await withClaims(
+      postgres,
+      { sub: USER, tenant_id: scope.tenant },
+      async (sql) => {
+        await sql.queryRaw(
+          "insert into public.customers (organization_id, name) values ($1, 'temp')",
+          [scope.tenant],
+        );
+
+        const [row] = await sql.queryRaw(
+          "select auth.uid()::text as uid, auth.jwt()->>'tenant_id' as tenant, current_user as role, (select count(*)::int from public.customers) as customers",
+        );
+
+        return row;
+      },
+    );
+
+    expect(seen).toEqual({
+      uid: USER,
+      tenant: scope.tenant,
+      role: "authenticated",
+      customers: 1,
+    });
+
+    const left = await postgres.admin.queryRaw(
+      "select 1 from public.customers where organization_id = $1",
+      [scope.tenant],
+    );
+
+    expect(left).toEqual([]);
   });
 });

@@ -28,7 +28,7 @@ export type {
   InstantPage,
 } from "./instant.ts";
 
-export { scopedSeed, withRollback } from "./scope.ts";
+export { scopedSeed, withClaims, withRollback } from "./scope.ts";
 
 export type {
   Scope,
