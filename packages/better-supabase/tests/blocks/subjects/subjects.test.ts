@@ -74,4 +74,32 @@ describe("createSubjects", () => {
     expect(fake.calls).toHaveLength(2);
     expect(Object.keys(found)).toHaveLength(SUBJECT_TITLES_LIMIT + 1);
   });
+
+  it("skips rows without a type and id, and a result that isn't a list", async () => {
+    const rows: unknown[] = [
+      [null, { type: "task" }, { type: "task", id: "1" }],
+      { type: "task", id: "2" },
+    ];
+
+    const subjects = createSubjects({
+      transport: { call: () => Promise.resolve(rows.shift()) },
+    });
+
+    expect(
+      await subjects.resolve([{ type: "task", id: "1" }]).orThrow(),
+    ).toEqual({ "task:1": { type: "task", id: "1" } });
+    expect(
+      await subjects.resolve([{ type: "task", id: "2" }]).orThrow(),
+    ).toEqual({});
+  });
+
+  it("returns the database error of a failed call", async () => {
+    const subjects = createSubjects({
+      transport: { call: () => Promise.reject(new Error("down")) },
+    });
+
+    const result = await subjects.resolve([{ type: "task", id: "1" }]);
+
+    expect(result.ok).toBe(false);
+  });
 });

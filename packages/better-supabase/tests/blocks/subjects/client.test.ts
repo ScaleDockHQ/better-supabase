@@ -7,7 +7,13 @@ import {
   batchSubjects,
   createSubjectsController,
 } from "../../../src/blocks/subjects/client.ts";
-import { fakeAuth, flush, mount, resolved } from "../../fixtures/ports.ts";
+import {
+  failed,
+  fakeAuth,
+  flush,
+  mount,
+  resolved,
+} from "../../fixtures/ports.ts";
 
 const resolver = () => ({
   resolve: vi.fn((refs: readonly SubjectRef[]) =>
@@ -38,6 +44,48 @@ describe("batchSubjects", () => {
     expect(inner.resolve).toHaveBeenCalledOnce();
     expect(first.ok && Object.keys(first.data)).toEqual(["task:a"]);
     expect(second.ok && Object.keys(second.data)).toEqual(["task:a", "note:b"]);
+  });
+
+  it("passes an error to every caller of the batch", async () => {
+    const batched = batchSubjects({
+      resolve: () => failed<Readonly<Record<string, ResolvedSubject>>>("down"),
+    });
+
+    const results = await Promise.all([
+      batched.resolve([{ type: "task", id: "a" }]),
+      batched.resolve([{ type: "task", id: "b" }]),
+    ]);
+
+    expect(results.map((result) => result.ok)).toEqual([false, false]);
+  });
+
+  it("leaves out a subject the source didn't return", async () => {
+    const batched = batchSubjects({
+      resolve: () => resolved<Readonly<Record<string, ResolvedSubject>>>({}),
+    });
+
+    const result = await batched.resolve([{ type: "task", id: "a" }]);
+
+    expect(result.ok && result.data).toEqual({});
+  });
+});
+
+describe("createSubjectsController errors", () => {
+  it("keeps the error of a failed load", async () => {
+    const { view, unmount } = mount(
+      createSubjectsController({
+        client: {
+          resolve: () =>
+            failed<Readonly<Record<string, ResolvedSubject>>>("down"),
+        },
+        auth: fakeAuth(),
+        refs: [{ type: "task", id: "a" }],
+      }),
+    );
+
+    await flush();
+    expect(view().error).toBeDefined();
+    unmount();
   });
 });
 

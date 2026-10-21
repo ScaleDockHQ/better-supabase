@@ -58,6 +58,34 @@ describe("batchPermissions", () => {
 
     expect(results.map((result) => result.ok)).toEqual([false, false]);
   });
+
+  it("passes a call without keys straight through", async () => {
+    const inner = source(["a"]);
+
+    await batchPermissions(inner).permissions(undefined, { tenant: "org-1" });
+
+    expect(inner.permissions).toHaveBeenCalledWith(undefined, {
+      tenant: "org-1",
+    });
+  });
+});
+
+describe("createPermissionsController errors", () => {
+  it("keeps the error of a failed load", async () => {
+    const { view, unmount } = mount(
+      createPermissionsController({
+        client: { permissions: () => failed<PermissionSet>("down") },
+        auth: fakeAuth(),
+        keys: ["a"],
+        tenant: "org-1",
+      }),
+    );
+
+    await flush();
+    expect(view().error).toBeDefined();
+    expect(view().permissions).toBeUndefined();
+    unmount();
+  });
 });
 
 describe("createPermissionsController", () => {

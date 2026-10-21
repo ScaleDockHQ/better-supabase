@@ -220,6 +220,27 @@ describe("blocks.generated.ts", () => {
     expect(contents).not.toMatch(/ {2}note: /u);
   });
 
+  it("writes a block entity's url, and a constant path without arguments", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          subjects: {},
+          "work-items": {
+            entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+          },
+          deals: { entities: { deal: { url: "/crm/deals" } } },
+        },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toMatch(/ {2}task: \(v: \{ readonly id: /u);
+    expect(contents).toContain('  deal: () => "/crm/deals",');
+  });
+
   it("leaves out tenant and access in user scope", () => {
     const entries = blockConfigEntries(
       resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),
