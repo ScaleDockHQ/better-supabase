@@ -1,4 +1,4 @@
-export type { CommentsOptimisticAction } from "./section.ts";
+export type { CommentsOptimisticAction, CommentsWrites } from "./section.ts";
 
 export {
   type ActivityDescription,

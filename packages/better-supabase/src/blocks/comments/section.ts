@@ -1,7 +1,13 @@
-import type { Section } from "../sections.ts";
-import type { Comment, Comments, ListCommentsOptions } from "./comments.ts";
+import type { Section, SectionRowInput, SectionWrite } from "../sections.ts";
+import type {
+  Comment,
+  Comments,
+  ListCommentsOptions,
+  NewComment,
+} from "./comments.ts";
 
-import { defineSection } from "../sections.ts";
+import { defineSection, sectionRowInput } from "../sections.ts";
+import { commentInputSchema } from "./schemas.ts";
 
 /** A pending write to a thread, for `useOptimistic`. */
 export type CommentsOptimisticAction =
@@ -43,12 +49,21 @@ export function commentsOptimistic(
   }
 }
 
+/** The writes of the comments section. */
+export type CommentsWrites = {
+  /** Adds a comment to the record's thread. */
+  readonly add: SectionWrite<Comments, NewComment, Comment>;
+  /** Removes one comment; its author or a moderator. */
+  readonly remove: SectionWrite<Comments, SectionRowInput, boolean>;
+};
+
 /** A record's comment thread, oldest first. */
 export const commentsSection: Section<
   Comments,
   readonly Comment[],
   ListCommentsOptions,
-  CommentsOptimisticAction
+  CommentsOptimisticAction,
+  CommentsWrites
 > = defineSection({
   permissions: { read: "read", write: "create" },
   load: (client: Comments, subject, options?: ListCommentsOptions) =>
@@ -56,4 +71,16 @@ export const commentsSection: Section<
   count: (client: Comments, subjects) => client.counts(subjects),
   events: ["comment.created", "comment.deleted"],
   optimistic: commentsOptimistic,
+  writes: {
+    add: {
+      input: commentInputSchema,
+      run: (client: Comments, subject, input: NewComment) =>
+        client.create(subject, input),
+    },
+    remove: {
+      input: sectionRowInput,
+      run: (client: Comments, _subject, { id }: SectionRowInput) =>
+        client.remove(id),
+    },
+  },
 });

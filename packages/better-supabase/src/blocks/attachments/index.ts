@@ -1,4 +1,7 @@
-export type { AttachmentsOptimisticAction } from "./section.ts";
+export type {
+  AttachmentsOptimisticAction,
+  AttachmentsWrites,
+} from "./section.ts";
 
 export {
   type Attachment,

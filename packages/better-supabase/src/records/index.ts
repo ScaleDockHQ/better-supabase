@@ -24,6 +24,13 @@ export type {
   SectionOptions,
   SectionPermissions,
   SectionResult,
+  SectionWrite,
+  SectionWriteInput,
+  SectionWriteName,
+  SectionWriteOutput,
+  SectionWrites,
+  AnySectionWrite,
+  SectionRowInput,
 } from "../blocks/sections.ts";
 
 export type {
@@ -36,10 +43,40 @@ export type {
   PermissionSet,
 } from "../blocks/access/permissions.ts";
 
+export type {
+  FeatureBlocks,
+  FeaturePermissions,
+  FeatureWriteInput,
+  FeatureWriteOutput,
+  Plain,
+  PlainSection,
+  PlainSections,
+  RecordCan,
+  RecordFeature,
+  RecordFeatureSpec,
+  RecordWriteInput,
+  SectionWritesOf,
+} from "./feature.ts";
+
 export { createRecordController } from "./controller.ts";
+
+export {
+  defineRecordFeature,
+  findSectionWrite,
+  plainData,
+  recordCan,
+  recordPermissionKeys,
+  recordSubject,
+  recordWriteInput,
+} from "./feature.ts";
 
 export { countSection, loadSections, sectionCan } from "./sections.ts";
 
-export { defineSection, sectionEventMatches } from "../blocks/sections.ts";
+export {
+  defineSection,
+  sectionEventMatches,
+  sectionRowInput,
+  sectionWrite,
+} from "../blocks/sections.ts";
 
 export { can, permissionFlags } from "../blocks/access/permissions.ts";

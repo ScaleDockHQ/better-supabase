@@ -31,3 +31,10 @@ export { slaBlock } from "./manifest.ts";
 export { slaEvents } from "./events.ts";
 
 export type { SlaEvents } from "./events.ts";
+
+export {
+  slaSection,
+  slaStartInput,
+  type SlaStartInput,
+  type SlaWrites,
+} from "./section.ts";

@@ -32,3 +32,10 @@ export { versionsBlock } from "./manifest.ts";
 export { versionsEvents } from "./events.ts";
 
 export type { VersionsEvents } from "./events.ts";
+
+export {
+  versionInput,
+  versionsSection,
+  type VersionInput,
+  type VersionsWrites,
+} from "./section.ts";

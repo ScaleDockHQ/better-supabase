@@ -1,6 +1,11 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
 import type { DbError } from "../core/errors.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { SubjectRef } from "../schema/types.ts";
+import type { EntitySchema } from "./entity-schema.ts";
+
+import { entitySchema } from "./entity-schema.ts";
 
 /**
  * The module actions a section needs, such as `{ read: "read", write: "create"
@@ -12,8 +17,48 @@ export interface SectionPermissions {
   readonly write?: string;
 }
 
+/**
+ * One write a section takes on its record, such as adding a comment. Generated
+ * features turn each one into a Server Action or a mutation.
+ */
+export interface SectionWrite<Client, Input, Output = unknown> {
+  /**
+   * The `permissions.<module>` action the write needs, for the `can*` flags.
+   * Default: the section's `permissions.write`. The SQL function checks the key
+   * again.
+   */
+  readonly permission?: string;
+  /** What the write takes besides the record, as a Standard Schema. */
+  readonly input: StandardSchemaV1<unknown, Input>;
+  readonly run: (
+    client: Client,
+    subject: SubjectRef,
+    input: Input,
+  ) => AsyncResult<Output>;
+}
+
+/** Any section write, for constraints. */
+export interface AnySectionWrite {
+  readonly permission?: string;
+  readonly input: StandardSchemaV1;
+  readonly run: (
+    client: never,
+    subject: SubjectRef,
+    input: never,
+  ) => AsyncResult<unknown>;
+}
+
+/** A section's writes, by name. */
+export type SectionWrites = Readonly<Record<string, AnySectionWrite>>;
+
 /** What `defineSection` takes. */
-export interface SectionDefinition<Client, Data, Options, Action> {
+export interface SectionDefinition<
+  Client,
+  Data,
+  Options,
+  Action,
+  W extends SectionWrites = Record<never, never>,
+> {
   readonly permissions: SectionPermissions;
   /**
    * The SQL module whose permission keys `permissions` names. Default: the
@@ -38,6 +83,8 @@ export interface SectionDefinition<Client, Data, Options, Action> {
   readonly events?: readonly string[];
   /** A reducer for `useOptimistic`, applying a pending write to the rows. */
   readonly optimistic?: (state: Data, action: Action) => Data;
+  /** The writes the section takes on its record, by name (`add`, `remove`). */
+  readonly writes?: W;
 }
 
 /**
@@ -50,9 +97,11 @@ export interface Section<
   Data = unknown,
   Options = never,
   Action = never,
-> extends SectionDefinition<Client, Data, Options, Action> {
+  W extends SectionWrites = Record<never, never>,
+> extends SectionDefinition<Client, Data, Options, Action, W> {
   readonly apiVersion: 1;
   readonly events: readonly string[];
+  readonly writes: W;
 }
 
 /** Any section, for constraints. */
@@ -71,6 +120,7 @@ export interface AnySection {
   ) => AsyncResult<Readonly<Record<string, number>>>;
   readonly events: readonly string[];
   readonly optimistic?: (state: never, action: never) => unknown;
+  readonly writes?: SectionWrites;
 }
 
 /** A block's sections, by name. */
@@ -90,6 +140,33 @@ export type SectionOptions<S> = S extends {
   ? Exclude<O, undefined>
   : never;
 
+/** The names of a section's writes. */
+export type SectionWriteName<S> = S extends {
+  readonly writes: infer W extends SectionWrites;
+}
+  ? keyof W & string
+  : never;
+
+/** What one of a section's writes resolves to. */
+export type SectionWriteOutput<S, N extends string> = S extends {
+  readonly writes: infer W extends SectionWrites;
+}
+  ? N extends keyof W
+    ? W[N]["run"] extends (...args: never) => AsyncResult<infer O>
+      ? O
+      : never
+    : never
+  : never;
+
+/** What one of a section's writes takes besides the record. */
+export type SectionWriteInput<S, N extends string> = S extends {
+  readonly writes: infer W extends SectionWrites;
+}
+  ? N extends keyof W
+    ? StandardSchemaV1.InferOutput<W[N]["input"]>
+    : never
+  : never;
+
 /** A section once loaded: its rows, its error, or hidden from the caller. */
 export type SectionResult<Data> =
   | { readonly kind: "ok"; readonly data: Data }
@@ -97,11 +174,42 @@ export type SectionResult<Data> =
   | { readonly kind: "hidden" };
 
 /** Describes a section of a block's record page (`apiVersion: 1`). */
-export function defineSection<Client, Data, Options = never, Action = never>(
-  definition: SectionDefinition<Client, Data, Options, Action>,
-): Section<Client, Data, Options, Action> {
-  return { ...definition, apiVersion: 1, events: definition.events ?? [] };
+export function defineSection<
+  Client,
+  Data,
+  Options = never,
+  Action = never,
+  const W extends SectionWrites = Record<never, never>,
+>(
+  definition: SectionDefinition<Client, Data, Options, Action, W>,
+): Section<Client, Data, Options, Action, W> {
+  return {
+    ...definition,
+    apiVersion: 1,
+    events: definition.events ?? [],
+    // SAFETY: a section without `writes` has none, which is the default `W`.
+    writes: definition.writes ?? ({} as W),
+  };
 }
+
+/** Describes one write of a section, typed by its client and input. */
+export function sectionWrite<Client, Input, Output>(
+  write: SectionWrite<Client, Input, Output>,
+): SectionWrite<Client, Input, Output> {
+  return write;
+}
+
+/** What a write on one row of a section takes: the row's id. */
+export interface SectionRowInput {
+  readonly id: string;
+}
+
+/** The input schema of a write on one row, such as removing a comment. */
+export const sectionRowInput: EntitySchema<SectionRowInput> =
+  entitySchema<SectionRowInput>({
+    title: "SectionRowInput",
+    fields: { id: { kind: "uuid" } },
+  });
 
 /** Whether a block event type matches a section's `events` entry. */
 export function sectionEventMatches(pattern: string, type: string): boolean {

@@ -3,6 +3,16 @@ export { createNext } from "./create.ts";
 export { nextCache, sessionStale, sessionTag, supportTag } from "./cache.ts";
 
 export {
+  recordServer,
+  type RecordLoadOptions,
+  type RecordServer,
+  type RecordServerActions,
+  type RecordServerContext,
+  type RecordServerHost,
+  type RecordView,
+} from "./feature.ts";
+
+export {
   invalidateSection,
   recordTag,
   sectionTag,

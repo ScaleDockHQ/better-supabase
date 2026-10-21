@@ -1,7 +1,7 @@
-import type { Section } from "../sections.ts";
+import type { Section, SectionRowInput, SectionWrite } from "../sections.ts";
 import type { Attachment, Attachments } from "./attachments.ts";
 
-import { defineSection } from "../sections.ts";
+import { defineSection, sectionRowInput } from "../sections.ts";
 
 /** A pending write to a record's files, for `useOptimistic`. */
 export type AttachmentsOptimisticAction =
@@ -36,15 +36,33 @@ export function attachmentsOptimistic(
   }
 }
 
+/**
+ * The writes of the attachments section. An upload takes two steps through the
+ * browser (`upload`, then `confirm`), so it isn't one.
+ */
+export type AttachmentsWrites = {
+  /** Removes one file. */
+  readonly remove: SectionWrite<Attachments, SectionRowInput, boolean>;
+};
+
 /** A record's files. */
 export const attachmentsSection: Section<
   Attachments,
   readonly Attachment[],
   never,
-  AttachmentsOptimisticAction
+  AttachmentsOptimisticAction,
+  AttachmentsWrites
 > = defineSection({
   permissions: { read: "read", write: "upload" },
   load: (client: Attachments, subject) => client.list(subject),
   events: ["attachment.*"],
   optimistic: attachmentsOptimistic,
+  writes: {
+    remove: {
+      permission: "manage",
+      input: sectionRowInput,
+      run: (client: Attachments, _subject, { id }: SectionRowInput) =>
+        client.remove(id),
+    },
+  },
 });
