@@ -586,7 +586,9 @@ caller (the `service_role` key or a direct admin connection) and null for
 anyone else, so a signed-in user cannot name another user by sending the
 header. The audit trigger and `audit_event()` record the acting member as the
 actor when `auth.uid()` is null, and `track_actor()` uses it for `created_by`
-and `updated_by`.
+and `updated_by`. Only `service_role` may execute `acting_member()`; the audit
+and actor triggers run as their owner, so they call it for every writer. Your
+own function that calls it must be `security definer` too.
 
 A child table without a tenant column can still record its tenant.
 `tenant_path => 'group_id -> directory_groups.organization_id'` reads

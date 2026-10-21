@@ -17,6 +17,7 @@ ${ACTING_MEMBER}
 create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
