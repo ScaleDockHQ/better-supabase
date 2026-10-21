@@ -116,7 +116,7 @@ function cases(
 }
 
 /** The most refs one `subject_titles` call resolves. */
-export const MAX_TITLE_REFS = 500;
+const MAX_TITLE_REFS = 500;
 
 /** The `subject_titles` step that adds the refs of `subject`'s type. */
 function titlesBranch(subject: RegisteredSubject): string {
