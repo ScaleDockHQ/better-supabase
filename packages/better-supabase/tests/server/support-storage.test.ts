@@ -639,7 +639,10 @@ const SESSION = {
   id: "session-1",
   adminId: "admin-1",
   targetUserId: "00000000-0000-4000-8000-0000000000aa",
+  startedAt: Temporal.Instant.from("2026-10-01T00:00:00Z"),
 } as const;
+
+const SINCE = "2026-10-01T00:00:00Z";
 
 const STAMP = { supportSessionId: "session-1", supportAdminId: "admin-1" };
 const SAVEPOINT = "savepoint better_supabase_support_write";
@@ -1034,7 +1037,10 @@ describe("supportStorage writes", () => {
 });
 
 const CLAIM_SQL =
-  "update storage.objects\nset owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb\nwhere bucket_id = $1 and name = $2 and owner_id is null\nreturning name";
+  "update storage.objects\nset owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb\nwhere bucket_id = $1 and name = $2 and owner_id is null and updated_at >= $6::timestamptz\nreturning name";
+
+const OWNER_SQL =
+  "select owner_id, updated_at >= $3::timestamptz as recent\nfrom storage.objects where bucket_id = $1 and name = $2";
 
 const INSERT_SQL =
   "insert into storage.objects (bucket_id, name, owner, owner_id, user_metadata)\nvalues ($1, $2, $3::uuid, $4, $5::jsonb)";
@@ -1142,6 +1148,7 @@ describe("supportStorage signed uploads", () => {
         ],
       },
       { text: ROLLBACK, values: [] },
+      { text: expect.stringContaining("from pg_indexes"), values: [] },
     ]);
     expect(owner.calls).toEqual([
       {
@@ -1152,6 +1159,7 @@ describe("supportStorage signed uploads", () => {
           SESSION.targetUserId,
           SESSION.targetUserId,
           JSON.stringify(STAMP),
+          SINCE,
         ],
       },
     ]);
@@ -1162,12 +1170,7 @@ describe("supportStorage signed uploads", () => {
     const { storage, owner } = writableOf(
       [],
       [DUPLICATE],
-      [
-        [
-          "select name, owner_id from storage.objects",
-          [{ name: "a", owner_id: "someone-else" }],
-        ],
-      ],
+      [["as recent", [{ owner_id: "someone-else", recent: true }]]],
     );
 
     const reply = await claimOf(storage)("a");
@@ -1182,21 +1185,70 @@ describe("supportStorage signed uploads", () => {
       },
     });
     expect(fromStorageError(reply.error, "docs").kind).toBe("forbidden");
-    expect(owner.texts()).toEqual([
-      CLAIM_SQL,
-      "select name, owner_id from storage.objects where bucket_id = $1 and name = $2",
-    ]);
+    expect(owner.calls.at(-1)).toEqual({
+      text: OWNER_SQL,
+      values: ["docs", "a", SINCE],
+    });
   });
 
-  it("accepts a claim of an object the target already owns", async () => {
+  it("refuses to claim an object stored before the session started", async () => {
+    const { storage } = writableOf(
+      [],
+      [DUPLICATE],
+      [["as recent", [{ owner_id: null, recent: false }]]],
+    );
+
+    expect(await claimOf(storage)("a")).toEqual({
+      data: null,
+      error: {
+        name: "StorageApiError",
+        message: "The object was stored before the support session started",
+        status: 403,
+        statusCode: "403",
+        code: "AccessDenied",
+      },
+    });
+
+    const theirs = writableOf(
+      [],
+      [DUPLICATE],
+      [["as recent", [{ owner_id: "someone-else", recent: false }]]],
+    );
+
+    expect((await claimOf(theirs.storage)("a")).error).toMatchObject({
+      code: "AccessDenied",
+      message: "The object was stored before the support session started",
+    });
+    expect(theirs.calls.some((call) => call.method === "remove")).toBe(false);
+
+    const mine = writableOf(
+      [],
+      [DUPLICATE],
+      [["as recent", [{ owner_id: SESSION.targetUserId, recent: false }]]],
+    );
+
+    expect(await claimOf(mine.storage)("a")).toEqual({
+      data: { path: "a" },
+      error: null,
+    });
+  });
+
+  it("claims again when the upload lands between the update and the check", async () => {
+    let attempts = 0;
+
     const { storage } = writableOf(
       [],
       [DUPLICATE],
       [
         [
-          "select name, owner_id from storage.objects",
-          [{ name: "a", owner_id: SESSION.targetUserId }],
+          "returning name",
+          () => {
+            attempts += 1;
+
+            return attempts === 1 ? [] : [{ name: "a" }];
+          },
         ],
+        ["as recent", [{ owner_id: null, recent: true }]],
       ],
     );
 
@@ -1204,6 +1256,51 @@ describe("supportStorage signed uploads", () => {
       data: { path: "a" },
       error: null,
     });
+    expect(attempts).toBe(2);
+  });
+
+  it("removes nothing when a claim is refused", async () => {
+    const { storage, calls } = writableOf(
+      [],
+      [["insert into", { throws: pgError("42501", RLS) }]],
+      [["as recent", [{ owner_id: null, recent: true }]]],
+    );
+
+    expect((await claimOf(storage)("a")).error).toMatchObject({
+      status: 403,
+      code: "AccessDenied",
+    });
+    expect(calls.some((call) => call.method === "remove")).toBe(false);
+  });
+
+  it("only claims the current version once Storage versions objects", async () => {
+    const { storage, owner } = writableOf(
+      [],
+      [DUPLICATE, ["from pg_indexes", [{ versioned: true }]]],
+    );
+
+    await claimOf(storage)("a");
+    expect(owner.texts()).toEqual([
+      `${CLAIM_SQL.replace("\nreturning name", "")} and archived_at is null\nreturning name`,
+      `${OWNER_SQL} and archived_at is null`,
+    ]);
+  });
+
+  it("accepts a repeated claim of the target's object without stamping it again", async () => {
+    const { storage, owner } = writableOf(
+      [],
+      [DUPLICATE],
+      [["as recent", [{ owner_id: SESSION.targetUserId, recent: true }]]],
+    );
+
+    expect(await claimOf(storage)("a")).toEqual({
+      data: { path: "a" },
+      error: null,
+    });
+    expect(owner.calls.map((call) => call.text)).toEqual([
+      CLAIM_SQL,
+      OWNER_SQL,
+    ]);
   });
 
   it("answers a claim of a missing object like Storage does", async () => {
@@ -1274,7 +1371,7 @@ describe("supportStorage signed uploads", () => {
     expect(owner.texts()).toEqual([CLAIM_SQL]);
   });
 
-  it("removes a token upload whose claim fails, and reports a refused claim", async () => {
+  it("removes a token upload whose claim fails or is refused", async () => {
     const failing = writableOf(
       [],
       [],
@@ -1289,23 +1386,27 @@ describe("supportStorage signed uploads", () => {
       "remove",
     ]);
 
-    const owned = writableOf(
+    const foreign = writableOf(
       [],
       [],
-      [
-        [
-          "select name, owner_id from storage.objects",
-          [{ name: "a", owner_id: "someone-else" }],
-        ],
-      ],
+      [["as recent", [{ owner_id: "signer-of-the-token", recent: true }]]],
     );
 
     expect(
-      (await owned.docs.uploadToSignedUrl("a", "t1", "x", { upsert: true }))
-        .error,
+      (await foreign.docs.uploadToSignedUrl("a", "t1", "x")).error,
     ).toMatchObject({ code: "AccessDenied" });
-    expect(owned.calls.map((call) => call.method)).toEqual([
+    expect(foreign.calls.map((call) => [call.method, call.args[0]])).toEqual([
+      ["uploadToSignedUrl", "a"],
+      ["remove", ["a"]],
+    ]);
+
+    const vanished = writableOf([]);
+    expect(
+      (await vanished.docs.uploadToSignedUrl("a", "t1", "x")).error,
+    ).toMatchObject({ code: "NoSuchKey" });
+    expect(vanished.calls.map((call) => call.method)).toEqual([
       "uploadToSignedUrl",
+      "remove",
     ]);
 
     const refused = writableOf([]);

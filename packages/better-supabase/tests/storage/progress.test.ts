@@ -171,7 +171,7 @@ describe("upload progress", () => {
 
   it("claims the uploaded object when Storage has a claim step", async () => {
     vi.stubGlobal("XMLHttpRequest", FakeXhr);
-    const { client } = fakeStorage();
+    const { client, calls } = fakeStorage();
     const claimed: string[] = [];
 
     const claiming = (
@@ -207,6 +207,7 @@ describe("upload progress", () => {
         )
         .upload(A, "x", { onProgress: () => undefined }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(calls.some((call) => call.method === "remove")).toBe(false);
   });
 
   it("cancels the request on abort", async () => {

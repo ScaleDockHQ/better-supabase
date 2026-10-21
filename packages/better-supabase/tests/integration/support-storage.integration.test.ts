@@ -10,6 +10,7 @@ import { createPostgres } from "../../src/postgres/pool.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
+import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
@@ -195,7 +196,28 @@ const SESSION = {
   id: "11111111-1111-4111-8111-111111111111",
   adminId: "00000000-0000-4000-8000-0000000000ee",
   targetUserId: USER,
+  startedAt: Temporal.Now.instant(),
 };
+
+beforeAll(async () => {
+  if (!live) {
+    return;
+  }
+
+  const clock = new Pool({ connectionString: dbUrl, max: 1 });
+
+  try {
+    const {
+      rows: [now],
+    } = await clock.query<{ now: Date }>("select now() as now");
+
+    SESSION.startedAt = Temporal.Instant.fromEpochMilliseconds(
+      (now?.now ?? new Date()).getTime(),
+    );
+  } finally {
+    await clock.end();
+  }
+});
 
 const plain = defineBucket({
   id: "bs-it-support-plain",
@@ -205,6 +227,7 @@ const plain = defineBucket({
 });
 
 const INSERT_ONLY = "bs-it-support-insert-only";
+const REVOCABLE = "bs-it-support-revocable";
 
 describe.skipIf(!live)("support storage writes against the local stack", () => {
   const supabase = createClient(url, publishableKey, {
@@ -251,6 +274,8 @@ on conflict (id) do nothing;
 drop policy if exists bs_it_insert_only_insert on storage.objects;
 create policy bs_it_insert_only_insert on storage.objects for insert to authenticated
   with check (bucket_id = '${INSERT_ONLY}' and owner_id = (select auth.uid())::text);
+insert into storage.buckets (id, name, public) values ('${REVOCABLE}', '${REVOCABLE}', false)
+on conflict (id) do nothing;
 drop policy if exists bs_it_insert_only_select on storage.objects;
 create policy bs_it_insert_only_select on storage.objects for select to authenticated
   using (bucket_id = '${INSERT_ONLY}' and owner_id = (select auth.uid())::text);`);
@@ -264,7 +289,11 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     }
   });
   afterAll(async () => {
-    for (const bucket of [files.id, plain.id, INSERT_ONLY]) {
+    await pool.query(
+      "drop policy if exists bs_it_revocable_insert on storage.objects",
+    );
+
+    for (const bucket of [files.id, plain.id, INSERT_ONLY, REVOCABLE]) {
       const { rows } = await pool.query<{ name: string }>(
         "select name from storage.objects where bucket_id = $1 and name like $2",
         [bucket, `%/${RUN}/w/%`],
@@ -508,6 +537,109 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     ).toMatchObject({ kind: "not_found" });
   });
 
+  it("never claims an owner-less object stored before the session started", async () => {
+    const path = own("before.txt");
+
+    const { error } = await service.storage
+      .from(files.id)
+      .upload(path, text("service export"));
+
+    if (error) {
+      throw error;
+    }
+
+    const {
+      rows: [clock],
+    } = await pool.query<{ now: Date }>("select now() as now");
+
+    const later = supportStorage({
+      admin: service.storage,
+      sql: postgres.asUser(claims),
+      adminSql: postgres.admin,
+      session: {
+        ...SESSION,
+        startedAt: Temporal.Instant.fromEpochMilliseconds(
+          (clock?.now ?? new Date()).getTime() + 1,
+        ),
+      },
+      readOnly: false,
+    });
+
+    const bucket = files.connect(later);
+
+    expect((await bucket.claimReserved({ path })).error).toMatchObject({
+      kind: "forbidden",
+      code: "AccessDenied",
+    });
+    const untouched = await row(files.id, path);
+    expect(untouched?.owner_id).toBeNull();
+    expect(untouched?.user_metadata?.["supportSessionId"]).toBeUndefined();
+
+    const replaced = await bucket.reserve(path, { upsert: true }).orThrow();
+    const browser = createClient(url, publishableKey).storage.from(files.id);
+
+    expect(
+      (
+        await browser.uploadToSignedUrl(path, replaced.token, text("new"), {
+          upsert: true,
+        })
+      ).error,
+    ).toBeNull();
+    expect((await bucket.claimReserved(replaced)).error).toBeNull();
+    expect(await row(files.id, path)).toMatchObject({
+      owner_id: USER,
+      user_metadata: { supportSessionId: SESSION.id },
+    });
+  });
+
+  it("refuses an upsert reservation the update policy refuses", async () => {
+    const bucket = writer.from(INSERT_ONLY);
+    const path = own("reserved-once.txt");
+    expect((await bucket.upload(path, text("first"))).error).toBeNull();
+
+    const reserved = await bucket.createSignedUploadUrl(path, {
+      upsert: true,
+    });
+
+    expect(fromStorageError(reserved.error).kind).toBe("forbidden");
+    expect(reserved.data).toBeNull();
+  });
+
+  it("refuses a claim once the target may no longer insert", async () => {
+    await pool.query(`
+drop policy if exists bs_it_revocable_insert on storage.objects;
+create policy bs_it_revocable_insert on storage.objects for insert to authenticated
+  with check (bucket_id = '${REVOCABLE}' and owner_id = (select auth.uid())::text);`);
+
+    const path = own("revoked.txt");
+    const bucket = writer.from(REVOCABLE);
+    const reserved = await bucket.createSignedUploadUrl(path);
+    expect(reserved.error).toBeNull();
+
+    const browser = createClient(url, publishableKey).storage.from(REVOCABLE);
+
+    expect(
+      (
+        await browser.uploadToSignedUrl(
+          path,
+          reserved.data?.token ?? "",
+          text("x"),
+        )
+      ).error,
+    ).toBeNull();
+
+    await pool.query(
+      "drop policy if exists bs_it_revocable_insert on storage.objects",
+    );
+
+    expect(
+      fromStorageError(
+        (await writer.claimSignedUpload?.(REVOCABLE, path))?.error,
+      ).kind,
+    ).toBe("forbidden");
+    expect(await row(REVOCABLE, path)).toMatchObject({ owner_id: null });
+  });
+
   it("claims without a request on the target's own client", async () => {
     expect(
       await files
@@ -586,16 +718,14 @@ describe.skipIf(!live)("attachments in a support session", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const created: string[] = [];
 
-  const session = { ...SESSION, targetUserId: OWNER };
-
   const supportClaims = (readOnly: boolean) => ({
     sub: OWNER,
     role: "authenticated",
     tenant_id: ACME,
     act: {
       kind: "support",
-      sub: session.adminId,
-      session_id: session.id,
+      sub: SESSION.adminId,
+      session_id: SESSION.id,
       read_only: readOnly,
     },
   });
@@ -609,7 +739,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
         admin: service.storage,
         sql,
         adminSql: postgres.admin,
-        session,
+        session: { ...SESSION, targetUserId: OWNER },
         readOnly,
       }),
     });
@@ -625,6 +755,10 @@ describe.skipIf(!live)("attachments in a support session", () => {
         [path],
       )
     ).rows[0];
+
+  beforeAll(async () => {
+    await pool.query(FIXTURE_HELPERS_SQL);
+  });
 
   afterAll(async () => {
     if (created.length > 0) {
@@ -678,8 +812,8 @@ describe.skipIf(!live)("attachments in a support session", () => {
     expect(await object(upload.attachment.path)).toEqual({
       owner_id: OWNER,
       user_metadata: {
-        supportSessionId: session.id,
-        supportAdminId: session.adminId,
+        supportSessionId: SESSION.id,
+        supportAdminId: SESSION.adminId,
       },
     });
     expect((await attachments.confirm(upload.attachment.id)).error).toBeNull();

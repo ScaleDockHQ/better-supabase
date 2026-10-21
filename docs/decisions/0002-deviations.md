@@ -162,6 +162,10 @@ backlogs too large to clear in the upgrade.
   the insert of the object that already exists: Postgres checks the
   insert policy before the unique index, so a duplicate key error means
   the target may store the object and a policy error means it may not.
+  The claim only takes an object without an owner whose `updated_at` is
+  at or after the session's start, so an older object is never claimed.
+  For an upsert reservation, the update-policy rehearsal when the URL is
+  signed is the gate; the claim can't check the update policy again.
 - The library does not set supabase-js `tracePropagation`. `tracedFetch`
   from `better-supabase/otel` injects the trace headers into every
   PostgREST, Auth and Storage request of the clients the app passes it to,
