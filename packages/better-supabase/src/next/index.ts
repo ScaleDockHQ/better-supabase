@@ -3,12 +3,16 @@ export { createNext } from "./create.ts";
 export { nextCache, sessionStale, sessionTag, supportTag } from "./cache.ts";
 
 export {
+  recordListServer,
   recordServer,
+  type RecordListServer,
+  type RecordListView,
   type RecordLoadOptions,
   type RecordServer,
   type RecordServerActions,
   type RecordServerContext,
   type RecordServerHost,
+  type RecordTimelineOptions,
   type RecordView,
 } from "./feature.ts";
 

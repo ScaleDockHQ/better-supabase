@@ -9,6 +9,7 @@ import type { AnyBlock } from "../blocks/define-block.ts";
 import type { SectionOptions } from "../blocks/sections.ts";
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
+import type { ListParseOptions, ListSearchParams } from "../list/list-query.ts";
 import type {
   FeatureBlocks,
   FeatureWriteInput,
@@ -20,7 +21,13 @@ import type {
   RecordWriteInput,
   SectionWritesOf,
 } from "../records/feature.ts";
+import type {
+  RecordList,
+  RecordListCells,
+  RecordListPage,
+} from "../records/list.ts";
 import type { SectionName, SectionNamed } from "../records/sections.ts";
+import type { Timeline } from "../records/timeline.ts";
 import type { SubjectRef } from "../schema/types.ts";
 import type { ActionResult } from "../server/kit.ts";
 
@@ -36,6 +43,7 @@ import {
   runSectionWrite,
 } from "../records/feature.ts";
 import { loadSections } from "../records/sections.ts";
+import { loadTimeline } from "../records/timeline.ts";
 import { invalidateSection, recordTag, sectionTag } from "./records.ts";
 
 /**
@@ -93,6 +101,13 @@ export interface RecordView<
   readonly permissionsError?: DbError;
 }
 
+export interface RecordTimelineOptions<N extends string> {
+  /** Default: every section of the feature with a `timeline`. */
+  readonly sections?: readonly N[];
+  /** The most entries to return, newest first. */
+  readonly limit?: number;
+}
+
 /** One Server Action per write of each section. */
 export type RecordServerActions<B extends FeatureBlocks, N extends string> = {
   readonly [S in N]: {
@@ -115,6 +130,14 @@ export interface RecordServer<
     id: string,
     options?: RecordLoadOptions<B, M>,
   ): Promise<RecordView<T, B, N, M>>;
+  /**
+   * One record's history across its sections, newest first, with the sections
+   * the caller can't read skipped. Call it outside `"use cache"`, like `load`.
+   */
+  timeline(
+    id: string,
+    options?: RecordTimelineOptions<N>,
+  ): Promise<Plain<Timeline>>;
   /** The Server Actions; re-export them from a `"use server"` file. */
   readonly actions: RecordServerActions<B, N>;
   /** The record's cache tag and one per section, scoped to `tenant`. */
@@ -180,6 +203,15 @@ async function permissionsOf(
   const result = await access.permissions(keys);
 
   return result.ok ? { set: result.data } : { set: null, error: result.error };
+}
+
+function readableSections(can: object): ReadonlyMap<string, boolean> {
+  // SAFETY: every entry of `RecordCan` has a `read` flag.
+  const flags = can as Readonly<Record<string, { readonly read: boolean }>>;
+
+  return new Map(
+    Object.entries(flags).map(([name, entry]) => [name, entry.read]),
+  );
 }
 
 /**
@@ -261,12 +293,7 @@ export function recordServer<
       const subject = recordSubject(feature, id);
       const permissions = await permissionsOf(feature, ctx.db);
       const can = recordCan(feature, permissions.set);
-      // SAFETY: every entry of `RecordCan` has a `read` flag.
-      const flags = can as Readonly<Record<string, { readonly read: boolean }>>;
-
-      const readable = new Map(
-        Object.entries(flags).map(([name, entry]) => [name, entry.read]),
-      );
+      const readable = readableSections(can);
 
       // SAFETY: without `sections` the loader loads every section, which is
       // `M` at its default `N`.
@@ -297,6 +324,19 @@ export function recordServer<
           : { permissionsError: permissions.error }),
       };
     },
+    async timeline(id, options = {}) {
+      const ctx = await bs.context();
+      const permissions = await permissionsOf(feature, ctx.db);
+      const readable = readableSections(recordCan(feature, permissions.set));
+
+      const timeline = await loadTimeline(
+        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
+        recordSubject(feature, id),
+        { ...options, can: ({ section }) => readable.get(section) ?? true },
+      );
+
+      return plainData(timeline);
+    },
     actions,
     tags(id, tenant) {
       const subject = recordSubject(feature, id);
@@ -308,6 +348,86 @@ export function recordServer<
           sectionTag(subject, section, scope),
         ),
       ];
+    },
+  };
+}
+
+/** What `recordListServer(...).load` resolves to, safe for a Client Component. */
+export type RecordListView<
+  B extends FeatureBlocks,
+  N extends string,
+  Q,
+  P extends { readonly items: readonly unknown[] },
+  Cols,
+> = Result<
+  Plain<
+    RecordListPage<
+      Q,
+      P,
+      P["items"][number],
+      RecordListCells<B, Cols>,
+      RecordCan<B, N>
+    >
+  >
+>;
+
+export interface RecordListServer<
+  B extends FeatureBlocks,
+  N extends string,
+  Q,
+  P extends { readonly items: readonly unknown[] },
+  Cols,
+> {
+  /**
+   * Parses the page's `searchParams` and loads the page with its section
+   * columns, over the caller's `Db`. Call it outside `"use cache"`.
+   */
+  load(
+    input: ListSearchParams | undefined,
+    options?: ListParseOptions,
+  ): Promise<RecordListView<B, N, Q, P, Cols>>;
+}
+
+/**
+ * The server half of a `defineRecordList` for Next.js: it builds the feature's
+ * block clients and the caller's permissions, then runs `recordList.load`.
+ *
+ * ```ts
+ * const customers = recordListServer(bs, customerRecordList);
+ * const view = await customers.load(await searchParams);
+ * ```
+ */
+export function recordListServer<
+  T extends string,
+  B extends FeatureBlocks,
+  N extends SectionName<B>,
+  Q,
+  P extends { readonly items: readonly unknown[] },
+  Cols,
+>(
+  bs: Pick<RecordServerHost, "context">,
+  recordList: RecordList<T, B, N, Q, P, Cols>,
+): RecordListServer<B, N, Q, P, Cols> {
+  const { feature } = recordList;
+
+  return {
+    async load(input, options) {
+      const ctx = await bs.context();
+      const permissions = await permissionsOf(feature, ctx.db);
+
+      const result = await recordList.load(
+        {
+          db: ctx.db,
+          clients: clientsOf(feature, ctx),
+          ...(permissions.set === undefined
+            ? {}
+            : { permissions: permissions.set }),
+        },
+        input,
+        options,
+      );
+
+      return result.ok ? { ...result, data: plainData(result.data) } : result;
     },
   };
 }

@@ -8,14 +8,16 @@ import type { DbError } from "../../src/core/errors.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { RecordServerHost } from "../../src/next/feature.ts";
 import type { createNext } from "../../src/next/index.ts";
+import type { RecordListQuery } from "../../src/records/index.ts";
 import type { SubjectRef } from "../../src/schema/types.ts";
 import type { ActionResult } from "../../src/server/kit.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
-import { recordServer } from "../../src/next/index.ts";
+import { recordListServer, recordServer } from "../../src/next/index.ts";
 import {
   defineRecordFeature,
+  defineRecordList,
   defineSection,
   sectionRowInput,
 } from "../../src/records/index.ts";
@@ -66,6 +68,8 @@ const notesBlock = defineBlock({
     notes: defineSection({
       permissions: { read: "read", write: "create" },
       load: (client: Notes, subject) => client.list(subject),
+      timeline: (rows: readonly Note[]) =>
+        rows.map((row) => ({ id: row.id, kind: "note", at: row.at, row })),
       writes: {
         add: {
           input: entitySchema<{ readonly body: string }>({
@@ -101,7 +105,9 @@ interface Keys {
 const permissionsCall = vi.fn((keys: readonly string[]) =>
   resolved({
     tenant: "org",
-    keys: keys.filter((key) => key !== "notes.moderate"),
+    keys: keys.filter(
+      (key) => key !== "notes.moderate" && key !== "notes.hidden",
+    ),
   }),
 );
 
@@ -296,5 +302,111 @@ describe("recordServer without access or storage", () => {
 
     expect(view.permissionsError).toMatchObject({ message: "No access" });
     expect(view.can.notes.read).toBe(false);
+  });
+});
+
+describe("recordServer timeline", () => {
+  it("loads the record's timeline as plain data", async () => {
+    expect(await customer.timeline("7", { limit: 10 })).toEqual({
+      entries: [
+        {
+          id: "n1",
+          kind: "note",
+          at: "2026-10-21T10:00:00Z",
+          row: { id: "n1", at: "2026-10-21T10:00:00Z" },
+          section: "notes",
+        },
+      ],
+      skipped: {},
+    });
+  });
+
+  it("skips the sections the caller can't read", async () => {
+    const hidden = recordServer(
+      { ...host, context: () => Promise.resolve({ db }) },
+      defineRecordFeature({
+        type: "customer",
+        blocks: { notes: notesBlock },
+        permissions: { notes: { read: "notes.hidden" } },
+        access: accessBlock,
+      }),
+    );
+
+    expect(await hidden.timeline("7")).toEqual({
+      entries: [],
+      skipped: { notes: { kind: "hidden" } },
+    });
+  });
+});
+
+interface Page {
+  readonly items: readonly { readonly id: string }[];
+  readonly total: number;
+}
+
+const customers: RecordListQuery<{ readonly page: number }, Page> = {
+  parse: (input) =>
+    input?.["page"] === "x"
+      ? { ok: false, issues: [{ path: ["page"], message: "Not a page" }] }
+      : { ok: true, value: { page: 1 } },
+  run: () => resolved({ items: [{ id: "7" }, { id: "8" }], total: 2 }),
+  filterFields: () => [],
+};
+
+describe("recordListServer", () => {
+  const list = recordListServer(
+    host,
+    defineRecordList(feature, customers, { columns: { notes: "data" } }),
+  );
+
+  it("loads a page with its section columns as plain data", async () => {
+    const view = await list.load({});
+
+    expect(view).toMatchObject({
+      ok: true,
+      data: {
+        query: { page: 1 },
+        page: { total: 2 },
+        rows: [
+          {
+            subject: { type: "customer", id: "7" },
+            cells: {
+              notes: {
+                kind: "ok",
+                data: [{ id: "n1", at: "2026-10-21T10:00:00Z" }],
+              },
+            },
+          },
+          { subject: { type: "customer", id: "8" } },
+        ],
+        can: { notes: { read: true, add: true, remove: false } },
+      },
+    });
+  });
+
+  it("returns the error for bad URL state", async () => {
+    expect(await list.load({ page: "x" })).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
+  });
+
+  it("allows every column without an access block", async () => {
+    const open = recordListServer(
+      { context: () => Promise.resolve({ db }) },
+      defineRecordList(
+        defineRecordFeature({
+          type: "customer",
+          blocks: { notes: notesBlock },
+        }),
+        customers,
+        { columns: { notes: "data" } },
+      ),
+    );
+
+    expect(await open.load(undefined)).toMatchObject({
+      ok: true,
+      data: { can: { notes: { read: true } } },
+    });
   });
 });

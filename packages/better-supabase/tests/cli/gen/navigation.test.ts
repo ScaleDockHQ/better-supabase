@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type { SubjectsConfig } from "../../../src/config/index.ts";
+
 import {
   emitNavigation,
   listedSubjects,
 } from "../../../src/cli/gen/navigation.ts";
 import { resolveConfig } from "../../../src/config/resolve.ts";
 
-function config(subjects: Record<string, unknown>) {
+function config(subjects: SubjectsConfig) {
   return resolveConfig({ subjects, blocks: { tenant: {} } }, "/project");
 }
 
