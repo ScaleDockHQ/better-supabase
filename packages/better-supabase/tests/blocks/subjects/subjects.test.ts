@@ -191,3 +191,80 @@ describe("createSubjects summary", () => {
     });
   });
 });
+
+describe("createSubjects myWork", () => {
+  const workTransport = (reply: unknown) => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    return {
+      calls,
+      transport: {
+        call(
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) {
+          calls.push({ fn, args: { ...args } });
+
+          return Promise.resolve(reply);
+        },
+      },
+    };
+  };
+
+  it("reads typed items and drops malformed ones", async () => {
+    const fake = workTransport([
+      {
+        kind: "assigned",
+        subject: { type: "work_item", id: "w1" },
+        ref: "w1",
+        title: "Ship it",
+        url: null,
+        at: "2026-12-01T00:00:00+00:00",
+      },
+      {
+        kind: "mention",
+        subject: { type: "customer", id: "c1" },
+        ref: "m1",
+        url: "/customers/c1",
+      },
+      { kind: "bogus", subject: { type: "x", id: "1" }, ref: "1" },
+      { kind: "sla", subject: null, ref: "2" },
+      { kind: "sla", subject: { type: "x", id: "1" } },
+      "nope",
+    ]);
+
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const work = await subjects
+      .myWork({ tenant: "t1", pageSize: 10 })
+      .orThrow();
+
+    expect(work).toEqual([
+      {
+        kind: "assigned",
+        subject: { type: "work_item", id: "w1" },
+        ref: "w1",
+        title: "Ship it",
+        at: Temporal.Instant.from("2026-12-01T00:00:00Z"),
+      },
+      {
+        kind: "mention",
+        subject: { type: "customer", id: "c1" },
+        ref: "m1",
+        url: "/customers/c1",
+      },
+    ]);
+    expect(fake.calls).toEqual([
+      { fn: "my_work", args: { tenant: "t1", page_size: 10 } },
+    ]);
+  });
+
+  it("defaults to every organization and 50 items", async () => {
+    const fake = workTransport(null);
+    const subjects = createSubjects({ transport: fake.transport });
+
+    expect(await subjects.myWork().orThrow()).toEqual([]);
+    expect(fake.calls[0]?.args).toEqual({ tenant: null, page_size: 50 });
+  });
+});

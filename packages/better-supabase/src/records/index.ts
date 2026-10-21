@@ -17,6 +17,14 @@ export type {
   RecordListSpec,
 } from "./list.ts";
 
+export type { LoadMyWorkOptions, MyWork } from "./my-work.ts";
+
+export type {
+  MyWorkItem,
+  MyWorkKind,
+  MyWorkOptions,
+} from "../blocks/subjects/subjects.ts";
+
 export type {
   LoadTimelineOptions,
   Timeline,
@@ -94,6 +102,8 @@ export { countSection, loadSections, sectionCan } from "./sections.ts";
 export { defineRecordList } from "./list.ts";
 
 export { loadTimeline, timelineSections } from "./timeline.ts";
+
+export { loadMyWork } from "./my-work.ts";
 
 export {
   defineSection,

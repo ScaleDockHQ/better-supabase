@@ -6,7 +6,13 @@ import type { BlockOptions } from "../shared.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { blockCall, instantArg, isRecord, optionalText } from "../shared.ts";
+import {
+  blockCall,
+  instantArg,
+  isRecord,
+  optionalInstant,
+  optionalText,
+} from "../shared.ts";
 
 /** The most refs one `subject_titles` call takes; `resolve` splits above it. */
 export const SUBJECT_TITLES_LIMIT = 500;
@@ -39,6 +45,49 @@ export interface RecordSummaryOptions {
   readonly seenAt?: Temporal.Instant | null;
 }
 
+/** What a `my_work` item waits on. */
+export type MyWorkKind =
+  | "assigned"
+  | "approval"
+  | "reminder"
+  | "mention"
+  | "sla";
+
+/** The kinds `my_work` returns, in the order the docs list them. */
+export const MY_WORK_KINDS: readonly MyWorkKind[] = [
+  "assigned",
+  "approval",
+  "reminder",
+  "mention",
+  "sla",
+];
+
+/** One thing waiting on the caller, from `my_work`. */
+export interface MyWorkItem {
+  readonly kind: MyWorkKind;
+  /** The record it is about: the work item, or the approval's subject. */
+  readonly subject: SubjectRef;
+  /**
+   * The row that put it here: the work item, approval request, reminder,
+   * comment or SLA clock id.
+   */
+  readonly ref: string;
+  readonly title?: string;
+  readonly url?: string;
+  /** The due date, or when it arrived. */
+  readonly at?: Temporal.Instant;
+}
+
+/** The most items one `my_work` call returns. */
+export const MY_WORK_LIMIT = 200;
+
+export interface MyWorkOptions {
+  /** Only this organization's work. Default: every organization. */
+  readonly tenant?: string;
+  /** At most this many items, newest first. Default 50, at most 200. */
+  readonly pageSize?: number;
+}
+
 /** The subjects block's registry as typed calls. */
 export interface Subjects {
   /**
@@ -59,6 +108,12 @@ export interface Subjects {
     sections: readonly string[],
     options?: RecordSummaryOptions,
   ): AsyncResult<RecordSummary | undefined>;
+  /**
+   * What waits on the caller across the installed blocks, newest first: open
+   * work items assigned to them, approvals they can decide, their reminders
+   * sent this week, recent mentions and SLA clocks warned on their work.
+   */
+  myWork(options?: MyWorkOptions): AsyncResult<readonly MyWorkItem[]>;
 }
 
 function resolvedOf(value: unknown): ResolvedSubject | undefined {
@@ -115,6 +170,40 @@ function summaryOf(value: unknown): RecordSummary | undefined {
         unread: flagsOf(value["unread"]),
       };
 }
+
+function workOf(value: unknown): MyWorkItem | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const kind = MY_WORK_KINDS.find((each) => each === value["kind"]);
+  const subject = resolvedOf(value["subject"]);
+  const ref = optionalText(value["ref"]);
+
+  if (kind === undefined || subject === undefined || ref === undefined) {
+    return undefined;
+  }
+
+  const title = optionalText(value["title"]);
+  const url = optionalText(value["url"]);
+  const at = optionalInstant(value["at"]);
+
+  return {
+    kind,
+    subject: { type: subject.type, id: subject.id },
+    ref,
+    ...(title === undefined ? {} : { title }),
+    ...(url === undefined ? {} : { url }),
+    ...(at === undefined ? {} : { at }),
+  };
+}
+
+const workList = (value: unknown): MyWorkItem[] =>
+  (Array.isArray(value) ? value : []).flatMap((row) => {
+    const item = workOf(row);
+
+    return item === undefined ? [] : [item];
+  });
 
 const resolvedList = (value: unknown): ResolvedSubject[] =>
   (Array.isArray(value) ? value : []).flatMap((row) => {
@@ -181,6 +270,15 @@ export function createSubjects(options: SubjectsOptions): Subjects {
           seen_at: instantArg(summaryOptions.seenAt) ?? null,
         },
         summaryOf,
+      ),
+    myWork: (workOptions = {}) =>
+      call(
+        "my_work",
+        {
+          tenant: workOptions.tenant ?? null,
+          page_size: workOptions.pageSize ?? 50,
+        },
+        workList,
       ),
   };
 
