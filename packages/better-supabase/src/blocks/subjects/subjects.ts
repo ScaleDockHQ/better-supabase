@@ -2,6 +2,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { MyWorkKind } from "./my-work-kinds.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
@@ -13,6 +14,7 @@ import {
   optionalInstant,
   optionalText,
 } from "../shared.ts";
+import { MY_WORK_KINDS } from "./my-work-kinds.ts";
 
 /** The most refs one `subject_titles` call takes; `resolve` splits above it. */
 export const SUBJECT_TITLES_LIMIT = 500;
@@ -44,23 +46,6 @@ export interface RecordSummaryOptions {
   /** When the caller last saw the record; every section is read without it. */
   readonly seenAt?: Temporal.Instant | null;
 }
-
-/** What a `my_work` item waits on. */
-export type MyWorkKind =
-  | "assigned"
-  | "approval"
-  | "reminder"
-  | "mention"
-  | "sla";
-
-/** The kinds `my_work` returns, in the order the docs list them. */
-export const MY_WORK_KINDS: readonly MyWorkKind[] = [
-  "assigned",
-  "approval",
-  "reminder",
-  "mention",
-  "sla",
-];
 
 /** One thing waiting on the caller, from `my_work`. */
 export interface MyWorkItem {

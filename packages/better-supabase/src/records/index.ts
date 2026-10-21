@@ -19,11 +19,9 @@ export type {
 
 export type { LoadMyWorkOptions, MyWork } from "./my-work.ts";
 
-export type {
-  MyWorkItem,
-  MyWorkKind,
-  MyWorkOptions,
-} from "../blocks/subjects/subjects.ts";
+export type { MyWorkKind } from "../blocks/subjects/my-work-kinds.ts";
+
+export type { MyWorkItem, MyWorkOptions } from "../blocks/subjects/subjects.ts";
 
 export type {
   LoadTimelineOptions,

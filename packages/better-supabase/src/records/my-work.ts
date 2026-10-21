@@ -1,12 +1,12 @@
+import type { MyWorkKind } from "../blocks/subjects/my-work-kinds.ts";
 import type {
   MyWorkItem,
-  MyWorkKind,
   MyWorkOptions,
   Subjects,
 } from "../blocks/subjects/subjects.ts";
 import type { AsyncResult } from "../core/result.ts";
 
-import { MY_WORK_KINDS } from "../blocks/subjects/subjects.ts";
+import { MY_WORK_KINDS } from "../blocks/subjects/my-work-kinds.ts";
 
 /** What `loadMyWork` returns: the items, grouped by kind, and their counts. */
 export interface MyWork {

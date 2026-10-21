@@ -7,7 +7,6 @@ import type { SubjectRef } from "../schema/types.ts";
 import type { FeatureBlocks, RecordCan, RecordFeature } from "./feature.ts";
 import type { SectionName, SectionNamed } from "./sections.ts";
 
-import { subjectKey } from "../core/block-subjects.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, ok } from "../core/result.ts";
 import { recordCan, recordSubject } from "./feature.ts";
@@ -130,6 +129,15 @@ export interface RecordList<
       RecordCan<B, N>
     >
   >;
+}
+
+/**
+ * `subjectKey` from `core/block-subjects.ts`, the key `countSection` and
+ * `column` results use. Inlined so the records entry doesn't load the block
+ * helpers.
+ */
+function subjectKey(subject: SubjectRef): string {
+  return `${subject.type}:${subject.id}`;
 }
 
 function rowId(row: unknown): string {
