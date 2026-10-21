@@ -3773,7 +3773,163 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "WorkItemState"
         }
-      ]
+      ],
+      "entitySchemas": {
+        "work_item": {
+          "input": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "WorkItemInput",
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "body": {
+                "type": "string"
+              },
+              "parentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "teamId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "iterationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "estimate": {
+                "type": "number",
+                "minimum": 0
+              },
+              "progress": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "startAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "endAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "dueAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "pipelineId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "stageId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "fields": {
+                "description": "The extra columns to set."
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "change": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "WorkItemChange",
+            "type": "object",
+            "properties": {
+              "workItemId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "description": "`null` clears the field."
+              }
+            },
+            "required": [
+              "workItemId",
+              "field",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "listFilter": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "WorkItemListOptions",
+            "type": "object",
+            "properties": {
+              "teamId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "iterationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "parentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "assigneeId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "triage",
+                    "backlog",
+                    "unstarted",
+                    "started",
+                    "completed",
+                    "canceled"
+                  ]
+                }
+              },
+              "open": {
+                "type": "boolean"
+              },
+              "search": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
     },
     {
       "name": "workflow-builder",

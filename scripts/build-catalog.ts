@@ -28,6 +28,7 @@ import type { PortName } from "../packages/better-supabase/src/blocks/ports.ts";
 import type {
   PresetCatalog,
   PresetCatalogBlock,
+  PresetCatalogEntitySchemas,
   PresetCatalogEntityType,
   PresetCatalogManifest,
   PresetGlueItem,
@@ -37,6 +38,7 @@ import type { ModuleContext } from "../packages/better-supabase/src/sql/context.
 import type { SqlModule } from "../packages/better-supabase/src/sql/index.ts";
 import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
+import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
   entityNames,
@@ -406,6 +408,50 @@ function entityTypesOf(
     );
 }
 
+/**
+ * The JSON Schemas of a block's input schemas, by entity key. Fails on a key
+ * that names none of the block's entities.
+ */
+function entitySchemasOf(
+  block: AnyBlock,
+): Readonly<Record<string, PresetCatalogEntitySchemas>> {
+  const known = new Set(
+    block.sql.flatMap((name) =>
+      Object.keys(SQL_MODULES[name]?.names?.entities ?? {}),
+    ),
+  );
+
+  return Object.fromEntries(
+    Object.entries(block.schemas ?? {}).map(([entity, schemas]) => {
+      if (!known.has(entity)) {
+        throw new Error(
+          `${block.name}: schemas.${entity} names none of its entities (${[...known].join(", ") || "none"})`,
+        );
+      }
+
+      const converted: {
+        -readonly [
+          K in keyof PresetCatalogEntitySchemas
+        ]: PresetCatalogEntitySchemas[K];
+      } = {};
+
+      for (const kind of ENTITY_SCHEMA_KINDS) {
+        const schema = schemas[kind];
+
+        if (schema !== undefined) {
+          converted[kind] = schema["~standard"].jsonSchema.input({
+            target: "draft-2020-12",
+          });
+        }
+      }
+
+      const entry: PresetCatalogEntitySchemas = converted;
+
+      return [entity, entry];
+    }),
+  );
+}
+
 function presetManifest(
   block: AnyBlock,
   exported: { name: string; folder: string } | undefined,
@@ -443,7 +489,14 @@ function presetManifest(
     provides: Object.keys(block.provides).filter(isPortName),
   };
 
-  return entityTypes.length === 0 ? manifest : { ...manifest, entityTypes };
+  const entitySchemas = entitySchemasOf(block);
+
+  const typed =
+    entityTypes.length === 0 ? manifest : { ...manifest, entityTypes };
+
+  return Object.keys(entitySchemas).length === 0
+    ? typed
+    : { ...typed, entitySchemas };
 }
 
 const PORT_NAMES: readonly PortName[] = [

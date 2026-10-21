@@ -33,6 +33,12 @@ export {
 
 export { workItemsBlock } from "./manifest.ts";
 
+export {
+  workItemChangeSchema,
+  workItemInputSchema,
+  workItemListFilterSchema,
+} from "./schemas.ts";
+
 export { workItemsEvents } from "./events.ts";
 
 export type { WorkItemsEvents } from "./events.ts";

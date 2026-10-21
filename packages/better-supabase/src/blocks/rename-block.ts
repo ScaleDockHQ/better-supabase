@@ -11,6 +11,7 @@ import { withBlockHooks } from "../core/block-hooks.ts";
 import { renameKeys } from "../core/block-names.ts";
 import { entityNames } from "../core/entity-naming.ts";
 import { AsyncResult } from "../core/result.ts";
+import { renameSchemas } from "./rename-schemas.ts";
 
 /** One renamed noun as `blocks.generated.ts` writes it. */
 export interface NounRename {
@@ -474,6 +475,7 @@ function renamed(
   return {
     ...block,
     events: { types: block.events.types.map((type) => names.rename(type)) },
+    schemas: renameSchemas(block.schemas ?? {}, names, renamer),
     provides,
     create:
       create === undefined

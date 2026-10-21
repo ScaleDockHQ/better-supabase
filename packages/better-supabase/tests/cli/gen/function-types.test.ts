@@ -175,7 +175,11 @@ describe("generator model blocks", () => {
       primary: true,
       table: "tasks",
       url: "/tasks/{id}",
-      schemas: {},
+      schemas: {
+        input: expect.objectContaining({ title: "WorkItemInput" }),
+        change: expect.objectContaining({ title: "WorkItemChange" }),
+        listFilter: expect.objectContaining({ title: "WorkItemListOptions" }),
+      },
     });
     expect(
       model.blocks.find((entry) => entry.name === "tenant")?.client,

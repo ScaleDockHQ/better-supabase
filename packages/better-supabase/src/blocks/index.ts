@@ -45,6 +45,16 @@ export type {
 
 export { renameBlock } from "./rename-block.ts";
 
+export { entitySchema } from "./entity-schema.ts";
+
+export type {
+  BlockSchemas,
+  EntityFieldSpecs,
+  EntitySchema,
+  EntitySchemas,
+  EntitySchemaSpec,
+} from "./entity-schema.ts";
+
 export type {
   NounRename,
   NounRenames,
