@@ -52,6 +52,55 @@ function finite(value: unknown, type: string): string {
   return text;
 }
 
+const TIMESTAMPTZ =
+  /^(\d{4,})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:(Z)|([+-])(\d{2})(?::?(\d{2}))?(?::?(\d{2}))?)$/;
+
+/**
+ * `timestamptz` text in UTC as ISO 8601 with a `Z`, from either PostgREST's
+ * form (`2026-10-21T07:10:00.123456+00:00`) or Postgres text
+ * (`2026-10-21 07:10:00.123456+02`). The fraction keeps every digit it had,
+ * so no microsecond is lost; `infinity` and `-infinity` pass through.
+ */
+export function utcText(value: unknown): string {
+  const text = String(value);
+
+  if (text === "infinity" || text === "-infinity") {
+    return text;
+  }
+
+  const match = TIMESTAMPTZ.exec(text);
+
+  if (!match) {
+    throw new DbException(
+      dbError("invalid_value", `${text} is not a timestamptz`),
+    );
+  }
+
+  const [, year, month, day, hour, minute, second, fraction, zulu, sign] =
+    match;
+
+  const offset = zulu
+    ? 0
+    : (sign === "-" ? -1 : 1) *
+      (Number(match[10]) * 3600 +
+        Number(match[11] ?? 0) * 60 +
+        Number(match[12] ?? 0));
+
+  const utc = new Date(0);
+  utc.setUTCFullYear(Number(year), Number(month) - 1, Number(day));
+  utc.setUTCHours(Number(hour), Number(minute), Number(second) - offset, 0);
+
+  if (Number.isNaN(utc.getTime())) {
+    throw new DbException(
+      dbError("invalid_value", `${text} is not a timestamptz`),
+    );
+  }
+
+  const seconds = utc.toISOString().slice(0, -5);
+
+  return `${seconds}${fraction ? `.${fraction}` : ""}Z`;
+}
+
 /** App form of one wire scalar for a column with `codec`. */
 export function decodeScalar(codec: Codec, value: unknown): unknown {
   if (value === null || value === undefined) {
@@ -74,6 +123,10 @@ export function decodeScalar(codec: Codec, value: unknown): unknown {
 
     case "string": {
       return String(value);
+    }
+
+    case "utcString": {
+      return utcText(value);
     }
 
     default: {

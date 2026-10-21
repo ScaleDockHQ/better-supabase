@@ -125,6 +125,7 @@ export const CODEC_TYPE: Record<Codec, string> = {
   plainDateTime: "Temporal.PlainDateTime",
   bigint: "bigint",
   string: "string",
+  utcString: "string",
 };
 
 export function codecFor(
@@ -132,6 +133,10 @@ export function codecFor(
   config: ResolvedConfig,
 ): Codec | undefined {
   const { codecs } = config;
+
+  if (codecs.timestamptz === "utc" && udt === "timestamptz") {
+    return "utcString";
+  }
 
   if (codecs.timestamptz === "instant") {
     if (udt === "timestamptz") {

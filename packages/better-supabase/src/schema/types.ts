@@ -49,7 +49,12 @@ export interface ColumnMeta {
  * `Temporal.PlainDateTime`, and `bigint` and `string` read the exact text of
  * `int8`/`numeric` values.
  */
-export type Codec = "instant" | "plainDateTime" | "bigint" | "string";
+export type Codec =
+  | "instant"
+  | "plainDateTime"
+  | "bigint"
+  | "string"
+  | "utcString";
 
 export interface RelationMeta {
   /** App key of the target table. */

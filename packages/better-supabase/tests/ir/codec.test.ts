@@ -5,7 +5,7 @@ import type { Codec } from "../../src/schema/types.ts";
 
 import { DbException } from "../../src/core/errors.ts";
 import { decodeRows, needsDecoding } from "../../src/ir/codec.ts";
-import { encodeValue } from "../../src/ir/wire.ts";
+import { decodeScalar, encodeValue, utcText } from "../../src/ir/wire.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const customers = schema.meta.tables["customers"];
@@ -376,5 +376,26 @@ describe("decodeRows", () => {
       { notes: [{ id: 1n }, { id: 2n }], first: { id: 1n } },
       { notes: [], first: null },
     ]);
+  });
+});
+
+describe("utcString codec", () => {
+  it.each([
+    ["2026-10-21T07:10:00.123456+00:00", "2026-10-21T07:10:00.123456Z"],
+    ["2026-10-21 07:10:00.123456+02", "2026-10-21T05:10:00.123456Z"],
+    ["2026-10-21 07:10:00+00", "2026-10-21T07:10:00Z"],
+    ["2026-10-21 23:30:00.5-03", "2026-10-22T02:30:00.5Z"],
+    ["2026-01-01 00:15:00+05:30", "2025-12-31T18:45:00Z"],
+    ["2026-10-21T07:10:00Z", "2026-10-21T07:10:00Z"],
+    ["1883-11-18 12:00:00+00:19:32", "1883-11-18T11:40:28Z"],
+    ["infinity", "infinity"],
+    ["-infinity", "-infinity"],
+  ])("decodes %s to %s", (wire, app) => {
+    expect(decodeScalar("utcString", wire)).toBe(app);
+  });
+
+  it("keeps null and rejects text that isn't a timestamp", () => {
+    expect(decodeScalar("utcString", null)).toBeNull();
+    expect(() => utcText("yesterday")).toThrow(DbException);
   });
 });

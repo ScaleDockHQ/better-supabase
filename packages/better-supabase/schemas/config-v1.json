@@ -140,7 +140,7 @@
       "type": "object",
       "properties": {
         "timestamptz": {
-          "enum": ["string", "instant"],
+          "enum": ["string", "instant", "utc"],
           "type": "string",
           "default": "string"
         },
