@@ -1,3 +1,4 @@
+/* oxlint-disable react/no-react-children -- the Markdown forms walk the MDX children of a component to write them out as text. */
 import type { MDXComponents } from "mdx/types";
 import type { ReactNode } from "react";
 

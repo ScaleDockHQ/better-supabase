@@ -12371,6 +12371,7 @@ export async function Timesheet({
                       </TableCell>
                       {row.days.map((seconds, index) => (
                         <TableCell
+                          // oxlint-disable-next-line react-doctor/no-array-index-as-key -- the columns are a fixed week keyed by date; the index only covers a missing day
                           key={sheet.data.days[index]?.date ?? index}
                           className="text-right tabular-nums"
                         >
@@ -15478,7 +15479,7 @@ export function CsvImportWizard() {
                       </TableHeader>
                       <TableBody>
                         {preview.rows.map((row, index) => (
-                          // oxlint-disable-next-line react/no-array-index-key -- preview rows have no unique column and the list never reorders (1 finding)
+                          // oxlint-disable-next-line react/no-array-index-key, react-doctor/no-array-index-as-key -- preview rows have no unique column and the list never reorders (1 finding)
                           <TableRow key={`${row.name}-${index}`}>
                             <TableCell className="font-medium">
                               {row.name}

@@ -6,7 +6,7 @@ export function JsonLd({ data }: { data: { readonly "@context": string } }) {
   return (
     <script
       type="application/ld+json"
-      // The data is built from the static catalog and site config, and escaped above.
+      // oxlint-disable-next-line react/no-danger -- The data is built from the static catalog and site config, and escaped above.
       dangerouslySetInnerHTML={{
         __html: JSON.stringify(data).replaceAll("<", String.raw`\u003c`),
       }}

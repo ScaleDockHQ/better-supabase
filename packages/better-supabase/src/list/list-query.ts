@@ -335,10 +335,13 @@ function first(
 function all(value: string | readonly string[] | undefined): string[] {
   const values = typeof value === "string" ? [value] : [...(value ?? [])];
 
-  return values
-    .flatMap((entry) => entry.split(","))
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  return values.flatMap((entry) =>
+    entry.split(",").flatMap((part) => {
+      const trimmed = part.trim();
+
+      return trimmed === "" ? [] : [trimmed];
+    }),
+  );
 }
 
 const isParamValue = (value: unknown): boolean =>

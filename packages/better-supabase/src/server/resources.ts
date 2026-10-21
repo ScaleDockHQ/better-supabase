@@ -149,7 +149,10 @@ export function resourceRouter<
 
       const raw = split(pathname);
 
-      if (!base.every((segment, index) => raw[index] === segment)) {
+      if (
+        raw.length < base.length ||
+        !base.every((segment, index) => raw[index] === segment)
+      ) {
         return notFound();
       }
 

@@ -173,7 +173,7 @@ export function MigrationViewer({
               // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the code scrolls, so the keyboard needs to reach it
               tabIndex={0}
               className="max-h-128 overflow-auto rounded-md text-code leading-6 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&_pre]:font-mono"
-              // Shiki output, rendered on the server from the module registry's SQL.
+              // oxlint-disable-next-line react/no-danger -- Shiki output, rendered on the server from the module registry's SQL.
               dangerouslySetInnerHTML={{ __html: selected.html }}
             />
           </FramePanel>

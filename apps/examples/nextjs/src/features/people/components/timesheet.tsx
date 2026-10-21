@@ -260,6 +260,7 @@ export async function Timesheet({
                       </TableCell>
                       {row.days.map((seconds, index) => (
                         <TableCell
+                          // oxlint-disable-next-line react-doctor/no-array-index-as-key -- the columns are a fixed week keyed by date; the index only covers a missing day
                           key={sheet.data.days[index]?.date ?? index}
                           className="text-right tabular-nums"
                         >

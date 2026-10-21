@@ -511,7 +511,7 @@ export function CsvImportWizard() {
                       </TableHeader>
                       <TableBody>
                         {preview.rows.map((row, index) => (
-                          // oxlint-disable-next-line react/no-array-index-key -- preview rows have no unique column and the list never reorders (1 finding)
+                          // oxlint-disable-next-line react/no-array-index-key, react-doctor/no-array-index-as-key -- preview rows have no unique column and the list never reorders (1 finding)
                           <TableRow key={`${row.name}-${index}`}>
                             <TableCell className="font-medium">
                               {row.name}

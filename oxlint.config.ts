@@ -150,13 +150,8 @@ export const react: OxlintConfig = defineConfig({
     // Findings when measured: function-component-definition 296,
     // js-combine-iterations 151, js-set-map-lookups 98, async-await-in-loop 75,
     // no-barrel-import 36, no-json-parse-stringify-clone 22,
-    // server-sequential-independent-await 5, jsx-handler-names 4, js-index-maps
-    // 4, no-react-children 3, hook-use-state 3,
-    // prefer-module-scope-pure-function 3, js-cache-property-access 3,
-    // async-defer-await 3, jsx-curly-brace-presence 2, no-array-index-as-key 1,
-    // jsx-pascal-case 1, rerender-defer-reads-hook 1,
-    // rendering-hydration-mismatch-time 1, no-danger 1, no-giant-component 1,
-    // js-flatmap-filter 1, js-length-check-first 1, button-has-type 1.
+    // server-sequential-independent-await 10,
+    // prefer-module-scope-pure-function 6.
     "react/function-component-definition": "off",
     "react-doctor/js-combine-iterations": "off",
     "react-doctor/js-set-map-lookups": "off",
@@ -164,23 +159,29 @@ export const react: OxlintConfig = defineConfig({
     "react-doctor/no-barrel-import": "off",
     "react-doctor/no-json-parse-stringify-clone": "off",
     "react-doctor/server-sequential-independent-await": "off",
-    "react/jsx-handler-names": "off",
-    "react-doctor/js-index-maps": "off",
-    "react/no-react-children": "off",
-    "react/hook-use-state": "off",
     "react-doctor/prefer-module-scope-pure-function": "off",
+    // Read and kept, every finding deliberate. js-index-maps (4) and
+    // js-cache-property-access (3) flag lookups over lists of a few entries.
+    // async-defer-await (3) flags awaits that write a row or authenticate
+    // before the early return. jsx-handler-names (4) flags state setters
+    // passed straight to a handler prop. rerender-defer-reads-hook (3) flags
+    // `usePathname()` read in a handler, where the path must come from the
+    // Next.js router. no-giant-component (3) asks to split the CSV import,
+    // work grid and order detail screens, a change per screen.
+    "react-doctor/js-index-maps": "off",
     "react-doctor/js-cache-property-access": "off",
     "react-doctor/async-defer-await": "off",
-    "react/jsx-curly-brace-presence": "off",
-    "react-doctor/no-array-index-as-key": "off",
-    "react/jsx-pascal-case": "off",
+    "react/jsx-handler-names": "off",
     "react-doctor/rerender-defer-reads-hook": "off",
-    "react-doctor/rendering-hydration-mismatch-time": "off",
-    "react/no-danger": "off",
     "react-doctor/no-giant-component": "off",
-    "react-doctor/js-flatmap-filter": "off",
-    "react-doctor/js-length-check-first": "off",
-    "react/button-has-type": "off",
+    // jsx-curly-brace-presence (2) flags `{"'a'"}` strings whose quotes
+    // no-unescaped-entities rejects as bare JSX text.
+    "react/jsx-curly-brace-presence": "off",
+    // hook-use-state (3) flags `const [client] = useState(() => new
+    // QueryClient())`, the lazy initial value that keeps one per mount.
+    "react/hook-use-state": "off",
+    // Fumadocs compiles each page to an `MDX` component.
+    "react/jsx-pascal-case": ["error", { allowAllCaps: true }],
   },
 });
 
@@ -200,7 +201,7 @@ export const shadcn: OxlintConfig = defineConfig({
   rules: {
     // Pages pass layout and appearance classes to shadcn components; moving
     // appearance into variants is per component. Backlog in docs/decisions/0002.
-    // Findings when measured: no-restyle 140.
+    // Findings when measured: no-restyle 399.
     "shadcn/no-restyle": "off",
   },
 });
