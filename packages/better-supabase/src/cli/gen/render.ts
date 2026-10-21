@@ -20,6 +20,7 @@ import { emitBlockConfig, generatorBlocks } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { emitFeatures } from "./features.ts";
 import { buildModel, generatorModel } from "./model.ts";
+import { emitNavigation } from "./navigation.ts";
 
 export interface RenderOptions {
   /**
@@ -117,7 +118,7 @@ export async function render(
     const frameworks =
       options.frameworks ?? (await detectProject(config.root)).frameworks;
 
-    files.push(...emitFeatures(config, frameworks));
+    files.push(...emitFeatures(config, frameworks), ...emitNavigation(config));
   }
 
   const owners = new Map(

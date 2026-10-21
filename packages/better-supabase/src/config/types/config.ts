@@ -65,7 +65,9 @@ export interface BetterSupabaseConfig {
   readonly postgrestVersion?: string;
   /**
    * Write one record feature per subject into `features/` next to `output`,
-   * with a section for each installed block that adds one. Defaults to `true`.
+   * with a section for each installed block that adds one, and
+   * `navigation.generated.ts` and `commands.generated.ts` with the subjects'
+   * list routes. Defaults to `true`.
    */
   readonly generateFeatures?: boolean;
   /** Types for jsonb columns, keyed by `table.column`. */
