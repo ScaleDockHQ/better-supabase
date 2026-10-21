@@ -6,6 +6,8 @@ export interface SharedMemorySegment {
   readonly id: string;
   /** The process that created the segment. */
   readonly pid: number;
+  /** The segment size, when `ipcs` printed it. */
+  readonly bytes?: number;
   /** The managed stack whose postmaster holds it, when one does. */
   readonly stackId?: string;
 }
@@ -18,40 +20,68 @@ export interface SharedMemoryUsage {
   readonly segments: readonly SharedMemorySegment[];
 }
 
+type IpcsRow = Omit<SharedMemorySegment, "stackId">;
+
 const DIGITS = /^\d+$/;
 
+const isDigits = (field: string | undefined): field is string =>
+  field !== undefined && DIGITS.test(field);
+
 /**
- * The segment ids and creator PIDs from `ipcs -m -p`. macOS prints
- * `m <id> <key> <mode> <owner> <group> <cpid> <lpid>`, Linux prints
- * `<shmid> <owner> <cpid> <lpid>` under a header.
+ * The segments from `ipcs -m -b -p` on macOS
+ * (`m <id> <key> <mode> <owner> <group> <segsz> <cpid> <lpid>`, or without
+ * `<segsz>` when `-b` is left out) and from `ipcs -m -p` on Linux
+ * (`<shmid> <owner> <cpid> <lpid>` under a header).
  */
-export function parseIpcs(
-  stdout: string,
-): readonly { readonly id: string; readonly pid: number }[] {
-  const rows: { id: string; pid: number }[] = [];
+export function parseIpcs(stdout: string): readonly IpcsRow[] {
+  const rows: IpcsRow[] = [];
 
   for (const line of stdout.split("\n")) {
     const fields = line.trim().split(/\s+/);
 
-    if (fields[0] === "m" && fields.length >= 8) {
+    if (fields[0] === "m" && fields.length >= 9) {
+      const [, id, , , , , segsz, cpid] = fields;
+
+      if (id !== undefined && isDigits(segsz) && isDigits(cpid)) {
+        rows.push({ id, pid: Number(cpid), bytes: Number(segsz) });
+      }
+    } else if (fields[0] === "m" && fields.length === 8) {
       const [, id, , , , , cpid] = fields;
 
-      if (id !== undefined && cpid !== undefined && DIGITS.test(cpid)) {
+      if (id !== undefined && isDigits(cpid)) {
         rows.push({ id, pid: Number(cpid) });
       }
     } else if (
       fields.length === 4 &&
-      fields.every((f, i) => i === 1 || DIGITS.test(f))
+      isDigits(fields[0]) &&
+      isDigits(fields[2]) &&
+      isDigits(fields[3])
     ) {
-      const [id, , cpid] = fields;
-
-      if (id !== undefined && cpid !== undefined) {
-        rows.push({ id, pid: Number(cpid) });
-      }
+      rows.push({ id: fields[0], pid: Number(fields[2]) });
     }
   }
 
   return rows;
+}
+
+/** Segment sizes by id from Linux `ipcs -m` (`<key> <shmid> <owner> <perms> <bytes> <nattch>`). */
+export function parseIpcsSizes(stdout: string): ReadonlyMap<string, number> {
+  const sizes = new Map<string, number>();
+
+  for (const line of stdout.split("\n")) {
+    const [key, id, , perms, bytes] = line.trim().split(/\s+/);
+
+    if (
+      key?.startsWith("0x") === true &&
+      isDigits(id) &&
+      isDigits(perms) &&
+      isDigits(bytes)
+    ) {
+      sizes.set(id, Number(bytes));
+    }
+  }
+
+  return sizes;
 }
 
 const STACK_DATA_DIR = /[/\\]\.supabase[/\\]stacks[/\\]([0-9a-f]{12,})[/\\]/;
@@ -94,6 +124,36 @@ async function segmentLimit(
     : undefined;
 }
 
+async function segmentRows(
+  root: string,
+  env: CliEnv,
+  run: RunProcess,
+  platform: NodeJS.Platform,
+): Promise<readonly IpcsRow[] | undefined> {
+  if (platform !== "linux") {
+    const ipcs = await run("ipcs", ["-m", "-b", "-p"], root, env);
+
+    return ipcs.code === 0 ? parseIpcs(ipcs.stdout) : undefined;
+  }
+
+  const [pids, sizes] = await Promise.all([
+    run("ipcs", ["-m", "-p"], root, env),
+    run("ipcs", ["-m"], root, env),
+  ]);
+
+  if (pids.code !== 0) {
+    return undefined;
+  }
+
+  const bytes = parseIpcsSizes(sizes.stdout);
+
+  return parseIpcs(pids.stdout).map((row) => {
+    const size = bytes.get(row.id);
+
+    return size === undefined ? row : { ...row, bytes: size };
+  });
+}
+
 /**
  * The System V shared memory segments in use, each tied to the managed
  * stack whose postmaster created it. Every running Postgres keeps one small
@@ -106,13 +166,12 @@ export async function readSharedMemory(
   run: RunProcess = runProcess,
   platform: NodeJS.Platform = process.platform,
 ): Promise<SharedMemoryUsage> {
-  const ipcs = await run("ipcs", ["-m", "-p"], root, env);
+  const rows = await segmentRows(root, env, run, platform);
 
-  if (ipcs.code !== 0) {
+  if (rows === undefined) {
     return { supported: false, segments: [] };
   }
 
-  const rows = parseIpcs(ipcs.stdout);
   const limit = await segmentLimit(root, env, run, platform);
   const pids = [...new Set(rows.map((row) => row.pid))];
 

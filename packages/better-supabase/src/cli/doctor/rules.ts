@@ -49,6 +49,7 @@ import {
   tableObject,
   workflowOf,
 } from "./shared.ts";
+import { type LocalStackCheck, STACK_RULES } from "./stacks.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
 export { lineOf };
@@ -125,6 +126,8 @@ export interface DoctorContext {
   /** better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
   readonly stackEnv?: StackEnvCheck;
+  /** The machine's shared memory segments and managed stacks (BS700, BS701). */
+  readonly localStacks?: LocalStackCheck;
 }
 
 export interface Rule {
@@ -1048,6 +1051,7 @@ export const RULES: readonly Rule[] = [
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...ENV_RULES,
+  ...STACK_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

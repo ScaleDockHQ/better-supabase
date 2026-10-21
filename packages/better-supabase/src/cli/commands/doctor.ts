@@ -39,6 +39,7 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
+import { loadLocalStackCheck } from "../doctor/stacks.ts";
 import {
   METADATA_REJECTED,
   readMetadataSnapshot,
@@ -132,6 +133,8 @@ export interface DoctorOptions {
   readonly peers?: DoctorContext["peers"];
   /** The shell and stack variables (tests); otherwise read from `supabase status` (BS503). */
   readonly stackEnv?: DoctorContext["stackEnv"];
+  /** Segment use and managed stacks (tests); otherwise read with `ipcs` (BS700, BS701). */
+  readonly localStacks?: DoctorContext["localStacks"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
   /** Colors the text report. */
@@ -246,6 +249,7 @@ export async function runDoctor(
     readSets,
     peers,
     stackEnv,
+    localStacks,
   ] = await Promise.all([
     options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
@@ -267,6 +271,10 @@ export async function runDoctor(
     options.stackEnv ??
       (rules.some((rule) => rule.code === "BS503")
         ? loadStackEnvCheck(config.root, env, options.signal)
+        : undefined),
+    options.localStacks ??
+      (rules.some((rule) => rule.code === "BS700" || rule.code === "BS701")
+        ? loadLocalStackCheck(config.root, env)
         : undefined),
   ]).catch(async (cause: unknown) => {
     await opened.close();
@@ -293,6 +301,7 @@ export async function runDoctor(
     readSets,
     peers,
     ...(stackEnv ? { stackEnv } : {}),
+    ...(localStacks ? { localStacks } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),
