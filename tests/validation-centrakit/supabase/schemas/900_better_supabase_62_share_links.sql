@@ -1,4 +1,4 @@
--- better-supabase module: share-links (0.9.0)
+-- better-supabase module: share-links
 -- @bs-module share-links@1 adopt
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -73,7 +73,10 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
     when 'drive_node' then exists (select 1 from "centrakit"."file_node" s where s."id"::text = create_share_link.subject_id and s."organization_id"::text = create_share_link.tenant::text)
+    else case create_share_link.subject_type
+    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
     else null
+  end
   end;
     if v_subject_ok is null then
       raise exception 'this subject type can''t be shared' using errcode = '22023', hint = 'SHARE_SUBJECT_UNKNOWN';

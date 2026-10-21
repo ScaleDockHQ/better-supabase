@@ -428,7 +428,50 @@ export const PRESET_CATALOG: PresetCatalog = {
         "user",
         "none"
       ],
-      "extraColumns": "comments"
+      "extraColumns": "comments",
+      "entities": {
+        "specs": {
+          "comment": {
+            "table": "comments",
+            "singular": "comment",
+            "primary": true,
+            "subject": {
+              "title": "body",
+              "deletedAt": "deletedAt",
+              "permissions": {
+                "read": "read",
+                "write": "create",
+                "upload": "create"
+              }
+            }
+          }
+        },
+        "tables": {
+          "comments": {
+            "name": "comments",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "author": "author_id",
+              "body": "body",
+              "document": "document",
+              "mentions": "mentions",
+              "parent": "parent_id",
+              "createdAt": "created_at",
+              "editedAt": "edited_at",
+              "deletedAt": "deleted_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "comments.read",
+          "create": "comments.create",
+          "moderate": "comments.moderate",
+          "activity": "activity.read"
+        }
+      }
     },
     {
       "name": "attachments",
@@ -443,7 +486,44 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "attachments"
+      "extraColumns": "attachments",
+      "entities": {
+        "specs": {
+          "attachment": {
+            "table": "attachments",
+            "singular": "attachment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "attachments": {
+            "name": "attachments",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "bucket": "bucket",
+              "path": "object_path",
+              "name": "name",
+              "mimeType": "mime_type",
+              "size": "size",
+              "status": "status",
+              "detail": "scan_detail",
+              "uploadedBy": "uploaded_by",
+              "createdAt": "created_at",
+              "uploadedAt": "uploaded_at",
+              "scannedAt": "scanned_at",
+              "metadata": "metadata"
+            }
+          }
+        },
+        "keys": {
+          "read": "attachments.read",
+          "upload": "attachments.upload",
+          "manage": "attachments.manage"
+        }
+      }
     },
     {
       "name": "data-lifecycle",
@@ -916,7 +996,34 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "reminders"
+      "extraColumns": "reminders",
+      "entities": {
+        "specs": {
+          "reminder": {
+            "table": "reminders",
+            "singular": "reminder",
+            "primary": true
+          }
+        },
+        "tables": {
+          "reminders": {
+            "name": "reminders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "user": "user_id",
+              "method": "method",
+              "offsetMinutes": "offset_minutes"
+            }
+          }
+        },
+        "keys": {
+          "manage": "reminders.manage",
+          "read": "reminders.read"
+        }
+      }
     },
     {
       "name": "imports",
@@ -1078,7 +1185,81 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "events"
+      "extraColumns": "events",
+      "entities": {
+        "specs": {
+          "calendar_event": {
+            "table": "events",
+            "singular": "calendar_event",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "description",
+                  "location"
+                ]
+              }
+            }
+          },
+          "calendar": {
+            "table": "calendars",
+            "singular": "calendar"
+          }
+        },
+        "tables": {
+          "events": {
+            "name": "calendar_events",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "calendar": "calendar_id",
+              "uid": "uid",
+              "title": "title",
+              "description": "description",
+              "location": "location",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "allDay": "all_day",
+              "tz": "tz",
+              "status": "status",
+              "rrule": "rrule",
+              "exdates": "exdates",
+              "recurrence": "recurrence_id",
+              "originalStart": "original_start",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "color": "color",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "calendars": {
+            "name": "calendars",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "tz": "tz",
+              "color": "color",
+              "ownerType": "owner_type",
+              "ownerId": "owner_id",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "calendar.manage",
+          "write": "calendar.write",
+          "read": "calendar.read"
+        }
+      }
     },
     {
       "name": "bookings",
@@ -1156,7 +1337,36 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "reactions",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "reaction": {
+            "table": "reactions",
+            "singular": "reaction",
+            "primary": true
+          }
+        },
+        "tables": {
+          "reactions": {
+            "name": "reactions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "actor": "actor",
+              "user": "user_id",
+              "emoji": "emoji",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "reactions.read",
+          "create": "reactions.create",
+          "manage": "reactions.manage"
+        }
+      }
     },
     {
       "name": "approvals",
@@ -1221,7 +1431,43 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "documents",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "document": {
+            "table": "documents",
+            "singular": "document",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          }
+        },
+        "tables": {
+          "documents": {
+            "name": "documents",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "name": "name",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "documents.read",
+          "write": "documents.write",
+          "manage": "documents.manage"
+        }
+      }
     },
     {
       "name": "catalog",
@@ -1687,7 +1933,56 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "engagements"
+      "extraColumns": "engagements",
+      "entities": {
+        "specs": {
+          "engagement": {
+            "table": "engagements",
+            "singular": "engagement",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "body",
+                  "outcome"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "engagements": {
+            "name": "engagements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type",
+              "title": "title",
+              "body": "body",
+              "outcome": "outcome",
+              "owner": "owner_user_id",
+              "dueAt": "due_at",
+              "doneAt": "done_at",
+              "durationSeconds": "duration_seconds",
+              "externalRef": "external_ref",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "engagements.read",
+          "write": "engagements.write",
+          "manage": "engagements.manage"
+        }
+      }
     },
     {
       "name": "deals",
@@ -2488,6 +2783,137 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [
         "attachments"
       ],
+      "entityTypes": [
+        {
+          "name": "Attachment"
+        },
+        {
+          "name": "AttachmentBucket"
+        },
+        {
+          "name": "AttachmentDownload",
+          "fields": true
+        },
+        {
+          "name": "Attachments",
+          "fields": true
+        },
+        {
+          "name": "AttachmentScanJob"
+        },
+        {
+          "name": "AttachmentScanner"
+        },
+        {
+          "name": "AttachmentScannerOptions"
+        },
+        {
+          "name": "AttachmentsEvents"
+        },
+        {
+          "name": "AttachmentsOptions"
+        },
+        {
+          "name": "AttachmentStatus"
+        },
+        {
+          "name": "AttachmentStorage"
+        },
+        {
+          "name": "AttachmentUpload",
+          "fields": true
+        },
+        {
+          "name": "NewAttachment"
+        }
+      ],
+      "entitySchemas": {
+        "attachment": {
+          "input": {
+            "title": "NewAttachment",
+            "fields": {
+              "organizationId": {
+                "kind": "uuid",
+                "nullable": true,
+                "description": "`null` for a subject type with `tenant: false`."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "mimeType": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "size": {
+                "kind": "integer",
+                "minimum": 0
+              },
+              "subjectType": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "subjectId": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "metadata": {
+                "kind": "json",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewAttachment",
+              "type": "object",
+              "properties": {
+                "organizationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "`null` for a subject type with `tenant: false`."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "mimeType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "subjectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "metadata": {}
+              },
+              "required": [
+                "organizationId",
+                "name",
+                "mimeType",
+                "size"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "AttachmentsEvents",
         "types": [
@@ -2593,6 +3019,387 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Calendar",
+          "fields": true
+        },
+        {
+          "name": "CalendarActions"
+        },
+        {
+          "name": "CalendarAttendee"
+        },
+        {
+          "name": "CalendarController"
+        },
+        {
+          "name": "CalendarControllerOptions"
+        },
+        {
+          "name": "CalendarEvent"
+        },
+        {
+          "name": "CalendarEventInput"
+        },
+        {
+          "name": "CalendarEvents"
+        },
+        {
+          "name": "CalendarEventStatus"
+        },
+        {
+          "name": "CalendarImport"
+        },
+        {
+          "name": "CalendarInfo"
+        },
+        {
+          "name": "CalendarOccurrence"
+        },
+        {
+          "name": "CalendarOptions"
+        },
+        {
+          "name": "CalendarSnapshot"
+        },
+        {
+          "name": "EventCalendarEvent"
+        },
+        {
+          "name": "EventCalendarOptions"
+        },
+        {
+          "name": "EventCalendarResource"
+        },
+        {
+          "name": "SavedCalendarEvent"
+        }
+      ],
+      "entitySchemas": {
+        "calendar_event": {
+          "input": {
+            "title": "CalendarEventInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "startsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "allDay": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "tz": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "confirmed",
+                  "tentative",
+                  "cancelled"
+                ],
+                "optional": true
+              },
+              "rrule": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "An RFC 5545 `RRULE` value; `null` ends the recurrence."
+              },
+              "exdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "subjectId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "color": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "uid": {
+                "kind": "string",
+                "optional": true,
+                "description": "Only on insert."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CalendarEventInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "allDay": {
+                  "type": "boolean"
+                },
+                "tz": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "tentative",
+                    "cancelled"
+                  ]
+                },
+                "rrule": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "An RFC 5545 `RRULE` value; `null` ends the recurrence."
+                },
+                "exdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "subjectType": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "subjectId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "uid": {
+                  "type": "string",
+                  "description": "Only on insert."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "CalendarEventInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "startsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "allDay": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "tz": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "confirmed",
+                  "tentative",
+                  "cancelled"
+                ],
+                "optional": true
+              },
+              "rrule": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "An RFC 5545 `RRULE` value; `null` ends the recurrence."
+              },
+              "exdates": {
+                "kind": "instant",
+                "optional": true,
+                "array": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "subjectId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "color": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "uid": {
+                "kind": "string",
+                "optional": true,
+                "description": "Only on insert."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CalendarEventInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "allDay": {
+                  "type": "boolean"
+                },
+                "tz": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "tentative",
+                    "cancelled"
+                  ]
+                },
+                "rrule": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "An RFC 5545 `RRULE` value; `null` ends the recurrence."
+                },
+                "exdates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "subjectType": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "subjectId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "uid": {
+                  "type": "string",
+                  "description": "Only on insert."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "CalendarEvents",
         "types": [
@@ -2744,6 +3551,195 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Comment",
+          "fields": true
+        },
+        {
+          "name": "CommentDraft"
+        },
+        {
+          "name": "CommentEdit",
+          "fields": true
+        },
+        {
+          "name": "Comments",
+          "fields": true
+        },
+        {
+          "name": "CommentsActions"
+        },
+        {
+          "name": "CommentsController"
+        },
+        {
+          "name": "CommentsControllerOptions"
+        },
+        {
+          "name": "CommentsEvents"
+        },
+        {
+          "name": "CommentsOptions"
+        },
+        {
+          "name": "CommentsSnapshot"
+        },
+        {
+          "name": "CommentSubject"
+        },
+        {
+          "name": "ListCommentsOptions"
+        },
+        {
+          "name": "NewComment",
+          "fields": true
+        }
+      ],
+      "entitySchemas": {
+        "comment": {
+          "input": {
+            "title": "NewComment",
+            "fields": {
+              "organizationId": {
+                "kind": "uuid"
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "subjectId": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "body": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "A rich-text document (any JSON)."
+              },
+              "mentions": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewComment",
+              "type": "object",
+              "properties": {
+                "organizationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "subjectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "body": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "document": {
+                  "description": "A rich-text document (any JSON)."
+                },
+                "mentions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "organizationId",
+                "subjectType",
+                "subjectId",
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "CommentEdit",
+            "fields": {
+              "body": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "`null` removes the document."
+              },
+              "mentions": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CommentEdit",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "document": {
+                  "description": "`null` removes the document."
+                },
+                "mentions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "CommentsEvents",
         "types": [
@@ -3222,6 +4218,35 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "DocumentInfo"
+        },
+        {
+          "name": "DocumentRef"
+        },
+        {
+          "name": "Documents"
+        },
+        {
+          "name": "DocumentsEvents"
+        },
+        {
+          "name": "DocumentsOptions"
+        },
+        {
+          "name": "DocumentState"
+        },
+        {
+          "name": "DocumentUpdate"
+        },
+        {
+          "name": "DocumentVersion"
+        },
+        {
+          "name": "OpenedDocument"
+        }
+      ],
       "events": {
         "type": "DocumentsEvents",
         "types": [
@@ -3557,6 +4582,281 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Engagement",
+          "fields": true
+        },
+        {
+          "name": "EngagementInput",
+          "fields": true
+        },
+        {
+          "name": "Engagements",
+          "fields": true
+        },
+        {
+          "name": "EngagementsEvents"
+        },
+        {
+          "name": "EngagementsOptions"
+        },
+        {
+          "name": "EngagementSubject"
+        }
+      ],
+      "entitySchemas": {
+        "engagement": {
+          "input": {
+            "title": "EngagementInput",
+            "fields": {
+              "type": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "body": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "outcome": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "dueAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "doneAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "durationSeconds": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 0
+              },
+              "externalRef": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "Values for the extra columns, by column name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EngagementInput",
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "body": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "doneAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "durationSeconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "externalRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fields": {
+                  "description": "Values for the extra columns, by column name."
+                }
+              },
+              "required": [
+                "type",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "EngagementChange",
+            "fields": {
+              "type": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "body": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "outcome": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "dueAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "doneAt": {
+                "kind": "instant",
+                "optional": true,
+                "nullable": true
+              },
+              "durationSeconds": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 0
+              },
+              "externalRef": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "Values for the extra columns, by column name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EngagementChange",
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "body": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "dueAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "doneAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "durationSeconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "externalRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fields": {
+                  "description": "Values for the extra columns, by column name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "EngagementsEvents",
         "types": [
@@ -4570,6 +5870,32 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ReactionCount"
+        },
+        {
+          "name": "Reactions"
+        },
+        {
+          "name": "ReactionsActions"
+        },
+        {
+          "name": "ReactionsController"
+        },
+        {
+          "name": "ReactionsControllerOptions"
+        },
+        {
+          "name": "ReactionsEvents"
+        },
+        {
+          "name": "ReactionsOptions"
+        },
+        {
+          "name": "ReactionsSnapshot"
+        }
+      ],
       "events": {
         "type": "ReactionsEvents",
         "types": [
@@ -4632,6 +5958,28 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifier": "optional"
       },
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ReminderEntry"
+        },
+        {
+          "name": "ReminderPlanInput"
+        },
+        {
+          "name": "Reminders",
+          "fields": true
+        },
+        {
+          "name": "RemindersEvents"
+        },
+        {
+          "name": "RemindersOptions"
+        },
+        {
+          "name": "SavedReminder",
+          "fields": true
+        }
+      ],
       "events": {
         "type": "RemindersEvents",
         "types": [

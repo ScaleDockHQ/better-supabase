@@ -141,6 +141,11 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  comment: {
+    read: "comments.read",
+    write: "comments.create",
+    upload: "comments.create",
+  },
   comments: {
     read: "comments.read",
     create: "comments.create",
@@ -155,6 +160,10 @@ export const permissions = {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
     sensitive: "custom_fields.sensitive.read",
+  },
+  engagement: {
+    read: "engagements.read",
+    write: "engagements.write",
   },
   engagements: {
     read: "engagements.read",

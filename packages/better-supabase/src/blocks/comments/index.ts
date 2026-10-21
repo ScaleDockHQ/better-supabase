@@ -42,3 +42,5 @@ export {
   type CommentsSnapshot,
   createCommentsController,
 } from "./client.ts";
+
+export { commentChangeSchema, commentInputSchema } from "./schemas.ts";

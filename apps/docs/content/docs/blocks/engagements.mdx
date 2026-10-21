@@ -13,6 +13,8 @@ Reading needs `engagements.read`, and logging needs `engagements.write`. The aut
 better-supabase add engagements
 ```
 
+The block's entity is `engagement` (the `engagements` table). Installing it registers `engagement` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.engagements.entities`, for example `{ engagement: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
+
 The module needs `tenant`, `access` and `subjects`.
 
 ```ts

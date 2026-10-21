@@ -3309,6 +3309,8 @@
     "values": [
       "activityListQuery",
       "activitySink",
+      "commentChangeSchema",
+      "commentInputSchema",
       "commentsBlock",
       "commentsEvents",
       "createComments",
@@ -3344,6 +3346,7 @@
   },
   "./blocks/attachments": {
     "values": [
+      "attachmentInputSchema",
       "attachmentsBlock",
       "attachmentsEvents",
       "createAttachments",
@@ -5977,6 +5980,7 @@
   "./blocks/calendar": {
     "values": [
       "calendarBlock",
+      "calendarEventInputSchema",
       "calendarEventOf",
       "calendarEvents",
       "createCalendar",
@@ -6638,6 +6642,8 @@
     "values": [
       "createEngagements",
       "dbTransport",
+      "engagementChangeSchema",
+      "engagementInputSchema",
       "engagementsBlock",
       "engagementsEvents",
       "extendBlock",

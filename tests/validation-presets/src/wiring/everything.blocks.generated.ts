@@ -617,6 +617,10 @@ export const permissions = {
     write: "calendar.write",
     read: "calendar.read",
   },
+  calendar_event: {
+    read: "calendar.read",
+    write: "calendar.write",
+  },
   catalog: {
     manage: "catalog.manage",
     read: "catalog.read",
@@ -625,6 +629,11 @@ export const permissions = {
     read: "collections.read",
     write: "collections.write",
     share: "collections.share",
+  },
+  comment: {
+    read: "comments.read",
+    write: "comments.create",
+    upload: "comments.create",
   },
   comments: {
     read: "comments.read",
@@ -660,6 +669,10 @@ export const permissions = {
     write: "deals.write",
     manage: "deals.manage",
   },
+  document: {
+    read: "documents.read",
+    write: "documents.write",
+  },
   documents: {
     read: "documents.read",
     write: "documents.write",
@@ -682,6 +695,10 @@ export const permissions = {
     read: "employees.read",
     write: "employees.write",
     viewSensitive: "employees.view_sensitive",
+  },
+  engagement: {
+    read: "engagements.read",
+    write: "engagements.write",
   },
   engagements: {
     read: "engagements.read",

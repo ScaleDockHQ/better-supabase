@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { createEngagements } from "./engagements.ts";
 import { engagementsEvents } from "./events.ts";
 import { engagementsSqlOptions } from "./options.ts";
+import { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";
 
 /** The `engagements` block's manifest (ADR 0029). */
 export const engagementsBlock: BlockOf<
@@ -16,6 +17,12 @@ export const engagementsBlock: BlockOf<
   sql: ["engagements"],
   options: { engagements: engagementsSqlOptions },
   events: engagementsEvents,
+  schemas: {
+    engagement: {
+      input: engagementInputSchema,
+      change: engagementChangeSchema,
+    },
+  },
   create: createEngagements,
   category: "crm",
   recipes: ["activity-timeline"],

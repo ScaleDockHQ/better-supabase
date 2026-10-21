@@ -9,6 +9,8 @@ description: Emoji reactions on any subject, comments and inbox messages, with c
 better-supabase add reactions
 ```
 
+The block's entity is `reaction` (the `reactions` table). It isn't registered as a subject. Rename it with `blocks.reactions.entities`.
+
 ```ts
 import { createReactions } from "better-supabase/blocks/reactions";
 
@@ -31,7 +33,7 @@ await reactions
 
 ## Subjects
 
-A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, a comment (`comment`, with the [comments](/docs/blocks/comments) module) or an inbox message (`inbox_message`, with the [inbox](/docs/blocks/inbox) module). `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply. A comment must not be deleted. Without registry subjects every type is accepted for members of the organization.
+A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, a comment (with the [comments](/docs/blocks/comments) module) or an inbox message (`inbox_message`, with the [inbox](/docs/blocks/inbox) module). Comments are always included, under the comment entity's name (`comment`, or the name `blocks.comments.entities.comment` sets), even when `options.subjects` lists other types. `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply, and the caller also needs the subject's read permission (`comments.read` for a comment). A subject with a `deletedAt` column, such as a comment, must not be deleted. Without registry subjects every type is accepted for members of the organization.
 
 The service role reacts for anyone and passes the actor's name:
 

@@ -2,8 +2,20 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { NewAttachment } from "../../src/blocks/attachments/attachments.ts";
+import type { attachmentInputSchema } from "../../src/blocks/attachments/schemas.ts";
+import type { CalendarEventInput } from "../../src/blocks/calendar/calendar.ts";
+import type { calendarEventInputSchema } from "../../src/blocks/calendar/schemas.ts";
 import type { ProductInput } from "../../src/blocks/catalog/catalog.ts";
 import type { productInputSchema } from "../../src/blocks/catalog/schemas.ts";
+import type {
+  CommentEdit,
+  NewComment,
+} from "../../src/blocks/comments/comments.ts";
+import type {
+  commentChangeSchema,
+  commentInputSchema,
+} from "../../src/blocks/comments/schemas.ts";
 import type { DealChange, DealInput } from "../../src/blocks/deals/deals.ts";
 import type {
   dealChangeSchema,
@@ -17,6 +29,11 @@ import type {
   employeeChangeSchema,
   employeeInputSchema,
 } from "../../src/blocks/employees/schemas.ts";
+import type { EngagementInput } from "../../src/blocks/engagements/engagements.ts";
+import type {
+  engagementChangeSchema,
+  engagementInputSchema,
+} from "../../src/blocks/engagements/schemas.ts";
 import type {
   CompanyInput,
   PartyListOptions,
@@ -80,6 +97,25 @@ describe("entitySchema", () => {
     expectTypeOf<
       Out<typeof employeeChangeSchema>
     >().toEqualTypeOf<EmployeeChange>();
+  });
+
+  it("outputs the collaboration blocks' types", () => {
+    expectTypeOf<Out<typeof commentInputSchema>>().toEqualTypeOf<NewComment>();
+    expectTypeOf<
+      Out<typeof commentChangeSchema>
+    >().toEqualTypeOf<CommentEdit>();
+    expectTypeOf<
+      Out<typeof attachmentInputSchema>
+    >().toEqualTypeOf<NewAttachment>();
+    expectTypeOf<Out<typeof engagementInputSchema>>().toEqualTypeOf<
+      EngagementInput & { readonly type: string; readonly title: string }
+    >();
+    expectTypeOf<
+      Out<typeof engagementChangeSchema>
+    >().toEqualTypeOf<EngagementInput>();
+    expectTypeOf<
+      Out<typeof calendarEventInputSchema>
+    >().toEqualTypeOf<CalendarEventInput>();
   });
 
   it("needs every key, with optional and array flags that match the type", () => {

@@ -12,6 +12,8 @@ better-supabase add documents
 pnpm add yjs
 ```
 
+The block's entity is `document` (the `documents` table). Installing it registers `document` as a subject. Rename it with `blocks.documents.entities`; parameter names, such as `max_documents`, keep the default noun.
+
 ```ts
 import * as Y from "yjs";
 import {

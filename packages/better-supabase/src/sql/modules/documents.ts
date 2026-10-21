@@ -37,6 +37,14 @@ const EVENTS: ModuleEvents<DocumentsEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    document: {
+      table: "documents",
+      singular: "document",
+      primary: true,
+      subject: { title: "name", permissions: { read: "read", write: "write" } },
+    },
+  },
   events: EVENTS,
   hooks: ["before_document_create", "after_document_create"],
   options: ["subjects", "topic", "maxUpdateBytes", "compactAfter"],
@@ -175,8 +183,8 @@ function build(ctx: ModuleContext): string {
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("documents").name}_tenant_idx`)} on ${documents} (${c("tenant")}, ${c("updatedAt")} desc);
 ${lockTable(documents, { read: true })}
-drop policy if exists "documents_read" on ${documents};
-create policy "documents_read" on ${documents} for select to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents};
+create policy ${sqlIdent(`${ctx.tableName("documents").name}_read`)} on ${documents} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 
 create table if not exists ${updates} (
@@ -187,7 +195,7 @@ create table if not exists ${updates} (
   ${u("actor")} uuid,
   ${u("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("updates").name}_document_idx`)} on ${updates} (${u("document")}, ${u("seq")});
+create index if not exists ${sqlIdent(`${ctx.tableName("updates").name}_${ctx.naming.rename("document")}_idx`)} on ${updates} (${u("document")}, ${u("seq")});
 ${lockTable(updates, { read: false })}
 
 create table if not exists ${snapshots} (

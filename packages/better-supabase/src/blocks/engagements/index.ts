@@ -28,3 +28,5 @@ export { engagementsBlock } from "./manifest.ts";
 export { engagementsEvents } from "./events.ts";
 
 export type { EngagementsEvents } from "./events.ts";
+
+export { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";

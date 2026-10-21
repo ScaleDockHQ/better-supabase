@@ -34,3 +34,5 @@ export { attachmentsBlock } from "./manifest.ts";
 export { attachmentsEvents } from "./events.ts";
 
 export type { AttachmentsEvents } from "./events.ts";
+
+export { attachmentInputSchema } from "./schemas.ts";

@@ -138,8 +138,9 @@ describe("blocks.<name>.entities in the SQL", () => {
         plural: entity.plural ?? pluralOf(entity.singular),
       }));
 
+      // Parameter names keep the default nouns (`document`, `document_id`).
       const parameter = new RegExp(
-        String.raw`\b(?:\w+\.)?(?:${nouns.map((noun) => noun.singular).join("|")})\b(?= uuid|[^_\w'"]|$)`,
+        String.raw`\b(?:\w+\.)?(?:${nouns.map((noun) => noun.singular).join("|")})(?:_id)?\b(?= uuid|[^_\w'"]|$)`,
         "g",
       );
 
@@ -154,7 +155,28 @@ describe("blocks.<name>.entities in the SQL", () => {
           .join("|")})`,
       );
 
-      const left = renderModules([name], layout)
+      const files = renderModules([name], layout);
+
+      const declared = new RegExp(
+        String.raw`(?<!")\b(?:\w+\.)?(?:${[
+          ...new Set(
+            files.flatMap((file) =>
+              [
+                ...file.contents.matchAll(/function [\w".]+\(([^)]*)\)/g),
+              ].flatMap((match) =>
+                match[1]!
+                  .split(",")
+                  .map((arg) => arg.trim().split(" ")[0]!)
+                  .filter((arg) => /^\w+$/.test(arg)),
+              ),
+            ),
+          ),
+          "\\b\\B",
+        ].join("|")})\b`,
+        "g",
+      );
+
+      const left = files
         .flatMap((file) => file.contents.split("\n"))
         .filter((line) => !line.trimStart().startsWith("--"))
         .map((line) =>
@@ -162,8 +184,17 @@ describe("blocks.<name>.entities in the SQL", () => {
             .replaceAll(`'${name}'`, "")
             .replaceAll(`'${name}.`, "'")
             .replaceAll(/'[^']*\s[^']*'/g, "")
+            // Block-scoped names (`bs_attachments_bucket`, storage policies) and
+            // storage paths keep the block name, so existing objects match.
+            .replaceAll(
+              new RegExp(String.raw`bs_${name}_\w+|/${name}/`, "g"),
+              "",
+            )
+            // Realtime topic prefixes are option values (`options.topic`).
+            .replaceAll(/'[a-z][a-z0-9_-]*:%?'/g, "")
             .replaceAll(/\bv_\w+/g, "")
-            .replaceAll(parameter, ""),
+            .replaceAll(parameter, "")
+            .replaceAll(declared, ""),
         )
         .filter((line) => leftover.test(line));
 

@@ -1,4 +1,4 @@
--- better-supabase module: search (0.8.0)
+-- better-supabase module: search
 -- @bs-module search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -126,6 +126,12 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid
         and s."archived_at" is null;
       v_found := found;
+    when 'engagement' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text, s."outcome"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."engagements" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'work_item' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work'
         into v_tenant, v_title, v_body, v_url
@@ -149,6 +155,12 @@ begin
       select s."tenant_id", s."sku"::text, nullif(concat_ws(E'\n', s."title"::text, s."barcode"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."product_variants" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'calendar_event' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."description"::text, s."location"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."calendar_events" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'customer' then
@@ -261,6 +273,13 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'engagement' then
+    for v_id in select s."id"::text from "better_supabase"."engagements" s loop
+      if "better_supabase"."search_refresh"('engagement', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
     for v_id in select s."id"::text from "better_supabase"."work_items" s loop
       if "better_supabase"."search_refresh"('work_item', v_id) then
@@ -285,6 +304,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'product_variant' then
     for v_id in select s."id"::text from "better_supabase"."product_variants" s loop
       if "better_supabase"."search_refresh"('product_variant', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'calendar_event' then
+    for v_id in select s."id"::text from "better_supabase"."calendar_events" s loop
+      if "better_supabase"."search_refresh"('calendar_event', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -352,6 +378,11 @@ create trigger "bs_search_deal_index"
   after insert or delete or update of "id", "tenant_id", "name", "identifier", "note", "archived_at" on "better_supabase"."deals"
   for each row execute function "better_supabase"."search_index_row"('deal', 'id');
 
+drop trigger if exists "bs_search_engagement_index" on "better_supabase"."engagements";
+create trigger "bs_search_engagement_index"
+  after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."engagements"
+  for each row execute function "better_supabase"."search_index_row"('engagement', 'id');
+
 drop trigger if exists "bs_search_work_item_index" on "better_supabase"."work_items";
 create trigger "bs_search_work_item_index"
   after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
@@ -371,6 +402,11 @@ drop trigger if exists "bs_search_product_variant_index" on "better_supabase"."p
 create trigger "bs_search_product_variant_index"
   after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
+
+drop trigger if exists "bs_search_calendar_event_index" on "better_supabase"."calendar_events";
+create trigger "bs_search_calendar_event_index"
+  after insert or delete or update of "id", "tenant_id", "title", "description", "location" on "better_supabase"."calendar_events"
+  for each row execute function "better_supabase"."search_index_row"('calendar_event', 'id');
 
 drop trigger if exists "bs_search_customer_index" on "public"."customers";
 create trigger "bs_search_customer_index"

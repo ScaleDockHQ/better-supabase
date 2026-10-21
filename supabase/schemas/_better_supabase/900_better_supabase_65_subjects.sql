@@ -1,4 +1,4 @@
--- better-supabase module: subjects (0.8.0)
+-- better-supabase module: subjects
 -- @bs-module subjects@1 managed
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{company,person,deal,work_item,employee,product,product_variant,customer,drive_node,application,project,task}'::text[]
+  select '{comment,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -28,12 +28,16 @@ set search_path = ''
 as $$
 begin
   case subject_title.subject_type
+    when 'comment' then
+      return (select s."body"::text from "better_supabase"."comments" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     when 'company' then
       return (select s."name"::text from "better_supabase"."companies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'person' then
       return (select s."name"::text from "better_supabase"."people" s where s."id" = (subject_title.subject_id)::uuid);
     when 'deal' then
       return (select s."name"::text from "better_supabase"."deals" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'engagement' then
+      return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_item' then
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
@@ -42,6 +46,10 @@ begin
       return (select s."title"::text from "better_supabase"."products" s where s."id" = (subject_title.subject_id)::uuid);
     when 'product_variant' then
       return (select s."sku"::text from "better_supabase"."product_variants" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'calendar_event' then
+      return (select s."title"::text from "better_supabase"."calendar_events" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'document' then
+      return (select s."name"::text from "better_supabase"."documents" s where s."id" = (subject_title.subject_id)::uuid);
     when 'customer' then
       return (select s."name"::text from "public"."customers" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'drive_node' then
@@ -109,6 +117,17 @@ set search_path = ''
 as $$
 begin
   case can_subject.subject_type
+    when 'comment' then
+      return exists (
+        select 1 from "better_supabase"."comments" s
+        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
+          else true
+        end)
+      );
     when 'company' then
       return exists (
         select 1 from "better_supabase"."companies" s
@@ -136,6 +155,16 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.write'), false)
+          else true
+        end)
+      );
+    when 'engagement' then
+      return exists (
+        select 1 from "better_supabase"."engagements" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.write'), false)
           else true
         end)
       );
@@ -176,6 +205,26 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'catalog.manage'), false)
+          else true
+        end)
+      );
+    when 'calendar_event' then
+      return exists (
+        select 1 from "better_supabase"."calendar_events" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'calendar.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'calendar.write'), false)
+          else true
+        end)
+      );
+    when 'document' then
+      return exists (
+        select 1 from "better_supabase"."documents" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'documents.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'documents.write'), false)
           else true
         end)
       );
@@ -244,6 +293,17 @@ set search_path = ''
 as $$
 begin
   case can_subject_for.subject_type
+    when 'comment' then
+      return exists (
+        select 1 from "better_supabase"."comments" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
+          else false
+        end
+      );
     when 'company' then
       return exists (
         select 1 from "better_supabase"."companies" s
@@ -271,6 +331,16 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.write'), false)
+          else false
+        end
+      );
+    when 'engagement' then
+      return exists (
+        select 1 from "better_supabase"."engagements" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.write'), false)
           else false
         end
       );
@@ -311,6 +381,26 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'catalog.manage'), false)
+          else false
+        end
+      );
+    when 'calendar_event' then
+      return exists (
+        select 1 from "better_supabase"."calendar_events" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'calendar.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'calendar.write'), false)
+          else false
+        end
+      );
+    when 'document' then
+      return exists (
+        select 1 from "better_supabase"."documents" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'documents.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'documents.write'), false)
           else false
         end
       );

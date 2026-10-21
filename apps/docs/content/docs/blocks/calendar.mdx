@@ -13,6 +13,8 @@ editing "this and following" splits the series in two.
 better-supabase add calendar
 ```
 
+The block's entities are `calendar_event` (the `calendar_events` table, its primary entity) and `calendar` (the `calendars` table). Installing it registers `calendar_event` as a subject, searchable by title, description and location when the search module is installed. Rename them with `blocks.calendar.entities`, for example `{ calendar_event: "meeting" }`. `calendarEventInputSchema` validates what `save` takes.
+
 ```ts
 import { createCalendar } from "better-supabase/blocks/calendar";
 ```

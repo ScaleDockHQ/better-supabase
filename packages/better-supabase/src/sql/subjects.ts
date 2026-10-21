@@ -415,6 +415,13 @@ export function subjectReadable(
   ctx: Pick<ModuleContext, "scope" | "naming">,
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly id: string; readonly tenant: string },
+  options: {
+    /**
+     * Also require the subject row to be live: its `deletedAt` column (read
+     * with the `deletedAt` extra key) is null.
+     */
+    readonly live?: boolean;
+  } = {},
 ): string {
   if (subjects.length === 0) {
     return "true";
@@ -422,15 +429,22 @@ export function subjectReadable(
 
   return `case ${args.type}\n${subjects
     .map(([type, subject]) => {
+      const deletedAt = subject.extra["deletedAt"];
+
+      const live =
+        options.live === true && typeof deletedAt === "string"
+          ? ` and s.${sqlIdent(deletedAt)} is null`
+          : "";
+
       if (subject.tenant === false) {
-        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)})`;
+        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)}${live})`;
       }
 
       const extra = subject.permission
         ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
         : "";
 
-      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)})${extra}`;
+      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
 }

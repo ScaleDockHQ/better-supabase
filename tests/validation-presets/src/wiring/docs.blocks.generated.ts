@@ -138,11 +138,20 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  comment: {
+    read: "comments.read",
+    write: "comments.create",
+    upload: "comments.create",
+  },
   comments: {
     read: "comments.read",
     create: "comments.create",
     moderate: "comments.moderate",
     activity: "activity.read",
+  },
+  document: {
+    read: "documents.read",
+    write: "documents.write",
   },
   documents: {
     read: "documents.read",

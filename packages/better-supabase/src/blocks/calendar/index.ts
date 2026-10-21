@@ -57,3 +57,5 @@ export { calendarBlock } from "./manifest.ts";
 export { calendarEvents } from "./events.ts";
 
 export type { CalendarEvents } from "./events.ts";
+
+export { calendarEventInputSchema } from "./schemas.ts";

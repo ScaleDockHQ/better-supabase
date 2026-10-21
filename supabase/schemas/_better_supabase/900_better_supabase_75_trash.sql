@@ -1,4 +1,4 @@
--- better-supabase module: trash (0.9.0)
+-- better-supabase module: trash
 -- @bs-module trash@2 managed
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -78,6 +78,12 @@ declare
   v_item "better_supabase"."trash_items"%rowtype;
 begin
   case trash_cascade.subject_type
+    when 'comment' then
+      update "better_supabase"."comments" s set "deleted_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."organization_id" = trash_cascade.tenant
+          and s."deleted_at" is null
+        returning s."body"::text into v_title;
     when 'deal' then
       update "better_supabase"."deals" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
@@ -150,6 +156,7 @@ declare
   v_id uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', trash.tenant, 'trash.create'), false) and case trash.subject_type
+    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'comments.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'customers.read'), false)
@@ -157,6 +164,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant)
     else false
   end and case trash.subject_type
+    when 'comment' then coalesce(better_supabase.can('tenant', trash.tenant, 'comments.create'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', trash.tenant, 'deals.write'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.write'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
@@ -207,6 +215,9 @@ declare
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
     case v_item.subject_type
+    when 'comment' then
+      update "better_supabase"."comments" s set "deleted_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
     when 'deal' then
       update "better_supabase"."deals" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
@@ -261,6 +272,7 @@ begin
     raise exception 'trash item not found' using errcode = 'P0002', hint = 'TRASH_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_root."tenant_id", 'trash.restore'), false) and case v_root."subject_type"
+    when 'comment' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'comments.create'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'deals.write'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'work_items.write'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'customers.write'), false)
@@ -316,6 +328,7 @@ begin
       and (list_trash.subject_type is null or x."subject_type" = list_trash.subject_type)
       and (list_trash.before is null or x."trashed_at" < list_trash.before)
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case x."subject_type"
+    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'comments.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
@@ -345,6 +358,9 @@ declare
 begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_purge_batch.batch order by "depth" desc loop
     case v_item.subject_type
+    when 'comment' then
+      delete from "better_supabase"."comments" s
+        where s."id" = (v_item.subject_id)::uuid;
     when 'deal' then
       delete from "better_supabase"."deals" s
         where s."id" = (v_item.subject_id)::uuid;
