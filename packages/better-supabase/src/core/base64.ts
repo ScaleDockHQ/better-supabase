@@ -36,7 +36,7 @@ export function toBase64Url(input: Uint8Array | string): string {
   return toBase64(input)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 /** UTF-8 text of base64 or base64url. Throws on invalid input. */

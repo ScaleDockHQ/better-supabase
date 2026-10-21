@@ -65,7 +65,7 @@ async function deflated(text: string): Promise<string> {
     binary += String.fromCodePoint(byte);
   }
 
-  return `0${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")}`;
+  return `0${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/[=]+$/, "")}`;
 }
 
 describe("design codes", () => {

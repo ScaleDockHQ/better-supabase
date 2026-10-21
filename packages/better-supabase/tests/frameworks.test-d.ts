@@ -128,6 +128,6 @@ describe("framework adapters", () => {
       .addHook("onRequest", {} as FastifyHook)
       .addHook("preHandler", {} as FastifyHook);
 
-    (({}) as Koa).use({} as KoaMiddleware);
+    ({} as Koa).use({} as KoaMiddleware);
   });
 });

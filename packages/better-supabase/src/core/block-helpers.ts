@@ -316,7 +316,7 @@ export function randomToken(bytes = 24): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 export function asDbError(cause: unknown): DbError {

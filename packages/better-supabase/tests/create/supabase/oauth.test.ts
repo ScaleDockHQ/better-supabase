@@ -41,7 +41,7 @@ describe("pkcePair", () => {
     const expected = btoa(String.fromCodePoint(...new Uint8Array(digest)))
       .replaceAll("+", "-")
       .replaceAll("/", "_")
-      .replace(/=+$/u, "");
+      .replace(/[=]+$/u, "");
 
     expect(challenge).toBe(expected);
     expect(verifier).toMatch(/^[\w-]{43,}$/u);

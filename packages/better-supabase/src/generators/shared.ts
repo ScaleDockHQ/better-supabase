@@ -275,8 +275,8 @@ export function parseComment(comment: string | null): {
   });
 
   const description = comment
-    .replace(EXAMPLE, "")
-    .replace(DEPRECATED, "")
+    .replaceAll(EXAMPLE, "")
+    .replaceAll(DEPRECATED, "")
     .trim();
 
   return {

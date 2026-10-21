@@ -1024,7 +1024,7 @@ export function encodeFilterQuery(query: FilterQuery): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 /** The JSON a `filter` URL parameter holds, or `undefined` when it is not base64url JSON. */

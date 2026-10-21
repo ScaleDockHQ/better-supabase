@@ -658,7 +658,7 @@ describe("useBroadcast", () => {
       null,
     );
 
-    const payload = btoa(JSON.stringify({ sub: USER })).replace(/=+$/, "");
+    const payload = btoa(JSON.stringify({ sub: USER })).replace(/[=]+$/, "");
 
     const placeholder = {
       get id(): string {

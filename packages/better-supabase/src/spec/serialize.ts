@@ -89,7 +89,7 @@ function base64url(bytes: ArrayBuffer): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function encode(document: object, indent: number): Encoded {

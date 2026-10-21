@@ -681,7 +681,7 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {

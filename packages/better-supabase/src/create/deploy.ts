@@ -92,7 +92,7 @@ export function generatePassword(): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+    .replace(/[=]+$/u, "");
 }
 
 /** The project name the dialog suggests: the preset's name, or `my-app`. */

@@ -57,7 +57,7 @@ async function normalize(source: string): Promise<string> {
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
       "\n",
     )
-    .replace(VIEWS, (views) => views.replaceAll(" | null\n", "\n"))
+    .replaceAll(VIEWS, (views) => views.replaceAll(" | null\n", "\n"))
     .trimEnd();
 }
 

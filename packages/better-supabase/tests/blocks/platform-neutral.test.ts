@@ -56,7 +56,7 @@ async function domOffenders(files: ReadonlySet<string>): Promise<string[]> {
   const offenders: string[] = [];
 
   for (const file of files) {
-    const code = (await readFile(file, "utf-8")).replace(NOISE, "");
+    const code = (await readFile(file, "utf-8")).replaceAll(NOISE, "");
     code.split("\n").forEach((line, index) => {
       if (DOM_GLOBAL.test(line)) {
         offenders.push(`${relative(SRC, file)}:${index + 1}: ${line.trim()}`);
@@ -127,7 +127,7 @@ describe("platform-neutral block clients", () => {
     ];
 
     for (const line of lines) {
-      expect(DOM_GLOBAL.test(line.replace(NOISE, ""))).toBe(true);
+      expect(DOM_GLOBAL.test(line.replaceAll(NOISE, ""))).toBe(true);
     }
 
     const fine = [
@@ -140,7 +140,7 @@ describe("platform-neutral block clients", () => {
     ];
 
     for (const line of fine) {
-      expect(DOM_GLOBAL.test(line.replace(NOISE, ""))).toBe(false);
+      expect(DOM_GLOBAL.test(line.replaceAll(NOISE, ""))).toBe(false);
     }
   });
 });

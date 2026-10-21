@@ -40,7 +40,7 @@ function base64url(text: string): string {
   return btoa(text)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function token(payload: unknown): string {

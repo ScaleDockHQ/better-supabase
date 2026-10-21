@@ -141,12 +141,12 @@ catalog:
   next-intl: 4.14.9
   next-themes: 0.4.6
   nuxt: 4.6.2
-  oxfmt: 0.71.0
+  oxfmt: 0.74.0
   "@shadcn/lint": 0.2.1
   eslint-plugin-playwright: 2.12.1
   eslint-plugin-turbo: 2.11.9
   oxlint-plugin-react-doctor: 0.9.18
-  oxlint: 1.88.0
+  oxlint: 1.89.0
   oxlint-tsgolint: 7.0.2004
   react-router: 8.4.0
   ultracite: 8.0.1
@@ -412,7 +412,7 @@ peerDependencyRules:
   allowedVersions:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.
-    "@supabase/postgrest-typegen>oxfmt": "0.71.0"
+    "@supabase/postgrest-typegen>oxfmt": "0.74.0"
     # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
     # use only the vi.fn() API that vitest 5 keeps.
     "@chat-adapter/tests>vitest": "5.0.5"
