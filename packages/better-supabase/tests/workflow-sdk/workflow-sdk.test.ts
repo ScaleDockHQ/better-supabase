@@ -24,11 +24,11 @@ const listRuns = vi.fn(
 
 const world = { analytics: { runs: { list: listRuns } } };
 
-vi.mock(import("workflow/api"), () => ({ start, getRun, getHookByToken }));
+vi.mock("workflow/api", () => ({ start, getRun, getHookByToken }));
 
-vi.mock(import("workflow/runtime"), () => ({ getWorld: async () => world }));
+vi.mock("workflow/runtime", () => ({ getWorld: async () => world }));
 
-vi.mock(import("workflow"), () => ({ createHook: vi.fn(), sleep: vi.fn() }));
+vi.mock("workflow", () => ({ createHook: vi.fn(), sleep: vi.fn() }));
 
 const {
   authorizeHook,

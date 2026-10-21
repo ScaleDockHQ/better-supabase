@@ -9,7 +9,7 @@ import { webKeyboard } from "../../../../src/client/web-ports.ts";
 import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { renderHook as render } from "../../../fixtures/hook-runtime.ts";
 
-vi.mock(import("react"), async (importOriginal) => ({
+vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof ReactModule>()),
   ...(await import("../../../fixtures/hook-runtime.ts")).reactHooks,
 }));

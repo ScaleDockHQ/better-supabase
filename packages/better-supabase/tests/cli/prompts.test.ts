@@ -14,7 +14,7 @@ const clack = vi.hoisted(() => ({
   spinner: { start: vi.fn(), clear: vi.fn() },
 }));
 
-vi.mock(import("@clack/prompts"), () => {
+vi.mock("@clack/prompts", () => {
   const next = (): unknown => clack.answers.shift();
 
   return {

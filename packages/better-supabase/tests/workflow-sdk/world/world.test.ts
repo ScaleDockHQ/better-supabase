@@ -10,7 +10,7 @@ const inner = vi.fn(
 const baseClose = vi.fn(async () => undefined);
 const reenqueue = vi.fn(async () => undefined);
 
-vi.mock(import("@workflow/world-postgres"), () => ({
+vi.mock("@workflow/world-postgres", () => ({
   createWorld: () => ({
     runs: {},
     createQueueHandler: () => inner,
@@ -18,7 +18,7 @@ vi.mock(import("@workflow/world-postgres"), () => ({
   }),
 }));
 
-vi.mock(import("@workflow/world"), () => ({ reenqueueActiveRuns: reenqueue }));
+vi.mock("@workflow/world", () => ({ reenqueueActiveRuns: reenqueue }));
 
 const {
   createSupabaseWorld,

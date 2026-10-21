@@ -15,7 +15,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const browserClients = vi.hoisted((): unknown[][] => []);
 
-vi.mock(import("@supabase/ssr"), async (importOriginal) => {
+vi.mock("@supabase/ssr", async (importOriginal) => {
   const actual = await importOriginal<typeof Ssr>();
 
   return {

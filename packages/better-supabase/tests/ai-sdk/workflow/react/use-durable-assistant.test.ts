@@ -13,12 +13,12 @@ import {
 
 const chatHook = vi.hoisted(() => vi.fn());
 
-vi.mock(import("react"), () => ({
+vi.mock("react", () => ({
   useMemo: (make: () => unknown) => make(),
   useCallback: (callback: unknown) => callback,
 }));
 
-vi.mock(import("@ai-sdk/react"), () => ({ useChat: chatHook }));
+vi.mock("@ai-sdk/react", () => ({ useChat: chatHook }));
 
 const user: UIMessage = {
   id: "u1",

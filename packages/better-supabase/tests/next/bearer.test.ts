@@ -6,12 +6,12 @@ import { createNext } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-vi.mock(import("next/headers.js"), () => ({
+vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(new Headers()),
   cookies: () => Promise.resolve({ set: vi.fn() }),
 }));
 
-vi.mock(import("next/cache.js"), () => ({
+vi.mock("next/cache.js", () => ({
   updateTag: vi.fn(),
   revalidateTag: vi.fn(),
   cacheTag: vi.fn(),

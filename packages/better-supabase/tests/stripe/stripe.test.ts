@@ -12,7 +12,7 @@ import { stripeFromKey } from "../../src/stripe/index.ts";
 
 const made = vi.hoisted((): unknown[] => []);
 
-vi.mock(import("stripe"), async (importOriginal) => {
+vi.mock("stripe", async (importOriginal) => {
   const { default: Actual } = await importOriginal<{
     default: typeof Stripe;
   }>();

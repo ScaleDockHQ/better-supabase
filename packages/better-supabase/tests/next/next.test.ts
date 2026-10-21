@@ -31,17 +31,17 @@ const mocks = vi.hoisted(() => ({
   after: vi.fn<(task: () => unknown) => void>(),
 }));
 
-vi.mock(import("next/headers.js"), () => ({
+vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () => Promise.resolve({ set: mocks.setCookie }),
 }));
 
-vi.mock(import("next/server.js"), async (original) => ({
+vi.mock("next/server.js", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   after: mocks.after,
 }));
 
-vi.mock(import("next/cache.js"), () => ({
+vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
   revalidateTag: mocks.revalidateTag,
   cacheTag: mocks.cacheTag,

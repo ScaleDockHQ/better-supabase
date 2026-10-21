@@ -12,7 +12,7 @@ import { testControllerBinding } from "../../src/testing/kits/controller-binding
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { fakeAuth, fakeTopic } from "../fixtures/ports.ts";
 
-vi.mock(import("react"), async (importOriginal) => ({
+vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof ReactModule>()),
   ...(await import("../fixtures/hook-runtime.ts")).reactHooks,
 }));
