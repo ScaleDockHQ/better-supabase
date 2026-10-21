@@ -87,6 +87,9 @@ const config: KnipConfig = {
         "src/components/ui/**",
         "src/components/reui/**",
         "src/lib/supabase/features/**",
+        // gen output the app imports when it builds a sidebar or palette.
+        "src/lib/supabase/navigation.generated.ts",
+        "src/lib/supabase/commands.generated.ts",
       ],
       // Knip's Playwright plugin finds the specs and the `webServer`
       // command; the setup project is a `testMatch` regex, which it can't read.

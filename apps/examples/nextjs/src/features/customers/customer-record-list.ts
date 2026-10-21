@@ -10,10 +10,8 @@ import { bs } from "@/lib/supabase/server";
  * The customer list with the comment count per row, filled for the whole page
  * in one request. The column is hidden without `comments.read`.
  */
-export const customerRecordList = defineRecordList(
-  customerFeature,
-  customerList,
-  { columns: { comments: "count" } },
-);
+const customerRecordList = defineRecordList(customerFeature, customerList, {
+  columns: { comments: "count" },
+});
 
 export const customerRecords = recordListServer(bs, customerRecordList);

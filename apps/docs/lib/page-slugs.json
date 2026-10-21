@@ -85,6 +85,7 @@
   "blocks/quotes",
   "blocks/rank",
   "blocks/reactions",
+  "blocks/record-lists",
   "blocks/records",
   "blocks/relations",
   "blocks/reminders",
