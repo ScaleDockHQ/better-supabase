@@ -1,12 +1,8 @@
+import type { BlockTenant } from "./tenant-source.ts";
+
 import { dbError } from "./errors.ts";
 import { AsyncResult } from "./result.ts";
-
-/**
- * Where a block reads the active tenant: an organization id, or a function that
- * returns the current one, such as `() => db.$context.tenant` on the server or
- * the session's tenant claim in the browser.
- */
-export type BlockTenant = string | (() => string | null | undefined);
+import { currentTenant } from "./tenant-source.ts";
 
 /** The `tenant` option of the blocks whose methods work in one tenant. */
 export interface BlockTenantOptions {
@@ -16,17 +12,6 @@ export interface BlockTenantOptions {
    * `TENANT_REQUIRED`.
    */
   readonly tenant?: BlockTenant;
-}
-
-/** The tenant `source` names now, or `undefined`. */
-export function currentTenant(
-  source: BlockTenant | undefined,
-): string | undefined {
-  const value = typeof source === "function" ? source() : source;
-
-  return value === null || value === undefined || value === ""
-    ? undefined
-    : value;
 }
 
 /**

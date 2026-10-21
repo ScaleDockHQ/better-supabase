@@ -25,6 +25,7 @@ import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
 import { fieldErrorsOf } from "../../src/bindings/field-errors.ts";
+import { claimedTenant } from "../../src/bindings/keys.ts";
 import {
   useAiChats,
   useAiChatTree,
@@ -438,6 +439,7 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
         return () => void listeners.delete(listener);
       },
     },
+    tenant: () => claimedTenant(snapshot, betterSupabase.meta),
     db: run ?? { name: "db" },
     queries: { name: "queries" },
   } as unknown as ClientLike;

@@ -3,7 +3,7 @@
 import type { SubjectRef } from "../../../schema/types.ts";
 import type { CommentsActions, CommentsSnapshot } from "../client.ts";
 
-import { envBlockOptions } from "../../block-env.ts";
+import { envBlockOptions } from "../../block-env-options.ts";
 import { useController } from "../../react-controller.ts";
 import { useBlockEnv, useBlockTenant } from "../../react-env.ts";
 import { createCommentsController } from "../client.ts";

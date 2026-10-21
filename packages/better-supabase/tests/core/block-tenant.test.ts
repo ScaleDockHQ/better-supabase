@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { currentTenant, requireTenant } from "../../src/core/block-tenant.ts";
+import { requireTenant } from "../../src/core/block-tenant.ts";
+import { currentTenant } from "../../src/core/tenant-source.ts";
 
 describe("currentTenant", () => {
   it("reads a fixed id or calls the function each time", () => {

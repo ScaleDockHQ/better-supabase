@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { bindClient, createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { currentTenant } from "../../src/core/tenant-source.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -105,6 +106,19 @@ describe("createClient", () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
     emit(session(token({ sub: "u1" }), { id: "u1" }));
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("defaults the block tenant to the session's tenant claim", () => {
+    const { browser, emit } = setup();
+    expect(currentTenant(browser.tenant)).toBeUndefined();
+    emit(session(token({ sub: "u1", tenant_id: "org-1" }), { id: "u1" }));
+    expect(currentTenant(browser.tenant)).toBe("org-1");
+  });
+
+  it("keeps a tenant the caller passes", () => {
+    const { client } = capturingClient();
+    const browser = createClient(betterSupabase, { client, tenant: "org-2" });
+    expect(browser.tenant).toBe("org-2");
   });
 
   it("passes staleTime to every query option", () => {

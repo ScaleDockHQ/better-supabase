@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import type { SubjectRef } from "../../../schema/types.ts";
 import type { ReactionsActions, ReactionsSnapshot } from "../client.ts";
 
-import { envBlockOptions, envBlockSettings } from "../../block-env.ts";
+import { envBlockOptions, envBlockSettings } from "../../block-env-options.ts";
 import { useController } from "../../react-controller.ts";
 import { useBlockEnv, useBlockTenant } from "../../react-env.ts";
 import { createReactionsController } from "../client.ts";

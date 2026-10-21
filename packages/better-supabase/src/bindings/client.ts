@@ -5,9 +5,9 @@ import type { QueryClient } from "@tanstack/query-core";
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { AuthSnapshot, ClientAuth } from "../client/index.ts";
 import type { ClientPorts } from "../client/ports.ts";
-import type { BlockTenant } from "../core/block-tenant.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
+import type { BlockTenant } from "../core/tenant-source.ts";
 import type {
   EventSchemas,
   PresenceMember,

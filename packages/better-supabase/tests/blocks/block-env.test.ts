@@ -7,10 +7,10 @@ import type { AuthPort } from "../../src/blocks/controller.ts";
 import type { TopicPort } from "../../src/realtime/watch-topic.ts";
 
 import {
-  blockEnv,
   envBlockOptions,
   envBlockSettings,
-} from "../../src/blocks/block-env.ts";
+} from "../../src/blocks/block-env-options.ts";
+import { blockEnv } from "../../src/blocks/block-env.ts";
 
 const auth: AuthPort = {
   current: () => ({ status: "loading", user: null, claims: null }),

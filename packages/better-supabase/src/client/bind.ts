@@ -1,15 +1,16 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
-import type { BlockTenant } from "../core/block-tenant.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { BlockTenant } from "../core/tenant-source.ts";
 import type { BetterQueries } from "../query/index.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
+import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import { createQueries } from "../query/index.ts";
@@ -70,7 +71,10 @@ export interface BetterClient<
   readonly ports: ClientPorts;
   /** `blockConfig` from `blocks.generated.ts`, when passed. */
   readonly blocks?: GeneratedBlocks;
-  /** The tenant block hooks act in, when passed. */
+  /**
+   * The tenant block hooks act in: the `tenant` option, or the session's tenant
+   * claim.
+   */
   readonly tenant?: BlockTenant;
   /**
    * Stops following `supabase`'s session. Call it when the client goes away
@@ -216,7 +220,8 @@ export function bindClient<
     supabase,
     ports: options.ports ?? {},
     ...(options.blocks === undefined ? {} : { blocks: options.blocks }),
-    ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+    tenant:
+      options.tenant ?? (() => claimedTenant(snapshot, betterSupabase.meta)),
     get db() {
       db ??= betterSupabase.connect(supabase, contextOf(snapshot));
 

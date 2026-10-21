@@ -7,7 +7,7 @@ import type {
   TagInputSnapshot,
 } from "../client.ts";
 
-import { envBlockOptions } from "../../block-env.ts";
+import { envBlockOptions } from "../../block-env-options.ts";
 import { useController, useLatest } from "../../react-controller.ts";
 import { useBlockEnv, useBlockTenant } from "../../react-env.ts";
 import { createTagInputController } from "../client.ts";
