@@ -81,6 +81,30 @@ const EVENTS: ModuleEvents<CatalogEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: ModuleNames = {
+  entities: {
+    product: {
+      table: "products",
+      singular: "product",
+      primary: true,
+      subject: {
+        title: "title",
+        url: "/products/{slug}",
+        permissions: { read: "read", write: "manage" },
+        cascade: true,
+        search: { title: "title", body: ["description", "slug"] },
+      },
+    },
+    product_variant: {
+      table: "variants",
+      singular: "product_variant",
+      subject: {
+        title: "sku",
+        permissions: { read: "read", write: "manage" },
+        cascade: true,
+        search: { title: "sku", body: ["title", "barcode"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_product_save",

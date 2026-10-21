@@ -108,8 +108,8 @@ export interface ModuleEntitySubject {
  * after (`work_item`), renamed through `blocks.<name>.entities`.
  */
 export interface ModuleEntitySpec {
-  /** The logical table that holds the entity. */
-  readonly table: string;
+  /** The logical table that holds the entity; global entities may have none. */
+  readonly table?: string;
   readonly singular: string;
   /** Defaults to the English plural of `singular`. */
   readonly plural?: string;

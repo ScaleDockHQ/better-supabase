@@ -22,6 +22,13 @@ export interface PresetCatalogBlock {
    * them.
    */
   readonly extraColumns?: string;
+  /**
+   * The nouns `blocks.<name>.entities` renames, by key, with the default
+   * singular and whether it is the primary entity.
+   */
+  readonly entities?: Readonly<
+    Record<string, { readonly singular: string; readonly primary?: true }>
+  >;
   /** Modules it works with when installed; `*` is every module. */
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */

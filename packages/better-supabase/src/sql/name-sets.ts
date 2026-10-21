@@ -74,7 +74,10 @@ export function moduleNameSet(module: SqlModule): ModuleNameSet {
     entities: Object.fromEntries(
       entities.map(([key, spec]) => [
         key,
-        Object.values(names?.tables[spec.table]?.columns ?? {}),
+        Object.values(
+          (spec.table === undefined ? undefined : names?.tables[spec.table])
+            ?.columns ?? {},
+        ),
       ]),
     ),
     primary: entities.find(([, spec]) => spec.primary === true)?.[0],

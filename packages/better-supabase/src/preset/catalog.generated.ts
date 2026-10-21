@@ -44,7 +44,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invitations",
         "organizations"
       ],
-      "manifest": "tenant"
+      "manifest": "tenant",
+      "entities": {
+        "organization": {
+          "singular": "organization"
+        }
+      }
     },
     {
       "name": "invitations",
@@ -1230,7 +1235,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "products"
+      "extraColumns": "products",
+      "entities": {
+        "product": {
+          "singular": "product",
+          "primary": true
+        },
+        "product_variant": {
+          "singular": "product_variant"
+        }
+      }
     },
     {
       "name": "inventory",
@@ -1491,7 +1505,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "companies"
+      "extraColumns": "companies",
+      "entities": {
+        "company": {
+          "singular": "company"
+        },
+        "person": {
+          "singular": "person"
+        }
+      }
     },
     {
       "name": "engagements",
@@ -1532,7 +1554,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "deals"
+      "extraColumns": "deals",
+      "entities": {
+        "deal": {
+          "singular": "deal",
+          "primary": true
+        }
+      }
     },
     {
       "name": "work-items",
@@ -1556,7 +1584,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "items"
+      "extraColumns": "items",
+      "entities": {
+        "work_item": {
+          "singular": "work_item",
+          "primary": true
+        },
+        "project": {
+          "singular": "project"
+        },
+        "iteration": {
+          "singular": "iteration"
+        }
+      }
     },
     {
       "name": "quotes",
@@ -1686,7 +1726,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "employees"
+      "extraColumns": "employees",
+      "entities": {
+        "employee": {
+          "singular": "employee",
+          "primary": true
+        }
+      }
     },
     {
       "name": "collections",

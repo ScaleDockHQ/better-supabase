@@ -58,6 +58,18 @@ const EMPLOYEE_STATUSES = [
 const EMPLOYMENT_TYPES = ["employee", "contractor", "intern", "temporary"];
 
 const NAMES: ModuleNames = {
+  entities: {
+    employee: {
+      table: "employees",
+      singular: "employee",
+      primary: true,
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["email", "jobTitle"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_employee_create",

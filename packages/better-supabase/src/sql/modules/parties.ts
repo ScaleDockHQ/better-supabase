@@ -44,6 +44,28 @@ const EVENTS: ModuleEvents<PartiesEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    company: {
+      table: "companies",
+      singular: "company",
+      plural: "companies",
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["domain"] },
+      },
+    },
+    person: {
+      table: "people",
+      singular: "person",
+      plural: "people",
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["email", "title"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_company_save",

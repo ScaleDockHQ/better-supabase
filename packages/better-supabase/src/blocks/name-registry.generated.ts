@@ -238,8 +238,11 @@ export interface BlockNameRegistry {
     readonly functions: "add_to_collection" | "currency_minor_units" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_price" | "set_product_categories" | "set_product_status" | "storefront_products" | "storefront_tenants" | "variant_price";
     readonly actions: "manage" | "read";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "product": "id" | "tenant_id" | "slug" | "title" | "description" | "kind" | "status" | "created_at" | "updated_at";
+      readonly "product_variant": "id" | "tenant_id" | "product_id" | "sku" | "title" | "barcode" | "weight_grams" | "track_inventory" | "allow_backorder" | "rank" | "created_at" | "updated_at";
+    };
+    readonly primary: "product";
   };
   readonly "chat-sdk-state": {
     readonly tables: {
@@ -337,8 +340,10 @@ export interface BlockNameRegistry {
     readonly functions: "archive_deal" | "close_deal" | "create_deal" | "deal_forecast" | "deal_health" | "delete_deal" | "reopen_deal" | "set_deal_contacts" | "set_deal_lines" | "set_deal_lines_recount" | "set_deal_members" | "update_deals";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_deal_create" | "after_deal_create" | "before_deal_update" | "after_deal_update";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "deal": "id" | "tenant_id" | "number" | "identifier" | "name" | "company_type" | "company_id" | "motion" | "priority" | "owner_user_id" | "product" | "seats" | "amount" | "existing_amount" | "currency" | "value_period" | "amount_source" | "pipeline_id" | "stage_id" | "stage_entered_at" | "outcome" | "probability" | "forecast_category" | "opened_on" | "expected_close_on" | "slipped_from" | "push_count" | "closed_at" | "next_step" | "next_at" | "next_kind" | "flags" | "source" | "note" | "lost_reason" | "locked" | "rank" | "archived_at" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+    };
+    readonly primary: "deal";
   };
   readonly "documents": {
     readonly tables: {
@@ -390,8 +395,10 @@ export interface BlockNameRegistry {
     readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "offboard_employee" | "org_chart" | "reports_of" | "save_employee_private_details" | "update_employees";
     readonly actions: "read" | "write" | "viewSensitive";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "employee";
   };
   readonly "engagements": {
     readonly tables: {
@@ -728,7 +735,10 @@ export interface BlockNameRegistry {
     readonly functions: "archive_company" | "archive_person" | "company_people_of" | "list_companies" | "list_people" | "merge_companies" | "merge_people" | "remove_company_person" | "save_company" | "save_person" | "set_company_person";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
-    readonly entities: {};
+    readonly entities: {
+      readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+    };
     readonly primary: never;
   };
   readonly "pgtap": {
@@ -1108,7 +1118,9 @@ export interface BlockNameRegistry {
     readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "organization_member_role";
     readonly actions: never;
     readonly hooks: never;
-    readonly entities: {};
+    readonly entities: {
+      readonly "organization": never;
+    };
     readonly primary: never;
   };
   readonly "time-tracking": {
@@ -1240,8 +1252,12 @@ export interface BlockNameRegistry {
     readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "list_work_items" | "save_iteration" | "save_project" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
+      readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
+    };
+    readonly primary: "work_item";
   };
   readonly "workflow-builder": {
     readonly tables: {

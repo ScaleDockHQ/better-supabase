@@ -46,6 +46,20 @@ const EVENTS: ModuleEvents<DealsEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    deal: {
+      table: "deals",
+      singular: "deal",
+      primary: true,
+      subject: {
+        title: "name",
+        deletedAt: "archivedAt",
+        permissions: { read: "read", write: "write" },
+        rank: { column: "rank", group: "stage" },
+        search: { title: "name", body: ["identifier", "note"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_deal_create",

@@ -468,6 +468,22 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     block = { ...block, extraColumns };
   }
 
+  const entities = Object.entries(module.names?.entities ?? {});
+
+  if (entities.length > 0) {
+    block = {
+      ...block,
+      entities: Object.fromEntries(
+        entities.map(([key, entity]) => [
+          key,
+          entity.primary === true
+            ? { singular: entity.singular, primary: true }
+            : { singular: entity.singular },
+        ]),
+      ),
+    };
+  }
+
   return Object.keys(byAccess).length === 0
     ? block
     : { ...block, requiresByAccess: byAccess };

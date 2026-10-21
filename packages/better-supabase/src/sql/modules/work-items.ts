@@ -44,6 +44,22 @@ const EVENTS: ModuleEvents<WorkItemsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  entities: {
+    work_item: {
+      table: "items",
+      singular: "work_item",
+      primary: true,
+      subject: {
+        title: "title",
+        deletedAt: "archivedAt",
+        permissions: { read: "read", write: "write" },
+        rank: { column: "rank", group: "stage" },
+        search: { title: "title", body: ["identifier", "body"] },
+      },
+    },
+    project: { table: "projects", singular: "project" },
+    iteration: { table: "iterations", singular: "iteration" },
+  },
   hooks: [
     "before_work_item_create",
     "after_work_item_create",
