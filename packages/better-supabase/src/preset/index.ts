@@ -105,6 +105,9 @@ export type {
 } from "./fields.ts";
 
 export {
+  DEFAULT_PRESET_NAME,
+  defaultPreset,
+  defaultPresetCode,
   isPresetName,
   namedPreset,
   PRESET_GROUPS,

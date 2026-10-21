@@ -10,9 +10,9 @@ Designs stay in the URL or in your own storage, as ADR 0040 requires.
 
 ```ts
 import { previewFiles, diffDesigns } from "better-supabase/create";
-import { namedPreset } from "better-supabase/preset";
+import { defaultPreset } from "better-supabase/preset";
 
-const base = { preset: namedPreset("saas") };
+const base = { preset: defaultPreset() };
 const files = previewFiles(base);
 console.log(files.map((file) => file.path));
 ```
@@ -126,9 +126,9 @@ Postgres rejects before anything reaches a project.
 ```ts
 import { previewFiles } from "better-supabase/create";
 import { validateDesign } from "better-supabase/create/lite";
-import { encodePreset, namedPreset } from "better-supabase/preset";
+import { defaultPresetCode } from "better-supabase/preset";
 
-const files = previewFiles(encodePreset(namedPreset("saas")));
+const files = previewFiles(defaultPresetCode());
 const { ok, issues, skipped } = await validateDesign(files);
 ```
 

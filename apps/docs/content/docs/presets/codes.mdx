@@ -182,13 +182,13 @@ in `.json`. `DESIGN_FILE` is the default name, `better-supabase.design.json`.
 
 ```ts
 import {
+  defaultPreset,
   designFileSource,
-  namedPreset,
   readDesignFile,
   resolvePreset,
 } from "better-supabase/preset";
 
-const source = designFileSource(resolvePreset(namedPreset("saas")), design);
+const source = designFileSource(resolvePreset(defaultPreset()), design);
 // {
 //   "preset": "...",
 //   "design": { "tables": { ... }, "extraColumns": { ... } }
@@ -251,6 +251,19 @@ The AI instructions for a design are at
 | `designFileSource`     | the design file: the preset code and the design as JSON                                               |
 | `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`               |
 | `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else               |
+
+### The default preset
+
+`DEFAULT_PRESET_NAME` is `"saas"`, the preset `/create` and `init` start
+from. `defaultPreset()` returns it as a `Preset` and `defaultPresetCode()`
+returns its code, so an app that opens a new design doesn't hard-code
+either:
+
+```ts
+import { defaultPresetCode } from "better-supabase/preset";
+
+const url = `https://app.bettersupabase.com/create?preset=${defaultPresetCode()}`;
+```
 
 ## Resolving
 
