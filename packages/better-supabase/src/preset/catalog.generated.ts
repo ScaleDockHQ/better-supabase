@@ -2892,6 +2892,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "sections": {
+        "attachments": [
+          "remove"
+        ]
+      },
       "events": {
         "type": "AttachmentsEvents",
         "types": [
@@ -3692,6 +3697,12 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "sections": {
+        "comments": [
+          "add",
+          "remove"
+        ]
       },
       "events": {
         "type": "CommentsEvents",
@@ -5889,6 +5900,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "relations": [
+          "link",
+          "unlink"
+        ]
+      },
       "events": {
         "type": "RelationsEvents",
         "types": [
@@ -6094,6 +6111,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "shareLinks": [
+          "create",
+          "revoke"
+        ]
+      },
       "events": {
         "type": "ShareLinksEvents",
         "types": [
@@ -6156,6 +6179,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "sla": [
+          "start"
+        ]
+      },
       "events": {
         "type": "SlaEvents",
         "types": [
@@ -6263,6 +6291,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "tags": [
+          "apply",
+          "remove"
+        ]
+      },
       "events": {
         "type": "TagsEvents",
         "types": [
@@ -6443,6 +6477,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "versions": [
+          "snapshot",
+          "restore"
+        ]
+      },
       "events": {
         "type": "VersionsEvents",
         "types": [

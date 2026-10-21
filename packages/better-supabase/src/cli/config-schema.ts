@@ -534,6 +534,7 @@ const ENTRIES = {
   ),
   output: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
+  generateFeatures: v.optional(v.boolean()),
   json: v.optional(
     v.record(
       v.string(),

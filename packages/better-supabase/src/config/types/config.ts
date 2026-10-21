@@ -63,6 +63,11 @@ export interface BetterSupabaseConfig {
    * `'13'`.
    */
   readonly postgrestVersion?: string;
+  /**
+   * Write one record feature per subject into `features/` next to `output`,
+   * with a section for each installed block that adds one. Defaults to `true`.
+   */
+  readonly generateFeatures?: boolean;
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
@@ -220,6 +225,7 @@ export interface ResolvedConfig {
   /** `database.types.ts` next to `output`. */
   readonly databaseTypesOutput: string;
   readonly postgrestVersion: string;
+  readonly generateFeatures: boolean;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
   readonly relations: Required<RelationsConfig>;

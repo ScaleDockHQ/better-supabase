@@ -6,6 +6,7 @@ import type {
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { Framework } from "../project/detect.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { importPath } from "../core/io.ts";
@@ -14,8 +15,10 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
+import { detectProject } from "../project/detect.ts";
 import { emitBlockConfig, generatorBlocks } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
+import { emitFeatures } from "./features.ts";
 import { buildModel, generatorModel } from "./model.ts";
 
 export interface RenderOptions {
@@ -26,6 +29,11 @@ export interface RenderOptions {
   readonly runtimeImport?: string;
   /** Writes the metadata into the main module, so it stands alone on stdout. */
   readonly inlineMeta?: boolean;
+  /**
+   * The frameworks the record features get bindings for. Defaults to the ones
+   * the project's dependencies show.
+   */
+  readonly frameworks?: readonly Framework[];
 }
 
 export interface Rendered {
@@ -39,8 +47,8 @@ export interface Rendered {
 /**
  * Renders every generated file for a snapshot, without touching disk:
  * `database.types.ts` (what `supabase gen types` prints), the main module,
- * `blocks.generated.ts` when the config installs blocks, then each configured
- * generator's files.
+ * `blocks.generated.ts` when the config installs blocks, the record features in
+ * `features/`, then each configured generator's files.
  */
 export async function renderFiles(
   config: ResolvedConfig,
@@ -103,6 +111,13 @@ export async function render(
 
   if (blockConfig) {
     files.push(blockConfig);
+  }
+
+  if (config.generateFeatures) {
+    const frameworks =
+      options.frameworks ?? (await detectProject(config.root)).frameworks;
+
+    files.push(...emitFeatures(config, frameworks));
   }
 
   const owners = new Map(

@@ -96,6 +96,9 @@
       "description": "PostgREST major version written to database.types.ts.",
       "default": "13"
     },
+    "generateFeatures": {
+      "type": "boolean"
+    },
     "json": {
       "type": "object",
       "additionalProperties": {
@@ -2546,6 +2549,9 @@
         },
         "postgrestVersion": {
           "$ref": "#/properties/postgrestVersion"
+        },
+        "generateFeatures": {
+          "$ref": "#/properties/generateFeatures"
         },
         "json": {
           "$ref": "#/properties/json"
