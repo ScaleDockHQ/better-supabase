@@ -1041,6 +1041,35 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
   });
 
+  it("renames an installed block's tables when blocks.<name>.entities changes", async () => {
+    await sql(["sync"], { blocks: ["work-items"] });
+
+    const config: BetterSupabaseConfig = {
+      blocks: { "work-items": { entities: { work_item: "task" } } },
+    };
+
+    const check = await sql(["upgrade", "--check"], config);
+    expect(check.code).toBe(1);
+    expect(check.error).toContain(
+      "work-items has entity renames to apply to its tables",
+    );
+
+    const done = await sql(["upgrade"], config);
+    expect(done.code).toBe(0);
+    expect(done.output).toContain(
+      "work-items: renamed after blocks.<name>.entities",
+    );
+
+    const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
+      (name) => name.endsWith("_better_supabase_block_upgrade.sql"),
+    );
+
+    expect(
+      await readFile(join(root, "supabase/migrations", upgrade!), "utf-8"),
+    ).toContain('alter table "better_supabase"."work_items" rename to "tasks"');
+    expect((await sql(["upgrade", "--check"], config)).code).toBe(0);
+  });
+
   it("reports a stale file at the current version in upgrade --check", async () => {
     const config: BetterSupabaseConfig = { blocks: ["mfa"] };
     await sql(["sync"], config);

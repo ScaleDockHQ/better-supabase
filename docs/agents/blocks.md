@@ -44,6 +44,13 @@ workflow; this page is the checklist for a new block.
   keys and client methods derive from the singular, so a rename reaches all
   of them; `tests/core/entity-naming.test.ts` and
   `tests/sql/resolved-names.test.ts` cover the renamer.
+- `sql upgrade` renames an installed block's objects when its entities
+  change (`src/sql/entity-upgrade.ts`): it renders the module under both
+  names and pairs the created objects by position, so a module whose object
+  list depends on the entity name gets refused. Keep the order of created
+  objects independent of names. A table or column a release renames goes in
+  `NAMES.migrations` (`from`, `table`, `was`, `columns`) instead of a
+  hand-written upgrade step, so the rename follows the app's config.
 - A table that holds a user's or a tenant's rows declares `lifecycle: {
   user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `data-lifecycle` module exports and purges it. Secrets that only the

@@ -4,7 +4,7 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { pluralOf } from "../../src/core/entity-naming.ts";
-import { entityRenameChanges, renderModules } from "../../src/sql/index.ts";
+import { entityRenamePlan, renderModules } from "../../src/sql/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS = ["tenant", "access", "outbox", "work-items"];
@@ -182,19 +182,87 @@ describe("blocks.<name>.entities in the SQL", () => {
   });
 });
 
-describe("entityRenameChanges", () => {
-  const marker = "-- @bs-entities work-items work_item=task/tasks";
+describe("entityRenamePlan", () => {
+  const installed = renderModules(BLOCKS, {});
+  const text = installed.map((file) => file.contents).join("\n");
+  const modules = [...new Set(installed.map((file) => file.module))];
 
-  it("reports a module whose entities changed since it was installed", () => {
-    expect(entityRenameChanges(["work-items"], "", marker)).toEqual([
-      expect.stringContaining(
-        "blocks.work-items.entities changed on an installed block (default names to work_item=task/tasks)",
-      ),
-    ]);
+  const sql = (layout: ModuleLayout): string[] =>
+    entityRenamePlan(BLOCKS, modules, text, layout).steps.map(
+      (step) => step.sql,
+    );
+
+  it("renames the tables, columns and functions of a changed block", () => {
+    const plan = entityRenamePlan(BLOCKS, modules, text, TASKS);
+
+    expect(plan.refused).toEqual([]);
+    // The pipelines module's triggers on the renamed table move with it.
+    expect(new Set(plan.steps.map((step) => step.module))).toEqual(
+      new Set(["work-items", "pipelines"]),
+    );
+    expect(sql(TASKS)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'alter table "better_supabase"."work_items" rename to "tasks"',
+        ),
+        expect.stringContaining(
+          'alter table "better_supabase"."projects" rename to "initiatives"',
+        ),
+        expect.stringContaining("'create_task')"),
+      ]),
+    );
   });
 
-  it("passes unchanged and uninstalled modules", () => {
-    expect(entityRenameChanges(["work-items"], marker, marker)).toEqual([]);
-    expect(entityRenameChanges([], "", marker)).toEqual([]);
+  it("guards every rename so a second run changes nothing", () => {
+    for (const statement of sql(TASKS)) {
+      expect(statement).toMatch(/^do \$\$|if exists|^update /);
+    }
+  });
+
+  it("moves stored subjects to the renamed type", () => {
+    const blocks = [...BLOCKS, "comments"];
+
+    const before = renderModules(blocks, {
+      subjects: withBlockSubjects({}, ["work-items"], {}),
+    });
+
+    const after = TASKS.modules!;
+
+    const steps = entityRenamePlan(
+      blocks,
+      [...new Set(before.map((file) => file.module))],
+      before.map((file) => file.contents).join("\n"),
+      {
+        modules: after,
+        subjects: withBlockSubjects({}, ["work-items"], after),
+      },
+    ).steps.map((step) => step.sql);
+
+    expect(steps).toContain(
+      `update "better_supabase"."comments" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
+    );
+  });
+
+  it("plans nothing when the names didn't change", () => {
+    expect(sql({})).toEqual([]);
+  });
+
+  it("plans the way back from the installed names", () => {
+    const renamed = renderModules(BLOCKS, TASKS);
+
+    expect(
+      entityRenamePlan(
+        BLOCKS,
+        modules,
+        renamed.map((file) => file.contents).join("\n"),
+        {},
+      ).steps.map((step) => step.sql),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'alter table "better_supabase"."tasks" rename to "work_items"',
+        ),
+      ]),
+    );
   });
 });

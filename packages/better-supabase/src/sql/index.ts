@@ -7,11 +7,9 @@ export {
 
 export { isModuleIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
-export {
-  entityRenameChanges,
-  moduleDeprecations,
-  upgradePlan,
-} from "./upgrade.ts";
+export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
+
+export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleFilePaths } from "./paths.ts";
 
@@ -45,6 +43,8 @@ export { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 export type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
 
 export type { InstalledModule, ModuleUpgradePlan } from "./upgrade.ts";
+
+export type { EntityRenamePlan, EntityRenameStep } from "./entity-upgrade.ts";
 
 export type {
   ModuleDeprecation,

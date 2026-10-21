@@ -140,6 +140,29 @@ export interface ModuleNames {
    * (`ModuleEvents<CommentsEvents>`); `record` rejects any other type.
    */
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
+  /**
+   * Tables and columns the module renamed between versions. `sql upgrade`
+   * renames them on installs below `from + 1`, after the config's entity and
+   * table renames, so a declared move needs no hand-written upgrade step.
+   */
+  readonly migrations?: readonly ModuleNameMigration[];
+}
+
+/**
+ * One version's table and column moves. Old names are the module's default
+ * names before the move; they go through the entity renames like every other
+ * name.
+ */
+export interface ModuleNameMigration {
+  /** The installed version this move upgrades from. */
+  readonly from: number;
+  readonly description: string;
+  /** The logical table, under its current key. */
+  readonly table: string;
+  /** The table's default name before the move, when the move renamed it. */
+  readonly was?: string;
+  /** Logical column to its default name before the move. */
+  readonly columns?: Readonly<Record<string, string>>;
 }
 
 /** An event in a module's catalog, checked against what `record` renders. */
