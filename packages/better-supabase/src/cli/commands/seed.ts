@@ -8,7 +8,8 @@ import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
-import { isSeed } from "../../testing/index.ts";
+import { moduleLayout, tenantsQuery } from "../../sql/index.ts";
+import { isSeed, isTenantSeed } from "../../testing/index.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand } from "../core/command.ts";
@@ -44,6 +45,12 @@ const ARGS = {
       "Defaults to seed.output (supabase/seeds/000_better_supabase.sql)",
     valueHint: "file",
   },
+  tenant: {
+    type: "string",
+    description:
+      "Insert seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization",
+    valueHint: "slug",
+  },
 } as const;
 
 export type SeedArgs = CliArgs<
@@ -64,6 +71,10 @@ export async function runSeed(
   dbUrl?: string,
   requireConsent: (request: ConsentRequest) => void = () => {},
 ): Promise<CommandResult> {
+  if (args.tenant !== undefined) {
+    return runTenantSeed(config, args, env, open, dbUrl, requireConsent);
+  }
+
   const entry = args.entry ?? config.seed.entry;
   const out = args.out ?? config.seed.output;
   const seed = await importExport(resolve(config.root, entry), "seed");
@@ -172,6 +183,117 @@ export async function runSeed(
   };
 }
 
+interface TenantRow {
+  readonly id: string;
+  readonly slug: string | null;
+  readonly name: string | null;
+}
+
+async function runTenantSeed(
+  config: ResolvedConfig,
+  args: SeedFlags,
+  env: CliEnv,
+  open: typeof connect,
+  dbUrl: string | undefined,
+  requireConsent: (request: ConsentRequest) => void,
+): Promise<CommandResult> {
+  const tenant = args.tenant ?? "*";
+  const entry = args.entry ?? config.seed.perTenant;
+  const seed = await importExport(resolve(config.root, entry), "seed");
+
+  if (!isTenantSeed(seed)) {
+    return {
+      code: 1,
+      errorCode: "invalid_input",
+      error: `${display(config.root, entry)} must export defineTenantSeed(...) as \`seed\` or default.`,
+    };
+  }
+
+  const query = tenantsQuery(moduleLayout(config), config.blockNames, tenant);
+
+  if (!query) {
+    return {
+      code: 1,
+      errorCode: "invalid_input",
+      error:
+        "seed --tenant looks tenants up in the organizations block. Add it with `better-supabase add organizations`.",
+    };
+  }
+
+  if (args["dry-run"] === true || args.check === true) {
+    return {
+      code: 0,
+      output: `Would insert ${display(config.root, entry)} for ${tenant === "*" ? "every organization" : tenant}.`,
+      data: { tenant, applied: false, tenants: [] },
+    };
+  }
+
+  const url = await databaseUrl(
+    config,
+    env,
+    dbUrl,
+    args.stack ?? env.BSB_STACK,
+  );
+
+  if (!isLocalDatabaseUrl(url)) {
+    requireConsent({
+      effect: "database-write",
+      detail: `seed --tenant inserts rows into ${databaseHost(url)}`,
+    });
+  }
+
+  const { client, close } = await open(url);
+  let tenants: TenantRow[];
+
+  try {
+    const result = await client.query<TenantRow>(query.text, [...query.values]);
+
+    tenants = result.rows;
+
+    if (tenants.length === 0) {
+      return {
+        code: 1,
+        errorCode: "not_found",
+        error:
+          tenant === "*"
+            ? "There are no organizations to seed."
+            : `No organization has the slug or id "${tenant}".`,
+      };
+    }
+
+    await client.query("begin");
+
+    try {
+      for (const row of tenants) {
+        const target = {
+          id: row.id,
+          ...(row.slug === null ? {} : { slug: row.slug }),
+          ...(row.name === null ? {} : { name: row.name }),
+        };
+
+        for (const text of seed.statements(target)) {
+          await client.query(text);
+        }
+      }
+
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  } finally {
+    await close();
+  }
+
+  const labels = tenants.map((row) => row.slug ?? row.id);
+
+  return {
+    code: 0,
+    output: `Inserted ${display(config.root, entry)} for ${labels.join(", ")} (existing rows were kept).`,
+    data: { tenant, applied: true, tenants: labels },
+  };
+}
+
 export const seedCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("seed"),
   args: { ...ARGS, ...DB_URL_STDIN_ARG, ...STACK_ARG, ...PLAN_ARGS },
@@ -181,7 +303,7 @@ export const seedCommand: AnyCommand = defineCliCommand({
     const seed = (): Promise<CommandResult> =>
       runSeed(config, args, env, connect, dbUrl, requireConsent);
 
-    return args.apply === true
+    return args.apply === true || args.tenant !== undefined
       ? log.progress("Inserting the seed rows", seed)
       : seed();
   },

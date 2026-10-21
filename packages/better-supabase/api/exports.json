@@ -7794,6 +7794,7 @@
       "SQL_MODULES",
       "subjectColumns",
       "templateFunctions",
+      "tenantsQuery",
       "upgradePlan"
     ],
     "types": [
@@ -7826,7 +7827,8 @@
       "ModuleUpgrade",
       "ModuleUpgradePlan",
       "PolicyGrant",
-      "SqlModule"
+      "SqlModule",
+      "TenantQuery"
     ]
   },
   "./testing": {
@@ -7836,16 +7838,19 @@
       "ConformanceError",
       "createTestSigner",
       "defineSeed",
+      "defineTenantSeed",
       "expectDbBudget",
       "expectInstant",
       "expectTenantIsolation",
       "isSeed",
+      "isTenantSeed",
       "liteStack",
       "LOCAL_JWT_SECRET",
       "localAuth",
       "localSigningKey",
       "PROBE_INITIAL",
       "scopedSeed",
+      "seedTenantOnCreate",
       "signLocalJwt",
       "signTestJwt",
       "signTestJwtWithKey",
@@ -7923,6 +7928,7 @@
       "ScopedTenant",
       "Seed",
       "SeedFixtures",
+      "SeedTenantOnCreateOptions",
       "SigningJwk",
       "StaticAuthorizerOptions",
       "SupabaseClaimFixture",
@@ -7930,6 +7936,8 @@
       "SupabaseInvalidClaimFixture",
       "SupabaseInvalidClaimFixtureName",
       "TenantIsolationOptions",
+      "TenantSeed",
+      "TenantSeedTarget",
       "TestAdapterOptions",
       "TestAiTaskRunnerOptions",
       "TestAuthorizerOptions",

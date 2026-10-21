@@ -1,6 +1,6 @@
 /**
  * Syncs the workflow builder's step library and the rule fields, then, in
- * `next dev`, starts the
+ * `next dev`, seeds each new organization with demo rows and starts the
  * Supabase World's poller, which delivers queued workflow steps to this
  * server. Deployments use pg_net delivery (`WORKFLOW_DELIVERY=pg_net`) or
  * their own worker instead.
@@ -18,6 +18,13 @@ export async function register(): Promise<void> {
   ]);
 
   await Promise.all([syncStepLibrary(), syncRuleFields()]);
+
+  if (process.env.NODE_ENV === "development") {
+    const { seedNewTenants } =
+      await import("./features/onboarding/seed-new-tenants");
+
+    seedNewTenants();
+  }
 
   if (
     process.env.NODE_ENV !== "development" ||

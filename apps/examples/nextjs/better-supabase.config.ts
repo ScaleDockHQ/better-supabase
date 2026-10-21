@@ -26,6 +26,7 @@ export default defineConfig({
   },
   casing: "camel",
   codecs: { int8: "bigint" },
+  seed: { perTenant: "src/features/onboarding/tenant-seed.ts" },
   output: "src/lib/supabase/generated.ts",
   expose: {
     customers: crud,

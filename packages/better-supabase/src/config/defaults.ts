@@ -18,7 +18,11 @@ export const CONFIG_DEFAULTS: {
     readonly prefix: string;
     readonly testsDir: string;
   };
-  readonly seed: { readonly entry: string; readonly output: string };
+  readonly seed: {
+    readonly entry: string;
+    readonly output: string;
+    readonly perTenant: string;
+  };
   readonly openapi: { readonly entry: string; readonly output: string };
   readonly specs: { readonly failOn: "error" };
   readonly doctor: {
@@ -42,6 +46,7 @@ export const CONFIG_DEFAULTS: {
   seed: {
     entry: "supabase/seed.ts",
     output: "supabase/seeds/000_better_supabase.sql",
+    perTenant: "supabase/seed.tenant.ts",
   },
   openapi: { entry: "src/lib/openapi.ts", output: "openapi.json" },
   specs: { failOn: "error" },

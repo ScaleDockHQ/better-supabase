@@ -69,9 +69,19 @@ export type {
   SupabaseInvalidClaimFixtureName,
 } from "./claims-fixtures.ts";
 
-export { defineSeed, isSeed } from "./seed.ts";
+export { defineSeed, defineTenantSeed, isSeed, isTenantSeed } from "./seed.ts";
 
-export type { ExactSeed, Seed, SeedFixtures } from "./seed.ts";
+export type {
+  ExactSeed,
+  Seed,
+  SeedFixtures,
+  TenantSeed,
+  TenantSeedTarget,
+} from "./seed.ts";
+
+export { seedTenantOnCreate } from "./tenant-seed.ts";
+
+export type { SeedTenantOnCreateOptions } from "./tenant-seed.ts";
 
 export { ConformanceError } from "./conformance.ts";
 

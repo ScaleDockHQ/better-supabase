@@ -84,6 +84,11 @@ export interface SeedConfig {
   readonly entry?: string;
   /** SQL file `better-supabase seed` writes. Add it to `[db.seed] sql_paths`. */
   readonly output?: string;
+  /**
+   * Module exporting `defineTenantSeed(...)` as `seed` or default.
+   * `better-supabase seed --tenant <slug>` applies it to one tenant.
+   */
+  readonly perTenant?: string;
 }
 
 export interface RealtimeConfig {

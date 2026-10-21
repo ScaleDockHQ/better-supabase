@@ -2271,6 +2271,10 @@
         "output": {
           "type": "string",
           "default": "supabase/seeds/000_better_supabase.sql"
+        },
+        "perTenant": {
+          "type": "string",
+          "default": "supabase/seed.tenant.ts"
         }
       },
       "additionalProperties": false

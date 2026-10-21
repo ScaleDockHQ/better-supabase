@@ -978,14 +978,15 @@ exports[`help > documents seed 1`] = `
 Renders the fixtures from defineSeed() (better-supabase/testing) to SQL
 
 Options
-  --apply         Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
-  --entry <file>  Defaults to seed.entry (supabase/seed.ts)
-  --out <file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)
-  --db-url-stdin  Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>  Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
-  --dry-run       Print what would change, with a diff, and write nothing
-  --check         Write nothing; exit 1 with a diff when a file would change
-  --force         Overwrite files the CLI did not generate
+  --apply          Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
+  --entry <file>   Defaults to seed.entry (supabase/seed.ts)
+  --out <file>     Defaults to seed.output (supabase/seeds/000_better_supabase.sql)
+  --tenant <slug>  Insert seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization
+  --db-url-stdin   Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>   Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --dry-run        Print what would change, with a diff, and write nothing
+  --check          Write nothing; exit 1 with a diff when a file would change
+  --force          Overwrite files the CLI did not generate
 
 Global options
   --cwd <dir>            Project directory
@@ -999,7 +1000,7 @@ Global options
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
 
-Side effects: Writes files, writes to the database with --apply.
+Side effects: Writes files, writes to the database with --apply, writes to the database with --tenant.
 Docs: https://bettersupabase.com/docs/cli/local#seed
 "
 `;

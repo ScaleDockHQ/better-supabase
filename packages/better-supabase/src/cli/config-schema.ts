@@ -766,6 +766,7 @@ const ENTRIES = {
     v.strictObject({
       entry: v.optional(v.string()),
       output: v.optional(v.string()),
+      perTenant: v.optional(v.string()),
     }),
   ),
   // oxlint-disable-next-line typescript/no-deprecated -- the schema still accepts the deprecated key (1 finding)

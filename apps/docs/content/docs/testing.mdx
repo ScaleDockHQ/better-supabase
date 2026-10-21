@@ -209,6 +209,16 @@ const alice = await asUser(betterSupabase, {
 });
 ```
 
+A [tenant seed](/docs/cli/local#seeds-per-tenant) fills one tenant from its
+id, so a test can give each organization it creates the same rows:
+
+```ts
+import { seed as tenantSeed } from "../supabase/seed.tenant.ts";
+
+const { id } = await organizations.create({ name: "Test org" }).orThrow();
+await tenantSeed.insert(postgres.admin, { id });
+```
+
 `supabaseClaimFixtures` holds access-token claims where someone acts for the
 user, with the `actor`, `impersonator` and `delegation` each one reads as:
 `supportSession`, `supportSessionReadOnly`, `impersonation`, `oauthClient`,

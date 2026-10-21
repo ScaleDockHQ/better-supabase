@@ -79,6 +79,8 @@ export { sameTenantColumn, sameTenantTrigger } from "./modules/tenant-same.ts";
 
 export { expiredFlagsQuery } from "./flag-lifecycle.ts";
 
+export { tenantsQuery, type TenantQuery } from "./tenant-query.ts";
+
 export { subjectColumns } from "./subject-registry.ts";
 
 export type { AuditedTable } from "./audit-registrations.ts";

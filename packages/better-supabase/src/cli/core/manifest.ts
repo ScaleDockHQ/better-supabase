@@ -379,7 +379,11 @@ export const COMMANDS: readonly CommandSpec[] = [
       "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
     group: "local",
     docs: "/docs/cli/local#seed",
-    effects: [FILES, { kind: "database", access: "write", when: "--apply" }],
+    effects: [
+      FILES,
+      { kind: "database", access: "write", when: "--apply" },
+      { kind: "database", access: "write", when: "--tenant" },
+    ],
   },
   {
     name: "db",
