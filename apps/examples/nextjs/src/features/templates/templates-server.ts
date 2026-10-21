@@ -36,8 +36,8 @@ export function templatesOf(supabase: RpcClient): Templates {
 }
 
 /**
- * The templates block with a `customer` type. Applying one creates a
- * customer named by the `name` value, through `createCustomer`.
+ * The templates block with a `customer` type. Applying one creates a customer
+ * named by the `name` value, through `createCustomer`.
  */
 export function customerTemplates(
   supabase: RpcClient,

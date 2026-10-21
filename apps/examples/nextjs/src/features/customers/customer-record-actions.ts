@@ -28,8 +28,8 @@ export async function retryCustomerRecord(): Promise<void> {
 const SHARE_EXPIRY_DAYS = [1, 7, 30, 0] as const;
 
 /**
- * Creates a view link to the customer. The token comes back once, so the
- * dialog shows it and nothing stores it.
+ * Creates a view link to the customer. The token comes back once, so the dialog
+ * shows it and nothing stores it.
  */
 export const createShareLink = bs.action(
   {
@@ -98,8 +98,8 @@ export const revokeShareLink = bs.action(
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 /**
- * Records a pending file and returns a one-time upload token; the browser
- * sends the bytes with `uploadToSignedUrl`, then calls `confirmAttachment`.
+ * Records a pending file and returns a one-time upload token; the browser sends
+ * the bytes with `uploadToSignedUrl`, then calls `confirmAttachment`.
  */
 export const startAttachmentUpload = bs.action(
   {
@@ -368,8 +368,8 @@ const DEFAULT_CUSTOMER_POLICY = {
 } as const;
 
 /**
- * Starts the customer's SLA clocks. With no policy for customers, a caller
- * who may manage policies gets the default one first.
+ * Starts the customer's SLA clocks. With no policy for customers, a caller who
+ * may manage policies gets the default one first.
  */
 export const startCustomerSla = bs.action(
   {

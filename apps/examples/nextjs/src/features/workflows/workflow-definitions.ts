@@ -36,15 +36,18 @@ export interface ApprovalDecision {
   readonly by: string;
 }
 
-/** The hook token of an expense approval run, which the UI rebuilds from the run id. */
+/**
+ * The hook token of an expense approval run, which the UI rebuilds from the run
+ * id.
+ */
 export function approvalToken(runId: string): string {
   return `expense-approval:${runId}`;
 }
 
 /**
  * Waits for an approval. `metadata` is `hookMetadata(context,
- * "workflow.admin")`, so `authorizeHook` lets the requester or an admin of
- * the tenant decide, never a caller who only has the token.
+ * "workflow.admin")`, so `authorizeHook` lets the requester or an admin of the
+ * tenant decide, never a caller who only has the token.
  */
 export async function expenseApproval(
   context: RequestContext,

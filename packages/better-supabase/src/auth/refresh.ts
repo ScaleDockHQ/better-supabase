@@ -27,12 +27,18 @@ export type RefreshOutcome =
     }
   | {
       readonly ok: false;
-      /** `rejected`: the refresh token is dead, sign the user out. `network`: keep the session and retry later. */
+      /**
+       * `rejected`: the refresh token is dead, sign the user out. `network`:
+       * keep the session and retry later.
+       */
       readonly reason: "rejected" | "network";
       /** For `network`: the fetch failed, timed out, or Auth answered 5xx or 429. */
       readonly cause?: "fetch" | "timeout" | "status";
       readonly status?: number;
-      /** The Auth server's `error_code`, such as `user_banned` or `refresh_token_not_found`. */
+      /**
+       * The Auth server's `error_code`, such as `user_banned` or
+       * `refresh_token_not_found`.
+       */
       readonly code?: string;
       readonly message: string;
     };
@@ -46,7 +52,10 @@ const REUSE_MS = 10_000;
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-/** Finished refreshes kept for reuse; a burst of sign-ins can't grow it past this. */
+/**
+ * Finished refreshes kept for reuse; a burst of sign-ins can't grow it past
+ * this.
+ */
 const RECENT_MAX = 1000;
 
 const inflight = new Map<string, Promise<RefreshOutcome>>();
@@ -165,8 +174,8 @@ async function request(
 
 /**
  * Exchanges a refresh token for a new session. Concurrent calls with the same
- * token share one request, and a successful result is reused for a short
- * window so parallel requests carrying the old cookie converge on one session.
+ * token share one request, and a successful result is reused for a short window
+ * so parallel requests carrying the old cookie converge on one session.
  */
 export function refreshSession(
   refreshToken: string,

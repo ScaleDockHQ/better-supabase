@@ -25,9 +25,9 @@ const unreadOf = (counts: readonly NotificationCounts[]): number =>
 
 /**
  * The caller's unread count, loaded again after each broadcast on
- * `notifications:<user id>`. It is the hook the Next.js example's header
- * badge calls, imported from the same entry: the controller behind it uses
- * the client's ports, so it runs on React Native unchanged.
+ * `notifications:<user id>`. It is the hook the Next.js example's header badge
+ * calls, imported from the same entry: the controller behind it uses the
+ * client's ports, so it runs on React Native unchanged.
  */
 export function useUnreadCount() {
   const auth = useAuth();

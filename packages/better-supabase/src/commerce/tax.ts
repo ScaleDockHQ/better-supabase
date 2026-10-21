@@ -28,7 +28,10 @@ export interface TaxCartLine {
   /** The line's total after discounts, in the cart's currency. */
   readonly amount: Money;
   readonly quantity?: number;
-  /** The product's tax category: a key of the provider's rates or a provider tax code. */
+  /**
+   * The product's tax category: a key of the provider's rates or a provider tax
+   * code.
+   */
   readonly taxCategory?: string;
   /** The amount already contains the tax (prices shown with VAT). */
   readonly inclusive?: boolean;
@@ -65,13 +68,19 @@ export interface TaxLine {
   /** The decimal fraction applied, such as `"0.21"`. */
   readonly rate: string;
   readonly inclusive: boolean;
-  /** The jurisdiction: Stripe's name (`Netherlands`) or the `fixedRates` region (`NL`). */
+  /**
+   * The jurisdiction: Stripe's name (`Netherlands`) or the `fixedRates` region
+   * (`NL`).
+   */
   readonly jurisdiction?: string;
   readonly taxCategory?: string;
 }
 
 export interface TaxQuote {
-  /** The provider's id for the calculation; `commit` turns it into a transaction. */
+  /**
+   * The provider's id for the calculation; `commit` turns it into a
+   * transaction.
+   */
   readonly id: string;
   /** The provider's `name`. */
   readonly provider: string;
@@ -107,8 +116,8 @@ export interface TaxReverseInput {
   /** The refund's id, unique per reversal. */
   readonly reference: string;
   /**
-   * The refunded part of each line, as positive amounts without tax and
-   * their tax. Unset: the whole sale is reversed.
+   * The refunded part of each line, as positive amounts without tax and their
+   * tax. Unset: the whole sale is reversed.
    */
   readonly lines?: readonly {
     readonly lineId: string;
@@ -126,8 +135,8 @@ export interface TaxCallOptions {
 /**
  * Computes and records sales tax. Versioned: a breaking change ships a new
  * `apiVersion`. Every method returns a `Result`: `invalid_input` for a cart
- * that mixes currencies or a reversal above the sale, and `not_found` for
- * an address the provider has no rate for.
+ * that mixes currencies or a reversal above the sale, and `not_found` for an
+ * address the provider has no rate for.
  */
 export interface TaxProvider {
   readonly apiVersion: 1;
@@ -160,9 +169,9 @@ const invalid = (message: string, hint: string): DbError =>
   dbError("invalid_input", message, { hint });
 
 /**
- * The first problem with a cart: a line or shipping amount that isn't
- * money, is negative or is in another currency, or a country that isn't
- * two capital letters.
+ * The first problem with a cart: a line or shipping amount that isn't money, is
+ * negative or is in another currency, or a country that isn't two capital
+ * letters.
  */
 export function invalidTaxCart(cart: TaxCart): DbError | undefined {
   if (!/^[A-Z]{2}$/.test(cart.address.country)) {
@@ -268,8 +277,8 @@ export interface FixedRatesOptions {
   /** Defaults to `fixed-rates`. */
   readonly name?: string;
   /**
-   * Rates per region: a country code (`NL`) or a country and state
-   * (`US-CA`), which wins over its country.
+   * Rates per region: a country code (`NL`) or a country and state (`US-CA`),
+   * which wins over its country.
    */
   readonly rates: Readonly<Record<string, TaxRates>>;
   /** The category of a line without one. Defaults to `standard`. */
@@ -277,16 +286,16 @@ export interface FixedRatesOptions {
   /** The category of shipping. Defaults to `defaultCategory`. */
   readonly shippingCategory?: string;
   /**
-   * A region without rates: `error` returns `not_found` (the default),
-   * `zero` quotes no tax.
+   * A region without rates: `error` returns `not_found` (the default), `zero`
+   * quotes no tax.
    */
   readonly unknownRegion?: "error" | "zero";
 }
 
 /**
- * A `TaxProvider` with fixed rates per country (and state) and tax
- * category, rounded half to even per line. It keeps nothing: `commit` and
- * `reverse` return the transaction for the app to store.
+ * A `TaxProvider` with fixed rates per country (and state) and tax category,
+ * rounded half to even per line. It keeps nothing: `commit` and `reverse`
+ * return the transaction for the app to store.
  */
 export function fixedRates(options: FixedRatesOptions): TaxProvider {
   for (const [region, rates] of Object.entries(options.rates)) {

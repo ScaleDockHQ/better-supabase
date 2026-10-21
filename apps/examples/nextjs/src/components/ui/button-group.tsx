@@ -16,9 +16,7 @@ const buttonGroupVariants = cva(
           "flex-col *:data-slot:rounded-b-none [&>[data-slot]:not(:has(~[data-slot]))]:rounded-b-md! [&>[data-slot]~[data-slot]]:rounded-t-none [&>[data-slot]~[data-slot]]:border-t-0",
       },
     },
-    defaultVariants: {
-      orientation: "horizontal",
-    },
+    defaultVariants: { orientation: "horizontal" },
   },
 );
 
@@ -55,9 +53,7 @@ function ButtonGroupText({
       props,
     ),
     render,
-    state: {
-      slot: "button-group-text",
-    },
+    state: { slot: "button-group-text" },
   });
 }
 

@@ -75,9 +75,7 @@ describe("run", () => {
   it("runs db query and reports a file it cannot read", async () => {
     const result = await createCli().run(
       ["db", "query", "missing.sql", "--cwd", dir],
-      {
-        env: { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" },
-      },
+      { env: { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" } },
     );
 
     expect(result.code).not.toBe(0);
@@ -301,9 +299,7 @@ describe("run", () => {
 
     const meta = JSON.parse(
       await readFile(join(dir, "meta.json"), "utf-8"),
-    ) as {
-      schemas: unknown[];
-    };
+    ) as { schemas: unknown[] };
 
     expect(meta.schemas).toEqual([]);
   });
@@ -679,9 +675,7 @@ describe("run", () => {
 
     expect(missing.code).toBe(2);
     expect(JSON.parse(missing.stdout)).toMatchObject({
-      error: {
-        code: "config_not_found",
-      },
+      error: { code: "config_not_found" },
     });
   });
 
@@ -788,10 +782,7 @@ describe("run", () => {
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
     expect(JSON.parse(result.stdout)).toMatchObject({
-      error: {
-        code: "missing_value",
-        flag: "--db-url-stdin",
-      },
+      error: { code: "missing_value", flag: "--db-url-stdin" },
     });
   });
 

@@ -95,8 +95,8 @@ export const createCalendar = bs.action(
 );
 
 /**
- * Adds an event on a day, timed or all day, in the calendar's zone. An
- * all-day event ends at the start of the next day.
+ * Adds an event on a day, timed or all day, in the calendar's zone. An all-day
+ * event ends at the start of the next day.
  */
 export const createEvent = bs.action(
   {

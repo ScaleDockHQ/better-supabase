@@ -49,13 +49,16 @@ export interface DriveOptions<
    * which downloads the files. `createBlocks` passes it.
    */
   readonly attachments?: Pick<Attachments, "download">;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the nodes' extra columns
-   * (`blocks.drive.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on every node the client returns, and validates
-   * them on `createFolder` and `upload`.
+   * (`blocks.drive.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on every node the client returns, and validates them on
+   * `createFolder` and `upload`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -80,7 +83,10 @@ export interface DriveFile {
   readonly uploadedAt: Temporal.Instant | undefined;
 }
 
-/** A folder or a file. `F` types the extra columns the `fields` schema describes. */
+/**
+ * A folder or a file. `F` types the extra columns the `fields` schema
+ * describes.
+ */
 export interface DriveNode<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
@@ -93,12 +99,18 @@ export interface DriveNode<F extends object = Record<never, never>> {
   readonly updatedAt: Temporal.Instant | undefined;
   /** Set while the node is in the bin. */
   readonly deletedAt: Temporal.Instant | undefined;
-  /** The file's current attachment; `undefined` for a folder or a file not uploaded yet. */
+  /**
+   * The file's current attachment; `undefined` for a folder or a file not
+   * uploaded yet.
+   */
   readonly attachmentId: string | undefined;
   readonly file: DriveFile | undefined;
   /** The `extraColumns` values, by column name. */
   readonly fields: Readonly<Record<string, unknown>> & F;
-  /** The caller's role on the node, direct or inherited, where the call reports it. */
+  /**
+   * The caller's role on the node, direct or inherited, where the call reports
+   * it.
+   */
   readonly role: string | undefined;
   readonly starredAt: Temporal.Instant | undefined;
   readonly openedAt: Temporal.Instant | undefined;
@@ -258,7 +270,10 @@ export interface Drive<F extends object = Record<never, never>> {
   unshare(id: string, principal: DrivePrincipal): AsyncResult<boolean>;
   /** The node's grants, inherited ones included. */
   grants(id: string): AsyncResult<readonly DriveGrant[]>;
-  /** Creates the file (or a revision, with `conflict: "replace"`) and a signed upload URL. */
+  /**
+   * Creates the file (or a revision, with `conflict: "replace"`) and a signed
+   * upload URL.
+   */
   upload(
     organizationId: string,
     file: NewDriveFile<F>,
@@ -302,14 +317,17 @@ export interface Drive<F extends object = Record<never, never>> {
     organizationId: string,
     options?: DrivePage,
   ): AsyncResult<readonly DriveNode<F>[]>;
-  /** What a share link token opens; `nodeId` picks an item under a linked folder. */
+  /**
+   * What a share link token opens; `nodeId` picks an item under a linked
+   * folder.
+   */
   link(
     token: string,
     options?: { readonly nodeId?: string },
   ): AsyncResult<DriveLinkView<F>>;
   /**
-   * Service role: deletes revisions' files no revision or node uses any
-   * more, and removes their objects through `storage`.
+   * Service role: deletes revisions' files no revision or node uses any more,
+   * and removes their objects through `storage`.
    */
   prune(options?: {
     readonly maxObjects?: number;
@@ -485,7 +503,10 @@ const isNode = (value: Readonly<Record<string, unknown>>): boolean =>
   typeof value["kind"] === "string" &&
   typeof value["organizationId"] === "string";
 
-/** `value` with the `fields` of every node in it parsed: a node, a list, or `{ node, children }`. */
+/**
+ * `value` with the `fields` of every node in it parsed: a node, a list, or `{
+ * node, children }`.
+ */
 async function parseNodes(
   fields: BlockFields<object>,
   value: unknown,
@@ -538,8 +559,8 @@ async function parseNodes(
 }
 
 /**
- * The client with `fields` applied: the extra fields of a new folder or
- * file are validated first, and every node it returns is parsed.
+ * The client with `fields` applied: the extra fields of a new folder or file
+ * are validated first, and every node it returns is parsed.
  */
 function withFields<F extends object>(
   client: Drive,
@@ -769,17 +790,19 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         return AsyncResult.err(noAttachments());
       }
 
-      return client.get(id).andThen((node) =>
-        node.attachmentId === undefined
-          ? Promise.resolve(
-              err(
-                dbError("invalid_request", "This item has no content", {
-                  hint: "DRIVE_NOT_A_FILE",
-                }),
-              ),
-            )
-          : attachments.download(node.attachmentId, download),
-      );
+      return client
+        .get(id)
+        .andThen((node) =>
+          node.attachmentId === undefined
+            ? Promise.resolve(
+                err(
+                  dbError("invalid_request", "This item has no content", {
+                    hint: "DRIVE_NOT_A_FILE",
+                  }),
+                ),
+              )
+            : attachments.download(node.attachmentId, download),
+        );
     },
     revisions: (id) =>
       call("drive_revisions", { node: id }, (value) =>
@@ -865,17 +888,14 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   return withBlockHooks(
     withFields<FieldsOf<S>>(client, fields),
     options.hooks,
-    {
-      block: "drive",
-      ...(options.logger ? { logger: options.logger } : {}),
-    },
+    { block: "drive", ...(options.logger ? { logger: options.logger } : {}) },
   );
 }
 
 /**
  * The `subjects.drive_node` entry for the managed tables, so comments,
- * attachments, versions, trash and search can name drive nodes. The
- * permissions are the tenant-wide floor; grants decide per node.
+ * attachments, versions, trash and search can name drive nodes. The permissions
+ * are the tenant-wide floor; grants decide per node.
  */
 export function driveSubject(
   options: { readonly schema?: string } = {},

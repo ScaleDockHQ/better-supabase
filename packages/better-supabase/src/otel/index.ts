@@ -36,11 +36,14 @@ export interface OtelOptions {
   /** Set `false` to skip the duration histogram. */
   readonly metrics?: boolean;
   /**
-   * The database name in `db.namespace` (`{database}|{schema}`). Supabase
-   * names it `postgres`, the default for Postgres executors.
+   * The database name in `db.namespace` (`{database}|{schema}`). Supabase names
+   * it `postgres`, the default for Postgres executors.
    */
   readonly database?: string;
-  /** `server.address` and `server.port` on spans and metrics, e.g. the project host. */
+  /**
+   * `server.address` and `server.port` on spans and metrics, e.g. the project
+   * host.
+   */
   readonly server?: { readonly address: string; readonly port?: number };
 }
 
@@ -83,9 +86,9 @@ function systemOf(executor: Executor): string {
 }
 
 /**
- * Database client spans and metrics for every repository operation, using
- * the OpenTelemetry database conventions. Filter values and row data are
- * never recorded; `db.query.summary` is `SELECT customers`.
+ * Database client spans and metrics for every repository operation, using the
+ * OpenTelemetry database conventions. Filter values and row data are never
+ * recorded; `db.query.summary` is `SELECT customers`.
  *
  * ```ts
  * const betterSupabase = defineSupabase(schema).use(otel());
@@ -234,7 +237,10 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
       const rpc = executor.rpc?.bind(executor);
       const batch = executor.batch?.bind(executor);
 
-      /** Semantic conventions name a batch `BATCH <operation>` when every operation shares it. */
+      /**
+       * Semantic conventions name a batch `BATCH <operation>` when every
+       * operation shares it.
+       */
       const describeBatch = (ops: readonly Operation[]) => {
         const [only, ...others] = new Set(ops.map(operationName));
 
@@ -364,8 +370,8 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
 }
 
 /**
- * Spans for auth resolution and session refreshes, from `betterSupabase.events`.
- * Returns a function that stops listening.
+ * Spans for auth resolution and session refreshes, from
+ * `betterSupabase.events`. Returns a function that stops listening.
  */
 export function traceAuth(
   betterSupabase: { readonly events: EventHub },
@@ -419,8 +425,8 @@ export function traceAuth(
 /**
  * Records block events (`support.started`, `webhook.failed`, ...) with the
  * `BLOCK_ATTRIBUTES` names: as an event on the active span, or as a short
- * `block <type>` span when there is none. Failures (`*.failed`, `*.denied`)
- * set an error status. Returns a function that stops listening.
+ * `block <type>` span when there is none. Failures (`*.failed`, `*.denied`) set
+ * an error status. Returns a function that stops listening.
  */
 export function traceBlockEvents(
   betterSupabase: { readonly events: EventHub },
@@ -460,9 +466,9 @@ export function traceBlockEvents(
 }
 
 /**
- * A `fetch` that adds W3C `traceparent`/`tracestate` from the active
- * context. Pass it to `createClient(url, key, { global: { fetch } })` so
- * PostgREST, Auth and Storage calls join the trace.
+ * A `fetch` that adds W3C `traceparent`/`tracestate` from the active context.
+ * Pass it to `createClient(url, key, { global: { fetch } })` so PostgREST, Auth
+ * and Storage calls join the trace.
  */
 export function tracedFetch(base: typeof fetch = fetch): typeof fetch {
   return (input, init) => {

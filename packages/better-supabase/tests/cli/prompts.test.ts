@@ -38,9 +38,7 @@ interface Asked {
 }
 
 /** A prompter that answers from `answers` in order and records each question. */
-function fake(answers: unknown[]): Prompter & {
-  readonly asked: Asked[];
-} {
+function fake(answers: unknown[]): Prompter & { readonly asked: Asked[] } {
   const asked: Asked[] = [];
 
   return {

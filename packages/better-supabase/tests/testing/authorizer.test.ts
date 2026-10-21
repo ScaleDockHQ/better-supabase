@@ -196,10 +196,7 @@ describe("staticAuthorizer", () => {
       outcome: "denied",
     });
     expect(
-      await decide({
-        action: "purge",
-        subject: { type: "user", id: USER },
-      }),
+      await decide({ action: "purge", subject: { type: "user", id: USER } }),
     ).toEqual({ outcome: "granted" });
     expect(
       await decide({ subject: { type: "anon", id: "anonymous" } }),

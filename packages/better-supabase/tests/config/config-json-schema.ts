@@ -1,9 +1,9 @@
 /**
  * Renders `schemas/config-v1.json` from the config's valibot schema
  * (`configSchemas()`), the options schema of every block
- * (`BLOCK_OPTION_SCHEMAS`) and the descriptions in `config-annotations.ts`,
- * so the JSON Schema, the CLI's config check and the `BetterSupabaseConfig`
- * type come from one source. `scripts/gen-config-schema.ts` writes it;
+ * (`BLOCK_OPTION_SCHEMAS`) and the descriptions in `config-annotations.ts`, so
+ * the JSON Schema, the CLI's config check and the `BetterSupabaseConfig` type
+ * come from one source. `scripts/gen-config-schema.ts` writes it;
  * `config-json-schema.test.ts` fails when the file is stale.
  */
 import { toJsonSchema } from "@valibot/to-json-schema";
@@ -136,7 +136,10 @@ function blocksSchema(description: unknown): {
   };
 }
 
-/** Drops what toJsonSchema writes that says nothing: `required: []` and string `propertyNames`. */
+/**
+ * Drops what toJsonSchema writes that says nothing: `required: []` and string
+ * `propertyNames`.
+ */
 export function tidy(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(tidy);

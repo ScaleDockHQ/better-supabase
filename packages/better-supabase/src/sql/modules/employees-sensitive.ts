@@ -10,7 +10,10 @@ interface Detail {
   readonly key: string;
   /** The logical column. */
   readonly column: string;
-  /** The value from the text expression `v` (`attrs ->> key`) or the jsonb `j` (`attrs -> key`). */
+  /**
+   * The value from the text expression `v` (`attrs ->> key`) or the jsonb `j`
+   * (`attrs -> key`).
+   */
   readonly value: (v: string, j: string) => string;
 }
 

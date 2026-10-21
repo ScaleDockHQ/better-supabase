@@ -83,7 +83,10 @@ export type ScaffoldFlags = CliOptions<typeof ARGS & typeof PLAN_ARGS>;
 const isFramework = (value: unknown): value is ScaffoldFramework =>
   SCAFFOLD_FRAMEWORKS.some((framework) => framework === value);
 
-/** The public tables and views in the metadata module `gen` writes, or undefined without one. */
+/**
+ * The public tables and views in the metadata module `gen` writes, or undefined
+ * without one.
+ */
 async function generatedTables(
   config: ResolvedConfig,
 ): Promise<string[] | undefined> {
@@ -111,7 +114,10 @@ async function generatedTables(
 }
 
 export interface ScaffoldOptions {
-  /** Writes only the generated file, never the module the app edits (the `scaffold` step of `gen`). */
+  /**
+   * Writes only the generated file, never the module the app edits (the
+   * `scaffold` step of `gen`).
+   */
   readonly generatedOnly?: boolean;
   /** Compares the generated file instead of writing it. */
   readonly check?: boolean;

@@ -12,8 +12,8 @@ import { roleValue, tenantRoleScope } from "./organizations-roles.ts";
 import { roleThrough, roleThroughTable } from "./tenant.ts";
 
 /**
- * The catalog role id for a key or id, in `scope`, among `tenant`'s roles
- * when given; `roleValue` in other models.
+ * The catalog role id for a key or id, in `scope`, among `tenant`'s roles when
+ * given; `roleValue` in other models.
  */
 function roleIn(
   ctx: ModuleContext,
@@ -40,13 +40,19 @@ function roleIn(
   return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped}${own.where} order by (r.${rid}::text = ${text}) desc${own.order} limit 1)`;
 }
 
-/** Where an accepted platform invitation assigns its role, and the checks around it. */
+/**
+ * Where an accepted platform invitation assigns its role, and the checks around
+ * it.
+ */
 export interface PlatformAssignment {
   /** The stored role for a role name or id; null when it is unknown. */
   value(expr: string): string;
   /** The assignment table's role value for an invitation's stored role. */
   assign(stored: string): string;
-  /** Whether `member` may assign the stored role `stored`; `undefined` for no ceiling. */
+  /**
+   * Whether `member` may assign the stored role `stored`; `undefined` for no
+   * ceiling.
+   */
   canAssign(member: string, stored: string): string | undefined;
   inviterCanAssign(member: string, stored: string): string | undefined;
   readonly table: string;
@@ -57,9 +63,9 @@ export interface PlatformAssignment {
 }
 
 /**
- * Why `blocks.invitations.options.platformRoles.through` needs `where`:
- * its table also holds the tenant roles of
- * `blocks.tenant.options.roleThrough`. `undefined` when it doesn't.
+ * Why `blocks.invitations.options.platformRoles.through` needs `where`: its
+ * table also holds the tenant roles of `blocks.tenant.options.roleThrough`.
+ * `undefined` when it doesn't.
  */
 export function platformRolesProblem(ctx: ModuleContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;

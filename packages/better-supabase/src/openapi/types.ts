@@ -2,7 +2,10 @@ import type { SPEC_PINS } from "../core/spec-pins.ts";
 
 type Json = Record<string, unknown>;
 
-/** The OpenAPI versions `openapiFormat` renders. `3.3-preview` follows the v3.3-dev branch. */
+/**
+ * The OpenAPI versions `openapiFormat` renders. `3.3-preview` follows the
+ * v3.3-dev branch.
+ */
 export type OpenApiVersion = "3.0" | "3.1" | "3.2" | "3.3-preview";
 
 /** The `openapi` field `3.3-preview` emits, as in the v3.3-dev branch. */
@@ -64,7 +67,10 @@ export interface OpenApi31Document extends OpenApiDocumentBase {
   readonly webhooks?: Readonly<Record<string, Json>>;
 }
 
-/** OpenAPI 3.2: native `$self`, nested tags, `itemSchema`, `oauth2MetadataUrl` and `query`. */
+/**
+ * OpenAPI 3.2: native `$self`, nested tags, `itemSchema`, `oauth2MetadataUrl`
+ * and `query`.
+ */
 export interface OpenApi32Document extends OpenApiDocumentBase {
   readonly openapi: typeof SPEC_PINS.openapi32;
   readonly $self?: string;
@@ -72,7 +78,10 @@ export interface OpenApi32Document extends OpenApiDocumentBase {
   readonly webhooks?: Readonly<Record<string, Json>>;
 }
 
-/** The 3.3 draft: 3.2 plus Path Item `security` and the Security Profiles proposal. */
+/**
+ * The 3.3 draft: 3.2 plus Path Item `security` and the Security Profiles
+ * proposal.
+ */
 export interface OpenApi33PreviewDocument extends OpenApiDocumentBase {
   readonly openapi: typeof OPENAPI_33_PREVIEW_VERSION;
   readonly $self?: string;

@@ -42,28 +42,28 @@ export interface RuleSet {
   /** A service-role connection used where `window` and `document` exist. */
   readonly noAdminInBrowser?: RuleSetting;
   /**
-   * Reads of columns listed in `config.sensitive` without `sensitive: true`
-   * on the call.
+   * Reads of columns listed in `config.sensitive` without `sensitive: true` on
+   * the call.
    */
   readonly noSensitiveSelect?: RuleSetting;
   /**
    * Delete operations without `where`. The repository refuses `deleteMany`
-   * without `where` on its own, so this catches deletes built by plugins;
-   * the lint rule of the same name flags the call in the editor.
+   * without `where` on its own, so this catches deletes built by plugins; the
+   * lint rule of the same name flags the call in the editor.
    */
   readonly noDeleteManyWithoutWhere?: RuleSetting;
   /**
-   * `updateMany` and `deleteMany` without `maxAffected`, or with one above
-   * the given maximum (default 1000). With a bound, a `where` that matches
-   * more rows than intended fails with `max_affected` and writes nothing.
-   * Updates and deletes by key are exempt.
+   * `updateMany` and `deleteMany` without `maxAffected`, or with one above the
+   * given maximum (default 1000). With a bound, a `where` that matches more
+   * rows than intended fails with `max_affected` and writes nothing. Updates
+   * and deletes by key are exempt.
    */
   readonly requireMaxAffected?: RuleSetting<number>;
   /**
    * Storage objects written to `*_url` text columns: a column listed in
-   * `storagePaths`, or a value that is a Storage URL or matches a bucket's
-   * path template. Signed URLs expire and public URLs pin the project host,
-   * so store the path in a `*_path` column and build URLs when rendering.
+   * `storagePaths`, or a value that is a Storage URL or matches a bucket's path
+   * template. Signed URLs expire and public URLs pin the project host, so store
+   * the path in a `*_path` column and build URLs when rendering.
    */
   readonly storagePathColumns?: RuleSetting;
 }
@@ -81,8 +81,8 @@ export interface RuleViolation {
 export interface RulesOptions {
   readonly rules?: RuleSet;
   /**
-   * Called for every violation. Defaults to `console.warn` for warnings.
-   * Errors fail the call with `invalid_request` after reporting.
+   * Called for every violation. Defaults to `console.warn` for warnings. Errors
+   * fail the call with `invalid_request` after reporting.
    */
   readonly report?: (violation: RuleViolation) => void;
 }
@@ -231,7 +231,10 @@ const STORAGE_URL =
 
 const templatesBySchema = new WeakMap<SchemaMeta, readonly RegExp[]>();
 
-/** Bucket templates specific enough to identify a path: some literal text besides `/`. */
+/**
+ * Bucket templates specific enough to identify a path: some literal text
+ * besides `/`.
+ */
 function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   let templates = templatesBySchema.get(schema);
 
@@ -325,7 +328,10 @@ function storedObjectColumn(
 
 const primaryColumnsByTable = new WeakMap<TableMeta, readonly string[]>();
 
-/** `true` when `where` holds `pk = value` for every primary key column: one row at most. */
+/**
+ * `true` when `where` holds `pk = value` for every primary key column: one row
+ * at most.
+ */
 function pinsPrimaryKey(
   table: TableMeta,
   where: Condition | undefined,

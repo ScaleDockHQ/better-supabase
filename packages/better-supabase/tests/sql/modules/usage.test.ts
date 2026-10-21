@@ -3,9 +3,7 @@ import { describe, expect, it } from "vitest";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
 const usage = (options?: Record<string, unknown>) =>
-  moduleBody("usage", {
-    modules: options ? { usage: { options } } : {},
-  })!;
+  moduleBody("usage", { modules: options ? { usage: { options } } : {} })!;
 
 describe("usage module", () => {
   it("allows billing periods through the app's hook", () => {

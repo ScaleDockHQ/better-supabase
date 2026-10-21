@@ -39,7 +39,10 @@ export interface AvailableSlotsSnapshot {
 
 export interface AvailableSlotsActions {
   readonly refresh: () => Promise<void>;
-  /** Holds a slot, then loads the range again. With a token, `customer` needs a name and an email. */
+  /**
+   * Holds a slot, then loads the range again. With a token, `customer` needs a
+   * name and an email.
+   */
   readonly hold: (
     slot: BookingSlot,
     customer?: BookingCustomer,
@@ -55,7 +58,10 @@ export type AvailableSlotsController = Controller<
 
 const NO_DAYS: ReadonlyMap<string, readonly BookingSlot[]> = new Map();
 
-/** The open slots of a service in the visible range, for a headless date and time picker. */
+/**
+ * The open slots of a service in the visible range, for a headless date and
+ * time picker.
+ */
 export function createAvailableSlotsController(
   options: AvailableSlotsOptions,
 ): AvailableSlotsController {

@@ -192,10 +192,7 @@ export function createSqlite(meta: SchemaMeta): {
       }
     },
     onChange(handler, options) {
-      const listener = {
-        tables: options?.tables,
-        onChange: handler.onChange,
-      };
+      const listener = { tables: options?.tables, onChange: handler.onChange };
 
       listeners.add(listener);
 

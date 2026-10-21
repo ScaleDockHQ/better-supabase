@@ -30,9 +30,9 @@ export class AiFileDownloadError extends Error {
 
 /**
  * The SDK's `experimental_download` for messages that hold
- * `supabase-storage://` file URLs: it reads each file as the caller, so a
- * user can never send a model someone else's file, and keeps the
- * `maxBytes` limit of `createAiFiles`.
+ * `supabase-storage://` file URLs: it reads each file as the caller, so a user
+ * can never send a model someone else's file, and keeps the `maxBytes` limit of
+ * `createAiFiles`.
  */
 export function aiFileDownload(
   files: AiFiles,
@@ -167,9 +167,9 @@ export interface ProviderFileUpload {
 }
 
 /**
- * The provider's reference for a file, uploading it once with `upload`
- * (such as the SDK's `uploadFile` or a provider client) and reusing the
- * reference until it expires.
+ * The provider's reference for a file, uploading it once with `upload` (such as
+ * the SDK's `uploadFile` or a provider client) and reusing the reference until
+ * it expires.
  */
 export function providerFile(
   files: AiFiles,
@@ -205,9 +205,7 @@ export function providerFile(
         dbError(
           "network",
           `The ${provider} upload failed: ${errorText(cause)}`,
-          {
-            hint: "AI_PROVIDER_FILE_UPLOAD",
-          },
+          { hint: "AI_PROVIDER_FILE_UPLOAD" },
         ),
       );
     }

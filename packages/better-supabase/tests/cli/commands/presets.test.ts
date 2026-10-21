@@ -50,9 +50,7 @@ const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 const now = () => new Date("2026-10-15T12:00:00Z");
 
 const design: CreateDesign = {
-  appTables: {
-    notes: { scope: "user", columns: { body: { type: "text" } } },
-  },
+  appTables: { notes: { scope: "user", columns: { body: { type: "text" } } } },
   extraColumns: { profiles: { nickname: "text" } },
   positions: { "public.notes": [120, 40] },
 };

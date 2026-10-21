@@ -271,10 +271,7 @@ describe("support sessions on the server", () => {
 
     const cookie = `bs-support=${started.session.id}`;
     const ctx = await server.context(await request(cookie));
-    expect(ctx.support?.admin).toEqual({
-      id: ADMIN,
-      email: "admin@acme.test",
-    });
+    expect(ctx.support?.admin).toEqual({ id: ADMIN, email: "admin@acme.test" });
     expect(ctx.auth).toMatchObject({
       kind: "user",
       source: "support",

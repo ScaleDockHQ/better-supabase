@@ -288,11 +288,7 @@ describe("BS408", () => {
   const config = (
     provider: AuthorizationProvider = stubProvider,
     extra: Parameters<typeof resolveConfig>[0] = {},
-  ) => ({
-    authorization: provider,
-    blocks: ["entitlements"],
-    ...extra,
-  });
+  ) => ({ authorization: provider, blocks: ["entitlements"], ...extra });
 
   it("passes when the provider and the database back the module", async () => {
     expect(
@@ -613,10 +609,7 @@ describe("BS411", () => {
     expect(
       await findings("BS411", config(noAssign), { snapshot }),
     ).toMatchObject([
-      {
-        severity: "warning",
-        target: "blocks.access.functions.canAssign",
-      },
+      { severity: "warning", target: "blocks.access.functions.canAssign" },
     ]);
     expect(
       await findings(
@@ -1005,10 +998,7 @@ describe("BS417", () => {
     ],
   };
 
-  const blocks = {
-    access: { model: "provider" as const },
-    "saved-views": {},
-  };
+  const blocks = { access: { model: "provider" as const }, "saved-views": {} };
 
   it("warns when the provider declares teams without teamIdsOf", async () => {
     expect(

@@ -125,9 +125,15 @@ export interface SpecReferenceOptions {
    * files the app hosts itself.
    */
   readonly assets?: string | SpecUiAssets;
-  /** Set on every script and style tag, for a Content Security Policy with nonces. */
+  /**
+   * Set on every script and style tag, for a Content Security Policy with
+   * nonces.
+   */
   readonly nonce?: string;
-  /** UI options: Scalar's configuration, Swagger UI's and Redoc's options, or attributes of the Elements and RapiDoc components. */
+  /**
+   * UI options: Scalar's configuration, Swagger UI's and Redoc's options, or
+   * attributes of the Elements and RapiDoc components.
+   */
   readonly config?: Readonly<Record<string, unknown>>;
 }
 
@@ -175,7 +181,10 @@ function escapeHtml(text: string): string {
   return text.replaceAll(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
 }
 
-/** JSON safe inside an inline `<script>`: no `</script>`, `<!--` or line separators. */
+/**
+ * JSON safe inside an inline `<script>`: no `</script>`, `<!--` or line
+ * separators.
+ */
 function scriptJson(value: unknown): string {
   return JSON.stringify(value)
     .replaceAll("<", "\\u003c")
@@ -245,7 +254,10 @@ function body(ui: SpecUi, specUrl: string, config: Record<string, unknown>) {
  * Swagger UI, Redoc, Stoplight Elements and RapiDoc load the same way.
  *
  * ```ts
- * const html = specReferenceHtml({ specUrl: "/api/openapi.json", ui: "redoc" });
+ * const html = specReferenceHtml({
+ *   specUrl: "/api/openapi.json",
+ *   ui: "redoc",
+ * });
  * ```
  */
 export function specReferenceHtml(options: SpecReferenceOptions): string {
@@ -395,7 +407,10 @@ export function specReference(
 }
 
 export interface ScalarPresetOptions {
-  /** A public OAuth client Scalar's "try it" uses for the authorization code flow. */
+  /**
+   * A public OAuth client Scalar's "try it" uses for the authorization code
+   * flow.
+   */
   readonly clientId?: string;
   readonly redirectUri?: string;
   /** PKCE for the authorization code flow. Defaults to `SHA-256`. */
@@ -408,9 +423,9 @@ export interface ScalarPresetOptions {
 
 /**
  * Adds Scalar's `x-scalar-*` extensions to an OpenAPI document, so the
- * reference can sign in through the OAuth flows the document declares.
- * Returns a copy. Use it in a `transform`:
- * `transform: ({ document }) => scalarPreset(document, { clientId })`.
+ * reference can sign in through the OAuth flows the document declares. Returns
+ * a copy. Use it in a `transform`: `transform: ({ document }) =>
+ * scalarPreset(document, { clientId })`.
  */
 export function scalarPreset<D extends object>(
   document: D,

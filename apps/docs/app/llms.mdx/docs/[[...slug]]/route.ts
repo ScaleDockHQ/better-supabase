@@ -7,9 +7,7 @@ import {
   source,
 } from "@/lib/source";
 
-type MarkdownRouteContext = {
-  params: Promise<{ slug?: string[] }>;
-};
+type MarkdownRouteContext = { params: Promise<{ slug?: string[] }> };
 
 export async function GET(
   _req: Request,
@@ -40,9 +38,9 @@ export async function GET(
 
 export function generateStaticParams() {
   return [
-    ...source.getPages().map((page) => ({
-      slug: getPageMarkdownUrl(page).segments,
-    })),
+    ...source
+      .getPages()
+      .map((page) => ({ slug: getPageMarkdownUrl(page).segments })),
     { slug: ["index", "content.md"] },
   ];
 }

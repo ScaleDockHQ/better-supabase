@@ -17,11 +17,7 @@ const tree: Root = {
       index: page("Overview", "/docs/guides"),
       children: [page("Data [API] grants", "/docs/guides/data-api-grants")],
     },
-    {
-      type: "folder",
-      name: "CLI",
-      children: [page("gen", "/docs/cli/gen")],
-    },
+    { type: "folder", name: "CLI", children: [page("gen", "/docs/cli/gen")] },
     {
       type: "page",
       name: "GitHub",

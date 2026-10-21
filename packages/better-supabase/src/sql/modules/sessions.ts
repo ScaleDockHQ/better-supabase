@@ -22,8 +22,8 @@ export function sessionPolicyTables(
 }
 
 /**
- * `blocks.sessions.options.policies`: a restrictive session policy on
- * every table the schema files create in `schemas`, except `exclude`.
+ * `blocks.sessions.options.policies`: a restrictive session policy on every
+ * table the schema files create in `schemas`, except `exclude`.
  */
 function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
   const tables = sessionPolicyTables(ctx, layout);

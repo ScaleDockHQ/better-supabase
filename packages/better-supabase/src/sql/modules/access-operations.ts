@@ -16,8 +16,8 @@ const isOperationModule = (name: string): name is OperationModule =>
 
 /**
  * The permission key of every operation the layout knows: each installed
- * module's `OPERATIONS` after `blocks.<name>.permissions` renames, with
- * the provider's `authorization.operations` over them.
+ * module's `OPERATIONS` after `blocks.<name>.permissions` renames, with the
+ * provider's `authorization.operations` over them.
  */
 function operationKeys(
   ctx: ModuleContext,
@@ -57,7 +57,10 @@ function operationKeys(
   return keys;
 }
 
-/** `operation_permission(op)`: the key an operation checks, `null` for one nobody declared. */
+/**
+ * `operation_permission(op)`: the key an operation checks, `null` for one
+ * nobody declared.
+ */
 export function operationsSql(
   ctx: ModuleContext,
   layout: ModuleLayout,

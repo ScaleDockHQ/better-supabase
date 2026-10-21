@@ -25,11 +25,14 @@ export interface UseCommandSearchOptions {
   /** Milliseconds between the last keystroke and the query. Default 150. */
   readonly debounceMs?: number;
   /**
-   * Toggles the dialog on Cmd+K and Ctrl+K through the client's keyboard
-   * port (`webKeyboard()` on the web; none on React Native). Default true.
+   * Toggles the dialog on Cmd+K and Ctrl+K through the client's keyboard port
+   * (`webKeyboard()` on the web; none on React Native). Default true.
    */
   readonly shortcut?: boolean;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
@@ -45,7 +48,7 @@ export interface CommandSearchState
  * const search = useCommandSearch({ organizationId });
  * <CommandDialog open={search.open} onOpenChange={search.setOpen}>
  *   <CommandInput value={search.query} onValueChange={search.setQuery} />
- * </CommandDialog>
+ * </CommandDialog>;
  * ```
  */
 export function useCommandSearch(

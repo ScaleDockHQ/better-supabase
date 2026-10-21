@@ -11,8 +11,8 @@ import { durable, durableContext } from "./durable-server";
 
 /**
  * Decides an approval from the activity console. The turn continues in its
- * workflow once none of its approvals is pending; the chat page picks up
- * the answer when it opens.
+ * workflow once none of its approvals is pending; the chat page picks up the
+ * answer when it opens.
  */
 export const decideApproval = bs.action(
   {

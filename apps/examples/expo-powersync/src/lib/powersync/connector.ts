@@ -3,8 +3,8 @@ import { createUploadConnector } from "better-supabase/powersync";
 import { bs, supabase } from "../supabase/client.native";
 
 /**
- * Replays local changes through `bs.db.customers`, so RLS and validation
- * run as they do online. Transient errors retry, refused changes land in
+ * Replays local changes through `bs.db.customers`, so RLS and validation run as
+ * they do online. Transient errors retry, refused changes land in
  * `connector.rejected` for `useConflicts`.
  */
 export const connector = createUploadConnector({

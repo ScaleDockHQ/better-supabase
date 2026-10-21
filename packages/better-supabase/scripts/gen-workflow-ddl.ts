@@ -1,12 +1,12 @@
 /**
- * Generates `src/sql/modules/workflow-sdk-world-ddl.generated.ts`, the `workflow` schema
- * the Supabase World stores runs in, from the migrations
+ * Generates `src/sql/modules/workflow-sdk-world-ddl.generated.ts`, the
+ * `workflow` schema the Supabase World stores runs in, from the migrations
  * `@workflow/world-postgres` ships.
  *
- * The migrations aren't idempotent and some rewrite data, so they can't go
- * into a SQL module as they are. This applies them to a scratch database on
- * the local stack, reads the resulting catalog and renders it as
- * `create ... if not exists` DDL. It also records each migration's SHA-256;
+ * The migrations aren't idempotent and some rewrite data, so they can't go into
+ * a SQL module as they are. This applies them to a scratch database on the
+ * local stack, reads the resulting catalog and renders it as `create ... if not
+ * exists` DDL. It also records each migration's SHA-256;
  * `tests/sql/modules/workflow-sdk-world-ddl.test.ts` fails when the installed
  * package's migrations no longer match.
  *

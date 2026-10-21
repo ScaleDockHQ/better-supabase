@@ -151,10 +151,7 @@ describe("asUser tracing and request context", () => {
       const user = await asUser(
         betterSupabase,
         { sub: USER },
-        {
-          ...stack,
-          fetch: () => Promise.resolve(new Response("[]")),
-        },
+        { ...stack, fetch: () => Promise.resolve(new Response("[]")) },
       );
 
       await user.supabase.from("customers").select();

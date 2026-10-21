@@ -1,26 +1,35 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseEnv } from "@supabase/server";
 
-/** Validated Supabase settings. Only `publicEnv()` of it is safe to ship to a browser. */
+/**
+ * Validated Supabase settings. Only `publicEnv()` of it is safe to ship to a
+ * browser.
+ */
 export interface BetterSupabaseEnv {
   readonly url: string;
   readonly publishableKey: string;
   readonly secretKey?: string;
-  /** Named secret keys from `SUPABASE_SECRET_KEYS`, including `default` when `secretKey` is set. */
+  /**
+   * Named secret keys from `SUPABASE_SECRET_KEYS`, including `default` when
+   * `secretKey` is set.
+   */
   readonly secretKeys?: Readonly<Record<string, string>>;
   /** `SUPABASE_JWKS_URL`, or `<url>/auth/v1/.well-known/jwks.json`. */
   readonly jwksUrl: URL;
   /** `SUPABASE_JWKS`: inline keys, used instead of fetching `jwksUrl`. */
   readonly jwks?: InlineJwks;
   /**
-   * Postgres connection string: `SUPABASE_DB_URL`, `DATABASE_URL`, then
-   * the Vercel integration's `POSTGRES_URL` (pooled) and
+   * Postgres connection string: `SUPABASE_DB_URL`, `DATABASE_URL`, then the
+   * Vercel integration's `POSTGRES_URL` (pooled) and
    * `POSTGRES_URL_NON_POOLING`.
    */
   readonly dbUrl?: string;
   /** Project ref for hosted projects (`<ref>.supabase.co`). */
   readonly projectRef?: string;
-  /** `SUPABASE_READ_URL`: a read replica or the `<ref>-all` load balancer, for reads. */
+  /**
+   * `SUPABASE_READ_URL`: a read replica or the `<ref>-all` load balancer, for
+   * reads.
+   */
   readonly readUrl?: string;
   /**
    * `SUPABASE_JWT_SECRET`: the shared HS256 secret Supabase Lite signs user
@@ -198,7 +207,10 @@ function isJwk(value: unknown): boolean {
   );
 }
 
-/** At least one key, each an object with a string `kty`, the shape the verifier reads. */
+/**
+ * At least one key, each an object with a string `kty`, the shape the verifier
+ * reads.
+ */
 function isJwkList(value: unknown): value is InlineJwks["keys"] {
   return Array.isArray(value) && value.length > 0 && value.every(isJwk);
 }
@@ -404,10 +416,7 @@ export function parseEnv(
       jwksUrl: jwksOverride ?? new URL(`${base}/auth/v1/.well-known/jwks.json`),
       ...(jwks ? { jwks } : {}),
       ...(secretKey
-        ? {
-            secretKey,
-            secretKeys: { ...namedSecrets, default: secretKey },
-          }
+        ? { secretKey, secretKeys: { ...namedSecrets, default: secretKey } }
         : {}),
       ...(dbUrl ? { dbUrl } : {}),
       ...(projectRef ? { projectRef } : {}),
@@ -424,7 +433,10 @@ function processEnv(): EnvSource {
   return runtime.process?.env ?? {};
 }
 
-/** Like `parseEnv`, but throws `EnvValidationError`. Reads `process.env` by default. */
+/**
+ * Like `parseEnv`, but throws `EnvValidationError`. Reads `process.env` by
+ * default.
+ */
 export function loadEnv(
   source: EnvSource = processEnv(),
   options: EnvOptions = {},
@@ -438,7 +450,10 @@ export function loadEnv(
   return result.env;
 }
 
-/** The env validator as a Standard Schema, for t3-env, framework config or any validator slot. */
+/**
+ * The env validator as a Standard Schema, for t3-env, framework config or any
+ * validator slot.
+ */
 export function envSchema(
   options: EnvOptions = {},
 ): StandardSchemaV1<EnvSource, BetterSupabaseEnv> {
@@ -475,7 +490,10 @@ export function publicEnv(env: BetterSupabaseEnv): PublicEnv {
   return { url: env.url, publishableKey: env.publishableKey };
 }
 
-/** Converts to `@supabase/server`'s `SupabaseEnv` (the `env` option of `withSupabase`). */
+/**
+ * Converts to `@supabase/server`'s `SupabaseEnv` (the `env` option of
+ * `withSupabase`).
+ */
 export function toServerEnv(env: BetterSupabaseEnv): SupabaseEnv {
   return {
     url: env.url,

@@ -2,11 +2,11 @@ import { EventHub } from "./events.ts";
 import { consoleLogger, type LogFields, type Logger } from "./logger.ts";
 
 /**
- * Debug records for the `diagnostics` option, after the Supabase SDK
- * capability `client.observability.diagnostic_logging`
+ * Debug records for the `diagnostics` option, after the Supabase SDK capability
+ * `client.observability.diagnostic_logging`
  * (`SPEC_PINS.supabaseSdkCapabilities`). Fields are names, kinds, counts and
- * timings only: never tokens, keys, row values, filters, query strings,
- * headers or database error messages, which can quote the data.
+ * timings only: never tokens, keys, row values, filters, query strings, headers
+ * or database error messages, which can quote the data.
  */
 function logDiagnostics(events: EventHub): void {
   const logger = {
@@ -58,7 +58,10 @@ function logDiagnostics(events: EventHub): void {
   });
 }
 
-/** The event hub of a new definition, with the diagnostic handlers when `diagnostics` is on. */
+/**
+ * The event hub of a new definition, with the diagnostic handlers when
+ * `diagnostics` is on.
+ */
 export function definitionEvents(options: {
   readonly logger?: Logger;
   readonly diagnostics?: boolean;

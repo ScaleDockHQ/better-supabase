@@ -61,14 +61,17 @@ export interface WebhookInboxMessage<
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
   /**
-   * Saves progress mid-processing (merged into `progress`), so a retry
-   * resumes there, such as a provider's page cursor. `false` when the lease
-   * was lost. Only while the handler runs.
+   * Saves progress mid-processing (merged into `progress`), so a retry resumes
+   * there, such as a provider's page cursor. `false` when the lease was lost.
+   * Only while the handler runs.
    */
   checkpoint(fields: Readonly<Record<string, unknown>>): Promise<boolean>;
 }
 
-/** A verified event to store, from `verify` or from `store` for a provider SDK that verifies itself. */
+/**
+ * A verified event to store, from `verify` or from `store` for a provider SDK
+ * that verifies itself.
+ */
 export interface WebhookInboxEvent<F extends object = Record<never, never>> {
   /** The sender's message id; the inbox stores each one once. */
   readonly id: string;
@@ -89,15 +92,14 @@ export interface WebhookInboxOptions<
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
   /**
-   * Standard Webhooks secrets; the signature is verified before storing.
-   * Leave out `secrets` and `verify` for a source that only `store` fills
-   * (a chat or provider SDK that verifies its own requests); `receive` then
-   * throws.
+   * Standard Webhooks secrets; the signature is verified before storing. Leave
+   * out `secrets` and `verify` for a source that only `store` fills (a chat or
+   * provider SDK that verifies its own requests); `receive` then throws.
    */
   readonly secrets?: string | readonly string[];
   /**
-   * Custom verification for senders that don't use Standard Webhooks. It
-   * may also return the event's tenant.
+   * Custom verification for senders that don't use Standard Webhooks. It may
+   * also return the event's tenant.
    */
   readonly verify?: (
     request: Request,
@@ -107,26 +109,29 @@ export interface WebhookInboxOptions<
   >;
   /** Event type from the payload. Defaults to `payload.type`. */
   readonly typeOf?: (payload: unknown) => string | null;
-  /** The tenant a payload belongs to, for per-tenant integrations. Defaults to none. */
+  /**
+   * The tenant a payload belongs to, for per-tenant integrations. Defaults to
+   * none.
+   */
   readonly tenantOf?: (payload: unknown) => string | null | undefined;
   /** Headers kept with the message. Defaults to none. */
   readonly keepHeaders?: readonly string[];
   readonly worker?: string;
   /**
-   * Attempts before a message of this source is marked dead, stored with
-   * each message as it arrives. Defaults to 8.
+   * Attempts before a message of this source is marked dead, stored with each
+   * message as it arrives. Defaults to 8.
    */
   readonly maxAttempts?: number;
   /**
-   * The largest body `receive` reads; a larger one gets 413 without being
-   * read to the end. Defaults to 1 MiB.
+   * The largest body `receive` reads; a larger one gets 413 without being read
+   * to the end. Defaults to 1 MiB.
    */
   readonly maxBodyBytes?: number;
   /**
    * A Standard Schema for the message's extra columns
-   * (`blocks.webhook-inbox.options.extraColumns`), keyed by database name.
-   * It validates them on `store`, and types and parses them on `list` and
-   * on the messages `process` hands the handler.
+   * (`blocks.webhook-inbox.options.extraColumns`), keyed by database name. It
+   * validates them on `store`, and types and parses them on `list` and on the
+   * messages `process` hands the handler.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `store`, `list` and `purge`. */
@@ -139,15 +144,15 @@ export interface WebhookInboxProcessOptions {
   /** Messages claimed at once. Defaults to 10. */
   readonly batch?: number;
   /**
-   * How long a claimed message stays with this worker. It is renewed when
-   * the message's turn in the batch comes and every half lease while the
-   * handler runs. Defaults to 300 seconds.
+   * How long a claimed message stays with this worker. It is renewed when the
+   * message's turn in the batch comes and every half lease while the handler
+   * runs. Defaults to 300 seconds.
    */
   readonly lease?: number | string;
   /**
-   * Stop claiming after this many ms, so a backlog can't outrun a
-   * serverless function's maximum duration; claimed messages still finish.
-   * Defaults to no limit.
+   * Stop claiming after this many ms, so a backlog can't outrun a serverless
+   * function's maximum duration; claimed messages still finish. Defaults to no
+   * limit.
    */
   readonly budgetMs?: number;
 }
@@ -177,18 +182,24 @@ export interface WebhookInboxEntry<F extends object = Record<never, never>> {
 }
 
 export interface WebhookInboxPurgeOptions {
-  /** Defaults to `30 days`; `0` with `tenant` removes all of that tenant's processed messages. */
+  /**
+   * Defaults to `30 days`; `0` with `tenant` removes all of that tenant's
+   * processed messages.
+   */
   readonly olderThan?: number | string;
   readonly includeDead?: boolean;
   readonly tenant?: string;
   readonly batch?: number;
-  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  /**
+   * The schema the functions live in, over a transport. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
 }
 
 /**
- * Deletes processed messages from the inbox (`purge_webhooks`) over a
- * service SQL connection or a service-role transport; returns how many.
+ * Deletes processed messages from the inbox (`purge_webhooks`) over a service
+ * SQL connection or a service-role transport; returns how many.
  */
 export function purgeWebhookInbox(
   source: SqlClient | BlockTransport,
@@ -225,20 +236,19 @@ export interface WebhookInbox<F extends object = Record<never, never>> {
    */
   receive(request: Request): Promise<Response>;
   /**
-   * Stores an event your code already verified (a provider SDK that
-   * verifies and parses in one call). `duplicate` when the id was stored
-   * before.
+   * Stores an event your code already verified (a provider SDK that verifies
+   * and parses in one call). `duplicate` when the id was stored before.
    */
   store(
     event: WebhookInboxEvent<F>,
   ): AsyncResult<{ id: number; duplicate: boolean }>;
   /**
-   * Processes stored messages until none are ready, or until `budgetMs`
-   * is spent. A message whose lease another claim took over is skipped,
-   * and its outcome is not counted. A message whose extra columns the
-   * `fields` schema rejects fails without reaching the handler. The signal
-   * aborts when the lease can't be renewed; the message is then neither
-   * completed nor failed by this worker.
+   * Processes stored messages until none are ready, or until `budgetMs` is
+   * spent. A message whose lease another claim took over is skipped, and its
+   * outcome is not counted. A message whose extra columns the `fields` schema
+   * rejects fails without reaching the handler. The signal aborts when the
+   * lease can't be renewed; the message is then neither completed nor failed by
+   * this worker.
    */
   process<T = unknown>(
     handler: (
@@ -249,7 +259,10 @@ export interface WebhookInbox<F extends object = Record<never, never>> {
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
   list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry<F>[]>;
-  /** Deletes old processed (and, with `includeDead`, dead) messages of this source's table; returns how many. */
+  /**
+   * Deletes old processed (and, with `includeDead`, dead) messages of this
+   * source's table; returns how many.
+   */
   purge(options?: WebhookInboxPurgeOptions): AsyncResult<number>;
   /** A job handler that runs `purge`; schedule it nightly. */
   purgeJob(options?: WebhookInboxPurgeOptions): JobHandler<unknown>;
@@ -307,8 +320,8 @@ export interface ReceiveWebhookInput {
 }
 
 /**
- * Stores one webhook through `receive_webhook` over a service SQL
- * connection; `duplicate` when the id was stored before.
+ * Stores one webhook through `receive_webhook` over a service SQL connection;
+ * `duplicate` when the id was stored before.
  */
 export async function receiveWebhook(
   sql: SqlClient,
@@ -393,28 +406,30 @@ export function createWebhookInbox<
   };
 
   const save = (event: WebhookInboxEvent<F>) =>
-    fields.args(event.fields).andThen((checked) =>
-      call(
-        "receive_webhook",
-        {
-          source: options.source,
-          message_id: event.id,
-          event_type:
-            event.type === undefined
-              ? (options.typeOf ?? defaultType)(event.payload)
-              : event.type,
-          payload: event.payload,
-          headers: event.headers ?? {},
-          tenant:
-            (event.tenant === undefined
-              ? options.tenantOf?.(event.payload)
-              : event.tenant) ?? null,
-          max_attempts: maxAttempts,
-          fields: checked,
-        },
-        storedOf,
-      ),
-    );
+    fields
+      .args(event.fields)
+      .andThen((checked) =>
+        call(
+          "receive_webhook",
+          {
+            source: options.source,
+            message_id: event.id,
+            event_type:
+              event.type === undefined
+                ? (options.typeOf ?? defaultType)(event.payload)
+                : event.type,
+            payload: event.payload,
+            headers: event.headers ?? {},
+            tenant:
+              (event.tenant === undefined
+                ? options.tenantOf?.(event.payload)
+                : event.tenant) ?? null,
+            max_attempts: maxAttempts,
+            fields: checked,
+          },
+          storedOf,
+        ),
+      );
 
   /** Runs a call the worker can't go on without; it throws the `DbError`. */
   const must = <T>(

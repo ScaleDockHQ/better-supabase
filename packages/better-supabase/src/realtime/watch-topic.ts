@@ -8,7 +8,10 @@ export interface TopicWatch {
   readonly onStatus: (status: SubscriptionStatus) => void;
 }
 
-/** A joined topic: `leave` is safe to call twice, `send` broadcasts to the other members. */
+/**
+ * A joined topic: `leave` is safe to call twice, `send` broadcasts to the other
+ * members.
+ */
 export interface TopicHandle {
   readonly leave: () => void;
   readonly send: (
@@ -19,20 +22,17 @@ export interface TopicHandle {
 
 /**
  * Joins a private topic and reports its messages, rejoins and status: the
- * realtime port of the block controllers. `topicPort(supabase)` is the
- * default; a test passes a fake.
+ * realtime port of the block controllers. `topicPort(supabase)` is the default;
+ * a test passes a fake.
  */
 export type TopicPort = (topic: string, watch: TopicWatch) => TopicHandle;
 
-const CLOSED: TopicHandle = {
-  leave: () => undefined,
-  send: () => undefined,
-};
+const CLOSED: TopicHandle = { leave: () => undefined, send: () => undefined };
 
 /**
- * Joins a private topic and returns its handle. Watches on the same client
- * and topic share one channel, as `defineTopic` subscriptions do, and the
- * channel closes when the last one leaves.
+ * Joins a private topic and returns its handle. Watches on the same client and
+ * topic share one channel, as `defineTopic` subscriptions do, and the channel
+ * closes when the last one leaves.
  */
 export function watchTopic(
   supabase: RealtimeClient,

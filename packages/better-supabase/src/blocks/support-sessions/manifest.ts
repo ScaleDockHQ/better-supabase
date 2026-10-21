@@ -14,9 +14,7 @@ export const supportSessionsBlock: Block<
 > = defineBlock({
   name: "support-sessions",
   sql: ["support-sessions"],
-  options: {
-    "support-sessions": supportSessionsSqlOptions,
-  },
+  options: { "support-sessions": supportSessionsSqlOptions },
   events: supportSessionsEvents,
   category: "admin",
   recipes: ["support-session-banner"],

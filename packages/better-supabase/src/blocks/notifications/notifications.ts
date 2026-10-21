@@ -161,7 +161,10 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
     }),
 });
 
-/** The data of `notification.delivered` and `notification.failed` for one delivery. */
+/**
+ * The data of `notification.delivered` and `notification.failed` for one
+ * delivery.
+ */
 const deliveryData = (
   message: NotificationMessage,
   channel: string,
@@ -203,7 +206,10 @@ function deliveryChannels(
   return [...channels, emailChannel(options.email)];
 }
 
-/** The event a delivery's audience check sees: the notification, as its recipients read it. */
+/**
+ * The event a delivery's audience check sees: the notification, as its
+ * recipients read it.
+ */
 const subscriberEventOf = (
   notification: NotificationItem,
 ): SubscriberEvent => ({
@@ -317,7 +323,10 @@ export function createNotifications<
     items: itemsOf(isRecord(value) ? value["items"] : []),
   });
 
-  /** Parses each item's data with its type's schema, before `hydrate` and `render` see it. */
+  /**
+   * Parses each item's data with its type's schema, before `hydrate` and
+   * `render` see it.
+   */
   const parsed = async (
     items: readonly NotificationItem[],
   ): Promise<Result<ParsedItem[]>> => {
@@ -483,8 +492,8 @@ export function createNotifications<
   };
 
   /**
-   * Sends a claimed batch: suppressed addresses are skipped first, then
-   * each notification's remaining recipients go through `audience` once.
+   * Sends a claimed batch: suppressed addresses are skipped first, then each
+   * notification's remaining recipients go through `audience` once.
    */
   async function deliverBatch(
     channel: NotificationChannel,
@@ -581,7 +590,10 @@ export function createNotifications<
     }
   }
 
-  /** `send_notification`'s argument for one send, after the type's schema and the fields. */
+  /**
+   * `send_notification`'s argument for one send, after the type's schema and
+   * the fields.
+   */
   const prepare = async (
     type: string,
     input: SendInput<unknown, F>,
@@ -682,12 +694,7 @@ export function createNotifications<
 
     if (options.onSent) {
       try {
-        await options.onSent({
-          id,
-          type,
-          tenant: tenant ?? null,
-          recipients,
-        });
+        await options.onSent({ id, type, tenant: tenant ?? null, recipients });
       } catch (cause) {
         return err(toDbError(cause));
       }

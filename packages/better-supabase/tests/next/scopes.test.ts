@@ -190,9 +190,7 @@ describe("private-cache scopes", () => {
 
     const anon = await bs.contextForSession(
       { kind: "anon", reason: "none" },
-      {
-        token: null,
-      },
+      { token: null },
     );
 
     expect(anon.auth.kind).toBe("anon");

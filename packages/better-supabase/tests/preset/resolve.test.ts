@@ -19,11 +19,7 @@ import { renderModules, resolveModules } from "../../src/sql/index.ts";
 const preset = (
   blocks: readonly string[],
   conventions: Partial<Preset> = {},
-): Preset => ({
-  ...DEFAULT_CONVENTIONS,
-  ...conventions,
-  blocks,
-});
+): Preset => ({ ...DEFAULT_CONVENTIONS, ...conventions, blocks });
 
 describe("resolvePreset", () => {
   it("adds what comments requires, with a reason per block", () => {
@@ -89,10 +85,7 @@ describe("resolvePreset", () => {
         reason: 'it needs tenants, and scope "user" has none',
       },
       { block: "tenant", reason: 'scope "user" has no tenants' },
-      {
-        block: "drive",
-        reason: 'it needs tenants, and scope "user" has none',
-      },
+      { block: "drive", reason: 'it needs tenants, and scope "user" has none' },
     ]);
     expect(
       presetBlockConflict({ scope: "none", access: "roles" }, "push"),

@@ -47,9 +47,7 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
     allowedDevOrigins: ["127.0.0.1", "*.localhost"],
     cacheComponents: true,
     partialPrefetching: true,
-    cacheLife: {
-      reference: { stale: 900, revalidate: 900, expire: 86_400 },
-    },
+    cacheLife: { reference: { stale: 900, revalidate: 900, expire: 86_400 } },
     ...rest,
     compiler: {
       removeConsole:

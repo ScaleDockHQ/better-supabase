@@ -1,10 +1,10 @@
 import type { ModuleContext } from "./context.ts";
 
 /**
- * SQL that makes `user` watch a subject at the `participating` level
- * through the notifications module's subscriptions, keeping any level the
- * user already chose. Empty without notifications or its subscriptions
- * table. Every expression is SQL; `module` must integrate notifications.
+ * SQL that makes `user` watch a subject at the `participating` level through
+ * the notifications module's subscriptions, keeping any level the user already
+ * chose. Empty without notifications or its subscriptions table. Every
+ * expression is SQL; `module` must integrate notifications.
  */
 export function watchSql(
   ctx: ModuleContext,

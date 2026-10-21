@@ -86,7 +86,10 @@ function isConfig(value: unknown): value is BetterSupabaseConfig {
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Objects merge key by key; arrays and every other value replace what `base` had. */
+/**
+ * Objects merge key by key; arrays and every other value replace what `base`
+ * had.
+ */
 function mergeConfig(
   base: Readonly<Record<string, unknown>>,
   override: Readonly<Record<string, unknown>>,
@@ -109,9 +112,9 @@ function mergeConfig(
 }
 
 /**
- * The config with the `environment` blocks merged in: `$env.<name>`, then
- * the `$development`, `$production`, `$test` or `$ci` shorthand. Every `$`
- * key is dropped from the result.
+ * The config with the `environment` blocks merged in: `$env.<name>`, then the
+ * `$development`, `$production`, `$test` or `$ci` shorthand. Every `$` key is
+ * dropped from the result.
  */
 export function applyEnvironment(
   config: BetterSupabaseConfig,
@@ -173,13 +176,13 @@ export function defaultConfig(
 
 /**
  * Loads `better-supabase.config.*` with c12 and checks it against the config
- * schema. c12 imports `.ts` natively (Node 24 strips the types), so no
- * loader is needed; rc files, `package.json`, env overrides and `extends`
- * are off so the one file is the whole config. `environment` merges its
- * blocks in (`applyEnvironment`); c12's own `envName` is off because it
- * concatenates arrays. A discovered file sets the project root to its own
- * directory; `--config` keeps `cwd` as the root. `path` is the file
- * `discoverConfig` found, for callers that already looked it up.
+ * schema. c12 imports `.ts` natively (Node 24 strips the types), so no loader
+ * is needed; rc files, `package.json`, env overrides and `extends` are off so
+ * the one file is the whole config. `environment` merges its blocks in
+ * (`applyEnvironment`); c12's own `envName` is off because it concatenates
+ * arrays. A discovered file sets the project root to its own directory;
+ * `--config` keeps `cwd` as the root. `path` is the file `discoverConfig`
+ * found, for callers that already looked it up.
  */
 export async function loadConfig(
   cwd: string,
@@ -260,8 +263,8 @@ export async function stdinDatabaseUrl(
 }
 
 /**
- * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then the
- * local stack: the `[db] port` in `config.toml`, else the running stack's
+ * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then
+ * the local stack: the `[db] port` in `config.toml`, else the running stack's
  * `DB_URL`. With neither it fails with `not_found` rather than guess a port.
  */
 export async function databaseUrl(
@@ -290,7 +293,10 @@ export async function databaseUrl(
   return resolved;
 }
 
-/** The database of `supabase/stacks/<name>/config.toml`, a stack kept for one purpose such as tests or a demo. */
+/**
+ * The database of `supabase/stacks/<name>/config.toml`, a stack kept for one
+ * purpose such as tests or a demo.
+ */
 async function namedStackUrl(
   root: string,
   name: string,

@@ -11,7 +11,10 @@ export interface BudgetRequest {
 export interface BudgetResponse {
   url(): string;
   headers(): Record<string, string>;
-  /** Never settles when the browser aborts the stream, so `requestfailed` ends the wait too. */
+  /**
+   * Never settles when the browser aborts the stream, so `requestfailed` ends
+   * the wait too.
+   */
   finished(): Promise<unknown>;
   request(): BudgetRequest;
 }
@@ -30,11 +33,9 @@ export interface BudgetPage {
   ): unknown;
   reload(): Promise<unknown>;
   readonly request: {
-    get(url: string): Promise<{
-      ok(): boolean;
-      status(): number;
-      json(): Promise<unknown>;
-    }>;
+    get(
+      url: string,
+    ): Promise<{ ok(): boolean; status(): number; json(): Promise<unknown> }>;
   };
 }
 
@@ -49,14 +50,14 @@ export interface DbBudgetExpectation {
   readonly timeoutMs?: number;
   /**
    * How long to keep listening once `during` resolves and no new response
-   * arrives, for renders it started that answer later (the dynamic render
-   * after an `instant()` lock releases). Defaults to 500 ms.
+   * arrives, for renders it started that answer later (the dynamic render after
+   * an `instant()` lock releases). Defaults to 500 ms.
    */
   readonly settleMs?: number;
   /**
-   * When no document or RSC response carries `x-bs-request-id`, throw
-   * (the default) or return `[]`. Cache-only navigations never hit the
-   * proxy, so they have no request id.
+   * When no document or RSC response carries `x-bs-request-id`, throw (the
+   * default) or return `[]`. Cache-only navigations never hit the proxy, so
+   * they have no request id.
    */
   readonly requireRequest?: boolean;
 }
@@ -143,9 +144,9 @@ export function expectDbBudget(
   expectation: ResponseBudgetExpectation,
 ): ResponseDbStats;
 /**
- * Measures every document and RSC navigation response during `during` and
- * fails when one render makes more database calls or waves than allowed.
- * Needs `createNext(betterSupabase, { debug })` and `bs.debugRoute()` in the app.
+ * Measures every document and RSC navigation response during `during` and fails
+ * when one render makes more database calls or waves than allowed. Needs
+ * `createNext(betterSupabase, { debug })` and `bs.debugRoute()` in the app.
  */
 export function expectDbBudget(
   page: BudgetPage,

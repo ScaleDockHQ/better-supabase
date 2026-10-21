@@ -7,8 +7,6 @@ import { grantsSqlOptions } from "./options.ts";
 export const grantsBlock: Block<"grants"> = defineBlock({
   name: "grants",
   sql: ["grants"],
-  options: {
-    grants: grantsSqlOptions,
-  },
+  options: { grants: grantsSqlOptions },
   category: "identity",
 });

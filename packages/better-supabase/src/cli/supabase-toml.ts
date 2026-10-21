@@ -18,12 +18,18 @@ export interface TomlTable {
 
 /** `supabase/config.toml`, parsed. */
 export interface SupabaseToml {
-  /** Relative to the project root (`../../supabase/config.toml` in a monorepo package). */
+  /**
+   * Relative to the project root (`../../supabase/config.toml` in a monorepo
+   * package).
+   */
   readonly path: string;
   /** The `supabase` directory, relative to the project root. */
   readonly dir: string;
   readonly text: string;
-  /** The keys present in the file (snake_case, as written), after `env()` interpolation when parsed by `@supabase/config`. */
+  /**
+   * The keys present in the file (snake_case, as written), after `env()`
+   * interpolation when parsed by `@supabase/config`.
+   */
   readonly document: TomlTable;
   readonly parser: "@supabase/config" | "smol-toml";
 }
@@ -64,7 +70,10 @@ export function findSupabaseRoot(start: string): string | undefined {
   return findUp(start, (dir) => existsSync(join(dir, CONFIG_TOML)));
 }
 
-/** The repository root for `start`: the directory with `.git`, else the Supabase project root, else `start`. */
+/**
+ * The repository root for `start`: the directory with `.git`, else the Supabase
+ * project root, else `start`.
+ */
 export function findRepoRoot(start: string): string {
   let dir = start;
 
@@ -83,7 +92,10 @@ export function findRepoRoot(start: string): string {
   }
 }
 
-/** The `supabase` directory relative to `root`: the one `findSupabaseRoot` finds, or `supabase`. */
+/**
+ * The `supabase` directory relative to `root`: the one `findSupabaseRoot`
+ * finds, or `supabase`.
+ */
 export function supabaseDir(root: string): string {
   const found = findSupabaseRoot(root);
 
@@ -151,7 +163,10 @@ function toTomlValue(value: unknown): TomlValue {
   return String(value);
 }
 
-/** `text` as TOML, with dates as ISO strings; an empty table when it does not parse. */
+/**
+ * `text` as TOML, with dates as ISO strings; an empty table when it does not
+ * parse.
+ */
 export function parseToml(text: string): TomlTable {
   try {
     return Object.fromEntries(
@@ -171,10 +186,10 @@ const parsed = new Map<
 >();
 
 /**
- * Reads `supabase/config.toml` from `root` or the nearest parent that has
- * one (`findSupabaseRoot`). A file with `env()` values goes through
- * `@supabase/config` when it is installed, which resolves them; any other
- * file, or a project without it, is parsed with smol-toml, since loading
+ * Reads `supabase/config.toml` from `root` or the nearest parent that has one
+ * (`findSupabaseRoot`). A file with `env()` values goes through
+ * `@supabase/config` when it is installed, which resolves them; any other file,
+ * or a project without it, is parsed with smol-toml, since loading
  * `@supabase/config` costs hundreds of milliseconds. Parses are reused while
  * the file's text is unchanged.
  */
@@ -234,12 +249,7 @@ async function parseSupabaseToml(
     }
   }
 
-  return {
-    ...location,
-    text,
-    document: parseToml(text),
-    parser: "smol-toml",
-  };
+  return { ...location, text, document: parseToml(text), parser: "smol-toml" };
 }
 
 /** The value at `path` (`['auth', 'jwt_expiry']`), if present. */
@@ -330,7 +340,10 @@ export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
 export interface HttpHook {
   readonly hook: string;
   readonly uri: URL;
-  /** `secrets` as parsed: after `env()` interpolation when `@supabase/config` read the file. */
+  /**
+   * `secrets` as parsed: after `env()` interpolation when `@supabase/config`
+   * read the file.
+   */
   readonly secrets: string | undefined;
 }
 
@@ -449,9 +462,9 @@ export function sqlWorkflow(
 export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
 
 /**
- * The command that turns the files into a migration (named `name`, when
- * given). Under the migrations workflow the `sql` commands already wrote
- * it, so the command applies it.
+ * The command that turns the files into a migration (named `name`, when given).
+ * Under the migrations workflow the `sql` commands already wrote it, so the
+ * command applies it.
  */
 export function migrationCommand(workflow: SqlWorkflow, name?: string): string {
   switch (workflow) {
@@ -483,13 +496,22 @@ export function migrationCommand(workflow: SqlWorkflow, name?: string): string {
 export interface SchemaPaths {
   /** Relative to the project root. */
   readonly files: readonly string[];
-  /** Files under `supabase/schemas` that no `schema_paths` entry matches, so the diff skips them. */
+  /**
+   * Files under `supabase/schemas` that no `schema_paths` entry matches, so the
+   * diff skips them.
+   */
   readonly unlisted: readonly string[];
-  /** Whether `[db.migrations] schema_paths` lists entries that the engine honors (migra only). */
+  /**
+   * Whether `[db.migrations] schema_paths` lists entries that the engine honors
+   * (migra only).
+   */
   readonly configured: boolean;
 }
 
-/** `experimental.pgdelta.declarative_schema_path` (relative to `supabase/`), or `./schemas`. */
+/**
+ * `experimental.pgdelta.declarative_schema_path` (relative to `supabase/`), or
+ * `./schemas`.
+ */
 function pgDeltaSchemasDir(toml?: SupabaseToml): string {
   const dir = tomlGet(toml?.document ?? {}, [
     "experimental",
@@ -507,8 +529,8 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
 }
 
 /**
- * The folder the diff engine loads declarative schema files from, relative
- * to the root: `declarative_schema_path` under pg-delta, `supabase/schemas`
+ * The folder the diff engine loads declarative schema files from, relative to
+ * the root: `declarative_schema_path` under pg-delta, `supabase/schemas`
  * otherwise. `workflow` defaults to what `config.toml` turns on.
  */
 export function declarativeSchemasDir(
@@ -534,13 +556,12 @@ async function expand(cwd: string, pattern: string): Promise<string[]> {
 
 /**
  * `[db.migrations] schema_paths` (relative to `supabase/`) with each glob
- * expanded in name order and the entries kept in their listed order, then
- * the `supabase/schemas` files no entry matches. Without `schema_paths`, the
+ * expanded in name order and the entries kept in their listed order, then the
+ * `supabase/schemas` files no entry matches. Without `schema_paths`, the
  * `supabase/schemas` files in name order, as the Supabase CLI reads them.
  * pg-delta ignores `schema_paths` and orders by dependency, so under it every
- * file in its schema directory counts, in name order. The migrations
- * workflow has no declarative schemas. `workflow` defaults to
- * `detectWorkflow`.
+ * file in its schema directory counts, in name order. The migrations workflow
+ * has no declarative schemas. `workflow` defaults to `detectWorkflow`.
  */
 export async function schemaPaths(
   root: string,

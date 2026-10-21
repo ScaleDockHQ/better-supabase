@@ -72,12 +72,11 @@ export interface ArazzoOptions<V extends ArazzoVersion = "1.0", Ref = string>
 }
 
 /**
- * An Arazzo document for the API's workflows: your `defineWorkflow`
- * workflows and the built-ins (`paginationWorkflows()`,
- * `createThenGetWorkflows()`, `authWorkflow()`), checked against the
- * operations the API has. Throws when building or checking the document
- * finds an error; use `defineApi(...).render(arazzoFormat)` to read every
- * finding instead.
+ * An Arazzo document for the API's workflows: your `defineWorkflow` workflows
+ * and the built-ins (`paginationWorkflows()`, `createThenGetWorkflows()`,
+ * `authWorkflow()`), checked against the operations the API has. Throws when
+ * building or checking the document finds an error; use
+ * `defineApi(...).render(arazzoFormat)` to read every finding instead.
  *
  * ```ts
  * const doc = createArazzo(betterSupabase, {

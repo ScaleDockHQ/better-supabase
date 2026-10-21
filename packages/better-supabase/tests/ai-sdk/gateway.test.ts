@@ -61,9 +61,7 @@ describe("gatewayOptions", () => {
     ).toEqual({
       gateway: { user: "u", tags: ["org:o", "agent:a1", "team:x"] },
     });
-    expect(gatewayOptions({}, { user: "model-said" })).toEqual({
-      gateway: {},
-    });
+    expect(gatewayOptions({}, { user: "model-said" })).toEqual({ gateway: {} });
   });
 });
 
@@ -176,9 +174,7 @@ describe("problem429", () => {
 describe("usageQuota", () => {
   const usage = (
     result: ReturnType<Usage["current"]>,
-  ): Pick<Usage, "current"> => ({
-    current: () => result,
-  });
+  ): Pick<Usage, "current"> => ({ current: () => result });
 
   it("passes while units remain or without a quota", async () => {
     expect(

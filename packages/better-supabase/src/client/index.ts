@@ -79,21 +79,21 @@ export interface ClientOptions {
   /** URL and publishable key. Not needed when `client` is given. */
   readonly env?: PublicEnv;
   /**
-   * Bring your own supabase-js client (custom storage). React Native apps
-   * use `better-supabase/client/native`, which doesn't load `@supabase/ssr`.
+   * Bring your own supabase-js client (custom storage). React Native apps use
+   * `better-supabase/client/native`, which doesn't load `@supabase/ssr`.
    */
   readonly client?: SupabaseClient;
   /**
    * `cookies` (default) shares the session with the server through
-   * `@supabase/ssr`; `local` keeps it in localStorage for SPAs without a server.
+   * `@supabase/ssr`; `local` keeps it in localStorage for SPAs without a
+   * server.
    */
   readonly storage?: "cookies" | "local";
   readonly cookies?: {
     /**
      * `tokens-only` keeps the user object out of the cookie (it lives in
-     * `auth.userStorage`, localStorage by default), so cookies stay small.
-     * Use the same value as the server's `encode`. Defaults to
-     * `user-and-tokens`.
+     * `auth.userStorage`, localStorage by default), so cookies stay small. Use
+     * the same value as the server's `encode`. Defaults to `user-and-tokens`.
      */
     readonly encode?: SessionEncoding;
   };
@@ -102,13 +102,13 @@ export interface ClientOptions {
     readonly userStorage?: UserStorage;
   };
   /**
-   * `staleTime` for every query option in `bs.queries`. Above zero, a
-   * remount or a window focus reuses cached rows instead of refetching.
+   * `staleTime` for every query option in `bs.queries`. Above zero, a remount
+   * or a window focus reuses cached rows instead of refetching.
    */
   readonly staleTime?: number;
   /**
-   * Platform services for the block hooks, over the web defaults
-   * (`webPorts()` and an upload port over Supabase Storage).
+   * Platform services for the block hooks, over the web defaults (`webPorts()`
+   * and an upload port over Supabase Storage).
    */
   readonly ports?: ClientPorts;
 }
@@ -159,11 +159,13 @@ function clientFor(options: ClientOptions): SupabaseClient {
 }
 
 /**
- * The browser side: a supabase-js client, repositories that follow the
- * session, TanStack Query options and an auth store for UI state.
+ * The browser side: a supabase-js client, repositories that follow the session,
+ * TanStack Query options and an auth store for UI state.
  *
  * ```ts
- * export const bs = createClient(betterSupabase, { env: { url, publishableKey } });
+ * export const bs = createClient(betterSupabase, {
+ *   env: { url, publishableKey },
+ * });
  * ```
  */
 export function createClient<

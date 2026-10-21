@@ -252,8 +252,8 @@ using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjec
 }
 
 /**
- * `options.extraColumns`, added to the pipelines table. `stages` is
- * reserved: `list_pipelines` returns it next to the row.
+ * `options.extraColumns`, added to the pipelines table. `stages` is reserved:
+ * `list_pipelines` returns it next to the row.
  */
 const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);

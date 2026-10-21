@@ -72,7 +72,10 @@ async function uploadAttachment(
   }
 }
 
-/** A tool call in an answer; one that waits for approval shows the decision buttons. */
+/**
+ * A tool call in an answer; one that waits for approval shows the decision
+ * buttons.
+ */
 function ToolCall({
   part,
   chat,
@@ -138,8 +141,8 @@ function ToolCall({
 
 /**
  * The messages and composer of one chat. The caller picks the hook:
- * `useAssistant` for a request-bound answer, `useDurableAssistant` for one
- * that runs as a workflow.
+ * `useAssistant` for a request-bound answer, `useDurableAssistant` for one that
+ * runs as a workflow.
  */
 export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
   const t = useExtracted("assistant");

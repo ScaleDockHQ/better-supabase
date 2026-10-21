@@ -2,7 +2,10 @@ import { defineBucket } from "better-supabase/storage";
 
 import { buckets } from "./supabase/generated.ts";
 
-/** `{organizationId}/{customerId}/logo/{version}.webp`, readable within the tenant. */
+/**
+ * `{organizationId}/{customerId}/logo/{version}.webp`, readable within the
+ * tenant.
+ */
 export const logos = defineBucket(buckets.customerLogos);
 
 /** `{userId}/avatar-{version}.{ext}`, public, written only by the user. */

@@ -96,10 +96,10 @@ function resolveOne(
 }
 
 /**
- * The configured outputs, narrowed by the command line. A format argument
- * keeps that format's outputs, or renders it on its own when none is
- * configured; `--spec-version` keeps the outputs at that version, or
- * renders it on its own; `--out` needs exactly one target.
+ * The configured outputs, narrowed by the command line. A format argument keeps
+ * that format's outputs, or renders it on its own when none is configured;
+ * `--spec-version` keeps the outputs at that version, or renders it on its own;
+ * `--out` needs exactly one target.
  */
 export function resolveTargets(
   outputs: readonly SpecOutputConfig[],

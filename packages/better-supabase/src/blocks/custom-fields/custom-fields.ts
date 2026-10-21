@@ -38,7 +38,10 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   readonly type: string;
   readonly required: boolean;
   readonly sensitive: boolean;
-  /** The rank key, for `reorderDefinition`; absent when definitions aren't ranked. */
+  /**
+   * The rank key, for `reorderDefinition`; absent when definitions aren't
+   * ranked.
+   */
   readonly rank?: string;
 }
 
@@ -58,8 +61,8 @@ export interface CustomFields {
   ): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;
   /**
-   * Moves a definition between the definitions with rank keys `previous`
-   * and `next`. Resolves to its new key.
+   * Moves a definition between the definitions with rank keys `previous` and
+   * `next`. Resolves to its new key.
    */
   reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   readValues(

@@ -46,9 +46,8 @@ export interface CommentsOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the comment's extra columns
-   * (`blocks.comments.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `create` and
-   * `edit`.
+   * (`blocks.comments.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create` and `edit`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -56,13 +55,15 @@ export interface CommentsOptions<
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * The user ids a comment mentions when the call passes no `mentions`,
-   * such as the mention nodes of a rich-text `document`. Default
-   * `mentionsIn(body)`.
+   * The user ids a comment mentions when the call passes no `mentions`, such as
+   * the mention nodes of a rich-text `document`. Default `mentionsIn(body)`.
    */
   readonly mentionsOf?: (comment: {
     readonly body: string;
@@ -108,7 +109,10 @@ export interface NewComment<F extends object = Record<never, never>> {
 
 export interface CommentEdit<F extends object = Record<never, never>> {
   readonly body: string;
-  /** A new document; `null` removes it, and leaving it out keeps the current one. */
+  /**
+   * A new document; `null` removes it, and leaving it out keeps the current
+   * one.
+   */
   readonly document?: unknown;
   /** Default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
   readonly mentions?: readonly string[];
@@ -117,11 +121,11 @@ export interface CommentEdit<F extends object = Record<never, never>> {
 }
 
 /**
- * Where a timeline entry comes from: `event` for an `activity_entries` row
- * that `activitySink()` wrote, `audit` for an audit log entry on the
- * subject's row (with the `audit` and `subjects` modules), `delivery` for a
- * notification delivery about the subject (with `notifications`) and `run`
- * for a workflow run on it (with `workflows`).
+ * Where a timeline entry comes from: `event` for an `activity_entries` row that
+ * `activitySink()` wrote, `audit` for an audit log entry on the subject's row
+ * (with the `audit` and `subjects` modules), `delivery` for a notification
+ * delivery about the subject (with `notifications`) and `run` for a workflow
+ * run on it (with `workflows`).
  */
 export type ActivitySource = "event" | "audit" | "delivery" | "run";
 
@@ -163,8 +167,8 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
   /** Comments created after this instant, for polling a thread. */
   readonly cursor?: Temporal.Instant;
   /**
-   * The id of the last comment you have, next to `cursor`, so comments
-   * created in the same instant as it aren't skipped.
+   * The id of the last comment you have, next to `cursor`, so comments created
+   * in the same instant as it aren't skipped.
    */
   readonly cursorId?: string;
   /** Default 100, at most 500. */
@@ -188,9 +192,9 @@ export interface Comments<F extends object = Record<never, never>> {
     options?: ListCommentsOptions,
   ): AsyncResult<readonly Comment<F>[]>;
   /**
-   * How many comments each subject has that the caller can read, deleted
-   * ones left out, such as for a counter on each row of a list. Subjects
-   * without comments are 0.
+   * How many comments each subject has that the caller can read, deleted ones
+   * left out, such as for a counter on each row of a list. Subjects without
+   * comments are 0.
    */
   counts(
     organizationId: string,
@@ -208,14 +212,14 @@ export interface Comments<F extends object = Record<never, never>> {
     to: { readonly type: string; readonly id: string },
   ): AsyncResult<number>;
   /**
-   * The activity feed of a tenant, newest first, or one subject's timeline
-   * with `subject`. Members with `activity.read` see it. With the `subjects`
-   * module, an entry on a registered subject type needs `can_subject` read,
-   * and a subject's timeline also lists its audit log entries
-   * (`source: "audit"`) when `audit` is installed with its read policy, the
-   * deliveries of notifications about it (`source: "delivery"`, for members
-   * who also hold `notifications.send`) and its workflow runs
-   * (`source: "run"`, as the runs' read policy allows).
+   * The activity feed of a tenant, newest first, or one subject's timeline with
+   * `subject`. Members with `activity.read` see it. With the `subjects` module,
+   * an entry on a registered subject type needs `can_subject` read, and a
+   * subject's timeline also lists its audit log entries (`source: "audit"`)
+   * when `audit` is installed with its read policy, the deliveries of
+   * notifications about it (`source: "delivery"`, for members who also hold
+   * `notifications.send`) and its workflow runs (`source: "run"`, as the runs'
+   * read policy allows).
    */
   history(
     organizationId: string,
@@ -228,8 +232,8 @@ const MENTION =
   /@\[[^\]\n]{1,100}\]\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)/gi;
 
 /**
- * The user ids mentioned in a body written as `@[Ada](<user id>)`, the
- * markup mention inputs produce, in order and without repeats.
+ * The user ids mentioned in a body written as `@[Ada](<user id>)`, the markup
+ * mention inputs produce, in order and without repeats.
  */
 export function mentionsIn(body: string): readonly string[] {
   return [
@@ -295,46 +299,50 @@ export function createComments<
 
   const client: Comments<F> = {
     create: (comment) =>
-      fields.args(comment.fields).andThen((checked) =>
-        call(
-          "create_comment",
-          {
-            tenant: comment.organizationId,
-            subject_type: comment.subjectType,
-            subject_id: comment.subjectId,
-            body: comment.body,
-            mentions:
-              comment.mentions ?? mentionsOf(comment.body, comment.document),
-            parent: comment.parentId,
-            document: comment.document,
-            fields: checked,
-          },
-          commentOf,
-        ).andThen(fields.row),
-      ),
-    edit: (id, edit) =>
-      fields.args(edit.fields).andThen((checked) =>
-        call(
-          "edit_comment",
-          {
-            id,
-            body: edit.body,
-            mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
-            document: edit.document ?? undefined,
-            ...(edit.document === null ? { clear_document: true } : {}),
-            fields: checked,
-          },
-          (value) => value,
-        ).andThen((value) =>
-          value === null || value === undefined
-            ? AsyncResult.err(
-                dbError("not_found", "No comment you can edit has this id", {
-                  hint: "COMMENT_NOT_FOUND",
-                }),
-              )
-            : fields.row(commentOf(value)),
+      fields
+        .args(comment.fields)
+        .andThen((checked) =>
+          call(
+            "create_comment",
+            {
+              tenant: comment.organizationId,
+              subject_type: comment.subjectType,
+              subject_id: comment.subjectId,
+              body: comment.body,
+              mentions:
+                comment.mentions ?? mentionsOf(comment.body, comment.document),
+              parent: comment.parentId,
+              document: comment.document,
+              fields: checked,
+            },
+            commentOf,
+          ).andThen(fields.row),
         ),
-      ),
+    edit: (id, edit) =>
+      fields
+        .args(edit.fields)
+        .andThen((checked) =>
+          call(
+            "edit_comment",
+            {
+              id,
+              body: edit.body,
+              mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
+              document: edit.document ?? undefined,
+              ...(edit.document === null ? { clear_document: true } : {}),
+              fields: checked,
+            },
+            (value) => value,
+          ).andThen((value) =>
+            value === null || value === undefined
+              ? AsyncResult.err(
+                  dbError("not_found", "No comment you can edit has this id", {
+                    hint: "COMMENT_NOT_FOUND",
+                  }),
+                )
+              : fields.row(commentOf(value)),
+          ),
+        ),
     remove: (id) => call("delete_comment", { id }, (value) => value === true),
     list: (organizationId, subjectType, subjectId, list = {}) =>
       call(
@@ -409,10 +417,16 @@ export interface ActivityDescription {
 }
 
 export interface ActivitySinkOptions {
-  /** A service-role transport: `record_activity()` is granted to `service_role` only. */
+  /**
+   * A service-role transport: `record_activity()` is granted to `service_role`
+   * only.
+   */
   readonly transport: BlockTransport;
   readonly schema?: string;
-  /** The outbox `typePrefix`, stripped from the stored type. Default `dev.better-supabase`. */
+  /**
+   * The outbox `typePrefix`, stripped from the stored type. Default
+   * `dev.better-supabase`.
+   */
   readonly typePrefix?: string;
   /** Types to keep, exact or ending in `.*`. Default every event with a tenant. */
   readonly types?: readonly string[];
@@ -542,11 +556,11 @@ const FACETS: readonly [ActivityFacet, string, string][] = [
 
 /**
  * A cursor-paged list over `activity_entries` (generate types for the
- * `better_supabase` schema to get it in your models), newest first,
- * filtered by type, actor and subject. Members with `activity.read` see
- * their tenants' entries, less those on a registered subject that
- * `can_subject` doesn't let them read (with the `subjects` module). It
- * reads the table, so it lists no audit entries; `history()` does.
+ * `better_supabase` schema to get it in your models), newest first, filtered by
+ * type, actor and subject. Members with `activity.read` see their tenants'
+ * entries, less those on a registered subject that `can_subject` doesn't let
+ * them read (with the `subjects` module). It reads the table, so it lists no
+ * audit entries; `history()` does.
  */
 export function activityListQuery<
   M extends AnyModels,

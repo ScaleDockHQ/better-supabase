@@ -52,10 +52,6 @@ describe("assistantBody", () => {
           trigger: "regenerate-message",
         },
       ),
-    ).toEqual({
-      id: "c1",
-      message: undefined,
-      trigger: "regenerate-message",
-    });
+    ).toEqual({ id: "c1", message: undefined, trigger: "regenerate-message" });
   });
 });

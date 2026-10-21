@@ -25,9 +25,15 @@ import {
 } from "./shared.ts";
 
 export interface ValibotGeneratorOptions {
-  /** Output path relative to the project root. Defaults to `<output>.valibot.ts`. */
+  /**
+   * Output path relative to the project root. Defaults to
+   * `<output>.valibot.ts`.
+   */
   readonly output?: string;
-  /** Schemas for typed jsonb columns: `{ 'customers.metadata': './schemas.ts#metadata' }`. */
+  /**
+   * Schemas for typed jsonb columns: `{ 'customers.metadata':
+   * './schemas.ts#metadata' }`.
+   */
   readonly json?: Readonly<Record<string, string>>;
 }
 

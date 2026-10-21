@@ -14,9 +14,7 @@ export const aiProvidersBlock: BlockOf<
 > = defineBlock({
   name: "ai-providers",
   sql: ["ai-providers"],
-  options: {
-    "ai-providers": aiProvidersSqlOptions,
-  },
+  options: { "ai-providers": aiProvidersSqlOptions },
   events: aiProvidersEvents,
   create: createAiProviders,
   category: "ai",

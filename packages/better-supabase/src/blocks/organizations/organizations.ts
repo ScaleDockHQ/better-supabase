@@ -37,8 +37,8 @@ import {
 
 /**
  * Organization columns by database name: `name`, `slug`, the columns in
- * `blocks.organizations.options.attributes` and the ones
- * `options.extraColumns` adds. Other keys are ignored.
+ * `blocks.organizations.options.attributes` and the ones `options.extraColumns`
+ * adds. Other keys are ignored.
  */
 export interface OrganizationAttributes {
   readonly name?: string;
@@ -71,7 +71,10 @@ export interface InviteRequest<I extends object = Record<never, never>> {
   readonly fields?: Partial<I> & Readonly<Record<string, unknown>>;
 }
 
-/** An invitation. `I` types the extra columns `options.invitationFields` describes. */
+/**
+ * An invitation. `I` types the extra columns `options.invitationFields`
+ * describes.
+ */
 export interface Invitation<I extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string | null;
@@ -81,14 +84,17 @@ export interface Invitation<I extends object = Record<never, never>> {
   /** Absent when the invitations table has no `createdAt` column. */
   readonly createdAt?: Temporal.Instant;
   readonly invitedBy?: string;
-  /** The organization's id and `options.previewColumns`; `null` for a platform invitation. */
+  /**
+   * The organization's id and `options.previewColumns`; `null` for a platform
+   * invitation.
+   */
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
   /**
    * The inviter's `id` and public profile fields (`username`, `fullName`,
    * `firstName`, `lastName`, `avatar`, as the profiles module maps them).
-   * `null` without the profiles module, an `invitedBy` column or the
-   * inviter's profile.
+   * `null` without the profiles module, an `invitedBy` column or the inviter's
+   * profile.
    */
   readonly inviter: Readonly<Record<string, unknown>> | null;
   /** The keys an `invitation_preview_extra` hook added, such as a role label. */
@@ -131,8 +137,8 @@ export interface InvitationPreview {
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
   /**
-   * The keys an `invitation_preview_extra` hook added, such as a role's
-   * display name or branding. Empty without the hook.
+   * The keys an `invitation_preview_extra` hook added, such as a role's display
+   * name or branding. Empty without the hook.
    */
   readonly extra: Readonly<Record<string, unknown>>;
 }
@@ -144,9 +150,9 @@ export interface SwitchResult {
 }
 
 /**
- * A membership `list_my_organizations` returns. The attribute and extra
- * columns follow under their database names, parsed by `options.fields`
- * when it is set.
+ * A membership `list_my_organizations` returns. The attribute and extra columns
+ * follow under their database names, parsed by `options.fields` when it is
+ * set.
  */
 export interface OrganizationMembership {
   readonly id: string;
@@ -178,18 +184,21 @@ export interface OrganizationsOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the organization's extra columns
-   * (`options.attributes` and `options.extraColumns`), keyed by database
-   * name. It types and parses them on `mine()`, and validates them on
-   * `create` and `update`, which return a `validation` error for a bad value.
+   * (`options.attributes` and `options.extraColumns`), keyed by database name.
+   * It types and parses them on `mine()`, and validates them on `create` and
+   * `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /**
    * A Standard Schema for the invitations table's extra columns
-   * (`blocks.invitations.options.extraColumns`). It validates them on
-   * `invite` and parses them on every invitation read.
+   * (`blocks.invitations.options.extraColumns`). It validates them on `invite`
+   * and parses them on every invitation read.
    */
   readonly invitationFields?: SI;
-  /** `withBlockHooks` hooks around the methods, such as a seat limit on `invite`. */
+  /**
+   * `withBlockHooks` hooks around the methods, such as a seat limit on
+   * `invite`.
+   */
   readonly hooks?: NoInfer<
     BlockHooks<Organizations<FieldsOf<S>, FieldsOf<SI>>>
   >;
@@ -197,34 +206,39 @@ export interface OrganizationsOptions<
   readonly transport: BlockTransport;
   /**
    * The schema holding the functions: `blocks.<module>.schema` with
-   * `sqlTransport`, the exposed API schema of wrappers with `rpcTransport`.
-   * One schema for both modules, or one per module. Defaults to
-   * `better_supabase`.
+   * `sqlTransport`, the exposed API schema of wrappers with `rpcTransport`. One
+   * schema for both modules, or one per module. Defaults to `better_supabase`.
    */
   readonly schema?:
     | string
     | { readonly organizations?: string; readonly invitations?: string };
-  /** `betterSupabase.events`, to emit `organization.*` and `invitation.*` block events. */
+  /**
+   * `betterSupabase.events`, to emit `organization.*` and `invitation.*` block
+   * events.
+   */
   readonly events?: EventHub;
   /** The user acting, for event metadata. */
   readonly actorId?: string;
   readonly context?: RequestContext;
   /**
-   * Runs before an invitation is created, after the database checks the
-   * caller may invite. Return `false` to refuse (seat limits, plans).
+   * Runs before an invitation is created, after the database checks the caller
+   * may invite. Return `false` to refuse (seat limits, plans).
    */
   readonly canInvite?: (
     request: InviteRequest<FieldsOf<SI>>,
   ) => boolean | Promise<boolean>;
   /**
-   * Runs after an invitation is created or resent, to send the email. When
-   * it throws, the call returns an error and the invitation stays open:
-   * call `resendInvitation` to retry.
+   * Runs after an invitation is created or resent, to send the email. When it
+   * throws, the call returns an error and the invitation stays open: call
+   * `resendInvitation` to retry.
    */
   readonly onInvite?: (
     sent: InvitationSent<FieldsOf<SI>>,
   ) => void | Promise<void>;
-  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  /**
+   * Error mappers that run before the built-in ones, as in
+   * `betterSupabase.mapError()`.
+   */
   readonly mappers?: readonly ErrorMapper[];
 }
 
@@ -236,10 +250,10 @@ export interface OrganizationsOptions<
 export type InvitationErrorHint = InvitationError;
 
 /**
- * The `organizations` and `invitations` SQL modules as typed calls. Each
- * method returns an `AsyncResult`; database errors carry the module's error
- * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`. `F` is
- * the extra fields `options.fields` describes.
+ * The `organizations` and `invitations` SQL modules as typed calls. Each method
+ * returns an `AsyncResult`; database errors carry the module's error code
+ * (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`. `F` is the extra
+ * fields `options.fields` describes.
  */
 export interface Organizations<
   F extends object = Record<never, never>,
@@ -290,9 +304,9 @@ export interface Organizations<
   ): AsyncResult<InvitationSent<I>>;
   /**
    * A new email, role or prefill for an open invitation, with the checks
-   * `invite` makes. The token and expiry stay, so the link already sent
-   * keeps working; call `resendInvitation` to mail the new address. An
-   * expired invitation fails with `INVITATION_EXPIRED`; resend it first.
+   * `invite` makes. The token and expiry stay, so the link already sent keeps
+   * working; call `resendInvitation` to mail the new address. An expired
+   * invitation fails with `INVITATION_EXPIRED`; resend it first.
    */
   updateInvitation(
     invitationId: string,
@@ -430,7 +444,10 @@ const MEMBERSHIP_KEYS: ReadonlySet<string> = new Set([
   "disabledAt",
 ]);
 
-/** Splits `name` and `slug`, which the block types, from the extra columns `fields` checks. */
+/**
+ * Splits `name` and `slug`, which the block types, from the extra columns
+ * `fields` checks.
+ */
 const splitAttributes = (
   attributes: OrganizationAttributes,
 ): {

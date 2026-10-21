@@ -1,8 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * The block and recipe pages' fallback while their URL data streams in after
- * a navigation. It keeps the header, hero and first section in place.
+ * The block and recipe pages' fallback while their URL data streams in after a
+ * navigation. It keeps the header, hero and first section in place.
  */
 export function DetailSkeleton() {
   return (

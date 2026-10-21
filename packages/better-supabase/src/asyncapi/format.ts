@@ -313,12 +313,7 @@ function serverFrom(
 
   const pathname = parsed.pathname === "/" ? undefined : parsed.pathname;
 
-  return omitUndefined({
-    host: parsed.host,
-    protocol,
-    pathname,
-    ...fields,
-  });
+  return omitUndefined({ host: parsed.host, protocol, pathname, ...fields });
 }
 
 interface Placed {
@@ -592,9 +587,7 @@ function lowerAsyncApi(
           continue;
         }
 
-        refs.push({
-          $ref: `#/channels/${key}/messages/${messageKey}`,
-        });
+        refs.push({ $ref: `#/channels/${key}/messages/${messageKey}` });
       }
 
       addOperation(
@@ -872,11 +865,11 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
 
 /**
  * AsyncAPI as a `DocumentFormat`, for the events the API model describes:
- * Realtime table change signals and broadcast topics on the Supabase
- * Realtime websocket (`ws` bindings), CloudEvents (headers as the
- * `cloudEvent` message trait), outgoing webhooks over HTTP and the events
- * HTTP operations emit. 3.0 is the default; 3.1 only adds `ros2` bindings,
- * so the two documents differ in the `asyncapi` field.
+ * Realtime table change signals and broadcast topics on the Supabase Realtime
+ * websocket (`ws` bindings), CloudEvents (headers as the `cloudEvent` message
+ * trait), outgoing webhooks over HTTP and the events HTTP operations emit. 3.0
+ * is the default; 3.1 only adds `ros2` bindings, so the two documents differ in
+ * the `asyncapi` field.
  */
 export const asyncapiFormat: DocumentFormat<
   "asyncapi",

@@ -30,7 +30,10 @@ export interface IdentitiesOptions extends BlockTemporalOptions {
    * `backfillVerifiedEmails`.
    */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the methods (ADR 0015). */
@@ -66,15 +69,18 @@ export interface LinkedIdentity {
 
 /** The `identities` SQL module as typed calls. */
 export interface Identities {
-  /** Signed-in user: issues a one-time code for the bot or the mail side to redeem. */
+  /**
+   * Signed-in user: issues a one-time code for the bot or the mail side to
+   * redeem.
+   */
   readonly beginLink: (
     kind: IdentityRef["kind"],
     provider?: string,
   ) => AsyncResult<LinkCode>;
   /**
-   * Service role: binds `identity` to the user who issued `code`. Pass only
-   * an identity the platform authenticated, such as the author of a signed
-   * Slack event or a DKIM-verified sender.
+   * Service role: binds `identity` to the user who issued `code`. Pass only an
+   * identity the platform authenticated, such as the author of a signed Slack
+   * event or a DKIM-verified sender.
    */
   readonly redeemLink: (
     code: string,
@@ -86,9 +92,15 @@ export interface Identities {
   ) => AsyncResult<IdentityTarget | null>;
   /** The caller's identities, oldest first. */
   readonly list: () => AsyncResult<readonly LinkedIdentity[]>;
-  /** Removes one of the caller's identities; `false` when the caller has none with `id`. */
+  /**
+   * Removes one of the caller's identities; `false` when the caller has none
+   * with `id`.
+   */
   readonly unlink: (id: string) => AsyncResult<boolean>;
-  /** Service role: email identities for users confirmed before the module was installed. */
+  /**
+   * Service role: email identities for users confirmed before the module was
+   * installed.
+   */
   readonly backfillVerifiedEmails: () => AsyncResult<number>;
 }
 
@@ -177,11 +189,11 @@ export function createIdentities(options: IdentitiesOptions): Identities {
 }
 
 /**
- * A `PrincipalByIdentity` over the `identities` table, for
- * `createServer(bs, { authorization: { identities: { principalByIdentity } } })`
- * or a chat helper's `principalByIdentity` option. `transport` runs as the
- * service role. A database error rejects, so the caller retries instead of
- * treating a linked author as anonymous.
+ * A `PrincipalByIdentity` over the `identities` table, for `createServer(bs, {
+ * authorization: { identities: { principalByIdentity } } })` or a chat helper's
+ * `principalByIdentity` option. `transport` runs as the service role. A
+ * database error rejects, so the caller retries instead of treating a linked
+ * author as anonymous.
  */
 export function identityResolver(
   transport: BlockTransport,
@@ -192,7 +204,10 @@ export function identityResolver(
   return (identity) => identities.resolve(identity).orThrow();
 }
 
-/** `createIdentities({ transport }).beginLink(kind, provider)`, as the signed-in user. */
+/**
+ * `createIdentities({ transport }).beginLink(kind, provider)`, as the signed-in
+ * user.
+ */
 export function beginLink(
   transport: BlockTransport,
   kind: IdentityRef["kind"],
@@ -201,7 +216,10 @@ export function beginLink(
   return createIdentities({ transport }).beginLink(kind, provider);
 }
 
-/** `createIdentities({ transport }).redeemLink(code, identity)`, as the service role. */
+/**
+ * `createIdentities({ transport }).redeemLink(code, identity)`, as the service
+ * role.
+ */
 export function redeemLink(
   transport: BlockTransport,
   code: string,

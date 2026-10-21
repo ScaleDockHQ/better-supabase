@@ -52,8 +52,8 @@ async function retry() {
 }
 
 /**
- * Render inside `<Suspense>`: a placed order, or the caller's draft (an
- * open cart) with the same id, with its lines, totals and next steps.
+ * Render inside `<Suspense>`: a placed order, or the caller's draft (an open
+ * cart) with the same id, with its lines, totals and next steps.
  */
 export async function OrderDetail({
   params,

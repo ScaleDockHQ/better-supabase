@@ -46,7 +46,10 @@ const supabaseDir = (context: TemplateContext): string =>
 export const libEntry = (context: TemplateContext): string =>
   join(supabaseDir(context), "index.ts");
 
-/** Import path of `lib/supabase/index.ts`: the folder, unless the project keeps `.ts` extensions. */
+/**
+ * Import path of `lib/supabase/index.ts`: the folder, unless the project keeps
+ * `.ts` extensions.
+ */
 function importLib(context: TemplateContext, from: string): string {
   const path = importFrom(context, from, libEntry(context));
 
@@ -55,7 +58,10 @@ function importLib(context: TemplateContext, from: string): string {
     : path.replace(/^(\.\.?\/.+)\/index$/, "$1");
 }
 
-/** Relative import from one project file to another, following the project's extension style. */
+/**
+ * Relative import from one project file to another, following the project's
+ * extension style.
+ */
 export function importFrom(
   context: TemplateContext,
   from: string,
@@ -137,15 +143,24 @@ function functionServer(
   };
 }
 
-/** Edge Functions import `_shared/supabase.ts`, so they don't need the app definition. */
+/**
+ * Edge Functions import `_shared/supabase.ts`, so they don't need the app
+ * definition.
+ */
 export const needsLib = (names: readonly Integration[]): boolean =>
   names.length === 0 || names.some((name) => name !== "edge" && name !== "mcp");
 
-/** The config keys `init` writes next to `preset`, from the convention flags and prompts. */
+/**
+ * The config keys `init` writes next to `preset`, from the convention flags and
+ * prompts.
+ */
 export interface ConventionKeys {
   readonly sql?: object;
   readonly blocks?: object;
-  /** Writes the comment that points the provider access model at `authorization`. */
+  /**
+   * Writes the comment that points the provider access model at
+   * `authorization`.
+   */
   readonly provider?: boolean;
   /** The newest migration, written to `doctor.migrationSafety.since`. */
   readonly migrationSince?: string;
@@ -172,7 +187,10 @@ function literal(value: unknown): string {
   return typeof value === "string" ? quote(value) : JSON.stringify(value);
 }
 
-/** The files `init` writes: the config and, unless `lib` is false, the isomorphic definition. */
+/**
+ * The files `init` writes: the config and, unless `lib` is false, the
+ * isomorphic definition.
+ */
 export function baseFiles(
   context: TemplateContext,
   casing: "camel" | "snake",
@@ -182,10 +200,7 @@ export function baseFiles(
   preset?: string,
   keys: ConventionKeys = {},
 ): TemplateFile[] {
-  const sql = {
-    ...(workflow === "pg-delta" ? {} : { workflow }),
-    ...keys.sql,
-  };
+  const sql = { ...(workflow === "pg-delta" ? {} : { workflow }), ...keys.sql };
 
   const config: TemplateFile = {
     path: "better-supabase.config.ts",

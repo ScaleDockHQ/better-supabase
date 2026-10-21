@@ -111,10 +111,10 @@ export function nodeType(node: DriveNode): DriveFileType {
 export const DRIVE_ROOT = "root";
 
 /**
- * Loaded nodes as tree data, in the `dataLoader` shape tree components
- * built on headless-tree (such as ReUI's tree) take: `getItem`,
- * `getChildren`, plus `isFolder` and `name` for `isItemFolder` and
- * `getItemName`. Children keep the order the nodes came in.
+ * Loaded nodes as tree data, in the `dataLoader` shape tree components built on
+ * headless-tree (such as ReUI's tree) take: `getItem`, `getChildren`, plus
+ * `isFolder` and `name` for `isItemFolder` and `getItemName`. Children keep the
+ * order the nodes came in.
  */
 export interface DriveTreeData {
   readonly rootItemId: string;

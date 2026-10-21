@@ -33,8 +33,8 @@ export type Loaded<T> =
   | { readonly kind: "error" };
 
 /**
- * Runs a cached loader. A failed read throws inside the loader, so it is
- * never cached and Retry reads again.
+ * Runs a cached loader. A failed read throws inside the loader, so it is never
+ * cached and Retry reads again.
  */
 export async function settle<T>(
   load: () => Promise<T | null>,
@@ -56,9 +56,9 @@ export interface WorkBoardData {
 }
 
 /**
- * The stages of the organization's default work item pipeline and the items
- * on it. No pipeline yet means no items: creating the first item seeds one.
- * Throws on a failed read, so the private cache never keeps an error.
+ * The stages of the organization's default work item pipeline and the items on
+ * it. No pipeline yet means no items: creating the first item seeds one. Throws
+ * on a failed read, so the private cache never keeps an error.
  */
 export async function getWorkBoard(
   teamId: string | null,
@@ -236,11 +236,7 @@ export async function getWorkViews(): Promise<
     return {
       id: view.id,
       name: view.name,
-      query: parseWorkGridQuery({
-        q: query.q,
-        sort: query.sort,
-        state,
-      }),
+      query: parseWorkGridQuery({ q: query.q, sort: query.sort, state }),
     };
   });
 }

@@ -59,7 +59,10 @@ export function registerCore(server: object, core: AnyCore): void {
   cores.set(server, core);
 }
 
-/** Copies the registration from `from` to `to` (`extendServer` builds a new object). */
+/**
+ * Copies the registration from `from` to `to` (`extendServer` builds a new
+ * object).
+ */
 export function shareCore(from: object, to: object): void {
   const core = cores.get(from);
 
@@ -110,9 +113,9 @@ const supportLookups = new WeakMap<
 >();
 
 /**
- * Starts the support lookup for a signed-in caller, so `withTenant` can run
- * the tenant resolver while the support store answers. Other callers never
- * have a support session, so they skip it.
+ * Starts the support lookup for a signed-in caller, so `withTenant` can run the
+ * tenant resolver while the support store answers. Other callers never have a
+ * support session, so they skip it.
  */
 export function startSupportLookup<
   M extends AnyModels,
@@ -136,7 +139,10 @@ export function startSupportLookup<
   supportLookups.set(session, lookup);
 }
 
-/** The support session of a resolved request: the started lookup, else a new one. */
+/**
+ * The support session of a resolved request: the started lookup, else a new
+ * one.
+ */
 export function supportLookup<
   M extends AnyModels,
   F extends AnyFunctions,

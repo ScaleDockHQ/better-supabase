@@ -53,11 +53,11 @@ import type { BetterTanStackStart } from "../src/tanstack-start/create.ts";
 
 /**
  * The structural framework types the adapters declare, checked against the
- * frameworks' real types at the pinned versions, in both directions: what
- * the framework passes fits what the adapter reads, and what the adapter
- * returns fits where the framework takes it. A major release that breaks
- * one fails here; the previous majors still in the
- * peer ranges are checked in `tests/types/frameworks-previous`.
+ * frameworks' real types at the pinned versions, in both directions: what the
+ * framework passes fits what the adapter reads, and what the adapter returns
+ * fits where the framework takes it. A major release that breaks one fails
+ * here; the previous majors still in the peer ranges are checked in
+ * `tests/types/frameworks-previous`.
  */
 describe("framework adapters", () => {
   it("React Router runs the middleware and pass loader arguments", () => {

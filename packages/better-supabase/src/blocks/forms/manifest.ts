@@ -12,9 +12,7 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
   defineBlock({
     name: "forms",
     sql: ["forms"],
-    options: {
-      forms: formsSqlOptions,
-    },
+    options: { forms: formsSqlOptions },
     events: formsEvents,
     create: createForms,
     client: "forms",
@@ -30,9 +28,7 @@ export const signaturesBlock: BlockOf<
 > = defineBlock({
   name: "signatures",
   sql: ["signatures"],
-  options: {
-    signatures: signaturesSqlOptions,
-  },
+  options: { signatures: signaturesSqlOptions },
   events: signaturesEvents,
   create: createSignatures,
   category: "content",

@@ -44,7 +44,10 @@ const PAGES: Readonly<Record<string, string>> = {
   config: "cli/config.mdx",
 };
 
-/** Each global option as help prints it: `--no-color` for a boolean that is on by default. */
+/**
+ * Each global option as help prints it: `--no-color` for a boolean that is on
+ * by default.
+ */
 const globalFlags = Object.entries(GLOBAL_ARGS).map(([name, definition]) =>
   definition.type === "boolean" && "default" in definition
     ? `no-${name}`
@@ -83,7 +86,10 @@ const slug = (heading: string): string =>
     .trim()
     .replaceAll(" ", "-");
 
-/** The text under the heading whose anchor is `anchor`, up to the next heading at its level or above. */
+/**
+ * The text under the heading whose anchor is `anchor`, up to the next heading
+ * at its level or above.
+ */
 function section(text: string, anchor: string): string {
   const lines = text.split("\n");
 
@@ -263,10 +269,12 @@ describe("naming", () => {
     const files = [
       ...(await sources()),
       ...INTEGRATIONS.flatMap((name) =>
-        TEMPLATES[name].files(templateContext).map((file) => ({
-          path: `template ${name}: ${file.path}`,
-          text: file.contents,
-        })),
+        TEMPLATES[name]
+          .files(templateContext)
+          .map((file) => ({
+            path: `template ${name}: ${file.path}`,
+            text: file.contents,
+          })),
       ),
     ];
 

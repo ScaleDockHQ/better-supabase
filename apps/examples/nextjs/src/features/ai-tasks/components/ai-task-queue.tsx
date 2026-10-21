@@ -206,9 +206,9 @@ function TaskRows({ tasks }: { tasks: readonly AiTaskRow[] }) {
 }
 
 /**
- * The caller's scheduled AI tasks, read on the server through
- * `aiTasks.list`, with each task's next occurrence and its latest run.
- * An admin with `ai.admin` sees every task in the organization.
+ * The caller's scheduled AI tasks, read on the server through `aiTasks.list`,
+ * with each task's next occurrence and its latest run. An admin with `ai.admin`
+ * sees every task in the organization.
  */
 export function AiTaskQueue({ read }: { read: AiTasksRead }) {
   const t = useExtracted("aiTasks");

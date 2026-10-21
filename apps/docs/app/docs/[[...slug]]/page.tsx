@@ -9,9 +9,7 @@ import pageSlugs from "@/lib/page-slugs.json" with { type: "json" };
 import { siteUrl } from "@/lib/site-url";
 import { getPageImage, getPagePublicMarkdownUrl, source } from "@/lib/source";
 
-type DocsPageProps = {
-  params: Promise<{ slug?: string[] }>;
-};
+type DocsPageProps = { params: Promise<{ slug?: string[] }> };
 
 export default function Page({ params }: DocsPageProps) {
   // The slug is URL data, so the article sits outside the shared App Shell.

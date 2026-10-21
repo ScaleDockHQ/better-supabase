@@ -69,14 +69,14 @@ const NAMES: ModuleNames = {
       columns: MESSAGE_EMBEDDINGS,
       lifecycle: { user: "user", tenant: "tenant" },
     },
-    documents: {
-      name: "memory_documents",
-      columns: DOCUMENTS,
-    },
+    documents: { name: "memory_documents", columns: DOCUMENTS },
   },
 };
 
-/** A path under `/memories`: segments of letters, digits, dots, dashes, underscores and spaces. */
+/**
+ * A path under `/memories`: segments of letters, digits, dots, dashes,
+ * underscores and spaces.
+ */
 const PATH_PATTERN = "^/memories(/[A-Za-z0-9._ -]+)*$";
 
 /** The namespaces a memory belongs to. */

@@ -18,9 +18,7 @@ const MODULES = [
 ];
 
 const layout: ModuleLayout = {
-  modules: {
-    parties: { options: { extraColumns: { segment: "text" } } },
-  },
+  modules: { parties: { options: { extraColumns: { segment: "text" } } } },
 };
 
 describe.skipIf(!live)("parties", () => {

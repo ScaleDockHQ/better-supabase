@@ -247,9 +247,7 @@ describe("loadSnapshot", () => {
     const loaded = await loadSnapshot(
       config({}, root),
       {},
-      {
-        snapshotPath: "snap.json",
-      },
+      { snapshotPath: "snap.json" },
     );
 
     expect(loaded.extras.tables).toHaveLength(fixture.extras.tables.length);

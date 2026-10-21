@@ -51,9 +51,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
 
-  const bs = createHono(betterSupabase, {
-    env,
-  });
+  const bs = createHono(betterSupabase, { env });
 
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
@@ -121,9 +119,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
       `/api/customers?q=${encodeURIComponent(name)}`,
     );
 
-    expect(await found.json()).toMatchObject({
-      items: [{ id: row.id, name }],
-    });
+    expect(await found.json()).toMatchObject({ items: [{ id: row.id, name }] });
 
     const hidden = await call(OTHER, `/api/customers/${row.id}`);
     expect(hidden.status).toBe(404);

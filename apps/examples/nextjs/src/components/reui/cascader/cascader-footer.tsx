@@ -33,8 +33,8 @@ import { cn } from "@/lib/utils";
  * dismiss both; hence `CascaderSubmenu` registering with the root to turn one
  * Escape into two. `Combobox.List` clicks its highlighted row on Enter, hence
  * the footer sitting outside `CascaderList`. And a `Positioner` throws without
- * its `Portal`, while `modal` stays `false` on the `Root` so the combobox
- * keeps its own dismissal behaviour.
+ * its `Portal`, while `modal` stays `false` on the `Root` so the combobox keeps
+ * its own dismissal behaviour.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -59,8 +59,8 @@ const FOOTER_SWALLOWED_KEYS = new Set([
 export type CascaderFooterProps = React.ComponentProps<"div">;
 
 /**
- * Actions pinned below the list, a SIBLING of `CascaderList`. Children win
- * over the root's `actions` prop; with neither it renders nothing.
+ * Actions pinned below the list, a SIBLING of `CascaderList`. Children win over
+ * the root's `actions` prop; with neither it renders nothing.
  */
 function CascaderFooter({
   className,
@@ -380,9 +380,9 @@ export interface CascaderSubmenuProps {
 }
 
 /**
- * A footer row plus the flyout it opens. Registers with the cascader root
- * while open, which turns one Escape into two. Cleared in an EFFECT, so the
- * flyout still reads as open during the event that closed it.
+ * A footer row plus the flyout it opens. Registers with the cascader root while
+ * open, which turns one Escape into two. Cleared in an EFFECT, so the flyout
+ * still reads as open during the event that closed it.
  */
 function CascaderSubmenu({
   open: openProp,
@@ -452,8 +452,8 @@ type CascaderSubmenuTriggerClickEvent = Parameters<
  * attribute for a native `<button>` and takes the row out of the panel's Tab
  * ring, the defect `CascaderAction` documents, and this component exposes no
  * `focusableWhenDisabled` to opt out. Published as `aria-disabled`, with the
- * arrow keys, Enter and Space, and the click closed by hand (`useClick`
- * ignores `defaultPrevented`).
+ * arrow keys, Enter and Space, and the click closed by hand (`useClick` ignores
+ * `defaultPrevented`).
  */
 function CascaderSubmenuTrigger({
   className,

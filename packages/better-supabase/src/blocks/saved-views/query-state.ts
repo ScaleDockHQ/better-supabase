@@ -4,8 +4,8 @@ import type { SavedViewDisplayState, SavedViewState } from "./saved-views.ts";
 
 /**
  * The URL state of a list as nuqs returns it from
- * `useQueryStates(list.nuqs(createParser))`: one key per parser, `null`
- * when the parameter is absent.
+ * `useQueryStates(list.nuqs(createParser))`: one key per parser, `null` when
+ * the parameter is absent.
  */
 export type ListUrlState = Readonly<Record<string, unknown>>;
 
@@ -44,9 +44,9 @@ export function queryFromUrlState(
 }
 
 /**
- * The URL state that opens a view's query: every key in `keys` (the
- * current state's), `null` unless the query sets it, so applying a view
- * clears what the previous one set. The page goes back to the first.
+ * The URL state that opens a view's query: every key in `keys` (the current
+ * state's), `null` unless the query sets it, so applying a view clears what the
+ * previous one set. The page goes back to the first.
  */
 export function urlStateFromQuery(
   query: ListQueryInput<string, string> | undefined,

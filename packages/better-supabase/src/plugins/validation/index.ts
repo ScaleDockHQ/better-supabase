@@ -20,8 +20,8 @@ export interface TableValidators {
 
 export interface ValidationOptions {
   /**
-   * Validators per table key. The `validators` export of a generated
-   * `zod()` or `valibot()` module fits as is.
+   * Validators per table key. The `validators` export of a generated `zod()` or
+   * `valibot()` module fits as is.
    */
   readonly schemas: Readonly<Record<string, TableValidators>>;
 }

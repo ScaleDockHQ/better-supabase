@@ -21,11 +21,12 @@ export interface BlockNaming {
 }
 
 /**
- * Transport middleware that calls each block function by the name the SQL
- * wrote it under: `create_organization` becomes `create_workspace` with
- * `tenant: "workspace"`, then `functions` renames single functions. Wrap
- * a block's transport with it when the config sets `sql.naming` or
- * `blocks.<name>.functions`; `defineBlocks` does it from `blocks.generated.ts`.
+ * Transport middleware that calls each block function by the name the SQL wrote
+ * it under: `create_organization` becomes `create_workspace` with `tenant:
+ * "workspace"`, then `functions` renames single functions. Wrap a block's
+ * transport with it when the config sets `sql.naming` or
+ * `blocks.<name>.functions`; `defineBlocks` does it from
+ * `blocks.generated.ts`.
  */
 export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
   const names = tenantNames(naming.tenant);

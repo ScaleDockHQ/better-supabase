@@ -69,7 +69,10 @@ function group(
   }));
 }
 
-/** Every framework, frontend, runtime and SDK better-supabase has a docs page for. */
+/**
+ * Every framework, frontend, runtime and SDK better-supabase has a docs page
+ * for.
+ */
 export const integrations: readonly Integration[] = [
   ...group("Server frameworks", [
     ["Next.js", "/docs/frameworks/next", siNextdotjs],

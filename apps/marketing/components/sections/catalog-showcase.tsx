@@ -9,7 +9,10 @@ import { blockGroups, blocks } from "@/lib/blocks";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-/** The block categories with their scenes, each linking to its section on `/blocks`. */
+/**
+ * The block categories with their scenes, each linking to its section on
+ * `/blocks`.
+ */
 export function CatalogShowcase() {
   const groups = blockGroups();
 

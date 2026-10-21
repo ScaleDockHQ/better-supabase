@@ -115,9 +115,9 @@ interface Adoption {
 }
 
 /**
- * `text` with an adopt-mode entry for each of `blocks` that has a table
- * under one of its default names. A block the config already sets to another
- * mode is left as it is.
+ * `text` with an adopt-mode entry for each of `blocks` that has a table under
+ * one of its default names. A block the config already sets to another mode is
+ * left as it is.
  */
 function adoptBlocks(
   config: ResolvedConfig,
@@ -180,8 +180,8 @@ const describeConflicts = (preset: Preset): string | undefined => {
 };
 
 /**
- * The design `--preset` carries, checked against the blocks the config
- * gets: an extra column needs its block in the preset or the config.
+ * The design `--preset` carries, checked against the blocks the config gets: an
+ * extra column needs its block in the preset or the config.
  */
 function designFor(
   config: ResolvedConfig,
@@ -226,7 +226,10 @@ function describeBreaking(changes: readonly DesignChange[]): string[] {
   ];
 }
 
-/** The statements that rename the tables and columns `changes` renames, in order. */
+/**
+ * The statements that rename the tables and columns `changes` renames, in
+ * order.
+ */
 function renameStatements(changes: readonly DesignChange[]): string[] {
   return changes.flatMap((change) => {
     if (change.from === undefined) {

@@ -1,8 +1,8 @@
 /**
  * The transport-free part of MCP: protocol versions, tool and result shapes,
  * the handshake results and a dispatcher for one JSON-RPC message. The
- * Streamable HTTP server in `mcp.ts` and the CLI's stdio server share it, so
- * it imports nothing from Node.
+ * Streamable HTTP server in `mcp.ts` and the CLI's stdio server share it, so it
+ * imports nothing from Node.
  */
 
 import { jsonReplacer } from "../core/json.ts";
@@ -75,7 +75,10 @@ export interface ServerDescription {
 
 const CAPABILITIES: Json = { tools: { listChanged: false } };
 
-/** A tool result: the value as text, and as `structuredContent` when it is an object. */
+/**
+ * A tool result: the value as text, and as `structuredContent` when it is an
+ * object.
+ */
 export function textResult(value: unknown, isError = false): ToolResult {
   const structured = isObject(value) ? value : undefined;
 
@@ -151,8 +154,8 @@ const response = (id: JsonRpcRequest["id"], result: Json): Json => ({
 });
 
 /**
- * The JSON-RPC response to one message, or `undefined` for a notification.
- * It answers `initialize`, `server/discover`, `ping`, `tools/list` and
+ * The JSON-RPC response to one message, or `undefined` for a notification. It
+ * answers `initialize`, `server/discover`, `ping`, `tools/list` and
  * `tools/call`, for message-based transports such as stdio.
  */
 export async function answerMessage(

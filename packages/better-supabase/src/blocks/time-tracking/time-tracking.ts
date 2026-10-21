@@ -40,13 +40,16 @@ export interface TimeTrackingOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the entry's extra columns
-   * (`blocks.time-tracking.options.extraColumns`), keyed by database name.
-   * It types and parses them on reads, and validates them on `start`, `log`
-   * and `update`.
+   * (`blocks.time-tracking.options.extraColumns`), keyed by database name. It
+   * types and parses them on reads, and validates them on `start`, `log` and
+   * `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -349,22 +352,24 @@ export function createTimeTracking<
         return AsyncResult.err(invalid);
       }
 
-      return fields.args(entry.fields).andThen((checked) =>
-        call(
-          "start_timer",
-          {
-            tenant: organizationId,
-            subject_type: entry.subjectType ?? null,
-            subject_id: entry.subjectId ?? null,
-            billable: entry.billable ?? false,
-            rate: entry.rate === undefined ? null : amountText(entry.rate),
-            rate_currency: entry.rate?.currency ?? null,
-            note: entry.note ?? null,
-            fields: checked,
-          },
-          (value) => entryOf(value, "start_timer"),
-        ).andThen(fields.row),
-      );
+      return fields
+        .args(entry.fields)
+        .andThen((checked) =>
+          call(
+            "start_timer",
+            {
+              tenant: organizationId,
+              subject_type: entry.subjectType ?? null,
+              subject_id: entry.subjectId ?? null,
+              billable: entry.billable ?? false,
+              rate: entry.rate === undefined ? null : amountText(entry.rate),
+              rate_currency: entry.rate?.currency ?? null,
+              note: entry.note ?? null,
+              fields: checked,
+            },
+            (value) => entryOf(value, "start_timer"),
+          ).andThen(fields.row),
+        );
     },
     stop: (organizationId) =>
       call("stop_timer", { tenant: organizationId }, (value) =>
@@ -385,25 +390,27 @@ export function createTimeTracking<
         return AsyncResult.err(invalid);
       }
 
-      return fields.args(input.fields).andThen((checked) =>
-        call(
-          "log_time",
-          {
-            tenant: organizationId,
-            started_at: instantArg(input.startedAt),
-            ended_at: instantArg(input.endedAt),
-            subject_type: input.subjectType ?? null,
-            subject_id: input.subjectId ?? null,
-            billable: input.billable ?? false,
-            rate: input.rate === undefined ? null : amountText(input.rate),
-            rate_currency: input.rate?.currency ?? null,
-            note: input.note ?? null,
-            user_id: input.userId ?? null,
-            fields: checked,
-          },
-          (value) => entryOf(value, "log_time"),
-        ).andThen(fields.row),
-      );
+      return fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "log_time",
+            {
+              tenant: organizationId,
+              started_at: instantArg(input.startedAt),
+              ended_at: instantArg(input.endedAt),
+              subject_type: input.subjectType ?? null,
+              subject_id: input.subjectId ?? null,
+              billable: input.billable ?? false,
+              rate: input.rate === undefined ? null : amountText(input.rate),
+              rate_currency: input.rate?.currency ?? null,
+              note: input.note ?? null,
+              user_id: input.userId ?? null,
+              fields: checked,
+            },
+            (value) => entryOf(value, "log_time"),
+          ).andThen(fields.row),
+        );
     },
     update: (entryId, patch) => {
       const invalid = rateError(patch.rate);
@@ -412,19 +419,21 @@ export function createTimeTracking<
         return AsyncResult.err(invalid);
       }
 
-      return fields.args(patch.fields).andThen((checked) =>
-        call(
-          "update_time_entry",
-          {
-            entry_id: entryId,
-            patch: {
-              ...patchOf(patch),
-              ...(checked === undefined ? {} : { fields: checked }),
+      return fields
+        .args(patch.fields)
+        .andThen((checked) =>
+          call(
+            "update_time_entry",
+            {
+              entry_id: entryId,
+              patch: {
+                ...patchOf(patch),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
             },
-          },
-          (value) => entryOf(value, "update_time_entry"),
-        ).andThen(fields.row),
-      );
+            (value) => entryOf(value, "update_time_entry"),
+          ).andThen(fields.row),
+        );
     },
     remove: (entryId) =>
       call("delete_time_entry", { entry_id: entryId }, (value) =>

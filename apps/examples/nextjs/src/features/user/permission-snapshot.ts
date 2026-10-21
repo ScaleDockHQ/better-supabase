@@ -21,9 +21,9 @@ interface PermissionSnapshot {
 }
 
 /**
- * The caller's permissions, cached per user. `bs.cached()` tags the entry
- * with the session and snapshot tags, and keeps it no longer than the token
- * or the snapshot.
+ * The caller's permissions, cached per user. `bs.cached()` tags the entry with
+ * the session and snapshot tags, and keeps it no longer than the token or the
+ * snapshot.
  */
 export async function getPermissionSnapshot(): Promise<PermissionSnapshot> {
   "use cache: private";

@@ -14,14 +14,17 @@ import type {
 export interface ChatIdentityOptions {
   /** Wins over `server.authorization.identities.principalByIdentity`. */
   readonly principalByIdentity?: PrincipalByIdentity;
-  /** `createServer(...)`: its `authorization` hooks fill the slots this call leaves out. */
+  /**
+   * `createServer(...)`: its `authorization` hooks fill the slots this call
+   * leaves out.
+   */
   readonly server?: { readonly authorization: AuthorizationHooks | undefined };
 }
 
 /**
- * The `IdentityRef` of a Chat SDK author: `kind: "chat"`, the adapter name
- * as the provider and the platform's user id. Pass `workspace` (a Slack
- * team id) when one app serves several workspaces.
+ * The `IdentityRef` of a Chat SDK author: `kind: "chat"`, the adapter name as
+ * the provider and the platform's user id. Pass `workspace` (a Slack team id)
+ * when one app serves several workspaces.
  */
 export function chatIdentityOf(
   author: Pick<Author, "userId">,
@@ -36,7 +39,10 @@ export function chatIdentityOf(
   };
 }
 
-/** The user or contact `identity` is linked to; `null` without a resolver or a link. */
+/**
+ * The user or contact `identity` is linked to; `null` without a resolver or a
+ * link.
+ */
 export async function resolveChatAuthor(
   identity: IdentityRef,
   options: ChatIdentityOptions,
@@ -48,7 +54,10 @@ export async function resolveChatAuthor(
   return resolve ? ((await resolve(identity)) ?? null) : null;
 }
 
-/** What a bot job is enqueued with: a ticket for a linked user, nothing otherwise. */
+/**
+ * What a bot job is enqueued with: a ticket for a linked user, nothing
+ * otherwise.
+ */
 export interface BotJobEnqueueOptions {
   readonly ticket?: string;
 }
@@ -61,9 +70,8 @@ export interface BotJobsOptions<P, R> extends ChatIdentityOptions {
    */
   readonly enqueue: (payload: P, options: BotJobEnqueueOptions) => R;
   /**
-   * Issues the opaque ticket the job runs as for a linked user. The
-   * provider's `tickets.subject` turns it back into that user's context
-   * in `forContext`.
+   * Issues the opaque ticket the job runs as for a linked user. The provider's
+   * `tickets.subject` turns it back into that user's context in `forContext`.
    */
   readonly ticketFor: (userId: string) => string | Promise<string>;
 }
@@ -78,9 +86,9 @@ export interface EnqueuedBotJob<R> {
 export interface BotJobs<P, R> {
   /**
    * Resolves the author, then enqueues `payload` with a ticket for a linked
-   * user. An unlinked author, or one linked to a contact, gets no ticket
-   * and no user context; the job never falls back to the bot's service
-   * role. A resolver or ticket error rejects without enqueuing.
+   * user. An unlinked author, or one linked to a contact, gets no ticket and no
+   * user context; the job never falls back to the bot's service role. A
+   * resolver or ticket error rejects without enqueuing.
    */
   enqueue(author: IdentityRef, payload: P): Promise<EnqueuedBotJob<R>>;
 }
@@ -138,7 +146,10 @@ export type ChatActionDecision =
   | {
       readonly allowed: true;
       readonly author: IdentityTarget;
-      /** The user who acts: the linked author, or the user the hook named for a contact. */
+      /**
+       * The user who acts: the linked author, or the user the hook named for a
+       * contact.
+       */
       readonly userId?: string;
     }
   | { readonly allowed: false; readonly reason: ChatActionRefusal };
@@ -149,10 +160,10 @@ export interface ChatActionsOptions extends ChatIdentityOptions {
 }
 
 /**
- * Decides a chat button press through the provider: the author is
- * resolved, then `onAction(action, author)` runs. Everything but
- * `allowed: true` refuses, and an unlinked author is refused before the
- * hook runs. Act on the decision, never on the button alone.
+ * Decides a chat button press through the provider: the author is resolved,
+ * then `onAction(action, author)` runs. Everything but `allowed: true` refuses,
+ * and an unlinked author is refused before the hook runs. Act on the decision,
+ * never on the button alone.
  */
 export function chatActions(
   options: ChatActionsOptions,
@@ -227,8 +238,8 @@ export interface ApprovalPromptOptions {
 
 /**
  * The approval page URL for `request`, with `kind` and `subject` as query
- * parameters. Opening it approves nothing: the signed-in approver decides
- * on the page, and the page's server action or POST route checks them.
+ * parameters. Opening it approves nothing: the signed-in approver decides on
+ * the page, and the page's server action or POST route checks them.
  */
 export function approvalLink(
   page: string | URL,

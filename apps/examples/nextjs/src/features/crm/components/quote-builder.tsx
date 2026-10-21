@@ -32,9 +32,9 @@ import { QuoteStatusBadge } from "./quote-status-badge";
 
 // #region recipe:quote-builder
 /**
- * Render inside `<Suspense>`: a quote's line items and totals. A draft (or
- * a quote with changes requested) is editable; the status decides what
- * comes next: send, record the customer's answer, or revise.
+ * Render inside `<Suspense>`: a quote's line items and totals. A draft (or a
+ * quote with changes requested) is editable; the status decides what comes
+ * next: send, record the customer's answer, or revise.
  */
 export async function QuoteBuilder({
   params,

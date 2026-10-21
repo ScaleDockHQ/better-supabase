@@ -591,10 +591,7 @@ describe("postgresExecutor maxAffected", () => {
       context,
     );
 
-    expect(result.ok && result.data).toEqual({
-      rows: [{ id: "a" }],
-      count: 1,
-    });
+    expect(result.ok && result.data).toEqual({ rows: [{ id: "a" }], count: 1 });
     expect(fake.calls[0]!.text).toMatch(
       /select m\.row from m cross join c where c\.n >= 0$/,
     );

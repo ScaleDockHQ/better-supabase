@@ -27,7 +27,10 @@ const PAYMENT_STATUSES =
 /** Payment statuses a late webhook can't move a payment back from. */
 const SETTLED = "('succeeded', 'failed', 'canceled')";
 
-/** `order_json(order)`: the order with its lines, payments, fulfillments, returns and refunds. */
+/**
+ * `order_json(order)`: the order with its lines, payments, fulfillments,
+ * returns and refunds.
+ */
 function orderJson(ctx: ModuleContext, names: OrdersNames): string {
   const o = columns(ctx, "orders");
   const ol = columns(ctx, "orderLines");
@@ -143,8 +146,8 @@ function reserveLines(ctx: ModuleContext, minutes: number): string {
 
 /**
  * The SQL that turns each line's reservation into a sale once the order is
- * paid. An expired hold is released and the stock taken directly; a line
- * the stock can't cover any more is marked backordered.
+ * paid. An expired hold is released and the stock taken directly; a line the
+ * stock can't cover any more is marked backordered.
  */
 function commitLines(ctx: ModuleContext): string {
   if (!ctx.installed("inventory")) {

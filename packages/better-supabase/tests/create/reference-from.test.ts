@@ -32,10 +32,7 @@ describe("referenceFrom refusals", () => {
   test("names the problem", () => {
     expect(
       referenceFrom(design, data, preset, "x", "public.pairs"),
-    ).toMatchObject({
-      ok: false,
-      error: "x is not in the design.",
-    });
+    ).toMatchObject({ ok: false, error: "x is not in the design." });
     expect(
       referenceFrom(design, data, preset, "notes", "public.nowhere"),
     ).toMatchObject({ ok: false, error: "That table is not in the schema." });

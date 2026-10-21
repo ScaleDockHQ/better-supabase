@@ -14,9 +14,7 @@ export const timeTrackingBlock: BlockOf<
 > = defineBlock({
   name: "time-tracking",
   sql: ["time-tracking"],
-  options: {
-    "time-tracking": timeTrackingSqlOptions,
-  },
+  options: { "time-tracking": timeTrackingSqlOptions },
   events: timeTrackingEvents,
   create: createTimeTracking,
   category: "people",

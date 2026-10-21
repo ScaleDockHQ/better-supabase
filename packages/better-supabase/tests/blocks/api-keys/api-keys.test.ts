@@ -410,9 +410,7 @@ describe("apiKeyResolver", () => {
       keys: {
         verify: () =>
           createApiKeys({
-            transport: {
-              call: () => Promise.reject(new Error("down")),
-            },
+            transport: { call: () => Promise.reject(new Error("down")) },
           }).verify(token),
       },
     });

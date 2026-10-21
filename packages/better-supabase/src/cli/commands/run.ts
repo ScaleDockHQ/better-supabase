@@ -44,9 +44,9 @@ export interface RunContext {
 }
 
 /**
- * Runs a command with the stack's variables set. They override the shell,
- * and frameworks never override a variable that is already set, so they win
- * over `.env.local` too.
+ * Runs a command with the stack's variables set. They override the shell, and
+ * frameworks never override a variable that is already set, so they win over
+ * `.env.local` too.
  */
 export async function runWithStackEnv(
   config: ResolvedConfig,

@@ -34,8 +34,8 @@ export interface BookingsOptions<
    * A Standard Schema for the booking columns the app adds
    * (`blocks.bookings.options.extraColumns`), keyed by column name. The
    * customer object of `hold` and `public.hold` carries them; the schema
-   * validates them there, which returns a `validation` error for a bad
-   * value, and types and parses them on every booking read.
+   * validates them there, which returns a `validation` error for a bad value,
+   * and types and parses them on every booking read.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -47,7 +47,10 @@ export interface BookingsOptions<
 /** The queue each hold enqueues a job on, to expire it when its time is up. */
 export const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
 
-/** A duration as a `Temporal.Duration` or an ISO 8601 / Postgres interval string. */
+/**
+ * A duration as a `Temporal.Duration` or an ISO 8601 / Postgres interval
+ * string.
+ */
 export type BookingDuration = Temporal.Duration | string;
 
 export interface BookingRange {
@@ -58,18 +61,27 @@ export interface BookingRange {
 export interface BookingResourceInput {
   readonly id?: string;
   readonly name?: string;
-  /** What the resource is, matched against a service's `resourceKinds`. Default `staff`. */
+  /**
+   * What the resource is, matched against a service's `resourceKinds`. Default
+   * `staff`.
+   */
   readonly kind?: string;
   /** How many bookings can overlap: seats in a class, desks in a room. Default 1. */
   readonly capacity?: number;
   /** The IANA zone its weekly hours are in. Default `UTC`. */
   readonly tz?: string;
-  /** The calendar confirmed bookings are copied into, when the calendar block is installed. */
+  /**
+   * The calendar confirmed bookings are copied into, when the calendar block is
+   * installed.
+   */
   readonly calendarId?: string | null;
   readonly active?: boolean;
 }
 
-/** Weekly opening hours: `weekday` 1 is Monday, times are `HH:MM` in the resource's zone. */
+/**
+ * Weekly opening hours: `weekday` 1 is Monday, times are `HH:MM` in the
+ * resource's zone.
+ */
 export interface WeeklyHours {
   readonly weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   readonly start: string;
@@ -79,7 +91,10 @@ export interface WeeklyHours {
 export interface BookingExceptionInput {
   readonly startsAt: Temporal.Instant;
   readonly endsAt: Temporal.Instant;
-  /** `true` opens the resource outside its hours. Default `false`, which closes it. */
+  /**
+   * `true` opens the resource outside its hours. Default `false`, which closes
+   * it.
+   */
   readonly available?: boolean;
   readonly reason?: string;
 }
@@ -141,7 +156,10 @@ export interface Booking {
   readonly cancelReason?: string;
 }
 
-/** A new booking with the token that confirms or cancels it without signing in. Shown once. */
+/**
+ * A new booking with the token that confirms or cancels it without signing in.
+ * Shown once.
+ */
 export interface PlacedBooking extends Booking {
   readonly accessToken: string;
 }
@@ -210,7 +228,10 @@ export interface Bookings<F extends object = Record<never, never>> {
   expireHolds(): AsyncResult<number>;
   /** The handler for the `bookings.expire-holds` queue. */
   readonly job: JobHandler<unknown>;
-  /** The public side, through a share link to a service (`subjectType: "booking_service"`). */
+  /**
+   * The public side, through a share link to a service (`subjectType:
+   * "booking_service"`).
+   */
   readonly public: {
     service(token: string): AsyncResult<PublicBookingService>;
     slots(
@@ -224,10 +245,7 @@ export interface Bookings<F extends object = Record<never, never>> {
       resourceId: string,
       startsAt: Temporal.Instant,
       customer: BookingCustomer &
-        Partial<F> & {
-          readonly name: string;
-          readonly email: string;
-        },
+        Partial<F> & { readonly name: string; readonly email: string },
     ): AsyncResult<PlacedBooking & F>;
     confirm(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
     cancel(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
@@ -294,7 +312,10 @@ const idOf = (value: unknown): { readonly id: string } => ({
   id: textOf(recordOf(value, "result")["id"]),
 });
 
-/** The jsonb item a save takes: durations as ISO 8601 strings, undefined keys left out. */
+/**
+ * The jsonb item a save takes: durations as ISO 8601 strings, undefined keys
+ * left out.
+ */
 function itemOf(input: object): Record<string, unknown> {
   const item: Record<string, unknown> = {};
 

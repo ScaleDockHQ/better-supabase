@@ -223,10 +223,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      data: {
-        userId,
-        removed: { "bs-it-documents": 2, "bs-it-shared": 1 },
-      },
+      data: { userId, removed: { "bs-it-documents": 2, "bs-it-shared": 1 } },
     });
     expect(await documents.connect(service).list({ userId }).orThrow()).toEqual(
       [],

@@ -40,7 +40,10 @@ export interface BulkActionArgs {
   };
   readonly "trash.trash": Readonly<Record<string, never>>;
   readonly "collections.add": { readonly collectionId: string };
-  /** Sets editable columns of an app table row; values are cast to the column types. */
+  /**
+   * Sets editable columns of an app table row; values are cast to the column
+   * types.
+   */
   readonly "appTables.set": {
     readonly values: Readonly<Record<string, unknown>>;
   };
@@ -50,7 +53,10 @@ type ArgsOf<A extends string> = A extends keyof BulkActionArgs
   ? BulkActionArgs[A]
   : Readonly<Record<string, unknown>>;
 
-/** The rows to act on: ids, or a function that resolves them (a list query's filter tree). */
+/**
+ * The rows to act on: ids, or a function that resolves them (a list query's
+ * filter tree).
+ */
 export type BulkRows =
   | readonly string[]
   | (() => PromiseLike<readonly string[]>);
@@ -66,7 +72,10 @@ export interface BulkInput<A extends string = string> {
 export interface BulkRowResult {
   readonly id: string;
   readonly ok: boolean;
-  /** The failing row's hint (such as `TAG_SUBJECT_FORBIDDEN`), message and SQLSTATE. */
+  /**
+   * The failing row's hint (such as `TAG_SUBJECT_FORBIDDEN`), message and
+   * SQLSTATE.
+   */
   readonly error: {
     readonly code: string | undefined;
     readonly message: string;
@@ -127,8 +136,8 @@ export interface BulkOptions {
   readonly mappers?: readonly ErrorMapper[];
   /**
    * `blocks.bulk.options.limit`, which `defineBlocks` passes from
-   * `blocks.generated.ts`: more rows than this start a background run.
-   * Defaults to 500.
+   * `blocks.generated.ts`: more rows than this start a background run. Defaults
+   * to 500.
    */
   readonly limit?: number;
 }
@@ -140,7 +149,10 @@ export interface BulkDrainOptions {
 }
 
 export interface Bulk {
-  /** Runs one action on every row in one call (up to the limit), with a result per row. */
+  /**
+   * Runs one action on every row in one call (up to the limit), with a result
+   * per row.
+   */
   run<A extends string>(
     input: BulkInput<A> & { readonly atomic?: boolean },
   ): AsyncResult<BulkResult>;
@@ -154,7 +166,10 @@ export interface Bulk {
   step(id: string, size?: number): AsyncResult<BulkProgress>;
   /** Service role: steps until the run is done or `signal` aborts. */
   drain(id: string, options?: BulkDrainOptions): AsyncResult<BulkProgress>;
-  /** A handler for the jobs queue `bulk`: `jobs.work({ handlers: { bulk: bulk.handler() } })`. */
+  /**
+   * A handler for the jobs queue `bulk`: `jobs.work({ handlers: { bulk:
+   * bulk.handler() } })`.
+   */
   handler(
     options?: Omit<BulkDrainOptions, "signal">,
   ): (payload: unknown, job: unknown, signal: AbortSignal) => Promise<void>;

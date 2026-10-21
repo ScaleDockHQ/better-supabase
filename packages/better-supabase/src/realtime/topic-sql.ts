@@ -21,12 +21,12 @@ export interface TopicPermissionSql {
 }
 
 /**
- * The receive condition for a topic's instance permission. With the
- * provider's `permitted` template it asks about the instance in the topic
- * (`{permission}`, `{id}` and `{tenant}` as text, `{resource}` as a text
- * literal, `{scope}` unquoted). Without one it falls back to the access
- * contract's tenant check, `tenant_ids_with(permission)` on the tenant
- * segment, and a topic without a tenant segment is refused.
+ * The receive condition for a topic's instance permission. With the provider's
+ * `permitted` template it asks about the instance in the topic (`{permission}`,
+ * `{id}` and `{tenant}` as text, `{resource}` as a text literal, `{scope}`
+ * unquoted). Without one it falls back to the access contract's tenant check,
+ * `tenant_ids_with(permission)` on the tenant segment, and a topic without a
+ * tenant segment is refused.
  */
 export function topicPermissionSql(input: TopicPermissionSql): string {
   const { where, key, tenantSegment } = input;
@@ -152,8 +152,8 @@ export interface TriggerLookupSql {
 
 /**
  * The lookups of one generated function. Each parent row is read once per
- * changed row, with every column the topics, values and payload need from
- * it, and a row comes before the rows that join through it.
+ * changed row, with every column the topics, values and payload need from it,
+ * and a row comes before the rows that join through it.
  */
 export class TriggerLookups {
   readonly #byRow = new Map<string, TriggerLookupSql & { columns: string[] }>();

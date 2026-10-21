@@ -76,7 +76,10 @@ export interface Employee<F extends object = Record<never, never>> {
   readonly organizationId: string;
   readonly name: string;
   readonly email?: string;
-  /** The account, when the employee has one; contractors and interns often don't. */
+  /**
+   * The account, when the employee has one; contractors and interns often
+   * don't.
+   */
   readonly userId?: string;
   readonly jobTitle?: string;
   readonly teamId?: string;
@@ -212,7 +215,10 @@ export interface Employees<F extends object = Record<never, never>> {
   ): AsyncResult<Employee<F>>;
   /** Applies each change on its own; one that fails doesn't stop the others. */
   update(changes: readonly EmployeeChange[]): AsyncResult<EmployeeChangeResult>;
-  /** Sets the end date (today by default) and moves the reports to the employee's manager. */
+  /**
+   * Sets the end date (today by default) and moves the reports to the
+   * employee's manager.
+   */
   offboard(
     employeeId: string,
     options?: {
@@ -231,9 +237,8 @@ export interface Employees<F extends object = Record<never, never>> {
     options?: { readonly indirect?: boolean },
   ): AsyncResult<readonly OrgChartEntry<F>[]>;
   /**
-   * The employee for a hired application (the hiring module), in
-   * preboarding, made once. `overrides` replaces what the candidate and
-   * the job give.
+   * The employee for a hired application (the hiring module), in preboarding,
+   * made once. `overrides` replaces what the candidate and the job give.
    */
   fromApplication(
     applicationId: string,
@@ -258,8 +263,8 @@ export interface EmployeesOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the extra columns
-   * (`blocks.employees.options.extraColumns`), keyed by column name.
-   * It types and parses `fields` on reads and validates them on writes.
+   * (`blocks.employees.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Employees<FieldsOf<S>>>>;
@@ -284,7 +289,10 @@ const argsOf = (input: object): Record<string, unknown> =>
     Object.entries(input).map(([key, value]) => [key, argOf(value)]),
   );
 
-/** A contract as `add_employee_contract` reads it: the salary as text and its currency. */
+/**
+ * A contract as `add_employee_contract` reads it: the salary as text and its
+ * currency.
+ */
 function contractArgs(input: ContractInput): Record<string, unknown> {
   const { salary, ...rest } = input;
 
@@ -336,13 +344,15 @@ function employeeOf(value: unknown): Employee {
 
 function contactsOf(value: unknown): readonly EmergencyContact[] {
   return Array.isArray(value)
-    ? value.filter(isRecord).map((item) =>
-        compact<EmergencyContact>({
-          name: textOf(item["name"]),
-          phone: optionalText(item["phone"]),
-          relation: optionalText(item["relation"]),
-        }),
-      )
+    ? value
+        .filter(isRecord)
+        .map((item) =>
+          compact<EmergencyContact>({
+            name: textOf(item["name"]),
+            phone: optionalText(item["phone"]),
+            relation: optionalText(item["relation"]),
+          }),
+        )
     : [];
 }
 
@@ -397,9 +407,9 @@ const BUILT_IN: ReadonlySet<string> = new Set<EmployeeField>([
 ]);
 
 /**
- * The employees block: the people an organization employs, their manager,
- * team and status, the org chart, offboarding, and private details and
- * contracts behind employees.view_sensitive.
+ * The employees block: the people an organization employs, their manager, team
+ * and status, the org chart, offboarding, and private details and contracts
+ * behind employees.view_sensitive.
  */
 export function createEmployees<
   S extends StandardSchemaV1 | undefined = undefined,

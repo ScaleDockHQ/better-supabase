@@ -1,6 +1,6 @@
 /**
- * Twelve islands in one render, each its own private-cache scope.
- * Run with `pnpm --filter better-supabase bench`.
+ * Twelve islands in one render, each its own private-cache scope. Run with
+ * `pnpm --filter better-supabase bench`.
  */
 import { clearVerifiedTokens } from "../../src/auth/resolve.ts";
 import { defineSupabase } from "../../src/core/define.ts";

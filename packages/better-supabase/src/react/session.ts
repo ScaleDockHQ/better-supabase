@@ -33,10 +33,11 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
 }
 
 /**
- * The session from the nearest `<SessionProvider>`. Suspends until the
- * promise resolves, so render it inside `<Suspense>`. `C` types the claims
- * (the output of `betterSupabase.claims(schema)`) and `P` the profile (the output of
- * `betterSupabase.userMetadata(schema)`); `createHooks().useSession` infers both.
+ * The session from the nearest `<SessionProvider>`. Suspends until the promise
+ * resolves, so render it inside `<Suspense>`. `C` types the claims (the output
+ * of `betterSupabase.claims(schema)`) and `P` the profile (the output of
+ * `betterSupabase.userMetadata(schema)`); `createHooks().useSession` infers
+ * both.
  */
 export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
   const promise = useContext(SessionContext);
@@ -53,7 +54,8 @@ export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
 
 /**
  * The support session the page renders in, for a "Viewing as" banner, or
- * `undefined` for a normal session. Needs `<SessionProvider>` like `useSession`.
+ * `undefined` for a normal session. Needs `<SessionProvider>` like
+ * `useSession`.
  */
 export function useSupportSession(): SupportView | undefined {
   return supportOf(useSession());

@@ -1,7 +1,7 @@
 /**
- * Regenerates the Vue, Svelte and Solid entries of the blocks with a
- * controller (`src/blocks/<name>/{vue,svelte,solid}/index.ts`) from their
- * `client.ts`. `--check` lists stale files instead of writing them.
+ * Regenerates the Vue, Svelte and Solid entries of the blocks with a controller
+ * (`src/blocks/<name>/{vue,svelte,solid}/index.ts`) from their `client.ts`.
+ * `--check` lists stale files instead of writing them.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";

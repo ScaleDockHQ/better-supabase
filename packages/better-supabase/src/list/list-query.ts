@@ -70,17 +70,23 @@ export interface ListQueryConfig<
   P extends ListPagination = ListPagination,
 > {
   /**
-   * Also count rows per facet value, with one grouped aggregate per facet
-   * that runs next to the page: one wave. Needs PostgREST aggregates.
+   * Also count rows per facet value, with one grouped aggregate per facet that
+   * runs next to the page: one wave. Needs PostgREST aggregates.
    */
   readonly facetCounts?: C;
-  /** How the page total is counted. Defaults to `'planned'`, the planner's estimate. */
+  /**
+   * How the page total is counted. Defaults to `'planned'`, the planner's
+   * estimate.
+   */
   readonly count?: CountMode;
   /** Text columns matched case-insensitively (OR), or a full-text column. */
   readonly search?:
     | readonly TextColumn<M, T>[]
     | { readonly fts: Column<M, T>; readonly config?: string };
-  /** Filterable columns by URL key. Values are validated against enums and CHECK unions. */
+  /**
+   * Filterable columns by URL key. Values are validated against enums and CHECK
+   * unions.
+   */
   readonly facets?: { readonly [K in F]: Column<M, T> };
   /**
    * Fields a filter tree (ReUI Filters' `FilterQuery`) may name, by field id.
@@ -175,7 +181,10 @@ export interface OpenApiParameter {
 }
 
 export interface ListParseOptions {
-  /** IANA time zone that date filters resolve in, such as the request's. Defaults to `UTC`. */
+  /**
+   * IANA time zone that date filters resolve in, such as the request's.
+   * Defaults to `UTC`.
+   */
   readonly timeZone?: string;
 }
 
@@ -234,7 +243,10 @@ export interface ListDefinition<
   ): ListParseResult<S, F>;
   /** `FilterField` objects for ReUI Filters, with labels you can translate. */
   filterFields(labels?: FilterFieldLabels): FilterField[];
-  /** The repository `where` of the query's filter tree; relative dates resolve against `clock.now`. */
+  /**
+   * The repository `where` of the query's filter tree; relative dates resolve
+   * against `clock.now`.
+   */
   filterWhere(
     query: ListQuery<S, F>,
     clock?: Pick<FilterClock, "now">,
@@ -245,19 +257,26 @@ export interface ListDefinition<
   >;
   /** URL params, leaving out defaults. */
   toSearchParams(query: Partial<ListQuery<S, F>>): URLSearchParams;
-  /** `{ parse, serialize }` per URL key, for routers and nuqs (`list.nuqs(createParser)`). */
+  /**
+   * `{ parse, serialize }` per URL key, for routers and nuqs
+   * (`list.nuqs(createParser)`).
+   */
   readonly parsers: ListParsers<S, F>;
   nuqs<P>(createParser: (spec: ParserSpec<unknown>) => P): {
     readonly [K in keyof ListParsers<S, F>]: P;
   };
-  /** Repository arguments: `where`, `orderBy`, `size`, and `page` and `count` or `after`. */
+  /**
+   * Repository arguments: `where`, `orderBy`, `size`, and `page` and `count` or
+   * `after`.
+   */
   args(
     query: ListQuery<S, F>,
     clock?: Pick<FilterClock, "now">,
   ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T>;
   /**
    * Runs the list against a table, merging your `select`, `include`, `where`
-   * and `count`. One request, plus one per facet for `facetCounts`, always one wave.
+   * and `count`. One request, plus one per facet for `facetCounts`, always one
+   * wave.
    */
   run<const A extends ListExtra<M, T> & FindExt<E, M, T>>(
     db: { readonly [K in T]: RepositoryOf<M, K, E> },
@@ -284,7 +303,10 @@ export type ListParsers<S extends string, F extends string> = {
   readonly page: ParserSpec<number>;
   readonly after: ParserSpec<string>;
   readonly size: ParserSpec<number>;
-  /** The filter tree as base64url JSON, when the list has `filters`; `parse` checks it. */
+  /**
+   * The filter tree as base64url JSON, when the list has `filters`; `parse`
+   * checks it.
+   */
   readonly filter?: ParserSpec<FilterQuery>;
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
@@ -361,17 +383,24 @@ function toInt(raw: unknown): number | undefined {
 }
 
 /**
- * A reusable list endpoint for one table: search, facets, sorts and
- * pagination, validated from URL params or typed input, with URL parsers,
- * OpenAPI parameters and a JSON Schema derived from the same definition.
+ * A reusable list endpoint for one table: search, facets, sorts and pagination,
+ * validated from URL params or typed input, with URL parsers, OpenAPI
+ * parameters and a JSON Schema derived from the same definition.
  *
  * ```ts
- * export const customerList = defineListQuery(betterSupabase, 'customers', {
- *   search: ['name', 'kvk'],
- *   facets: { status: 'status' },
- *   sorts: { name: { name: 'asc' }, newest: [{ createdAt: 'desc' }, { id: 'asc' }] },
- *   defaultSort: 'newest',
- * });
+ * export const customerList = defineListQuery(
+ *   betterSupabase,
+ *   "customers",
+ *   {
+ *     search: ["name", "kvk"],
+ *     facets: { status: "status" },
+ *     sorts: {
+ *       name: { name: "asc" },
+ *       newest: [{ createdAt: "desc" }, { id: "asc" }],
+ *     },
+ *     defaultSort: "newest",
+ *   },
+ * );
  * ```
  */
 export function defineListQuery<

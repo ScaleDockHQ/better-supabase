@@ -130,7 +130,10 @@ function refreshBranch(subject: RegisteredSubject): string {
       v_found := found;`;
 }
 
-/** Whether a subject's table is an app table, which exists only after every block file. */
+/**
+ * Whether a subject's table is an app table, which exists only after every
+ * block file.
+ */
 function isAppTable(ctx: ModuleContext, subject: RegisteredSubject): boolean {
   return subject.schema === "public" && ctx.appTables.has(subject.table);
 }
@@ -147,8 +150,8 @@ create trigger ${trigger}
 }
 
 /**
- * When `search_reindex` reads a subject's rows. An app table may not
- * exist yet when the block's data runs, so its branch checks first.
+ * When `search_reindex` reads a subject's rows. An app table may not exist yet
+ * when the block's data runs, so its branch checks first.
  */
 function reindexCondition(
   ctx: ModuleContext,
@@ -174,9 +177,9 @@ function triggers(
 }
 
 /**
- * The indexing triggers on the app tables that are subjects with a
- * `search` entry, which the app tables file adds once the tables exist.
- * `ctx` is the search module's context.
+ * The indexing triggers on the app tables that are subjects with a `search`
+ * entry, which the app tables file adds once the tables exist. `ctx` is the
+ * search module's context.
  */
 export function appTableSearchTriggers(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
@@ -758,11 +761,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "search_recents", args: ["integer", "text[]"], returns: "jsonb" },
-    {
-      name: "search_favorites",
-      args: ["integer", "text[]"],
-      returns: "jsonb",
-    },
+    { name: "search_favorites", args: ["integer", "text[]"], returns: "jsonb" },
     { name: "search_touch", args: ["text", "text"], returns: "boolean" },
     {
       name: "search_star",

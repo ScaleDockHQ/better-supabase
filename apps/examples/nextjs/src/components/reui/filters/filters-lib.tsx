@@ -255,7 +255,8 @@ export function isFilterBranch<V, O>(field: FilterField<V, O>): boolean {
 
 /**
  * Whether a field DECLARES itself filterable on: leaves always, a branch only
- * with `selectable`. The shipped pickers ignore it, see `isFilterFieldPickable`.
+ * with `selectable`. The shipped pickers ignore it, see
+ * `isFilterFieldPickable`.
  */
 export function isFilterFieldSelectable<V, O>(
   field: FilterField<V, O>,
@@ -345,7 +346,10 @@ export function filterCombinatorSlot(index: number): FilterCombinatorSlot {
 /*                                   Matching                                 */
 /* -------------------------------------------------------------------------- */
 
-/** `toLocaleLowerCase`, so Turkish dotted and dotless i fold as a reader expects. */
+/**
+ * `toLocaleLowerCase`, so Turkish dotted and dotless i fold as a reader
+ * expects.
+ */
 export function foldFilterText(text: string): string {
   return text.toLocaleLowerCase();
 }

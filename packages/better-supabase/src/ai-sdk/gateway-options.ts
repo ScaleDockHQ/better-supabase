@@ -15,12 +15,12 @@ export interface GatewayContext {
 export type GatewayOptions = { readonly [key: string]: JSONValue | undefined };
 
 /**
- * `providerOptions` for `streamText` and agents that attribute the spend in
- * the AI Gateway: `user` is the user id, and `tags` name the tenant, the chat
- * and the feature, then the context's own `tags`. `extra` adds gateway
- * options such as `order` or `zeroDataRetention`; its `tags` are appended.
- * `user` comes from `context.userId` only: an `extra.user` is dropped, so a
- * request body or a model can't change whom the spend is attributed to.
+ * `providerOptions` for `streamText` and agents that attribute the spend in the
+ * AI Gateway: `user` is the user id, and `tags` name the tenant, the chat and
+ * the feature, then the context's own `tags`. `extra` adds gateway options such
+ * as `order` or `zeroDataRetention`; its `tags` are appended. `user` comes from
+ * `context.userId` only: an `extra.user` is dropped, so a request body or a
+ * model can't change whom the spend is attributed to.
  */
 export function gatewayOptions(
   context: GatewayContext,

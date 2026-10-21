@@ -13,9 +13,9 @@ export interface TenantNames {
   /** Whether the names differ from `organization`. */
   readonly renamed: boolean;
   /**
-   * A default identifier with the tenant concept renamed:
-   * `create_organization` becomes `create_workspace`, `organizations`
-   * becomes `workspaces` and `organization_id` becomes `workspace_id`.
+   * A default identifier with the tenant concept renamed: `create_organization`
+   * becomes `create_workspace`, `organizations` becomes `workspaces` and
+   * `organization_id` becomes `workspace_id`.
    */
   rename(identifier: string): string;
 }

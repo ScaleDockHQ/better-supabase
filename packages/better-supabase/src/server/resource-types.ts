@@ -48,7 +48,10 @@ export interface ResourceContext<DbT = unknown> {
 
 type HookResult<T> = Result<T> | PromiseLike<Result<T>>;
 
-/** The target of an item operation or action. `row` is set when a permission check fetched it. */
+/**
+ * The target of an item operation or action. `row` is set when a permission
+ * check fetched it.
+ */
 export interface ResourceTarget<R> {
   readonly id?: unknown;
   readonly data?: unknown;
@@ -63,8 +66,8 @@ export interface ResourcePage<R> {
 }
 
 /**
- * Business logic around the repository. Every hook returns a `Result`; an
- * error `Result` ends the request with that error, and a throw becomes an
+ * Business logic around the repository. Every hook returns a `Result`; an error
+ * `Result` ends the request with that error, and a throw becomes an
  * `unexpected` error. Hooks run after the authorizer.
  */
 export interface ResourceHooks<
@@ -103,7 +106,10 @@ export interface ResourceHooks<
   afterUpdate?(ctx: ResourceContext<DbT>, row: Row<M, T>): HookResult<unknown>;
 }
 
-/** What an action handler receives besides the context: values already validated. */
+/**
+ * What an action handler receives besides the context: values already
+ * validated.
+ */
 export interface ActionArgs<I = unknown, Q = unknown> {
   /** The parsed key, for item actions (`/{id}/send`). */
   readonly id: unknown;
@@ -149,8 +155,8 @@ export interface ResourceRouteOptions<
   };
   /**
    * Paging of the default list: `offset` (`page` and `size`) or `cursor`
-   * (`after` and `size`, keyset). A `list` query brings its own. Defaults
-   * to `cursor`, or `offset` for a table or view without a primary key.
+   * (`after` and `size`, keyset). A `list` query brings its own. Defaults to
+   * `cursor`, or `offset` for a table or view without a primary key.
    */
   readonly pagination?: ResourcePagination;
   /** Largest page for the default list. Defaults to 200. */
@@ -174,7 +180,10 @@ export interface ResourceHandler<Ref = string> {
   readonly table: string;
   readonly meta: TableMeta;
   readonly operations: readonly ResourceOperation[];
-  /** Name of the key parameter, or `undefined` for tables without a single-column key. */
+  /**
+   * Name of the key parameter, or `undefined` for tables without a
+   * single-column key.
+   */
   readonly keyParam: string | undefined;
   readonly list: ResourceList | undefined;
   readonly pagination: ResourcePagination;
@@ -193,7 +202,10 @@ export interface ResourceHandler<Ref = string> {
     name: string,
     input?: ResourceInput,
   ): Promise<Result<unknown>>;
-  /** Serves a collection request (`id` undefined) or an item request. Actions are not routed. */
+  /**
+   * Serves a collection request (`id` undefined) or an item request. Actions
+   * are not routed.
+   */
   handle(
     request: Request,
     db: object,
@@ -201,9 +213,9 @@ export interface ResourceHandler<Ref = string> {
     options?: RespondOptions,
   ): Promise<Response>;
   /**
-   * Serves the collection (`[]`), an item (`[id]`) or an action path
-   * (`[id, "send"]`), below the resource's own path. A string is split on `/`
-   * and decoded.
+   * Serves the collection (`[]`), an item (`[id]`) or an action path (`[id,
+   * "send"]`), below the resource's own path. A string is split on `/` and
+   * decoded.
    */
   serve(
     request: Request,

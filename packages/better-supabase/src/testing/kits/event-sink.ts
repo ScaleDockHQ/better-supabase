@@ -12,13 +12,19 @@ import {
 } from "../conformance.ts";
 
 export interface TestEventSinkOptions {
-  /** Events the sink delivered, for sinks that can be read back (an outbox, a test queue). */
+  /**
+   * Events the sink delivered, for sinks that can be read back (an outbox, a
+   * test queue).
+   */
   readonly received?: () =>
     | readonly CloudEvent[]
     | Promise<readonly CloudEvent[]>;
 }
 
-/** Proves an `EventSink` accepts empty and full batches without mutating them, and delivers them when readable. */
+/**
+ * Proves an `EventSink` accepts empty and full batches without mutating them,
+ * and delivers them when readable.
+ */
 export function testEventSink(
   sink: EventSink,
   options: TestEventSinkOptions = {},

@@ -11,9 +11,9 @@ interface Pending {
 }
 
 /**
- * A signal that aborts once every reader's signal has, so one reader giving
- * up never cancels the operations of the others. `undefined` when a reader
- * has no signal.
+ * A signal that aborts once every reader's signal has, so one reader giving up
+ * never cancels the operations of the others. `undefined` when a reader has no
+ * signal.
  */
 function allAborted(
   signals: readonly (AbortSignal | undefined)[],

@@ -93,11 +93,7 @@ const NAMES: ModuleNames = {
     redemptions: {
       name: "invite_code_redemptions",
       lifecycle: { user: "user" },
-      columns: {
-        code: "code_id",
-        user: "user_id",
-        redeemedAt: "redeemed_at",
-      },
+      columns: { code: "code_id", user: "user_id", redeemedAt: "redeemed_at" },
     },
   },
 };
@@ -105,10 +101,10 @@ const NAMES: ModuleNames = {
 const FIELD = /^[a-z][a-z0-9_]{0,62}$/;
 
 /**
- * The roles an invite code may grant: `options.roles`, else every role of
- * the `roles` or `catalog` model but the owner. Under the `provider` and
- * `custom` models the roles are not in the config, so codes grant none
- * unless `options.roles` lists them.
+ * The roles an invite code may grant: `options.roles`, else every role of the
+ * `roles` or `catalog` model but the owner. Under the `provider` and `custom`
+ * models the roles are not in the config, so codes grant none unless
+ * `options.roles` lists them.
  */
 function assignableRoles(ctx: ModuleContext): readonly string[] {
   const owner = ctx.installed("organizations")

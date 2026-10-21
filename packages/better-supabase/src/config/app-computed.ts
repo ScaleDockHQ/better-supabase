@@ -251,9 +251,9 @@ function entriesOf(where: string, value: unknown): [string, unknown][] {
 }
 
 /**
- * The `rollups` and `lookups` of the app table `name`, checked against
- * every resolved app table. `taken` holds the columns the table already
- * has, which a computed column may not reuse.
+ * The `rollups` and `lookups` of the app table `name`, checked against every
+ * resolved app table. `taken` holds the columns the table already has, which a
+ * computed column may not reuse.
  */
 export function computedOf(
   where: string,

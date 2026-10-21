@@ -112,7 +112,10 @@ function envOf(env: ServerOptions["env"]): BetterSupabaseEnv {
   return isLoadedEnv(env) ? env : loadEnv(env);
 }
 
-/** An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded env. */
+/**
+ * An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded
+ * env.
+ */
 function isLoadedEnv(
   env: BetterSupabaseEnv | EnvSource,
 ): env is BetterSupabaseEnv {
@@ -127,8 +130,8 @@ const needsPostgres = (method: string) =>
 
 /**
  * A framework adapter's server: `server` plus the adapter's own methods,
- * without reading the lazy `env` getter. `extra` can't replace a
- * `BetterServer` method.
+ * without reading the lazy `env` getter. `extra` can't replace a `BetterServer`
+ * method.
  */
 export function extendServer<R extends object>(
   server: object,
@@ -149,8 +152,8 @@ export function extendServer<R extends object>(
 }
 
 /**
- * Server-side entry point for APIs, jobs, MCP servers and framework
- * adapters. Holds the secrets; `betterSupabase` stays isomorphic.
+ * Server-side entry point for APIs, jobs, MCP servers and framework adapters.
+ * Holds the secrets; `betterSupabase` stays isomorphic.
  */
 export function createServer<
   M extends AnyModels,
@@ -308,9 +311,9 @@ export function createServer<
     : supportOff;
 
   /**
-   * The target's context in a support session. Queries run over direct
-   * Postgres with the target's claims plus `act`, read-only unless the
-   * session allows writes; nothing reaches Supabase with the admin's token.
+   * The target's context in a support session. Queries run over direct Postgres
+   * with the target's claims plus `act`, read-only unless the session allows
+   * writes; nothing reaches Supabase with the admin's token.
    */
   const supportContextFor = (
     resolution: AuthResolution<C, P>,
@@ -504,7 +507,10 @@ export function createServer<
     };
   };
 
-  /** Clients and repositories are built on first access: most scopes use one of them. */
+  /**
+   * Clients and repositories are built on first access: most scopes use one of
+   * them.
+   */
   const contextFor = (
     resolution: AuthResolution<C, P>,
     requestHeaders: Readonly<Record<string, string>>,
@@ -720,7 +726,10 @@ export function createServer<
     return resolution;
   };
 
-  /** One context per request and `refresh`/`cookies` pair: Server Components ask repeatedly. */
+  /**
+   * One context per request and `refresh`/`cookies` pair: Server Components ask
+   * repeatedly.
+   */
   const contextMemo = new WeakMap<
     Request,
     Map<string, Promise<ServerContext<M, F, E, C, P, B>>>
@@ -1015,9 +1024,8 @@ export function createServer<
 
 /**
  * The permission keys the provider's `delegation.permissions` hook grants a
- * delegated context, `undefined` for a context that is not delegated or
- * without the hook. A throw or an answer that is not a list of strings
- * grants nothing.
+ * delegated context, `undefined` for a context that is not delegated or without
+ * the hook. A throw or an answer that is not a list of strings grants nothing.
  */
 async function delegationCap(
   context: RequestContext,
@@ -1057,10 +1065,10 @@ async function delegationCap(
 }
 
 /**
- * The context `forContext` runs as: `context` itself, or for a context
- * with a ticket, the context `resolve` returns for it. A ticket without a
- * resolver, a `null` answer and a throw are `forbidden`; none of them fall
- * back to the recorded actor.
+ * The context `forContext` runs as: `context` itself, or for a context with a
+ * ticket, the context `resolve` returns for it. A ticket without a resolver, a
+ * `null` answer and a throw are `forbidden`; none of them fall back to the
+ * recorded actor.
  */
 async function ticketSubject(
   context: RequestContext,

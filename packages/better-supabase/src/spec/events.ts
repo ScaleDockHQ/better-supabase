@@ -33,18 +33,18 @@ import {
 export type BlockEventSchema<T> = StandardSchemaV1<unknown, T>;
 
 /**
- * Data schemas for block events, by event type, typed by an event map such
- * as `EventMapOf<typeof commentsEvents>`. `true` documents the event with an
- * open payload. A block can export its own map of this type.
+ * Data schemas for block events, by event type, typed by an event map such as
+ * `EventMapOf<typeof commentsEvents>`. `true` documents the event with an open
+ * payload. A block can export its own map of this type.
  */
 export type BlockEventSchemas<M extends EventMap = EventMap> = {
   readonly [K in keyof M & string]?: true | BlockEventSchema<M[K]>;
 };
 
 /**
- * A Realtime broadcast topic. A `defineTopic()` result fits as it is, with
- * its event and presence schemas, `send` and `permission`; `topicsFrom()`
- * collects them from a module.
+ * A Realtime broadcast topic. A `defineTopic()` result fits as it is, with its
+ * event and presence schemas, `send` and `permission`; `topicsFrom()` collects
+ * them from a module.
  */
 export interface TopicInput<Ref = string> {
   readonly template: string;
@@ -56,8 +56,8 @@ export interface TopicInput<Ref = string> {
   /** Payload schema per broadcast event; `true` for an open payload. */
   readonly events?: Readonly<Record<string, StandardLike | true>>;
   /**
-   * Clients may broadcast on the topic, not only receive. Only `true`
-   * counts, so a `defineTopic()` result's `send` method is ignored.
+   * Clients may broadcast on the topic, not only receive. Only `true` counts,
+   * so a `defineTopic()` result's `send` method is ignored.
    */
   readonly send?: boolean | ((...args: never[]) => unknown);
   /** The same as `send: true`; what a `defineTopic()` result carries. */
@@ -70,11 +70,13 @@ export interface TopicInput<Ref = string> {
 }
 
 /**
- * Whether a value is a `defineTopic()` result: a template string and the
- * `sql`, `trigger` and `subscribe` methods. `better-supabase sql sync` and
- * `spec` use the same check.
+ * Whether a value is a `defineTopic()` result: a template string and the `sql`,
+ * `trigger` and `subscribe` methods. `better-supabase sql sync` and `spec` use
+ * the same check.
  */
-function isTopicLike(value: unknown): value is TopicInput & {
+function isTopicLike(
+  value: unknown,
+): value is TopicInput & {
   sql(...args: never[]): string;
   trigger(...args: never[]): string;
 } {
@@ -88,13 +90,16 @@ function isTopicLike(value: unknown): value is TopicInput & {
 }
 
 /**
- * The `defineTopic()` results in modules or arrays, for `events.topics`.
- * A module's topics are keyed by export name; a topic in an array by its
- * `name`. Other values are skipped, and a topic reached twice is kept once.
+ * The `defineTopic()` results in modules or arrays, for `events.topics`. A
+ * module's topics are keyed by export name; a topic in an array by its `name`.
+ * Other values are skipped, and a topic reached twice is kept once.
  *
  * ```ts
  * import * as topics from "../realtime/topics";
- * defineApi(betterSupabase, { info, events: { topics: topicsFrom(topics) } });
+ * defineApi(betterSupabase, {
+ *   info,
+ *   events: { topics: topicsFrom(topics) },
+ * });
  * ```
  */
 export function topicsFrom(
@@ -301,9 +306,7 @@ function tableChannels<Ref>(
       protocol: "ws",
       ...(config.user
         ? {
-            parameters: {
-              userId: { description: "The signed-in user's id." },
-            },
+            parameters: { userId: { description: "The signed-in user's id." } },
           }
         : config.tenant
           ? {
@@ -395,11 +398,7 @@ function topicChannels<Ref>(
     ];
 
     if (topic.send === true || topic.clientSend === true || topic.presence) {
-      operations.push({
-        id: `send${keyPart(key)}`,
-        action: "send",
-        ...extra,
-      });
+      operations.push({ id: `send${keyPart(key)}`, action: "send", ...extra });
     }
 
     const params = [...topic.template.matchAll(/\{([^}]+)\}/g)].map(
@@ -566,8 +565,8 @@ export interface EventParts {
 }
 
 /**
- * The built channels and messages first, then the app's own (which win on
- * an id), and the workflows with every `WorkflowSource` run on `operations`.
+ * The built channels and messages first, then the app's own (which win on an
+ * id), and the workflows with every `WorkflowSource` run on `operations`.
  */
 export function eventParts<Ref>(
   options: Pick<

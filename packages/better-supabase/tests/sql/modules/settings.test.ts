@@ -9,9 +9,7 @@ const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, {
-    modules: options ? { settings: { options } } : {},
-  })
+  renderModules(names, { modules: options ? { settings: { options } } : {} })
     .filter((file) => file.contents.includes("user_settings"))
     .map((file) => file.contents)
     .join("\n");

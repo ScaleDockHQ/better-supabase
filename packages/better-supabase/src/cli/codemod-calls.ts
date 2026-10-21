@@ -1,7 +1,7 @@
 /**
  * CLI calls in scripts, for codemods that rename commands or flags. Calls in
- * `package.json` and GitHub workflows are rewritten; calls in other shell
- * files are listed for review, since their quoting and variables vary more.
+ * `package.json` and GitHub workflows are rewritten; calls in other shell files
+ * are listed for review, since their quoting and variables vary more.
  */
 
 /** Rewrites the words after the bin, or returns `undefined` when nothing moved. */
@@ -20,7 +20,10 @@ export const SHELL_FILE: RegExp =
 /** The bin, with an optional `@version`, followed by its arguments. */
 const BIN = /(?<![\w.@-])(?:better-supabase|bsb)(?:@[\w.^~-]+)?(?=[ \t])/g;
 
-/** Where a call's arguments end: a line break, a shell operator, a closing quote or a comment. */
+/**
+ * Where a call's arguments end: a line break, a shell operator, a closing quote
+ * or a comment.
+ */
 const CALL_END = /\r?\n|&&|\|\||[;|)`]|\\?"|\s#/;
 
 /** `pnpm --filter better-supabase <script>` names the package, not the bin. */

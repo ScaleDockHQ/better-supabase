@@ -26,7 +26,10 @@ import {
 } from "../client.ts";
 
 interface ClientOptions {
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks["ai-chat"].api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks["ai-chat"].api`.
+   */
   readonly schema?: string;
 }
 
@@ -45,15 +48,18 @@ function useAiChatClient(schema: string | undefined): AiChat {
 
 export interface UseAiChatsOptions
   extends ClientOptions, Omit<AiChatQuery, "cursor"> {
-  /** The prefix of the list topic (`blockConfig["ai-chat"].options.listTopic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The prefix of the list topic (`blockConfig["ai-chat"].options.listTopic`
+   * from `blocks.generated.ts`); `null` loads once.
+   */
   readonly topic?: string | null;
 }
 
 export interface AiChatsState extends AiChatsSnapshot, AiChatsActions {}
 
 /**
- * The signed-in user's chats in a tenant, newest first, loaded again when
- * any of their chats changes.
+ * The signed-in user's chats in a tenant, newest first, loaded again when any
+ * of their chats changes.
  *
  * ```tsx
  * const { items, loadMore, create } = useAiChats({ organizationId });
@@ -98,7 +104,10 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
 }
 
 export interface UseAiChatTreeOptions extends ClientOptions {
-  /** The prefix of the chat topic (`blockConfig["ai-chat"].options.topic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The prefix of the chat topic (`blockConfig["ai-chat"].options.topic` from
+   * `blocks.generated.ts`); `null` loads once.
+   */
   readonly topic?: string | null;
 }
 
@@ -106,8 +115,8 @@ export interface AiChatTreeState
   extends AiChatTreeSnapshot, AiChatTreeActions {}
 
 /**
- * One chat's active branch, loaded again when a message is saved or the
- * branch changes, in this tab or another.
+ * One chat's active branch, loaded again when a message is saved or the branch
+ * changes, in this tab or another.
  *
  * ```tsx
  * const { path, step } = useAiChatTree(chatId);

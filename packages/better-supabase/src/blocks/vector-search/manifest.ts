@@ -7,8 +7,6 @@ import { vectorSearchSqlOptions } from "./options.ts";
 export const vectorSearchBlock: Block<"vector-search"> = defineBlock({
   name: "vector-search",
   sql: ["vector-search"],
-  options: {
-    "vector-search": vectorSearchSqlOptions,
-  },
+  options: { "vector-search": vectorSearchSqlOptions },
   category: "ai",
 });

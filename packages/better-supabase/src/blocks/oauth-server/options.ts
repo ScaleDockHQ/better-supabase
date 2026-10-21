@@ -11,6 +11,4 @@ export type OAuthServerSqlOptions = {
 };
 
 export const oauthServerSqlOptions: BlockOptionsSchema<OAuthServerSqlOptions> =
-  blockOptions<OAuthServerSqlOptions>({
-    clientIdPattern: option.string(),
-  });
+  blockOptions<OAuthServerSqlOptions>({ clientIdPattern: option.string() });

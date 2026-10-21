@@ -39,10 +39,10 @@ interface DataGridFocusCellOptions {
 interface DataGridCellSelectionApi {
   /**
    * Moves the grid's cell focus AND the document focus together, retrying
-   * briefly while the row mounts, so a freshly created row is typeable
-   * without an extra click. `edit: true` also opens the cell's editor the
-   * way Enter would. Registered once the controller is wired; null while
-   * cell selection is off.
+   * briefly while the row mounts, so a freshly created row is typeable without
+   * an extra click. `edit: true` also opens the cell's editor the way Enter
+   * would. Registered once the controller is wired; null while cell selection
+   * is off.
    */
   focusCell: (
     rowId: string,
@@ -224,9 +224,9 @@ function getDataGridWritableCellEdit<TData extends object>(
     columnDef: { meta?: { cellEdit?: DataGridColumnCellEdit<TData> } };
   },
   /**
-   * The row a write targets. Function-form `editable` is evaluated against
-   * it; without a row the column counts as writable in principle, the
-   * coarse check the fill preview's column filter uses.
+   * The row a write targets. Function-form `editable` is evaluated against it;
+   * without a row the column counts as writable in principle, the coarse check
+   * the fill preview's column filter uses.
    */
   row?: TData,
 ): DataGridColumnCellEdit<TData> | null {
@@ -243,13 +243,13 @@ function getDataGridWritableCellEdit<TData extends object>(
 }
 
 /**
- * Ids of the rows the view can actually show: the page slice plus rows the
- * DOM renders outside it (pinned rows under keepPinnedRows). Selection
- * bounds live in pre-paginated display order, so a range whose corners are
- * both visible can still span off-page rows in between - a page-boundary
- * range to a bottom-pinned draft is the standing example. Every batch walk
- * (copy, clear, paste, fill) filters rows through this set so the cells a
- * batch touches are exactly the cells the selection paints.
+ * Ids of the rows the view can actually show: the page slice plus rows the DOM
+ * renders outside it (pinned rows under keepPinnedRows). Selection bounds live
+ * in pre-paginated display order, so a range whose corners are both visible can
+ * still span off-page rows in between - a page-boundary range to a
+ * bottom-pinned draft is the standing example. Every batch walk (copy, clear,
+ * paste, fill) filters rows through this set so the cells a batch touches are
+ * exactly the cells the selection paints.
  */
 function getDataGridRenderedRowIds<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -276,10 +276,10 @@ function getDataGridRenderedRowIds<TData extends object>(
 }
 
 /**
- * Cells of the current selection the view can actually show, under the
- * same row filter the batch builders use, so a count shown next to the
- * selection always matches what is painted and what a batch will touch.
- * The feature's own getSelectedCellCount spans off-page rows instead.
+ * Cells of the current selection the view can actually show, under the same row
+ * filter the batch builders use, so a count shown next to the selection always
+ * matches what is painted and what a batch will touch. The feature's own
+ * getSelectedCellCount spans off-page rows instead.
  */
 function getDataGridVisibleSelectedCellCount<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -311,11 +311,11 @@ function getDataGridVisibleSelectedCellCount<TData extends object>(
 }
 
 /**
- * The bound of the ACTIVE (most recent) region. getCellSelectionBounds()
- * sorts geometrically, so its last entry is merely the bottom-right
- * rectangle; the focused cell anchors the newest range, so the bound
- * containing it is the active one. Falls back to the geometric last when
- * the focused cell sits in no bound (the newest range was an exclude).
+ * The bound of the ACTIVE (most recent) region. getCellSelectionBounds() sorts
+ * geometrically, so its last entry is merely the bottom-right rectangle; the
+ * focused cell anchors the newest range, so the bound containing it is the
+ * active one. Falls back to the geometric last when the focused cell sits in no
+ * bound (the newest range was an exclude).
  */
 function getDataGridActiveBound<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -342,12 +342,12 @@ function getDataGridActiveBound<TData extends object>(
 }
 
 /**
- * Resolves the cell one visual step away from a given cell: selectable
- * columns for horizontal, RENDERED row order for vertical. The feature's
- * own move/extend resolve rows through the page slice and stall on pinned
- * rows (a bottom-pinned draft), while id-addressed cells work everywhere.
- * "edge" means the step is at the grid boundary; null means the position
- * is not resolvable here and the caller should use the feature's move.
+ * Resolves the cell one visual step away from a given cell: selectable columns
+ * for horizontal, RENDERED row order for vertical. The feature's own
+ * move/extend resolve rows through the page slice and stall on pinned rows (a
+ * bottom-pinned draft), while id-addressed cells work everywhere. "edge" means
+ * the step is at the grid boundary; null means the position is not resolvable
+ * here and the caller should use the feature's move.
  */
 function getDataGridStepTarget<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -374,11 +374,11 @@ function getDataGridStepTarget<TData extends object>(
 }
 
 /**
- * Shift+Arrow: the feature keeps focus on the anchor and grows the range
- * from its active corner. When its own extend cannot resolve the step
- * (the active corner sits on a pinned row, or the next visual row is a
- * pinned row outside the page slice), re-derive the active corner from
- * the bounds and step it in visual space through selectCellRange.
+ * Shift+Arrow: the feature keeps focus on the anchor and grows the range from
+ * its active corner. When its own extend cannot resolve the step (the active
+ * corner sits on a pinned row, or the next visual row is a pinned row outside
+ * the page slice), re-derive the active corner from the bounds and step it in
+ * visual space through selectCellRange.
  */
 function extendDataGridSelection<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -445,8 +445,8 @@ function extendDataGridSelection<TData extends object>(
 /**
  * The active region as formatted strings, row-major. Columns opted out of
  * selection are compacted away, matching the feature's own ranges-data
- * behavior, and rows the view cannot show are skipped when a viewport is
- * given. Null when nothing is selected.
+ * behavior, and rows the view cannot show are skipped when a viewport is given.
+ * Null when nothing is selected.
  */
 function getDataGridActiveRegionGrid<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -542,10 +542,10 @@ type DataGridPasteTarget = {
 };
 
 /**
- * Resolves a parsed clipboard block into a paste batch, Excel semantics:
- * a 1x1 block fills the whole selected region; a block tiles when the region
- * is an exact multiple of it; otherwise it pastes once from the region's
- * top-left, clamped at the grid edges (rows are never grown).
+ * Resolves a parsed clipboard block into a paste batch, Excel semantics: a 1x1
+ * block fills the whole selected region; a block tiles when the region is an
+ * exact multiple of it; otherwise it pastes once from the region's top-left,
+ * clamped at the grid edges (rows are never grown).
  */
 function buildDataGridPasteDetails<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -679,8 +679,8 @@ function buildDataGridPasteDetails<TData extends object>(
 
 /**
  * The inverse batch: every change's value and previousValue swapped and
- * rejections dropped. Feed it through the same state update onCellsChange
- * uses to implement undo; inverting the inverse is redo.
+ * rejections dropped. Feed it through the same state update onCellsChange uses
+ * to implement undo; inverting the inverse is redo.
  */
 function invertDataGridCellsChange<TData extends object>(
   details: DataGridCellsChangeDetails<TData>,
@@ -726,16 +726,16 @@ function selectDataGridRegion<TData extends object>(
  * Imperative document-level session, the column-resize pattern: preview state
  * is written as `data-cell-fill-target` attributes outside React, so the drag
  * costs zero re-renders until release. v1 fills down or right (dominant axis)
- * by repeating the source region's values; rows outside the rendered
- * viewport of a virtualized body cannot be targeted mid-drag.
+ * by repeating the source region's values; rows outside the rendered viewport
+ * of a virtualized body cannot be targeted mid-drag.
  *
- * Vertical distance is measured over the rows the view can show, so a drag
- * onto a pinned draft fills exactly the rows the preview marked and never
- * the off-page rows between. A cross-column fill round-trips through the
- * source's format and the target's parse - the paste contract - because
- * adjacent grid columns are heterogeneous; a parse rejection lands in the
- * batch's rejected list, while cells that cannot be written are skipped
- * and never tinted by the preview.
+ * Vertical distance is measured over the rows the view can show, so a drag onto
+ * a pinned draft fills exactly the rows the preview marked and never the
+ * off-page rows between. A cross-column fill round-trips through the source's
+ * format and the target's parse - the paste contract - because adjacent grid
+ * columns are heterogeneous; a parse rejection lands in the batch's rejected
+ * list, while cells that cannot be written are skipped and never tinted by the
+ * preview.
  */
 // The fill drag's feedback: ONE dashed border (the Sheets fill marquee)
 // around the whole pending region - the source PLUS the extension - so the
@@ -1102,8 +1102,8 @@ function DataGridCellSelection<TData extends object>({
   /** Native copy, cut and paste handling. Defaults to true. */
   clipboard?: boolean;
   /**
-   * Arrows (with Ctrl/Cmd edge jumps), Home/End, PageUp/PageDown, Enter,
-   * F2, type-to-edit, Tab, Ctrl/Cmd+A, Delete, Escape. Defaults to true.
+   * Arrows (with Ctrl/Cmd edge jumps), Home/End, PageUp/PageDown, Enter, F2,
+   * type-to-edit, Tab, Ctrl/Cmd+A, Delete, Escape. Defaults to true.
    */
   keyboard?: boolean;
 }) {
@@ -2370,9 +2370,9 @@ function DataGridCellSelection<TData extends object>({
 
 /**
  * The built-in free-text editor: a portal into the body viewport, positioned
- * flush over the focused cell with the cell's own font, alignment and
- * padding, so the text keeps its exact place - the Sheets model. The
- * `textarea` control grows downward over the rows below as the text wraps.
+ * flush over the focused cell with the cell's own font, alignment and padding,
+ * so the text keeps its exact place - the Sheets model. The `textarea` control
+ * grows downward over the rows below as the text wraps.
  */
 function measureDataGridCellEditorStyle(
   viewport: HTMLElement,
@@ -2570,9 +2570,9 @@ function DataGridCellEditorOverlay({
  * the consumer's controls, and a clear action. Hidden while nothing is
  * selected. What the controls do stays consumer-owned.
  *
- * Presented as a floating toolbar, the Google Sheets way: auto width,
- * centered, elevated, and sticky to the viewport bottom with breathing room,
- * so bulk actions stay reachable while the grid scrolls.
+ * Presented as a floating toolbar, the Google Sheets way: auto width, centered,
+ * elevated, and sticky to the viewport bottom with breathing room, so bulk
+ * actions stay reachable while the grid scrolls.
  */
 function DataGridSelectionBar({
   children,

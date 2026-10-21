@@ -87,9 +87,7 @@ export async function InvitationCard({
               <p className="text-center text-sm text-muted-foreground">
                 {t(
                   "You're signed in as {email}. The invitation only works for its own address.",
-                  {
-                    email: session.user.email ?? "",
-                  },
+                  { email: session.user.email ?? "" },
                 )}
               </p>
             )}

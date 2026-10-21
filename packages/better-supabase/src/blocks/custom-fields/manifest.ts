@@ -14,9 +14,7 @@ export const customFieldsBlock: BlockOf<
 > = defineBlock({
   name: "custom-fields",
   sql: ["custom-fields"],
-  options: {
-    "custom-fields": customFieldsSqlOptions,
-  },
+  options: { "custom-fields": customFieldsSqlOptions },
   events: customFieldsEvents,
   create: createCustomFields,
   category: "work",

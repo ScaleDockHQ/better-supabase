@@ -19,10 +19,10 @@ export interface Notifier {
 }
 
 /**
- * The ports blocks provide and consume, by name. A manifest's `provides`
- * builds a port from its client, and `createBlocks` hands it to the blocks
- * whose `consumes` name it. Every port has one provider in a set of blocks,
- * except `sink`: each block that provides one adds an outbox sink.
+ * The ports blocks provide and consume, by name. A manifest's `provides` builds
+ * a port from its client, and `createBlocks` hands it to the blocks whose
+ * `consumes` name it. Every port has one provider in a set of blocks, except
+ * `sink`: each block that provides one adds an outbox sink.
  */
 export interface BlockPorts {
   /** The `notifications` block. */

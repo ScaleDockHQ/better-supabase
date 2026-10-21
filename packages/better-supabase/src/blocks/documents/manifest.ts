@@ -14,9 +14,7 @@ export const documentsBlock: BlockOf<
 > = defineBlock({
   name: "documents",
   sql: ["documents"],
-  options: {
-    documents: documentsSqlOptions,
-  },
+  options: { documents: documentsSqlOptions },
   events: documentsEvents,
   create: createDocuments,
   category: "content",

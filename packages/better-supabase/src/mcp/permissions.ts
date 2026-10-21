@@ -42,9 +42,8 @@ export function missingRole(
 }
 
 /**
- * The permission a tool needs: the provider's entry for the tool's
- * `operation` (default `mcp.tool.<name>`) first, then the tool's own
- * `permission`.
+ * The permission a tool needs: the provider's entry for the tool's `operation`
+ * (default `mcp.tool.<name>`) first, then the tool's own `permission`.
  */
 export function toolPermission(
   operations: OperationTable | undefined,
@@ -119,8 +118,8 @@ export async function checkTool(
 }
 
 /**
- * Which tools the caller may see, in `tools` order: one batch per
- * permission, and a tool without a permission is always shown.
+ * Which tools the caller may see, in `tools` order: one batch per permission,
+ * and a tool without a permission is always shown.
  */
 export async function permittedTools(
   authorizer: AnyAuthorizer | undefined,

@@ -45,7 +45,10 @@ const DEFAULT_MODEL = "openai/gpt-5-mini";
 /** Without a gateway key the sample answers with a scripted model. */
 const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
 
-/** Durable chats call the model inside workflow steps, which can't run the scripted model. */
+/**
+ * Durable chats call the model inside workflow steps, which can't run the
+ * scripted model.
+ */
 export const durableAvailable = (): boolean => !demoMode();
 
 function languageModel(id: string): LanguageModel {
@@ -66,7 +69,10 @@ export function aiChat(supabase: RpcClient): AiChat {
   });
 }
 
-/** The chat's runs, steps and approvals as the caller; engine writes go through the service role. */
+/**
+ * The chat's runs, steps and approvals as the caller; engine writes go through
+ * the service role.
+ */
 export function aiRuns(supabase: RpcClient): AiRuns {
   return aiChat(supabase).runs;
 }
@@ -90,7 +96,10 @@ function aiProviders(): AiProviders {
   return providersInstance;
 }
 
-/** Adds the organization's own keys (BYOK) to the gateway options, when it saved any. */
+/**
+ * Adds the organization's own keys (BYOK) to the gateway options, when it saved
+ * any.
+ */
 async function withTenantKeys<T extends { readonly gateway: object }>(
   providerOptions: T,
   organizationId: string,
@@ -114,7 +123,10 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
 /** The caller's client: RPC for the blocks, Storage for the files. */
 type UserClient = RpcClient & { readonly storage: AiFileStorage };
 
-/** The files block acting as the caller; the service role stores generated files. */
+/**
+ * The files block acting as the caller; the service role stores generated
+ * files.
+ */
 export function aiFiles(supabase: UserClient): AiFiles {
   return createAiFiles({
     ...generatedOptions(blockConfig["ai-files"]),

@@ -271,11 +271,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "delete_promotion_code", args: ["uuid"], returns: "boolean" },
-    {
-      name: "apply_promotion_code",
-      args: ["uuid", "text"],
-      returns: "jsonb",
-    },
+    { name: "apply_promotion_code", args: ["uuid", "text"], returns: "jsonb" },
     {
       name: "remove_promotion_code",
       args: ["uuid", "text"],

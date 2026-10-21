@@ -14,12 +14,8 @@ export const aiFilesBlock: BlockOf<
 > = defineBlock({
   name: "ai-files",
   sql: ["ai-files"],
-  options: {
-    "ai-files": aiFilesSqlOptions,
-  },
-  provides: {
-    files: (client) => client,
-  },
+  options: { "ai-files": aiFilesSqlOptions },
+  provides: { files: (client) => client },
   create: createAiFiles,
   category: "ai",
 });

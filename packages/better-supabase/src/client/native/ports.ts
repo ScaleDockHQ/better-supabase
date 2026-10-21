@@ -25,7 +25,10 @@ export function nativeStorage(store: KeyValueStoreLike): StoragePort {
   return keyValue(store);
 }
 
-/** The part of `expo-linking` (or React Native's `Linking`) the deep link port uses. */
+/**
+ * The part of `expo-linking` (or React Native's `Linking`) the deep link port
+ * uses.
+ */
 export interface LinkingLike {
   getInitialURL(): Promise<string | null>;
   addEventListener(
@@ -121,7 +124,12 @@ export interface NativePortsOptions {
  * result to `createNativeClient(betterSupabase, supabase, { ports })`.
  *
  * ```ts
- * const ports = nativePorts({ supabase, storage: AsyncStorage, linking: Linking, notifications: Notifications });
+ * const ports = nativePorts({
+ *   supabase,
+ *   storage: AsyncStorage,
+ *   linking: Linking,
+ *   notifications: Notifications,
+ * });
  * ```
  */
 export function nativePorts(options: NativePortsOptions): ClientPorts {

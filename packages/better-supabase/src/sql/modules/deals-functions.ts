@@ -27,7 +27,10 @@ export interface DealNames {
   readonly prefix: string;
   /** SQL that is true for the service role. */
   readonly service: string;
-  /** `options.extraColumns`, which `create_deal` and `update_deals` write by name. */
+  /**
+   * `options.extraColumns`, which `create_deal` and `update_deals` write by
+   * name.
+   */
   readonly extras: readonly ExtraColumn[];
 }
 

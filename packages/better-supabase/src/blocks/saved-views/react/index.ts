@@ -16,7 +16,10 @@ export type { SavedViewLike } from "../client.ts";
 export interface UseSavedViewsOptions<
   V extends SavedViewLike,
 > extends SavedViewsSyncOptions<V> {
-  /** The list's URL state: the values of nuqs `useQueryStates(list.nuqs(createParser))`. */
+  /**
+   * The list's URL state: the values of nuqs
+   * `useQueryStates(list.nuqs(createParser))`.
+   */
   readonly urlState: ListUrlState;
   /** Its setter, which `apply` calls with every key so stale ones clear. */
   readonly setUrlState: (next: Record<string, unknown>) => unknown;
@@ -30,16 +33,19 @@ export interface SavedViewsState<V extends SavedViewLike>
 }
 
 /**
- * Saved views of one list, synced with its URL state and, through
- * `getState` and `onApplyState`, with the table's columns, grouping, density
- * and layout. Pair it with nuqs and a view menu (ReUI's Filters toolbar, a
- * Select or a Tabs list):
+ * Saved views of one list, synced with its URL state and, through `getState`
+ * and `onApplyState`, with the table's columns, grouping, density and layout.
+ * Pair it with nuqs and a view menu (ReUI's Filters toolbar, a Select or a Tabs
+ * list):
  *
  * ```tsx
- * const [urlState, setUrlState] = useQueryStates(tasksList.nuqs(createParser));
+ * const [urlState, setUrlState] = useQueryStates(
+ *   tasksList.nuqs(createParser),
+ * );
  * const views = useSavedViews({
  *   load: () => listViews(organizationId, "tasks"),
- *   save: ({ name, state, id }) => saveView({ organizationId, list: "tasks", name, state, id }),
+ *   save: ({ name, state, id }) =>
+ *     saveView({ organizationId, list: "tasks", name, state, id }),
  *   urlState,
  *   setUrlState,
  *   getState: () => ({ columns, density }),

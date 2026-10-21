@@ -35,7 +35,10 @@ export interface ApiSource {
   readonly plugins?: readonly AnyPlugin[];
 }
 
-/** A resource: its description, `true` for the defaults, or a handler that carries its plan. */
+/**
+ * A resource: its description, `true` for the defaults, or a handler that
+ * carries its plan.
+ */
 export type ResourceInput<Ref = string> =
   | ResourceDescription<Ref>
   | true
@@ -59,7 +62,10 @@ export interface RouteSpec<Ref = string> {
   readonly input?: StandardLike;
   /** The JSON response. Without it (and without `stream`) the route answers 204. */
   readonly output?: StandardLike;
-  /** A stream response: each item's schema (`itemSchema`), by default as `text/event-stream`. */
+  /**
+   * A stream response: each item's schema (`itemSchema`), by default as
+   * `text/event-stream`.
+   */
   readonly stream?: {
     readonly item: StandardLike;
     readonly contentType?: string;
@@ -99,7 +105,10 @@ export type ComponentNameContext =
       readonly operationId: string;
     };
 
-/** Version-neutral hooks on the model. Return a replacement, or nothing to keep it. */
+/**
+ * Version-neutral hooks on the model. Return a replacement, or nothing to keep
+ * it.
+ */
 export interface EnrichHooks {
   readonly operation?: (
     operation: ModelOperation,
@@ -128,7 +137,10 @@ export interface ApiOptions<Ref = string> {
   /** Tables to publish, by app key. */
   readonly resources?: Readonly<Record<string, ResourceInput<Ref>>>;
   readonly routes?: readonly RouteSpec<Ref>[];
-  /** Tables and functions to document as the Supabase Data API (`/rest/v1`), with database names. */
+  /**
+   * Tables and functions to document as the Supabase Data API (`/rest/v1`),
+   * with database names.
+   */
   readonly dataApi?: DataApiOptions;
   /** Parsed OpenAPI fragments, merged over the generated document. */
   readonly fragments?: readonly JsonObject[];
@@ -139,7 +151,10 @@ export interface ApiOptions<Ref = string> {
   /** Shared error responses. Defaults to `DEFAULT_ERRORS`. */
   readonly errors?: readonly ErrorResponse[];
   readonly operationId?: (context: OperationIdContext) => string;
-  /** Names a component; `undefined` keeps the default (tables) or inlines it (schemas). */
+  /**
+   * Names a component; `undefined` keeps the default (tables) or inlines it
+   * (schemas).
+   */
   readonly componentName?: (
     context: ComponentNameContext,
   ) => string | undefined;
@@ -165,7 +180,10 @@ export interface ApiOptions<Ref = string> {
   /** Realtime tables, topics and CloudEvents, as channels and messages. */
   readonly events?: EventsOptions<Ref>;
   readonly webhooks?: readonly ModelWebhook[];
-  /** Workflows, or functions that build them from the operations (the Arazzo built-ins). */
+  /**
+   * Workflows, or functions that build them from the operations (the Arazzo
+   * built-ins).
+   */
   readonly workflows?: readonly (ModelWorkflow | WorkflowSource)[];
   /** Tables with a JSON column typed in `better-supabase.config.ts`. */
   readonly json?: Readonly<Record<string, unknown>>;

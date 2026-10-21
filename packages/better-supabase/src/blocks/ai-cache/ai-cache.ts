@@ -19,7 +19,10 @@ import {
   instantOf,
 } from "../shared.ts";
 
-/** What an entry caches: a whole generation, a replayable stream, embeddings, or anything else. */
+/**
+ * What an entry caches: a whole generation, a replayable stream, embeddings, or
+ * anything else.
+ */
 export type AiCacheKind = "generate" | "stream" | "embed" | "other";
 
 export interface AiCacheEntry<T = unknown> {
@@ -50,13 +53,19 @@ export interface AiCacheOptions extends BlockTemporalOptions {
   readonly logger?: Logger;
   /** Calls as the service role: entries hold prompts and outputs. */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
 
 export interface AiCache {
-  /** The entry under `key`, or `undefined` when there is none or it expired. Counts a hit. */
+  /**
+   * The entry under `key`, or `undefined` when there is none or it expired.
+   * Counts a hit.
+   */
   get<T = unknown>(key: string): AsyncResult<AiCacheEntry<T> | undefined>;
   /** Stores or replaces the entry under `key`. `value` must be JSON. */
   set(
@@ -144,14 +153,17 @@ function canonical(value: unknown): unknown {
 
 /**
  * A cache key for `parts`: SHA-256 of their JSON with object keys sorted, so
- * the same model, prompt and settings give the same key. Bytes count by
- * content and `undefined` fields are left out.
+ * the same model, prompt and settings give the same key. Bytes count by content
+ * and `undefined` fields are left out.
  */
 export function cacheKey(parts: unknown): Promise<string> {
   return sha256Hex(JSON.stringify(canonical(parts) ?? null));
 }
 
-/** Model responses cached in Postgres with a TTL, read and written as the service role. */
+/**
+ * Model responses cached in Postgres with a TTL, read and written as the
+ * service role.
+ */
 export function createAiCache(options: AiCacheOptions): AiCache {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);

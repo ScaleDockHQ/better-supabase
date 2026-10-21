@@ -15,10 +15,10 @@ import {
 } from "../sql/index.ts";
 
 /**
- * A stand-in for the app's authorization provider, so `/create` can render
- * the SQL and the diagram for `access: "provider"`. Its templates call
- * functions in a `provider` schema that no real project has: the preview
- * says so next to the output.
+ * A stand-in for the app's authorization provider, so `/create` can render the
+ * SQL and the diagram for `access: "provider"`. Its templates call functions in
+ * a `provider` schema that no real project has: the preview says so next to the
+ * output.
  */
 export function previewAccessProvider(preset: Preset): ModuleAccessProvider {
   return {
@@ -38,9 +38,8 @@ export function previewAccessProvider(preset: Preset): ModuleAccessProvider {
 
 /**
  * The files `sql sync` writes for a config with only this preset and its
- * `/create` design (app tables and extra columns). With
- * `access: "provider"` the access functions come from
- * `previewAccessProvider`.
+ * `/create` design (app tables and extra columns). With `access: "provider"`
+ * the access functions come from `previewAccessProvider`.
  */
 export function previewFiles(
   code: string,

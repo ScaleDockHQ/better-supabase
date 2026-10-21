@@ -59,9 +59,7 @@ async function asOrganizationMember(organizationId: string) {
   });
 
   return betterSupabase.connect(
-    createClient(url, publishableKey, {
-      accessToken: async () => token,
-    }),
+    createClient(url, publishableKey, { accessToken: async () => token }),
   );
 }
 

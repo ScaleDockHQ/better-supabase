@@ -60,10 +60,10 @@ type Dashboard =
   | { readonly kind: "error" };
 
 /**
- * Every metric in `src/metrics.ts` over the last 30 days: the total against
- * the 30 days before, and one point per day. Cached per session; the
- * metrics module checks `metrics.read` on each read. It throws on a failed
- * read, so a failure is never cached and Retry reads again.
+ * Every metric in `src/metrics.ts` over the last 30 days: the total against the
+ * 30 days before, and one point per day. Cached per session; the metrics module
+ * checks `metrics.read` on each read. It throws on a failed read, so a failure
+ * is never cached and Retry reads again.
  */
 async function loadPanels(
   organizationId: string,

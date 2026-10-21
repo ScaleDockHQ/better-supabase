@@ -56,8 +56,8 @@ export interface CalendarActions {
 export type CalendarController = Controller<CalendarSnapshot, CalendarActions>;
 
 /**
- * The occurrences of some calendars in the visible range, typed for a
- * headless event calendar such as ReUI's Event Calendar.
+ * The occurrences of some calendars in the visible range, typed for a headless
+ * event calendar such as ReUI's Event Calendar.
  */
 export function createCalendarController(
   options: CalendarControllerOptions,

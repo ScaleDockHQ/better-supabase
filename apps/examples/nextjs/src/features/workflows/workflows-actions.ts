@@ -156,8 +156,8 @@ export const cancelRun = bs.action(
 );
 
 /**
- * Creates or replaces a schedule that starts a sample workflow. The tick
- * route starts it as the organization's owner, not as its creator.
+ * Creates or replaces a schedule that starts a sample workflow. The tick route
+ * starts it as the organization's owner, not as its creator.
  */
 export const createSchedule = bs.action(
   {

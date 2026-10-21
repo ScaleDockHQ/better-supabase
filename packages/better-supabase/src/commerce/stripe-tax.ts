@@ -90,8 +90,8 @@ export interface StripeTaxTransactionLine {
 }
 
 /**
- * The part of the Stripe SDK `stripeTax` calls, typed structurally so the
- * block never imports `stripe`.
+ * The part of the Stripe SDK `stripeTax` calls, typed structurally so the block
+ * never imports `stripe`.
  */
 export interface StripeTaxClient {
   readonly tax: {
@@ -124,16 +124,17 @@ export interface StripeTaxClient {
 
 export interface StripeTaxOptions {
   /**
-   * A client, a factory such as `stripeFromKey()` from `better-supabase/stripe`,
-   * or `{ secretKey }` to create one from `stripe` in plain Node.
+   * A client, a factory such as `stripeFromKey()` from
+   * `better-supabase/stripe`, or `{ secretKey }` to create one from `stripe` in
+   * plain Node.
    */
   readonly stripe: StripeSource<StripeTaxClient>;
   /** Defaults to `stripe-tax`. */
   readonly name?: string;
   /**
-   * Stripe tax codes by `taxCategory`, such as `{ ebook: "txcd_10302000" }`.
-   * A category that starts with `txcd_` is passed as is; others without an
-   * entry use the account's default tax code.
+   * Stripe tax codes by `taxCategory`, such as `{ ebook: "txcd_10302000" }`. A
+   * category that starts with `txcd_` is passed as is; others without an entry
+   * use the account's default tax code.
    */
   readonly taxCodes?: Readonly<Record<string, string>>;
 }
@@ -166,7 +167,10 @@ async function allPages<T extends { readonly id: string }>(
 
 const PERCENT = /^(\d+)(?:\.(\d+))?$/;
 
-/** The summed `percentage_decimal`s of a breakdown as a fraction string: "21.0" gives "0.21". */
+/**
+ * The summed `percentage_decimal`s of a breakdown as a fraction string: "21.0"
+ * gives "0.21".
+ */
 function rateOf(
   breakdown: readonly StripeTaxBreakdown[] | null | undefined,
 ): string {
@@ -263,8 +267,8 @@ const addressOf = (address: TaxAddress): Params => ({
 
 /**
  * A `TaxProvider` on Stripe Tax: `quote` creates a calculation, `commit` a
- * transaction from it, and `reverse` a full or partial reversal. `stripe`
- * is an optional peer, loaded on first use when `stripe` is `{ secretKey }`.
+ * transaction from it, and `reverse` a full or partial reversal. `stripe` is an
+ * optional peer, loaded on first use when `stripe` is `{ secretKey }`.
  */
 export function stripeTax(options: StripeTaxOptions): TaxProvider {
   const name = options.name ?? "stripe-tax";

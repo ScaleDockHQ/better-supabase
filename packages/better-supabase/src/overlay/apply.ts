@@ -45,7 +45,10 @@ function readMinor(version: unknown): Minor | undefined {
 /** A plain action after reusable references are expanded. */
 type ResolvedAction = OverlayAction & { readonly [ALLOW_EMPTY]?: boolean };
 
-/** An Action Object needs a string target; the other fields are read defensively. */
+/**
+ * An Action Object needs a string target; the other fields are read
+ * defensively.
+ */
 export const isAction = (
   entry: JsonObject,
 ): entry is JsonObject & ResolvedAction => typeof entry["target"] === "string";
@@ -166,7 +169,10 @@ const escapeToken = (segment: PathSegment): string =>
 const toPointer = (segments: readonly PathSegment[]): string =>
   segments.map(escapeToken).join("");
 
-/** Merges `source` into `target` recursively (§ 4.5.4.1) and collects the conflicting pointers. */
+/**
+ * Merges `source` into `target` recursively (§ 4.5.4.1) and collects the
+ * conflicting pointers.
+ */
 function mergeInto(
   target: JsonObject,
   source: JsonObject,
@@ -550,32 +556,33 @@ function applyInPlace(
 }
 
 /**
- * Applies an Overlay 1.0, 1.1 or 1.2 document to `document` and returns a
- * new document. The input is cloned once with `structuredClone` and never
- * changed; each target runs once through `options.jsonpath`.
+ * Applies an Overlay 1.0, 1.1 or 1.2 document to `document` and returns a new
+ * document. The input is cloned once with `structuredClone` and never changed;
+ * each target runs once through `options.jsonpath`.
  *
- * Actions run in order, each on the result of the previous one (Overlay
- * § 4.5.1.1). `update` merges objects, concatenates or appends to arrays and
+ * Actions run in order, each on the result of the previous one (Overlay §
+ * 4.5.1.1). `update` merges objects, concatenates or appends to arrays and
  * replaces primitives; `remove` deletes the selected nodes; `copy` (1.1 and
  * later) uses the value of the single node its query selects. Reusable action
- * references (1.2) are expanded, with a warning when the overlay declares
- * 1.0 or 1.1.
+ * references (1.2) are expanded, with a warning when the overlay declares 1.0
+ * or 1.1.
  *
  * Problems never throw: they are diagnostics, and the failing action is
- * skipped. A target that selects nothing reports `overlay-no-match` as an
- * error unless the action sets `x-better-supabase-allow-empty: true` or the
- * options set `allowEmpty`. The other codes are `overlay-invalid-target`,
- * `overlay-invalid-action`, `overlay-mixed-targets`,
- * `overlay-merge-conflict`, `overlay-copy-source`, `overlay-ref-unresolved`,
- * `overlay-version-feature`, `overlay-version-unsupported` and
- * `overlay-empty-action`.
+ * skipped. A target that selects nothing reports `overlay-no-match` as an error
+ * unless the action sets `x-better-supabase-allow-empty: true` or the options
+ * set `allowEmpty`. The other codes are `overlay-invalid-target`,
+ * `overlay-invalid-action`, `overlay-mixed-targets`, `overlay-merge-conflict`,
+ * `overlay-copy-source`, `overlay-ref-unresolved`, `overlay-version-feature`,
+ * `overlay-version-unsupported` and `overlay-empty-action`.
  *
- * The result keeps the input's type; an overlay that changes the shape
- * needs the caller to narrow it.
+ * The result keeps the input's type; an overlay that changes the shape needs
+ * the caller to narrow it.
  *
  * @example
- * const jsonpath = await loadJsonPath();
- * const { document, diagnostics } = applyOverlay(openapi, overlay, { jsonpath });
+ *   const jsonpath = await loadJsonPath();
+ *   const { document, diagnostics } = applyOverlay(openapi, overlay, {
+ *     jsonpath,
+ *   });
  */
 export function applyOverlay<T>(
   document: T,
@@ -587,8 +594,8 @@ export function applyOverlay<T>(
 
 /**
  * Applies overlays in order, each to the result of the previous one, with a
- * single clone of the input. Diagnostic pointers start with the overlay's
- * index (`/1/actions/0`).
+ * single clone of the input. Diagnostic pointers start with the overlay's index
+ * (`/1/actions/0`).
  */
 export function applyOverlays<T>(
   document: T,

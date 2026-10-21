@@ -49,8 +49,8 @@ export const PROBLEM_CONTENT_TYPE = "application/problem+json";
 const PROBLEM_TYPE_BLANK = "about:blank";
 
 /**
- * Kinds that say nothing beyond their HTTP status. At their default status
- * they use `about:blank` with the status phrase as `title`.
+ * Kinds that say nothing beyond their HTTP status. At their default status they
+ * use `about:blank` with the status phrase as `title`.
  */
 const GENERIC: Partial<Record<DbErrorKind, string>> = {
   invalid_request: "Bad Request",
@@ -90,8 +90,8 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
 };
 
 /**
- * The `type` and `title` of a problem: `about:blank` and the status phrase
- * for a generic kind at its default status, otherwise the kind's URI under
+ * The `type` and `title` of a problem: `about:blank` and the status phrase for
+ * a generic kind at its default status, otherwise the kind's URI under
  * `PROBLEM_TYPE_BASE`.
  */
 export function problemType(
@@ -110,7 +110,10 @@ export function problemType(
   };
 }
 
-/** Kinds whose message may contain internals (SQL, hostnames), hidden unless `expose` is set. */
+/**
+ * Kinds whose message may contain internals (SQL, hostnames), hidden unless
+ * `expose` is set.
+ */
 const INTERNAL = new Set<DbErrorKind>([
   "unexpected",
   "network",
@@ -126,8 +129,8 @@ export interface ProblemOptions {
 
 /**
  * Rewrites the Problem Details a block answers with into the app's own error
- * body, such as its `type` URIs and error codes. The status, `Retry-After`
- * and `WWW-Authenticate` headers stay as they are.
+ * body, such as its `type` URIs and error codes. The status, `Retry-After` and
+ * `WWW-Authenticate` headers stay as they are.
  */
 export type ProblemFormat = (
   problem: ProblemDetails,
@@ -136,7 +139,10 @@ export type ProblemFormat = (
 
 /** The `problem` option of the blocks that answer HTTP requests. */
 export interface BlockProblemOptions {
-  /** The app's error body for the block's error responses. Defaults to RFC 9457 Problem Details. */
+  /**
+   * The app's error body for the block's error responses. Defaults to RFC 9457
+   * Problem Details.
+   */
   readonly problem?: ProblemFormat;
 }
 
@@ -233,8 +239,8 @@ export function toProblem(
 }
 
 /**
- * An `application/problem+json` response. A 401, and a 403 for a missing
- * OAuth scope, carry an RFC 6750 `WWW-Authenticate: Bearer` challenge.
+ * An `application/problem+json` response. A 401, and a 403 for a missing OAuth
+ * scope, carry an RFC 6750 `WWW-Authenticate: Bearer` challenge.
  */
 export function problemResponse(
   error: DbError,
@@ -270,10 +276,7 @@ export function problemResponse(
   const problem = toProblem(error, options);
   const body = options.format ? options.format(problem, error) : problem;
 
-  return Response.json(body, {
-    status: error.status,
-    headers,
-  });
+  return Response.json(body, { status: error.status, headers });
 }
 
 export function isProblem(value: unknown): value is ProblemDetails {

@@ -1,8 +1,8 @@
 /**
- * The dev-time MCP server behind `better-supabase mcp`: each tool runs one
- * CLI command in process with `--json` and returns its result envelope.
- * Tools that write files exist only with `--allow-writes`, and each call
- * needs a consent token the user agreed to (ADR 0047, ADR 0049).
+ * The dev-time MCP server behind `better-supabase mcp`: each tool runs one CLI
+ * command in process with `--json` and returns its result envelope. Tools that
+ * write files exist only with `--allow-writes`, and each call needs a consent
+ * token the user agreed to (ADR 0047, ADR 0049).
  */
 
 import * as v from "valibot";
@@ -52,10 +52,7 @@ const Input = v.object({
 
 type Input = v.InferOutput<typeof Input>;
 
-const string = (description: string): Json => ({
-  type: "string",
-  description,
-});
+const string = (description: string): Json => ({ type: "string", description });
 
 const CONFIRM = string(
   "The consent token from the last call's error, once the user agreed to the change",
@@ -326,7 +323,10 @@ export function createDevMcp(options: DevMcpOptions): ProtocolServer {
   };
 }
 
-/** Answers each newline-delimited JSON-RPC message in turn, writing one line per response. */
+/**
+ * Answers each newline-delimited JSON-RPC message in turn, writing one line per
+ * response.
+ */
 export async function serveLines(
   lines: AsyncIterable<string>,
   server: ProtocolServer,

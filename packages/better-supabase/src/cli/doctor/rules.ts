@@ -76,7 +76,10 @@ export interface Finding {
   readonly severity: Severity;
   readonly title: string;
   readonly message: string;
-  /** `public.customers`, `public.customers.organization_id`, `.env.local:SUPABASE_SECRET_KEY`. */
+  /**
+   * `public.customers`, `public.customers.organization_id`,
+   * `.env.local:SUPABASE_SECRET_KEY`.
+   */
   readonly target?: string;
   readonly location?: Location;
   readonly object?: SqlObject;
@@ -107,8 +110,8 @@ export interface DoctorContext {
   /** `config.readSets`, compiled, or why they could not be loaded. */
   readonly readSets?: ModuleLayout["readSets"] | { readonly skipped: string };
   /**
-   * Supabase advisors for the database being checked, or why they were
-   * skipped (a saved snapshot has no database to lint).
+   * Supabase advisors for the database being checked, or why they were skipped
+   * (a saved snapshot has no database to lint).
    */
   readonly advisors?: AdvisorSource | { readonly skipped: string };
   /** The database being checked, for statistics and plans (BS208, BS209, BS212). */
@@ -119,11 +122,14 @@ export interface DoctorContext {
   readonly explain?: ExplainRequest;
   /** `--as`: the user to call the custom access token hook for (BS405). */
   readonly hookUser?: string;
-  /** `supabase/schemas` in the diff engine's order, then migrations newest first (BS214, BS404, BS407). */
+  /**
+   * `supabase/schemas` in the diff engine's order, then migrations newest first
+   * (BS214, BS404, BS407).
+   */
   readonly sqlFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
-  /** better-supabase's peers and the versions the project installs (BS601). */
+  /** Better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
   readonly stackEnv?: StackEnvCheck;
   /** The machine's shared memory segments and managed stacks (BS700, BS701). */
@@ -234,20 +240,23 @@ function tomlLocation(
 }
 
 /**
- * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list
- * with `facetCounts: true`.
+ * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list with
+ * `facetCounts: true`.
  */
 const AGGREGATE_USE =
   /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
 
 /**
  * A policy that reads memberships or the tenant claim: `is_member(...)`,
- * `current_tenant_id()`, `memberships`. The authorization provider's
- * functions (`authorization.requires`) count too.
+ * `current_tenant_id()`, `memberships`. The authorization provider's functions
+ * (`authorization.requires`) count too.
  */
 const TENANT_HELPER = /member|tenant|current_org|org_id/i;
 
-/** A foreign key to the tenant table itself, whose own policies are usually read-only. */
+/**
+ * A foreign key to the tenant table itself, whose own policies are usually
+ * read-only.
+ */
 const TENANT_COLUMN =
   /^(?:organization|organization|tenant|team|workspace|account)_id$/;
 
@@ -666,10 +675,12 @@ const OWN_RULES: readonly Rule[] = [
           (entry) => entry.id === id,
         );
 
-        const inDatabase = defined.drift(actual).map((drift) => ({
-          message: `Bucket ${id}: ${drift.message}`,
-          target: `storage.buckets.${id}`,
-        }));
+        const inDatabase = defined
+          .drift(actual)
+          .map((drift) => ({
+            message: `Bucket ${id}: ${drift.message}`,
+            target: `storage.buckets.${id}`,
+          }));
 
         const toml = context.configToml;
 

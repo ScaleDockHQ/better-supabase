@@ -14,9 +14,7 @@ export const versionsBlock: BlockOf<
 > = defineBlock({
   name: "versions",
   sql: ["versions"],
-  options: {
-    versions: versionsSqlOptions,
-  },
+  options: { versions: versionsSqlOptions },
   events: versionsEvents,
   create: createVersions,
   category: "content",

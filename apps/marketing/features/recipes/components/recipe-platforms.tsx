@@ -11,10 +11,10 @@ import { PromptFrame } from "@/components/site/prompt-frame";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parsePlatform } from "@/lib/recipe-platform";
 
-const LABELS = {
-  web: "Web",
-  native: "Native",
-} as const satisfies Record<RecipePlatform, string>;
+const LABELS = { web: "Web", native: "Native" } as const satisfies Record<
+  RecipePlatform,
+  string
+>;
 
 interface RecipePlatformsProps {
   /** The platforms the recipe has code for, web first. */
@@ -102,10 +102,9 @@ function SearchParamsPlatformView(props: RecipePlatformsProps) {
 }
 
 /**
- * The Web and Native tabs of a recipe, kept in `?platform=`. A recipe with
- * web code only shows no tabs. The page stays
- * static: the prerendered fallback is the web view, and the search params
- * are read in the browser.
+ * The Web and Native tabs of a recipe, kept in `?platform=`. A recipe with web
+ * code only shows no tabs. The page stays static: the prerendered fallback is
+ * the web view, and the search params are read in the browser.
  */
 export function RecipePlatforms(props: RecipePlatformsProps) {
   return (

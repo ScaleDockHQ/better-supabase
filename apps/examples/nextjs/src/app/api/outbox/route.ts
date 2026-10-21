@@ -46,8 +46,8 @@ const setTaskField: RuleFieldSetter = async (write) => {
 
 /**
  * Runs the rules on the `task.created`, `task.updated` and `task.deleted`
- * events the `tasks` app table writes to the outbox. Call it every minute
- * from a cron (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`).
+ * events the `tasks` app table writes to the outbox. Call it every minute from
+ * a cron (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
   // Without a request-time API, Next.js runs this handler at build time.

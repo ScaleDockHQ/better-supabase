@@ -117,8 +117,8 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 
 /**
  * Nearest scroll-area viewport that belongs to THIS grid. A viewport outside
- * the grid's own container (e.g. a page-level ScrollArea) would make the
- * width measurement - and the virtualizer - bind the wrong box.
+ * the grid's own container (e.g. a page-level ScrollArea) would make the width
+ * measurement - and the virtualizer - bind the wrong box.
  */
 function getDataGridScrollAreaViewport(node: HTMLElement): HTMLElement | null {
   const scrollViewport = node.closest(
@@ -135,8 +135,8 @@ function getDataGridScrollAreaViewport(node: HTMLElement): HTMLElement | null {
 
 /**
  * The box whose width the fill strip tops up to: the grid's own scroll
- * viewport, else the table viewport's parent. The live resize session and
- * the viewport's fill sync must measure the same box, or the fill jumps at
+ * viewport, else the table viewport's parent. The live resize session and the
+ * viewport's fill sync must measure the same box, or the fill jumps at
  * release.
  */
 function getDataGridTableFillMeasurementTarget(node: HTMLElement): HTMLElement {
@@ -145,11 +145,11 @@ function getDataGridTableFillMeasurementTarget(node: HTMLElement): HTMLElement {
 
 /**
  * True for an event that reached this element only through a React portal.
- * React bubbles synthetic events along the React tree, so a pick in an
- * in-cell Select, popover or combobox (its content portalled into <body>)
- * still reaches the cell and the row. Those must not start or extend a cell
- * selection or fire onRowClick: the selection session then swallowed the
- * mouse pick, and the row kept its stale value.
+ * React bubbles synthetic events along the React tree, so a pick in an in-cell
+ * Select, popover or combobox (its content portalled into <body>) still reaches
+ * the cell and the row. Those must not start or extend a cell selection or fire
+ * onRowClick: the selection session then swallowed the mouse pick, and the row
+ * kept its stale value.
  */
 function isDataGridPortalEvent(event: {
   currentTarget: Element;
@@ -444,10 +444,7 @@ function startDataGridColumnResizeOnEnd<TData extends object>(
         nextColumnSizing[autoSizePreview.columnId] = autoSizePreview.size;
         autoSize?.adopt(autoSizePreview.columnId, autoSizePreview.size);
       }
-      table.setColumnSizing((old) => ({
-        ...old,
-        ...nextColumnSizing,
-      }));
+      table.setColumnSizing((old) => ({ ...old, ...nextColumnSizing }));
     }
   };
 
@@ -643,8 +640,8 @@ function getDataGridTableOrderedVisibleColumns<TData extends object>(
 /**
  * First or last column as the row renders it: start, center, then end.
  * `column.getIndex()` follows column order and ignores pinning, so an edge
- * check built on it picks the wrong cells once pinning moves a column away
- * from its column-order slot.
+ * check built on it picks the wrong cells once pinning moves a column away from
+ * its column-order slot.
  */
 function getDataGridTableColumnEdges<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -756,8 +753,8 @@ function getDataGridTableMergedHeaderGroups<TData extends object>(
 }
 
 /**
- * Every header the head rows may render: the unpinned tree plus each
- * pinning family's, whose ids carry a family prefix above the leaf row.
+ * Every header the head rows may render: the unpinned tree plus each pinning
+ * family's, whose ids carry a family prefix above the leaf row.
  */
 function getDataGridTableAllFlatHeaders<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -826,8 +823,8 @@ function getDataGridHeadCellSizeVar<TData extends object>(
 
 /**
  * Which edge of a leaf column's header draws a resting divider line, or null
- * for none. Mirrors the branches of DataGridTableHeadRowCellResize, so a
- * group cell above can continue exactly the lines its leaves draw.
+ * for none. Mirrors the branches of DataGridTableHeadRowCellResize, so a group
+ * cell above can continue exactly the lines its leaves draw.
  */
 function getDataGridHeaderLineEdge<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -951,8 +948,8 @@ function DataGridTableFillFootCell() {
 
 /**
  * The quick-create affordance, rendered as the body's last row when
- * `onRowCreate` is set: one full-width ghost button, the Notion/Airtable
- * "+ New" idiom. What the click creates stays consumer-owned.
+ * `onRowCreate` is set: one full-width ghost button, the Notion/Airtable "+
+ * New" idiom. What the click creates stays consumer-owned.
  */
 function DataGridTableAddRow() {
   const context = useDataGrid();
@@ -1429,9 +1426,7 @@ function DataGridTableHeadRowCell<TData extends object>({
       data-span={isSpan ? colSpan : undefined}
       style={{
         ...(props.tableLayout?.width === "fixed" &&
-          !props.tableLayout?.columnsResizable && {
-            width: size,
-          }),
+          !props.tableLayout?.columnsResizable && { width: size }),
         ...(props.tableLayout?.columnsPinnable &&
           column.getCanPin() &&
           (isGroup || isSpan
@@ -1563,13 +1558,13 @@ function DataGridTableHeadRowCell<TData extends object>({
 /**
  * TanStack's own default, restated here on purpose.
  *
- * v8 merged each feature's default table options into `table.options`, so
+ * V8 merged each feature's default table options into `table.options`, so
  * reading `table.options.columnResizeMode` gave you `"onEnd"` even when the
- * consumer never set it. v9 resolves feature defaults internally and leaves
- * the option `undefined` on the instance, so the old `?? table.options...`
- * fallback quietly produced `undefined` - and every grid that had not opted
- * into a mode explicitly lost the onEnd drag session: no cursor lock, no
- * vertical indicator, and an immediate commit instead of a deferred one.
+ * consumer never set it. v9 resolves feature defaults internally and leaves the
+ * option `undefined` on the instance, so the old `?? table.options...` fallback
+ * quietly produced `undefined` - and every grid that had not opted into a mode
+ * explicitly lost the onEnd drag session: no cursor lock, no vertical
+ * indicator, and an immediate commit instead of a deferred one.
  */
 const DATA_GRID_DEFAULT_COLUMN_RESIZE_MODE = "onEnd" as const;
 
@@ -1749,10 +1744,10 @@ function DataGridTableResizeIndicator({
   // Header height is stable for the duration of a drag; caching it per
   // session avoids a forced layout (querySelector + getBoundingClientRect)
   // on every mousemove.
-  const headerHeightCacheRef = useRef<{
-    key: string | false;
-    value: number;
-  }>({ key: false, value: 0 });
+  const headerHeightCacheRef = useRef<{ key: string | false; value: number }>({
+    key: false,
+    value: 0,
+  });
   const columnResizing =
     useDataGridAtom(table.atoms.columnResizing) ?? table.state.columnResizing;
   // Absent with a bundle that leaves out columnResizingFeature.
@@ -2213,8 +2208,8 @@ function DataGridTableBodyRowExpandded<TData extends object>({
 
 /**
  * Interactive descendants keep their own mousedown semantics: a click on a
- * button, link, editor or checkbox inside a cell must never start or replace
- * a range. One selector also covers the row-dnd grip (a button), the expand
+ * button, link, editor or checkbox inside a cell must never start or replace a
+ * range. One selector also covers the row-dnd grip (a button), the expand
  * toggle, and `data-cell-interactive` - the documented opt-out for custom
  * widgets built from elements the tag list cannot know about.
  */
@@ -2460,8 +2455,8 @@ function DataGridTableRenderedRow<TData extends object>({
    * Column-virtualization window over the CENTER cells: only the inclusive
    * [start, end] slice renders, and each flank collapses into one colSpan
    * spacer. The spacers carry no width of their own - the colgroup stays
-   * complete, so under table-fixed the browser sizes them from the col
-   * elements they span and the layout cannot drift.
+   * complete, so under table-fixed the browser sizes them from the col elements
+   * they span and the layout cannot drift.
    */
   centerWindow?: { start: number; end: number };
 }) {
@@ -2668,14 +2663,14 @@ function DataGridTableRowPin<TData extends object>({
 /**
  * Selection cell.
  *
- * Selection is read through `row.getIsSelected()`, a builder call on a row
- * that keeps its identity across renders. A consumer's compiled component
- * around this checkbox caches it against that row and never renders it
- * again, which shows up as checkboxes that do not respond to clicks.
- * Subscribing to the row-selection atom makes selection a dependency of its
- * own. Note the standalone `Subscribe` rather than `table.Subscribe`: inside a
- * cell template the `table` handed to the column def is the core `Table`, which
- * has no `Subscribe` attached.
+ * Selection is read through `row.getIsSelected()`, a builder call on a row that
+ * keeps its identity across renders. A consumer's compiled component around
+ * this checkbox caches it against that row and never renders it again, which
+ * shows up as checkboxes that do not respond to clicks. Subscribing to the
+ * row-selection atom makes selection a dependency of its own. Note the
+ * standalone `Subscribe` rather than `table.Subscribe`: inside a cell template
+ * the `table` handed to the column def is the core `Table`, which has no
+ * `Subscribe` attached.
  */
 function DataGridTableRowSelect<TData extends object>({
   row,
@@ -2903,12 +2898,12 @@ function DataGridTableBodyRows<TData extends object>({
 }
 
 /**
- * Memoized body rows: skip re-renders during active column resize.
- * Column widths update via CSS variables on the <table> element,
- * so the browser handles width changes without React re-renders.
- * A cell-selection drag gets the same treatment: the root re-renders once per
- * cell crossed, but painting goes through each cell's own Subscribe, so row
- * reconciliation during the drag is pure waste.
+ * Memoized body rows: skip re-renders during active column resize. Column
+ * widths update via CSS variables on the <table> element, so the browser
+ * handles width changes without React re-renders. A cell-selection drag gets
+ * the same treatment: the root re-renders once per cell crossed, but painting
+ * goes through each cell's own Subscribe, so row reconciliation during the drag
+ * is pure waste.
  */
 const MemoizedDataGridTableBodyRows = memo(
   DataGridTableBodyRows,

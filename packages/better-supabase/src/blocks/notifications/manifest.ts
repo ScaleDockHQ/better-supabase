@@ -16,13 +16,9 @@ export const notificationsBlock: BlockOf<
 > = defineBlock({
   name: "notifications",
   sql: ["notifications"],
-  options: {
-    notifications: notificationsSqlOptions,
-  },
+  options: { notifications: notificationsSqlOptions },
   events: notificationsEvents,
-  provides: {
-    notifier: (client) => client,
-  },
+  provides: { notifier: (client) => client },
   create: createNotifications,
   client: "notifications",
   category: "messaging",

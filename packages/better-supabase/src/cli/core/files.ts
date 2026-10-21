@@ -33,10 +33,10 @@ export function insideRoot(root: string, path: string, flag: string): string {
  * - `generated`: rewritten whenever its contents change.
  * - `owned`: rewritten only while it carries the better-supabase header, so a
  *   file the app wrote by hand is skipped unless `--force` is set.
- * - `create`: written once; an existing file belongs to the app and is
- *   skipped unless `--force` is set.
- * - `edit`: an app file the command rewrites in place (a codemod, a config
- *   edit). It must exist.
+ * - `create`: written once; an existing file belongs to the app and is skipped
+ *   unless `--force` is set.
+ * - `edit`: an app file the command rewrites in place (a codemod, a config edit).
+ *   It must exist.
  */
 export type FilePolicy = "generated" | "owned" | "create" | "edit";
 
@@ -44,14 +44,23 @@ export interface PlannedFile {
   /** Relative to the plan's root, or absolute inside it. */
   readonly path: string;
   readonly contents: string;
-  /** Defaults to `owned` when the contents carry the better-supabase header, else `generated`. */
+  /**
+   * Defaults to `owned` when the contents carry the better-supabase header,
+   * else `generated`.
+   */
   readonly policy?: FilePolicy;
   readonly mode?: number;
   /** Shown after the path, like the module that renders the file. */
   readonly note?: string;
-  /** The file holds secrets, so `--dry-run` and `--check` name it without a diff. */
+  /**
+   * The file holds secrets, so `--dry-run` and `--check` name it without a
+   * diff.
+   */
   readonly secret?: boolean;
-  /** Whether the file on disk already matches. Defaults to the text, ignoring line endings. */
+  /**
+   * Whether the file on disk already matches. Defaults to the text, ignoring
+   * line endings.
+   */
   readonly same?: (current: string, contents: string) => boolean;
 }
 
@@ -104,7 +113,10 @@ export const PLAN_ARGS = {
 export interface AppliedPlan {
   readonly mode: "write" | "dry-run" | "check";
   readonly changes: readonly FileChange[];
-  /** Unified diffs of every create, update and removal, and of each file skipped as written by hand. */
+  /**
+   * Unified diffs of every create, update and removal, and of each file skipped
+   * as written by hand.
+   */
   readonly diffs: readonly string[];
   /** Whether a file would be created, updated or removed. */
   readonly drift: boolean;
@@ -159,10 +171,7 @@ function outcomeOf(
     case "owned": {
       return ownedByUs(current)
         ? { outcome: "update" }
-        : {
-            outcome: "skip",
-            reason: NOT_OURS,
-          };
+        : { outcome: "skip", reason: NOT_OURS };
     }
 
     case "create": {
@@ -183,7 +192,10 @@ interface Staged {
   readonly mode: number | undefined;
 }
 
-/** Writes every file next to its target first, then renames them all, so a failed write leaves no file half written. */
+/**
+ * Writes every file next to its target first, then renames them all, so a
+ * failed write leaves no file half written.
+ */
 async function writeAll(files: readonly Staged[]): Promise<void> {
   const temporary = files.map(
     (file, index) => `${file.path}.${process.pid}.${index}.tmp`,
@@ -214,9 +226,9 @@ async function writeAll(files: readonly Staged[]): Promise<void> {
 }
 
 /**
- * Applies `plan`: checks every path stays inside the root, decides what
- * happens to each file, then writes nothing (`--dry-run`, `--check`) or
- * writes every change at once.
+ * Applies `plan`: checks every path stays inside the root, decides what happens
+ * to each file, then writes nothing (`--dry-run`, `--check`) or writes every
+ * change at once.
  */
 export async function applyPlan(
   plan: FilePlan,
@@ -316,7 +328,10 @@ const VERB: Readonly<Record<FileOutcome, readonly [string, string]>> = {
   skip: ["Skipped", "Skipped"],
 };
 
-/** One `Created`, `Updated`, `Skipped`, `Unchanged` or `Would create` line per file. */
+/**
+ * One `Created`, `Updated`, `Skipped`, `Unchanged` or `Would create` line per
+ * file.
+ */
 export function changeLines(applied: AppliedPlan): string[] {
   return applied.changes.map(({ file, outcome, note, reason }) => {
     const [done, planned] = VERB[outcome];
@@ -338,8 +353,8 @@ export const changedFiles = (applied: AppliedPlan): string[] =>
 
 /**
  * The result of an applied plan. `--check` fails with the diffs when a file
- * would change; `--dry-run` prints the diffs and the lines; a write prints
- * the lines. `summary` follows the lines, and `data` joins `data.files`.
+ * would change; `--dry-run` prints the diffs and the lines; a write prints the
+ * lines. `summary` follows the lines, and `data` joins `data.files`.
  */
 export function planResult(
   plan: FilePlan,

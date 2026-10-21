@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Hands the client's access token to Realtime before a private join,
- * unless the app set one itself with `realtime.setAuth(token)`. A bare
- * `setAuth()` replaces such a token with the session's, so a client that
- * joins with a token minted for Realtime (a service or agent token) keeps it.
- * realtime-js versions without the manual-token check always refresh.
+ * Hands the client's access token to Realtime before a private join, unless the
+ * app set one itself with `realtime.setAuth(token)`. A bare `setAuth()`
+ * replaces such a token with the session's, so a client that joins with a token
+ * minted for Realtime (a service or agent token) keeps it. realtime-js versions
+ * without the manual-token check always refresh.
  */
 export async function refreshRealtimeAuth(
   client: Pick<SupabaseClient, "realtime">,

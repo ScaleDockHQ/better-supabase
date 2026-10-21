@@ -269,9 +269,7 @@ describe("createAudit", () => {
 
     expect(ocsf["class_uid"]).toBe(6003);
     expect(() =>
-      createAudit({ transport: fake([]).transport }).export({
-        format: "ocsf",
-      }),
+      createAudit({ transport: fake([]).transport }).export({ format: "ocsf" }),
     ).toThrow(/needs product/);
     await expect(
       new Response(
@@ -325,9 +323,7 @@ describe("createAudit", () => {
 
     const header = (
       await new Response(
-        createAudit({ transport: plain.transport }).export({
-          format: "csv",
-        }),
+        createAudit({ transport: plain.transport }).export({ format: "csv" }),
       ).text()
     ).split("\r\n")[0];
 
@@ -361,9 +357,7 @@ describe("createAudit", () => {
       createAudit({ transport: fake([[entry("1")]], fail).transport });
 
     const storage = (error: unknown) => ({
-      from: () => ({
-        upload: async () => ({ data: null, error }),
-      }),
+      from: () => ({ upload: async () => ({ data: null, error }) }),
     });
 
     expect(

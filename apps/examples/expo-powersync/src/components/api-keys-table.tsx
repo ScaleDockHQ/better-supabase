@@ -14,9 +14,9 @@ import {
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
- * The organization's API keys with a field that creates one, whose token
- * shows only until it is dismissed, and a revoke button per key. Members
- * who can't manage the organization's keys create personal ones.
+ * The organization's API keys with a field that creates one, whose token shows
+ * only until it is dismissed, and a revoke button per key. Members who can't
+ * manage the organization's keys create personal ones.
  */
 export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   const [name, setName] = useState("");

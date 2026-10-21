@@ -41,9 +41,9 @@ export function withDefault(
 }
 
 /**
- * Refuses caller-supplied values for columns a plugin fills (timestamps,
- * actor, soft delete) unless the call passes `{ override: true }`. Returns
- * whether the caller may keep its own values.
+ * Refuses caller-supplied values for columns a plugin fills (timestamps, actor,
+ * soft delete) unless the call passes `{ override: true }`. Returns whether the
+ * caller may keep its own values.
  */
 export function guardManaged(
   op: MutationOp,

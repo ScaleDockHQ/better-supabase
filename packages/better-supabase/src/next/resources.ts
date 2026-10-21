@@ -4,8 +4,8 @@ export interface NextResourcesOptions extends GuardOptions {
   /** The catch-all route's path, e.g. `/api` for `app/api/[...path]/route.ts`. */
   readonly basePath?: string;
   /**
-   * Refresh an expired session cookie and send the new cookies. Off by
-   * default because the proxy refreshes everything it matches.
+   * Refresh an expired session cookie and send the new cookies. Off by default
+   * because the proxy refreshes everything it matches.
    */
   readonly refresh?: boolean;
 }
@@ -14,8 +14,8 @@ export interface NextResourcesOptions extends GuardOptions {
 export type NextResourceHandler = (request: Request) => Promise<Response>;
 
 /**
- * The exports of `app/api/[...path]/route.ts`:
- * `export const { GET, POST, PATCH, PUT, DELETE } = bs.resources({ ... })`.
+ * The exports of `app/api/[...path]/route.ts`: `export const { GET, POST,
+ * PATCH, PUT, DELETE } = bs.resources({ ... })`.
  */
 export interface NextResourceRoutes {
   readonly GET: NextResourceHandler;

@@ -120,8 +120,8 @@ export function buildRelations(
 
 /**
  * The columns that name a relation. A composite key that repeats a column on
- * both sides, such as `(customer_id, organization_id)` referencing
- * `(id, organization_id)` to keep rows in one tenant, is named by the rest.
+ * both sides, such as `(customer_id, organization_id)` referencing `(id,
+ * organization_id)` to keep rows in one tenant, is named by the rest.
  */
 export function namingColumns(
   columns: readonly string[],

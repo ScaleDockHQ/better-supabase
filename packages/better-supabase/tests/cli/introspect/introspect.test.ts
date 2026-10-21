@@ -42,9 +42,7 @@ describe("managementSource", () => {
       projectRef: "abc",
       accessToken: "bad",
       fetch: async () =>
-        new Response('{"message":"Unauthorized"}', {
-          status: 401,
-        }),
+        new Response('{"message":"Unauthorized"}', { status: 401 }),
     });
 
     await expect(source.queryable.query("select 1")).rejects.toThrow(

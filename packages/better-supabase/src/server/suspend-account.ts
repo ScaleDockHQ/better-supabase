@@ -26,8 +26,8 @@ export interface SuspendAccountOptions {
    * Also end the sessions when suspending. Defaults to `false`: the sessions
    * stay, so Auth answers refresh and `/user` with `user_banned` and the app
    * can show why. Without the `sessions` SQL module, an access token keeps
-   * working against the Data API until it expires; set this to end the
-   * sessions at once instead.
+   * working against the Data API until it expires; set this to end the sessions
+   * at once instead.
    */
   readonly endSessions?: boolean;
 }
@@ -112,8 +112,8 @@ from better_supabase.last_sign_ins($1::uuid[])`;
 
 /**
  * The last sign-in of each user, in one query (`better_supabase.last_sign_ins`
- * from the `sessions` module, which only the service role may call). Users
- * that don't exist are missing from the map.
+ * from the `sessions` module, which only the service role may call). Users that
+ * don't exist are missing from the map.
  */
 export function lastSignIns(
   sql: SqlClient,

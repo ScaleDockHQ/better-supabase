@@ -29,8 +29,8 @@ import { EventReminders } from "./event-reminders";
 
 // #region recipe:reminders-list
 /**
- * The next events with the caller's reminders on each. A reminder fires
- * its offset before every occurrence of the event, once per occurrence.
+ * The next events with the caller's reminders on each. A reminder fires its
+ * offset before every occurrence of the event, once per occurrence.
  */
 export async function RemindersList() {
   const session = await getSession();

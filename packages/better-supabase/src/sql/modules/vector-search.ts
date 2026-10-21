@@ -43,7 +43,10 @@ export interface VectorSearchTable {
     /** The RRF constant. Defaults to 60. */
     readonly k?: number;
   };
-  /** A SQL expression over the row `t` the score is multiplied by, such as `t.priority`. */
+  /**
+   * A SQL expression over the row `t` the score is multiplied by, such as
+   * `t.priority`.
+   */
   readonly boost?: string;
   /** Columns `filter` narrows before ranking, such as `organization_id`. */
   readonly prefilter?: readonly string[];
@@ -57,11 +60,7 @@ export interface VectorSearchTable {
 
 const DISTANCE_OPERATORS: Readonly<
   Record<VectorSearchTable["distance"], string>
-> = {
-  cosine: "<=>",
-  l2: "<->",
-  inner_product: "<#>",
-};
+> = { cosine: "<=>", l2: "<->", inner_product: "<#>" };
 
 /** Similarity from a distance, higher is nearer. */
 const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
@@ -72,15 +71,14 @@ const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
 
 const OPERATOR_CLASSES: Readonly<
   Record<VectorSearchTable["distance"], string>
-> = {
-  cosine: "cosine_ops",
-  l2: "l2_ops",
-  inner_product: "ip_ops",
-};
+> = { cosine: "cosine_ops", l2: "l2_ops", inner_product: "ip_ops" };
 
 const REGCONFIG = /^[a-z_][a-z0-9_]*$/;
 
-/** `vectorSearch.<table>.boost`: one expression, no statement separators or comments. */
+/**
+ * `vectorSearch.<table>.boost`: one expression, no statement separators or
+ * comments.
+ */
 function boostExpression(
   where: string,
   boost: string,
@@ -95,7 +93,10 @@ function boostExpression(
   return boost;
 }
 
-/** The ranked ids and scores of one search, as a SQL query over `query`, `k`, `filter` and `text_query`. */
+/**
+ * The ranked ids and scores of one search, as a SQL query over `query`, `k`,
+ * `filter` and `text_query`.
+ */
 function vectorRanking(
   entry: VectorSearchTable,
   target: string,

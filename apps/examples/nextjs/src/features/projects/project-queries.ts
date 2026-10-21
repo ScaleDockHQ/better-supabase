@@ -60,8 +60,8 @@ export type Loaded<T> =
   | { readonly kind: "error" };
 
 /**
- * Runs a cached loader. A failed read throws inside the loader, so it is
- * never cached and Retry reads again.
+ * Runs a cached loader. A failed read throws inside the loader, so it is never
+ * cached and Retry reads again.
  */
 export async function settle<T>(
   load: () => Promise<T | null>,
@@ -192,8 +192,8 @@ function historyFields(
 }
 
 /**
- * The project's latest versions with their content, newest first. The
- * versions block keeps one on every change to the configured columns.
+ * The project's latest versions with their content, newest first. The versions
+ * block keeps one on every change to the configured columns.
  */
 export async function getProjectHistory(
   projectId: string,

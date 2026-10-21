@@ -26,9 +26,7 @@ To keep another name, set it once in `better-supabase.config.ts` instead of
 per plugin. `plugins.tenant.claim` is gone:
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({
-  claims: { tenant: "org_id" },
-});
+export default defineConfig({ claims: { tenant: "org_id" } });
 ```
 
 Use loose objects (valibot `looseObject`, zod `z.looseObject`) for claims

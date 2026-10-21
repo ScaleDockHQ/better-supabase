@@ -44,15 +44,21 @@ export const TIMESHEET_SUBJECT = "timesheet";
 /** Requests the leave module files; their subject is a leave request. */
 export const LEAVE_REQUEST_SUBJECT = "leave_request";
 
-/** Tool calls the ai-chat module files; their subject is its approval row, action `run`. */
+/**
+ * Tool calls the ai-chat module files; their subject is its approval row,
+ * action `run`.
+ */
 export const AI_TOOL_SUBJECT = "ai_tool_approval";
 
-/** Requests the support-sessions module files; their subject is its request, action `start`. */
+/**
+ * Requests the support-sessions module files; their subject is its request,
+ * action `start`.
+ */
 export const SUPPORT_REQUEST_SUBJECT = "support_request";
 
 /**
- * The policy snapshot of a request another module files and decides: one
- * step that the module's own approver check answers, never the requester.
+ * The policy snapshot of a request another module files and decides: one step
+ * that the module's own approver check answers, never the requester.
  * `expiresIn` is a text SQL expression or `null`.
  */
 export function linkedPolicy(expiresIn = "null"): string {

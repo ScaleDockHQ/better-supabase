@@ -24,8 +24,8 @@ type Kind = "company" | "person";
 
 /**
  * ` || jsonb_build_object('fields', ...)` with a company's extra columns
- * (`options.extraColumns`) for row `alias`; empty for people and without
- * extra columns.
+ * (`options.extraColumns`) for row `alias`; empty for people and without extra
+ * columns.
  */
 function extraFields(ctx: ModuleContext, kind: Kind, alias: string): string {
   if (kind !== "company") {

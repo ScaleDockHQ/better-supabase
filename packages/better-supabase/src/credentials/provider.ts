@@ -4,17 +4,16 @@ import type { AsyncResult } from "../core/result.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 
 /**
- * Names a credential without holding it. Tables store this as a
- * `credential_ref jsonb` column; `provider` picks the `CredentialProvider`
- * and the other keys are that provider's.
+ * Names a credential without holding it. Tables store this as a `credential_ref
+ * jsonb` column; `provider` picks the `CredentialProvider` and the other keys
+ * are that provider's.
  */
 export type CredentialRef = {
   readonly provider: string;
   /**
-   * The tenant that owns the credential. A provider resolves, sets and
-   * revokes a ref with `tenant` only inside that tenant's namespace, so a
-   * tenant admin who picks a ref can never name another tenant's or the
-   * app's secret.
+   * The tenant that owns the credential. A provider resolves, sets and revokes
+   * a ref with `tenant` only inside that tenant's namespace, so a tenant admin
+   * who picks a ref can never name another tenant's or the app's secret.
    */
   readonly tenant?: string;
 } & Readonly<Record<string, unknown>>;
@@ -98,9 +97,9 @@ export interface CompleteAuthorizationOptions {
 
 /**
  * Resolves `CredentialRef`s to tokens. Versioned: a breaking change to this
- * contract ships a new `apiVersion`. Errors are `DbError`s: `invalid_input`
- * for a ref the provider doesn't handle, `not_found` when no credential is
- * stored, `forbidden` when the subject may not use it.
+ * contract ships a new `apiVersion`. Errors are `DbError`s: `invalid_input` for
+ * a ref the provider doesn't handle, `not_found` when no credential is stored,
+ * `forbidden` when the subject may not use it.
  */
 export interface CredentialProvider {
   readonly apiVersion: 1;
@@ -127,9 +126,9 @@ export interface CredentialProvider {
   /** Checks a request the third party sent (a webhook) against the ref's secret. */
   verifyInbound?(request: Request, ref: CredentialRef): AsyncResult<boolean>;
   /**
-   * Stores or replaces the credential a ref names, for `subject` when the
-   * ref is per user. Optional: a provider without it can't take a secret
-   * from the app (an OAuth-only provider, say).
+   * Stores or replaces the credential a ref names, for `subject` when the ref
+   * is per user. Optional: a provider without it can't take a secret from the
+   * app (an OAuth-only provider, say).
    */
   set?(
     ref: CredentialRef,
@@ -159,8 +158,8 @@ export function credentialProviderOf(
 }
 
 /**
- * The subject for a request: the user behind a session or a user-bound API
- * key, the app for the service role, and `undefined` for anyone else.
+ * The subject for a request: the user behind a session or a user-bound API key,
+ * the app for the service role, and `undefined` for anyone else.
  */
 export function subjectFor(context: {
   readonly auth: AuthState;

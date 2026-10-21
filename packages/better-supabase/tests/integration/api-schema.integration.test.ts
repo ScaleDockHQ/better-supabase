@@ -59,10 +59,7 @@ describe.skipIf(!live)("api wrappers", () => {
         expect({
           name: row.name,
           authenticated: row.wrapper_authenticated,
-        }).toEqual({
-          name: row.name,
-          authenticated: row.source_authenticated,
-        });
+        }).toEqual({ name: row.name, authenticated: row.source_authenticated });
       }
 
       await s.asRole("anon");

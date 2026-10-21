@@ -393,10 +393,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       });
       expect(
         await hooks.create({ tenant: organization, name: "x" }),
-      ).toMatchObject({
-        ok: false,
-        error: { hint: "WEBHOOK_IN_FORBIDDEN" },
-      });
+      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_FORBIDDEN" } });
 
       await s.as(admin);
       expect(await hooks.setEnabled(created.id, false).orThrow()).toBe(true);
@@ -870,9 +867,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
       const jobs = createJobs({
         sql,
-        queues: {
-          [queue]: v.object({ route: v.string() }),
-        },
+        queues: { [queue]: v.object({ route: v.string() }) },
       });
 
       const queued = createIncomingWebhooks({

@@ -19,14 +19,20 @@ export interface RuleFieldDefinition {
   readonly type: FilterFieldType;
   readonly label?: string;
   readonly description?: string;
-  /** The subject record key the value is read from, dotted for a nested value. Defaults to the field id. */
+  /**
+   * The subject record key the value is read from, dotted for a nested value.
+   * Defaults to the field id.
+   */
   readonly column?: string;
   /**
-   * The Postgres type, which decides how dates compare: `date`, `timestamp`
-   * or `timestamptz` (the default for date fields).
+   * The Postgres type, which decides how dates compare: `date`, `timestamp` or
+   * `timestamptz` (the default for date fields).
    */
   readonly columnType?: string;
-  /** Whether the value may be missing, so "is not" also matches it. Default `true`. */
+  /**
+   * Whether the value may be missing, so "is not" also matches it. Default
+   * `true`.
+   */
   readonly nullable?: boolean;
   /** Allowed values for `select` and `multiselect`. */
   readonly options?: readonly (
@@ -152,7 +158,10 @@ export function defineRuleFields<const S extends string>(
   };
 }
 
-/** Catalog fields as list filter fields, for `evaluateFilterQuery` and `checkFilterQuery`. */
+/**
+ * Catalog fields as list filter fields, for `evaluateFilterQuery` and
+ * `checkFilterQuery`.
+ */
 export function ruleFilterFieldInfo(
   fields: readonly RuleField[],
 ): FilterFieldInfo[] {
@@ -198,9 +207,9 @@ export const RULE_LIMITS: FilterLimits = {
 };
 
 /**
- * The problems `save` would report for a tree, checked in the browser: an
- * empty list when the database will accept it. Unfinished conditions are
- * allowed; they take no part until they have an operator.
+ * The problems `save` would report for a tree, checked in the browser: an empty
+ * list when the database will accept it. Unfinished conditions are allowed;
+ * they take no part until they have an operator.
  */
 export function checkRuleConditions(
   conditions: FilterQuery,

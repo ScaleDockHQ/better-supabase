@@ -13,13 +13,19 @@ import { stampAfter } from "./migrations.ts";
 /** The migration the migrations workflow writes the SQL modules into. */
 export const MODULES_SUFFIX = "_better_supabase_modules.sql";
 
-/** The migration `gen` writes the read-sets module into under the migrations workflow. */
+/**
+ * The migration `gen` writes the read-sets module into under the migrations
+ * workflow.
+ */
 export const READ_SETS_SUFFIX = "_better_supabase_read_sets.sql";
 
 const UPGRADE_START = "-- @bs-upgrade-start";
 const UPGRADE_END = "-- @bs-upgrade-end";
 
-/** Whether the project runs the migrations workflow, with no declarative schemas. */
+/**
+ * Whether the project runs the migrations workflow, with no declarative
+ * schemas.
+ */
 export async function writesMigrations(
   config: ResolvedConfig,
 ): Promise<boolean> {
@@ -38,10 +44,10 @@ export interface ModuleMigrationParts {
 }
 
 /**
- * One migration that holds, in order, the extensions, the upgrade steps,
- * each module's schema body with its `@bs-module` header, the realtime topic
- * policies and the data statements. Every statement is re-runnable, so a
- * later migration carries all of them, not only the changes.
+ * One migration that holds, in order, the extensions, the upgrade steps, each
+ * module's schema body with its `@bs-module` header, the realtime topic
+ * policies and the data statements. Every statement is re-runnable, so a later
+ * migration carries all of them, not only the changes.
  */
 export function renderModuleMigration(parts: ModuleMigrationParts): string {
   const schema = parts.files.filter((file) => file.kind === "schema");
@@ -70,7 +76,10 @@ export function renderModuleMigration(parts: ModuleMigrationParts): string {
   return `${sections.join("\n\n")}\n`;
 }
 
-/** The migration without its upgrade steps and package versions, which a later one doesn't repeat. */
+/**
+ * The migration without its upgrade steps and package versions, which a later
+ * one doesn't repeat.
+ */
 function comparable(text: string): string {
   return text
     .replaceAll("\r\n", "\n")
@@ -120,7 +129,10 @@ export async function latestMigration(
 
 const MODULE_MARKERS = /^-- @bs-module ([a-z0-9-]+)@(\d+)\b/gm;
 
-/** The modules and versions a module migration installs, from its `@bs-module` lines. */
+/**
+ * The modules and versions a module migration installs, from its `@bs-module`
+ * lines.
+ */
 export function migrationModules(text: string): ReadonlyMap<string, number> {
   return new Map(
     [...text.matchAll(MODULE_MARKERS)].map((match) => [
@@ -132,8 +144,8 @@ export function migrationModules(text: string): ReadonlyMap<string, number> {
 
 /**
  * Writes `contents` as a new migration ending in `suffix`, unless the newest
- * one already holds the same statements. `force` writes it anyway, for
- * upgrade steps that have to run once.
+ * one already holds the same statements. `force` writes it anyway, for upgrade
+ * steps that have to run once.
  */
 export async function writeLatestMigration(
   config: ResolvedConfig,

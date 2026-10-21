@@ -111,10 +111,7 @@ describe("filter operators", () => {
       "date",
     ] as const) {
       expect(FILTER_OPERATORS[type]).toEqual(
-        (catalog[type] ?? []).map((entry) => ({
-          arity: "one",
-          ...entry,
-        })),
+        (catalog[type] ?? []).map((entry) => ({ arity: "one", ...entry })),
       );
     }
 

@@ -11,9 +11,7 @@ export const dealsBlock: BlockOf<"deals", typeof createDeals, DealsEvents> =
   defineBlock({
     name: "deals",
     sql: ["deals"],
-    options: {
-      deals: dealsSqlOptions,
-    },
+    options: { deals: dealsSqlOptions },
     events: dealsEvents,
     create: createDeals,
     category: "crm",

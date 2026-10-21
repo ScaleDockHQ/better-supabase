@@ -798,10 +798,7 @@ describe("gen", () => {
     await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        casing: "camel",
-        output: "src/db/generated.ts",
-      }),
+      JSON.stringify({ casing: "camel", output: "src/db/generated.ts" }),
     );
   });
 
@@ -1087,10 +1084,7 @@ describe("sql", () => {
   it("stops before writing the tenant module when the provider's hook owns memberships", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        blocks: ["invitations"],
-        authorization: stubProvider,
-      }),
+      JSON.stringify({ blocks: ["invitations"], authorization: stubProvider }),
     );
     const stopped = await run(["sql", "add", "tenant", "--cwd", dir]);
     expect(stopped.code).toBe(1);

@@ -82,14 +82,17 @@ async function declarativeTexts(
 }
 
 /**
- * The `better_supabase.audit(...)` calls in the declarative schemas, then
- * the migrations oldest first, so a later call or `unaudit` wins.
+ * The `better_supabase.audit(...)` calls in the declarative schemas, then the
+ * migrations oldest first, so a later call or `unaudit` wins.
  */
 async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
   return auditRegistrations(await schemaTexts(config));
 }
 
-/** What differs between the callers of `moduleLayoutFor`: the providers and the compiled read sets. */
+/**
+ * What differs between the callers of `moduleLayoutFor`: the providers and the
+ * compiled read sets.
+ */
 export interface LayoutInput {
   readonly names: readonly string[];
   readonly testsDir?: string | undefined;
@@ -100,8 +103,8 @@ export interface LayoutInput {
 }
 
 /**
- * The layout `sql sync` and doctor render the module files with, so both
- * see the same grants, session policies, audit triggers and vector schema.
+ * The layout `sql sync` and doctor render the module files with, so both see
+ * the same grants, session policies, audit triggers and vector schema.
  */
 export async function moduleLayoutFor(
   config: ResolvedConfig,
@@ -179,9 +182,7 @@ export async function moduleLayoutFor(
         }
       : {}),
     ...(fromPolicies
-      ? {
-          rlsTables: rlsTables(await declarativeTexts(config), config.schemas),
-        }
+      ? { rlsTables: rlsTables(await declarativeTexts(config), config.schemas) }
       : {}),
     ...(autoSameTenant
       ? sameTenantLayout(await declarativeTexts(config), config.schemas)
@@ -206,9 +207,9 @@ function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
 }
 
 /**
- * The folder that holds both the project root and `sql.dir`: the root, or
- * an ancestor when `sql.dir` points at a shared stack. The `sql` commands
- * write SQL files only inside it.
+ * The folder that holds both the project root and `sql.dir`: the root, or an
+ * ancestor when `sql.dir` points at a shared stack. The `sql` commands write
+ * SQL files only inside it.
  */
 function sqlRoot(config: ResolvedConfig): string {
   const dir = resolve(config.root, config.sql.dir);
@@ -226,8 +227,8 @@ function sqlRoot(config: ResolvedConfig): string {
 }
 
 /**
- * A plan for files under the project root or `sql.dir`, with paths relative
- * to the project root.
+ * A plan for files under the project root or `sql.dir`, with paths relative to
+ * the project root.
  */
 export function sqlPlan(
   config: ResolvedConfig,
@@ -249,9 +250,9 @@ export function sqlPlan(
 
 /**
  * The migrations folder next to the `config.toml` found walking up from
- * `sql.dir`, relative to the root; `supabase/migrations` without one. The
- * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
- * project (a shared stack in a monorepo) finds that stack's folder.
+ * `sql.dir`, relative to the root; `supabase/migrations` without one. The walk
+ * stops where `sql.dir` and the root meet, so a `sql.dir` outside the project
+ * (a shared stack in a monorepo) finds that stack's folder.
  */
 export function migrationsDir(config: ResolvedConfig): string {
   const root = resolve(config.root);

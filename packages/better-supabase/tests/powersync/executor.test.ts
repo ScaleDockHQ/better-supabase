@@ -203,10 +203,7 @@ describe("powersyncExecutor", () => {
       .paginate({ select: ["name"], page: 1, size: 10, count: "exact" })
       .orThrow();
 
-    expect(page).toMatchObject({
-      items: [{ name: "a" }],
-      page: { total: 1 },
-    });
+    expect(page).toMatchObject({ items: [{ name: "a" }], page: { total: 1 } });
     expect(transactions).toBe(1);
     expect(inTransaction).toHaveLength(2);
   });
@@ -499,9 +496,7 @@ describe("lists on SQLite", () => {
       .run(
         client,
         list.parse({ facets: { status: ["active", "lead"] } }).value!,
-        {
-          select: ["name"],
-        },
+        { select: ["name"] },
       )
       .orThrow();
 
@@ -784,11 +779,7 @@ describe("watch", () => {
 
     const controller = new AbortController();
     const remove = vi.spyOn(controller.signal, "removeEventListener");
-    watch(db, query, {
-      tables: [],
-      onResult,
-      signal: controller.signal,
-    })();
+    watch(db, query, { tables: [], onResult, signal: controller.signal })();
     expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 

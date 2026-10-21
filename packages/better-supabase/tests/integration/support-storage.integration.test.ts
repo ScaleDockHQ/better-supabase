@@ -463,9 +463,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
     expect(uploaded.error).toBeNull();
     expect(await row(files.id, path)).toMatchObject({ owner_id: null });
-    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({
-      path,
-    });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({ path });
     expect(await row(files.id, path)).toMatchObject({
       owner_id: USER,
       owner: USER,
@@ -474,9 +472,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
         supportAdminId: SESSION.adminId,
       },
     });
-    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({
-      path,
-    });
+    expect(await bucket.claimReserved(reservation).orThrow()).toEqual({ path });
     expect(await (await asTarget.download(path)).data?.text()).toBe("big");
   });
 
@@ -597,9 +593,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     const path = own("reserved-once.txt");
     expect((await bucket.upload(path, text("first"))).error).toBeNull();
 
-    const reserved = await bucket.createSignedUploadUrl(path, {
-      upsert: true,
-    });
+    const reserved = await bucket.createSignedUploadUrl(path, { upsert: true });
 
     expect(fromStorageError(reserved.error).kind).toBe("forbidden");
     expect(reserved.data).toBeNull();

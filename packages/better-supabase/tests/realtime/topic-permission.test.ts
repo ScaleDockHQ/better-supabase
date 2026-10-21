@@ -68,9 +68,7 @@ describe("defineTopic({ permission })", () => {
   });
 
   it("passes a null tenant to permitted for a topic without one", () => {
-    const doc = defineTopic("doc:{docId}", {
-      permission: "docs.read",
-    });
+    const doc = defineTopic("doc:{docId}", { permission: "docs.read" });
 
     expect(doc.sql({ functions: FUNCTIONS })).toContain(
       `app.permitted('docs.read', 'docs', ${topicSegment(2)}, null::text, 'tenant')`,
@@ -134,10 +132,7 @@ describe("allowedSubscribers", () => {
     const policy = vi.fn(() => []);
     expect(
       await allowedSubscribers(policy as SubscriberPolicy, event, []),
-    ).toEqual({
-      ok: true,
-      allowed: [],
-    });
+    ).toEqual({ ok: true, allowed: [] });
     expect(policy).not.toHaveBeenCalled();
   });
 

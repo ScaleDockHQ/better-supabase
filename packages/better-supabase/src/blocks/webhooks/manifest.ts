@@ -15,9 +15,7 @@ export const webhooksBlock: BlockOf<
 > = defineBlock({
   name: "webhooks",
   sql: ["webhooks-out"],
-  options: {
-    "webhooks-out": webhooksOutSqlOptions,
-  },
+  options: { "webhooks-out": webhooksOutSqlOptions },
   events: webhooksEvents,
   create: createWebhooks,
   category: "developer",
@@ -32,9 +30,7 @@ export const incomingWebhooksBlock: BlockOf<
 > = defineBlock({
   name: "incoming-webhooks",
   sql: ["webhooks-in"],
-  options: {
-    "webhooks-in": webhooksInSqlOptions,
-  },
+  options: { "webhooks-in": webhooksInSqlOptions },
   events: incomingWebhooksEvents,
   create: createIncomingWebhooks,
   category: "developer",

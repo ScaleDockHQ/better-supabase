@@ -40,7 +40,10 @@ export function shouldCheckSession(
   return options.paths?.includes(request.nextUrl.pathname) ?? false;
 }
 
-/** Page loads, client navigations and server actions; never prefetches or assets. */
+/**
+ * Page loads, client navigations and server actions; never prefetches or
+ * assets.
+ */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
 
@@ -68,12 +71,15 @@ export function shouldRefresh(request: Request): boolean {
 /**
  * A `proxy` `protect` that keeps signed-in users below `level` out of the
  * matched paths. The JWT carries no factor list, so this also sends users
- * without a factor to `redirect` to enroll one. Anonymous callers pass;
- * combine it with your sign-in redirect.
+ * without a factor to `redirect` to enroll one. Anonymous callers pass; combine
+ * it with your sign-in redirect.
  *
  * ```ts
  * bs.proxy(request, {
- *   protect: requireAal('aal2', { redirect: '/mfa', match: (path) => path.startsWith('/settings') }),
+ *   protect: requireAal("aal2", {
+ *     redirect: "/mfa",
+ *     match: (path) => path.startsWith("/settings"),
+ *   }),
  * });
  * ```
  */

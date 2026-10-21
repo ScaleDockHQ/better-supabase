@@ -52,16 +52,9 @@ const badgeVariants = cva(
         xl: "h-6 min-w-6 gap-1.5 px-2 py-0.75 text-sm",
       },
       /** `default`: active style radius. `full`: pill radius. */
-      radius: {
-        default: "rounded-sm",
-        full: "rounded-full",
-      },
+      radius: { default: "rounded-sm", full: "rounded-full" },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-      radius: "default",
-    },
+    defaultVariants: { variant: "default", size: "default", radius: "default" },
   },
 );
 

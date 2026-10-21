@@ -129,8 +129,8 @@ export interface SlaOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the policy's extra columns
-   * (`blocks.sla.options.extraColumns`), keyed by database name. It types
-   * and parses them on `savePolicy`, and validates them before the write.
+   * (`blocks.sla.options.extraColumns`), keyed by database name. It types and
+   * parses them on `savePolicy`, and validates them before the write.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Sla<FieldsOf<S>>>>;
@@ -180,8 +180,8 @@ const clocks = (value: unknown): SlaClock[] =>
   recordsOf(value, "sla clocks").map(clockOf);
 
 /**
- * The sla block: response and resolution clocks on any record, from a
- * policy per record type and priority.
+ * The sla block: response and resolution clocks on any record, from a policy
+ * per record type and priority.
  */
 export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
   options: SlaOptions<S>,
@@ -200,18 +200,20 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
     savePolicy: (organizationId, policy) => {
       const { id, fields: extra, ...attrs } = policy;
 
-      return fields.args(extra).andThen((checked) =>
-        call(
-          "save_sla_policy",
-          {
-            tenant: organizationId,
-            policy: id ?? null,
-            attrs:
-              checked === undefined ? attrs : { ...attrs, fields: checked },
-          },
-          policyOf,
-        ).andThen(fields.row),
-      );
+      return fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "save_sla_policy",
+            {
+              tenant: organizationId,
+              policy: id ?? null,
+              attrs:
+                checked === undefined ? attrs : { ...attrs, fields: checked },
+            },
+            policyOf,
+          ).andThen(fields.row),
+        );
     },
     start: (subject, priority) =>
       call(

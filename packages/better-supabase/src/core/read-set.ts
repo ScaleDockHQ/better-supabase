@@ -22,8 +22,8 @@ type ScalarParamType =
 
 /**
  * The Postgres type of a read-set parameter. `[]` types take an array. Name
- * enums and domains with their schema (`public.note_kind`): the function
- * runs with an empty `search_path`.
+ * enums and domains with their schema (`public.note_kind`): the function runs
+ * with an empty `search_path`.
  */
 export type ReadSetParamType =
   | ScalarParamType
@@ -54,21 +54,24 @@ export type ReadSetParams<P extends ReadSetParamTypes> = {
 };
 
 /**
- * Placeholders for the caller's identity, the third argument of a read
- * set's builder. The function reads them in the database, so callers can't
- * pass someone else's.
+ * Placeholders for the caller's identity, the third argument of a read set's
+ * builder. The function reads them in the database, so callers can't pass
+ * someone else's.
  */
 export interface ReadSetAuth {
-  /** The caller's user id: `auth.uid()` in the function, the JWT `sub` claim otherwise. */
+  /**
+   * The caller's user id: `auth.uid()` in the function, the JWT `sub` claim
+   * otherwise.
+   */
   readonly uid: string;
 }
 
 type ReadSetRole = "anon" | "authenticated";
 
 /**
- * Named reads that run together: one `stable` function over PostgREST (a
- * single GET), one transaction over SQL. Build it with `defineReadSet`, run
- * it with `db.$many(readSet, params)`.
+ * Named reads that run together: one `stable` function over PostgREST (a single
+ * GET), one transaction over SQL. Build it with `defineReadSet`, run it with
+ * `db.$many(readSet, params)`.
  */
 export interface ReadSet<
   N extends string = string,
@@ -153,10 +156,12 @@ function tagged(name: string, array: boolean): Placeholder | undefined {
  * ```ts
  * export const appChrome = defineReadSet(
  *   betterSupabase,
- *   'app_chrome',
- *   { params: { userId: 'uuid' } },
+ *   "app_chrome",
+ *   { params: { userId: "uuid" } },
  *   (s, p) => ({
- *     unread: s.notifications.count({ where: { userId: p.userId, readAt: null } }),
+ *     unread: s.notifications.count({
+ *       where: { userId: p.userId, readAt: null },
+ *     }),
  *     me: s.profiles.findFirst({ where: { id: p.userId } }),
  *   }),
  * );
@@ -244,9 +249,9 @@ export function defineReadSet<
 }
 
 /**
- * The generated function runs the reads as compiled at `gen` time, without
- * the runtime's `transformQuery` plugins, so tenant and soft-delete filters
- * that only those plugins add never reach it.
+ * The generated function runs the reads as compiled at `gen` time, without the
+ * runtime's `transformQuery` plugins, so tenant and soft-delete filters that
+ * only those plugins add never reach it.
  */
 function warnUnscopedReads(
   betterSupabase: Pick<BetterSupabase, "plugins" | "events" | "meta">,
@@ -413,10 +418,10 @@ export function checkParams(
 }
 
 /**
- * The specs with every placeholder replaced by its value; `auth.uid` takes
- * the `sub` claim, which must be verified. `noCaller` is set when the set
- * reads `auth.uid` and there is no `sub`: the specs then match no user, and
- * only the function, which reads `auth.uid()` itself, can run the set.
+ * The specs with every placeholder replaced by its value; `auth.uid` takes the
+ * `sub` claim, which must be verified. `noCaller` is set when the set reads
+ * `auth.uid` and there is no `sub`: the specs then match no user, and only the
+ * function, which reads `auth.uid()` itself, can run the set.
  */
 export function bindParams(
   set: ReadSet,

@@ -1,8 +1,8 @@
 /**
- * Builds the UI recipes from the example apps. Each snippet is the code
- * between `// #region recipe:<slug>` and `// #endregion recipe:<slug>` in
- * `apps/examples/nextjs` (web) or `apps/examples/expo-powersync` (native),
- * so every snippet is code that typechecks and runs. It writes:
+ * Builds the UI recipes from the example apps. Each snippet is the code between
+ * `// #region recipe:<slug>` and `// #endregion recipe:<slug>` in
+ * `apps/examples/nextjs` (web) or `apps/examples/expo-powersync` (native), so
+ * every snippet is code that typechecks and runs. It writes:
  *
  * - `apps/marketing/lib/recipes.json`, which `/recipes` renders (gitignored);
  * - `apps/docs/content/docs/registry/ui-recipes.mdx`, for the docs, `/llms.txt`
@@ -11,9 +11,9 @@
  *   for agents.
  *
  * The docs page and the skill are committed, so `--write` (`pnpm recipes`)
- * writes them and `--check` (`pnpm recipes:check`, part of `pnpm verify`)
- * fails when they are stale. The marketing `build`, `dev`, `typecheck`, `lint` and `test`
- * tasks depend on the JSON (Turbo `//#recipes`).
+ * writes them and `--check` (`pnpm recipes:check`, part of `pnpm verify`) fails
+ * when they are stale. The marketing `build`, `dev`, `typecheck`, `lint` and
+ * `test` tasks depend on the JSON (Turbo `//#recipes`).
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -68,7 +68,10 @@ interface Recipe {
 
 const REGION = /^\s*\/\/ #(region|endregion) recipe:([a-z0-9-]+)\s*$/;
 
-/** The code between the recipe's region markers in `file`, regions joined in order. */
+/**
+ * The code between the recipe's region markers in `file`, regions joined in
+ * order.
+ */
 function extractRegion(source: string, slug: string, file = ""): string {
   const parts: string[] = [];
   let current: string[] | null = null;

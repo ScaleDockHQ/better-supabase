@@ -13,9 +13,9 @@ const API_SCHEMA = blockConfig.orders.api;
 
 /**
  * The orders block acting as the caller. Placing the order and recording a
- * payment are service only (`place_order`, `record_payment`), so checkout
- * and the manual "mark as paid" go through the service role after the
- * caller's own calls have read the cart or order.
+ * payment are service only (`place_order`, `record_payment`), so checkout and
+ * the manual "mark as paid" go through the service role after the caller's own
+ * calls have read the cart or order.
  */
 export function shopOrders(supabase: RpcClient): Orders {
   return createOrders({

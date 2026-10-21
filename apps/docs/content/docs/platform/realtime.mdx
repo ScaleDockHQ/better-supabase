@@ -107,9 +107,7 @@ the instance id taken from a topic segment:
 ```ts
 export const post = defineTopic(
   "organization:{organizationId}:posts:{postId}",
-  {
-    permission: "posts.read",
-  },
+  { permission: "posts.read" },
 );
 ```
 

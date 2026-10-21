@@ -38,11 +38,11 @@ export interface TestPluginOptions {
 }
 
 /**
- * Proves a `Plugin` targets API v1, installs cleanly on its own and next to
- * the first-party plugins in either order, adds repository methods without
- * replacing base ones, keeps `context`, `transformQuery` and
- * `beforeMutation` pure and deterministic, and keeps executors'
- * results intact when it wraps them.
+ * Proves a `Plugin` targets API v1, installs cleanly on its own and next to the
+ * first-party plugins in either order, adds repository methods without
+ * replacing base ones, keeps `context`, `transformQuery` and `beforeMutation`
+ * pure and deterministic, and keeps executors' results intact when it wraps
+ * them.
  */
 export function testPlugin(
   plugin: AnyPlugin,

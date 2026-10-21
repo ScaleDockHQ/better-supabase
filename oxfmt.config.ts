@@ -8,12 +8,7 @@ function tailwindApp(
   files: string,
   stylesheet: string,
 ): NonNullable<OxfmtConfig["overrides"]>[number] {
-  return {
-    files: [files],
-    options: {
-      sortTailwindcss: { stylesheet },
-    },
-  };
+  return { files: [files], options: { sortTailwindcss: { stylesheet } } };
 }
 
 const config: OxfmtConfig = defineConfig({
@@ -21,6 +16,10 @@ const config: OxfmtConfig = defineConfig({
   trailingComma: "all",
   // Ultracite's "never" would rewrap every Markdown and MDX file.
   proseWrap: "preserve",
+  jsdoc: true,
+  // An object literal that fits on one line goes on one line, whatever the
+  // source wrote.
+  objectWrap: "collapse",
   ignorePatterns: [
     ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
@@ -54,6 +53,12 @@ const config: OxfmtConfig = defineConfig({
   },
   sortPackageJson: { sortScripts: true },
   overrides: [
+    {
+      // Generators write these with JSON.stringify, and their checks compare
+      // the bytes.
+      files: ["**/*.{json,jsonc,json5}"],
+      options: { objectWrap: "preserve" },
+    },
     tailwindApp("apps/docs/**", "./apps/docs/app/global.css"),
     tailwindApp("apps/marketing/**", "./apps/marketing/app/globals.css"),
     tailwindApp(

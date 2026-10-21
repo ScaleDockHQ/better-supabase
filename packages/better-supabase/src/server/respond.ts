@@ -22,13 +22,13 @@ export interface GuardOptions {
   /**
    * Callers allowed through. Defaults to `['user']`, which refuses anonymous
    * sign-ins. Only `'anonymous'` admits them: `['anonymous']` alone admits
-   * anonymous sign-ins and refuses other users, and `'anon'` (no session)
-   * never admits them.
+   * anonymous sign-ins and refuses other users, and `'anon'` (no session) never
+   * admits them.
    */
   readonly allow?: readonly AllowedCaller[];
   /**
-   * Assurance level user sessions need. `aal2` answers 403 with
-   * `required: 'aal2'` until the user verifies a second factor.
+   * Assurance level user sessions need. `aal2` answers 403 with `required:
+   * 'aal2'` until the user verifies a second factor.
    */
   readonly aal?: Aal;
   /**
@@ -39,21 +39,24 @@ export interface GuardOptions {
   readonly scopes?: readonly string[];
 }
 
-/** Guard options for middleware and fetch handlers that resolve the caller themselves. */
+/**
+ * Guard options for middleware and fetch handlers that resolve the caller
+ * themselves.
+ */
 export interface MiddlewareOptions extends GuardOptions {
   /**
-   * Refresh an expired cookie session and send the new cookies. Only for
-   * routes browsers call with cookies; bearer tokens never refresh.
-   * `'navigation'` refreshes page loads and form posts only (`shouldRefresh`).
+   * Refresh an expired cookie session and send the new cookies. Only for routes
+   * browsers call with cookies; bearer tokens never refresh. `'navigation'`
+   * refreshes page loads and form posts only (`shouldRefresh`).
    */
   readonly refresh?: RefreshPolicy;
 }
 
 /**
  * The scopes a delegated user token lacks. Empty for the user's own session,
- * which a support or impersonated session counts as: an `oauth-client`
- * actor, and an `agent` on a token with a `scope`, are limited to what the
- * user delegated.
+ * which a support or impersonated session counts as: an `oauth-client` actor,
+ * and an `agent` on a token with a `scope`, are limited to what the user
+ * delegated.
  */
 function missingScopes(
   auth: Extract<AuthState, { kind: "user" }>,
@@ -160,10 +163,9 @@ export type Settled =
   | { readonly ok: false; readonly error: DbError };
 
 /**
- * Settles a handler's return value: `Result`s and `AsyncResult`s unwrap,
- * thrown `DbException`s (or errors whose `cause` is a `DbError`) become
- * errors, anything else is data. Other thrown
- * errors propagate.
+ * Settles a handler's return value: `Result`s and `AsyncResult`s unwrap, thrown
+ * `DbException`s (or errors whose `cause` is a `DbError`) become errors,
+ * anything else is data. Other thrown errors propagate.
  */
 export async function settle(run: () => unknown): Promise<Settled> {
   try {
@@ -199,7 +201,10 @@ export interface RespondOptions {
   readonly status?: number;
 }
 
-/** A handler's value as a response: `Response` as is, data as JSON, errors as Problem Details. */
+/**
+ * A handler's value as a response: `Response` as is, data as JSON, errors as
+ * Problem Details.
+ */
 export async function respond(
   run: () => unknown,
   options: RespondOptions = {},
@@ -221,7 +226,10 @@ export async function respond(
   return jsonResponse(settled.data, { status: options.status ?? 200 });
 }
 
-/** Prefetching the JWKS would add a network call to every test that builds a server. */
+/**
+ * Prefetching the JWKS would add a network call to every test that builds a
+ * server.
+ */
 export function defaultPrefetchJwks(): boolean {
   // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
   return typeof process === "undefined" || process.env["NODE_ENV"] !== "test";

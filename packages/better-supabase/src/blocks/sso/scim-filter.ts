@@ -277,7 +277,10 @@ function lookup(record: Record<string, unknown>, name: string): unknown {
   return undefined;
 }
 
-/** The URN prefix of `path` when it names one of the resource's schemas, and the rest. */
+/**
+ * The URN prefix of `path` when it names one of the resource's schemas, and the
+ * rest.
+ */
 function relative(
   resource: Record<string, unknown>,
   path: string,
@@ -451,7 +454,10 @@ function order(op: CompareOp, difference: number): boolean {
   }
 }
 
-/** Whether `resource` matches; a multi-valued attribute matches when any value does. */
+/**
+ * Whether `resource` matches; a multi-valued attribute matches when any value
+ * does.
+ */
 export function matches(
   resource: Record<string, unknown>,
   filter: ScimFilter,

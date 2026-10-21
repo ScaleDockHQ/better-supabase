@@ -75,11 +75,11 @@ function expectRow(where: string, row: DisabledRow): void {
 }
 
 /**
- * Proves an `AuthorizationProvider` targets API v1, is plain JSON, names
- * valid scopes with a tenant scope that has an id type, writes templates
- * that are safe to inline and use the placeholders they need, lists every
- * function its templates call in `requires`, and keeps its token hook,
- * suspension rows, role sources and deciding columns well formed.
+ * Proves an `AuthorizationProvider` targets API v1, is plain JSON, names valid
+ * scopes with a tenant scope that has an id type, writes templates that are
+ * safe to inline and use the placeholders they need, lists every function its
+ * templates call in `requires`, and keeps its token hook, suspension rows, role
+ * sources and deciding columns well formed.
  */
 export function testAuthorizationProvider(
   provider: AuthorizationProvider,

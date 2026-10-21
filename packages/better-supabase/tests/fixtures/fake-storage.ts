@@ -60,8 +60,8 @@ function sizeOf(body: unknown): number | undefined {
 }
 
 /**
- * An in-memory Storage API with the `storage.from(bucket)` methods buckets
- * use. `fail` makes a method answer with an error (or throw) instead.
+ * An in-memory Storage API with the `storage.from(bucket)` methods buckets use.
+ * `fail` makes a method answer with an error (or throw) instead.
  */
 export function fakeStorage(
   options: {

@@ -134,9 +134,9 @@ function EndpointStatusBadge({
 }
 
 /**
- * Render inside `<Suspense>`: the organization's webhook endpoints and
- * their latest deliveries. Members with `webhooks.manage` add, toggle,
- * test and delete endpoints, and retry finished deliveries.
+ * Render inside `<Suspense>`: the organization's webhook endpoints and their
+ * latest deliveries. Members with `webhooks.manage` add, toggle, test and
+ * delete endpoints, and retry finished deliveries.
  */
 export async function WebhookEndpoints() {
   const [session, state, t, format] = await Promise.all([

@@ -3,7 +3,10 @@ import type { Message, StateAdapter } from "chat";
 import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
 export interface TestChatStateOptions {
-  /** Builds a queued message, e.g. `createTestMessage(id, text)` from `@chat-adapter/tests`. */
+  /**
+   * Builds a queued message, e.g. `createTestMessage(id, text)` from
+   * `@chat-adapter/tests`.
+   */
   readonly message: (id: string, text: string) => Message;
   /** A fresh key or thread id per call. Defaults to `conformance-<uuid>`. */
   readonly id?: () => string;
@@ -17,10 +20,10 @@ const sleep = (ms: number): Promise<void> =>
   });
 
 /**
- * Runs the Chat SDK `StateAdapter` contract against `state`: subscriptions,
- * one lock holder at a time with token-checked release and extension, lock
- * and cache TTLs, `setIfNotExists`, list trimming, and a per-thread queue
- * that keeps the newest entries, reports its depth and drops expired ones.
+ * Runs the Chat SDK `StateAdapter` contract against `state`: subscriptions, one
+ * lock holder at a time with token-checked release and extension, lock and
+ * cache TTLs, `setIfNotExists`, list trimming, and a per-thread queue that
+ * keeps the newest entries, reports its depth and drops expired ones.
  */
 export function testChatState(
   state: StateAdapter,

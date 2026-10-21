@@ -565,10 +565,7 @@ describe("resolveAuth", async () => {
     it("validates verified claims and merges the output over the payload", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: TENANT });
 
-      const { auth } = await resolveAuth(bearer(token), {
-        ...options,
-        claims,
-      });
+      const { auth } = await resolveAuth(bearer(token), { ...options, claims });
 
       expect(auth).toMatchObject({
         kind: "user",

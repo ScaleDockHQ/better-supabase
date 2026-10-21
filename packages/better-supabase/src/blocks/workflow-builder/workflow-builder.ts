@@ -105,10 +105,9 @@ export type {
 const BUILDER_PREFIX = "builder:";
 
 /**
- * The `workflow-builder` module's definitions, versions, triggers,
- * credentials, step library, node runs and alerts. The engine plugs in
- * through `compile` and `start`; credential rows resolve through the
- * `credentials` providers.
+ * The `workflow-builder` module's definitions, versions, triggers, credentials,
+ * step library, node runs and alerts. The engine plugs in through `compile` and
+ * `start`; credential rows resolve through the `credentials` providers.
  *
  * ```ts
  * const builder = createWorkflowBuilder({
@@ -250,23 +249,25 @@ export function createWorkflowBuilder<
   const builder: WorkflowBuilder<F> = {
     definitions: {
       save: (input) =>
-        fields.args(input.fields).andThen((checked) =>
-          call(
-            "save_workflow_definition",
-            {
-              tenant: input.tenant,
-              slug: input.slug,
-              name: input.name,
-              description: input.description,
-              subject_types: input.subjectTypes,
-              scope: input.scope,
-              restricted: input.restricted,
-              fields: checked,
-            },
-            (value) =>
-              definitionOf(recordOf(value, "save_workflow_definition")),
-          ).andThen(fields.row),
-        ),
+        fields
+          .args(input.fields)
+          .andThen((checked) =>
+            call(
+              "save_workflow_definition",
+              {
+                tenant: input.tenant,
+                slug: input.slug,
+                name: input.name,
+                description: input.description,
+                subject_types: input.subjectTypes,
+                scope: input.scope,
+                restricted: input.restricted,
+                fields: checked,
+              },
+              (value) =>
+                definitionOf(recordOf(value, "save_workflow_definition")),
+            ).andThen(fields.row),
+          ),
       list: (tenant, filter = {}) =>
         call(
           "workflow_definitions_list",
@@ -873,7 +874,10 @@ export function createWorkflowBuilder<
   return hooked(builder, options);
 }
 
-/** The builder with `options.hooks` around `run`, `test` and each group's methods. */
+/**
+ * The builder with `options.hooks` around `run`, `test` and each group's
+ * methods.
+ */
 function hooked<F extends object>(
   builder: WorkflowBuilder<F>,
   options: Pick<BuilderOptions<StandardSchemaV1 | undefined>, "logger"> & {
@@ -960,8 +964,8 @@ function workflowSink(
 }
 
 /**
- * A test run's default stubs: each step node's library `outputSchema`
- * example (its first `examples` entry, else its `default`).
+ * A test run's default stubs: each step node's library `outputSchema` example
+ * (its first `examples` entry, else its `default`).
  */
 function exampleStubs(
   version: WorkflowVersion,
@@ -1016,8 +1020,8 @@ function startTargetOf(row: Record<string, unknown>): StartTarget {
 }
 
 /**
- * A subject event's record (the event's `subjectType` and `subjectId`, else
- * its payload's), when the definition runs on its type.
+ * A subject event's record (the event's `subjectType` and `subjectId`, else its
+ * payload's), when the definition runs on its type.
  */
 function eventSubject(
   event: {

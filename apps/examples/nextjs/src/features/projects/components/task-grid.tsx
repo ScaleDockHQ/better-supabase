@@ -342,8 +342,8 @@ const UNASSIGNED = "unassigned";
 type SetField = "due_on" | "assignee_id";
 
 /**
- * Sets one field on the selected tasks with the bulk block's
- * `appTables.set`. An empty value clears the field.
+ * Sets one field on the selected tasks with the bulk block's `appTables.set`.
+ * An empty value clears the field.
  */
 function SetFieldDialog({
   ids,
@@ -400,9 +400,7 @@ function SetFieldDialog({
               values:
                 field === "due_on"
                   ? { due_on: dueOn === "" ? null : dueOn }
-                  : {
-                      assignee_id: assignee === UNASSIGNED ? null : assignee,
-                    },
+                  : { assignee_id: assignee === UNASSIGNED ? null : assignee },
             });
           }}
         >
@@ -532,8 +530,8 @@ function StatusCell({ row }: GridCell) {
 
 /**
  * Tasks in a ReUI data grid. The checkboxes feed a bulk bar that sets the
- * status of the selected rows, sets another field through the bulk block,
- * or deletes them in one statement.
+ * status of the selected rows, sets another field through the bulk block, or
+ * deletes them in one statement.
  */
 export function TaskGrid({
   rows,

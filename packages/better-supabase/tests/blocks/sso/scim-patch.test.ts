@@ -50,13 +50,9 @@ describe("applyPatch", () => {
       patchUser({ op: "replace", path: "name", value: { givenName: "B" } })[
         "name"
       ],
-    ).toEqual({
-      givenName: "B",
-    });
+    ).toEqual({ givenName: "B" });
     expect(patchUser({ op: "remove", path: "name.givenName" })["name"]).toEqual(
-      {
-        familyName: "Jensen",
-      },
+      { familyName: "Jensen" },
     );
     expect(patchUser({ op: "remove", path: "name" })["name"]).toBeUndefined();
   });

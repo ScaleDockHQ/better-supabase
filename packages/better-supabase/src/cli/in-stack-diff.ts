@@ -9,9 +9,9 @@ import { connect, type PgQueryable } from "./db.ts";
 import { type RunProcess, runProcess, supabaseCli } from "./exec.ts";
 
 /**
- * Schemas the platform owns. The declarative files may add policies to
- * their tables (`storage.objects`), so those policies are dropped and
- * replayed, but the schemas themselves are kept.
+ * Schemas the platform owns. The declarative files may add policies to their
+ * tables (`storage.objects`), so those policies are dropped and replayed, but
+ * the schemas themselves are kept.
  */
 const PLATFORM_SCHEMAS: ReadonlySet<string> = new Set([
   "_analytics",
@@ -50,7 +50,10 @@ export function isShadowFailure(output: string): boolean {
   return SHADOW_FAILURE.test(output);
 }
 
-/** The same database as `supabase_admin`, which may create databases and read every schema. */
+/**
+ * The same database as `supabase_admin`, which may create databases and read
+ * every schema.
+ */
 export function adminUrl(url: string): string {
   const parsed = new URL(url);
   parsed.username = ADMIN_ROLE;
@@ -233,8 +236,8 @@ async function dropManagedObjects(
 const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 
 /**
- * Empties `public` without dropping it, so its default privileges stay.
- * Objects an extension owns stay too.
+ * Empties `public` without dropping it, so its default privileges stay. Objects
+ * an extension owns stay too.
  */
 const EMPTY_PUBLIC = `do $$
 declare r record;
@@ -311,9 +314,9 @@ async function applyInRounds(
 /**
  * Diffs the declarative schema against the running stack without a shadow
  * database: copies the stack's database into a temporary one in the same
- * Postgres, replaces the objects the files manage with the files, and lets
- * the CLI's pg-delta diff the stack against the copy. The temporary
- * database is always dropped.
+ * Postgres, replaces the objects the files manage with the files, and lets the
+ * CLI's pg-delta diff the stack against the copy. The temporary database is
+ * always dropped.
  */
 export async function inStackDiff(
   options: InStackDiffOptions,

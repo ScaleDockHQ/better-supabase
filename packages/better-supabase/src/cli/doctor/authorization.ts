@@ -73,7 +73,10 @@ function missingTemplates(
   }));
 }
 
-/** Tables whose generated policies call the provider's functions by role and scope only. */
+/**
+ * Tables whose generated policies call the provider's functions by role and
+ * scope only.
+ */
 const SUPPORT_SESSION_APPROVAL = "support-session";
 
 const POLICY_TABLES = new Set(["storage.objects", "realtime.messages"]);
@@ -122,7 +125,10 @@ interface ProviderCall {
   readonly scope: string;
 }
 
-/** The keys and scopes a policy body passes to the provider's `idsWith` and `isPlatform`. */
+/**
+ * The keys and scopes a policy body passes to the provider's `idsWith` and
+ * `isPlatform`.
+ */
 function providerCalls(
   provider: AuthorizationProvider,
   body: string,
@@ -172,9 +178,9 @@ interface ProviderPolicy {
 
 /**
  * Policies better-supabase generates (`bs_` names) on `storage.objects` and
- * `realtime.messages` that call the provider's templates, with the keys
- * they pass. The first file that declares a policy wins, matching the
- * `sqlFiles` order (declarative schemas, then the newest migration).
+ * `realtime.messages` that call the provider's templates, with the keys they
+ * pass. The first file that declares a policy wins, matching the `sqlFiles`
+ * order (declarative schemas, then the newest migration).
  */
 function providerPolicies(
   provider: AuthorizationProvider,
@@ -224,8 +230,8 @@ function providerPolicies(
 
 /**
  * `buckets` entries whose access policy reaches the provider's functions:
- * through `sql` templates, or through the access contract under the
- * `provider` model. Their keys and scope (the tenant scope for `tenant`).
+ * through `sql` templates, or through the access contract under the `provider`
+ * model. Their keys and scope (the tenant scope for `tenant`).
  */
 export function providerBucketKeys(
   config: Pick<ResolvedConfig, "buckets" | "authorization" | "blocks">,
@@ -305,7 +311,10 @@ function placementProblems(
   ];
 }
 
-/** The provider's memberships for the `entitlements` SQL module, when that mode is valid. */
+/**
+ * The provider's memberships for the `entitlements` SQL module, when that mode
+ * is valid.
+ */
 export function entitlementsModule(
   context: Pick<DoctorContext, "config">,
 ): ModuleEntitlementsProvider | undefined {
@@ -314,7 +323,10 @@ export function entitlementsModule(
   return mode.kind === "provider" ? mode.provider : undefined;
 }
 
-/** The provider for the `provider` access model, when `blocks` installs `access`. */
+/**
+ * The provider for the `provider` access model, when `blocks` installs
+ * `access`.
+ */
 export function accessModule(
   context: Pick<DoctorContext, "config">,
 ): AccessProviderMode {
@@ -330,9 +342,9 @@ export function accessModule(
 }
 
 /**
- * Checks a function a template calls against `authorization.requires` and
- * the database: listed, executable by `role`, and present when the
- * snapshot read its schema. `undefined` when it passes.
+ * Checks a function a template calls against `authorization.requires` and the
+ * database: listed, executable by `role`, and present when the snapshot read
+ * its schema. `undefined` when it passes.
  */
 function requirementProblem(
   context: DoctorContext,

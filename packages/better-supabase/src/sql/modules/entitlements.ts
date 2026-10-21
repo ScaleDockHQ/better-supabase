@@ -85,7 +85,10 @@ grant execute on function better_supabase.feature_claims(uuid) to service_role, 
 
 const qualified = (table: string): string => quotedTable(table);
 
-/** `tenant_entitlements` over a plan catalog: the active subscription's plan features. */
+/**
+ * `tenant_entitlements` over a plan catalog: the active subscription's plan
+ * features.
+ */
 function planEntitlements(
   plans: EntitlementPlansSource["plans"],
   id: string,
@@ -142,7 +145,10 @@ revoke execute on function better_supabase.tenant_plans(${id}) from public, anon
 grant execute on function better_supabase.tenant_plans(${id}) to service_role;`;
 }
 
-/** `tenant_entitlement_value` over the plan catalog, from `features.value` when set. */
+/**
+ * `tenant_entitlement_value` over the plan catalog, from `features.value` when
+ * set.
+ */
 function planEntitlementValue(
   plans: EntitlementPlansSource["plans"],
   id: string,

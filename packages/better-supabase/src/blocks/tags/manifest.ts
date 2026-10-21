@@ -11,9 +11,7 @@ export const tagsBlock: BlockOf<"tags", typeof createTags, TagsEvents> =
   defineBlock({
     name: "tags",
     sql: ["tags"],
-    options: {
-      tags: tagsSqlOptions,
-    },
+    options: { tags: tagsSqlOptions },
     events: tagsEvents,
     create: createTags,
     category: "work",

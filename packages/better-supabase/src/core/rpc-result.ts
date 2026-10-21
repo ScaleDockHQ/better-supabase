@@ -124,9 +124,9 @@ const overloadMeta = new WeakMap<FunctionSignature, FunctionMeta>();
 
 /**
  * The signature `$rpc` calls: PostgREST picks an overload by the argument
- * names, so a call matches the overload that has every name it passes and
- * every argument without a default. Undefined when the function is in
- * another schema or when no overload, or more than one, matches.
+ * names, so a call matches the overload that has every name it passes and every
+ * argument without a default. Undefined when the function is in another schema
+ * or when no overload, or more than one, matches.
  */
 export function rpcFunction(
   meta: SchemaMeta,
@@ -172,8 +172,8 @@ export function rpcFunction(
 
 /**
  * The `$rpc` result in app form: rows of a table or a `returns table (...)`
- * record get the configured casing and codecs, like repository reads.
- * Scalars, json and calls without a known signature come back unchanged.
+ * record get the configured casing and codecs, like repository reads. Scalars,
+ * json and calls without a known signature come back unchanged.
  */
 export function decodeRpcResult(
   meta: SchemaMeta,

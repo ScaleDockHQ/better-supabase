@@ -38,7 +38,10 @@ export interface EveChatSdkBridge<T extends EveChatThread = EveChatThread> {
 export interface RouteInboxOptions {
   /** `createInbox` on a service transport. */
   readonly inbox: Inbox;
-  /** The session title for a new conversation. Defaults to the conversation's subject. */
+  /**
+   * The session title for a new conversation. Defaults to the conversation's
+   * subject.
+   */
   readonly title?: string;
 }
 

@@ -59,10 +59,7 @@ describe.skipIf(!live)("notification email delivery", () => {
     owner = await s.user("owner");
     member = await s.user("member");
     bounced = await s.user("bounced");
-    organization = await s.organization(owner, {
-      member,
-      member2: bounced,
-    });
+    organization = await s.organization(owner, { member, member2: bounced });
   });
   afterEach(() => s.close());
 

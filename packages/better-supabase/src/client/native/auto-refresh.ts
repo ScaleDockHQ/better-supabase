@@ -16,12 +16,12 @@ export interface AutoRefreshClient {
 }
 
 /**
- * Refreshes the Supabase session only while the app is in the foreground,
- * as supabase-js requires on React Native. Returns a function that removes
- * the listener and stops refreshing.
+ * Refreshes the Supabase session only while the app is in the foreground, as
+ * supabase-js requires on React Native. Returns a function that removes the
+ * listener and stops refreshing.
  *
  * ```ts
- * import { AppState } from 'react-native';
+ * import { AppState } from "react-native";
  * autoRefreshOnForeground(supabase, AppState);
  * ```
  */

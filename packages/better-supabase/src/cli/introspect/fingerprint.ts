@@ -3,8 +3,8 @@ import type { Queryable } from "./typegen.ts";
 import { LARGE_TABLE_ROWS } from "./extras.ts";
 
 /**
- * Catalogs whose rows only change with DDL, grants, comments or settings,
- * with the column that ties a row to a relation or namespace, if any.
+ * Catalogs whose rows only change with DDL, grants, comments or settings, with
+ * the column that ties a row to a relation or namespace, if any.
  */
 const CATALOGS: readonly (readonly [string, string?])[] = [
   ["pg_namespace", "oid"],
@@ -49,8 +49,8 @@ const digest = (from: string): string =>
 
 /**
  * One cheap query whose result changes whenever introspection could. pg_class
- * leaves out the planner statistics that VACUUM and ANALYZE rewrite, except
- * the row-count threshold the snapshot records. pg_depend is limited to the
+ * leaves out the planner statistics that VACUUM and ANALYZE rewrite, except the
+ * row-count threshold the snapshot records. pg_depend is limited to the
  * policies' rows, which name the tables and functions each policy uses.
  * pg_auth_members decides which privileges a role inherits, so the execute
  * lists change with it. Bucket rows are data, so they are hashed when
@@ -67,7 +67,10 @@ const FINGERPRINT_SQL = `select md5(concat_ws('|',
   end
 )) as fingerprint`;
 
-/** A hash of the catalog; equal values mean introspection would return the same snapshot. */
+/**
+ * A hash of the catalog; equal values mean introspection would return the same
+ * snapshot.
+ */
 export async function catalogFingerprint(db: Queryable): Promise<string> {
   const rows: readonly unknown[] = (await db.query(FINGERPRINT_SQL)).rows;
   const [row] = rows;

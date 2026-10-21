@@ -77,11 +77,7 @@ function expectWrapped(module: string, calls: readonly Call[]): void {
         fn: call.fn,
         arg: name,
         declared: declared?.includes(name),
-      }).toEqual({
-        fn: call.fn,
-        arg: name,
-        declared: true,
-      });
+      }).toEqual({ fn: call.fn, arg: name, declared: true });
     }
   }
 }
@@ -352,10 +348,7 @@ describe("purge", () => {
 
     const jobs = createJobs({
       transport,
-      queues: {
-        emails: v.object({}),
-        reports: v.object({}),
-      },
+      queues: { emails: v.object({}), reports: v.object({}) },
     });
 
     expect(

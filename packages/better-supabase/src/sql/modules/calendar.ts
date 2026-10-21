@@ -123,7 +123,10 @@ const STATUSES = "('confirmed', 'tentative', 'cancelled')";
 const RESPONSES = "('needs-action', 'accepted', 'declined', 'tentative')";
 const ROLES = "('chair', 'required', 'optional', 'non-participant')";
 
-/** `jsonb -> column` assignments for an insert, for the optional columns that exist. */
+/**
+ * `jsonb -> column` assignments for an insert, for the optional columns that
+ * exist.
+ */
 function eventFields(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {

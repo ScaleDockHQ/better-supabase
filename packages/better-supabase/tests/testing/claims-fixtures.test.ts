@@ -67,10 +67,7 @@ describe("supabaseClaimFixtures", () => {
     }
 
     expect(
-      actClaim({
-        actor: impersonation.expect.actor.id,
-        reason: "ticket 42",
-      }),
+      actClaim({ actor: impersonation.expect.actor.id, reason: "ticket 42" }),
     ).toEqual(impersonation.claims["act"]);
   });
 

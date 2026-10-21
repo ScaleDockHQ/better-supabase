@@ -15,9 +15,7 @@ export const workflowBuilderBlock: BlockOf<
 > = defineBlock({
   name: "workflow-builder",
   sql: ["workflow-builder"],
-  options: {
-    "workflow-builder": workflowBuilderSqlOptions,
-  },
+  options: { "workflow-builder": workflowBuilderSqlOptions },
   events: workflowBuilderEvents,
   consumes: { workflows: "optional" },
   create: createWorkflowBuilder,

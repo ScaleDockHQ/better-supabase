@@ -15,27 +15,32 @@ import {
   applyTemporal,
 } from "../shared.ts";
 
-/** One setting: its Standard Schema and the value `get` returns when none is stored. */
+/**
+ * One setting: its Standard Schema and the value `get` returns when none is
+ * stored.
+ */
 export interface SettingEntry<S extends StandardSchemaV1 = StandardSchemaV1> {
   readonly schema: S;
   readonly default?: StandardSchemaV1.InferOutput<S>;
   /**
-   * Platform settings only: the platform permission (`is_platform`) that
-   * may change this key. Default `blocks.settings.options.platform.permission`,
+   * Platform settings only: the platform permission (`is_platform`) that may
+   * change this key. Default `blocks.settings.options.platform.permission`,
    * then `settings.manage`.
    */
   readonly permission?: string;
   /**
-   * Platform settings only: who reads this key, `public` (anyone, also
-   * signed out), `authenticated` (default) or `staff` (holders of its
-   * permission).
+   * Platform settings only: who reads this key, `public` (anyone, also signed
+   * out), `authenticated` (default) or `staff` (holders of its permission).
    */
   readonly read?: "public" | "authenticated" | "staff";
 }
 
 export type SettingEntries = Readonly<Record<string, SettingEntry>>;
 
-/** The value type of each key: the schema output, or `undefined` without a default. */
+/**
+ * The value type of each key: the schema output, or `undefined` without a
+ * default.
+ */
 export type SettingValues<E extends SettingEntries> = {
   readonly [K in keyof E]: E[K] extends SettingEntry<infer S>
     ? E[K] extends { readonly default: unknown }
@@ -68,8 +73,8 @@ export interface SettingsOptions<
   P extends SettingEntries = SettingEntries,
 > extends BlockOptions {
   /**
-   * The app's settings, from `defineSettings`. Without it (a block wired
-   * with no definition) every key is unknown.
+   * The app's settings, from `defineSettings`. Without it (a block wired with
+   * no definition) every key is unknown.
    */
   readonly settings?: SettingsDefinition<U, O, P>;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -79,10 +84,10 @@ export interface SettingsOptions<
 }
 
 /**
- * Typed reads and writes of the caller's settings, an organization's
- * settings (reads need `settings.read`, writes `settings.update`) and the
- * product-wide settings (reads follow each key's `read`, writes need its
- * platform permission).
+ * Typed reads and writes of the caller's settings, an organization's settings
+ * (reads need `settings.read`, writes `settings.update`) and the product-wide
+ * settings (reads follow each key's `read`, writes need its platform
+ * permission).
  */
 export interface Settings<
   U extends SettingEntries = SettingEntries,
@@ -130,8 +135,8 @@ export interface SettingsDefinition<
   P extends SettingEntries = Record<never, never>,
 > {
   /**
-   * Pass as `blocks.settings.options.schemas` for the database checks,
-   * and the platform keys' permissions and read rules.
+   * Pass as `blocks.settings.options.schemas` for the database checks, and the
+   * platform keys' permissions and read rules.
    */
   readonly schemas: {
     readonly user: U;
@@ -160,7 +165,10 @@ export function defineSettings<
   return { schemas: { user, organization, platform } };
 }
 
-/** The settings block: typed `get`, `set` and `reset` over the settings module's functions. */
+/**
+ * The settings block: typed `get`, `set` and `reset` over the settings module's
+ * functions.
+ */
 export function createSettings<
   U extends SettingEntries,
   O extends SettingEntries,

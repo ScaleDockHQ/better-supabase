@@ -15,10 +15,10 @@ export interface UndoCall {
 }
 
 /**
- * What a block method returns when its change has an inverse. It is plain
- * JSON, so it can travel from a server action to a toast and back. Applying
- * it runs the calls in order as the caller, so the same permission checks
- * apply as for any other write.
+ * What a block method returns when its change has an inverse. It is plain JSON,
+ * so it can travel from a server action to a toast and back. Applying it runs
+ * the calls in order as the caller, so the same permission checks apply as for
+ * any other write.
  */
 export interface UndoToken {
   readonly v: 1;
@@ -62,7 +62,10 @@ export interface UndoOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** Extra functions a token may call, for an app's own inverses. */
   readonly allow?: readonly string[];
-  /** `withBlockHooks` hooks around `apply`, such as a rule on which tokens a user may apply. */
+  /**
+   * `withBlockHooks` hooks around `apply`, such as a rule on which tokens a
+   * user may apply.
+   */
   readonly hooks?: BlockHooks<Undo>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;

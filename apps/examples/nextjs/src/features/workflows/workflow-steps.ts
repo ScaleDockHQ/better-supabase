@@ -12,9 +12,9 @@ import {
 
 /**
  * Steps run in the workflow's step route, outside any request, so they act
- * through the service role. The tenant and the recipient come from the
- * context the run was started with (`workflowContext`), never from input.
- * The step bundle doesn't load `@/lib/supabase`, so it passes Temporal itself.
+ * through the service role. The tenant and the recipient come from the context
+ * the run was started with (`workflowContext`), never from input. The step
+ * bundle doesn't load `@/lib/supabase`, so it passes Temporal itself.
  */
 export function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

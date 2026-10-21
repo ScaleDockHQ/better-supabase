@@ -289,9 +289,7 @@ import { defineConfig } from "better-supabase/config";
 import { settings } from "./src/lib/settings.ts";
 
 export default defineConfig({
-  blocks: {
-    settings: { options: { schemas: settings } },
-  },
+  blocks: { settings: { options: { schemas: settings } } },
 });
 ```
 

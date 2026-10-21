@@ -18,7 +18,10 @@ export interface TopicFanOutOptions<
   S extends Subscriber,
 > {
   readonly subscribers: readonly S[];
-  /** The topic values of one subscriber, e.g. `(s) => ({ userId: s.principal })`. */
+  /**
+   * The topic values of one subscriber, e.g. `(s) => ({ userId: s.principal
+   * })`.
+   */
   readonly values: (subscriber: S) => TemplateValues<P>;
   readonly event: K;
   readonly payload: TopicPayload<E, K>;
@@ -31,9 +34,7 @@ export interface TopicFanOutOptions<
    * (`REALTIME_SUBSCRIBER_POLICY_REQUIRED`); pass `subjectReaders(transport)`.
    */
   readonly policy?: SubscriberPolicy;
-  readonly server?: {
-    readonly authorization?: AuthorizationHooks | undefined;
-  };
+  readonly server?: { readonly authorization?: AuthorizationHooks | undefined };
 }
 
 export interface FanOutResult<S> {

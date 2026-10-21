@@ -28,7 +28,10 @@ const signer = await createTestSigner();
 
 const customer = v.object({ id: v.string(), name: v.string() });
 
-/** The contract a client package shares with the server, without its implementation. */
+/**
+ * The contract a client package shares with the server, without its
+ * implementation.
+ */
 const contract = {
   me: oc
     .meta(openapi({ method: "GET", path: "/me" }))

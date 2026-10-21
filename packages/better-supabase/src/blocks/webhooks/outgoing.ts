@@ -282,9 +282,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       status === "retrying"
         ? temporal()
             .Now.instant()
-            .add({
-              seconds: Math.max(backoff(delivery.attempt), retryAfter),
-            })
+            .add({ seconds: Math.max(backoff(delivery.attempt), retryAfter) })
             .toString()
         : undefined;
 
@@ -385,7 +383,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     return ok(encoder.authorize?.(token.data) ?? token.data.headers);
   }
 
-  /** The Standard Webhooks headers, from the endpoint's secrets or `asymmetricSigner`. */
+  /**
+   * The Standard Webhooks headers, from the endpoint's secrets or
+   * `asymmetricSigner`.
+   */
   async function signatureHeaders(
     deliveries: readonly WebhookDelivery[],
     body: string,

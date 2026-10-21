@@ -154,7 +154,10 @@ const OWN_FILES = new Set([
 const withoutComments = (source: string): string =>
   source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/^\s*\/\/.*$/gm, "");
 
-/** The block's own code: its creator's file, or every file of a one-block directory. */
+/**
+ * The block's own code: its creator's file, or every file of a one-block
+ * directory.
+ */
 const sourcesOf = (block: AnyBlock): string => {
   const dir = dirOf(block);
 

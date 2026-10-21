@@ -131,9 +131,7 @@ describe("questionnaireReducer", () => {
       state,
       answer("email", "ada@example.com"),
       answer("plan", "team"),
-      {
-        type: "next",
-      },
+      { type: "next" },
     );
     expect(state.issues.map((issue) => issue.path?.[0])).toEqual(["company"]);
     state = run(state, answer("company", "Acme"), { type: "next" });
@@ -195,9 +193,7 @@ describe("questionnaireReducer", () => {
     expect(state.answers).toEqual({});
     expect(
       run(state, { type: "reset", answers: { name: "Bo" } }).answers,
-    ).toEqual({
-      name: "Bo",
-    });
+    ).toEqual({ name: "Bo" });
   });
 
   it("moves back when an answer hides the step on screen", () => {

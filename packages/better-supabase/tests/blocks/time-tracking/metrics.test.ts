@@ -34,10 +34,7 @@ describe("timeTrackingMetrics", () => {
     expect(tracked).not.toHaveProperty("tz");
     expect(
       timeTrackingMetrics({ schema: "work", tz: "Europe/Amsterdam" })[0],
-    ).toMatchObject({
-      table: "work.time_entries",
-      tz: "Europe/Amsterdam",
-    });
+    ).toMatchObject({ table: "work.time_entries", tz: "Europe/Amsterdam" });
   });
 
   it("buckets entry events by the time the entry started", async () => {

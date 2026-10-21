@@ -1,6 +1,9 @@
 import { type DbError, dbError } from "../core/errors.ts";
 
-/** Authenticator assurance level: `aal2` once a second factor is verified in this session. */
+/**
+ * Authenticator assurance level: `aal2` once a second factor is verified in
+ * this session.
+ */
 export type Aal = "aal1" | "aal2";
 
 /** One way the user proved who they are in this session (the JWT `amr` claim). */
@@ -13,7 +16,10 @@ export interface AmrEntry {
   readonly provider?: string;
 }
 
-/** The session's assurance level from its claims; anything but `aal2` reads as `aal1`. */
+/**
+ * The session's assurance level from its claims; anything but `aal2` reads as
+ * `aal1`.
+ */
 export function aalOf(claims: Readonly<Record<string, unknown>>): Aal {
   return claims["aal"] === "aal2" ? "aal2" : "aal1";
 }
@@ -50,8 +56,8 @@ export function amrOf(
 
 /**
  * `undefined` when a user session meets `required`; otherwise a `forbidden`
- * error with `required` and code `INSUFFICIENT_AAL`, for the client to start
- * an MFA challenge. Non-user sessions pass: `allow` decides about them.
+ * error with `required` and code `INSUFFICIENT_AAL`, for the client to start an
+ * MFA challenge. Non-user sessions pass: `allow` decides about them.
  */
 export function checkAal(
   auth:

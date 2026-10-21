@@ -4,15 +4,17 @@ import type { AuthPort, Controller } from "../controller.ts";
 
 import { defineController, whileSignedIn } from "../controller.ts";
 
-/** Loads one list of items, e.g. a server action that calls `notifications.list()`. */
+/**
+ * Loads one list of items, e.g. a server action that calls
+ * `notifications.list()`.
+ */
 export type NotificationSource<T> = () => Promise<readonly T[]>;
 
 export interface NotificationFeedOptions<T> {
   /**
    * The private topic the `notifications` module broadcasts to:
-   * `fillTopic(blockConfig.notifications.options.topic, { userId })` with
-   * the template from `blocks.generated.ts`. `null` loads once without
-   * realtime.
+   * `fillTopic(blockConfig.notifications.options.topic, { userId })` with the
+   * template from `blocks.generated.ts`. `null` loads once without realtime.
    */
   readonly topic: string | null;
   /** The notifications, newest first. */

@@ -221,8 +221,8 @@ const sameJson = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
 /**
- * Builds one Path Item. Path parameters every operation shares move to the
- * Path Item; in 3.3 a `security` every operation shares does too.
+ * Builds one Path Item. Path parameters every operation shares move to the Path
+ * Item; in 3.3 a `security` every operation shares does too.
  */
 function pathItem(
   operations: readonly { method: string; operation: Json }[],
@@ -330,9 +330,7 @@ function lowerWebhook(webhook: ModelWebhook): Json {
         required: true,
         content: { "application/json": { schema: webhook.payload } },
       },
-      responses: {
-        "2XX": { description: "The receiver accepted the event." },
-      },
+      responses: { "2XX": { description: "The receiver accepted the event." } },
     }),
   };
 }
@@ -578,7 +576,10 @@ function collectRefs(value: unknown, pointer: string, out: [string, string][]) {
   }
 }
 
-/** The keys of `value[key]` when it is an object; documents read from disk may omit any field. */
+/**
+ * The keys of `value[key]` when it is an object; documents read from disk may
+ * omit any field.
+ */
 function keysAt(value: unknown, key: string): string[] {
   if (!isPlainObject(value)) {
     return [];
@@ -725,10 +726,10 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
  * OpenAPI as a `DocumentFormat`. 3.1 is the default; 3.0 is legacy (schemas
  * lowered to the 3.0 Schema Object); 3.2 has native `$self`, nested tags,
  * `itemSchema`, `oauth2MetadataUrl` and `query`; `3.3-preview` follows the
- * v3.3-dev branch at `SPEC_PINS.openapi33Preview`, with Path Item
- * `security` and the Security Profiles proposal. Below 3.2, the 3.2 fields
- * travel as the registered `x-oai-*` extensions where one exists, and as
- * the model's prefixed extensions otherwise.
+ * v3.3-dev branch at `SPEC_PINS.openapi33Preview`, with Path Item `security`
+ * and the Security Profiles proposal. Below 3.2, the 3.2 fields travel as the
+ * registered `x-oai-*` extensions where one exists, and as the model's prefixed
+ * extensions otherwise.
  */
 export const openapiFormat: DocumentFormat<
   "openapi",

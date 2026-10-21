@@ -51,15 +51,9 @@ const APPENDIX_A: readonly Example[] = [
   },
   {
     name: "A.6 moving a value",
-    doc: {
-      foo: { bar: "baz", waldo: "fred" },
-      qux: { corge: "grault" },
-    },
+    doc: { foo: { bar: "baz", waldo: "fred" }, qux: { corge: "grault" } },
     patch: [{ op: "move", from: "/foo/waldo", path: "/qux/thud" }],
-    expected: {
-      foo: { bar: "baz" },
-      qux: { corge: "grault", thud: "fred" },
-    },
+    expected: { foo: { bar: "baz" }, qux: { corge: "grault", thud: "fred" } },
   },
   {
     name: "A.7 moving an array element",

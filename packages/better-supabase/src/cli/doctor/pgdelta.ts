@@ -12,7 +12,10 @@ function pgdeltaToml(context: DoctorContext): SupabaseToml | undefined {
     : undefined;
 }
 
-/** Comments blanked out, so a commented-out statement never matches and line numbers stay. */
+/**
+ * Comments blanked out, so a commented-out statement never matches and line
+ * numbers stay.
+ */
 function withoutComments(text: string): string {
   return text
     .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
@@ -108,9 +111,9 @@ const statements = (text: string): string =>
   );
 
 /**
- * Extensions a pg-delta schema file creates, SQL module files included, that
- * no migration creates. pg-delta can leave an extension that owns its own
- * schema (`pgmq`) out of the generated migration.
+ * Extensions a pg-delta schema file creates, SQL module files included, that no
+ * migration creates. pg-delta can leave an extension that owns its own schema
+ * (`pgmq`) out of the generated migration.
  */
 function missingExtensions(context: DoctorContext): FindingInput[] {
   const toml = pgdeltaToml(context);

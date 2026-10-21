@@ -30,7 +30,10 @@ export interface AiFilePart extends PartBase {
   readonly type: "file";
   /** IANA media type, e.g. `image/png`. */
   readonly mediaType: string;
-  /** A URL the reader can fetch: `https:`, `data:` or a storage path the app signs. */
+  /**
+   * A URL the reader can fetch: `https:`, `data:` or a storage path the app
+   * signs.
+   */
   readonly url: string;
   readonly filename?: string;
 }
@@ -69,7 +72,10 @@ export interface AiSourcePart extends PartBase {
   readonly mediaType?: string;
 }
 
-/** App data in the message (`data-weather` in the AI SDK becomes `name: "weather"`). */
+/**
+ * App data in the message (`data-weather` in the AI SDK becomes `name:
+ * "weather"`).
+ */
 export interface AiDataPart extends PartBase {
   readonly type: "data";
   readonly name: string;
@@ -85,8 +91,8 @@ export interface AiStepPart extends PartBase {
 }
 
 /**
- * A part of a canonical message. Adapters map their SDK's parts onto these;
- * a part with no counterpart becomes a `data` part rather than being lost.
+ * A part of a canonical message. Adapters map their SDK's parts onto these; a
+ * part with no counterpart becomes a `data` part rather than being lost.
  */
 export type AiMessagePart =
   | AiTextPart
@@ -169,11 +175,7 @@ const FIELDS: {
     title: optionalText,
     mediaType: optionalText,
   },
-  data: {
-    name: text,
-    id: optionalText,
-    data: { kind: "any", required: true },
-  },
+  data: { name: text, id: optionalText, data: { kind: "any", required: true } },
   step: {
     boundary: { kind: "string", required: true, values: ["start", "finish"] },
     stepId: optionalText,

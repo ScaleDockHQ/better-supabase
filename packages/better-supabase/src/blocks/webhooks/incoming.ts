@@ -56,9 +56,9 @@ function verifyOf(value: unknown): IncomingVerify {
 
 /**
  * Tenant-owned trigger URLs over the `webhooks-in` SQL module: create
- * endpoints, then route `/hooks/<token>` to `receive`. Deliveries land in
- * the webhook inbox (`createWebhookInbox`), where a worker processes them,
- * or in `options.destination`.
+ * endpoints, then route `/hooks/<token>` to `receive`. Deliveries land in the
+ * webhook inbox (`createWebhookInbox`), where a worker processes them, or in
+ * `options.destination`.
  */
 export function createIncomingWebhooks(
   options: IncomingWebhooksOptions,

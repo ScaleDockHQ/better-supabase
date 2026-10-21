@@ -1,6 +1,6 @@
 /**
- * Versions of evolving specs and conventions the code follows. Moving a pin
- * is a minor release with a changeset (see the standards docs page).
+ * Versions of evolving specs and conventions the code follows. Moving a pin is
+ * a minor release with a changeset (see the standards docs page).
  */
 export const SPEC_PINS: {
   readonly otelSemconv: "1.37.0";
@@ -44,21 +44,45 @@ export const SPEC_PINS: {
   readonly rfc5545: "2009-09";
   /** RFC 4180 CSV read by `parseCsv` and written by `toCsv`. */
   readonly rfc4180: "2005-10";
-  /** ISO 4217 List One publication behind `better-supabase/commerce` minor units. */
+  /**
+   * ISO 4217 List One publication behind `better-supabase/commerce` minor
+   * units.
+   */
   readonly iso4217: "2026-09-17";
-  /** RFC 6902 JSON Patch that the versions block's `createPatch` writes and `applyPatch` applies. */
+  /**
+   * RFC 6902 JSON Patch that the versions block's `createPatch` writes and
+   * `applyPatch` applies.
+   */
   readonly rfc6902: "2013-04";
-  /** RFC 9396 `authorization_details` that delegated tokens and job envelopes carry. */
+  /**
+   * RFC 9396 `authorization_details` that delegated tokens and job envelopes
+   * carry.
+   */
   readonly rfc9396: "2023-05";
-  /** RFC 9864 fully specified JOSE algorithms; `Ed25519` is the alg the signing-keys block can write instead of `EdDSA`. */
+  /**
+   * RFC 9864 fully specified JOSE algorithms; `Ed25519` is the alg the
+   * signing-keys block can write instead of `EdDSA`.
+   */
   readonly rfc9864: "2025-10";
-  /** RFC 8417 Security Event Tokens that the shared-signals block mints and verifies. */
+  /**
+   * RFC 8417 Security Event Tokens that the shared-signals block mints and
+   * verifies.
+   */
   readonly rfc8417: "2018-07";
-  /** RFC 8935 push delivery of SETs: the `set` webhook format and the receiver's push endpoint. */
+  /**
+   * RFC 8935 push delivery of SETs: the `set` webhook format and the receiver's
+   * push endpoint.
+   */
   readonly rfc8935: "2020-11";
-  /** RFC 8936 poll delivery of SETs that the transmitter serves and the receiver runs. */
+  /**
+   * RFC 8936 poll delivery of SETs that the transmitter serves and the receiver
+   * runs.
+   */
   readonly rfc8936: "2020-11";
-  /** OpenID Shared Signals Framework: metadata, streams, status and verification. */
+  /**
+   * OpenID Shared Signals Framework: metadata, streams, status and
+   * verification.
+   */
   readonly ssf: "1.0";
   /** OpenID CAEP event types in `CAEP_EVENTS`. */
   readonly caep: "1.0";
@@ -70,13 +94,25 @@ export const SPEC_PINS: {
   readonly rfc7591: "2015-07";
   /** RFC 7636 PKCE; the oauth-server block accepts only the S256 method. */
   readonly rfc7636: "2015-09";
-  /** RFC 8628 device authorization that the oauth-server block's device codes follow. */
+  /**
+   * RFC 8628 device authorization that the oauth-server block's device codes
+   * follow.
+   */
   readonly rfc8628: "2019-08";
-  /** RFC 9700 OAuth security best current practice behind code reuse and redirect URI rules. */
+  /**
+   * RFC 9700 OAuth security best current practice behind code reuse and
+   * redirect URI rules.
+   */
   readonly rfc9700: "2025-01";
-  /** draft-ietf-httpapi-ratelimit-headers revision behind `rateLimitHeader` and the Hono and oRPC `rateLimit()`. */
+  /**
+   * Draft-ietf-httpapi-ratelimit-headers revision behind `rateLimitHeader` and
+   * the Hono and oRPC `rateLimit()`.
+   */
   readonly ratelimitHeaders: "draft-11";
-  /** The shadcn release whose registry schemas the `@better-supabase` items follow. */
+  /**
+   * The shadcn release whose registry schemas the `@better-supabase` items
+   * follow.
+   */
   readonly shadcnRegistry: "4.21.4";
 } = {
   otelSemconv: "1.37.0",

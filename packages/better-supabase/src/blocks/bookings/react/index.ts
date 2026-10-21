@@ -39,9 +39,13 @@ export interface AvailableSlotsState
  *
  * ```tsx
  * const slots = useAvailableSlots({ serviceId, range });
- * slots.days.get("2030-03-04")?.map((slot) => (
- *   <button onClick={() => slots.hold(slot)}>{slot.localStart.toPlainTime().toString()}</button>
- * ));
+ * slots.days
+ *   .get("2030-03-04")
+ *   ?.map((slot) => (
+ *     <button onClick={() => slots.hold(slot)}>
+ *       {slot.localStart.toPlainTime().toString()}
+ *     </button>
+ *   ));
  * ```
  */
 export function useAvailableSlots(

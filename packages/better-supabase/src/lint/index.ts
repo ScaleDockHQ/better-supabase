@@ -1,15 +1,15 @@
 /**
- * Static checks for better-supabase calls, written against the ESLint rule
- * API so it loads in ESLint (flat config) and in oxlint's `jsPlugins`:
+ * Static checks for better-supabase calls, written against the ESLint rule API
+ * so it loads in ESLint (flat config) and in oxlint's `jsPlugins`:
  *
  * ```js
- * import betterSupabase from 'better-supabase/lint';
+ * import betterSupabase from "better-supabase/lint";
  * export default [betterSupabase.configs.recommended];
  * ```
  *
- * Rules match calls by method name (`.findMany(...)`, `.deleteMany(...)`)
- * with an inline object literal; spread or variable arguments are skipped
- * rather than guessed at. The runtime `rules()` plugin covers the rest.
+ * Rules match calls by method name (`.findMany(...)`, `.deleteMany(...)`) with
+ * an inline object literal; spread or variable arguments are skipped rather
+ * than guessed at. The runtime `rules()` plugin covers the rest.
  */
 
 interface Node {
@@ -84,9 +84,7 @@ export interface RuleModule {
     readonly messages: Readonly<Record<string, string>>;
     readonly schema: readonly unknown[];
   };
-  create(context: RuleContext): {
-    CallExpression(node: CallExpression): void;
-  };
+  create(context: RuleContext): { CallExpression(node: CallExpression): void };
 }
 
 const DOCS = "https://bettersupabase.com/docs/plugins/lint";
@@ -154,8 +152,8 @@ function keyName(property: Property): string | undefined {
 }
 
 /**
- * The call's first argument as a map of literal keys, `{}` when the call has
- * no arguments, or `undefined` when it cannot be read statically.
+ * The call's first argument as a map of literal keys, `{}` when the call has no
+ * arguments, or `undefined` when it cannot be read statically.
  */
 // SAFETY: the type check above narrows first to an ObjectExpression.
 function argsOf(node: CallExpression): ReadonlyMap<string, Node> | undefined {
@@ -240,9 +238,9 @@ function isEscapeLike(node: Node): boolean {
 }
 
 /**
- * Whether a `like` or `ilike` value may carry a caller's `%` and `_`
- * unescaped: a variable, a property, or a template or `+` concatenation
- * with one that isn't wrapped in `escapeLike(...)`. Literals pass.
+ * Whether a `like` or `ilike` value may carry a caller's `%` and `_` unescaped:
+ * a variable, a property, or a template or `+` concatenation with one that
+ * isn't wrapped in `escapeLike(...)`. Literals pass.
  */
 function unescapedPattern(node: Node): boolean {
   const part = (child: Node): boolean =>
@@ -272,7 +270,10 @@ function unescapedPattern(node: Node): boolean {
   }
 }
 
-/** Every `like` and `ilike` value in a `where` object, through `AND`, `OR`, `NOT` and relations. */
+/**
+ * Every `like` and `ilike` value in a `where` object, through `AND`, `OR`,
+ * `NOT` and relations.
+ */
 function likeValues(node: Node): Node[] {
   if (node.type === "ArrayExpression") {
     // SAFETY: the type check above narrows node to an ArrayExpression.

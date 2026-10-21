@@ -42,10 +42,7 @@ interface Call {
 function fakeClient(
   respond: (call: Call) => unknown,
   error: (call: Call) => unknown = () => null,
-): {
-  client: QueueRpcClient;
-  calls: Call[];
-} {
+): { client: QueueRpcClient; calls: Call[] } {
   const calls: Call[] = [];
 
   const client: QueueRpcClient = {
@@ -129,9 +126,7 @@ describe("createJobs over pgmq_public", () => {
 
     const jobs = createJobs({
       client,
-      queues: {
-        emails: v.object({ to: v.pipe(v.string(), v.email()) }),
-      },
+      queues: { emails: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
 
     expect(
@@ -355,13 +350,15 @@ describe("job context", () => {
       }
 
       if (fn === "read") {
-        return sent.splice(0).map((message, index) => ({
-          msg_id: index + 1,
-          read_ct: 1,
-          enqueued_at: "2026-09-24T10:00:00Z",
-          vt: "2026-09-24T10:05:00Z",
-          message,
-        }));
+        return sent
+          .splice(0)
+          .map((message, index) => ({
+            msg_id: index + 1,
+            read_ct: 1,
+            enqueued_at: "2026-09-24T10:00:00Z",
+            vt: "2026-09-24T10:05:00Z",
+            message,
+          }));
       }
 
       return true;
@@ -821,9 +818,7 @@ describe("createJobs over SQL", () => {
 
     const result = await createJobs({ sql: fake.sql, queues }).enqueue(
       "emails",
-      {
-        to: "a@example.com",
-      },
+      { to: "a@example.com" },
     );
 
     expect(result.error).toMatchObject({
@@ -1005,9 +1000,7 @@ describe("schedules with the drain scheduler", () => {
         "0 9 * * 1-5",
         "reports",
         { day: "mon" },
-        {
-          timeZone: "Europe/Amsterdam",
-        },
+        { timeZone: "Europe/Amsterdam" },
       )
       .orThrow();
     const [name, , , , zone, next] = fake.calls[0]!.values;
@@ -1604,9 +1597,7 @@ describe("queue health", () => {
       ["emails", [9, 8], 1000],
       ["emails", null, 1000],
     ]);
-    expect(await jobs.stats(["nope" as "emails"])).toMatchObject({
-      ok: false,
-    });
+    expect(await jobs.stats(["nope" as "emails"])).toMatchObject({ ok: false });
   });
 
   it("answers zeros for a queue with no row and refuses over pgmq_public", async () => {
@@ -1838,9 +1829,7 @@ describe("drain and work", () => {
     const result = await createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       handler,
-      {
-        onError: (error) => errors.push(error),
-      },
+      { onError: (error) => errors.push(error) },
     );
 
     expect(result).toEqual({ succeeded: 0, failed: 1 });
@@ -1990,9 +1979,7 @@ describe("drain and work", () => {
     await createJobs({ sql: fake.sql, queues }).drain(
       "emails",
       () => undefined,
-      {
-        concurrency: 0,
-      },
+      { concurrency: 0 },
     );
     expect(fake.calls).toHaveLength(1);
   });
@@ -2198,9 +2185,7 @@ describe("drain and work", () => {
     const working = createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
-      {
-        signal: controller.signal,
-      },
+      { signal: controller.signal },
     );
 
     await vi.advanceTimersByTimeAsync(999);
@@ -2230,10 +2215,7 @@ describe("drain and work", () => {
     const result = await createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
-      {
-        signal: controller.signal,
-        pollInterval: 60_000,
-      },
+      { signal: controller.signal, pollInterval: 60_000 },
     );
 
     expect(result).toEqual({ succeeded: 0, failed: 0 });
@@ -2245,9 +2227,7 @@ describe("drain and work", () => {
     const result = await createJobs({ sql: fake.sql, queues }).work(
       "emails",
       () => undefined,
-      {
-        signal: AbortSignal.abort(),
-      },
+      { signal: AbortSignal.abort() },
     );
 
     expect(result).toEqual({ succeeded: 0, failed: 0 });

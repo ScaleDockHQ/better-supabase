@@ -25,7 +25,10 @@ function paintLine(line: string, paint: Paint): string {
   return line;
 }
 
-/** A unified diff from the file on disk (`current`, missing when `undefined`) to `next`, capped at `DIFF_LINES`. */
+/**
+ * A unified diff from the file on disk (`current`, missing when `undefined`) to
+ * `next`, capped at `DIFF_LINES`.
+ */
 export function fileDiff(
   path: string,
   current: string | undefined,

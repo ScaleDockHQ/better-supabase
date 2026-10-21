@@ -321,9 +321,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.install(
         ["organizations", "outbox", "notifications", "comments"],
-        {
-          modules: { comments: { options: { subjects } } },
-        },
+        { modules: { comments: { options: { subjects } } } },
       );
       const owner = await s.user("owner");
       const member = await s.user("member");
@@ -368,9 +366,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.install(
         ["organizations", "outbox", "notifications", "comments"],
-        {
-          modules: { comments: { options: { subjects, notify: false } } },
-        },
+        { modules: { comments: { options: { subjects, notify: false } } } },
       );
       await s.asRole(author);
       await comments
@@ -666,9 +662,7 @@ describe.skipIf(!live)("comments", () => {
         modules: {
           comments: {
             options: {
-              subjects: {
-                quote: { table: "bs_test_quotes", cascade: true },
-              },
+              subjects: { quote: { table: "bs_test_quotes", cascade: true } },
             },
           },
         },

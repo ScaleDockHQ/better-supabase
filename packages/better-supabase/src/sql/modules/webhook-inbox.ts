@@ -34,7 +34,10 @@ const MESSAGE_COLUMNS = {
 
 type MessageColumn = keyof typeof MESSAGE_COLUMNS;
 
-/** The keys of a row `claim_webhooks` and `list_webhooks` return, in the managed table's order. */
+/**
+ * The keys of a row `claim_webhooks` and `list_webhooks` return, in the managed
+ * table's order.
+ */
 const ROW: readonly (readonly [MessageColumn, string, string])[] = [
   ["id", "id", "bigint"],
   ["source", "source", "text"],

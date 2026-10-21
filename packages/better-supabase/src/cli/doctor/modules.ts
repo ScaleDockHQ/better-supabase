@@ -112,7 +112,10 @@ from (
   ) as hook
 ) h`;
 
-/** `rate-limit` in `blocks` without PostgREST's pre-request hook reaching `check_request()`. */
+/**
+ * `rate-limit` in `blocks` without PostgREST's pre-request hook reaching
+ * `check_request()`.
+ */
 async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
 
@@ -252,7 +255,10 @@ async function missingAdoptedColumns(
 const EVENT_TRIGGER_FIX =
   "Event triggers belong to no schema, so a schema diff limited to some schemas (`supabase db schema declarative sync -s ...`) leaves them out of the migration. Run `better-supabase sql sync`, then `better-supabase sql data`: the module's data migration creates it.";
 
-/** Event triggers the `blocks` create that the database, or every migration, lacks. */
+/**
+ * Event triggers the `blocks` create that the database, or every migration,
+ * lacks.
+ */
 async function missingEventTriggers(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
@@ -314,7 +320,10 @@ async function missingEventTriggers(
     }));
 }
 
-/** Custom-mode modules whose contract functions the database or SQL files don't have. */
+/**
+ * Custom-mode modules whose contract functions the database or SQL files don't
+ * have.
+ */
 async function missingContracts(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
@@ -412,7 +421,10 @@ async function missingContracts(
   });
 }
 
-/** With the tenant claim as the active tenant, the hook must put it in the token. */
+/**
+ * With the tenant claim as the active tenant, the hook must put it in the
+ * token.
+ */
 async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
@@ -476,7 +488,10 @@ async function missingTenantClaim(
   return findings;
 }
 
-/** Where a deprecated symbol is used: a call, a qualified name or a claim lookup. */
+/**
+ * Where a deprecated symbol is used: a call, a qualified name or a claim
+ * lookup.
+ */
 function deprecationPattern(entry: ModuleDeprecation): RegExp {
   const [first = "", second] = entry.symbol.split(".");
 
@@ -514,8 +529,8 @@ const bareWord = (name: string): RegExp =>
 
 /**
  * The line where `text` uses a deprecated symbol. A column also counts
- * unqualified (`m.org_id`) in a statement that names its table, or in a
- * policy on that table.
+ * unqualified (`m.org_id`) in a statement that names its table, or in a policy
+ * on that table.
  */
 function lineOfUse(
   entry: ModuleDeprecation,
@@ -545,7 +560,10 @@ function lineOfUse(
   return undefined;
 }
 
-/** SQL files and policies that still use a symbol a SQL module deprecated or removed. */
+/**
+ * SQL files and policies that still use a symbol a SQL module deprecated or
+ * removed.
+ */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
 
@@ -647,7 +665,10 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
   );
 }
 
-/** RLS tables in `config.schemas` without a restrictive `session_active()` policy, when `sessions` is in `blocks`. */
+/**
+ * RLS tables in `config.schemas` without a restrictive `session_active()`
+ * policy, when `sessions` is in `blocks`.
+ */
 function sessionlessTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("sessions")) {
     return [];
@@ -683,7 +704,10 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
     }));
 }
 
-/** `better_supabase` and every `blocks.*.schema` that `[api] schemas` serves through the Data API. */
+/**
+ * `better_supabase` and every `blocks.*.schema` that `[api] schemas` serves
+ * through the Data API.
+ */
 function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
   if (context.config.blockNames.length === 0) {
     return [];
@@ -716,7 +740,10 @@ function migrationOptions(context: DoctorContext): FindingInput[] {
     }));
 }
 
-/** A roles table shared by tenant and platform roles without `where` on both sides. */
+/**
+ * A roles table shared by tenant and platform roles without `where` on both
+ * sides.
+ */
 function sharedRoleTables(context: DoctorContext): FindingInput[] {
   if (context.config.blockNames.length === 0) {
     return [];
@@ -923,7 +950,10 @@ export const MODULE_RULES: readonly Rule[] = [
   },
 ];
 
-/** The table each block's `options.partitioned` partitions, and the option it also needs. */
+/**
+ * The table each block's `options.partitioned` partitions, and the option it
+ * also needs.
+ */
 const PARTITIONED_TABLES: readonly {
   readonly block: string;
   readonly table: string;

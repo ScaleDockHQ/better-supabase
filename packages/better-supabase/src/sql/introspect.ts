@@ -46,10 +46,9 @@ const isPermissionModule = (name: string): name is OperationModule =>
   Object.hasOwn(MODULE_PERMISSION_SCOPES, name);
 
 /**
- * Every permission key the modules `names` install (with what they pull
- * in) check, after `blocks.<module>.permissions` overrides. Modules in custom
- * mode are skipped, and so is `invitations.invitePlatform` without platform
- * roles.
+ * Every permission key the modules `names` install (with what they pull in)
+ * check, after `blocks.<module>.permissions` overrides. Modules in custom mode
+ * are skipped, and so is `invitations.invitePlatform` without platform roles.
  */
 export function modulePermissionKeys(
   config: AnyBlocksConfig,
@@ -111,9 +110,9 @@ const CREATE_EXTENSION =
 
 /**
  * The extensions a module's schema file creates, again for its data file. A
- * schema diff can leave an extension out of the migration (pg-delta skips
- * one in a schema it doesn't manage, such as `extensions` or pgmq's own),
- * and `sql data` then still puts it in one.
+ * schema diff can leave an extension out of the migration (pg-delta skips one
+ * in a schema it doesn't manage, such as `extensions` or pgmq's own), and `sql
+ * data` then still puts it in one.
  */
 export function moduleExtensions(body: string): string {
   return extensionsOf([body])
@@ -188,8 +187,8 @@ export function moduleHidingColumns(
 }
 
 /**
- * The event triggers each of these modules creates, as its default file
- * renders them, for doctor's check of a database.
+ * The event triggers each of these modules creates, as its default file renders
+ * them, for doctor's check of a database.
  */
 export function moduleEventTriggers(
   names: readonly string[],

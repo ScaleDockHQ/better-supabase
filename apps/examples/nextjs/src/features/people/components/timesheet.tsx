@@ -98,9 +98,9 @@ function StatusBadge({
 
 // #region recipe:timesheet
 /**
- * Render inside `<Suspense>`: the caller's week as one row per project
- * with hours per day and totals, a running timer, and Submit once the
- * week is done. `?week=YYYY-MM-DD` picks the week.
+ * Render inside `<Suspense>`: the caller's week as one row per project with
+ * hours per day and totals, a running timer, and Submit once the week is done.
+ * `?week=YYYY-MM-DD` picks the week.
  */
 export async function Timesheet({
   searchParams,

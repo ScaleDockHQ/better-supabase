@@ -21,7 +21,10 @@ export function withAuth<C, P>(): SingleKeyEntry<
   })();
 }
 
-/** `jwtClaims` as `withSupabase` contributes it: the verified token's payload, or `null`. */
+/**
+ * `jwtClaims` as `withSupabase` contributes it: the verified token's payload,
+ * or `null`.
+ */
 export function jwtClaimsOf<C>(auth: AuthState<C>): (JWTClaims & C) | null {
   if (auth.kind === "user") {
     return auth.claims;
@@ -42,10 +45,9 @@ export function userClaimsOf(auth: AuthState): UserClaims | null {
 }
 
 /**
- * `authMode` as `withSupabase` names it: `user` for a verified user token
- * or a user's API key, `secret` for a secret key or an organization's API
- * key, `none` otherwise (no credentials, or ones a
- * guard refuses).
+ * `authMode` as `withSupabase` names it: `user` for a verified user token or a
+ * user's API key, `secret` for a secret key or an organization's API key,
+ * `none` otherwise (no credentials, or ones a guard refuses).
  */
 export function authModeOf(auth: AuthState): AuthMode {
   switch (auth.kind) {

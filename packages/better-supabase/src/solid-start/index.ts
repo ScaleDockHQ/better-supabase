@@ -37,14 +37,17 @@ export interface SolidFetchEvent {
   readonly request: Request;
   readonly response: { readonly headers: Headers };
   readonly locals: Record<string, unknown>;
-  /** The H3 2 event; Nitro 3's Cloudflare preset puts the bindings on its request. */
+  /**
+   * The H3 2 event; Nitro 3's Cloudflare preset puts the bindings on its
+   * request.
+   */
   readonly nativeEvent?: { readonly req: Request } | undefined;
 }
 
 export interface SolidStartOptions extends FrameworkOptions {
   /**
-   * `getRequestEvent` from `solid-js/web`, which `require` and `action`
-   * call inside `"use server"` functions.
+   * `getRequestEvent` from `solid-js/web`, which `require` and `action` call
+   * inside `"use server"` functions.
    */
   readonly getRequestEvent: () => SolidFetchEvent | undefined;
   /** The host's env object for `getEnv`; defaults to the Cloudflare bindings. */
@@ -66,21 +69,22 @@ export interface BetterSolidStart<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * Verifies the caller, refreshes the session cookie on navigations and
-   * form posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
+   * Verifies the caller, refreshes the session cookie on navigations and form
+   * posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
    * `event.locals`.
    *
-   * ```ts title="src/middleware.ts"
-   * export default createMiddleware(bs.middleware)
+   * ```ts
+   * // src/middleware.ts
+   * export default createMiddleware(bs.middleware);
    * ```
    */
   readonly middleware: SolidStartMiddleware;
   /** The current request's `locals`, inside a `"use server"` function. */
   readonly locals: () => FrameworkLocals<M, F, E, C, P, B>;
   /**
-   * The caller inside a `"use server"` function (a `query`, an `action`,
-   * an API route), or a thrown refusal: a redirect to `signIn` or `mfa`
-   * when configured, else Problem Details.
+   * The caller inside a `"use server"` function (a `query`, an `action`, an API
+   * route), or a thrown refusal: a redirect to `signIn` or `mfa` when
+   * configured, else Problem Details.
    *
    * ```ts
    * const notes = query(async () => {

@@ -14,9 +14,7 @@ export const shareLinksBlock: BlockOf<
 > = defineBlock({
   name: "share-links",
   sql: ["share-links"],
-  options: {
-    "share-links": shareLinksSqlOptions,
-  },
+  options: { "share-links": shareLinksSqlOptions },
   events: shareLinksEvents,
   create: createShareLinks,
   category: "collaboration",

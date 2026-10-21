@@ -14,9 +14,7 @@ export const workItemsBlock: BlockOf<
 > = defineBlock({
   name: "work-items",
   sql: ["work-items"],
-  options: {
-    "work-items": workItemsSqlOptions,
-  },
+  options: { "work-items": workItemsSqlOptions },
   events: workItemsEvents,
   create: createWorkItems,
   category: "work",

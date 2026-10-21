@@ -36,8 +36,8 @@ import { nextStep, write } from "./write.ts";
 
 /**
  * Rewrites the module files of modules behind the current version, and writes
- * their upgrade steps (renames, backfills) as a migration that runs before
- * the one the schema diff creates.
+ * their upgrade steps (renames, backfills) as a migration that runs before the
+ * one the schema diff creates.
  */
 export async function upgrade(
   config: ResolvedConfig,
@@ -208,7 +208,10 @@ async function installedFromFiles(
   return { installed, stale, diffs };
 }
 
-/** The installed versions from the `@bs-module` lines of the newest module migration. */
+/**
+ * The installed versions from the `@bs-module` lines of the newest module
+ * migration.
+ */
 async function installedFromMigration(
   config: ResolvedConfig,
   sqlLayout: ModuleLayout,

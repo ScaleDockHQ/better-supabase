@@ -44,7 +44,10 @@ function isPlatform(value: string): value is PushPlatform {
   return PLATFORMS.has(value);
 }
 
-/** A device to register. `F` types the extra columns the `fields` schema describes. */
+/**
+ * A device to register. `F` types the extra columns the `fields` schema
+ * describes.
+ */
 export interface PushDeviceInput<F extends object = Record<never, never>> {
   readonly token: string;
   readonly platform: PushPlatform;
@@ -52,7 +55,10 @@ export interface PushDeviceInput<F extends object = Record<never, never>> {
   readonly provider?: PushProvider;
   readonly deviceName?: string;
   readonly appVersion?: string;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -69,9 +75,15 @@ export interface PushTarget<F extends object = Record<never, never>> {
 export interface PushDevicesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
-  /** `sqlTransport(postgres.asUser(claims))`, `rpcTransport(supabase)`, or over `postgres.admin` for the sender. */
+  /**
+   * `sqlTransport(postgres.asUser(claims))`, `rpcTransport(supabase)`, or over
+   * `postgres.admin` for the sender.
+   */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
@@ -87,7 +99,10 @@ export interface PushDevicesOptions<
 
 /** The `push` SQL module as typed calls. */
 export interface PushDevices<F extends object = Record<never, never>> {
-  /** Registers the caller's device, or refreshes it; resolves with the device id. */
+  /**
+   * Registers the caller's device, or refreshes it; resolves with the device
+   * id.
+   */
   readonly register: (device: PushDeviceInput<F>) => AsyncResult<string>;
   /** Removes the caller's device; `false` when the caller had none with `token`. */
   readonly unregister: (token: string) => AsyncResult<boolean>;
@@ -245,9 +260,9 @@ export function registerDevice(
 }
 
 /**
- * Wraps `signOut` so it first removes this device's token, while the
- * session can still call `unregister_push_device`. A failed unregister
- * doesn't stop the sign-out.
+ * Wraps `signOut` so it first removes this device's token, while the session
+ * can still call `unregister_push_device`. A failed unregister doesn't stop the
+ * sign-out.
  *
  * ```ts
  * const signOut = unregisterOnSignOut({
@@ -316,7 +331,10 @@ export interface ExpoPushOptions {
 }
 
 export interface ExpoPush {
-  /** Sends `message` to each token, 100 per request; tickets come back in token order. */
+  /**
+   * Sends `message` to each token, 100 per request; tickets come back in token
+   * order.
+   */
   readonly send: (
     tokens: readonly string[],
     message: ExpoPushMessage,
@@ -352,9 +370,9 @@ function errorCode(entry: Readonly<Record<string, unknown>>): string {
 }
 
 /**
- * A sender for the Expo Push API that needs only `fetch`. Tokens Expo
- * reports as `DeviceNotRegistered`, in a ticket or a receipt, are pruned
- * from `push_devices` when `devices` is set.
+ * A sender for the Expo Push API that needs only `fetch`. Tokens Expo reports
+ * as `DeviceNotRegistered`, in a ticket or a receipt, are pruned from
+ * `push_devices` when `devices` is set.
  */
 export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
   const endpoint = options.endpoint ?? "https://exp.host/--/api/v2/push";
@@ -525,9 +543,9 @@ function defaultMessage(message: NotificationMessage): ExpoPushMessage {
 
 /**
  * A notifications channel that pushes each delivery to the recipient's Expo
- * devices. A recipient without devices is `skipped`; when every ticket
- * fails for a reason other than an unregistered device, it throws so the
- * delivery is retried.
+ * devices. A recipient without devices is `skipped`; when every ticket fails
+ * for a reason other than an unregistered device, it throws so the delivery is
+ * retried.
  *
  * ```ts
  * createNotifications({

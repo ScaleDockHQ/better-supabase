@@ -2,8 +2,8 @@ import type { AuthSnapshot } from "../client/bind.ts";
 import type { AuthSession } from "./view.ts";
 
 /**
- * One entry of the `memberships` claim when a hook writes it as a list.
- * Hooks strip `null`s, so optional fields are absent rather than `null`.
+ * One entry of the `memberships` claim when a hook writes it as a list. Hooks
+ * strip `null`s, so optional fields are absent rather than `null`.
  */
 export interface MembershipClaim {
   /** The scope the membership is in, e.g. `tenant` or `organization`. */
@@ -25,11 +25,10 @@ export interface MembershipClaim {
 
 /**
  * Entitlement keys of the `features` claim: the literal union when
- * `betterSupabase.claims(schema)` declares one (`z.enum([...])`), otherwise `string`.
+ * `betterSupabase.claims(schema)` declares one (`z.enum([...])`), otherwise
+ * `string`.
  */
-export type EntitlementKey<C> = C extends {
-  readonly features?: infer F;
-}
+export type EntitlementKey<C> = C extends { readonly features?: infer F }
   ? NonNullable<F> extends Readonly<Record<string, readonly (infer K)[]>>
     ? K extends string
       ? K
@@ -46,14 +45,14 @@ export interface EntitlementClaimOptions {
 }
 
 /**
- * Whether the session's plan-features claim grants `key` in `tenantId`.
- * `claim` is `config.claims.features` (default `features`), the claim
+ * Whether the session's plan-features claim grants `key` in `tenantId`. `claim`
+ * is `config.claims.features` (default `features`), the claim
  * `better_supabase.feature_claims()` fills, or `{ claim, keys }` when
  * `entitlements.claim.keys` writes short codes. The claim is as fresh as the
  * token: enforce it in RLS with `better_supabase.has_entitlement()`, and
  * refresh the session after checkout. A tenant left out by
- * `entitlements.claim.maxTenants` reads as not granted. Takes a server
- * session or the client's `useAuth()` snapshot.
+ * `entitlements.claim.maxTenants` reads as not granted. Takes a server session
+ * or the client's `useAuth()` snapshot.
  */
 export function hasEntitlement<C>(
   session: AuthSession<C> | AuthSnapshot,

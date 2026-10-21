@@ -27,7 +27,10 @@ const SCHEMA_URIS: Readonly<Record<string, string>> = {
   "draft-07": "http://json-schema.org/draft-07/schema#",
 };
 
-/** Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`, `example`). */
+/**
+ * Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`,
+ * `example`).
+ */
 function toOpenApi30(schema: JsonSchema): JsonSchema {
   const out: JsonSchema = {};
 

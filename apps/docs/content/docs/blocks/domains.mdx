@@ -49,11 +49,7 @@ Set `platformDomain` to your app's own domain, and one label below it becomes a 
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    domains: {
-      options: { platformDomain: "yourapp.com" },
-    },
-  },
+  blocks: { domains: { options: { platformDomain: "yourapp.com" } } },
 });
 ```
 

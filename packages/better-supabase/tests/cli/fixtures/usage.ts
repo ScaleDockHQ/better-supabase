@@ -1,6 +1,9 @@
 import { CliError } from "../../../src/cli/core/errors.ts";
 
-/** The message of the exit-2 error `run` throws; fails when it throws nothing or another error. */
+/**
+ * The message of the exit-2 error `run` throws; fails when it throws nothing or
+ * another error.
+ */
 export async function usageError(run: () => unknown): Promise<string> {
   try {
     await run();
@@ -15,7 +18,10 @@ export async function usageError(run: () => unknown): Promise<string> {
   throw new Error("Expected a usage error");
 }
 
-/** The `input_required` error `run` throws; fails when it throws nothing or another error. */
+/**
+ * The `input_required` error `run` throws; fails when it throws nothing or
+ * another error.
+ */
 export async function inputRequired(run: () => unknown): Promise<CliError> {
   try {
     await run();

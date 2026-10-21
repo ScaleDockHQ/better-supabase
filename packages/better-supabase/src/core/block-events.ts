@@ -5,7 +5,10 @@ import type { RequestContext } from "./plugin.ts";
 import { cloneValue } from "./clone.ts";
 import { nowInstant } from "./temporal.ts";
 
-/** `support.*`: support sessions, where a platform admin views the app as a user. */
+/**
+ * `support.*`: support sessions, where a platform admin views the app as a
+ * user.
+ */
 export interface SupportEventData {
   /** Absent on `support.denied`. */
   readonly sessionId?: string;
@@ -53,8 +56,8 @@ export interface NotificationEventData {
 /**
  * `notification.delivered`, `notification.failed` and the provider events
  * (`opened`, `clicked`, `bounced`, `complained`, `delayed`): the record the
- * notification is about is the subject, or the notification itself when it
- * has none.
+ * notification is about is the subject, or the notification itself when it has
+ * none.
  */
 export interface NotificationDeliveryEventData
   extends NotificationEventData, SubjectEventData {
@@ -131,7 +134,10 @@ export interface DataExportEventData {
   readonly error?: string;
 }
 
-/** `organization.deletion_*` and `organization.purged`, from the data-lifecycle module. */
+/**
+ * `organization.deletion_*` and `organization.purged`, from the data-lifecycle
+ * module.
+ */
 export interface OrganizationDeletionEventData {
   readonly organizationId: string;
   /** Who requested or cancelled; absent for the purge. */
@@ -164,7 +170,10 @@ export interface WaitlistEventData {
   readonly email: string;
 }
 
-/** `invite_code.*`, from the waitlist module. The code itself is never part of the event. */
+/**
+ * `invite_code.*`, from the waitlist module. The code itself is never part of
+ * the event.
+ */
 export interface InviteCodeEventData {
   readonly codeId: string;
   readonly organizationId?: string | null;
@@ -221,7 +230,10 @@ export interface AnnouncementEventData {
   readonly announcementId: string;
 }
 
-/** `credential.*`, from the credentials module. The secret is never part of the event. */
+/**
+ * `credential.*`, from the credentials module. The secret is never part of the
+ * event.
+ */
 export interface CredentialEventData {
   readonly provider: string;
   readonly name: string;
@@ -250,7 +262,10 @@ export interface AgentEventData {
   readonly userId?: string;
 }
 
-/** `ai_provider_key.*`, from the ai-providers module. Only the credential reference is stored. */
+/**
+ * `ai_provider_key.*`, from the ai-providers module. Only the credential
+ * reference is stored.
+ */
 export interface AiProviderKeyEventData {
   readonly organizationId: string;
   readonly keyId: string;
@@ -268,7 +283,10 @@ export interface AiToolEventData {
   readonly decision?: string;
 }
 
-/** `incoming_webhook.*`, from the webhooks-in module. Secrets are never part of the event. */
+/**
+ * `incoming_webhook.*`, from the webhooks-in module. Secrets are never part of
+ * the event.
+ */
 export interface IncomingWebhookEventData {
   readonly organizationId: string;
   readonly endpointId: string;
@@ -314,7 +332,10 @@ export interface WorkflowRunEventData {
   readonly subjectId?: string | null;
 }
 
-/** `workflow.published` and `workflow_alert.triggered`, from the workflow-builder module. */
+/**
+ * `workflow.published` and `workflow_alert.triggered`, from the
+ * workflow-builder module.
+ */
 export interface WorkflowEventData {
   readonly organizationId?: string | null;
   readonly definitionId?: string;
@@ -330,7 +351,10 @@ export interface WorkflowEventData {
   readonly error?: string | null;
 }
 
-/** `object.uploaded`, from the attachments module: a Storage object in a scanned bucket. */
+/**
+ * `object.uploaded`, from the attachments module: a Storage object in a scanned
+ * bucket.
+ */
 export interface StorageObjectEventData {
   readonly bucket: string;
   readonly path: string;
@@ -342,7 +366,10 @@ export interface AuditRevealEventData {
   readonly entries: readonly string[];
 }
 
-/** `ai_chat.*` and `ai_chat_message.completed`, written to the outbox by the ai-chat module. */
+/**
+ * `ai_chat.*` and `ai_chat_message.completed`, written to the outbox by the
+ * ai-chat module.
+ */
 export interface AiChatEventData {
   readonly chatId: string;
   readonly organizationId: string;
@@ -361,8 +388,8 @@ export interface AiChatEventData {
  * The keys every subject-bound event carries in its data: the tenant and the
  * record the event is about. Outbox consumers such as `activitySink` and
  * `watcherSink` read these, so they work for every block without per-block
- * code. The CloudEvent `subject` names the block's own row (a comment, a
- * tag), and `partitionkey` repeats the tenant.
+ * code. The CloudEvent `subject` names the block's own row (a comment, a tag),
+ * and `partitionkey` repeats the tenant.
  */
 export interface SubjectEventData {
   readonly organizationId: string | null;
@@ -379,7 +406,10 @@ export type SubjectEventType<M extends EventMap = EventMap> = {
 /** `SaasEventData` for an event about one subject. */
 export type SaasSubjectEventData = SaasEventData & SubjectEventData;
 
-/** Events from the generic SaaS blocks (numbers, teams, tags, status, fields, shares, reminders, imports, saved views, relations, bulk runs). */
+/**
+ * Events from the generic SaaS blocks (numbers, teams, tags, status, fields,
+ * shares, reminders, imports, saved views, relations, bulk runs).
+ */
 export interface SaasEventData {
   readonly organizationId?: string | null;
   readonly id?: string;
@@ -420,7 +450,10 @@ export interface SchedulingEventData {
   readonly serviceId?: string | null;
 }
 
-/** Events from the collaboration blocks (versions, trash, reactions, approvals, access requests, documents). */
+/**
+ * Events from the collaboration blocks (versions, trash, reactions, approvals,
+ * access requests, documents).
+ */
 export interface CollaborationEventData extends SubjectEventData {
   readonly id?: string;
   readonly number?: number;
@@ -522,12 +555,18 @@ export interface DriveEventData extends SubjectEventData {
   readonly parentId?: string | null;
   /** For `drive.node_moved`. */
   readonly previousParentId?: string | null;
-  /** For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or `role`. */
+  /**
+   * For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or
+   * `role`.
+   */
   readonly principalType?: string;
   readonly principalId?: string;
   /** For `drive.node_shared`. */
   readonly role?: string;
-  /** For `drive.node_purged`: the stored objects to delete, as `{ bucket, path }`. */
+  /**
+   * For `drive.node_purged`: the stored objects to delete, as `{ bucket, path
+   * }`.
+   */
   readonly objects?: readonly {
     readonly bucket: string;
     readonly path: string;
@@ -589,8 +628,8 @@ export interface TemplateEventData {
 }
 
 /**
- * `template.applied` from the templates module. The subject is the record
- * the application created.
+ * `template.applied` from the templates module. The subject is the record the
+ * application created.
  */
 export interface TemplateApplicationEventData extends SubjectEventData {
   readonly organizationId: string;
@@ -669,7 +708,7 @@ export const BLOCK_EVENT_RENAMES: Readonly<Record<string, string>> = {
 
 /** Where an event came from, beyond its data. */
 export interface BlockEventMeta {
-  /** e.g. `organizations/<id>`; becomes the CloudEvents `subject`. */
+  /** E.g. `organizations/<id>`; becomes the CloudEvents `subject`. */
   readonly subject?: string;
   readonly tenant?: string;
   /** The user who caused it. */
@@ -678,8 +717,8 @@ export interface BlockEventMeta {
 }
 
 /**
- * A block event as `betterSupabase.on('block', handler)` receives it. `M`
- * types its data: a block's own events, or the union from `defineBlocks`.
+ * A block event as `betterSupabase.on('block', handler)` receives it. `M` types
+ * its data: a block's own events, or the union from `defineBlocks`.
  */
 export type BlockEvent<
   M extends EventMap = EventMap,
@@ -707,8 +746,8 @@ export type BlockEventsMatching<
   : Extract<P, BlockEventType<M>>;
 
 /**
- * Fixed OpenTelemetry attribute names for block work, so dashboards and
- * queries can rely on them.
+ * Fixed OpenTelemetry attribute names for block work, so dashboards and queries
+ * can rely on them.
  */
 export const BLOCK_ATTRIBUTES = {
   event: "better_supabase.block.event",
@@ -757,8 +796,8 @@ export function blockEventAttributes(
 }
 
 /**
- * Emits a block event on `events` with a copy of `data`. Does nothing without
- * a `block` handler, so blocks call it unconditionally. `M` is the emitting
+ * Emits a block event on `events` with a copy of `data`. Does nothing without a
+ * `block` handler, so blocks call it unconditionally. `M` is the emitting
  * block's event map.
  */
 export function emitBlockEvent<
@@ -801,8 +840,8 @@ export type BlockEmit<M extends EventMap> = <K extends BlockEventType<M>>(
 
 /**
  * The `emit` a block creator calls with its own event map: skips the work
- * without an event hub and adds the actor and request context from the
- * block's options.
+ * without an event hub and adds the actor and request context from the block's
+ * options.
  */
 export function blockEmitter<M extends EventMap>(
   options: BlockEmitterOptions,
@@ -828,8 +867,8 @@ const matches = (pattern: string, type: string): boolean =>
 
 /**
  * Listens to the block events that match `pattern` (`'support.started'` or
- * `'support.*'`), typed by `events`: a block's events, `defineBlocks(...)`
- * or `defineEvents(...)`. Returns a function that stops listening.
+ * `'support.*'`), typed by `events`: a block's events, `defineBlocks(...)` or
+ * `defineEvents(...)`. Returns a function that stops listening.
  */
 export function onBlockEvent<
   M extends EventMap,

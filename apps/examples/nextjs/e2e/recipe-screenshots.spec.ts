@@ -1,13 +1,13 @@
 /**
  * Screenshots of the UI recipes for bettersupabase.com/recipes, written to
- * `apps/marketing/public/recipes/<slug>.png`. It runs on demand with
- * `pnpm screenshots:recipes` against the local stack, never in CI, so it
- * skips unless `RECIPE_SCREENSHOTS=1`. Run `pnpm recipes` afterwards so
- * `recipes.json` picks up the new files and their sizes.
+ * `apps/marketing/public/recipes/<slug>.png`. It runs on demand with `pnpm
+ * screenshots:recipes` against the local stack, never in CI, so it skips unless
+ * `RECIPE_SCREENSHOTS=1`. Run `pnpm recipes` afterwards so `recipes.json` picks
+ * up the new files and their sizes.
  *
- * Each region is the element with `data-recipe="<slug>"`, set where the
- * example renders the recipe's component. Dialogs and menus render in a
- * portal, so those recipes open them and capture the popup instead.
+ * Each region is the element with `data-recipe="<slug>"`, set where the example
+ * renders the recipe's component. Dialogs and menus render in a portal, so
+ * those recipes open them and capture the popup instead.
  */
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";

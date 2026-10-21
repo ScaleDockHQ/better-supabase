@@ -19,7 +19,10 @@ export interface SafeFetchOptions extends PublicUrlOptions {
   readonly sensitiveHeaders?: readonly string[];
 }
 
-/** A request `safeFetch` refused: a URL outside the policy or too many redirects. */
+/**
+ * A request `safeFetch` refused: a URL outside the policy or too many
+ * redirects.
+ */
 export class UnsafeUrlError extends Error {
   override readonly name = "UnsafeUrlError";
 }
@@ -45,12 +48,12 @@ const CREDENTIALS = ["authorization", "cookie", "proxy-authorization"];
 
 /**
  * A `fetch` for URLs that users or tenants supply (link previews, imports,
- * avatars by URL, callback URLs): it refuses private, loopback and
- * link-local addresses, non-HTTPS URLs and credentials in the URL, checks
- * every redirect against the same policy before following it, and stops
- * after `timeoutMs`. It throws `UnsafeUrlError` for a refused URL and
- * `UrlCheckError` when the check itself failed (a DNS lookup error). A redirect
- * to another origin drops the credential headers and `sensitiveHeaders`.
+ * avatars by URL, callback URLs): it refuses private, loopback and link-local
+ * addresses, non-HTTPS URLs and credentials in the URL, checks every redirect
+ * against the same policy before following it, and stops after `timeoutMs`. It
+ * throws `UnsafeUrlError` for a refused URL and `UrlCheckError` when the check
+ * itself failed (a DNS lookup error). A redirect to another origin drops the
+ * credential headers and `sensitiveHeaders`.
  *
  * DNS can change between the check and the connection; route the requests
  * through an egress proxy when that matters.

@@ -48,7 +48,10 @@ export const globs = (value: unknown): RegExp[] =>
         new RegExp(`^${glob.split("*").map(escapeRegExp).join(".*")}$`, "i"),
     );
 
-/** The module schemas and the app tables SQL modules adopted, which the audit trigger skips. */
+/**
+ * The module schemas and the app tables SQL modules adopted, which the audit
+ * trigger skips.
+ */
 export function moduleOwned(context: DoctorContext): {
   schemas: ReadonlySet<string>;
   tables: ReadonlySet<string>;
@@ -78,8 +81,8 @@ export function moduleOwned(context: DoctorContext): {
 }
 
 /**
- * Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is
- * in `blocks`, and exemptions that give no reason.
+ * Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in
+ * `blocks`, and exemptions that give no reason.
  */
 export function unauditedTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("audit")) {

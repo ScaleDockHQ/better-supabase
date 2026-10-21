@@ -31,9 +31,7 @@ export function presetSchema(
     preset,
     code,
     data: schemaData(
-      parseSchema(previewFiles(code), {
-        tenantColumn: tenantColumnOf(preset),
-      }),
+      parseSchema(previewFiles(code), { tenantColumn: tenantColumnOf(preset) }),
       preset.tenantName,
     ),
   };

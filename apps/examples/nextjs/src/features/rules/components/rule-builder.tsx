@@ -158,9 +158,9 @@ function nodeAt(
 }
 
 /**
- * The "When" editor of one customer rule: conditions on the catalog fields
- * in nested And/Or groups, reordered by their handles, with the first
- * condition locked. Saves through the browser client as the signed-in user.
+ * The "When" editor of one customer rule: conditions on the catalog fields in
+ * nested And/Or groups, reordered by their handles, with the first condition
+ * locked. Saves through the browser client as the signed-in user.
  */
 export function RuleBuilder({
   organizationId,

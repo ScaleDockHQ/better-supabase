@@ -19,7 +19,10 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-/** A UI message stream as a response, with extra headers such as the workflow run id. */
+/**
+ * A UI message stream as a response, with extra headers such as the workflow
+ * run id.
+ */
 export function sse(
   stream: ReadableStream<string>,
   headers: Readonly<Record<string, string>> = {},

@@ -29,7 +29,8 @@ export interface CascaderNode<T = unknown> {
 
 /**
  * One footer ACTION. Deliberately not a `CascaderNode`, so a command can never
- * be passed where an option is expected and join the ring, filter or selection.
+ * be passed where an option is expected and join the ring, filter or
+ * selection.
  */
 export interface CascaderActionItem {
   /** Stable key. Falls back to the label when it is a string, then the index. */
@@ -91,8 +92,10 @@ export interface CascaderIndex<T = unknown> {
   all: CascaderNode<T>[];
   /** Resolved chain nodes listed last in a level that may still return them. */
   pinned?: ReadonlySet<string>;
-  /** Resolved chain nodes whose level loaded completely without them: they
-   * keep their path for the trigger, and are no row, hit or cascade child. */
+  /**
+   * Resolved chain nodes whose level loaded completely without them: they keep
+   * their path for the trigger, and are no row, hit or cascade child.
+   */
   hidden?: ReadonlySet<string>;
 }
 
@@ -157,8 +160,10 @@ export interface CascaderLoadResult<T = unknown> {
 /** Argument handed to `onSearch`. */
 export interface CascaderSearchContext {
   signal: AbortSignal;
-  /** The path the user is searching within, deepest last. Empty under a
-   * global search, whose scope is the whole tree. */
+  /**
+   * The path the user is searching within, deepest last. Empty under a global
+   * search, whose scope is the whole tree.
+   */
   path: string[];
 }
 

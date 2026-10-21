@@ -48,12 +48,7 @@ describe("identityResolver", () => {
     expect(call).toHaveBeenCalledWith(
       "better_supabase",
       "principal_by_identity",
-      {
-        kind: "chat",
-        provider: "slack",
-        value: "U1",
-        workspace: "T1",
-      },
+      { kind: "chat", provider: "slack", value: "U1", workspace: "T1" },
     );
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",

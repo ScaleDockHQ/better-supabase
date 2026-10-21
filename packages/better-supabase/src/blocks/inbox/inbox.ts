@@ -59,7 +59,10 @@ export interface InboxOptions extends BlockTemporalOptions {
    * member or a contact; over the service role for webhooks and workers.
    */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the methods (ADR 0015). */
@@ -75,7 +78,10 @@ export interface CreateInboxInput {
   /** The channel's address: a phone number, a Slack team id, an email. */
   readonly address?: string;
   readonly botMode?: BotMode;
-  /** `widget: true` lets signed-in visitors open conversations in an in-app inbox. */
+  /**
+   * `widget: true` lets signed-in visitors open conversations in an in-app
+   * inbox.
+   */
   readonly settings?: Readonly<Record<string, unknown>>;
 }
 
@@ -113,15 +119,17 @@ export interface MessageInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
   /** For the service: who writes. Defaults to `bot`. */
   readonly authorType?: "contact" | "bot" | "system";
-  /** For the service: the caller posts to the channel itself, so no outbound job is queued. */
+  /**
+   * For the service: the caller posts to the channel itself, so no outbound job
+   * is queued.
+   */
   readonly deliveredByCaller?: boolean;
 }
 
 export interface StartConversationInput {
   /**
-   * A contact id or the fields to find or create one. Leave it out on a
-   * widget inbox to open the conversation as the signed-in visitor, staff
-   * included.
+   * A contact id or the fields to find or create one. Leave it out on a widget
+   * inbox to open the conversation as the signed-in visitor, staff included.
    */
   readonly contact?: string | ContactInput;
   readonly subject?: string;
@@ -207,7 +215,10 @@ export interface Inbox {
     ): AsyncResult<boolean>;
   };
   readonly contacts: {
-    /** Finds the contact by id, identity, user or email, filling in what is missing. */
+    /**
+     * Finds the contact by id, identity, user or email, filling in what is
+     * missing.
+     */
     upsert(tenant: string, input: ContactInput): AsyncResult<Contact>;
   };
   readonly conversations: {
@@ -303,7 +314,10 @@ export interface Inbox {
   };
   /** Service only: channel messages, the webhook store and its sweeps. */
   readonly inbound: {
-    /** A message that arrived on a channel: finds or opens the thread's conversation. */
+    /**
+     * A message that arrived on a channel: finds or opens the thread's
+     * conversation.
+     */
     record(input: InboundInput): AsyncResult<InboundResult>;
     store(input: {
       readonly adapter: string;
@@ -331,8 +345,8 @@ export interface Inbox {
   wakeSnoozed(): AsyncResult<number>;
   /**
    * Erases a contact and its conversations for a data subject request
-   * (`inbox.manage` or the service). Remove the returned attachment paths
-   * from Storage afterwards.
+   * (`inbox.manage` or the service). Remove the returned attachment paths from
+   * Storage afterwards.
    */
   purgeContact(contactId: string): AsyncResult<PurgedContact>;
 }
@@ -408,8 +422,8 @@ function compact(value: Record<string, unknown>): Record<string, unknown> {
 
 /**
  * The `inbox` SQL module as typed calls: inboxes, contacts, conversations,
- * messages and notes, assignment, bot hand-off, read state, deliveries and
- * the stored webhook events. The database checks every permission.
+ * messages and notes, assignment, bot hand-off, read state, deliveries and the
+ * stored webhook events. The database checks every permission.
  */
 export function createInbox(options: InboxOptions): Inbox {
   applyTemporal(options);
@@ -794,10 +808,7 @@ export function createInbox(options: InboxOptions): Inbox {
       conversations: withBlockHooks(
         client.conversations,
         groups.conversations,
-        {
-          block: "inbox.conversations",
-          ...logger,
-        },
+        { block: "inbox.conversations", ...logger },
       ),
       messages: withBlockHooks(client.messages, groups.messages, {
         block: "inbox.messages",

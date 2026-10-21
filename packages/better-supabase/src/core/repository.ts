@@ -118,7 +118,10 @@ export function createRepository(
     ...patch,
   });
 
-  /** Writes return every column but the sensitive ones unless they are asked for. */
+  /**
+   * Writes return every column but the sensitive ones unless they are asked
+   * for.
+   */
   const returning = (args: Args | undefined): Selection | undefined => {
     if (args?.["returning"] === false) {
       return undefined;
@@ -162,7 +165,10 @@ export function createRepository(
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
-  /** Arguments the builder rejects fail like any other error: with the table and an `error` event. */
+  /**
+   * Arguments the builder rejects fail like any other error: with the table and
+   * an `error` event.
+   */
   const guarded = <T>(work: () => Promise<Result<T>>): AsyncResult<T> =>
     AsyncResult.from(async () => {
       try {
@@ -315,10 +321,7 @@ export function createRepository(
       return guarded(async () => {
         const op = selectOp(
           { where: args?.["where"] },
-          {
-            selection: existsSelection(),
-            limit: 1,
-          },
+          { selection: existsSelection(), limit: 1 },
         );
 
         const result = await run(op, args);
@@ -637,7 +640,10 @@ export function createRepository(
     };
   }
 
-  /** One column is enough to see a row: the primary key, or the first non-sensitive column. */
+  /**
+   * One column is enough to see a row: the primary key, or the first
+   * non-sensitive column.
+   */
   function existsSelection(): Selection {
     let found = existsSelections.get(table);
 

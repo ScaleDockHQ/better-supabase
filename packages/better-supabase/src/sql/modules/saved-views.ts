@@ -93,8 +93,8 @@ const textList = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /**
- * `options.extraColumns`, added to a managed views table. The preference
- * keys `list_views` returns next to them are reserved.
+ * `options.extraColumns`, added to a managed views table. The preference keys
+ * `list_views` returns next to them are reserved.
  */
 const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);

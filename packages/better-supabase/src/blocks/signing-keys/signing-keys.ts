@@ -33,7 +33,8 @@ const ALGORITHMS = ["Ed25519", "ES256"] as const;
 export interface SigningKeysOptions extends BlockOptions {
   /**
    * The JWS `alg` an Ed25519 key signs with: `EdDSA` (RFC 8037), which most
-   * verifiers read, or the fully specified `Ed25519` (RFC 9864). Default: `EdDSA`.
+   * verifiers read, or the fully specified `Ed25519` (RFC 9864). Default:
+   * `EdDSA`.
    */
   readonly ed25519Alg?: "EdDSA" | "Ed25519";
   /** How long a signer keeps the imported private key, in seconds. Default: 300. */
@@ -52,9 +53,9 @@ export interface SigningKeyOwner {
 }
 
 /**
- * The owner of the platform's own keys, for a single authorization server
- * that signs for every tenant. A key per tenant uses `{ type, id }` of the
- * tenant instead, such as `{ type: "environment", id: environment.id }`.
+ * The owner of the platform's own keys, for a single authorization server that
+ * signs for every tenant. A key per tenant uses `{ type, id }` of the tenant
+ * instead, such as `{ type: "environment", id: environment.id }`.
  */
 export const PLATFORM_OWNER: SigningKeyOwner = {
   type: "platform",
@@ -69,10 +70,10 @@ const JWT_TYPE = /^(?:JWT|[a-z0-9][a-z0-9.-]{0,126}\+jwt)$/i;
 
 /**
  * The `typ` header for a token kind of your own: `jwtType("invite")` is
- * `vnd.invite+jwt`. Sign with `{ typ }` and verify with `verifyCompact(...,
- * { typ })` so a token of one kind can't be replayed as another (RFC 8725
- * section 3.11). Throws a `TypeError` for a name outside lower-case letters,
- * digits and `-`.
+ * `vnd.invite+jwt`. Sign with `{ typ }` and verify with `verifyCompact(..., {
+ * typ })` so a token of one kind can't be replayed as another (RFC 8725 section
+ * 3.11). Throws a `TypeError` for a name outside lower-case letters, digits and
+ * `-`.
  */
 export function jwtType(name: string): string {
   if (!TYPE_NAME.test(name)) {
@@ -89,7 +90,10 @@ export interface CreatedSigningKey {
   readonly kid: string;
   readonly alg: SigningAlgorithm;
   readonly publicKey: Jwk;
-  /** The kid the new key replaced, which stays in the JWKS until its tokens expire. */
+  /**
+   * The kid the new key replaced, which stays in the JWKS until its tokens
+   * expire.
+   */
   readonly retired: string | null;
 }
 
@@ -108,8 +112,9 @@ export interface Signer {
   /**
    * A compact JWS over `claims`, with `alg`, `kid` and `typ: "JWT"` in the
    * header unless `header` sets them. A custom `typ` has to be `JWT` or end in
-   * `+jwt` (see `jwtType`); anything else fails with `SIGNING_TYP_INVALID`. A numeric `exp` keeps the key in the
-   * JWKS until then (`note_signing_key_exp`), so a rotation can't strand the token.
+   * `+jwt` (see `jwtType`); anything else fails with `SIGNING_TYP_INVALID`. A
+   * numeric `exp` keeps the key in the JWKS until then
+   * (`note_signing_key_exp`), so a rotation can't strand the token.
    */
   signJwt(
     claims: Readonly<Record<string, unknown>>,
@@ -118,7 +123,10 @@ export interface Signer {
 }
 
 export interface JwksOptions {
-  /** How long a retired key stays published past its last `exp`. Default: `blocks.signing-keys.options.jwksGrace`. */
+  /**
+   * How long a retired key stays published past its last `exp`. Default:
+   * `blocks.signing-keys.options.jwksGrace`.
+   */
   readonly grace?: Temporal.Duration;
 }
 
@@ -128,12 +136,18 @@ export interface JwksResponseOptions extends JwksOptions {
 }
 
 export interface SignerOptions {
-  /** Creates a key of this type when the owner has none, instead of failing with `SIGNING_KEY_MISSING`. */
+  /**
+   * Creates a key of this type when the owner has none, instead of failing with
+   * `SIGNING_KEY_MISSING`.
+   */
   readonly create?: SigningAlgorithm;
 }
 
 export interface SigningKeys {
-  /** Generates a key for the owner and makes it active; the previous key is retired. */
+  /**
+   * Generates a key for the owner and makes it active; the previous key is
+   * retired.
+   */
   create(
     owner: SigningKeyOwner,
     alg?: SigningAlgorithm,

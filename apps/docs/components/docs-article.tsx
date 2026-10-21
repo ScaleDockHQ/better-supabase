@@ -16,7 +16,10 @@ import { gitConfig } from "@/lib/shared";
 import { siteUrl } from "@/lib/site-url";
 import { getPagePublicMarkdownUrl, source } from "@/lib/source";
 
-/** One docs page: the MDX body, the copy and view actions, and the last edit date. */
+/**
+ * One docs page: the MDX body, the copy and view actions, and the last edit
+ * date.
+ */
 export async function DocsArticle({
   slug,
 }: {
@@ -64,9 +67,7 @@ export async function DocsArticle({
       </div>
       <DocsBody>
         <MDX
-          components={getMDXComponents({
-            a: createRelativeLink(source, page),
-          })}
+          components={getMDXComponents({ a: createRelativeLink(source, page) })}
         />
       </DocsBody>
       {lastModified === undefined ? null : (
@@ -77,7 +78,10 @@ export async function DocsArticle({
   );
 }
 
-/** Holds the article's place while a navigation without a prefetch streams it in. */
+/**
+ * Holds the article's place while a navigation without a prefetch streams it
+ * in.
+ */
 export function DocsArticleSkeleton() {
   return (
     <div

@@ -2,7 +2,10 @@ import type { ReactionsState, UseReactionsOptions } from "./index.ts";
 
 export type { ReactionsState, UseReactionsOptions } from "./index.ts";
 
-/** The `react-server` build of `useReactions`: call `reactions.summary()` instead. */
+/**
+ * The `react-server` build of `useReactions`: call `reactions.summary()`
+ * instead.
+ */
 export const useReactions: (
   options: UseReactionsOptions,
 ) => ReactionsState = () => {

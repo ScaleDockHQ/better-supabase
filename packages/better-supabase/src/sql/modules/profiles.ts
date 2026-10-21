@@ -226,7 +226,10 @@ interface UsernamePart {
   readonly separator: string;
 }
 
-/** The `{ names | columns, separator }` entries of `usernameFrom`; strings are single metadata keys. */
+/**
+ * The `{ names | columns, separator }` entries of `usernameFrom`; strings are
+ * single metadata keys.
+ */
 function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
   const configured = ctx.option("usernameFrom") ?? USERNAME_SOURCES;
   const where = "blocks.profiles.options.usernameFrom";
@@ -279,8 +282,8 @@ function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
 }
 
 /**
- * The characters a username keeps besides letters, digits and `_`: the `.`
- * and `-` of the `usernameFrom` separators, so `ada.lovelace` stays as it is.
+ * The characters a username keeps besides letters, digits and `_`: the `.` and
+ * `-` of the `usernameFrom` separators, so `ada.lovelace` stays as it is.
  */
 function usernameExtras(ctx: ModuleContext): string {
   const extras = new Set(
@@ -295,11 +298,11 @@ function usernameExtras(ctx: ModuleContext): string {
 }
 
 /**
- * `usernameFrom`: metadata keys, first match wins, or entries that join
- * several values when all of them are set: `{ names, separator }` joins
- * metadata keys (`first_name` and `last_name` into `ada_lovelace`), and
- * `{ columns, separator }` joins the values `sync_profile` writes to those
- * profile columns, after `metadata` and `splitName`.
+ * `usernameFrom`: metadata keys, first match wins, or entries that join several
+ * values when all of them are set: `{ names, separator }` joins metadata keys
+ * (`first_name` and `last_name` into `ada_lovelace`), and `{ columns, separator
+ * }` joins the values `sync_profile` writes to those profile columns, after
+ * `metadata` and `splitName`.
  */
 function usernameSource(
   ctx: ModuleContext,
@@ -348,7 +351,10 @@ const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
   "onboarding",
 ]);
 
-/** Names no one gets as a username, from `blocks.profiles.options.reservedUsernames`. */
+/**
+ * Names no one gets as a username, from
+ * `blocks.profiles.options.reservedUsernames`.
+ */
 const RESERVED_USERNAMES = [
   "admin",
   "administrator",
@@ -410,10 +416,10 @@ function usernameRules(ctx: ModuleContext): {
 
 /**
  * The username's length, characters and reserved names, as a check on the
- * managed table. Existing rows that break it leave the check unvalidated.
- * No `between`: Postgres expands it after flattening the `and` chain, so the
- * stored expression nests differently from the one pg-delta writes back, and
- * a declarative sync would drop and re-add the check every time.
+ * managed table. Existing rows that break it leave the check unvalidated. No
+ * `between`: Postgres expands it after flattening the `and` chain, so the
+ * stored expression nests differently from the one pg-delta writes back, and a
+ * declarative sync would drop and re-add the check every time.
  */
 function usernameCheck(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
@@ -517,9 +523,8 @@ grant all on ${t} to service_role;
 }
 
 /**
- * `readPolicy`: `self`, `members`, or `{ members, platform }` where
- * `platform` is a key `is_platform()` checks, so platform staff read every
- * profile.
+ * `readPolicy`: `self`, `members`, or `{ members, platform }` where `platform`
+ * is a key `is_platform()` checks, so platform staff read every profile.
  */
 function readPolicy(ctx: ModuleContext): {
   readonly members: boolean;
@@ -587,8 +592,8 @@ function membersRead(ctx: ModuleContext): string {
 }
 
 /**
- * `profile_peer_ids()`: the caller and the users who share a tenant with
- * them. Security definer, so the memberships policies don't hide peers.
+ * `profile_peer_ids()`: the caller and the users who share a tenant with them.
+ * Security definer, so the memberships policies don't hide peers.
  */
 function peers(ctx: ModuleContext): string {
   if (!readPolicy(ctx).members) {

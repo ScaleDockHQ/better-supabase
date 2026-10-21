@@ -27,7 +27,10 @@ describe("temporal", () => {
 
 const SRC = join(import.meta.dirname, "../../src");
 
-/** The two modules that read the runtime's Temporal; everything else goes through them. */
+/**
+ * The two modules that read the runtime's Temporal; everything else goes
+ * through them.
+ */
 const READERS = new Set(["core/temporal.ts", "core/temporal-required.ts"]);
 
 const GLOBAL_USE =

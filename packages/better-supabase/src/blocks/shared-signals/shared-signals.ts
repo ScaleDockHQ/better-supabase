@@ -13,7 +13,10 @@ import {
 
 export type SharedSignalsOptions = BlockOptions;
 
-/** The `shared-signals` block: transmitters and receivers on the shared transport. */
+/**
+ * The `shared-signals` block: transmitters and receivers on the shared
+ * transport.
+ */
 export interface SharedSignals {
   transmitter(
     options: Omit<SsfTransmitterOptions, keyof BlockOptions>,
@@ -21,7 +24,10 @@ export interface SharedSignals {
   receiver(options: Omit<SsfReceiverOptions, keyof BlockOptions>): SsfReceiver;
 }
 
-/** What `createBlocks` builds: each transmitter and receiver takes the block's transport. */
+/**
+ * What `createBlocks` builds: each transmitter and receiver takes the block's
+ * transport.
+ */
 export function createSharedSignals(
   options: SharedSignalsOptions,
 ): SharedSignals {

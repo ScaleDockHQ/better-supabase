@@ -9,8 +9,9 @@ import {
 import { type Money, minorUnits, money } from "./money.ts";
 
 /**
- * Stripe's decimals where they differ from ISO 4217 (docs.stripe.com/currencies):
- * ISK and UGX keep two for backward compatibility, MGA has none.
+ * Stripe's decimals where they differ from ISO 4217
+ * (docs.stripe.com/currencies): ISK and UGX keep two for backward
+ * compatibility, MGA has none.
  */
 const STRIPE_DECIMALS: Readonly<Record<string, number>> = {
   ISK: 2,
@@ -24,7 +25,10 @@ const STRIPE_ROUND_TO_TEN = new Set(["BHD", "JOD", "KWD", "OMR", "TND"]);
 const stripeDecimals = (currency: string): number =>
   STRIPE_DECIMALS[currency] ?? minorUnits(currency);
 
-/** The `amount` Stripe takes for `value`, or the error when Stripe can't charge it exactly. */
+/**
+ * The `amount` Stripe takes for `value`, or the error when Stripe can't charge
+ * it exactly.
+ */
 export function toStripeAmount(value: Money): Result<number> {
   const shift = stripeDecimals(value.currency) - minorUnits(value.currency);
   const scale = 10n ** BigInt(Math.abs(shift));
@@ -63,9 +67,9 @@ export function toStripeAmount(value: Money): Result<number> {
 }
 
 /**
- * `Money` from a Stripe `amount` and its lowercase currency, or the error
- * when the amount has a fraction of the currency's minor unit (an ISK or UGX
- * amount that isn't a multiple of 100).
+ * `Money` from a Stripe `amount` and its lowercase currency, or the error when
+ * the amount has a fraction of the currency's minor unit (an ISK or UGX amount
+ * that isn't a multiple of 100).
  */
 export function fromStripeAmount(
   amount: number,
@@ -99,8 +103,8 @@ export function fromStripeAmount(
 }
 
 /**
- * A thrown Stripe error as a `DbError`: a declined card is `raised` with
- * the hint `PAYMENT_DECLINED`, a missing object `not_found`, a bad request
+ * A thrown Stripe error as a `DbError`: a declined card is `raised` with the
+ * hint `PAYMENT_DECLINED`, a missing object `not_found`, a bad request
  * `invalid_input`, and the rest by HTTP status.
  */
 export function stripeError(cause: unknown): DbError {
@@ -151,7 +155,10 @@ export function stripeError(cause: unknown): DbError {
   return toDbError(cause);
 }
 
-/** Runs Stripe calls as a result, mapping a thrown Stripe error with `stripeError`. */
+/**
+ * Runs Stripe calls as a result, mapping a thrown Stripe error with
+ * `stripeError`.
+ */
 export function stripeResult<T>(
   work: () => Promise<Result<T>>,
 ): AsyncResult<T> {

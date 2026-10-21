@@ -7,7 +7,10 @@ export interface SchemaSource {
   readonly contents: string;
 }
 
-/** The table a foreign key points at. `columns` is empty when the SQL names none: the target's primary key. */
+/**
+ * The table a foreign key points at. `columns` is empty when the SQL names
+ * none: the target's primary key.
+ */
 export interface SchemaTarget {
   readonly schema: string;
   readonly table: string;
@@ -58,8 +61,8 @@ export interface SchemaComputed {
 
 /**
  * A column that points at a table without a foreign key: the tenant or user
- * column a block keeps plain so its rows outlive deletes, or a `regclass`
- * that names any table (`to` is `null`).
+ * column a block keeps plain so its rows outlive deletes, or a `regclass` that
+ * names any table (`to` is `null`).
  */
 export interface SchemaSoftRef {
   readonly from: string;
@@ -76,7 +79,10 @@ export interface SchemaData {
   readonly manifests: Readonly<Record<string, string>>;
   /** The table ids `blocks.<module>.options.extraColumns` adds columns to. */
   readonly extraColumns: readonly string[];
-  /** Table id to its module and logical table, the names an app table's reference uses. */
+  /**
+   * Table id to its module and logical table, the names an app table's
+   * reference uses.
+   */
   readonly blockTables: Readonly<
     Record<string, { readonly block: string; readonly table: string }>
   >;
@@ -84,7 +90,10 @@ export interface SchemaData {
   readonly tenantTable: string | null;
 }
 
-/** The columns a diagram shows before a table is expanded: keys, tenant and soft references. */
+/**
+ * The columns a diagram shows before a table is expanded: keys, tenant and soft
+ * references.
+ */
 export function keyColumnsOf(
   table: SchemaTable,
   softColumns: ReadonlySet<string> = new Set(),
@@ -100,18 +109,24 @@ export function keyColumnsOf(
 }
 
 export interface SchemaOptions {
-  /** The tenant column the config names (`organization_id` by default); `null` without tenants. */
+  /**
+   * The tenant column the config names (`organization_id` by default); `null`
+   * without tenants.
+   */
   readonly tenantColumn?: string | null;
 }
 
-/** The column the tenant blocks key rows by, from the preset's tenant name; `null` without tenants. */
+/**
+ * The column the tenant blocks key rows by, from the preset's tenant name;
+ * `null` without tenants.
+ */
 export function tenantColumnOf(preset: Preset): string | null {
   return preset.scope === "tenant" ? `${preset.tenantName}_id` : null;
 }
 
 /**
- * Every module's file creates this table to record the installed modules.
- * It holds no app data, so the diagram leaves it out.
+ * Every module's file creates this table to record the installed modules. It
+ * holds no app data, so the diagram leaves it out.
  */
 const BOOKKEEPING_TABLES = new Set(["better_supabase.modules"]);
 
@@ -171,8 +186,8 @@ function identList(list: string | undefined): string[] {
 
 /**
  * The SQL with comments removed and the inside of every single-quoted string
- * blanked, so a `create table` inside a string or a comment is not read and
- * the offsets still match the original text.
+ * blanked, so a `create table` inside a string or a comment is not read and the
+ * offsets still match the original text.
  */
 function codeOnly(sql: string): string {
   let out = "";
@@ -216,7 +231,10 @@ function codeOnly(sql: string): string {
   return out;
 }
 
-/** The text between the `(` at `open` and its matching `)`, or undefined when it never closes. */
+/**
+ * The text between the `(` at `open` and its matching `)`, or undefined when it
+ * never closes.
+ */
 function balanced(text: string, open: number): string | undefined {
   let depth = 0;
 
@@ -242,7 +260,10 @@ interface Element {
   readonly original: string;
 }
 
-/** The comma-separated elements of `text` at depth 0, with `original` sliced at the same offsets. */
+/**
+ * The comma-separated elements of `text` at depth 0, with `original` sliced at
+ * the same offsets.
+ */
 function splitTopLevel(text: string, original: string = text): Element[] {
   const parts: Element[] = [];
   let depth = 0;
@@ -395,8 +416,8 @@ function addColumn(
 }
 
 /**
- * Adds a table constraint (`primary key (...)`, `foreign key (...)
- * references ...`). Returns false when the element is not a constraint.
+ * Adds a table constraint (`primary key (...)`, `foreign key (...) references
+ * ...`). Returns false when the element is not a constraint.
  */
 function addConstraint(draft: TableDraft, element: string): boolean {
   const body = element.replace(CONSTRAINT_NAME, "");
@@ -454,10 +475,10 @@ function finish(draft: TableDraft, tenantColumn: string | null): SchemaTable {
 }
 
 /**
- * The tables in rendered module SQL: every `create table`, plus the columns
- * and foreign keys later `alter table ... add` statements give them. A
- * `create table` it can't read throws with the file and line, so a new SQL
- * shape fails the tests instead of dropping a table from the diagram.
+ * The tables in rendered module SQL: every `create table`, plus the columns and
+ * foreign keys later `alter table ... add` statements give them. A `create
+ * table` it can't read throws with the file and line, so a new SQL shape fails
+ * the tests instead of dropping a table from the diagram.
  */
 export function parseSchema(
   files: readonly SchemaSource[],
@@ -549,8 +570,8 @@ export function parseSchema(
 }
 
 /**
- * The statements that shape one table, as written: its `create table` and
- * the `alter table` statements after it. Empty when no file creates it.
+ * The statements that shape one table, as written: its `create table` and the
+ * `alter table` statements after it. Empty when no file creates it.
  */
 export function tableStatements(
   files: readonly SchemaSource[],
@@ -596,7 +617,10 @@ export function tableStatements(
   return statements;
 }
 
-/** The foreign keys between tables, one per pair, with the targets outside the schema named by id. */
+/**
+ * The foreign keys between tables, one per pair, with the targets outside the
+ * schema named by id.
+ */
 export function schemaRelations(
   tables: readonly SchemaTable[],
 ): readonly { readonly from: string; readonly to: string }[] {

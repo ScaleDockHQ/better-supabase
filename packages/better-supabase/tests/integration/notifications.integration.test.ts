@@ -548,9 +548,7 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       for (const file of renderModules(["organizations", "notifications"], {
-        modules: {
-          notifications: { columns: { events: { key: null } } },
-        },
+        modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
       }
@@ -829,11 +827,7 @@ describe.skipIf(!live)("notifications", () => {
       });
       expect(
         await notifications.counts({ tenant: organization }).orThrow(),
-      ).toEqual({
-        unread: 1,
-        actionable: 0,
-        actionableSubjects: 0,
-      });
+      ).toEqual({ unread: 1, actionable: 0, actionableSubjects: 0 });
 
       const read = await notifications
         .markRead({ tenant: organization })

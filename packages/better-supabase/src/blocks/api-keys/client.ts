@@ -24,8 +24,8 @@ export interface ApiKeysControllerOptions {
   readonly auth: AuthPort;
   /**
    * The organization whose keys to list and create: all of them for its
-   * managers, the caller's own for everyone else. `null` lists the
-   * caller's personal keys.
+   * managers, the caller's own for everyone else. `null` lists the caller's
+   * personal keys.
    */
   readonly organizationId: string | null;
   /**
@@ -40,7 +40,10 @@ export interface ApiKeysSnapshot {
   readonly keys: readonly ApiKey[] | undefined;
   /** Whether a key is being created. */
   readonly creating: boolean;
-  /** The key `create` made, with its token, which is shown once; until `dismiss`. */
+  /**
+   * The key `create` made, with its token, which is shown once; until
+   * `dismiss`.
+   */
   readonly created: CreatedApiKey | undefined;
   /** The key ids with a revoke in flight. */
   readonly revoking: readonly string[];
@@ -48,7 +51,10 @@ export interface ApiKeysSnapshot {
 }
 
 export interface ApiKeysActions {
-  /** Creates a key and keeps its token in `created`; a failure is also kept in `error`. */
+  /**
+   * Creates a key and keeps its token in `created`; a failure is also kept in
+   * `error`.
+   */
   readonly create: (draft: ApiKeyDraft) => Promise<Result<CreatedApiKey>>;
   /** Revokes a key at once, then loads the list again. */
   readonly revoke: (id: string) => Promise<Result<boolean>>;
@@ -65,9 +71,9 @@ const newestFirst = (keys: readonly ApiKey[]): readonly ApiKey[] =>
   );
 
 /**
- * The API keys of an organization (or the caller's personal keys) for an
- * API keys table: `create` returns the token once, `revoke` revokes a key,
- * and both load the list again.
+ * The API keys of an organization (or the caller's personal keys) for an API
+ * keys table: `create` returns the token once, `revoke` revokes a key, and both
+ * load the list again.
  */
 export function createApiKeysController(
   options: ApiKeysControllerOptions,

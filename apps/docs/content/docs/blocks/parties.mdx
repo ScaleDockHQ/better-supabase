@@ -76,9 +76,7 @@ const { company, person } = partiesSubjects({
   url: { company: "/companies/{id}", person: "/people/{id}" },
 });
 
-export default defineConfig({
-  subjects: { company, person },
-});
+export default defineConfig({ subjects: { company, person } });
 ```
 
 With the [notifications](/docs/blocks/notifications) module installed, the owner watches a company or person when they become its owner, and a level they already chose stays.

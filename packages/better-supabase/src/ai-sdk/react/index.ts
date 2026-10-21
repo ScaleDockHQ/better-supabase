@@ -32,9 +32,9 @@ export interface UseAssistantOptions {
   /** Custom throttle wait in ms for message updates. */
   readonly throttle?: number;
   /**
-   * Makes the transport instead of the default one, such as
-   * `durableTransport` from `better-supabase/ai-sdk/workflow/react`. Pass a
-   * function defined outside the component, so the transport is kept.
+   * Makes the transport instead of the default one, such as `durableTransport`
+   * from `better-supabase/ai-sdk/workflow/react`. Pass a function defined
+   * outside the component, so the transport is kept.
    */
   readonly transport?: (
     config: AssistantTransportConfig,
@@ -69,8 +69,8 @@ export type AssistantState = UseChatHelpers<UIMessage> & {
 
 /**
  * `useChat` wired to `createAssistant`: it sends only the new message (the
- * server keeps the history), resumes a running answer after a reload and
- * stops it on the server.
+ * server keeps the history), resumes a running answer after a reload and stops
+ * it on the server.
  */
 export function useAssistant(options: UseAssistantOptions): AssistantState {
   const api = options.api ?? "/api/chat";

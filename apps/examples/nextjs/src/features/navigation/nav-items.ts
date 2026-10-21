@@ -80,12 +80,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "approvals.read",
   },
-  {
-    id: "rules",
-    href: "/rules",
-    group: "workspace",
-    requires: "rules.read",
-  },
+  { id: "rules", href: "/rules", group: "workspace", requires: "rules.read" },
   {
     id: "people",
     href: "/people",
@@ -134,12 +129,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "quotes.read",
   },
-  {
-    id: "shop",
-    href: "/shop",
-    group: "workspace",
-    requires: "catalog.read",
-  },
+  { id: "shop", href: "/shop", group: "workspace", requires: "catalog.read" },
   {
     id: "inventory",
     href: "/shop/inventory",
@@ -152,24 +142,14 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "orders.read",
   },
-  {
-    id: "drive",
-    href: "/drive",
-    group: "workspace",
-    requires: "drive.read",
-  },
+  { id: "drive", href: "/drive", group: "workspace", requires: "drive.read" },
   {
     id: "documents",
     href: "/documents",
     group: "workspace",
     requires: "documents.read",
   },
-  {
-    id: "forms",
-    href: "/forms",
-    group: "workspace",
-    requires: "forms.read",
-  },
+  { id: "forms", href: "/forms", group: "workspace", requires: "forms.read" },
   {
     id: "templates",
     href: "/templates",
@@ -182,12 +162,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "imports.manage",
   },
-  {
-    id: "trash",
-    href: "/trash",
-    group: "workspace",
-    requires: "trash.read",
-  },
+  { id: "trash", href: "/trash", group: "workspace", requires: "trash.read" },
   { id: "metrics", href: "/metrics", group: "workspace" },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {

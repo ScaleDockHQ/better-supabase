@@ -1,9 +1,9 @@
 /**
- * What a Supabase project already has before the first migration runs: the
- * API roles, the `auth` schema with `auth.users` and the JWT helpers, and a
- * `storage.buckets` table. PGlite starts without them, so validation creates
- * a minimal copy. It covers the columns the block SQL reads, not the full
- * GoTrue or Storage schemas.
+ * What a Supabase project already has before the first migration runs: the API
+ * roles, the `auth` schema with `auth.users` and the JWT helpers, and a
+ * `storage.buckets` table. PGlite starts without them, so validation creates a
+ * minimal copy. It covers the columns the block SQL reads, not the full GoTrue
+ * or Storage schemas.
  */
 export const SUPABASE_PRELUDE: string = `
 do $$

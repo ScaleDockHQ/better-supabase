@@ -9,10 +9,10 @@ import { useQueries, useSupabase } from "@/lib/hooks";
 import type { CustomerRow } from "./components/customer-table";
 
 /**
- * Searches every customer by name from the browser, beyond the first page
- * the server sent. RLS scopes the rows to the caller's tenant. A repeated
- * search within `staleTime` paints from the TanStack Query cache without a
- * request; status filtering stays local so it never refetches.
+ * Searches every customer by name from the browser, beyond the first page the
+ * server sent. RLS scopes the rows to the caller's tenant. A repeated search
+ * within `staleTime` paints from the TanStack Query cache without a request;
+ * status filtering stays local so it never refetches.
  */
 export function useCustomerSearch(needle: string) {
   const queries = useQueries();

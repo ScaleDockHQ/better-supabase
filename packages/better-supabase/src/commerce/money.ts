@@ -9,13 +9,19 @@ export interface Money {
   readonly currency: string;
 }
 
-/** `Money` as JSON: the amount as a string of minor units, since JSON has no bigint. */
+/**
+ * `Money` as JSON: the amount as a string of minor units, since JSON has no
+ * bigint.
+ */
 export interface MoneyJson {
   readonly amount: string;
   readonly currency: string;
 }
 
-/** Thrown when two amounts in different currencies meet; lines never mix currencies. */
+/**
+ * Thrown when two amounts in different currencies meet; lines never mix
+ * currencies.
+ */
 export class CurrencyMismatchError extends TypeError {
   readonly currencies: readonly [string, string];
 
@@ -45,7 +51,10 @@ export function minorUnits(currency: string): number {
   return ISO_4217_MINOR_UNITS[currency] ?? 0;
 }
 
-/** `Money` from an integer number of minor units: `money(1999n, "EUR")` is 19.99 EUR. */
+/**
+ * `Money` from an integer number of minor units: `money(1999n, "EUR")` is 19.99
+ * EUR.
+ */
 export function money(amount: bigint | number, currency: string): Money {
   minorUnits(currency);
 
@@ -95,7 +104,10 @@ export function parseMoney(decimal: string, currency: string): Money {
   return money(sign === "-" ? -amount : amount, currency);
 }
 
-/** The amount as a decimal string with every minor unit: `"19.90"`, `"500"` for JPY. */
+/**
+ * The amount as a decimal string with every minor unit: `"19.90"`, `"500"` for
+ * JPY.
+ */
 export function toDecimal(value: Money): string {
   const units = minorUnits(value.currency);
   const negative = value.amount < 0n;
@@ -111,8 +123,8 @@ export function toDecimal(value: Money): string {
 }
 
 /**
- * Formats with `Intl.NumberFormat`, passing the exact decimal string so
- * large amounts keep every digit.
+ * Formats with `Intl.NumberFormat`, passing the exact decimal string so large
+ * amounts keep every digit.
  */
 export function formatMoney(
   value: Money,
@@ -183,7 +195,10 @@ export function sumMoney(values: readonly Money[], currency: string): Money {
   return total;
 }
 
-/** `value` times a whole `quantity`, such as a unit price times the line's quantity. */
+/**
+ * `value` times a whole `quantity`, such as a unit price times the line's
+ * quantity.
+ */
 export function multiplyMoney(value: Money, quantity: bigint | number): Money {
   if (typeof quantity === "number" && !Number.isSafeInteger(quantity)) {
     throw new RangeError(`${quantity} is not a whole quantity`);
@@ -208,8 +223,8 @@ export function compareMoney(a: Money, b: Money): -1 | 0 | 1 {
 }
 
 /**
- * `numerator / denominator` rounded half to even (banker's rounding): ties
- * go to the even neighbour, so rounding many lines doesn't drift one way.
+ * `numerator / denominator` rounded half to even (banker's rounding): ties go
+ * to the even neighbour, so rounding many lines doesn't drift one way.
  */
 export function roundHalfEven(numerator: bigint, denominator: bigint): bigint {
   if (denominator === 0n) {
@@ -256,10 +271,10 @@ const rateParts = (rate: string): readonly [bigint, bigint] => {
 };
 
 /**
- * `value` times `rate` (a decimal fraction such as `"0.21"`), rounded half
- * to even. With `included: true`, `value` already contains the rate (a
- * tax-inclusive price) and the result is the part the rate accounts for:
- * `value * rate / (1 + rate)`.
+ * `value` times `rate` (a decimal fraction such as `"0.21"`), rounded half to
+ * even. With `included: true`, `value` already contains the rate (a
+ * tax-inclusive price) and the result is the part the rate accounts for: `value *
+ * rate / (1 + rate)`.
  */
 export function applyRate(
   value: Money,
@@ -276,9 +291,9 @@ export function applyRate(
 }
 
 /**
- * Splits `value` by `weights` so the parts add up to it exactly. Each part
- * is rounded down, and the leftover minor units go to the largest
- * remainders, earlier parts first on a tie.
+ * Splits `value` by `weights` so the parts add up to it exactly. Each part is
+ * rounded down, and the leftover minor units go to the largest remainders,
+ * earlier parts first on a tie.
  */
 export function allocateMoney(
   value: Money,

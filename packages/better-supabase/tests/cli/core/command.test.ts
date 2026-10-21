@@ -37,10 +37,7 @@ describe("joinRepeated", () => {
 describe("defineCliCommand", () => {
   const command = defineCliCommand({
     meta: { name: "probe" },
-    args: {
-      only: { type: "string" },
-      check: { type: "boolean" },
-    },
+    args: { only: { type: "string" }, check: { type: "boolean" } },
     lists: ["only"],
     run: () => Promise.resolve({ code: 0 }),
   });

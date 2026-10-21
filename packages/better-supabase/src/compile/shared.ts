@@ -9,7 +9,10 @@ export function integer(value: number): number {
   return value;
 }
 
-/** The ` where a and b` clause for the parts that are present, or an empty string. */
+/**
+ * The ` where a and b` clause for the parts that are present, or an empty
+ * string.
+ */
 export function whereClause(parts: readonly (string | undefined)[]): string {
   const present = parts.filter((part): part is string => part !== undefined);
 

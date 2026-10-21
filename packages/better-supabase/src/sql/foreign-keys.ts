@@ -80,9 +80,9 @@ function constraintOf(table: string, text: string): Pending | undefined {
 }
 
 /**
- * The foreign keys in `files`: `references` on a column, `foreign key`
- * table constraints and `alter table ... add constraint ... foreign key`,
- * in the order they appear. Only tables in `schemas` are kept.
+ * The foreign keys in `files`: `references` on a column, `foreign key` table
+ * constraints and `alter table ... add constraint ... foreign key`, in the
+ * order they appear. Only tables in `schemas` are kept.
  */
 function declaredForeignKeys(
   files: readonly { readonly text: string }[],
@@ -175,7 +175,10 @@ function declaredForeignKeys(
     }));
 }
 
-/** The layout fields `blocks.tenant.options.sameTenant.auto` derives its entries from. */
+/**
+ * The layout fields `blocks.tenant.options.sameTenant.auto` derives its entries
+ * from.
+ */
 export function sameTenantLayout(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],

@@ -88,8 +88,8 @@ const VARIANT = {
 
 /**
  * Files on the customer, in the private `attachments` bucket. The server
- * records each file and signs a one-time upload; the browser sends the
- * bytes. A file downloads once the scanner marked it clean.
+ * records each file and signs a one-time upload; the browser sends the bytes. A
+ * file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
   customerId,

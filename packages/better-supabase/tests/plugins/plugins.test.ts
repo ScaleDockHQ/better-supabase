@@ -289,11 +289,7 @@ describe("tenant", () => {
 
     const ignoring = await db.customers.upsert(
       { id: "c", name: "A" } as never,
-      {
-        onConflict: ["id"],
-        ignoreDuplicates: true,
-        select: ["id"],
-      },
+      { onConflict: ["id"], ignoreDuplicates: true, select: ["id"] },
     );
 
     expect(ignoring.ok).toBe(true);
@@ -310,10 +306,12 @@ describe("tenant", () => {
   it("fails closed when an include reaches a tenant table", async () => {
     const { client, requests } = capturingClient();
 
-    const result = await betterSupabase.connect(client).organizations.findMany({
-      select: ["id"],
-      include: { customers: { select: ["id"] } },
-    } as never);
+    const result = await betterSupabase
+      .connect(client)
+      .organizations.findMany({
+        select: ["id"],
+        include: { customers: { select: ["id"] } },
+      } as never);
 
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
@@ -459,10 +457,7 @@ describe("actor", () => {
       updated_by: USER,
       impersonated_by: ADMIN,
     });
-    expect(requests[1]?.body).toEqual({
-      name: "B",
-      updated_by: USER,
-    });
+    expect(requests[1]?.body).toEqual({ name: "B", updated_by: USER });
 
     const forged = await impersonated.customers.update(
       "c",
@@ -608,10 +603,7 @@ describe("validation", () => {
       },
     };
 
-    const { client, last } = capturingClient(() => ({
-      status: 201,
-      body: [],
-    }));
+    const { client, last } = capturingClient(() => ({ status: 201, body: [] }));
 
     const result = await base
       .use(validation({ schemas: { customers: { insert: strip } } }))

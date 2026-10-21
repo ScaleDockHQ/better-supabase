@@ -5,8 +5,8 @@ import { sqlString } from "../core/template.ts";
 export const RANK_KEY_PATTERN = "'^[0-9A-Za-z]*[1-9A-Za-z]$'";
 
 /**
- * SQL for the key after `last`, the same as `rankBetween(last, null)`. It
- * reads `last` several times, so pass a variable, not a query.
+ * SQL for the key after `last`, the same as `rankBetween(last, null)`. It reads
+ * `last` several times, so pass a variable, not a query.
  */
 export function rankAfter(last: string): string {
   const alphabet = sqlString(RANK_ALPHABET);
@@ -20,9 +20,9 @@ export function rankAfter(last: string): string {
 }
 
 /**
- * An UPDATE that gives every row of `table` a rank key in `orderBy` order,
- * per `partition`: four base-62 digits of the row number then "V", so up to
- * 14 million rows per partition keep their order and room between keys.
+ * An UPDATE that gives every row of `table` a rank key in `orderBy` order, per
+ * `partition`: four base-62 digits of the row number then "V", so up to 14
+ * million rows per partition keep their order and room between keys.
  */
 export function rankBackfill(options: {
   readonly table: string;

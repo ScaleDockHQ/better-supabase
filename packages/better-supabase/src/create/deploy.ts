@@ -10,9 +10,9 @@ import type { PresetMigrationFile } from "./types.ts";
 export const MIGRATION_NAME = "better_supabase_blocks";
 
 /**
- * Why this preset can't be deployed, or `undefined` when it can. With
- * `access: "provider"` the preview renders a stand-in provider whose
- * functions no real project has.
+ * Why this preset can't be deployed, or `undefined` when it can. With `access:
+ * "provider"` the preview renders a stand-in provider whose functions no real
+ * project has.
  */
 export function deployBlocker(preset: Preset): string | undefined {
   return preset.access === "provider"
@@ -26,9 +26,9 @@ export function newDeployId(): string {
 }
 
 /**
- * What a host app stores for one deploy, so it can show the project's
- * preset later and match the project to the record by the `id` comment at
- * the top of the migration.
+ * What a host app stores for one deploy, so it can show the project's preset
+ * later and match the project to the record by the `id` comment at the top of
+ * the migration.
  */
 export interface DeployRecord {
   readonly id: string;
@@ -51,9 +51,9 @@ const DEPLOY_ID = /^[\w-]{1,64}$/u;
 
 /**
  * The SQL of one migration for the rendered files: every schema file, then
- * every data file, each in render order, which is the order `sql sync` and
- * `sql data` apply them. pgTAP tests stay out. Throws a `TypeError` when
- * `id` holds anything but letters, digits, `_` and `-`.
+ * every data file, each in render order, which is the order `sql sync` and `sql
+ * data` apply them. pgTAP tests stay out. Throws a `TypeError` when `id` holds
+ * anything but letters, digits, `_` and `-`.
  */
 export function deployQuery(
   files: readonly PresetMigrationFile[],

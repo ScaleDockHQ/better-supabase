@@ -208,11 +208,17 @@ export interface EmitOptions {
   readonly importPathFor: (from: string) => string;
   /** Import path from the generated module to the metadata module (`emitMeta`). */
   readonly metaImport?: string;
-  /** Writes the metadata into the module instead of importing it, so it is one file. */
+  /**
+   * Writes the metadata into the module instead of importing it, so it is one
+   * file.
+   */
   readonly inlineMeta?: boolean;
 }
 
-/** The metadata module next to `generated.ts`: `generated.meta.js` and its `.d.ts`. */
+/**
+ * The metadata module next to `generated.ts`: `generated.meta.js` and its
+ * `.d.ts`.
+ */
 export function metaPaths(output: string): { js: string; dts: string } {
   const base = output.replace(/\.[cm]?[jt]sx?$/, "");
 
@@ -220,8 +226,8 @@ export function metaPaths(output: string): { js: string; dts: string } {
 }
 
 /**
- * JSON with one line per table, function and other named entry, so the
- * module stays small to load and a schema change still diffs per entry.
+ * JSON with one line per table, function and other named entry, so the module
+ * stays small to load and a schema change still diffs per entry.
  */
 function compactJson(meta: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(meta).map(([key, value]) => {

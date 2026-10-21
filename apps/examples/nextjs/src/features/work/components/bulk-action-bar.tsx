@@ -47,9 +47,9 @@ interface BulkFailure {
 
 // #region recipe:bulk-action-bar
 /**
- * The bar over the grid's selected rows. It changes their state or moves
- * them to the trash through the bulk block, which runs each row on its own;
- * the rows that failed stay selected and are listed with their reason.
+ * The bar over the grid's selected rows. It changes their state or moves them
+ * to the trash through the bulk block, which runs each row on its own; the rows
+ * that failed stay selected and are listed with their reason.
  */
 export function BulkActionBar({
   selected,

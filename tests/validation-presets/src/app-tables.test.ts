@@ -20,9 +20,7 @@ const config = resolveConfig(
   {
     blocks: ["tenant", "organizations"],
     appTables: {
-      boards: {
-        columns: { name: { type: "text", nullable: false } },
-      },
+      boards: { columns: { name: { type: "text", nullable: false } } },
       cards: {
         columns: {
           board_id: {

@@ -20,8 +20,8 @@ type StubProvider = AuthorizationProvider & {
 };
 
 /**
- * A neutral provider in schema `authz`: what an authorization system's
- * adapter would hand better-supabase. Organizations contain projects.
+ * A neutral provider in schema `authz`: what an authorization system's adapter
+ * would hand better-supabase. Organizations contain projects.
  */
 export const stubProvider: StubProvider = {
   apiVersion: 1,
@@ -147,7 +147,10 @@ export const moduleProvider: ModuleAccessProvider = {
   functions: stubProvider.functions,
 };
 
-/** `moduleProvider` with only the caller's templates: no `_for` and no assignment rule. */
+/**
+ * `moduleProvider` with only the caller's templates: no `_for` and no
+ * assignment rule.
+ */
 export const callerOnlyProvider: ModuleAccessProvider = {
   ...moduleProvider,
   functions: {

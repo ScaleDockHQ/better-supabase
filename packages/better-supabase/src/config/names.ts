@@ -20,7 +20,10 @@ export const INTEGRATION_NAMES = [
   "react",
 ] as const;
 
-/** An integration as `init`, `add` and `/create` show it, and the integrations it needs. */
+/**
+ * An integration as `init`, `add` and `/create` show it, and the integrations
+ * it needs.
+ */
 export interface IntegrationInfo {
   readonly title: string;
   /** What `init` or `add` writes, one sentence. */

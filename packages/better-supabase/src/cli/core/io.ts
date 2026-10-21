@@ -13,23 +13,28 @@ export interface CliIo {
   readonly stdin?: () => Promise<string>;
   /** Stdin is a terminal, so reading it would wait for typing instead of a pipe. */
   readonly stdinIsTty?: boolean;
-  /** Stdout is a terminal. Agent detection counts `CURSOR_TRACE_ID` only when it is not. */
+  /**
+   * Stdout is a terminal. Agent detection counts `CURSOR_TRACE_ID` only when it
+   * is not.
+   */
   readonly stdoutIsTty?: boolean;
-  /** Whether a path exists on the host, for agent detection. Without it, no file counts. */
+  /**
+   * Whether a path exists on the host, for agent detection. Without it, no file
+   * counts.
+   */
   readonly exists?: (path: string) => boolean;
   /** Color stdout with ANSI escapes. Off unless set; `--no-color` turns it off. */
   readonly color?: boolean;
   /** Color stderr with ANSI escapes. Defaults to `color`. */
   readonly stderrColor?: boolean;
   /**
-   * Shows `message` on stderr until the returned function is called: a
-   * spinner on a terminal, a plain line elsewhere. Without it, progress
-   * shows nothing.
+   * Shows `message` on stderr until the returned function is called: a spinner
+   * on a terminal, a plain line elsewhere. Without it, progress shows nothing.
    */
   readonly spinner?: (message: string) => () => void;
   /**
-   * Prompts for a person at a terminal. `run()` drops them in CI, in agent
-   * mode and under `--json` or `--yes`, and without them commands never ask.
+   * Prompts for a person at a terminal. `run()` drops them in CI, in agent mode
+   * and under `--json` or `--yes`, and without them commands never ask.
    */
   readonly prompts?: Prompter;
 }
@@ -51,26 +56,29 @@ export interface CommandResult {
   readonly output?: string;
   readonly error?: string;
   /**
-   * The error code `--json` reports when `code` is not 0. Without it, exit
-   * code 2 reports `usage`, 3 `input_required`, 130 `cancelled`, and any
-   * other `failed`.
+   * The error code `--json` reports when `code` is not 0. Without it, exit code
+   * 2 reports `usage`, 3 `input_required`, 130 `cancelled`, and any other
+   * `failed`.
    */
   readonly errorCode?: CliErrorCode;
   /** The `data` of the `--json` envelope. */
   readonly data?: unknown;
   readonly next?: readonly NextStep[];
   /**
-   * Printed on stdout exactly as is, in place of `output` and the envelope:
-   * a document another tool reads, like `gen --metadata` without `--out`.
+   * Printed on stdout exactly as is, in place of `output` and the envelope: a
+   * document another tool reads, like `gen --metadata` without `--out`.
    */
   readonly raw?: string;
-  /** The command already printed its results through `emit`, so `run()` prints nothing more. */
+  /**
+   * The command already printed its results through `emit`, so `run()` prints
+   * nothing more.
+   */
   readonly streamed?: boolean;
 }
 
 /**
- * All of stdin for `flag`. Fails at once when stdin is a terminal or
- * missing, instead of waiting for input nobody pipes in.
+ * All of stdin for `flag`. Fails at once when stdin is a terminal or missing,
+ * instead of waiting for input nobody pipes in.
  */
 export async function readStdin(io: CliIo, flag: string): Promise<string> {
   if (!io.stdin || io.stdinIsTty === true) {

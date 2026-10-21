@@ -58,28 +58,40 @@ export interface RunOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly io?: CliIo;
   readonly signal?: AbortSignal;
-  /** The name the CLI was called with, for help and hints. Defaults to `better-supabase`. */
+  /**
+   * The name the CLI was called with, for help and hints. Defaults to
+   * `better-supabase`.
+   */
   readonly bin?: string;
 }
 
 export interface CommandTreeInit {
   /** The command tree: names, descriptions, groups and subcommands. */
   readonly commands: readonly CommandSpec[];
-  /** Loads each leaf in `commands`, keyed by its space-separated path (`"sql add"`). */
+  /**
+   * Loads each leaf in `commands`, keyed by its space-separated path (`"sql
+   * add"`).
+   */
   readonly loaders: ReadonlyMap<string, Loader>;
 }
 
 export interface Cli {
   /** Runs the CLI. Never exits the process; returns the exit code and output. */
   run(argv: readonly string[], options?: RunOptions): Promise<RunResult>;
-  /** The usage text for the CLI, or for one command path (`"sql add"`); plain unless `color` is set. */
+  /**
+   * The usage text for the CLI, or for one command path (`"sql add"`); plain
+   * unless `color` is set.
+   */
   help(command?: string, color?: boolean): Promise<string>;
   /** The top-level names `run()` dispatches, your own commands included. */
   commandNames(): string[];
 }
 
 export interface CreateCliOptions {
-  /** Commands from `defineCliCommand` to add next to the built-in ones, keyed by name. */
+  /**
+   * Commands from `defineCliCommand` to add next to the built-in ones, keyed by
+   * name.
+   */
   readonly commands?: Readonly<Record<string, CliCommand>>;
 }
 
@@ -166,7 +178,10 @@ function metaDescription(command: AnyCommand): string {
     : "";
 }
 
-/** The tree node for one of the app's own commands, after checking its contract and name. */
+/**
+ * The tree node for one of the app's own commands, after checking its contract
+ * and name.
+ */
 function extraCommand(
   tree: ReadonlyMap<string, CommandNode>,
   name: string,
@@ -196,7 +211,10 @@ function extraCommand(
   };
 }
 
-/** A CLI over its own command tree, so tests and embedders don't share state through the module. */
+/**
+ * A CLI over its own command tree, so tests and embedders don't share state
+ * through the module.
+ */
 export function cliFromTree(
   init: CommandTreeInit,
   extra: Readonly<Record<string, CliCommand>> = {},
@@ -330,11 +348,7 @@ export function cliFromTree(
         `exit ${code} after ${milliseconds(started, performance.now())}`,
       );
 
-      return {
-        code,
-        stdout: stdout.join(""),
-        stderr: stderr.join(""),
-      };
+      return { code, stdout: stdout.join(""), stderr: stderr.join("") };
     };
 
     let resolution = resolveCommand(tree, argv);
@@ -666,10 +680,7 @@ export function cliFromTree(
     }
 
     try {
-      const { result } = await runCommand(command, {
-        rawArgs,
-        data: context,
-      });
+      const { result } = await runCommand(command, { rawArgs, data: context });
 
       if (!isCommandResult(result)) {
         return finish(0);
@@ -688,11 +699,7 @@ export function cliFromTree(
     }
   };
 
-  return {
-    run,
-    help,
-    commandNames: () => [...tree.keys()],
-  };
+  return { run, help, commandNames: () => [...tree.keys()] };
 }
 
 /**

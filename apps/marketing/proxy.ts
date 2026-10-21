@@ -57,6 +57,4 @@ export function proxy(request: NextRequest): NextResponse {
   return response;
 }
 
-export const config = {
-  matcher: ["/blocks/:name", "/recipes/:slug"],
-};
+export const config = { matcher: ["/blocks/:name", "/recipes/:slug"] };

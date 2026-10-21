@@ -382,9 +382,7 @@ describe("createAgentRuntime results filter", () => {
 });
 
 describe("createAgentRuntime tool operations", () => {
-  const operations = {
-    "ai.tool.a": { permission: "docs.write_all" },
-  };
+  const operations = { "ai.tool.a": { permission: "docs.write_all" } };
 
   it("checks the provider's permission over the tool's own", async () => {
     const authorizeTool = vi.fn(() => true);

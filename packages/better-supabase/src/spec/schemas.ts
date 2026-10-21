@@ -79,8 +79,8 @@ function nameOf(schema: JsonSchema): string | undefined {
 
 /**
  * Converts a Standard Schema through Standard JSON Schema (2020-12), or
- * `undefined` when the library does not implement it. The schema's `$id`,
- * `id` and `$schema` are lifted out: the id becomes the component name.
+ * `undefined` when the library does not implement it. The schema's `$id`, `id`
+ * and `$schema` are lifted out: the id becomes the component name.
  */
 export function convertStandard(
   schema: StandardLike,

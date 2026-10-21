@@ -32,9 +32,9 @@ export interface TestUser {
 }
 
 /**
- * One connection in one transaction that is rolled back at the end, so a
- * test leaves nothing behind. `as` switches the JWT claims the functions see,
- * and `asRole` also switches the database role so RLS applies.
+ * One connection in one transaction that is rolled back at the end, so a test
+ * leaves nothing behind. `as` switches the JWT claims the functions see, and
+ * `asRole` also switches the database role so RLS applies.
  */
 export class BlockSession {
   readonly client: PoolClient;
@@ -112,12 +112,7 @@ export class BlockSession {
     const claims =
       user === "anon"
         ? { role: "anon" }
-        : {
-            sub: user.id,
-            role: "authenticated",
-            email: user.email,
-            ...extra,
-          };
+        : { sub: user.id, role: "authenticated", email: user.email, ...extra };
 
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
@@ -134,8 +129,8 @@ export class BlockSession {
   }
 
   /**
-   * Empties tables that supabase/seed.sql fills, for a test that reads all
-   * of their rows. The rollback in `close` restores them.
+   * Empties tables that supabase/seed.sql fills, for a test that reads all of
+   * their rows. The rollback in `close` restores them.
    */
   async clear(tables: readonly string[]): Promise<void> {
     await this.client.query("reset role");
@@ -169,7 +164,10 @@ export class BlockSession {
     return rows as T[];
   }
 
-  /** The hint (or message) of the error `sql` raises, rolled back to a savepoint. */
+  /**
+   * The hint (or message) of the error `sql` raises, rolled back to a
+   * savepoint.
+   */
   async hint(sql: string, params: unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
 
@@ -198,9 +196,9 @@ export class BlockSession {
   private queue: Promise<unknown> = Promise.resolve();
 
   /**
-   * A `SqlClient` over this session's connection, for the TypeScript side.
-   * Each statement runs in a savepoint, so an expected error leaves the
-   * transaction usable.
+   * A `SqlClient` over this session's connection, for the TypeScript side. Each
+   * statement runs in a savepoint, so an expected error leaves the transaction
+   * usable.
    */
   get sql(): SqlClient {
     const raw = this.savepointed();

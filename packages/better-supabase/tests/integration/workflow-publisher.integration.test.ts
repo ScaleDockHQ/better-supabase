@@ -181,11 +181,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
         permissions: ["crm.read"],
       });
       expect(refs).toEqual([
-        {
-          publisher: publisher.id,
-          tenant,
-          permissions: ["crm.read"],
-        },
+        { publisher: publisher.id, tenant, permissions: ["crm.read"] },
       ]);
 
       await s.client.query(

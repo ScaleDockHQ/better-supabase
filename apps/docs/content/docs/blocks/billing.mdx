@@ -464,9 +464,7 @@ with a role in `options.seatRoles`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    billing: { options: { seatRoles: ["owner", "admin", "member"] } },
-  },
+  blocks: { billing: { options: { seatRoles: ["owner", "admin", "member"] } } },
 });
 ```
 

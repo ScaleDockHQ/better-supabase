@@ -29,11 +29,7 @@ export const betterSupabase: BetterSupabase<Models, Database, Functions> =
 
 export const server: BetterServer<Models, Functions, unknown> = createServer(
   betterSupabase,
-  {
-    env,
-    auth: { jwks: signer.jwks },
-    prefetchJwks: false,
-  },
+  { env, auth: { jwks: signer.jwks }, prefetchJwks: false },
 );
 
 /** A request as a signed-in user with `app_metadata`, or anonymous without one. */

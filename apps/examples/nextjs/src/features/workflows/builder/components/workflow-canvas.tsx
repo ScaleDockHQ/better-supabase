@@ -58,8 +58,8 @@ const shortId = () => crypto.randomUUID().slice(0, 8);
 
 /**
  * The canvas: a palette from the step library, the graph on React Flow, an
- * inspector for the selected node, and the status of a run's nodes on top,
- * live over `workflow-run:<id>`.
+ * inspector for the selected node, and the status of a run's nodes on top, live
+ * over `workflow-run:<id>`.
  */
 export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
   const t = useExtracted("workflows");

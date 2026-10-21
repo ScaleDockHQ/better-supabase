@@ -8,7 +8,10 @@ import {
 } from "@/features/blocks/components/block-preview";
 import { cn } from "@/lib/utils";
 
-/** Below this height-to-width ratio a screenshot is a strip that reads as a line in a tile. */
+/**
+ * Below this height-to-width ratio a screenshot is a strip that reads as a line
+ * in a tile.
+ */
 const MIN_TILE_RATIO = 0.25;
 
 /**

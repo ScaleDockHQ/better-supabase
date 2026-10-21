@@ -340,10 +340,7 @@ export const RECIPES: readonly RecipeSource[] = [
     kind: "component",
     description:
       "The audit trail, newest first, with filters by actor and action and older pages on demand.",
-    hook: {
-      name: "useAuditLog",
-      entry: "better-supabase/blocks/audit/react",
-    },
+    hook: { name: "useAuditLog", entry: "better-supabase/blocks/audit/react" },
     web: {
       file: `${WEB_APP}/src/features/audit/components/audit-log-table.tsx`,
       components: ["button", "select", "skeleton", "table"],
@@ -362,10 +359,7 @@ export const RECIPES: readonly RecipeSource[] = [
     kind: "component",
     description:
       "A record's tags with suggestions, where typing a name adds a tag or creates it.",
-    hook: {
-      name: "useTagInput",
-      entry: "better-supabase/blocks/tags/react",
-    },
+    hook: { name: "useTagInput", entry: "better-supabase/blocks/tags/react" },
     web: {
       file: `${WEB_APP}/src/features/customers/components/tag-input.tsx`,
       components: ["badge", "button", "input", "skeleton"],

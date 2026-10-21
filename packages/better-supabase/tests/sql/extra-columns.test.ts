@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../src/sql/render.ts";
 
-/** Each module whose managed table takes `extraColumns`, and what its SQL must show for a `region text` column. */
+/**
+ * Each module whose managed table takes `extraColumns`, and what its SQL must
+ * show for a `region text` column.
+ */
 const CASES: readonly {
   readonly module: string;
   readonly table: string;

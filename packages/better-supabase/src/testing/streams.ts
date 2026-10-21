@@ -44,10 +44,10 @@ const hintOf = (result: Result<unknown>): string | undefined =>
   result.ok ? undefined : result.error.hint;
 
 /**
- * Runs the `StreamStore` contract against `store`: the API version, open
- * once, idempotent appends that refuse gaps, reads from any index that end
- * when the stream closes, a live read that sees later appends, cancel seen by
- * the writer, a closed stream that refuses appends, and a missing stream.
+ * Runs the `StreamStore` contract against `store`: the API version, open once,
+ * idempotent appends that refuse gaps, reads from any index that end when the
+ * stream closes, a live read that sees later appends, cancel seen by the
+ * writer, a closed stream that refuses appends, and a missing stream.
  */
 export function testStreamStore(
   store: StreamStore,

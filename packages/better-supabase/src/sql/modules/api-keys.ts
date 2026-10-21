@@ -103,9 +103,9 @@ const PREFIX = /^[a-z][a-z0-9]*$/;
 const KIND = /^[a-z][a-z0-9_-]*$/;
 
 /**
- * `blocks.api-keys.options.scopes`: the scopes a key may carry, every
- * scope when unset, or `"catalog"` for the authorization provider's
- * permission keys (`authorization.permissions`).
+ * `blocks.api-keys.options.scopes`: the scopes a key may carry, every scope
+ * when unset, or `"catalog"` for the authorization provider's permission keys
+ * (`authorization.permissions`).
  */
 function allowedScopes(
   ctx: ModuleContext,

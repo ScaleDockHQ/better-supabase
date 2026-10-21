@@ -36,8 +36,8 @@ function splitLocale(pathname: string) {
 
 /**
  * Optimistic redirects from the (locally verified) token. Pages, actions and
- * RLS still check; this only saves rendering a page the user can't use.
- * A path without a locale is left to next-intl's redirect.
+ * RLS still check; this only saves rendering a page the user can't use. A path
+ * without a locale is left to next-intl's redirect.
  */
 const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.

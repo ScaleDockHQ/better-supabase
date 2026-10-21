@@ -13,14 +13,20 @@ import {
   type OperationTable,
 } from "../../core/operations.ts";
 
-/** Who runs an agent: the user from the verified session, never a model or tool value. */
+/**
+ * Who runs an agent: the user from the verified session, never a model or tool
+ * value.
+ */
 export interface AgentCaller {
   readonly userId: string;
   /** The tenant of the run; the agent's own tenant when unset. */
   readonly organizationId?: string;
 }
 
-/** The agent as the actor of a run. It acts for the caller and is never the principal. */
+/**
+ * The agent as the actor of a run. It acts for the caller and is never the
+ * principal.
+ */
 export interface AgentActor {
   readonly kind: "agent";
   readonly id: string;
@@ -28,16 +34,15 @@ export interface AgentActor {
 
 /**
  * Who a run is for. `userId` is the principal: the invoking user, or the
- * publishing user for a run nobody invoked. The agent only appears as
- * `actor`.
+ * publishing user for a run nobody invoked. The agent only appears as `actor`.
  */
 export type AgentRunContext = {
   readonly userId: string | undefined;
   readonly organizationId: string | undefined;
   readonly actor: AgentActor;
   /**
-   * The `act` level a tool's database calls carry, with the run's tools:
-   * pass `agentClaims(claims, run.act)` to `asUser` or `forContext`, so a tool
+   * The `act` level a tool's database calls carry, with the run's tools: pass
+   * `agentClaims(claims, run.act)` to `asUser` or `forContext`, so a tool
    * writes as the user, with the agent recorded as the actor.
    */
   readonly act: AgentActOptions;
@@ -45,8 +50,8 @@ export type AgentRunContext = {
 
 /**
  * The run context for an agent row, its caller and the tools it may call,
- * frozen. A read-only agent `actor` (the session's own agent level) makes
- * the run's `act` read-only too.
+ * frozen. A read-only agent `actor` (the session's own agent level) makes the
+ * run's `act` read-only too.
  */
 export function agentRunContext(
   agent: Pick<Agent, "id" | "organizationId">,
@@ -74,7 +79,10 @@ export interface ToolDelegation {
   readonly tools?: readonly string[];
 }
 
-/** Whether an agent level that lists tools lists `toolName`; every other actor may call it. */
+/**
+ * Whether an agent level that lists tools lists `toolName`; every other actor
+ * may call it.
+ */
 export function toolDelegated(
   actor: ToolDelegation | undefined,
   toolName: string,
@@ -87,8 +95,8 @@ export function toolDelegated(
 }
 
 /**
- * Throws a forbidden `DbException` (`AGENT_TOOL_NOT_DELEGATED`) when the
- * actor is an agent whose `act.tools` lists tools and not `toolName`.
+ * Throws a forbidden `DbException` (`AGENT_TOOL_NOT_DELEGATED`) when the actor
+ * is an agent whose `act.tools` lists tools and not `toolName`.
  */
 export function assertToolDelegated(
   actor: ToolDelegation | undefined,
@@ -106,8 +114,8 @@ export function assertToolDelegated(
 }
 
 /**
- * The permission each tool needs when the provider's operations name none:
- * a permission key, or `false` for a tool that is public by design.
+ * The permission each tool needs when the provider's operations name none: a
+ * permission key, or `false` for a tool that is public by design.
  */
 export type AgentToolPermissions = Readonly<Record<string, string | false>>;
 
@@ -118,7 +126,10 @@ export type AgentToolOperations = Readonly<Record<string, string>>;
 export interface AgentToolOperation {
   /** `ai.tool.<name>`. */
   readonly operation: string;
-  /** The permission the tool needs; `false` when public, `undefined` when none is declared. */
+  /**
+   * The permission the tool needs; `false` when public, `undefined` when none
+   * is declared.
+   */
   readonly permission: string | false | undefined;
   readonly risk?: NonNullable<AuthorizationOperation["meta"]>["risk"];
   readonly effects?: NonNullable<AuthorizationOperation["meta"]>["effects"];
@@ -127,8 +138,8 @@ export interface AgentToolOperation {
 
 /**
  * The operation of the tool `name`: the provider's entry for the tool's
- * operation (from `toolOperations`, default `ai.tool.<name>`) first, then
- * the tool's own permission from `permissions`.
+ * operation (from `toolOperations`, default `ai.tool.<name>`) first, then the
+ * tool's own permission from `permissions`.
  */
 export function agentToolOperation(
   name: string,
@@ -198,7 +209,10 @@ const refused = (modelId: string): DbException =>
     }),
   );
 
-/** Throws a forbidden `DbException` unless `authorize` allows the model; a throw refuses. */
+/**
+ * Throws a forbidden `DbException` unless `authorize` allows the model; a throw
+ * refuses.
+ */
 export async function assertModelAllowed(
   authorize: AgentModelAuthorizer,
   model: LanguageModel,

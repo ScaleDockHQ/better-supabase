@@ -7,12 +7,12 @@ import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
 /**
  * Proves `AuthorizationHooks` target API v1 and fail closed for strangers:
- * fan-out returns only subscribers it was given, an identity nobody linked
- * and a forged ticket resolve to `null`, a requester never approves their
- * own request, an unknown publisher can neither publish nor run, an
- * unlinked chat author gets nothing, an admin with no claims cannot start
- * a support session and never approves their own, and a delegated token
- * with no scopes maps to no permissions.
+ * fan-out returns only subscribers it was given, an identity nobody linked and
+ * a forged ticket resolve to `null`, a requester never approves their own
+ * request, an unknown publisher can neither publish nor run, an unlinked chat
+ * author gets nothing, an admin with no claims cannot start a support session
+ * and never approves their own, and a delegated token with no scopes maps to no
+ * permissions.
  */
 export function testAuthorizationHooks(
   hooks: AuthorizationHooks,

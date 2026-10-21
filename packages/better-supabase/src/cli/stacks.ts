@@ -123,7 +123,10 @@ export interface ReportOptions {
   readonly exists?: (path: string) => boolean;
 }
 
-/** Adds what `stack ls` shows to each stack: worktree, branch, segments, current. */
+/**
+ * Adds what `stack ls` shows to each stack: worktree, branch, segments,
+ * current.
+ */
 export async function reportStacks(
   stacks: readonly ManagedStack[],
   options: ReportOptions,
@@ -189,9 +192,9 @@ export async function reportStacks(
 }
 
 /**
- * The stacks `stack prune` acts on. A stack whose worktree or branch is gone
- * is destroyed; with `stopIdle`, a running stack of another checkout or
- * branch is only stopped, so its data stays.
+ * The stacks `stack prune` acts on. A stack whose worktree or branch is gone is
+ * destroyed; with `stopIdle`, a running stack of another checkout or branch is
+ * only stopped, so its data stays.
  */
 export function prunePlan(
   stacks: readonly StackReport[],

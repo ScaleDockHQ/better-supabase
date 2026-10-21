@@ -53,7 +53,10 @@ async function retry() {
   refresh();
 }
 
-/** Render inside `<Suspense>`: the caller's drafts, then the organization's orders. */
+/**
+ * Render inside `<Suspense>`: the caller's drafts, then the organization's
+ * orders.
+ */
 export async function OrderList() {
   const session = await getSession();
 

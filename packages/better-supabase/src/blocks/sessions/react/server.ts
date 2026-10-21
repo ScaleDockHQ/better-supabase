@@ -13,7 +13,10 @@ export type {
   UseOAuthConsentOptions,
 } from "./index.ts";
 
-/** The `react-server` build of `useOAuthConsent`: it runs in Client Components only. */
+/**
+ * The `react-server` build of `useOAuthConsent`: it runs in Client Components
+ * only.
+ */
 export const useOAuthConsent: (
   options: UseOAuthConsentOptions,
 ) => OAuthConsentState = () => {
@@ -22,7 +25,10 @@ export const useOAuthConsent: (
   );
 };
 
-/** The `react-server` build of `useOAuthGrants`: it runs in Client Components only. */
+/**
+ * The `react-server` build of `useOAuthGrants`: it runs in Client Components
+ * only.
+ */
 export const useOAuthGrants: () => OAuthGrantsState = () => {
   throw new Error(
     "better-supabase: useOAuthGrants() runs in Client Components only; render the list as one.",

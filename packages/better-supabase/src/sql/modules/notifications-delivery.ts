@@ -168,7 +168,10 @@ revoke execute on function ${ctx.fn("complete_notification_delivery")}(${complet
 grant execute on function ${ctx.fn("complete_notification_delivery")}(${completeArgs}) to service_role;`;
 }
 
-/** Deletes up to batch notifications older than older_than, with their recipients and deliveries. */
+/**
+ * Deletes up to batch notifications older than older_than, with their
+ * recipients and deliveries.
+ */
 export function purge(ctx: ModuleContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");

@@ -14,13 +14,19 @@ export function isExecutor(value: unknown): value is Executor {
 /** No plugins, one shared array so the caches keyed on a plugin list hit. */
 export const NO_PLUGINS: readonly AnyPlugin[] = Object.freeze([]);
 
-/** The kept lists per installed list and `keep` names, so each is one stable array. */
+/**
+ * The kept lists per installed list and `keep` names, so each is one stable
+ * array.
+ */
 const keptLists = new WeakMap<
   readonly AnyPlugin[],
   Map<string, readonly AnyPlugin[]>
 >();
 
-/** The installed plugins named in `keep`; a name that isn't installed throws, so a typo can't drop tracing silently. */
+/**
+ * The installed plugins named in `keep`; a name that isn't installed throws, so
+ * a typo can't drop tracing silently.
+ */
 export function keptPlugins(
   plugins: readonly AnyPlugin[],
   keep: readonly string[],

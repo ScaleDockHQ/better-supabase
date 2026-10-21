@@ -77,7 +77,10 @@ export function configuredTasks(config: ResolvedConfig): readonly GenTask[] {
   return GEN_TASKS.filter((task) => configured[task]());
 }
 
-/** Files the steps after `types` read, so `gen --watch` reruns them when one changes. */
+/**
+ * Files the steps after `types` read, so `gen --watch` reruns them when one
+ * changes.
+ */
 export function stepInputs(
   config: ResolvedConfig,
   tasks: readonly GenTask[],
@@ -134,8 +137,8 @@ const STEPS: Readonly<
 
 /**
  * Runs the steps after `types`, in order. A write run stops at the first
- * failure, since later steps read what earlier ones wrote; `--check` runs
- * every step so it reports everything that is out of date.
+ * failure, since later steps read what earlier ones wrote; `--check` runs every
+ * step so it reports everything that is out of date.
  */
 export async function runSteps(
   tasks: readonly GenTask[],

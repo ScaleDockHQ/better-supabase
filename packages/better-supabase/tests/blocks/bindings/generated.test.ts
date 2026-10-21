@@ -20,7 +20,10 @@ vi.mock("solid-js", () => {
   return import(browserBuild);
 });
 
-/** Any property, call or await of it gives itself back, and an await never settles. */
+/**
+ * Any property, call or await of it gives itself back, and an await never
+ * settles.
+ */
 const stub: unknown = new Proxy(() => {}, {
   get: (_target, key) =>
     key === "then"
@@ -31,7 +34,10 @@ const stub: unknown = new Proxy(() => {}, {
   apply: () => stub,
 });
 
-/** Controller options: a signed-out session, fake ports, and the stub for the rest. */
+/**
+ * Controller options: a signed-out session, fake ports, and the stub for the
+ * rest.
+ */
 const options = (): object => {
   const env = { ...fakeEnv(), auth: fakeAuth(SIGNED_OUT) };
   const known = new Map<PropertyKey, unknown>(Object.entries(env));

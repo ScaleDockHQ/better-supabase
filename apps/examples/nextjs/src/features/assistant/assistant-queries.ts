@@ -17,8 +17,8 @@ export interface ChatRow {
 }
 
 /**
- * The caller's chats in the active organization, newest first. Not cached:
- * a chat's title and order change with every answer.
+ * The caller's chats in the active organization, newest first. Not cached: a
+ * chat's title and order change with every answer.
  */
 export async function getChats(): Promise<readonly ChatRow[]> {
   const [session, { supabase }] = await Promise.all([
@@ -51,7 +51,10 @@ export interface StoredChatData {
   readonly durable: boolean;
 }
 
-/** The active branch of a chat as UI messages; `undefined` when it doesn't exist yet. */
+/**
+ * The active branch of a chat as UI messages; `undefined` when it doesn't exist
+ * yet.
+ */
 export async function getStoredChat(
   chatId: string,
 ): Promise<StoredChatData | undefined> {

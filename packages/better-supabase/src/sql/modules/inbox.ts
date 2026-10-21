@@ -95,11 +95,7 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "set_bot_mode", args: ["uuid", "text", "text"], returns: "jsonb" },
-    {
-      name: "mark_conversation_read",
-      args: ["uuid"],
-      returns: "timestamptz",
-    },
+    { name: "mark_conversation_read", args: ["uuid"], returns: "timestamptz" },
     {
       name: "react_to_message",
       args: ["uuid", "text", "boolean", "text"],

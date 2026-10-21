@@ -19,7 +19,10 @@ export function settingsTab(page: Page, label: string): Locator {
     .getByRole("link", { name: label, exact: true });
 }
 
-/** Clicks a settings tab and waits for the URL: the navigation `expectInstant` holds. */
+/**
+ * Clicks a settings tab and waits for the URL: the navigation `expectInstant`
+ * holds.
+ */
 export function clickSettingsTab(
   page: Page,
   label: string,
@@ -31,7 +34,10 @@ export function clickSettingsTab(
   };
 }
 
-/** A card title on the visible page; a section renders it once its data has loaded. */
+/**
+ * A card title on the visible page; a section renders it once its data has
+ * loaded.
+ */
 export function cardTitle(page: Page, title: string): Locator {
   return page
     .locator('[data-slot="card-title"]')
@@ -42,7 +48,10 @@ export function heading(page: Page, name: string): Locator {
   return page.getByRole("heading", { level: 1, name, exact: true });
 }
 
-/** Clicks a sidebar link and waits for the URL: the navigation `expectInstant` holds. */
+/**
+ * Clicks a sidebar link and waits for the URL: the navigation `expectInstant`
+ * holds.
+ */
 export function clickSidebar(
   page: Page,
   label: string,
@@ -54,7 +63,10 @@ export function clickSidebar(
   };
 }
 
-/** Signs in through the real form and waits for `landing`, the dashboard by default. */
+/**
+ * Signs in through the real form and waits for `landing`, the dashboard by
+ * default.
+ */
 export async function signIn(
   page: Page,
   email: string,
@@ -89,22 +101,25 @@ export function visibleTestId(page: Page, id: string): Locator {
 }
 
 /**
- * Text on the visible page. Besides hidden routes, a streamed Suspense
- * boundary sits in a hidden `<div>` for a moment before React swaps it in.
+ * Text on the visible page. Besides hidden routes, a streamed Suspense boundary
+ * sits in a hidden `<div>` for a moment before React swaps it in.
  */
 export function visibleText(page: Page, text: string | RegExp): Locator {
   return page.getByText(text, { exact: true }).filter({ visible: true });
 }
 
-/** A form field by its label on the visible page, for the same reason as `visibleTestId`. */
+/**
+ * A form field by its label on the visible page, for the same reason as
+ * `visibleTestId`.
+ */
 export function field(page: Page, label: string): Locator {
   return page.getByLabel(label, { exact: true }).filter({ visible: true });
 }
 
 /**
  * Picks a radio item in an account-menu submenu with the keyboard. A click on
- * the sub-trigger toggles the submenu shut, and a pointer path to the item
- * can cross another sub-trigger and open that one instead.
+ * the sub-trigger toggles the submenu shut, and a pointer path to the item can
+ * cross another sub-trigger and open that one instead.
  */
 export async function pickInSubmenu(
   page: Page,

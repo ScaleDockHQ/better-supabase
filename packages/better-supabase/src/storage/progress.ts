@@ -1,6 +1,9 @@
 import type { UploadBody } from "./bucket.ts";
 
-/** What `xhrUpload` needs from `XMLHttpRequest`, present in browsers and React Native. */
+/**
+ * What `xhrUpload` needs from `XMLHttpRequest`, present in browsers and React
+ * Native.
+ */
 interface Xhr {
   open(method: string, url: string): void;
   setRequestHeader(name: string, value: string): void;
@@ -57,8 +60,8 @@ export interface XhrFailure {
 }
 
 /**
- * PUTs `body` to a signed upload URL with upload progress events. Resolves
- * with `undefined` on success or the failure to map.
+ * PUTs `body` to a signed upload URL with upload progress events. Resolves with
+ * `undefined` on success or the failure to map.
  */
 export function xhrUpload(
   Request: XhrConstructor,

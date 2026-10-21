@@ -63,11 +63,17 @@ export interface OAuthClientMetadata {
   readonly redirectUris?: readonly string[];
   /** Default: `["authorization_code"]`. */
   readonly grantTypes?: readonly OAuthGrantType[];
-  /** `none` registers a public client without a secret. Default: `client_secret_basic`. */
+  /**
+   * `none` registers a public client without a secret. Default:
+   * `client_secret_basic`.
+   */
   readonly tokenEndpointAuthMethod?: OAuthClientAuthMethod;
   /** Space-separated scopes the client may ask for. */
   readonly scope?: string;
-  /** Other RFC 7591 metadata, such as `logo_uri` or `software_id`, stored as given. */
+  /**
+   * Other RFC 7591 metadata, such as `logo_uri` or `software_id`, stored as
+   * given.
+   */
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -85,7 +91,10 @@ export interface OAuthClient {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** What `registerClient` returns. The secret and token are shown once and stored hashed. */
+/**
+ * What `registerClient` returns. The secret and token are shown once and stored
+ * hashed.
+ */
 export interface RegisteredOAuthClient {
   readonly client: OAuthClient;
   /** `null` for a public client (`tokenEndpointAuthMethod: "none"`). */
@@ -98,8 +107,8 @@ export interface RegisterClientOptions {
   /** The user who registered the client, when one did. */
   readonly createdBy?: string;
   /**
-   * A client id to use instead of a generated one. It has to match the
-   * module's `clientIdPattern`; the database refuses it otherwise.
+   * A client id to use instead of a generated one. It has to match the module's
+   * `clientIdPattern`; the database refuses it otherwise.
    */
   readonly clientId?: string;
 }
@@ -181,7 +190,10 @@ export type DeviceCodePoll =
   | { readonly status: "expired_token" }
   | { readonly status: "invalid_grant" };
 
-/** A user's consent for a client, which the tokens issued under it carry as `grant_id`. */
+/**
+ * A user's consent for a client, which the tokens issued under it carry as
+ * `grant_id`.
+ */
 export interface OAuthGrant {
   readonly id: string;
   readonly userId: string;
@@ -208,7 +220,10 @@ export interface RevokeTokenOptions {
  * signed-in user's `my_oauth_grants` and `revoke_my_oauth_grant`.
  */
 export interface OAuthServer {
-  /** Registers a client (RFC 7591) and returns its secret and registration token once. */
+  /**
+   * Registers a client (RFC 7591) and returns its secret and registration token
+   * once.
+   */
   registerClient(
     metadata: OAuthClientMetadata,
     options?: RegisterClientOptions,
@@ -219,11 +234,17 @@ export interface OAuthServer {
     clientId: string,
     metadata: Omit<OAuthClientMetadata, "tokenEndpointAuthMethod">,
   ): AsyncResult<OAuthClient | null>;
-  /** A new secret for a confidential client; `null` for an unknown or public client. */
+  /**
+   * A new secret for a confidential client; `null` for an unknown or public
+   * client.
+   */
   rotateSecret(clientId: string): AsyncResult<string | null>;
   /** Deletes the client, its grants and its codes. */
   deleteClient(clientId: string): AsyncResult<boolean>;
-  /** The client when the secret matches, `null` otherwise. Pass `null` for a public client. */
+  /**
+   * The client when the secret matches, `null` otherwise. Pass `null` for a
+   * public client.
+   */
   verifyClient(
     clientId: string,
     secret: string | null,
@@ -238,8 +259,8 @@ export interface OAuthServer {
     request: AuthorizationCodeRequest,
   ): AsyncResult<IssuedAuthorizationCode>;
   /**
-   * Exchanges a code once, checking the client, redirect URI and PKCE
-   * verifier. `null` for any mismatch; a reused code also revokes its grant.
+   * Exchanges a code once, checking the client, redirect URI and PKCE verifier.
+   * `null` for any mismatch; a reused code also revokes its grant.
    */
   redeemAuthorizationCode(
     redemption: AuthorizationCodeRedemption,
@@ -308,7 +329,10 @@ function userCode(): string {
 const normalizeUserCode = (code: string): string =>
   code.toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
 
-/** A redirect URI RFC 9700 section 2.1 allows: absolute, no fragment, https or loopback http. */
+/**
+ * A redirect URI RFC 9700 section 2.1 allows: absolute, no fragment, https or
+ * loopback http.
+ */
 function redirectUriProblem(uri: string): string | undefined {
   if (!URL.canParse(uri)) {
     return `${uri} is not an absolute URI`;
@@ -431,10 +455,10 @@ function pollOf(value: unknown): DeviceCodePoll {
 }
 
 /**
- * The `oauth-server` SQL module as typed calls: secrets, codes and
- * registration tokens are generated and hashed here, and only their SHA-256
- * reaches the database. It stores what an authorization server needs and
- * issues no tokens; sign them with `createSigningKeys` and verify them with
+ * The `oauth-server` SQL module as typed calls: secrets, codes and registration
+ * tokens are generated and hashed here, and only their SHA-256 reaches the
+ * database. It stores what an authorization server needs and issues no tokens;
+ * sign them with `createSigningKeys` and verify them with
  * `accessTokenResolver`.
  */
 export function createOAuthServer(options: OAuthServerOptions): OAuthServer {

@@ -44,14 +44,8 @@ export const createContact = bs.action(
 
     const saved =
       kind === "company"
-        ? await parties.saveCompany(tenant, {
-            name,
-            domain: domain ?? null,
-          })
-        : await parties.savePerson(tenant, {
-            name,
-            email: email ?? null,
-          });
+        ? await parties.saveCompany(tenant, { name, domain: domain ?? null })
+        : await parties.savePerson(tenant, { name, email: email ?? null });
 
     if (!saved.ok) {
       return saved;

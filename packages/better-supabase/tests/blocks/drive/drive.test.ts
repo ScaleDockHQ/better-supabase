@@ -436,12 +436,7 @@ describe("drive client", () => {
         },
       ],
       drive_link: (args) => ({
-        link: {
-          id: "l1",
-          role: "viewer",
-          nodeId: "f1",
-          expiresAt: null,
-        },
+        link: { id: "l1", role: "viewer", nodeId: "f1", expiresAt: null },
         node: (args as { node: string | null }).node === null ? FOLDER : FILE,
         children:
           (args as { node: string | null }).node === null ? [FILE] : null,

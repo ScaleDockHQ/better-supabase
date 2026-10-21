@@ -7,8 +7,6 @@ import { accessSqlOptions } from "./options.ts";
 export const accessBlock: Block<"access"> = defineBlock({
   name: "access",
   sql: ["access"],
-  options: {
-    access: accessSqlOptions,
-  },
+  options: { access: accessSqlOptions },
   category: "identity",
 });

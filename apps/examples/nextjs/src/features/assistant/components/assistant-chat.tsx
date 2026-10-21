@@ -21,7 +21,10 @@ interface PanelProps {
   readonly streaming: boolean;
 }
 
-/** The answer streams from the request; a reload picks it up from the stream store. */
+/**
+ * The answer streams from the request; a reload picks it up from the stream
+ * store.
+ */
 function StandardPanel({ id, messages }: PanelProps) {
   const router = useRouter();
 
@@ -36,7 +39,10 @@ function StandardPanel({ id, messages }: PanelProps) {
   return <ChatView id={id} chat={chat} />;
 }
 
-/** The answer runs as a workflow: it survives a closed tab and waits for approvals. */
+/**
+ * The answer runs as a workflow: it survives a closed tab and waits for
+ * approvals.
+ */
 function DurablePanel({
   id,
   messages,

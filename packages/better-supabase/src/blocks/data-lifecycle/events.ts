@@ -19,7 +19,10 @@ export type DataLifecycleEvents = {
   readonly "legal_hold.released": LegalHoldEventData;
 };
 
-/** The `data-lifecycle` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `data-lifecycle` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const dataLifecycleEvents: Events<DataLifecycleEvents> = defineEvents({
   "data_export.requested": event<DataExportEventData>(),
   "data_export.completed": event<DataExportEventData>(),

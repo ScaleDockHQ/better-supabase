@@ -54,11 +54,17 @@ export interface ChannelAdapterOptions<A> {
   /** The install's `credential_ref`, from `installations.get`. */
   readonly ref: CredentialRef;
   readonly subject?: CredentialSubject;
-  /** Builds the platform adapter with the token, e.g. `(t) => createSlackAdapter({ botToken: t.token })`. */
+  /**
+   * Builds the platform adapter with the token, e.g. `(t) =>
+   * createSlackAdapter({ botToken: t.token })`.
+   */
   readonly create: (token: CredentialToken) => A | Promise<A>;
 }
 
-/** A platform adapter built from the token the credential provider holds, so no secret sits in env. */
+/**
+ * A platform adapter built from the token the credential provider holds, so no
+ * secret sits in env.
+ */
 export async function channelAdapter<A>(
   options: ChannelAdapterOptions<A>,
 ): Promise<A> {
@@ -76,10 +82,16 @@ export interface InboxWebhookOptions {
   readonly adapter: string;
   readonly inboxId?: string;
   readonly tenant?: string;
-  /** With `ref`, checks the request with `credentials.verifyInbound` before storing it. */
+  /**
+   * With `ref`, checks the request with `credentials.verifyInbound` before
+   * storing it.
+   */
   readonly credentials?: CredentialProvider;
   readonly ref?: CredentialRef;
-  /** Checks the request when no credential ref does. Without either, every request is stored. */
+  /**
+   * Checks the request when no credential ref does. Without either, every
+   * request is stored.
+   */
   readonly verify?: (
     request: Request,
     body: string,
@@ -107,10 +119,9 @@ const defaultPassthrough = (request: Request, body: string): boolean =>
   request.method === "GET" || body.includes('"type":"url_verification"');
 
 /**
- * A route handler that verifies a channel webhook, stores the raw event in
- * the inbox's `inbound_events` and answers 200 at once. `inboundHandler`
- * replays it into Chat SDK later, so a slow bot never makes the platform
- * retry.
+ * A route handler that verifies a channel webhook, stores the raw event in the
+ * inbox's `inbound_events` and answers 200 at once. `inboundHandler` replays it
+ * into Chat SDK later, so a slow bot never makes the platform retry.
  */
 export function webhook(
   options: InboxWebhookOptions,
@@ -132,9 +143,7 @@ export function webhook(
       if (!provider?.verifyInbound) {
         return new Response(
           "the credential provider cannot verify inbound requests",
-          {
-            status: 500,
-          },
+          { status: 500 },
         );
       }
 
@@ -186,18 +195,24 @@ export interface InboundHandlerOptions {
   readonly inbox: Inbox;
   /** The inbox each adapter's threads land in, by adapter name. */
   readonly inboxes: Readonly<Record<string, string>>;
-  /** Delivery status parsers by adapter name. Defaults to WhatsApp, Messenger, Instagram and Twilio. */
+  /**
+   * Delivery status parsers by adapter name. Defaults to WhatsApp, Messenger,
+   * Instagram and Twilio.
+   */
   readonly parsers?: Readonly<Record<string, DeliveryParser>>;
   /**
-   * Copies a platform file into storage for the inbox. Without it a file
-   * is kept only when it has a public URL; platform URLs often need the
-   * bot's token, so copy them.
+   * Copies a platform file into storage for the inbox. Without it a file is
+   * kept only when it has a public URL; platform URLs often need the bot's
+   * token, so copy them.
    */
   readonly copyFile?: (
     file: Attachment,
     context: { readonly adapter: string; readonly threadId: string },
   ) => Promise<MessageAttachment | null>;
-  /** The URL replayed requests carry. Defaults to `https://inbox.local/<adapter>`. */
+  /**
+   * The URL replayed requests carry. Defaults to
+   * `https://inbox.local/<adapter>`.
+   */
   readonly baseUrl?: string;
 }
 
@@ -207,7 +222,10 @@ export interface DrainResult {
 }
 
 export interface InboundHandler {
-  /** Replays one stored event: delivery statuses go to the inbox, the rest into Chat SDK. */
+  /**
+   * Replays one stored event: delivery statuses go to the inbox, the rest into
+   * Chat SDK.
+   */
   process(event: StoredInboundEvent): Promise<void>;
   /** Processes pending events, oldest first. */
   drain(options?: {
@@ -215,9 +233,9 @@ export interface InboundHandler {
     readonly maxAttempts?: number;
   }): Promise<DrainResult>;
   /**
-   * Records a channel message in the inbox, from a Chat SDK handler. Skips
-   * bot messages, its own and the ones `deliver` posted (their echo);
-   * returns `null` for those.
+   * Records a channel message in the inbox, from a Chat SDK handler. Skips bot
+   * messages, its own and the ones `deliver` posted (their echo); returns
+   * `null` for those.
    */
   mirror(thread: MirrorThread, message: Message): Promise<InboundResult | null>;
 }
@@ -406,12 +424,15 @@ export interface DeliverOptions {
   readonly chat: ChatLike;
   /** `createInbox` on a service transport. */
   readonly inbox: Inbox;
-  /** The adapter that posts a conversation's replies. Defaults to the inbox's channel (`sms` posts with `twilio`). */
+  /**
+   * The adapter that posts a conversation's replies. Defaults to the inbox's
+   * channel (`sms` posts with `twilio`).
+   */
   readonly adapterFor?: (conversation: Conversation) => string;
   /**
-   * The approved template to send when the channel's reply window is
-   * closed, such as WhatsApp's 24 hours after the contact's last message.
-   * Return `null` to post the message as is.
+   * The approved template to send when the channel's reply window is closed,
+   * such as WhatsApp's 24 hours after the contact's last message. Return `null`
+   * to post the message as is.
    */
   readonly template?: (context: {
     readonly conversation: Conversation;
@@ -420,7 +441,10 @@ export interface DeliverOptions {
   }) => Promise<AdapterPostableMessage | null> | AdapterPostableMessage | null;
 }
 
-/** True while WhatsApp's customer service window is open: within 24 hours of the contact's last message. */
+/**
+ * True while WhatsApp's customer service window is open: within 24 hours of the
+ * contact's last message.
+ */
 export async function whatsappWindowOpen(
   inbox: Inbox,
   conversationId: string,
@@ -441,10 +465,10 @@ export async function whatsappWindowOpen(
 }
 
 /**
- * Posts a staff reply the `inbox` module queued on its channel, records
- * the delivery with the platform's message id, and remembers the id so
- * `mirror` skips the platform's echo. A failed post is recorded and thrown,
- * so the job retries.
+ * Posts a staff reply the `inbox` module queued on its channel, records the
+ * delivery with the platform's message id, and remembers the id so `mirror`
+ * skips the platform's echo. A failed post is recorded and thrown, so the job
+ * retries.
  */
 export function deliver(
   options: DeliverOptions,
@@ -525,7 +549,10 @@ export interface MaintainOptions {
   readonly inbox: Inbox;
   /** Replays events a crashed request left pending. */
   readonly handler?: InboundHandler;
-  /** `createSupabaseState(...)`: deletes expired locks, cache rows, lists and queues. */
+  /**
+   * `createSupabaseState(...)`: deletes expired locks, cache rows, lists and
+   * queues.
+   */
   readonly state?: {
     purge(options?: { readonly batch?: number }): Promise<number>;
   };
@@ -540,7 +567,10 @@ export interface MaintainResult {
   readonly purgedState: number;
 }
 
-/** The inbox's periodic work: wake snoozed conversations, replay and purge webhook events, sweep state. Run it from a cron job. */
+/**
+ * The inbox's periodic work: wake snoozed conversations, replay and purge
+ * webhook events, sweep state. Run it from a cron job.
+ */
 export async function maintain(
   options: MaintainOptions,
 ): Promise<MaintainResult> {

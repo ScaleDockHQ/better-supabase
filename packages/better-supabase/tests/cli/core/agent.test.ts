@@ -395,9 +395,7 @@ describe("agent mode in run()", () => {
   it("asks no consent for --force under --dry-run", async () => {
     const result = await cli.run(
       ["mode", "--force", "--dry-run", "--cwd", dir],
-      {
-        env: { CLAUDECODE: "1" },
-      },
+      { env: { CLAUDECODE: "1" } },
     );
 
     expect(result.code).toBe(0);

@@ -13,7 +13,10 @@ import { AsyncResult, err, ok } from "../core/result.ts";
 
 export type { FunctionContract };
 
-/** `supabase.functions.invoke` options, without the body: `invoke` sends the input. */
+/**
+ * `supabase.functions.invoke` options, without the body: `invoke` sends the
+ * input.
+ */
 export type InvokeOptions = Omit<FunctionInvokeOptions, "body">;
 
 /** Edge Function contracts by function name. */
@@ -31,9 +34,9 @@ export interface FunctionsHost {
 
 export interface TypedFunctions<Contracts extends FunctionContracts> {
   /**
-   * Calls the function with `input` as the JSON body. Problem Details from
-   * the function come back as their `DbError`; a network or relay failure is
-   * a `network` error.
+   * Calls the function with `input` as the JSON body. Problem Details from the
+   * function come back as their `DbError`; a network or relay failure is a
+   * `network` error.
    */
   invoke<N extends keyof Contracts & string>(
     name: N,

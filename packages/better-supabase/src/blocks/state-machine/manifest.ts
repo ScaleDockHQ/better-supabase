@@ -14,9 +14,7 @@ export const stateMachineBlock: BlockOf<
 > = defineBlock({
   name: "state-machine",
   sql: ["state-machine"],
-  options: {
-    "state-machine": stateMachineSqlOptions,
-  },
+  options: { "state-machine": stateMachineSqlOptions },
   events: stateMachineEvents,
   create: createStateMachine,
   category: "work",

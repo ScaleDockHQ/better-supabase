@@ -42,9 +42,9 @@ interface JobRunRecord {
 const LIMIT = 50;
 
 /**
- * One queue's live messages and archive, limited to jobs whose recorded
- * context names the tenant (`createJobs` writes it at enqueue). The queue
- * name is checked against `QUEUE_NAME` before it reaches the SQL.
+ * One queue's live messages and archive, limited to jobs whose recorded context
+ * names the tenant (`createJobs` writes it at enqueue). The queue name is
+ * checked against `QUEUE_NAME` before it reaches the SQL.
  */
 function queueRuns(queue: string, param: string): string {
   const tenant = `message #>> '{payload,context,tenant}' = ${param}`;
@@ -67,11 +67,10 @@ function queueRuns(queue: string, param: string): string {
 }
 
 /**
- * The organization's 50 latest job runs across every queue. pgmq grants
- * its tables to the service role only, so this reads as the database
- * owner after checking `audit.read`. A failed read throws, so it is never
- * cached and Retry reads again. `null` without an organization or the
- * permission.
+ * The organization's 50 latest job runs across every queue. pgmq grants its
+ * tables to the service role only, so this reads as the database owner after
+ * checking `audit.read`. A failed read throws, so it is never cached and Retry
+ * reads again. `null` without an organization or the permission.
  */
 export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";

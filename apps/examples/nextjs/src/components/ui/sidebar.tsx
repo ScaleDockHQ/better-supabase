@@ -189,9 +189,7 @@ function Sidebar({
           data-mobile="true"
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
+            { "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties
           }
           side={side}
         >
@@ -407,10 +405,7 @@ function SidebarGroupLabel({
       props,
     ),
     render,
-    state: {
-      slot: "sidebar-group-label",
-      sidebar: "group-label",
-    },
+    state: { slot: "sidebar-group-label", sidebar: "group-label" },
   });
 }
 
@@ -431,10 +426,7 @@ function SidebarGroupAction({
       props,
     ),
     render,
-    state: {
-      slot: "sidebar-group-action",
-      sidebar: "group-action",
-    },
+    state: { slot: "sidebar-group-action", sidebar: "group-action" },
   });
 }
 
@@ -489,10 +481,7 @@ const sidebarMenuButtonVariants = cva(
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+    defaultVariants: { variant: "default", size: "default" },
   },
 );
 
@@ -532,9 +521,7 @@ function SidebarMenuButton({
   }
 
   if (typeof tooltip === "string") {
-    tooltip = {
-      children: tooltip,
-    };
+    tooltip = { children: tooltip };
   }
 
   return (
@@ -556,9 +543,7 @@ function SidebarMenuAction({
   showOnHover = false,
   ...props
 }: useRender.ComponentProps<"button"> &
-  React.ComponentProps<"button"> & {
-    showOnHover?: boolean;
-  }) {
+  React.ComponentProps<"button"> & { showOnHover?: boolean }) {
   return useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -573,10 +558,7 @@ function SidebarMenuAction({
       props,
     ),
     render,
-    state: {
-      slot: "sidebar-menu-action",
-      sidebar: "menu-action",
-    },
+    state: { slot: "sidebar-menu-action", sidebar: "menu-action" },
   });
 }
 
@@ -604,7 +586,10 @@ function SidebarMenuSkeleton({
   ...props
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean;
-  /** Fixed, because `Math.random()` during render fails the Cache Components prerender. */
+  /**
+   * Fixed, because `Math.random()` during render fails the Cache Components
+   * prerender.
+   */
   width?: string;
 }) {
   return (
@@ -623,11 +608,7 @@ function SidebarMenuSkeleton({
       <Skeleton
         className="h-4 max-w-(--skeleton-width) flex-1"
         data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": width,
-          } as React.CSSProperties
-        }
+        style={{ "--skeleton-width": width } as React.CSSProperties}
       />
     </div>
   );
@@ -668,10 +649,7 @@ function SidebarMenuSubButton({
   className,
   ...props
 }: useRender.ComponentProps<"a"> &
-  React.ComponentProps<"a"> & {
-    size?: "sm" | "md";
-    isActive?: boolean;
-  }) {
+  React.ComponentProps<"a"> & { size?: "sm" | "md"; isActive?: boolean }) {
   return useRender({
     defaultTagName: "a",
     props: mergeProps<"a">(

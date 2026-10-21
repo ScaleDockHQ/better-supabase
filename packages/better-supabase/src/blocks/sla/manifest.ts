@@ -11,9 +11,7 @@ export const slaBlock: BlockOf<"sla", typeof createSla, SlaEvents> =
   defineBlock({
     name: "sla",
     sql: ["sla"],
-    options: {
-      sla: slaSqlOptions,
-    },
+    options: { sla: slaSqlOptions },
     events: slaEvents,
     create: createSla,
     category: "work",

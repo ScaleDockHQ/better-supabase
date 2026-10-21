@@ -22,9 +22,9 @@ function jsonOf(value: unknown): JSONValue {
 }
 
 /**
- * The AI Gateway's `byok` option for a tenant's resolved keys: each key
- * becomes `{ apiKey: token, ...settings }` under its provider, in order. A
- * provider whose credential field isn't `apiKey` names it in the key's
+ * The AI Gateway's `byok` option for a tenant's resolved keys: each key becomes
+ * `{ apiKey: token, ...settings }` under its provider, in order. A provider
+ * whose credential field isn't `apiKey` names it in the key's
  * `settings.credentialField`.
  */
 export function byokOptions(

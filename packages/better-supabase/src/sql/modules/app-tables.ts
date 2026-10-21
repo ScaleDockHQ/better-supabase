@@ -33,8 +33,8 @@ import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
 
 /**
- * The `module` of the files `renderModules` writes for `appTables`. App
- * tables aren't a block: no `SQL_MODULES` entry, no preset, no row in
+ * The `module` of the files `renderModules` writes for `appTables`. App tables
+ * aren't a block: no `SQL_MODULES` entry, no preset, no row in
  * `better_supabase.modules` (ADR 0040).
  */
 export const APP_TABLES_MODULE = "app-tables";
@@ -73,9 +73,9 @@ interface AppTable {
 }
 
 /**
- * A reference between two tenant-scoped app tables. It becomes a foreign
- * key on `(tenant, column)` to the target's `(tenant, id)`, so a row can't
- * point at a row of another tenant.
+ * A reference between two tenant-scoped app tables. It becomes a foreign key on
+ * `(tenant, column)` to the target's `(tenant, id)`, so a row can't point at a
+ * row of another tenant.
  */
 interface TenantReference {
   readonly column: string;
@@ -217,8 +217,8 @@ function columnSql(
 }
 
 /**
- * The references of a tenant-scoped table to another tenant-scoped app
- * table (itself included), which `tenantKeysSql` checks per tenant.
+ * The references of a tenant-scoped table to another tenant-scoped app table
+ * (itself included), which `tenantKeysSql` checks per tenant.
  */
 function tenantReferencesOf(
   table: Omit<AppTable, "tenantReferences">,
@@ -251,11 +251,11 @@ function tenantReferencesOf(
 }
 
 /**
- * The unique `(tenant, id)` index on every target of a tenant reference,
- * then each reference as a foreign key on `(tenant, column)`. The key is
- * dropped and added again so a re-run replaces the single-column key an
- * earlier version wrote under the same name. `set null` names the column
- * (Postgres 15), so the tenant column keeps its value.
+ * The unique `(tenant, id)` index on every target of a tenant reference, then
+ * each reference as a foreign key on `(tenant, column)`. The key is dropped and
+ * added again so a re-run replaces the single-column key an earlier version
+ * wrote under the same name. `set null` names the column (Postgres 15), so the
+ * tenant column keeps its value.
  */
 function tenantKeysSql(tables: readonly AppTable[]): string {
   const references = tables.flatMap((table) =>
@@ -396,7 +396,10 @@ function columnNames(table: AppTable): readonly string[] {
   ];
 }
 
-/** Throws when a composite `unique` or `indexes` key names a column the table lacks. */
+/**
+ * Throws when a composite `unique` or `indexes` key names a column the table
+ * lacks.
+ */
 function checkKeyColumns(table: AppTable): void {
   const columns = new Set(columnNames(table));
 
@@ -504,9 +507,9 @@ function commentsSql(table: AppTable): string {
 }
 
 /**
- * The rows a caller reaches: per tenant, rows of a tenant they are a member
- * of; per user, their own rows. `undefined` in `none` scope, where only the
- * service role writes.
+ * The rows a caller reaches: per tenant, rows of a tenant they are a member of;
+ * per user, their own rows. `undefined` in `none` scope, where only the service
+ * role writes.
  */
 function ownRows(table: AppTable): string | undefined {
   const { ctx, scope } = table;
@@ -612,8 +615,8 @@ function eventKinds(table: AppTable): readonly AppTableEventKind[] {
 
 /**
  * The trigger that writes `<base>.created`, `.updated` and `.deleted` to the
- * outbox (ADR 0048). An update that changes no column but `updated_at`
- * emits nothing.
+ * outbox (ADR 0048). An update that changes no column but `updated_at` emits
+ * nothing.
  */
 function eventsSql(table: AppTable): string {
   const kinds = eventKinds(table);
@@ -731,7 +734,10 @@ create trigger ${trigger} after ${operations} on ${target}
   for each row execute function ${fn}();`;
 }
 
-/** Whether `eventsSql` renders a trigger: the table sets `events` and the outbox takes them. */
+/**
+ * Whether `eventsSql` renders a trigger: the table sets `events` and the outbox
+ * takes them.
+ */
 function emitsEvents(table: AppTable): boolean {
   const kind = eventKinds(table)[0];
 
@@ -743,7 +749,10 @@ function emitsEvents(table: AppTable): boolean {
   );
 }
 
-/** pgTAP checks, run as a signed-in user, that `app_table_set` refuses a column it may not set. */
+/**
+ * PgTAP checks, run as a signed-in user, that `app_table_set` refuses a column
+ * it may not set.
+ */
 function setRefusals(table: AppTable): readonly string[] {
   const subject = table.config.subject;
 
@@ -764,7 +773,10 @@ function setRefusals(table: AppTable): readonly string[] {
   ];
 }
 
-/** pgTAP checks for the auto snapshot trigger; `seeded` adds one for the seeded row's version. */
+/**
+ * PgTAP checks for the auto snapshot trigger; `seeded` adds one for the seeded
+ * row's version.
+ */
 function versionChecks(table: AppTable, seeded: boolean): readonly string[] {
   const subject = table.config.subject;
   const versions = appTableVersions(table.config);
@@ -790,7 +802,10 @@ function versionChecks(table: AppTable, seeded: boolean): readonly string[] {
   return checks;
 }
 
-/** pgTAP checks for the events trigger; `seeded` adds one that the seeded row emitted. */
+/**
+ * PgTAP checks for the events trigger; `seeded` adds one that the seeded row
+ * emitted.
+ */
 function eventChecks(table: AppTable, seeded: boolean): readonly string[] {
   if (!emitsEvents(table)) {
     return [];
@@ -884,10 +899,10 @@ function isExposed(name: string, layout: ModuleLayout): boolean {
 }
 
 /**
- * A literal that meets a required column's type, options, format and
- * bounds, for the row the read test inserts. `null` when the column needs
- * no value (nullable, defaulted or an identity); `undefined` when no literal
- * can stand in for it (a reference, which needs a parent row).
+ * A literal that meets a required column's type, options, format and bounds,
+ * for the row the read test inserts. `null` when the column needs no value
+ * (nullable, defaulted or an identity); `undefined` when no literal can stand
+ * in for it (a reference, which needs a parent row).
  */
 function sampleValue(column: AppColumnConfig): string | null | undefined {
   if (
@@ -967,10 +982,9 @@ function sampleValue(column: AppColumnConfig): string | null | undefined {
 }
 
 /**
- * The statement, run as the table owner before the role switch, that puts
- * one row of another tenant (or user) in the table, so the read check sees
- * a row it must not return. `undefined` when a required column has no
- * stand-in value.
+ * The statement, run as the table owner before the role switch, that puts one
+ * row of another tenant (or user) in the table, so the read check sees a row it
+ * must not return. `undefined` when a required column has no stand-in value.
  */
 function foreignRow(table: AppTable): string | undefined {
   const scope = table.scope;
@@ -1131,13 +1145,13 @@ reset role;`;
 
 /**
  * The files for `layout.appTables`: one schema file that creates every app
- * table in `public` (implicit columns first, then each column with `add
- * column if not exists`, so a later column reaches an existing table),
- * with row level security, the grants and policies of its scope, indexes
- * on the scope and reference columns, and the `updated_at` trigger when
- * the `updated-at` block is installed; and one pgTAP file that checks the
- * policies and grants. Empty without app tables. `installed` is every
- * block module `renderModules` resolved.
+ * table in `public` (implicit columns first, then each column with `add column
+ * if not exists`, so a later column reaches an existing table), with row level
+ * security, the grants and policies of its scope, indexes on the scope and
+ * reference columns, and the `updated_at` trigger when the `updated-at` block
+ * is installed; and one pgTAP file that checks the policies and grants. Empty
+ * without app tables. `installed` is every block module `renderModules`
+ * resolved.
  */
 export function appTablesFiles(
   layout: ModuleLayout,

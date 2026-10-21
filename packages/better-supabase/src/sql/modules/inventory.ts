@@ -402,8 +402,8 @@ ${read("purchaseOrderLines")}
 }
 
 /**
- * The ledger: every movement updates its level in the same transaction,
- * and refuses to take a tracked variant below zero.
+ * The ledger: every movement updates its level in the same transaction, and
+ * refuses to take a tracked variant below zero.
  */
 function ledger(ctx: ModuleContext, names: InventoryNames): string {
   const { fn } = names;

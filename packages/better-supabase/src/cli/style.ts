@@ -14,7 +14,10 @@ export function painter(color: boolean | undefined): Paint {
   return color === true ? colored : plain;
 }
 
-/** Whether `stream` takes colors: a TTY, and neither `NO_COLOR` nor `NODE_DISABLE_COLORS` set (`FORCE_COLOR` overrides). */
+/**
+ * Whether `stream` takes colors: a TTY, and neither `NO_COLOR` nor
+ * `NODE_DISABLE_COLORS` set (`FORCE_COLOR` overrides).
+ */
 export function colorEnabled(stream: NodeJS.WritableStream): boolean {
   return styleText("red", "x", { stream }) !== "x";
 }
@@ -25,7 +28,10 @@ const VERBS: readonly (readonly [RegExp, Format])[] = [
   [/^(?:Unchanged|Kept|Same|Skipped)\b/, "dim"],
 ];
 
-/** Colors the verb that starts each `Created`, `Updated`, `Skipped`, `Unchanged` or `Would create` line. */
+/**
+ * Colors the verb that starts each `Created`, `Updated`, `Skipped`, `Unchanged`
+ * or `Would create` line.
+ */
 export function highlight(text: string, paint: Paint): string {
   if (paint === plain) {
     return text;

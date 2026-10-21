@@ -19,7 +19,10 @@ export const SEARCH_SINK_DEFAULTS: Readonly<Record<string, SearchSinkAction>> =
   };
 
 export interface SearchSinkOptions {
-  /** Event type (without `typePrefix`) to its action. Default `SEARCH_SINK_DEFAULTS`. */
+  /**
+   * Event type (without `typePrefix`) to its action. Default
+   * `SEARCH_SINK_DEFAULTS`.
+   */
   readonly on?: Readonly<Record<string, SearchSinkAction | undefined>>;
   /** Stripped from each event type. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
@@ -39,10 +42,10 @@ function subjectOf(
 }
 
 /**
- * An outbox sink that keeps the index in step with soft deletes the
- * registry's `deletedAt` column doesn't describe, such as a trash table:
- * `outbox.relay('search', searchSink(search))`. Build `search` with a
- * service transport. A subject type without a `search` entry is skipped.
+ * An outbox sink that keeps the index in step with soft deletes the registry's
+ * `deletedAt` column doesn't describe, such as a trash table:
+ * `outbox.relay('search', searchSink(search))`. Build `search` with a service
+ * transport. A subject type without a `search` entry is skipped.
  */
 export function searchSink(
   search: Pick<Search, "remove" | "refresh">,

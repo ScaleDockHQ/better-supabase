@@ -46,9 +46,7 @@ const documentRow = {
   updated_at: AT,
 };
 
-function fakeBucket(): AiFileBucket & {
-  readonly calls: string[];
-} {
+function fakeBucket(): AiFileBucket & { readonly calls: string[] } {
   const calls: string[] = [];
 
   return {
@@ -285,10 +283,7 @@ describe("createAiFiles", () => {
     expect(user).toHaveBeenLastCalledWith(
       "better_supabase",
       "confirm_ai_file",
-      {
-        file_id: "f1",
-        sha256: "abc",
-      },
+      { file_id: "f1", sha256: "abc" },
     );
     const listed = await files.files.list("c1");
     expect(listed.ok && listed.data.map((file) => file.id)).toEqual(["f1"]);

@@ -10,7 +10,10 @@ export function formatDbStats(stats: DbStats): string {
   return `${stats.calls};${stats.waves};${stats.ms}`;
 }
 
-/** Parses the stats header back into numbers, or `undefined` when it is malformed. */
+/**
+ * Parses the stats header back into numbers, or `undefined` when it is
+ * malformed.
+ */
 export function parseDbStats(
   value: string | null | undefined,
 ): Pick<DbStats, "calls" | "waves" | "ms"> | undefined {
@@ -66,10 +69,10 @@ function metric(name: string, dur: number, description?: string): string {
 }
 
 /**
- * Entry contributing `ctx.timing`, and adding `Server-Timing` to the
- * response: `bs;dur=<ms>` for everything after it, plus the metrics handlers
- * add with `ctx.timing.add()` or `measure()`. Put it first, so it times the
- * whole request. Browsers show it in the network panel.
+ * Entry contributing `ctx.timing`, and adding `Server-Timing` to the response:
+ * `bs;dur=<ms>` for everything after it, plus the metrics handlers add with
+ * `ctx.timing.add()` or `measure()`. Put it first, so it times the whole
+ * request. Browsers show it in the network panel.
  */
 export function withServerTiming(
   now: () => number = () => performance.now(),
@@ -113,10 +116,10 @@ export function withServerTiming(
 }
 
 /**
- * Entry adding the request's database totals to the response, after the
- * handler ran: `x-bs-db-calls: calls;waves;ms`, which `expectDbBudget(response)`
- * reads, and a `bs-db` `Server-Timing` metric. Put it
- * after `withBetterSupabase`, which contributes `ctx.bs`.
+ * Entry adding the request's database totals to the response, after the handler
+ * ran: `x-bs-db-calls: calls;waves;ms`, which `expectDbBudget(response)` reads,
+ * and a `bs-db` `Server-Timing` metric. Put it after `withBetterSupabase`,
+ * which contributes `ctx.bs`.
  */
 export function withDbStats(
   options: { readonly header?: string } = {},

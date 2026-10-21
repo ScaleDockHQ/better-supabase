@@ -21,9 +21,13 @@ export interface TableRepositoryExtension<
  * repository at call time, with every other plugin's methods.
  *
  * ```ts
- * const customers = defineRepository(betterSupabase, 'customers', (base) => ({
- *   active: () => base.findMany({ where: { status: 'active' } }),
- * }));
+ * const customers = defineRepository(
+ *   betterSupabase,
+ *   "customers",
+ *   (base) => ({
+ *     active: () => base.findMany({ where: { status: "active" } }),
+ *   }),
+ * );
  * export const app = betterSupabase.use(customers);
  * await app.connect(client).customers.active();
  * ```

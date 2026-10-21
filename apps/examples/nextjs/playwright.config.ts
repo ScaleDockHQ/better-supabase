@@ -25,10 +25,10 @@ const stackEnv = {
 
 /**
  * `instant()` checks against a production build. The build must expose the
- * testing API, so `webServer` builds with `EXPOSE_TESTING_API=1` itself
- * instead of reusing a server that may have been built without it. The
- * `latency` project runs against a second server on the same build whose
- * Supabase requests wait 3 s (`e2e/serve.ts`).
+ * testing API, so `webServer` builds with `EXPOSE_TESTING_API=1` itself instead
+ * of reusing a server that may have been built without it. The `latency`
+ * project runs against a second server on the same build whose Supabase
+ * requests wait 3 s (`e2e/serve.ts`).
  */
 export default defineConfig({
   testDir: "e2e",

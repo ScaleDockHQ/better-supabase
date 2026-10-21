@@ -9,20 +9,20 @@ export interface ActClaim {
 }
 
 /**
- * Who acts for the user, from the outermost level of the RFC 8693 `act`
- * claim, by its `kind`:
+ * Who acts for the user, from the outermost level of the RFC 8693 `act` claim,
+ * by its `kind`:
  *
- * - `oauth-client`: an `act` without `kind` (prior actors stay on `chain`),
- *   else the OAuth `client_id` of a Supabase OAuth server token. Only this
- *   kind is limited to the scopes the user delegated.
+ * - `oauth-client`: an `act` without `kind` (prior actors stay on `chain`), else
+ *   the OAuth `client_id` of a Supabase OAuth server token. Only this kind is
+ *   limited to the scopes the user delegated.
  * - `support`: an admin in a support session (`act.kind: "support"`, from
- *   `supportClaims`). An `act` without `kind` but with `session_id`, as
- *   0.5.0 minted it, is an invalid chain.
- * - `impersonation`: an admin acting as the user (`act.kind:
- *   "impersonation"`, from `actClaim`).
- * - `agent`: an AI agent running tools for the user (`act.kind: "agent"`,
- *   from `agentClaims`). Its writes run under the user's permissions, and
- *   a token that also carries a `scope` limits it to those scopes.
+ *   `supportClaims`). An `act` without `kind` but with `session_id`, as 0.5.0
+ *   minted it, is an invalid chain.
+ * - `impersonation`: an admin acting as the user (`act.kind: "impersonation"`,
+ *   from `actClaim`).
+ * - `agent`: an AI agent running tools for the user (`act.kind: "agent"`, from
+ *   `agentClaims`). Its writes run under the user's permissions, and a token
+ *   that also carries a `scope` limits it to those scopes.
  */
 export type SessionActor =
   | {
@@ -47,8 +47,8 @@ export type SessionActor =
       readonly kind: "agent";
       readonly id: string;
       /**
-       * `act.tools`: the tools the run may call. Missing means every tool;
-       * `[]` means none.
+       * `act.tools`: the tools the run may call. Missing means every tool; `[]`
+       * means none.
        */
       readonly tools?: readonly string[];
       /** `act.read_only`; an agent without it may write as the user. */
@@ -170,13 +170,12 @@ function actorAt(
 }
 
 /**
- * Reads only `act` and `client_id`. An
- * `act` that is not a chain of objects each with a non-empty `sub`, a
- * `kind` other than `support`, `impersonation` or `agent`, a support level
- * without a `session_id`, an agent level whose `tools` is not a list of
- * names, a non-boolean `read_only` on a support or agent level, or a
- * `session_id` without `kind` is `{ ok: false }`: the session must not pass as the user
- * alone.
+ * Reads only `act` and `client_id`. An `act` that is not a chain of objects
+ * each with a non-empty `sub`, a `kind` other than `support`, `impersonation`
+ * or `agent`, a support level without a `session_id`, an agent level whose
+ * `tools` is not a list of names, a non-boolean `read_only` on a support or
+ * agent level, or a `session_id` without `kind` is `{ ok: false }`: the session
+ * must not pass as the user alone.
  */
 export function actorOf(
   claims: Readonly<Record<string, unknown>>,
@@ -222,7 +221,10 @@ export function actorOf(
   return { ok: true };
 }
 
-/** `agentClaims(claims, { agent, tools, readOnly })`: the agent that acts, and what it may do. */
+/**
+ * `agentClaims(claims, { agent, tools, readOnly })`: the agent that acts, and
+ * what it may do.
+ */
 export interface AgentActOptions {
   readonly agent: string;
   /** The tools the run may call. Leave it out for every tool; `[]` allows none. */
@@ -233,9 +235,9 @@ export interface AgentActOptions {
 
 /**
  * The user's claims with the agent as the outermost `act` level. An `act`
- * already on the claims (an OAuth client, say) moves below it, so the run
- * keeps the user's delegation. Pass the result to `asUser` or `forContext`
- * for the agent's database calls.
+ * already on the claims (an OAuth client, say) moves below it, so the run keeps
+ * the user's delegation. Pass the result to `asUser` or `forContext` for the
+ * agent's database calls.
  */
 export function agentClaims<C extends Readonly<Record<string, unknown>>>(
   claims: C,
@@ -264,8 +266,8 @@ export function invalidActorError(): DbError {
 }
 
 /**
- * OpenID Connect scopes that ask for identity claims or a refresh token.
- * They grant no permission, so `delegationOf` leaves them out.
+ * OpenID Connect scopes that ask for identity claims or a refresh token. They
+ * grant no permission, so `delegationOf` leaves them out.
  */
 export const IDENTITY_SCOPES: ReadonlySet<string> = new Set([
   "openid",
@@ -278,9 +280,9 @@ export const IDENTITY_SCOPES: ReadonlySet<string> = new Set([
 
 /**
  * The OAuth `scope` claim (a space-separated string or a list), without
- * `IDENTITY_SCOPES`. `undefined` when the token names no scope. A token
- * that names only identity scopes gets `{ scopes: [] }`, so an actor
- * limited to its delegation stays limited.
+ * `IDENTITY_SCOPES`. `undefined` when the token names no scope. A token that
+ * names only identity scopes gets `{ scopes: [] }`, so an actor limited to its
+ * delegation stays limited.
  */
 export function delegationOf(
   claims: Readonly<Record<string, unknown>>,

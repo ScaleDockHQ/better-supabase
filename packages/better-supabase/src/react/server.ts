@@ -108,42 +108,69 @@ function clientOnly(name: string): () => never {
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
-/** The `react-server` build of `useSupportSession`: use `supportOf(await bs.session())` instead. */
+/**
+ * The `react-server` build of `useSupportSession`: use `supportOf(await
+ * bs.session())` instead.
+ */
 export const useSupportSession: () => SupportView | undefined =
   clientOnly("useSupportSession");
 
-/** The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed instead. */
+/**
+ * The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed
+ * instead.
+ */
 export const useLiveCount: (
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options?: LiveCountHookOptions,
 ) => LiveCount = clientOnly("useLiveCount");
 
-/** The `react-server` build of `useAction`: call the Server Action directly instead. */
+/**
+ * The `react-server` build of `useAction`: call the Server Action directly
+ * instead.
+ */
 export const useAction: <I, T>(
   action: (input: I) => Promise<ActionResultOf<T>>,
   options?: UseActionOptions<ActionInputOf<I>, T>,
 ) => ActionHandle<ActionInputOf<I>, T> = clientOnly("useAction");
 
-/** The `react-server` build of `useActionForm`: render the form in a Client Component. */
+/**
+ * The `react-server` build of `useActionForm`: render the form in a Client
+ * Component.
+ */
 export const useActionForm: <T>(
   action: (input: FormData) => Promise<ActionResultOf<T>>,
   options?: UseActionFormOptions<T>,
 ) => ActionForm<T> = clientOnly("useActionForm");
 
-/** The `react-server` build of `usePresence`: join presence in a Client Component. */
+/**
+ * The `react-server` build of `usePresence`: join presence in a Client
+ * Component.
+ */
 export const usePresence: typeof clientUsePresence = clientOnly("usePresence");
 
-/** The `react-server` build of `useSignIn`: sign in from a Client Component or a Server Action. */
+/**
+ * The `react-server` build of `useSignIn`: sign in from a Client Component or a
+ * Server Action.
+ */
 export const useSignIn: typeof clientUseSignIn = clientOnly("useSignIn");
 
-/** The `react-server` build of `useSignOut`: sign out from a Client Component or a Server Action. */
+/**
+ * The `react-server` build of `useSignOut`: sign out from a Client Component or
+ * a Server Action.
+ */
 export const useSignOut: typeof clientUseSignOut = clientOnly("useSignOut");
 
-/** The `react-server` build of `useDebouncedSearch`: read the term from `searchParams` instead. */
+/**
+ * The `react-server` build of `useDebouncedSearch`: read the term from
+ * `searchParams` instead.
+ */
 export const useDebouncedSearch: typeof clientUseDebouncedSearch =
   clientOnly("useDebouncedSearch");
 
-/** The `react-server` build of `useSignedUrl`: await `bucket.signedUrl()` instead. */
+/**
+ * The `react-server` build of `useSignedUrl`: await `bucket.signedUrl()`
+ * instead.
+ */
 export const useSignedUrl: typeof clientUseSignedUrl =
   clientOnly("useSignedUrl");
 

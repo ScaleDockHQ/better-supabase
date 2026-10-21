@@ -128,10 +128,7 @@ describe("createSvelteKit", () => {
   it("maps errors in handleError and registers load dependencies", () => {
     expect(
       bs.handleError({ error: new DbException(dbError("not_found", "Gone")) }),
-    ).toEqual({
-      message: "Gone",
-      code: "not_found",
-    });
+    ).toEqual({ message: "Gone", code: "not_found" });
     expect(bs.handleError({ error: new Error("secret") }).message).toBeTypeOf(
       "string",
     );

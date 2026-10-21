@@ -305,8 +305,8 @@ function invoiceOf(value: unknown): Invoice {
 
 /**
  * The invoices block: invoices an organization sends its own customers,
- * numbered on issue, with payments, credit notes, void, write-off, aging,
- * and invoices from accepted quotes.
+ * numbered on issue, with payments, credit notes, void, write-off, aging, and
+ * invoices from accepted quotes.
  */
 export function createInvoices<
   S extends StandardSchemaV1 | undefined = undefined,

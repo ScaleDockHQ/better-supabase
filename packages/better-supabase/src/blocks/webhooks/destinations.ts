@@ -10,10 +10,9 @@ import type {
 import { receiveWebhook } from "../jobs/webhook-inbox.ts";
 
 /**
- * Stores deliveries in the webhook inbox under `source` (the delivery's
- * source when unset), with the endpoint's tenant and the id
- * `<endpoint id>:<message id>`. The default destination of
- * `createIncomingWebhooks`.
+ * Stores deliveries in the webhook inbox under `source` (the delivery's source
+ * when unset), with the endpoint's tenant and the id `<endpoint id>:<message
+ * id>`. The default destination of `createIncomingWebhooks`.
  */
 export function inboxDestination(
   sql: SqlClient,

@@ -18,8 +18,8 @@ import {
 
 export interface TestDocumentFormatOptions<V extends string = string> {
   /**
-   * The model to lower. Defaults to a small model with a route, a stream,
-   * a webhook, a Realtime channel and a workflow.
+   * The model to lower. Defaults to a small model with a route, a stream, a
+   * webhook, a Realtime channel and a workflow.
    */
   readonly model?: ApiModel;
   /** The versions to lower. Defaults to every version the format lists. */
@@ -90,11 +90,7 @@ function sampleModel(): ApiModel {
         },
       ],
       webhooks: [
-        {
-          id: "customer.created",
-          payload: customer,
-          standardWebhooks: true,
-        },
+        { id: "customer.created", payload: customer, standardWebhooks: true },
       ],
       realtimeUrl: "wss://abc.supabase.co/realtime/v1/websocket",
       messages: {
@@ -192,12 +188,11 @@ function diagnosticProblem(diagnostic: SpecDiagnostic): string | undefined {
 
 /**
  * Proves a `DocumentFormat` targets API v1, lists versions with pins and a
- * known status, defaults to a version it lists that is not a preview, and,
- * for every version: lowers the model without mutating it (also when the
- * model is frozen), renders the same document twice, renders plain JSON or
- * text, reports diagnostics with a kebab-case code, a severity and a
- * message, finds no error in its own output with `lint`, and names a bare,
- * stable file.
+ * known status, defaults to a version it lists that is not a preview, and, for
+ * every version: lowers the model without mutating it (also when the model is
+ * frozen), renders the same document twice, renders plain JSON or text, reports
+ * diagnostics with a kebab-case code, a severity and a message, finds no error
+ * in its own output with `lint`, and names a bare, stable file.
  */
 export function testDocumentFormat<F extends AnyDocumentFormat>(
   format: F,

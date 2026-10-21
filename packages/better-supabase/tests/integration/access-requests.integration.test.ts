@@ -40,10 +40,7 @@ describe.skipIf(!live)("access requests", () => {
         modules: { "access-requests": { options: { maxDuration: "P7D" } } },
       });
 
-      const tenant = await s.organization(owner, {
-        member: requester,
-        viewer,
-      });
+      const tenant = await s.organization(owner, { member: requester, viewer });
 
       const transport = sqlTransport(s.sql);
       const access = createAccessRequests({ transport });

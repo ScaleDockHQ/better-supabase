@@ -8,8 +8,8 @@ import { callOf, type ServerCore, supportLookup } from "./core.ts";
 
 /**
  * Entry contributing `ctx.support`: the support session ("view as user") the
- * request's support cookie names, when `ServerOptions.support` is set and
- * the caller is the admin who started it. `undefined` otherwise.
+ * request's support cookie names, when `ServerOptions.support` is set and the
+ * caller is the admin who started it. `undefined` otherwise.
  */
 export function withSupport<
   M extends AnyModels,

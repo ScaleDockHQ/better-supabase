@@ -2,19 +2,22 @@ import type { BlockScope } from "../config/blocks.ts";
 import type { ModuleIdType } from "./context.ts";
 
 /**
- * How a module checks who may reach a row, for the block's scope. Modules
- * call these instead of naming the access contract (`can`,
- * `tenant_ids_with`, `is_platform`) or the tenant module's helpers, so the
- * same module runs per tenant, per user or in one shared space. In `tenant`
- * scope each one renders the access contract call it replaces.
+ * How a module checks who may reach a row, for the block's scope. Modules call
+ * these instead of naming the access contract (`can`, `tenant_ids_with`,
+ * `is_platform`) or the tenant module's helpers, so the same module runs per
+ * tenant, per user or in one shared space. In `tenant` scope each one renders
+ * the access contract call it replaces.
  */
 export interface ModuleScope {
   readonly kind: BlockScope;
-  /** The type of a scope id: the tenant id type, or `uuid` (a user id) in `user` scope. */
+  /**
+   * The type of a scope id: the tenant id type, or `uuid` (a user id) in `user`
+   * scope.
+   */
   readonly idType: ModuleIdType;
   /**
-   * The type of a managed table's scope column: `<idType> not null` per
-   * tenant, nullable outside it (`uuid default auth.uid()` per user).
+   * The type of a managed table's scope column: `<idType> not null` per tenant,
+   * nullable outside it (`uuid default auth.uid()` per user).
    */
   column(): string;
   /** True when the caller holds `permission` (a SQL expression) in scope `id`. */
@@ -23,13 +26,13 @@ export interface ModuleScope {
   canUser(user: string, id: string, permission: string): string;
   /**
    * PL/pgSQL that sets the scope id parameter `param` for the scope: the
-   * caller's id per user (the service role keeps what it passes), null in
-   * the shared space. Empty per tenant.
+   * caller's id per user (the service role keeps what it passes), null in the
+   * shared space. Empty per tenant.
    */
   bind(param: string): string;
   /**
-   * A scope id argument as an expression: as passed per tenant, the
-   * caller's id when it is null per user, null in the shared space.
+   * A scope id argument as an expression: as passed per tenant, the caller's id
+   * when it is null per user, null in the shared space.
    */
   value(param: string): string;
   /**
@@ -53,7 +56,10 @@ export interface ModuleScope {
 export interface ModuleScopeSource {
   readonly kind: BlockScope;
   readonly idType: ModuleIdType;
-  /** Whether the `access` module is installed, for `platform` outside `tenant` scope. */
+  /**
+   * Whether the `access` module is installed, for `platform` outside `tenant`
+   * scope.
+   */
   readonly access: boolean;
   /** The tenant module's `member_organization_ids`, as named for the layout. */
   readonly members: () => string;

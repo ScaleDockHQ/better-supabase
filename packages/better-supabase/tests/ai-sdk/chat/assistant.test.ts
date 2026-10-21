@@ -32,10 +32,7 @@ describe("createAssistant", () => {
     const args = run.mock.calls[0]?.[0];
     expect(args?.model).toBe("openai/gpt-5");
     expect(args?.providerOptions).toEqual({
-      gateway: {
-        user: "user",
-        tags: ["org:org", "chat:c1", "feature:chat"],
-      },
+      gateway: { user: "user", tags: ["org:org", "chat:c1", "feature:chat"] },
     });
     expect(args?.messages).toEqual([
       { role: "user", content: [{ type: "text", text: "Hi" }] },

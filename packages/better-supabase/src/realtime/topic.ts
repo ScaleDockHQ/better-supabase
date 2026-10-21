@@ -66,15 +66,22 @@ export interface TopicOptions<
   E extends EventSchemas,
   R extends PresenceSchema = PresenceSchema,
 > {
-  /** Name used for generated policies and functions. Defaults to the template's literal parts. */
+  /**
+   * Name used for generated policies and functions. Defaults to the template's
+   * literal parts.
+   */
   readonly name?: string;
   /** Payload schemas per event. Incoming and outgoing payloads are validated. */
   readonly events?: E;
-  /** Private channels are authorized by `realtime.messages` policies. Defaults to `true`. */
+  /**
+   * Private channels are authorized by `realtime.messages` policies. Defaults
+   * to `true`.
+   */
   readonly private?: boolean;
   /**
-   * Tenant check for the generated policy. Defaults to `{organizationId}` against
-   * `tenant_id` / `app_metadata.tenant_id` when the template has `{organizationId}`.
+   * Tenant check for the generated policy. Defaults to `{organizationId}`
+   * against `tenant_id` / `app_metadata.tenant_id` when the template has
+   * `{organizationId}`.
    */
   readonly tenant?:
     | false
@@ -83,40 +90,42 @@ export interface TopicOptions<
         readonly claim?: string | readonly string[];
         readonly sql?: string;
       };
-  /** Owner check. Defaults to `{userId}` against `auth.uid()` when the template has `{userId}`. */
+  /**
+   * Owner check. Defaults to `{userId}` against `auth.uid()` when the template
+   * has `{userId}`.
+   */
   readonly owner?: false | { readonly param?: string };
   /**
    * Authorize with the SQL modules' access contract instead of the tenant
-   * claim: `tenant_ids_with(receive)` on the tenant segment (or
-   * `is_platform` for `scope: 'platform'`), or the `sql` templates it is
-   * given, and `send` for broadcasting.
+   * claim: `tenant_ids_with(receive)` on the tenant segment (or `is_platform`
+   * for `scope: 'platform'`), or the `sql` templates it is given, and `send`
+   * for broadcasting.
    *
    * The checks decide by role and scope only: for a permission with row
-   * conditions (e.g. `authorId = principal.id`) every member of the scope
-   * could join. `better-supabase doctor` (BS214) refuses keys the
-   * authorization provider doesn't mark `sqlComplete: true`.
+   * conditions (e.g. `authorId = principal.id`) every member of the scope could
+   * join. `better-supabase doctor` (BS214) refuses keys the authorization
+   * provider doesn't mark `sqlComplete: true`.
    */
   readonly access?: AccessTopicPolicy;
   /**
-   * A permission on the instance the topic is about, such as
-   * `'posts.read'` on `org:{organizationId}:posts:{postId}`: every receiver
-   * and sender must hold it on that instance. With an authorization
-   * provider, `sql({ functions })` checks it with the provider's `permitted`
-   * template; without one, with the access contract's tenant check.
+   * A permission on the instance the topic is about, such as `'posts.read'` on
+   * `org:{organizationId}:posts:{postId}`: every receiver and sender must hold
+   * it on that instance. With an authorization provider, `sql({ functions })`
+   * checks it with the provider's `permitted` template; without one, with the
+   * access contract's tenant check.
    */
   readonly permission?: string | TopicPermission;
   /**
-   * Narrows `fanOut` to the subscribers that may read the event. Defaults
-   * to `server.authorization.delivery.subscribers` when `fanOut` gets the
-   * server.
+   * Narrows `fanOut` to the subscribers that may read the event. Defaults to
+   * `server.authorization.delivery.subscribers` when `fanOut` gets the server.
    */
   readonly subscribers?: SubscriberPolicy;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /**
-   * Presence: authorizes it in the policies and adds `track` and
-   * `onPresence` to subscriptions. Pass a schema to validate the states
-   * this client tracks and the ones it receives. Defaults to `false`.
+   * Presence: authorizes it in the policies and adds `track` and `onPresence`
+   * to subscriptions. Pass a schema to validate the states this client tracks
+   * and the ones it receives. Defaults to `false`.
    */
   readonly presence?: R;
 }
@@ -124,9 +133,15 @@ export interface TopicOptions<
 /** A topic's instance permission. */
 export interface TopicPermission {
   readonly key: string;
-  /** The placeholder holding the instance id, as a whole segment. Defaults to the last one. */
+  /**
+   * The placeholder holding the instance id, as a whole segment. Defaults to
+   * the last one.
+   */
   readonly param?: string;
-  /** `{resource}` in the `permitted` template. Defaults to the key up to its first `.`. */
+  /**
+   * `{resource}` in the `permitted` template. Defaults to the key up to its
+   * first `.`.
+   */
   readonly resource?: string;
   /** `{scope}` in the `permitted` template. Defaults to `tenant`. */
   readonly scope?: string;
@@ -157,9 +172,7 @@ export type TopicHandlers<E extends EventSchemas> = [keyof E] extends [never]
         payload: Output<E[K]>,
         message: TopicMessage,
       ) => void;
-    } & {
-      readonly "*"?: (payload: unknown, message: TopicMessage) => void;
-    };
+    } & { readonly "*"?: (payload: unknown, message: TopicMessage) => void };
 
 export type TopicEvent<E extends EventSchemas> = [keyof E] extends [never]
   ? string
@@ -202,17 +215,17 @@ export interface PresenceMember<S> {
 export interface PresenceOptions<S> {
   /**
    * Called with everyone on the topic, this client included, after each
-   * presence sync. States that fail the presence schema are left out and
-   * passed to `onInvalid` as a `presence` message.
+   * presence sync. States that fail the presence schema are left out and passed
+   * to `onInvalid` as a `presence` message.
    */
   readonly onPresence?: (members: readonly PresenceMember<S>[]) => void;
 }
 
 export interface PresenceSubscription<I, O> extends Subscription {
   /**
-   * Validates the state, waits for the join and shares it with the topic.
-   * One state per client and topic: the last `track` wins, and leaving the
-   * topic removes it.
+   * Validates the state, waits for the join and shares it with the topic. One
+   * state per client and topic: the last `track` wins, and leaving the topic
+   * removes it.
    */
   track(state: I): AsyncResult<void>;
   /** Removes this client's state from the topic. */
@@ -247,9 +260,9 @@ export type RealtimeClient = Pick<
 >;
 
 /**
- * A value read from another table: the `select` column of the `from` row
- * whose `key` (its primary key by default) equals `via`, a column of the
- * changed row or another lookup.
+ * A value read from another table: the `select` column of the `from` row whose
+ * `key` (its primary key by default) equals `via`, a column of the changed row
+ * or another lookup.
  */
 export interface TriggerLookup<M extends AnyModels> {
   readonly from: TableKey<M>;
@@ -266,11 +279,11 @@ export type TriggerValue<M extends AnyModels, T extends keyof M> =
 type TriggerOperation = "insert" | "update" | "delete";
 
 /**
- * What a broadcast trigger sends. `"keys"` (the default) sends
- * `{ operation, schema, table, id, values }`: the primary key and the
- * topic's placeholder values, so clients refetch the row through RLS.
- * `"row"` sends the whole row as `record` and `old_record`, which bypasses
- * column grants: every receiver of the topic sees every column.
+ * What a broadcast trigger sends. `"keys"` (the default) sends `{ operation,
+ * schema, table, id, values }`: the primary key and the topic's placeholder
+ * values, so clients refetch the row through RLS. `"row"` sends the whole row
+ * as `record` and `old_record`, which bypasses column grants: every receiver of
+ * the topic sees every column.
  */
 export type TriggerPayloadMode = "keys" | "row";
 
@@ -289,13 +302,13 @@ interface TriggerCommonOptions {
   /** Defaults to all three. */
   readonly events?: readonly TriggerOperation[];
   /**
-   * The broadcast event name, or one per operation. Defaults to the
-   * operation (`INSERT`, `UPDATE`, `DELETE`).
+   * The broadcast event name, or one per operation. Defaults to the operation
+   * (`INSERT`, `UPDATE`, `DELETE`).
    */
   readonly event?: string | { readonly [O in TriggerOperation]?: string };
   /**
-   * Schema for a generated function. Defaults to `better_supabase`, which
-   * the Data API does not expose.
+   * Schema for a generated function. Defaults to `better_supabase`, which the
+   * Data API does not expose.
    */
   readonly functionSchema?: string;
 }
@@ -307,17 +320,17 @@ export interface TriggerOptions<
   P extends string,
 > extends TriggerCommonOptions {
   /**
-   * What fills each placeholder: a column of the changed row, or a lookup
-   * (`{ from, via, select }`) for a value on a parent row. A row whose
-   * topic comes out null is not sent to that topic.
+   * What fills each placeholder: a column of the changed row, or a lookup (`{
+   * from, via, select }`) for a value on a parent row. A row whose topic comes
+   * out null is not sent to that topic.
    */
   readonly values: {
     readonly [K in TemplateParams<P>]: TriggerValue<M, T>;
   };
   /**
    * `"keys"` (default), `"row"` (bypasses column grants), or the payload
-   * itself: each key is a column, a lookup, or `{ sql }`, an expression on
-   * the row `{row}` (`tg_op` is the operation).
+   * itself: each key is a column, a lookup, or `{ sql }`, an expression on the
+   * row `{row}` (`tg_op` is the operation).
    */
   readonly payload?:
     | TriggerPayloadMode
@@ -325,8 +338,8 @@ export interface TriggerOptions<
   /** More topics the row change goes to, each with its own values. */
   readonly topics?: readonly TriggerTopic<TriggerValue<M, T>>[];
   /**
-   * Send an UPDATE only when one of these columns changed. Inserts and
-   * deletes always send.
+   * Send an UPDATE only when one of these columns changed. Inserts and deletes
+   * always send.
    */
   readonly when?: {
     readonly changed: readonly Extract<keyof Row<M, T>, string>[];
@@ -353,8 +366,8 @@ export interface TopicTriggerOptions<
   readonly values?: { readonly [K in TemplateParams<P>]?: TopicTriggerValue };
   /**
    * `"keys"` (default), `"row"` (bypasses column grants), or the payload
-   * itself: each key is a column, a lookup, or `{ sql }`, an expression on
-   * the row `{row}` (`tg_op` is the operation).
+   * itself: each key is a column, a lookup, or `{ sql }`, an expression on the
+   * row `{row}` (`tg_op` is the operation).
    */
   readonly payload?:
     | TriggerPayloadMode
@@ -362,8 +375,8 @@ export interface TopicTriggerOptions<
   /** More topics the row change goes to, each with its own values. */
   readonly topics?: readonly TriggerTopic<TopicTriggerValue>[];
   /**
-   * Send an UPDATE only when one of these columns (database names)
-   * changed. Inserts and deletes always send.
+   * Send an UPDATE only when one of these columns (database names) changed.
+   * Inserts and deletes always send.
    */
   readonly when?: { readonly changed: readonly string[] };
 }
@@ -376,7 +389,10 @@ export interface RowChange<R> {
   readonly oldRecord: Partial<R> | null;
 }
 
-/** A row change sent with the default `payload: "keys"`: refetch the row through RLS. */
+/**
+ * A row change sent with the default `payload: "keys"`: refetch the row through
+ * RLS.
+ */
 export interface RowKeys {
   readonly operation: "INSERT" | "UPDATE" | "DELETE";
   readonly schema: string;
@@ -390,8 +406,8 @@ export interface RowKeys {
 /** Options for `topic.sql()`. */
 export interface TopicSqlOptions {
   /**
-   * The provider's templates, for an access policy with `sql: "provider"`
-   * and for `permission` (its `permitted` template).
+   * The provider's templates, for an access policy with `sql: "provider"` and
+   * for `permission` (its `permitted` template).
    */
   readonly functions?: AuthorizationFunctions;
 }
@@ -416,32 +432,32 @@ export interface Topic<
   /** The instance permission's key, when the topic has one. */
   readonly permission: string | undefined;
   /**
-   * Supabase's status for what the topic relies on: `beta` for a private
-   * topic (Realtime Authorization is in public beta), `ga` otherwise.
+   * Supabase's status for what the topic relies on: `beta` for a private topic
+   * (Realtime Authorization is in public beta), `ga` otherwise.
    */
   readonly status: RealtimeStatus;
   topic(values: TemplateValues<P>): string;
   match(topic: string): TemplateValues<P> | null;
   /**
-   * `realtime.messages` policies for this topic. Idempotent. An access
-   * policy with `sql: "provider"` needs the provider's templates in
+   * `realtime.messages` policies for this topic. Idempotent. An access policy
+   * with `sql: "provider"` needs the provider's templates in
    * `options.functions`; `better-supabase sql sync` passes them.
    */
   sql(options?: TopicSqlOptions): string;
   /**
-   * A trigger that broadcasts row changes on `table` to this topic, and to
-   * each of `topics`. A topic whose values come out null is skipped, and
-   * a value topics don't allow skips that topic with a warning instead of
-   * failing the write.
+   * A trigger that broadcasts row changes on `table` to this topic, and to each
+   * of `topics`. A topic whose values come out null is skipped, and a value
+   * topics don't allow skips that topic with a warning instead of failing the
+   * write.
    *
    * With `betterSupabase`, `table`, columns and lookup tables are app keys.
-   * Without it they are database names, and a single topic whose values
-   * are columns, with a mode payload and one event name, calls
+   * Without it they are database names, and a single topic whose values are
+   * columns, with a mode payload and one event name, calls
    * `better_supabase.broadcast_topic()` from the `realtime-tables` module.
    * Every other trigger creates a function for the topic.
    *
-   * The payload carries keys only unless `payload` says otherwise:
-   * `payload: "row"` sends whole rows and bypasses column grants.
+   * The payload carries keys only unless `payload` says otherwise: `payload:
+   * "row"` sends whole rows and bypasses column grants.
    */
   trigger<
     M extends AnyModels,
@@ -486,8 +502,8 @@ export interface Topic<
   ): AsyncResult<void>;
   /**
    * Sends one event to each subscriber's own topic (such as
-   * `notifications:{userId}`) after the subscriber policy narrows them.
-   * A policy that throws sends to no one and returns a `forbidden` error.
+   * `notifications:{userId}`) after the subscriber policy narrows them. A
+   * policy that throws sends to no one and returns a `forbidden` error.
    */
   fanOut<S extends FanOutSubscriber, K extends TopicEvent<E>>(
     client: RealtimeClient,
@@ -594,10 +610,17 @@ function sendError(status: number, message: string): DbError {
  * private channels, row-change triggers, and disposable subscriptions.
  *
  * ```ts
- * export const notifications = defineTopic('organization:{organizationId}:notifications:{userId}', {
- *   events: { created: v.object({ id: v.string(), title: v.string() }) },
- * });
- * using sub = notifications.subscribe(supabase, { organizationId, userId }, { created: (n) => toast(n.title) });
+ * export const notifications = defineTopic(
+ *   "organization:{organizationId}:notifications:{userId}",
+ *   {
+ *     events: { created: v.object({ id: v.string(), title: v.string() }) },
+ *   },
+ * );
+ * using sub = notifications.subscribe(
+ *   supabase,
+ *   { organizationId, userId },
+ *   { created: (n) => toast(n.title) },
+ * );
  * ```
  */
 export function defineTopic<
@@ -1141,9 +1164,7 @@ export function defineTopic<
                     dbError(
                       "validation",
                       `Invalid presence state for ${topic}`,
-                      {
-                        issues: checked.issues,
-                      },
+                      { issues: checked.issues },
                     ),
                   );
                 }
@@ -1283,8 +1304,8 @@ export function rowKeys<
 }
 
 /**
- * Reads a `payload: "row"` message as an app-cased row change. Returns
- * `null` for messages about other tables.
+ * Reads a `payload: "row"` message as an app-cased row change. Returns `null`
+ * for messages about other tables.
  */
 export function rowChange<
   M extends AnyModels,

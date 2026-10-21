@@ -12,7 +12,10 @@ export type {
   WorkflowRunsState,
 } from "./index.ts";
 
-/** The `react-server` build of `useWorkflowRuns`: call `workflows.runs.list()` instead. */
+/**
+ * The `react-server` build of `useWorkflowRuns`: call `workflows.runs.list()`
+ * instead.
+ */
 export const useWorkflowRuns: (
   options?: UseWorkflowRunsOptions,
 ) => WorkflowRunsState = () => {
@@ -21,7 +24,10 @@ export const useWorkflowRuns: (
   );
 };
 
-/** The `react-server` build of `useWorkflowRun`: call `workflows.runs.get()` instead. */
+/**
+ * The `react-server` build of `useWorkflowRun`: call `workflows.runs.get()`
+ * instead.
+ */
 export const useWorkflowRun: (
   run: string | null,
   options?: UseWorkflowRunOptions,

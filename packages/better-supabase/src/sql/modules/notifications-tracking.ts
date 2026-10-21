@@ -55,9 +55,9 @@ export const keepsTemplateKey = (ctx: ModuleContext): boolean =>
   tracking(ctx) && ctx.has("deliveries", "templateKey");
 
 /**
- * The provider status and template key columns on deliveries, the lookup
- * index for webhooks, and the `notification_delivery_events` table that
- * recipients read for their own deliveries.
+ * The provider status and template key columns on deliveries, the lookup index
+ * for webhooks, and the `notification_delivery_events` table that recipients
+ * read for their own deliveries.
  */
 export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.manages || !tracking(ctx)) {

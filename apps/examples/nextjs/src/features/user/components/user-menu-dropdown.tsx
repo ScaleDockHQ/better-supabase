@@ -41,10 +41,10 @@ import { initials } from "@/lib/initials";
 
 import { sessionChanged } from "../user-actions";
 
-const LOCALE_NAMES = {
-  en: "English",
-  nl: "Nederlands",
-} satisfies Record<Locale, string>;
+const LOCALE_NAMES = { en: "English", nl: "Nederlands" } satisfies Record<
+  Locale,
+  string
+>;
 
 function isLocale(value: string): value is Locale {
   return routing.locales.some((locale) => locale === value);

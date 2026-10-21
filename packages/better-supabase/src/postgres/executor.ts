@@ -133,19 +133,17 @@ async function run(
 }
 
 /**
- * Executes repository operations as SQL on a direct Postgres connection.
- * Rows have the same shape as over PostgREST. RLS applies when the client
- * runs as the caller (`ctx.postgres`, `createPostgres().asUser()`).
+ * Executes repository operations as SQL on a direct Postgres connection. Rows
+ * have the same shape as over PostgREST. RLS applies when the client runs as
+ * the caller (`ctx.postgres`, `createPostgres().asUser()`).
  *
- * `maxAffected` fails the statement itself, so its writes roll back.
- * A call's `timeout` is checked before the statement starts; set
- * `statement_timeout` on the connection to bound a running statement.
- * `retry` does nothing here.
+ * `maxAffected` fails the statement itself, so its writes roll back. A call's
+ * `timeout` is checked before the statement starts; set `statement_timeout` on
+ * the connection to bound a running statement. `retry` does nothing here.
  *
- * `count: "planned"` reads the planner's row estimate from
- * `explain (format json)`; `count: "estimated"` counts exactly up to
- * `estimatedCountThreshold` rows and uses the estimate past it, like
- * PostgREST.
+ * `count: "planned"` reads the planner's row estimate from `explain (format
+ * json)`; `count: "estimated"` counts exactly up to `estimatedCountThreshold`
+ * rows and uses the estimate past it, like PostgREST.
  */
 export function postgresExecutor(
   client: SqlClient,
@@ -294,7 +292,10 @@ const JSON_TYPES = new Set(["json", "jsonb"]);
 
 const NO_NAMES: ReadonlySet<string> = new Set();
 
-/** undefined_function, invalid_function_definition and datatype_mismatch: the function changed. */
+/**
+ * Undefined_function, invalid_function_definition and datatype_mismatch: the
+ * function changed.
+ */
 const CHANGED_FUNCTION = new Set(["42883", "42P13", "42804"]);
 
 async function signatureOf(

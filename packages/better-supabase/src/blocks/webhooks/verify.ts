@@ -56,8 +56,8 @@ export async function signStripeWebhook(
 
 /**
  * Verifies a `Stripe-Signature` header (`t=…,v1=…`) with the endpoint's
- * `whsec_…` secret and parses the event. Pass several secrets while rolling
- * the endpoint secret. Runs on WebCrypto, so it needs no `stripe` package.
+ * `whsec_…` secret and parses the event. Pass several secrets while rolling the
+ * endpoint secret. Runs on WebCrypto, so it needs no `stripe` package.
  */
 export async function verifyStripeWebhook<T = unknown>(
   input: WebhookInput,
@@ -165,8 +165,8 @@ export async function verifyStripeWebhook<T = unknown>(
 }
 
 /**
- * `createWebhookInbox({ source: 'stripe', verify: stripeInboxVerify(secret) })`:
- * stores Stripe events keyed by their event id.
+ * `createWebhookInbox({ source: 'stripe', verify: stripeInboxVerify(secret)
+ * })`: stores Stripe events keyed by their event id.
  */
 export function stripeInboxVerify(
   secrets: string | readonly string[],
@@ -278,9 +278,13 @@ export function hookError(status: number, message: string): AuthHookError {
  * Standard Webhooks signature, types the payload and serializes the answer.
  *
  * ```ts
- * export const POST = authHook('custom_access_token', env.AUTH_HOOK_SECRET, async ({ claims, user_id }) => ({
- *   claims: { ...claims, tenant_id: await organizationFor(user_id) },
- * }));
+ * export const POST = authHook(
+ *   "custom_access_token",
+ *   env.AUTH_HOOK_SECRET,
+ *   async ({ claims, user_id }) => ({
+ *     claims: { ...claims, tenant_id: await organizationFor(user_id) },
+ *   }),
+ * );
  * ```
  */
 export function authHook<K extends AuthHookKind>(
@@ -361,8 +365,8 @@ export function isDatabaseWebhook(
 }
 
 /**
- * Reads a database webhook payload for `table` as an app-cased change.
- * Returns `null` for other tables or payloads that aren't database webhooks.
+ * Reads a database webhook payload for `table` as an app-cased change. Returns
+ * `null` for other tables or payloads that aren't database webhooks.
  */
 export function databaseChange<
   M extends AnyModels,

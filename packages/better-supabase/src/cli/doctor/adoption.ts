@@ -28,7 +28,10 @@ const sameNotNull = (
       a.length === b.length &&
       a.every((name) => b.includes(name));
 
-/** Checks for adopted schemas: config the SQL could carry, and references and exports the modules leave open. */
+/**
+ * Checks for adopted schemas: config the SQL could carry, and references and
+ * exports the modules leave open.
+ */
 export const ADOPTION_RULES: readonly Rule[] = [
   {
     code: "BS338",

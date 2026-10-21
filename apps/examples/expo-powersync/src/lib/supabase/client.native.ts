@@ -29,9 +29,9 @@ export const supabase = createClient(
 autoRefreshOnForeground(supabase, AppState);
 
 /**
- * Writes go to PostgREST as the signed-in user, so RLS applies. The ports
- * give the block hooks (`useNotifications` and the rest) their React Native
- * deep links, push token and uploads.
+ * Writes go to PostgREST as the signed-in user, so RLS applies. The ports give
+ * the block hooks (`useNotifications` and the rest) their React Native deep
+ * links, push token and uploads.
  */
 export const bs = createNativeClient(betterSupabase, supabase, {
   ports: nativePorts({

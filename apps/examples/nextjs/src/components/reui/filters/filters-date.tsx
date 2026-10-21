@@ -13,8 +13,8 @@ import {
 /**
  * A date filter value. NOT a `Date`: a filter gets persisted (saved views,
  * shared URLs), and a resolved `Date` would freeze "created today" into one
- * fixed day. An absolute pick still stores one day, because "on 14 August"
- * does mean that day.
+ * fixed day. An absolute pick still stores one day, because "on 14 August" does
+ * mean that day.
  */
 export interface FilterDateValue {
   /** An absolute day, `yyyy-MM-dd`. Mutually exclusive with `relative`. */
@@ -87,8 +87,8 @@ const WEEKDAYS = [
 ];
 
 /**
- * Typed formats, most specific first. `date-selector.tsx` overlaps on a few
- * of these, but its parser is a callback inside the component returning a
+ * Typed formats, most specific first. `date-selector.tsx` overlaps on a few of
+ * these, but its parser is a callback inside the component returning a
  * `DateSelectorValue`, so there is nothing importable.
  */
 const EXPLICIT_FORMATS = [

@@ -1,4 +1,7 @@
-/** The `type` of each part in the canonical AI message (version 1); the SQL module and the message code both read it. */
+/**
+ * The `type` of each part in the canonical AI message (version 1); the SQL
+ * module and the message code both read it.
+ */
 export type AiMessagePartTypeName =
   | "text"
   | "reasoning"

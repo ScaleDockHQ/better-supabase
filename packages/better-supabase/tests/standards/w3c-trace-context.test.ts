@@ -12,7 +12,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { tracedFetch } from "../../src/otel/index.ts";
 
-/** A synchronous context manager: enough for `fetch` calls made inside `context.with`. */
+/**
+ * A synchronous context manager: enough for `fetch` calls made inside
+ * `context.with`.
+ */
 function stackContextManager(): ContextManager {
   const stack: Context[] = [];
 
@@ -35,7 +38,10 @@ function stackContextManager(): ContextManager {
   return manager;
 }
 
-/** The W3C Trace Context propagator: `traceparent` version 00 from the span context. */
+/**
+ * The W3C Trace Context propagator: `traceparent` version 00 from the span
+ * context.
+ */
 const w3c: TextMapPropagator = {
   inject(ctx, carrier, setter) {
     const span = trace.getSpanContext(ctx);

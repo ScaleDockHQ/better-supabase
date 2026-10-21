@@ -74,7 +74,10 @@ export interface ManifestOutput {
   readonly diagnostics: readonly SpecDiagnostic[];
 }
 
-/** The diagnostics manifest (`schemas/spec-manifest-v1.json`). No timestamps, so it diffs cleanly. */
+/**
+ * The diagnostics manifest (`schemas/spec-manifest-v1.json`). No timestamps, so
+ * it diffs cleanly.
+ */
 export interface SpecManifest {
   readonly $schema: string;
   readonly version: 1;
@@ -118,7 +121,10 @@ const HEADINGS: Readonly<Record<DiagnosticSeverity, string>> = {
   info: "Info",
 };
 
-/** Findings grouped by severity, each line naming the output, the code and the pointer. */
+/**
+ * Findings grouped by severity, each line naming the output, the code and the
+ * pointer.
+ */
 export function formatDiagnostics(outputs: readonly ManifestOutput[]): string {
   const sections: string[] = [];
 

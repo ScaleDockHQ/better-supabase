@@ -29,10 +29,7 @@ describe("spec text", () => {
   it("parses overlays as JSON or YAML", () => {
     expect(
       parseDocumentText("o.yaml", "overlay: 1.1.0\nactions: []\n"),
-    ).toEqual({
-      overlay: "1.1.0",
-      actions: [],
-    });
+    ).toEqual({ overlay: "1.1.0", actions: [] });
     expect(parseDocumentText("o.json", '{"overlay":"1.1.0"}')).toEqual({
       overlay: "1.1.0",
     });

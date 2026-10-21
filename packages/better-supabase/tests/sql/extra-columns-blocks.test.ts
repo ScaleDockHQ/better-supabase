@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../src/sql/render.ts";
 
-/** Each module that takes `extraColumns`: the modules it needs, its table, and its write and read. */
+/**
+ * Each module that takes `extraColumns`: the modules it needs, its table, and
+ * its write and read.
+ */
 const CASES = [
   {
     module: "push",

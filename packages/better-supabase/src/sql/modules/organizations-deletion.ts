@@ -37,7 +37,10 @@ export function deleteMode(ctx: ModuleContext): DeleteMode {
   return mode;
 }
 
-/** `delete_organization(organization)`: requests the purge through data-lifecycle. */
+/**
+ * `delete_organization(organization)`: requests the purge through
+ * data-lifecycle.
+ */
 function requestDeletion(ctx: ModuleContext, platformOverride: string): string {
   return `
 -- Deletes an organization through data-lifecycle (blocks.organizations.options.deleteMode
@@ -60,7 +63,10 @@ $$;
 `;
 }
 
-/** `delete_organization(organization)` under `blocks.organizations.options.deleteMode`. */
+/**
+ * `delete_organization(organization)` under
+ * `blocks.organizations.options.deleteMode`.
+ */
 export function organizationDeletion(
   ctx: ModuleContext,
   n: OrganizationReadNames,

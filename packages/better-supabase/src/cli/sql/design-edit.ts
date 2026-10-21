@@ -29,8 +29,8 @@ function currentExtraColumns(
 /**
  * `source` with a `/create` design written into it: each block's
  * `options.extraColumns` (merged over the columns `config` already gives it)
- * and each table in `appTables`, replacing a table of the same name and
- * keeping the others. Positions only matter to the canvas and stay out.
+ * and each table in `appTables`, replacing a table of the same name and keeping
+ * the others. Positions only matter to the canvas and stay out.
  */
 export function writeDesign(
   file: string,

@@ -41,9 +41,7 @@ export interface DataGridI18nConfig {
   labels: DataGridI18nLabels;
 }
 
-export type DataGridI18nOverrides = {
-  labels?: Partial<DataGridI18nLabels>;
-};
+export type DataGridI18nOverrides = { labels?: Partial<DataGridI18nLabels> };
 
 const DEFAULT_DATA_GRID_LABELS: DataGridI18nLabels = {
   sortAscending: "Asc",
@@ -84,16 +82,14 @@ const DEFAULT_DATA_GRID_I18N: DataGridI18nConfig = Object.freeze({
 });
 
 /**
- * A shallow merge per section, deliberately: a deep merge would leak a
- * default back into a function-valued label the consumer replaced. With no
- * overrides the frozen default is returned as-is, so the merge is free to
- * run on every render without producing a new identity.
+ * A shallow merge per section, deliberately: a deep merge would leak a default
+ * back into a function-valued label the consumer replaced. With no overrides
+ * the frozen default is returned as-is, so the merge is free to run on every
+ * render without producing a new identity.
  */
 export function mergeDataGridI18n(
   overrides?: DataGridI18nOverrides,
 ): DataGridI18nConfig {
   if (!overrides?.labels) return DEFAULT_DATA_GRID_I18N;
-  return {
-    labels: { ...DEFAULT_DATA_GRID_LABELS, ...overrides.labels },
-  };
+  return { labels: { ...DEFAULT_DATA_GRID_LABELS, ...overrides.labels } };
 }

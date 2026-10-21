@@ -1,7 +1,8 @@
 /**
  * Regenerates the runtime test fixtures from `supabase/snapshot.json`. The
- * snapshot itself comes from a freshly reset fixture database:
- * `pnpm supabase:reset`, then `node packages/better-supabase/src/cli/bin.ts introspect --cwd .`
+ * snapshot itself comes from a freshly reset fixture database: `pnpm
+ * supabase:reset`, then `node packages/better-supabase/src/cli/bin.ts
+ * introspect --cwd .`
  */
 import { readFile, writeFile } from "node:fs/promises";
 

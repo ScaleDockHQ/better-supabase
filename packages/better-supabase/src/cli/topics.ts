@@ -58,8 +58,8 @@ const isLoadedTopic = (value: unknown): value is LoadedTopic =>
 
 /**
  * The topics the `from` modules export (`realtime.policies.from`), loaded
- * fresh, each once, sorted by template. Throws for a module that exports
- * no topic.
+ * fresh, each once, sorted by template. Throws for a module that exports no
+ * topic.
  */
 export async function loadTopics(
   root: string,

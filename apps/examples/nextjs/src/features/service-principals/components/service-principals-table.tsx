@@ -75,9 +75,9 @@ async function retry() {
 }
 
 /**
- * Render inside `<Suspense>`: the machine identities workflows and webhooks
- * run as, with their role. Members with `service_principals.manage` add
- * and disable them. Members without `service_principals.read` see nothing.
+ * Render inside `<Suspense>`: the machine identities workflows and webhooks run
+ * as, with their role. Members with `service_principals.manage` add and disable
+ * them. Members without `service_principals.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
   const [session, t, format] = await Promise.all([

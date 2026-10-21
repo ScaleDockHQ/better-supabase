@@ -3,7 +3,10 @@
  * between strings, template literals and comments.
  */
 
-/** `[start, end)` ranges of code, outside strings, template literals and comments. */
+/**
+ * `[start, end)` ranges of code, outside strings, template literals and
+ * comments.
+ */
 export function codeRanges(text: string): [number, number][] {
   const ranges: [number, number][] = [];
   let start = 0;

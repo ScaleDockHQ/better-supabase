@@ -6,8 +6,8 @@ import { Children, isValidElement } from "react";
 
 /**
  * The Markdown forms of the MDX components the docs use, for `llms-full.txt`,
- * the `.md` routes, Ask AI and the docs MCP server. Only components listed
- * here are rendered; any other JSX element is written out as JSX.
+ * the `.md` routes, Ask AI and the docs MCP server. Only components listed here
+ * are rendered; any other JSX element is written out as JSX.
  */
 
 const CALLOUT_LABELS = new Map([

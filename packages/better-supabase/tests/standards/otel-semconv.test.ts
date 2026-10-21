@@ -87,7 +87,10 @@ function recorder() {
   };
 }
 
-/** Attribute names defined by the 1.37.0 database conventions (and `error.type` from the general registry). */
+/**
+ * Attribute names defined by the 1.37.0 database conventions (and `error.type`
+ * from the general registry).
+ */
 const DB_SPAN_ATTRIBUTES = new Set([
   "db.system.name",
   "db.namespace",

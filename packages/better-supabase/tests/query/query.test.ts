@@ -143,9 +143,7 @@ describe("createQueries", () => {
     const q = createQueries(
       betterSupabase,
       betterSupabase.connect(capturingClient().client),
-      {
-        staleTime: 30_000,
-      },
+      { staleTime: 30_000 },
     );
 
     expect(q.customers.count().staleTime).toBe(30_000);
@@ -239,9 +237,7 @@ describe("createQueries", () => {
       data,
       { id: "c1", patch: { name: "New" } },
       undefined,
-      {
-        client: queryClient,
-      },
+      { client: queryClient },
     );
     expect(isInvalid(queryClient, withNotes.queryKey)).toBe(true);
     expect(isInvalid(queryClient, ["bs", "customers", "custom"])).toBe(true);
@@ -333,9 +329,7 @@ describe("query helpers", () => {
     const create = q.customers.create();
     const input = { organizationId: "o1", name: "Acme" };
     const row = await create.mutationFn(input);
-    await create.onSuccess(row, input, undefined, {
-      client: queryClient,
-    });
+    await create.onSuccess(row, input, undefined, { client: queryClient });
     expect(
       queryClient.getQueryData(q.customers.findById("c1").queryKey),
     ).toEqual({ id: "c1", name: "Acme" });
@@ -400,9 +394,7 @@ describe("query helpers", () => {
     await remove.onSettled(undefined, null, "b", undefined, context);
     expect(isInvalid(queryClient, list.queryKey)).toBe(true);
 
-    const empty = {
-      queryKey: ["bs", "notes", "findMany"] as never,
-    };
+    const empty = { queryKey: ["bs", "notes", "findMany"] as never };
 
     const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
     const snapshot = await rewrite.onMutate("x", context);

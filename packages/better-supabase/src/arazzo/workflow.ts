@@ -35,7 +35,10 @@ export interface StepParameter {
   readonly value: unknown;
 }
 
-/** An Arazzo Criterion Object; `context` is required for every `type` but `simple`. */
+/**
+ * An Arazzo Criterion Object; `context` is required for every `type` but
+ * `simple`.
+ */
 export interface CriterionObject {
   readonly condition: string;
   readonly context?: string;
@@ -182,20 +185,28 @@ function stepOf<Op extends string>(step: WorkflowStep<Op>): ModelStep {
 }
 
 /**
- * A workflow for `defineApi`'s `workflows`, rendered by `arazzoFormat`.
- * Steps name operations by operationId; pass the ids as `Op` (for example
- * `ResourceOperationIds<"customers">`) to type them. Rendering reports
- * unknown operationIds, steps that read outputs of later or unknown steps,
- * and channel steps outside Arazzo 1.1.
+ * A workflow for `defineApi`'s `workflows`, rendered by `arazzoFormat`. Steps
+ * name operations by operationId; pass the ids as `Op` (for example
+ * `ResourceOperationIds<"customers">`) to type them. Rendering reports unknown
+ * operationIds, steps that read outputs of later or unknown steps, and channel
+ * steps outside Arazzo 1.1.
  *
  * ```ts
  * const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
  *   id: "onboardCustomer",
  *   inputs: { type: "object", properties: { row: { type: "object" } } },
  *   steps: [
- *     { id: "create", operationId: "createCustomers", requestBody: "$inputs.row",
- *       outputs: { id: "$response.body#/id" } },
- *     { id: "get", operationId: "getCustomers", parameters: { id: "$steps.create.outputs.id" } },
+ *     {
+ *       id: "create",
+ *       operationId: "createCustomers",
+ *       requestBody: "$inputs.row",
+ *       outputs: { id: "$response.body#/id" },
+ *     },
+ *     {
+ *       id: "get",
+ *       operationId: "getCustomers",
+ *       parameters: { id: "$steps.create.outputs.id" },
+ *     },
  *   ],
  * });
  * ```

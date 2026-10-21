@@ -69,7 +69,10 @@ export function tokenHash(ctx: ModuleContext, token: string): string {
 /** A table of invitations: the tenant one, or the platform one. */
 export interface InviteTable {
   readonly table: string;
-  /** `options.extraColumns`: the tenant table's app columns; none on platform invitations. */
+  /**
+   * `options.extraColumns`: the tenant table's app columns; none on platform
+   * invitations.
+   */
   readonly extras: readonly ExtraColumn[];
   col(logical: string): string;
   has(logical: string): boolean;
@@ -77,7 +80,10 @@ export interface InviteTable {
   only(alias: string): string;
 }
 
-/** Whether platform invitations live in the tenant table, as rows without a tenant. */
+/**
+ * Whether platform invitations live in the tenant table, as rows without a
+ * tenant.
+ */
 function sharesTable(ctx: ModuleContext): boolean {
   return (
     !ctx.manages &&
@@ -120,9 +126,9 @@ export function tenantTable(ctx: ModuleContext): InviteTable {
 }
 
 /**
- * Platform invitations, with the catalog model's platform roles. Managed:
- * their own table. Adopted: `blocks.invitations.tables.platformInvitations`,
- * which may name the tenant table.
+ * Platform invitations, with the catalog model's platform roles. Managed: their
+ * own table. Adopted: `blocks.invitations.tables.platformInvitations`, which
+ * may name the tenant table.
  */
 export function platformTable(ctx: ModuleContext): InviteTable | undefined {
   if (!hasPlatformRoles(ctx) || !ctx.hasTable("platformInvitations")) {
@@ -152,7 +158,10 @@ export function platformTable(ctx: ModuleContext): InviteTable | undefined {
   };
 }
 
-/** A column of the invitation row `alias`, or `fallback` when the table lacks it. */
+/**
+ * A column of the invitation row `alias`, or `fallback` when the table lacks
+ * it.
+ */
 export function optionalCol(
   t: InviteTable,
   alias: string,
@@ -189,4 +198,7 @@ export function openFilter(t: InviteTable, alias: string): string {
     .join(" and ");
 }
 
-/** The catalog role id for a key or id, in `scope`; `expr` itself in other models. */
+/**
+ * The catalog role id for a key or id, in `scope`; `expr` itself in other
+ * models.
+ */

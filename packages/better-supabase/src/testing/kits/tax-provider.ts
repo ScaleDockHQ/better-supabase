@@ -29,11 +29,11 @@ const sum = (values: readonly Money[]): bigint =>
   values.reduce((total, value) => total + value.amount, 0n);
 
 /**
- * Runs the `TaxProvider` contract against `provider`: the API version,
- * refused carts, a quote with one line per cart line in order and a total
- * that adds up, inclusive prices, shipping, exempt customers, commit, and
- * full and partial reversals with their limits. Every commit carries a
- * fresh reference, so the kit runs against a test account without cleanup.
+ * Runs the `TaxProvider` contract against `provider`: the API version, refused
+ * carts, a quote with one line per cart line in order and a total that adds up,
+ * inclusive prices, shipping, exempt customers, commit, and full and partial
+ * reversals with their limits. Every commit carries a fresh reference, so the
+ * kit runs against a test account without cleanup.
  */
 export function testTaxProvider(
   provider: TaxProvider,

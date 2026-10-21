@@ -2,10 +2,10 @@ import type { SessionActor, SessionDelegation } from "../auth/actor.ts";
 import type { Impersonator } from "../auth/impersonation.ts";
 
 /**
- * Claims of a Supabase access token where someone acts for the user, with
- * what `toSession` reads from them: `actor`, `impersonator` and
- * `delegation`. Plain data, so another library that reads the same `act`
- * claim (RFC 8693) can test against the same fixtures.
+ * Claims of a Supabase access token where someone acts for the user, with what
+ * `toSession` reads from them: `actor`, `impersonator` and `delegation`. Plain
+ * data, so another library that reads the same `act` claim (RFC 8693) can test
+ * against the same fixtures.
  */
 export interface SupabaseClaimFixture {
   /** Without `iat` and `exp`, so a test signer sets them. */
@@ -14,7 +14,10 @@ export interface SupabaseClaimFixture {
     readonly actor: SessionActor;
     /** Set for support and impersonated sessions only. */
     readonly impersonator?: Impersonator;
-    /** Set for an `oauth-client` actor, and an `agent` on a token with a `scope`. */
+    /**
+     * Set for an `oauth-client` actor, and an `agent` on a token with a
+     * `scope`.
+     */
     readonly delegation?: SessionDelegation;
   };
 }
@@ -59,13 +62,13 @@ const agentActReadOnly = {
 } as const;
 
 /**
- * `supportSession` and `supportSessionReadOnly` are what `supportClaims`
- * mints (`act.kind: "support"`), `impersonation` what `actingAs` mints
- * (`act.kind: "impersonation"`), `oauthClient` a Supabase OAuth server
- * token (its identity scopes `openid` and `email` are left out of the
- * delegation), `agentChain` an RFC 8693 chain without `kind`, and
- * `agentRun` and `agentRunReadOnly` what `agentClaims` mints over that
- * chain (`act.kind: "agent"`, with `readOnly: true` for the second).
+ * `supportSession` and `supportSessionReadOnly` are what `supportClaims` mints
+ * (`act.kind: "support"`), `impersonation` what `actingAs` mints (`act.kind:
+ * "impersonation"`), `oauthClient` a Supabase OAuth server token (its identity
+ * scopes `openid` and `email` are left out of the delegation), `agentChain` an
+ * RFC 8693 chain without `kind`, and `agentRun` and `agentRunReadOnly` what
+ * `agentClaims` mints over that chain (`act.kind: "agent"`, with `readOnly:
+ * true` for the second).
  */
 export const supabaseClaimFixtures: Readonly<
   Record<SupabaseClaimFixtureName, SupabaseClaimFixture>
@@ -137,11 +140,7 @@ export const supabaseClaimFixtures: Readonly<
     },
   },
   oauthClient: {
-    claims: {
-      ...base,
-      client_id: client,
-      scope: "openid email posts:read",
-    },
+    claims: { ...base, client_id: client, scope: "openid email posts:read" },
     expect: {
       actor: { kind: "oauth-client", id: client },
       delegation: { scopes: ["posts:read"] },
@@ -183,9 +182,9 @@ export const supabaseClaimFixtures: Readonly<
 };
 
 /**
- * Claims whose `act` chain better-supabase refuses, so the session must
- * not pass as the user alone. `resolveAuth` and `toSession` both answer
- * with this verdict.
+ * Claims whose `act` chain better-supabase refuses, so the session must not
+ * pass as the user alone. `resolveAuth` and `toSession` both answer with this
+ * verdict.
  */
 export interface SupabaseInvalidClaimFixture {
   /** Without `iat` and `exp`, so a test signer sets them. */
@@ -214,12 +213,12 @@ const refused = {
 } as const;
 
 /**
- * `legacySupportSession` is a 0.5.0 support token: `session_id` without
- * `kind`. better-supabase refuses it instead of reading it as a support
- * session; mint a new one with `supportClaims`. The others are malformed
- * levels: a support or agent `read_only` that is not a boolean, an agent
- * with a `session_id`, an empty tool name or `tools` that is not a list, a
- * `kind` better-supabase does not know, and a nested level without `sub`.
+ * `legacySupportSession` is a 0.5.0 support token: `session_id` without `kind`.
+ * better-supabase refuses it instead of reading it as a support session; mint a
+ * new one with `supportClaims`. The others are malformed levels: a support or
+ * agent `read_only` that is not a boolean, an agent with a `session_id`, an
+ * empty tool name or `tools` that is not a list, a `kind` better-supabase does
+ * not know, and a nested level without `sub`.
  */
 export const supabaseInvalidClaimFixtures: Readonly<
   Record<SupabaseInvalidClaimFixtureName, SupabaseInvalidClaimFixture>

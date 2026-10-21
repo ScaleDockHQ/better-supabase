@@ -124,9 +124,7 @@ describe("eventsColumnsEdited", () => {
     expect(eventsColumnsEdited(true, () => [])).toBe(true);
     expect(
       eventsColumnsEdited({ include: ["a"] }, (c) => c.map((x) => `${x}2`)),
-    ).toEqual({
-      include: ["a2"],
-    });
+    ).toEqual({ include: ["a2"] });
     expect(eventsColumnsEdited({ include: ["a"] }, () => [])).toEqual({});
   });
 });

@@ -81,7 +81,10 @@ interface Trashable {
   readonly subject: Subject;
   readonly deletedAt: string;
   readonly title: string | undefined;
-  /** Columns no other live row in the tenant may share when this one is restored. */
+  /**
+   * Columns no other live row in the tenant may share when this one is
+   * restored.
+   */
   readonly unique: readonly string[];
   /** Subjects whose `column` holds this subject's id, trashed with it. */
   readonly children: readonly Child[];
@@ -187,7 +190,10 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
   return list;
 }
 
-/** The subject types trash can hold, for a module that trashes through `trash_cascade`. */
+/**
+ * The subject types trash can hold, for a module that trashes through
+ * `trash_cascade`.
+ */
 export function trashTypes(ctx: ModuleContext): ReadonlySet<string> {
   return new Set(trashable(ctx).map((entry) => entry.type));
 }

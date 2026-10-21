@@ -13,9 +13,7 @@ export const aiTasksBlock: BlockOf<
 > = defineBlock({
   name: "ai-tasks",
   sql: ["ai-tasks"],
-  options: {
-    "ai-tasks": aiTasksSqlOptions,
-  },
+  options: { "ai-tasks": aiTasksSqlOptions },
   consumes: { notifier: "optional" },
   create: createAiTasks,
   category: "ai",

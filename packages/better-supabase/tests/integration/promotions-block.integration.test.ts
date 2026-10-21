@@ -26,7 +26,10 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
   let tenant: string;
   let tee: string;
 
-  /** Runs each call in a savepoint, as `role`, so a raised error doesn't end the test's transaction. */
+  /**
+   * Runs each call in a savepoint, as `role`, so a raised error doesn't end the
+   * test's transaction.
+   */
   const transport = (role: () => Promise<void>): BlockTransport => {
     const inner = sqlTransport(session.sql);
 

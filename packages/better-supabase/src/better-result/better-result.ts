@@ -68,7 +68,10 @@ import type {
 
 import { AsyncResult, toBetterResult } from "../core/result.ts";
 
-/** better-result's `Result` namespace with the function each `DbError` goes through. */
+/**
+ * Better-result's `Result` namespace with the function each `DbError` goes
+ * through.
+ */
 export interface BetterResultMapping<E> {
   readonly Result: BetterResultApi<unknown, unknown>;
   readonly mapError: (error: DbError) => E;
@@ -97,7 +100,8 @@ type Out<T, Err> = Promise<BetterResult<T, Err>>;
 
 /**
  * A repository whose reads and writes return better-result values. Its
- * signatures mirror `Repository`, so `select` and `include` still type the rows.
+ * signatures mirror `Repository`, so `select` and `include` still type the
+ * rows.
  */
 export interface BetterResultRepository<
   M extends AnyModels,
@@ -133,9 +137,11 @@ export interface BetterResultRepository<
     args: A,
   ): Out<AggregateResult<M, T, A>, Err>;
   exists(
-    args?: RequestArgs & {
-      readonly where?: WhereInput<M, T>;
-    } & FindExt<E, M, T>,
+    args?: RequestArgs & { readonly where?: WhereInput<M, T> } & FindExt<
+        E,
+        M,
+        T
+      >,
   ): Out<boolean, Err>;
   paginate<
     const A extends (
@@ -206,9 +212,9 @@ export interface BetterResultRepository<
 }
 
 /**
- * Plugin methods that return an `AsyncResult` return a better-result value.
- * A generic plugin method keeps its parameters but loses its type
- * parameters; call it on `$db` and pass the result to `$from` instead.
+ * Plugin methods that return an `AsyncResult` return a better-result value. A
+ * generic plugin method keeps its parameters but loses its type parameters;
+ * call it on `$db` and pass the result to `$from` instead.
  */
 export type BetterResultMethods<X, Err> = {
   readonly [K in keyof X]: X[K] extends (
@@ -398,17 +404,21 @@ function view(db: DbLike, convert: Convert): object {
 }
 
 /**
- * A view of `db` whose repository methods, `$rpc`, `$run`, `$many`,
- * `$search` and list queries (`$list`) return better-result `Result`
- * values. `toResult` is a `defineBetterResultErrors` converter or
- * `{ Result, mapError }`. `db` itself is unchanged, and `$db` returns it.
+ * A view of `db` whose repository methods, `$rpc`, `$run`, `$many`, `$search`
+ * and list queries (`$list`) return better-result `Result` values. `toResult`
+ * is a `defineBetterResultErrors` converter or `{ Result, mapError }`. `db`
+ * itself is unchanged, and `$db` returns it.
  *
  * ```ts
- * import { Result, TaggedError } from 'better-result';
- * import { defineBetterResultErrors } from 'better-supabase';
- * import { withBetterResult } from 'better-supabase/better-result';
+ * import { Result, TaggedError } from "better-result";
+ * import { defineBetterResultErrors } from "better-supabase";
+ * import { withBetterResult } from "better-supabase/better-result";
  *
- * const toResult = defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure);
+ * const toResult = defineBetterResultErrors(
+ *   Result,
+ *   { not_found: NotFound },
+ *   DbFailure,
+ * );
  * const rdb = withBetterResult(db, toResult);
  * const customer = await rdb.customers.findById(id); // Result<Customer, NotFound | DbFailure>
  * ```

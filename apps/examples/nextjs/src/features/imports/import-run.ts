@@ -12,8 +12,8 @@ type ImportStatus = "completed" | "failed";
 
 /**
  * The `runImport` hooks that record a run in the imports block. The caller
- * starts the run; `mark_import_running` and `finish_import` are granted to
- * the service role only, so they run as that role after the action checked
+ * starts the run; `mark_import_running` and `finish_import` are granted to the
+ * service role only, so they run as that role after the action checked
  * `imports.manage`.
  */
 export function importRunHooks(

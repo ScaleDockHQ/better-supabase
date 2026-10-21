@@ -30,20 +30,26 @@ import {
 } from "../shared.ts";
 
 export interface PurgeAuditLogOptions extends BlockTemporalOptions {
-  /** How long entries are kept when `retention` has no answer. Defaults to `1 year`. */
+  /**
+   * How long entries are kept when `retention` has no answer. Defaults to `1
+   * year`.
+   */
   readonly olderThan?: number | string;
   /** The most entries deleted per tenant in one call. Defaults to 10000. */
   readonly batch?: number;
   /**
-   * Days a tenant keeps its entries (a plan's retention, say); `undefined`
-   * uses `olderThan`. Called with `null` for entries without a tenant.
-   * Retention shorter than a day is not supported. `setAuditRetention`
-   * reads the days from a column.
+   * Days a tenant keeps its entries (a plan's retention, say); `undefined` uses
+   * `olderThan`. Called with `null` for entries without a tenant. Retention
+   * shorter than a day is not supported. `setAuditRetention` reads the days
+   * from a column.
    */
   readonly retention?: (
     tenant: string | null,
   ) => number | undefined | Promise<number | undefined>;
-  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  /**
+   * The schema the functions live in, over a transport. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
 }
 
@@ -184,9 +190,9 @@ export interface AuditRetentionSource {
 }
 
 /**
- * A `retention` callback for `purgeAuditLog` that reads each tenant's days
- * from a column (a plan's `audit_retention_days`, say). `purgeAuditLog` reads
- * every tenant's days in one query; a direct call reads one tenant.
+ * A `retention` callback for `purgeAuditLog` that reads each tenant's days from
+ * a column (a plan's `audit_retention_days`, say). `purgeAuditLog` reads every
+ * tenant's days in one query; a direct call reads one tenant.
  */
 export function setAuditRetention(
   sql: SqlClient,
@@ -241,7 +247,10 @@ export function setAuditRetention(
 export interface AuditEntry {
   readonly id: string;
   readonly occurredAt: Temporal.Instant;
-  /** `insert`, `update` and `delete` for row changes; `event` for `audit_event()`. */
+  /**
+   * `insert`, `update` and `delete` for row changes; `event` for
+   * `audit_event()`.
+   */
   readonly op: string;
   readonly table?: string;
   readonly record?: string;
@@ -360,8 +369,8 @@ function status(outcome: string | undefined): {
 
 /**
  * One entry as an OCSF event (`SPEC_PINS.ocsf`). Row changes are Entity
- * Management (3004); semantic events are API Activity (6003), with the
- * activity read from the event type's last segment (`deal.created` is Create).
+ * Management (3004); semantic events are API Activity (6003), with the activity
+ * read from the event type's last segment (`deal.created` is Create).
  */
 export function toOcsf(
   entry: AuditEntry,
@@ -405,10 +414,7 @@ export function toOcsf(
       activity_name: name,
       type_uid: 3004 * 100 + activity,
       ...base,
-      entity: {
-        uid: entry.record ?? "",
-        type: entry.table ?? "row",
-      },
+      entity: { uid: entry.record ?? "", type: entry.table ?? "row" },
       ...(entry.changed ? { unmapped: { changed: entry.changed } } : {}),
     };
   }
@@ -466,11 +472,11 @@ export interface ExportAuditLogOptions extends BlockTemporalOptions {
 }
 
 /**
- * Streams one tenant's audit entries as newline-delimited JSON, in id
- * order, one keyset query per batch. Run it with a member's claims (the
- * `readPolicy` filters) or as the service role. It reads the managed
- * module's column names; for an adopted log, the version 3 columns or CSV,
- * use `createAudit().export()`, which reads `list_audit_events`.
+ * Streams one tenant's audit entries as newline-delimited JSON, in id order,
+ * one keyset query per batch. Run it with a member's claims (the `readPolicy`
+ * filters) or as the service role. It reads the managed module's column names;
+ * for an adopted log, the version 3 columns or CSV, use
+ * `createAudit().export()`, which reads `list_audit_events`.
  */
 export function exportAuditLog(
   sql: SqlClient,
@@ -570,13 +576,13 @@ export type AuditListDefinition<
 };
 
 /**
- * A cursor-paged list over the audit table through the Data API or
- * `ctx.sql` (generate types for the module's schema to get it in your
- * models; facets follow the managed column names). `createAudit().list()`
- * reads `list_audit_events` instead, with an adopted log's columns mapped.
- * Filtered by actor,
- * table, record, event type, category, outcome and target, newest first.
- * The `readPolicy` and the `restricted` table decide what a member sees.
+ * A cursor-paged list over the audit table through the Data API or `ctx.sql`
+ * (generate types for the module's schema to get it in your models; facets
+ * follow the managed column names). `createAudit().list()` reads
+ * `list_audit_events` instead, with an adopted log's columns mapped. Filtered
+ * by actor, table, record, event type, category, outcome and target, newest
+ * first. The `readPolicy` and the `restricted` table decide what a member
+ * sees.
  */
 export function auditListQuery<
   M extends AnyModels,

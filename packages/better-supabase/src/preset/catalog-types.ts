@@ -17,7 +17,10 @@ export interface PresetCatalogBlock {
   readonly scopes?: readonly PresetScope[];
   /** Tenant names that would rename a table or column to a name it already uses. */
   readonly tenantNameClashes?: readonly PresetTenantName[];
-  /** The logical table `options.extraColumns` adds columns to, when it takes them. */
+  /**
+   * The logical table `options.extraColumns` adds columns to, when it takes
+   * them.
+   */
   readonly extraColumns?: string;
   /** Modules it works with when installed; `*` is every module. */
   readonly integrates: readonly string[];
@@ -32,10 +35,7 @@ export interface PresetCatalogManifest {
   readonly sql: readonly string[];
   readonly category: BlockCategory;
   /** Its export and subpath, when it has a TypeScript client. */
-  readonly client: {
-    readonly export: string;
-    readonly subpath: string;
-  } | null;
+  readonly client: { readonly export: string; readonly subpath: string } | null;
   readonly consumes: Partial<
     Readonly<Record<PortName, "optional" | "required">>
   >;
@@ -43,9 +43,9 @@ export interface PresetCatalogManifest {
 }
 
 /**
- * One item of the `@better-supabase` shadcn registry: glue the app copies
- * (`npx shadcn add @better-supabase/<name>`), for some blocks, frameworks
- * and platforms.
+ * One item of the `@better-supabase` shadcn registry: glue the app copies (`npx
+ * shadcn add @better-supabase/<name>`), for some blocks, frameworks and
+ * platforms.
  */
 export interface PresetGlueItem {
   readonly name: string;

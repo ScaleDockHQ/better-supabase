@@ -128,9 +128,7 @@ export default defineConfig({
     gen: { tasks: ["types", "sql", "spec"] },
     doctor: { format: "sarif", output: "doctor.sarif", strict: true },
   },
-  $env: {
-    staging: { source: { projectRef: "abcdefghijklmnopqrst" } },
-  },
+  $env: { staging: { source: { projectRef: "abcdefghijklmnopqrst" } } },
 });
 ```
 

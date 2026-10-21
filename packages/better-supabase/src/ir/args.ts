@@ -30,7 +30,10 @@ interface TextOps {
   readonly like?: string;
   /** Case-insensitive LIKE pattern. */
   readonly ilike?: string;
-  /** Case-insensitive equality; `%`, `_` and backslashes in the value match themselves. */
+  /**
+   * Case-insensitive equality; `%`, `_` and backslashes in the value match
+   * themselves.
+   */
   readonly ieq?: string;
   /** POSIX regular expression (`~`). */
   readonly match?: string;
@@ -63,8 +66,8 @@ interface ArrayOps<E> {
 
 interface JsonOps<V> {
   /**
-   * jsonb `@>`: the value contains the given structure. An array matches a
-   * JSON array holding every given element (`[{ "type": "image" }]`).
+   * Jsonb `@>`: the value contains the given structure. An array matches a JSON
+   * array holding every given element (`[{ "type": "image" }]`).
    */
   readonly contains?: Partial<V> | Record<string, unknown> | readonly unknown[];
 }
@@ -72,9 +75,9 @@ interface JsonOps<V> {
 type JsonText = string | number | boolean;
 
 /**
- * Compares the text at a path inside a json column (`column->a->>b`).
- * Numbers and booleans compare as their text; `isNull` and `eq: null` match a
- * missing key and JSON `null`.
+ * Compares the text at a path inside a json column (`column->a->>b`). Numbers
+ * and booleans compare as their text; `isNull` and `eq: null` match a missing
+ * key and JSON `null`.
  */
 export interface JsonPathOps {
   /** Keys from the column down; a number-like key indexes an array. */
@@ -91,7 +94,10 @@ export interface JsonPathOps {
   readonly lte?: string;
   readonly like?: string;
   readonly ilike?: string;
-  /** Case-insensitive equality; `%`, `_` and backslashes in the value match themselves. */
+  /**
+   * Case-insensitive equality; `%`, `_` and backslashes in the value match
+   * themselves.
+   */
   readonly ieq?: string;
   readonly match?: string;
   readonly imatch?: string;
@@ -149,8 +155,8 @@ export type WhereInput<M extends AnyModels, T extends keyof M> = {
 };
 
 /**
- * A `where` you build one statement at a time:
- * `const where: MutableWhere<Models, "customers"> = {}; if (status) where.status = status;`.
+ * A `where` you build one statement at a time: `const where:
+ * MutableWhere<Models, "customers"> = {}; if (status) where.status = status;`.
  * The generated module exports it per table as `WhereOf<"customers">`.
  */
 export type MutableWhere<M extends AnyModels, T extends keyof M> = {
@@ -167,17 +173,17 @@ export type SortSpec =
   | { readonly direction: SortDirection; readonly nulls?: "first" | "last" };
 
 /**
- * The columns of one table, each with a sort direction. `undefined` is
- * allowed so a ternary between two objects (`?: undefined` after TypeScript
- * merges the branches) passes `exactOptionalPropertyTypes`.
+ * The columns of one table, each with a sort direction. `undefined` is allowed
+ * so a ternary between two objects (`?: undefined` after TypeScript merges the
+ * branches) passes `exactOptionalPropertyTypes`.
  */
 export type ColumnOrderBy<M extends AnyModels, T extends keyof M> = {
   readonly [K in keyof Row<M, T>]?: SortSpec | undefined;
 };
 
 /**
- * Columns of the table, and of its to-one relations one level down:
- * `{ organization: { name: "asc" } }` sorts by the related row's name.
+ * Columns of the table, and of its to-one relations one level down: `{
+ * organization: { name: "asc" } }` sorts by the related row's name.
  */
 export type OrderByInput<
   M extends AnyModels,
@@ -255,7 +261,10 @@ export type NumericMeasureArg<M extends AnyModels, T extends keyof M> = {
   readonly [K in NumericKey<M, T>]?: true;
 };
 
-/** Relation aggregates check numeric columns at runtime, to keep includes cheap to type. */
+/**
+ * Relation aggregates check numeric columns at runtime, to keep includes cheap
+ * to type.
+ */
 export type RelationMeasureArg<M extends AnyModels, T extends keyof M> = {
   readonly [R in ManyRelations<M, T>]?: MeasureArg<
     M,
@@ -294,9 +303,9 @@ export interface RequestArgs {
    */
   readonly timeout?: number;
   /**
-   * postgrest-js retries of idempotent requests (reads) on network errors,
-   * 503 and 520; `false` turns them off for this call. Writes are never
-   * retried. SQL executors ignore it.
+   * Postgrest-js retries of idempotent requests (reads) on network errors, 503
+   * and 520; `false` turns them off for this call. Writes are never retried.
+   * SQL executors ignore it.
    */
   readonly retry?: boolean;
 }
@@ -359,8 +368,8 @@ export interface AggregateArgs<
 }
 
 /**
- * Sorts `aggregate()` groups: `{ _count: "desc" }`,
- * `{ _sum: { amount: "desc" } }` or a `groupBy` column.
+ * Sorts `aggregate()` groups: `{ _count: "desc" }`, `{ _sum: { amount: "desc" }
+ * }` or a `groupBy` column.
  */
 export type AggregateOrderBy<
   M extends AnyModels,
@@ -386,7 +395,10 @@ type SelectPart<M extends AnyModels, T extends keyof M, A> = A extends {
   ? Pick<Row<M, T>, Extract<K, keyof Row<M, T>>>
   : Row<M, T>;
 
-/** `required: true` drops parents without the related row, so it is never `null`. */
+/**
+ * `required: true` drops parents without the related row, so it is never
+ * `null`.
+ */
 type RelationPayload<M extends AnyModels, R, V> = R extends RelationTypes
   ? R["kind"] extends "many"
     ? Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>[]

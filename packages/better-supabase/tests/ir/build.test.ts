@@ -371,10 +371,7 @@ describe("IrBuilder.where field operators", () => {
           OR: [{ name: { search: { query: "acme", config } } }],
         }),
       ),
-    ).toMatchObject({
-      kind: "invalid_request",
-      table: "customers",
-    });
+    ).toMatchObject({ kind: "invalid_request", table: "customers" });
   });
 
   it("matches json with contains", () => {
@@ -969,12 +966,7 @@ describe("IrBuilder.aggregateOrderBy", () => {
       ),
     ).toEqual([
       { column: "*", direction: "desc", aggregate: "count" },
-      {
-        column: "amount",
-        direction: "desc",
-        nulls: "last",
-        aggregate: "sum",
-      },
+      { column: "amount", direction: "desc", nulls: "last", aggregate: "sum" },
       { column: "amount", direction: "asc", aggregate: "avg" },
       { column: "booked_at", direction: "asc", aggregate: "min" },
       { column: "id", direction: "desc", aggregate: "max" },

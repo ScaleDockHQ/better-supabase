@@ -35,11 +35,7 @@ export default createNextConfig({
         destination: "/docs/auth/problems",
         permanent: false,
       },
-      {
-        source: "/changelog",
-        destination: "/docs/changelog",
-        permanent: true,
-      },
+      { source: "/changelog", destination: "/docs/changelog", permanent: true },
     ]);
   },
   rewrites() {

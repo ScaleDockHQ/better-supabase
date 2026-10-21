@@ -39,10 +39,7 @@ describe("createFeatureGateController", () => {
     view().recheck();
     expect(renders()).toBe(before);
     auth.set(SIGNED_OUT);
-    expect(view()).toMatchObject({
-      allowed: false,
-      organizationId: undefined,
-    });
+    expect(view()).toMatchObject({ allowed: false, organizationId: undefined });
     unmount();
     expect(auth.listeners()).toBe(0);
   });

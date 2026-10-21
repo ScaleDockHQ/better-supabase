@@ -76,7 +76,10 @@ function useAuthApi(options: AuthHookOptions, hook: string): AuthApi {
   return auth;
 }
 
-/** Runs auth calls with `pending` and `error` state; the latest call owns the state. */
+/**
+ * Runs auth calls with `pending` and `error` state; the latest call owns the
+ * state.
+ */
 export function usePending(options: {
   readonly onSuccess?: (() => void) | undefined;
 }): {
@@ -133,8 +136,11 @@ export function usePending(options: {
  * client's auth store, so `useAuth()` updates on its own.
  *
  * ```tsx
- * const signIn = useSignIn({ onSuccess: () => router.push('/') });
- * <button disabled={signIn.pending} onClick={() => signIn.password({ email, password })} />
+ * const signIn = useSignIn({ onSuccess: () => router.push("/") });
+ * <button
+ *   disabled={signIn.pending}
+ *   onClick={() => signIn.password({ email, password })}
+ * />;
  * ```
  */
 export function useSignIn(options: AuthHookOptions = {}): SignIn {
@@ -166,7 +172,10 @@ export function useSignIn(options: AuthHookOptions = {}): SignIn {
   return { ...state, ...calls };
 }
 
-/** `auth.signOut()` with `pending` and `error` state. The provider clears cached queries. */
+/**
+ * `auth.signOut()` with `pending` and `error` state. The provider clears cached
+ * queries.
+ */
 export function useSignOut(options: AuthHookOptions = {}): SignOut {
   const auth = useAuthApi(options, "useSignOut");
   const { state, run } = usePending(options);

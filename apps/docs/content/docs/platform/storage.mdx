@@ -194,9 +194,7 @@ be one of `tenant_ids_with(key)`, or `scope: 'platform'` checks
 export const contracts = defineBucket({
   id: "contracts",
   path: "{organizationId}/{contractId}/{file}",
-  policy: {
-    access: { read: "contracts.read", write: "contracts.write" },
-  },
+  policy: { access: { read: "contracts.read", write: "contracts.write" } },
   tenant: { param: "organizationId" },
 });
 ```
@@ -670,9 +668,7 @@ import { defineVectorBucket } from "better-supabase/storage";
 
 export const embeddings = defineVectorBucket({
   id: "embeddings",
-  indexes: {
-    documents: { dimension: 1536, distanceMetric: "cosine" },
-  },
+  indexes: { documents: { dimension: 1536, distanceMetric: "cosine" } },
 });
 ```
 

@@ -13,7 +13,10 @@ export type FetchAnswer =
       readonly text?: string;
     };
 
-/** A `fetch` that records calls and answers from `respond` (or throws what it throws). */
+/**
+ * A `fetch` that records calls and answers from `respond` (or throws what it
+ * throws).
+ */
 export function fakeFetch(
   respond: (call: FetchCall) => FetchAnswer | Promise<FetchAnswer> = () => ({
     status: 404,

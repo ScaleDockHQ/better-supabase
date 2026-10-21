@@ -10,8 +10,8 @@ import type {
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
 /**
- * Builds a snapshot from catalog records: the inverse of `toCatalog`. Tests
- * and benchmarks describe schemas as tables and functions; this produces the
+ * Builds a snapshot from catalog records: the inverse of `toCatalog`. Tests and
+ * benchmarks describe schemas as tables and functions; this produces the
  * typegen metadata and extras those records imply.
  */
 export function fromCatalog(catalog: Catalog): Snapshot {

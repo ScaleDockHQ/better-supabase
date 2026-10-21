@@ -5,8 +5,8 @@ import { sqlIdent } from "../../core/template.ts";
 import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
 
 /**
- * Whether the module writes and honours suppressions. An adopted module
- * needs the table mapped explicitly, so an adopter that predates it keeps
+ * Whether the module writes and honours suppressions. An adopted module needs
+ * the table mapped explicitly, so an adopter that predates it keeps
  * installing.
  */
 export const suppressing = (ctx: ModuleContext): boolean =>
@@ -46,7 +46,10 @@ drop policy if exists ${policy} on ${t};
 create policy ${policy} on ${t} for select to authenticated using (${c("user")} = (select auth.uid()));`;
 }
 
-/** The suppression's reason for the claimed delivery `l`, joined through `u` (auth.users). */
+/**
+ * The suppression's reason for the claimed delivery `l`, joined through `u`
+ * (auth.users).
+ */
 export function claimSuppression(
   ctx: ModuleContext,
   n: NotifyNames,
@@ -66,8 +69,8 @@ export function claimSuppression(
 }
 
 /**
- * `suppress_notification_address` and `unsuppress_notification_address` for
- * the service (bounce and complaint webhooks), and
+ * `suppress_notification_address` and `unsuppress_notification_address` for the
+ * service (bounce and complaint webhooks), and
  * `list_notification_suppressions`, which reads through RLS.
  */
 export function suppressionFunctions(

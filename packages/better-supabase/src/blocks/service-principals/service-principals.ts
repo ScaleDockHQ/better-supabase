@@ -35,8 +35,8 @@ export const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
 const BAN_DURATION = "876000h";
 
 /**
- * The part of `supabase.auth.admin` the block uses, typed structurally so
- * any Supabase client fits.
+ * The part of `supabase.auth.admin` the block uses, typed structurally so any
+ * Supabase client fits.
  */
 export interface ServicePrincipalAuthAdmin {
   createUser(attributes: {
@@ -59,15 +59,18 @@ export interface ServicePrincipalsOptions<
   readonly transport: BlockTransport;
   /** `supabase.auth.admin` of a service-role client. */
   readonly admin: ServicePrincipalAuthAdmin;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<ServicePrincipals<FieldsOf<S>>>>;
   /**
    * A Standard Schema for the extra columns of the principals table
-   * (`blocks.service-principals.options.extraColumns`): writes are
-   * validated, reads parsed.
+   * (`blocks.service-principals.options.extraColumns`): writes are validated,
+   * reads parsed.
    */
   readonly fields?: S;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -88,8 +91,8 @@ export interface ServicePrincipal<F extends object = Record<never, never>> {
 
 /**
  * Who asks for a change. With `createdBy`, that member needs
- * `service_principals.manage` and may assign the role; without it the
- * service acts on its own.
+ * `service_principals.manage` and may assign the role; without it the service
+ * acts on its own.
  */
 export interface ServicePrincipalActor {
   readonly createdBy?: string;
@@ -119,8 +122,8 @@ export interface CreatedServicePrincipal<
 /** The `service-principals` SQL module as typed calls. */
 export interface ServicePrincipals<F extends object = Record<never, never>> {
   /**
-   * Creates an `auth.users` row that can't sign in (banned, no password,
-   * an address under `.invalid`), then registers it with `role` in the
+   * Creates an `auth.users` row that can't sign in (banned, no password, an
+   * address under `.invalid`), then registers it with `role` in the
    * organization. A refused registration deletes the user again.
    */
   readonly create: (

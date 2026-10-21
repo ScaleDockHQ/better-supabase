@@ -21,8 +21,8 @@ import { sessionChanged } from "../user-actions";
 
 /**
  * The OAuth clients (MCP servers, agents) this user approved on the consent
- * page. The server reads them (`getGrants`), so they are in the
- * prefetched page; disconnecting runs in the browser.
+ * page. The server reads them (`getGrants`), so they are in the prefetched
+ * page; disconnecting runs in the browser.
  */
 export function ConnectedAgentsCard({
   initial,

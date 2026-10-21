@@ -1,7 +1,10 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 
-/** A credential and where it came from, as the user would write it: `--db-url-stdin`, `$DATABASE_URL`, `source.dbUrl`. */
+/**
+ * A credential and where it came from, as the user would write it:
+ * `--db-url-stdin`, `$DATABASE_URL`, `source.dbUrl`.
+ */
 export interface Credential {
   readonly value: string;
   readonly from: string;
@@ -20,7 +23,10 @@ function first(
   return undefined;
 }
 
-/** The Supabase access token: `source.accessToken`, then `$SUPABASE_ACCESS_TOKEN`. */
+/**
+ * The Supabase access token: `source.accessToken`, then
+ * `$SUPABASE_ACCESS_TOKEN`.
+ */
 export function accessToken(
   config: ResolvedConfig,
   env: CliEnv,
@@ -31,7 +37,10 @@ export function accessToken(
   ]);
 }
 
-/** A connection string given by the user: `--db-url-stdin`, `source.dbUrl`, `$DATABASE_URL`, then `$SUPABASE_DB_URL`. */
+/**
+ * A connection string given by the user: `--db-url-stdin`, `source.dbUrl`,
+ * `$DATABASE_URL`, then `$SUPABASE_DB_URL`.
+ */
 export function databaseUrlCredential(
   config: ResolvedConfig,
   env: CliEnv,

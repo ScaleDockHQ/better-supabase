@@ -15,10 +15,7 @@ import { defineConfig } from "better-supabase/config";
 export default defineConfig({
   preset: "saas",
   sql: { api: "api" },
-  blocks: {
-    comments: { options: { maxBodyLength: 5000 } },
-    tags: {},
-  },
+  blocks: { comments: { options: { maxBodyLength: 5000 } }, tags: {} },
 });
 ```
 

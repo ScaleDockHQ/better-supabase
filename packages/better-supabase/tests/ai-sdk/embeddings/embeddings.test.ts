@@ -140,9 +140,7 @@ describe("searchTool", () => {
       { toolCallId: "c2", messages: [], context: {} },
     );
 
-    expect(output).toMatchObject({
-      results: [{ id: "b#0" }, { id: "a#0" }],
-    });
+    expect(output).toMatchObject({ results: [{ id: "b#0" }, { id: "a#0" }] });
     expect(reverse).toHaveBeenCalledWith("q", expect.any(Array), undefined);
 
     const { knowledge: failing } = fakeKnowledge("fail");

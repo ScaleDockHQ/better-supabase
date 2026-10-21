@@ -31,9 +31,15 @@ export interface DurableChatOptions {
   readonly assistant: Pick<Assistant, "prepare">;
   /** The turn's `"use workflow"` function, which calls `durableTurn`. */
   readonly workflow: (input: DurableTurnInput) => Promise<unknown>;
-  /** Keeps a copy of each segment the client reads, for when the World's stream is unavailable. */
+  /**
+   * Keeps a copy of each segment the client reads, for when the World's stream
+   * is unavailable.
+   */
   readonly streams: StreamStore;
-  /** What the copy is kept for: seconds or a Postgres interval. Defaults to one day. */
+  /**
+   * What the copy is kept for: seconds or a Postgres interval. Defaults to one
+   * day.
+   */
   readonly streamTtl?: number | string;
   /** Makes message and stream ids. Defaults to `crypto.randomUUID()`. */
   readonly generateId?: () => string;
@@ -48,28 +54,31 @@ export interface DurableApprovalDecision {
 
 export interface DurableChat {
   /**
-   * The POST route. A new user message starts the turn's workflow; a body
-   * with `approvals` decides them and continues the waiting turn. Both
-   * stream the segment (SSE) with the `x-workflow-run-id` header.
+   * The POST route. A new user message starts the turn's workflow; a body with
+   * `approvals` decides them and continues the waiting turn. Both stream the
+   * segment (SSE) with the `x-workflow-run-id` header.
    */
   respond(request: Request, context: DurableChatContext): Promise<Response>;
   /**
    * The reconnect route (`GET /api/chat/:id/stream?startIndex=`): the chat's
-   * running segment, or its last one, from UI chunk `startIndex`. The
-   * stream store answers when the World's stream can't be read; 204 when
-   * the chat has no durable run.
+   * running segment, or its last one, from UI chunk `startIndex`. The stream
+   * store answers when the World's stream can't be read; 204 when the chat has
+   * no durable run.
    */
   resume(
     chatId: string,
     context: DurableChatContext,
     options?: { readonly startIndex?: number; readonly signal?: AbortSignal },
   ): Promise<Response>;
-  /** Stops the running segment through the turn's stop hook, or cancels the run when the hook is gone. */
+  /**
+   * Stops the running segment through the turn's stop hook, or cancels the run
+   * when the hook is gone.
+   */
   stop(chatId: string, context: DurableChatContext): Promise<Response>;
   /**
    * Decides approvals from outside the chat, such as an approval inbox, and
-   * continues the turn once none of its approvals is pending. Answers
-   * `{ continued, streamId }` as JSON.
+   * continues the turn once none of its approvals is pending. Answers `{
+   * continued, streamId }` as JSON.
    */
   decide(
     chatId: string,
@@ -99,7 +108,10 @@ function notDurable(): Response {
   );
 }
 
-/** The `approvals` of a body, `undefined` when it has none, or a message for a malformed one. */
+/**
+ * The `approvals` of a body, `undefined` when it has none, or a message for a
+ * malformed one.
+ */
 function decisionsOf(
   value: unknown,
 ): readonly DurableApprovalDecision[] | string | undefined {
@@ -260,9 +272,9 @@ function runSse(
 
 /**
  * Durable chat routes on the Workflow SDK: each turn is a workflow run
- * (`durableTurn`), so an answer outlives the request, a reload replays it
- * and an approval can wait for hours. The chat's runs stay in `ai_runs`
- * with the workflow run id next to them.
+ * (`durableTurn`), so an answer outlives the request, a reload replays it and
+ * an approval can wait for hours. The chat's runs stay in `ai_runs` with the
+ * workflow run id next to them.
  */
 export function durableChat(options: DurableChatOptions): DurableChat {
   const newId = options.generateId ?? (() => crypto.randomUUID());
@@ -406,7 +418,10 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       : notDurable();
   }
 
-  /** Decides, then claims a segment and resumes the turn when nothing is pending. */
+  /**
+   * Decides, then claims a segment and resumes the turn when nothing is
+   * pending.
+   */
   async function continueTurn(
     chatId: string,
     decisions: readonly DurableApprovalDecision[],

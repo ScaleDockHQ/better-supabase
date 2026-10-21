@@ -32,9 +32,9 @@ function enginesOf(): { readonly draft7: Ajv; readonly draft2020: Ajv2020 } {
 }
 
 /**
- * Draft-04 to draft-07, enough for the OpenAPI 3.0 schema: `id` becomes
- * `$id`, and boolean `exclusiveMinimum`/`exclusiveMaximum` fold into the
- * number they qualify. Changes the copy in place.
+ * Draft-04 to draft-07, enough for the OpenAPI 3.0 schema: `id` becomes `$id`,
+ * and boolean `exclusiveMinimum`/`exclusiveMaximum` fold into the number they
+ * qualify. Changes the copy in place.
  */
 function fromDraft04(node: unknown, root = true): void {
   if (Array.isArray(node)) {
@@ -82,9 +82,9 @@ function fromDraft04(node: unknown, root = true): void {
 }
 
 /**
- * Ajv resolves `$dynamicRef` against the wrong scope in the OpenAPI
- * schemas. With one `$dynamicAnchor` of a name in the document, a
- * `$dynamicRef` to it means the same as a `$ref` to the anchor's location.
+ * Ajv resolves `$dynamicRef` against the wrong scope in the OpenAPI schemas.
+ * With one `$dynamicAnchor` of a name in the document, a `$dynamicRef` to it
+ * means the same as a `$ref` to the anchor's location.
  */
 function staticDynamicRefs(schema: Json): void {
   const anchors = new Map<string, string>();
@@ -138,9 +138,9 @@ function staticDynamicRefs(schema: Json): void {
 const META_SCHEMA = /^https?:\/\/json-schema\.org\/draft-07\/schema#?$/;
 
 /**
- * The AsyncAPI bundles embed a copy of the draft-07 meta-schema under its
- * own `$id`, which Ajv already registers. Dropping the copy lets every
- * `$ref` to it resolve to Ajv's built-in one.
+ * The AsyncAPI bundles embed a copy of the draft-07 meta-schema under its own
+ * `$id`, which Ajv already registers. Dropping the copy lets every `$ref` to it
+ * resolve to Ajv's built-in one.
  */
 function dropBundledMetaSchemas(schema: Json): void {
   const definitions = schema["definitions"];
@@ -208,9 +208,9 @@ function describe(error: ErrorObject): string {
 }
 
 /**
- * Checks a document against the official schema of its format version.
- * Reports `schema-invalid` errors, or one `schema-unavailable` info when no
- * schema is vendored for the version (the 3.3 preview, third-party formats).
+ * Checks a document against the official schema of its format version. Reports
+ * `schema-invalid` errors, or one `schema-unavailable` info when no schema is
+ * vendored for the version (the 3.3 preview, third-party formats).
  */
 export async function validateDocument(
   format: string,

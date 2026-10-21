@@ -49,11 +49,10 @@ export interface TemplatesApplyOutput {
 
 /**
  * Runs a `templates.apply` node: applies `config.template` in the run's
- * organization, with `config.values`, and keys the apply on
- * `<runKey>:<node>` so the type's `apply` can find the record a retry
- * already created. Pass the client, or a function that builds one for the
- * call (for example as the run's actor). Throws a `DbException` on error,
- * which fails the node.
+ * organization, with `config.values`, and keys the apply on `<runKey>:<node>`
+ * so the type's `apply` can find the record a retry already created. Pass the
+ * client, or a function that builds one for the call (for example as the run's
+ * actor). Throws a `DbException` on error, which fails the node.
  */
 export function templatesApplyStep(
   templates:

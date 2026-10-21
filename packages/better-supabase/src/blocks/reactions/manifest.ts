@@ -14,9 +14,7 @@ export const reactionsBlock: BlockOf<
 > = defineBlock({
   name: "reactions",
   sql: ["reactions"],
-  options: {
-    reactions: reactionsSqlOptions,
-  },
+  options: { reactions: reactionsSqlOptions },
   events: reactionsEvents,
   create: createReactions,
   client: "reactions",

@@ -11,9 +11,9 @@ export type FormAnswers = { readonly [key: string]: FormJson };
 
 /**
  * `email` as the HTML `<input type="email">` grammar, `date` as RFC 3339
- * `full-date`. Postgres asserts the same formats, so a value this accepts
- * can still fail there only for a mailbox the HTML grammar allows and
- * pg_jsonschema does not.
+ * `full-date`. Postgres asserts the same formats, so a value this accepts can
+ * still fail there only for a mailbox the HTML grammar allows and pg_jsonschema
+ * does not.
  */
 const EMAIL =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -277,9 +277,9 @@ function check(
 
 /**
  * Checks answers against a form version's schema with the keywords the
- * generator emits, so a form can show errors before it submits. Postgres
- * checks the same schema again on submit; this is not a general JSON
- * Schema validator.
+ * generator emits, so a form can show errors before it submits. Postgres checks
+ * the same schema again on submit; this is not a general JSON Schema
+ * validator.
  */
 export function validateAnswers(
   schema: FormJsonSchema,

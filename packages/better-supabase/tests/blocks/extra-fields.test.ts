@@ -90,10 +90,7 @@ describe("block fields", () => {
       priority: "urgent" as "low",
     });
 
-    expect(refused).toMatchObject({
-      ok: false,
-      error: { kind: "validation" },
-    });
+    expect(refused).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(fake.calls).toHaveLength(1);
   });
 

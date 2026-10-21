@@ -146,7 +146,10 @@ ${lockTable(n.d)}
 `;
 }
 
-/** Adopt mode adds the xid column; existing rows get the migration's transaction id. */
+/**
+ * Adopt mode adds the xid column; existing rows get the migration's transaction
+ * id.
+ */
 function adoptXid(n: Names): string {
   if (!n.has("xid")) {
     return "";

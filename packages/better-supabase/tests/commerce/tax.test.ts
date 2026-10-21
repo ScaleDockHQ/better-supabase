@@ -228,10 +228,9 @@ describe("testTaxProvider", () => {
       ...provider,
       name: "lossy",
       quote: (input, options) =>
-        provider.quote(input, options).map((quote) => ({
-          ...quote,
-          lines: quote.lines.slice(1),
-        })),
+        provider
+          .quote(input, options)
+          .map((quote) => ({ ...quote, lines: quote.lines.slice(1) })),
     };
 
     await expect(

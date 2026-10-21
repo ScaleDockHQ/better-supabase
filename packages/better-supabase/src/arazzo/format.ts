@@ -49,7 +49,10 @@ export interface ArazzoSourceOptions {
 export interface ArazzoFormatOptions {
   /** The OpenAPI document; its URL defaults to `openapi.json`. */
   readonly openapi?: ArazzoSourceOptions;
-  /** The AsyncAPI document channel steps use; defaults to `events` at `asyncapi.json`. */
+  /**
+   * The AsyncAPI document channel steps use; defaults to `events` at
+   * `asyncapi.json`.
+   */
   readonly asyncapi?: ArazzoSourceOptions;
 }
 
@@ -569,9 +572,9 @@ function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
 }
 
 /**
- * An Arazzo format whose source descriptions point at your OpenAPI and
- * AsyncAPI URLs. `arazzoFormat` is this with the defaults: `api` at the
- * model's `self` or `openapi.json`, and `events` at `asyncapi.json`.
+ * An Arazzo format whose source descriptions point at your OpenAPI and AsyncAPI
+ * URLs. `arazzoFormat` is this with the defaults: `api` at the model's `self`
+ * or `openapi.json`, and `events` at `asyncapi.json`.
  */
 export function createArazzoFormat(
   options: ArazzoFormatOptions = {},
@@ -596,8 +599,8 @@ export function createArazzoFormat(
 
 /**
  * Arazzo as a `DocumentFormat`, for the model's `workflows`. 1.0 is the
- * default; channel steps (AsyncAPI send and receive) and action
- * `parameters` need 1.1.
+ * default; channel steps (AsyncAPI send and receive) and action `parameters`
+ * need 1.1.
  */
 export const arazzoFormat: DocumentFormat<
   "arazzo",

@@ -174,9 +174,9 @@ function SaveViewDialog({ query }: { query: WorkGridQuery }) {
 
 // #region recipe:work-item-grid
 /**
- * Work items as a table. The search, state filter and sort live in the URL
- * and can be saved as named views. State and assignee edit in place, and
- * the checkboxes feed the bulk action bar.
+ * Work items as a table. The search, state filter and sort live in the URL and
+ * can be saved as named views. State and assignee edit in place, and the
+ * checkboxes feed the bulk action bar.
  */
 export function WorkItemGrid({
   rows,
@@ -251,16 +251,10 @@ export function WorkItemGrid({
 
   const memberItems = [
     { value: UNASSIGNED, label: t("Unassigned") },
-    ...members.map((member) => ({
-      value: member.userId,
-      label: member.name,
-    })),
+    ...members.map((member) => ({ value: member.userId, label: member.name })),
   ];
 
-  const viewItems = views.map((view) => ({
-    value: view.id,
-    label: view.name,
-  }));
+  const viewItems = views.map((view) => ({ value: view.id, label: view.name }));
 
   const activeView = views.find(
     (view) => workGridSearch(view.query) === workGridSearch(query),

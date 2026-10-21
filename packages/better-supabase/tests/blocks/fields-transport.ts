@@ -1,11 +1,12 @@
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
-/** A fake transport for the `fields` tests: canned results by function, and the calls it saw. */
+/**
+ * A fake transport for the `fields` tests: canned results by function, and the
+ * calls it saw.
+ */
 export function fieldsTransport(
   results: Readonly<Record<string, (args: Record<string, unknown>) => unknown>>,
-): BlockTransport & {
-  readonly calls: [string, Record<string, unknown>][];
-} {
+): BlockTransport & { readonly calls: [string, Record<string, unknown>][] } {
   const calls: [string, Record<string, unknown>][] = [];
 
   return {

@@ -16,15 +16,18 @@ const SHIM = resolve(PACKAGE, "bin/better-supabase.js");
 /** The region comments Rolldown leaves around each source module in a chunk. */
 const COMMAND_REGION = /^\/\/#region (src\/cli\/commands\/\S+)/gm;
 
-/** The CLI's startup cost: what `better-supabase --version` loads before any command. */
+/**
+ * The CLI's startup cost: what `better-supabase --version` loads before any
+ * command.
+ */
 const CLI_STARTUP = "better-supabase CLI (startup)";
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
 const SHIPPED_BASELINE = resolve(import.meta.dirname, "baseline-shipped.json");
 const WORK = resolve(import.meta.dirname, "tmp");
 
 /**
- * App-shaped imports, bundled and minified the way an app's bundler would.
- * The closure sizes above gzip each unminified file on its own and count every
+ * App-shaped imports, bundled and minified the way an app's bundler would. The
+ * closure sizes above gzip each unminified file on its own and count every
  * export of an entry, so they run several times larger than what these ship.
  * Each one imports the fixture schema's metadata, as an app imports its own.
  */
@@ -59,10 +62,16 @@ export { BetterSupabaseProvider, invalidateOnMutation };
 `,
 } satisfies Readonly<Record<string, string>>;
 
-/** Growth allowed before the size check fails: 5% or 256 bytes, whichever is larger. */
+/**
+ * Growth allowed before the size check fails: 5% or 256 bytes, whichever is
+ * larger.
+ */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
 
-/** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
+/**
+ * Entries that may use Node built-ins. Everything else must run on any WinterTC
+ * runtime.
+ */
 const NODE_ENTRIES = new Set([
   "./cli",
   "./nestjs",
@@ -78,7 +87,10 @@ const BUILTINS = new Set([
   ...builtinModules.map((name) => `node:${name}`),
 ]);
 
-/** Rolldown emits static imports at the start of a line and double-quoted specifiers. */
+/**
+ * Rolldown emits static imports at the start of a line and double-quoted
+ * specifiers.
+ */
 const SPECIFIER =
   /^(?:import|export)\b[^;]*?["']([^"']+)["'];|\bimport\("([^"]+)"\)/gm;
 

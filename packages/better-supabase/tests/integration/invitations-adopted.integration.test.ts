@@ -14,8 +14,8 @@ const live = await reachable();
 
 /**
  * An authorization provider's schema: memberships with text roles, declared
- * roles (`owner`, `admin`, `member`) and tenant custom roles, and the
- * functions the provider access model calls.
+ * roles (`owner`, `admin`, `member`) and tenant custom roles, and the functions
+ * the provider access model calls.
  */
 async function providerSchema(
   s: BlockSession,

@@ -88,9 +88,7 @@ import { outbox } from "@/lib/outbox";
 
 export const GET = outbox.relayRoute({
   secret: process.env.CRON_SECRET,
-  consumers: {
-    billing: httpSink(process.env.BILLING_EVENTS_URL!),
-  },
+  consumers: { billing: httpSink(process.env.BILLING_EVENTS_URL!) },
   onError: (error, consumer) => console.error(consumer, error.message),
 });
 ```

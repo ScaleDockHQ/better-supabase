@@ -16,7 +16,10 @@ import { Link } from "@/i18n/navigation";
 import { getActivity } from "../assistant-queries";
 import { ApprovalButtons } from "./approval-buttons";
 
-/** Render inside `<Suspense>`: the approval inbox, then the latest runs with their steps. */
+/**
+ * Render inside `<Suspense>`: the approval inbox, then the latest runs with
+ * their steps.
+ */
 export async function AgentActivity() {
   const [{ runs, approvals }, t, format] = await Promise.all([
     getActivity(),

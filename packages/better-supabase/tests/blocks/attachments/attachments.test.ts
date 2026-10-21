@@ -833,15 +833,17 @@ describe("createAttachmentScanner", () => {
     });
 
     await expect(
-      s.sink().send([
-        {
-          specversion: "1.0",
-          id: "1",
-          source: "/t",
-          type: "attachment.uploaded",
-          data: { attachmentId: "a1" },
-        },
-      ]),
+      s
+        .sink()
+        .send([
+          {
+            specversion: "1.0",
+            id: "1",
+            source: "/t",
+            type: "attachment.uploaded",
+            data: { attachmentId: "a1" },
+          },
+        ]),
     ).rejects.toThrow(/Storage is down/);
   });
 });
@@ -886,11 +888,7 @@ describe("createObjectScanner", () => {
     const fresh = scan(null);
     expect(
       await fresh.scanner.scan("files", "a/b.pdf").orThrow(),
-    ).toMatchObject({
-      bucket: "files",
-      path: "a/b.pdf",
-      status: "clean",
-    });
+    ).toMatchObject({ bucket: "files", path: "a/b.pdf", status: "clean" });
     expect(fresh.seen).toEqual(["files/a/b.pdf"]);
     expect(fresh.calls.at(-1)).toEqual([
       "set_object_scan",
@@ -1031,15 +1029,17 @@ describe("createObjectScanner", () => {
     });
 
     await expect(
-      scanner.sink().send([
-        {
-          id: "1",
-          type: "object.uploaded",
-          source: "s",
-          specversion: "1.0",
-          data: { bucket: "files", path: "a.pdf" },
-        },
-      ]),
+      scanner
+        .sink()
+        .send([
+          {
+            id: "1",
+            type: "object.uploaded",
+            source: "s",
+            specversion: "1.0",
+            data: { bucket: "files", path: "a.pdf" },
+          },
+        ]),
     ).rejects.toThrow(/Bucket not found/);
   });
 });

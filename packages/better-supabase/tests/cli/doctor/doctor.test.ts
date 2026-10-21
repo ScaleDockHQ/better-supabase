@@ -489,9 +489,7 @@ describe("doctor rules", () => {
         membership: { table: "better_supabase.memberships", deletedAt: "role" },
       };
 
-      const softDelete = {
-        config: resolveConfig({ subjects }, "/project"),
-      };
+      const softDelete = { config: resolveConfig({ subjects }, "/project") };
 
       const findings = await runRules(context(snap, softDelete), only);
       expect(findings[0]?.message).toContain(
@@ -1155,10 +1153,7 @@ describe("doctor rules", () => {
         },
       ]);
 
-      const hoisted = {
-        ...roles,
-        authenticator: { statement_timeout: "8s" },
-      };
+      const hoisted = { ...roles, authenticator: { statement_timeout: "8s" } };
 
       expect(
         await codes(context(withFunctions(base, [slow], hoisted)), "BS211"),
@@ -2351,10 +2346,7 @@ describe("doctor command", () => {
 
     expect(
       report.findings.find((finding) => finding.code === "BS103")?.location,
-    ).toEqual({
-      file: "supabase/migrations/002_more.sql",
-      line: 3,
-    });
+    ).toEqual({ file: "supabase/migrations/002_more.sql", line: 3 });
 
     const warnings = await run([
       "doctor",

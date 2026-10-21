@@ -14,9 +14,7 @@ export const domainsBlock: BlockOf<
 > = defineBlock({
   name: "domains",
   sql: ["domains"],
-  options: {
-    domains: domainsSqlOptions,
-  },
+  options: { domains: domainsSqlOptions },
   events: domainsEvents,
   create: createDomains,
   category: "tenancy",

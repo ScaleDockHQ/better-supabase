@@ -284,9 +284,7 @@ describe("durableChat respond", () => {
     const s = setup();
     const response = await s.durable.respond(post("not json"), s.context);
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({
-      code: "AI_CHAT_RUN_FAILED",
-    });
+    expect(await response.json()).toMatchObject({ code: "AI_CHAT_RUN_FAILED" });
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "id1",

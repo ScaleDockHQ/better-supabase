@@ -34,7 +34,10 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
       }[keyof T & string]
   : never;
 
-/** `C` is the claims type (`betterSupabase.claims(schema)`'s output); it types `claim`. */
+/**
+ * `C` is the claims type (`betterSupabase.claims(schema)`'s output); it types
+ * `claim`.
+ */
 export interface TenantOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
@@ -46,8 +49,8 @@ export interface TenantOptions<C = unknown> {
   /** Custom resolution, e.g. from a header validated against memberships. */
   readonly resolve?: (context: RequestContext) => string | undefined;
   /**
-   * What happens on a tenant table without a tenant in the context:
-   * `error` (default) fails with `forbidden`; `skip` leaves it to RLS.
+   * What happens on a tenant table without a tenant in the context: `error`
+   * (default) fails with `forbidden`; `skip` leaves it to RLS.
    */
   readonly onMissing?: "error" | "skip";
   /**
@@ -58,7 +61,10 @@ export interface TenantOptions<C = unknown> {
 }
 
 export interface TenantFindArgs {
-  /** Skip the tenant filter for this call (admin tooling, jobs). RLS still applies. */
+  /**
+   * Skip the tenant filter for this call (admin tooling, jobs). RLS still
+   * applies.
+   */
   readonly allTenants?: boolean;
 }
 
@@ -109,11 +115,10 @@ function tenantColumn(table: TableMeta): string | undefined {
 }
 
 /**
- * Multi-tenancy for tables generated with `Flags.tenant`. Scopes reads,
- * updates and deletes to the request's tenant (nested includes and relation
- * filters too), fills the tenant column on insert and rejects writes that
- * would move rows to another tenant. It complements RLS; it does not replace
- * it.
+ * Multi-tenancy for tables generated with `Flags.tenant`. Scopes reads, updates
+ * and deletes to the request's tenant (nested includes and relation filters
+ * too), fills the tenant column on insert and rejects writes that would move
+ * rows to another tenant. It complements RLS; it does not replace it.
  */
 export function tenant<C = unknown>(
   options: TenantOptions<C> = {},

@@ -1,7 +1,7 @@
 /**
  * The per-call work the plugin bench skips: compiling an operation to a
- * PostgREST plan, decoding rows with codecs, and running a list query.
- * Run with `pnpm --filter better-supabase bench`.
+ * PostgREST plan, decoding rows with codecs, and running a list query. Run with
+ * `pnpm --filter better-supabase bench`.
  */
 import type { Executor } from "../../src/core/executor.ts";
 import type { Operation, Selection } from "../../src/ir/types.ts";
@@ -16,8 +16,8 @@ import { schema } from "../fixtures/generated-camel.ts";
 const RUNS = 20_000;
 
 /**
- * Each pair may differ by at most this factor. Generous on purpose: the
- * gate catches work that starts scaling with the input, not noise.
+ * Each pair may differ by at most this factor. Generous on purpose: the gate
+ * catches work that starts scaling with the input, not noise.
  */
 const MAX_RATIO = 15;
 

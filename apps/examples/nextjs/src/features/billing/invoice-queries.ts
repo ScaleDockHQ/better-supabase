@@ -47,8 +47,8 @@ export interface InvoiceSummary {
 
 /**
  * The organization's invoices, newest first. The invoices block has no list
- * function, so `api.billing_invoices` reads them with the caller's token
- * and the block's `invoices.read` policy.
+ * function, so `api.billing_invoices` reads them with the caller's token and
+ * the block's `invoices.read` policy.
  */
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   "use cache: private";
@@ -76,7 +76,10 @@ export type Invoices =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-/** A failed read becomes `{ kind: "error" }` and is never cached, so Retry reads again. */
+/**
+ * A failed read becomes `{ kind: "error" }` and is never cached, so Retry reads
+ * again.
+ */
 export async function getInvoices(): Promise<Invoices> {
   try {
     const invoices = await loadInvoices();

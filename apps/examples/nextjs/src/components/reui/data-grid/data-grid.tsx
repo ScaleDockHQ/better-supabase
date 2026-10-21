@@ -76,21 +76,21 @@ import { cn } from "@/lib/utils";
 /**
  * Per-column extras the grid reads off `columnDef.meta`.
  *
- * TanStack v9 resolves this through the `columnMeta` slot on the feature
- * bundle below instead of a global `declare module` augmentation, so
- * installing the data grid no longer widens `ColumnMeta` for every other
- * table in the consuming app.
+ * TanStack v9 resolves this through the `columnMeta` slot on the feature bundle
+ * below instead of a global `declare module` augmentation, so installing the
+ * data grid no longer widens `ColumnMeta` for every other table in the
+ * consuming app.
  */
 /**
- * Per-column write contract for the spreadsheet operations (paste, fill,
- * clear, cut). Presence marks the column writable; every write still flows
- * through `onCellsChange`, so the consumer's state stays the only data owner.
+ * Per-column write contract for the spreadsheet operations (paste, fill, clear,
+ * cut). Presence marks the column writable; every write still flows through
+ * `onCellsChange`, so the consumer's state stays the only data owner.
  */
 export interface DataGridColumnCellEdit<TData> {
   /**
-   * Set false for a column that formats clipboard output but is never
-   * written; a function decides per row, so locked rows (archived, another
-   * user's, a totals row) reject like any read-only cell. Defaults to true.
+   * Set false for a column that formats clipboard output but is never written;
+   * a function decides per row, so locked rows (archived, another user's, a
+   * totals row) reject like any read-only cell. Defaults to true.
    */
   editable?: boolean | ((row: TData) => boolean);
   /**
@@ -108,8 +108,8 @@ export interface DataGridColumnCellEdit<TData> {
    * Opt into the grid's built-in free-text editor: an overlay input (or
    * auto-growing textarea) flush over the focused cell, opened by Enter, F2,
    * typing, or double-click, committing through `onCellsChange` as source
-   * `"edit"` with `parse` applied. Columns without it stay consumer-edited
-   * via `onCellEditRequest` or their own cell renderers.
+   * `"edit"` with `parse` applied. Columns without it stay consumer-edited via
+   * `onCellEditRequest` or their own cell renderers.
    */
   control?: "text" | "textarea";
 }
@@ -135,16 +135,16 @@ export interface DataGridColumnMeta<TData> {
 }
 
 /**
- * The batteries-included feature bundle every ReUI data-grid example builds
- * on. v9 requires each table to declare its features up front, and the grid's
+ * The batteries-included feature bundle every ReUI data-grid example builds on.
+ * v9 requires each table to declare its features up front, and the grid's
  * render path needs the ones registered here: `columnVisibilityFeature` alone
- * gates `row.getVisibleCells()`, so even a grid that never hides a column
- * needs it to render at all.
+ * gates `row.getVisibleCells()`, so even a grid that never hides a column needs
+ * it to render at all.
  *
  * Pass it straight through for the full grid:
  *
  * ```tsx
- * const table = useTable({ features: dataGridFeatures, columns, data })
+ * const table = useTable({ features: dataGridFeatures, columns, data });
  * ```
  *
  * Extend it when a grid needs more, keeping each prerequisite feature ahead of
@@ -155,7 +155,7 @@ export interface DataGridColumnMeta<TData> {
  *   ...dataGridFeatures,
  *   columnGroupingFeature,
  *   groupedRowModel: createGroupedRowModel(),
- * })
+ * });
  * ```
  *
  * Or drop it entirely and hand `<DataGrid>` a leaner table - the components
@@ -216,16 +216,19 @@ export type DataGridFeatures = typeof dataGridFeatures;
  * `TFeatures` is invariant in v9 and an unresolved generic one collapses to a
  * union that includes the bare core arm, so no generic signature can call
  * `getVisibleCells()`, `getStartVisibleLeafColumns()` and friends. The public
- * components stay generic so consumers can pass any bundle they like; the
- * table is widened to this concrete type exactly once, on the way into
- * context, and every internal component reads it from there.
+ * components stay generic so consumers can pass any bundle they like; the table
+ * is widened to this concrete type exactly once, on the way into context, and
+ * every internal component reads it from there.
  */
 export type DataGridTableInstance<TData extends object> = ReactTable<
   DataGridFeatures,
   TData
 >;
 
-/** Label for headers / column visibility: `meta.headerTitle`, string `columnDef.header`, or `column.id`. */
+/**
+ * Label for headers / column visibility: `meta.headerTitle`, string
+ * `columnDef.header`, or `column.id`.
+ */
 export function getColumnHeaderLabel<TData extends RowData, TValue>(
   column: Column<DataGridFeatures, TData, TValue>,
 ): string {
@@ -237,10 +240,10 @@ export function getColumnHeaderLabel<TData extends RowData, TValue>(
 }
 
 /**
- * meta.headerColSpan: the sibling leaves each owning leaf's header covers,
- * by owner id. Each must render right after the last in its pin family, or
- * the span ends there; the header rows, the resize indicator and the move
- * and drop targets all read spans from here.
+ * Meta.headerColSpan: the sibling leaves each owning leaf's header covers, by
+ * owner id. Each must render right after the last in its pin family, or the
+ * span ends there; the header rows, the resize indicator and the move and drop
+ * targets all read spans from here.
  */
 export function getDataGridHeaderSpans<TData extends object>(
   table: DataGridTableInstance<TData>,
@@ -285,10 +288,10 @@ export function getDataGridHeaderSpans<TData extends object>(
 }
 
 /**
- * The td contract for spreadsheet selection. Call inside a
- * `Subscribe source={table.atoms.cellSelection}` render only: the reads are
- * builder calls whose state dependency React Compiler cannot see, exactly the
- * trap the row-selection checkbox documents.
+ * The td contract for spreadsheet selection. Call inside a `Subscribe
+ * source={table.atoms.cellSelection}` render only: the reads are builder calls
+ * whose state dependency React Compiler cannot see, exactly the trap the
+ * row-selection checkbox documents.
  */
 export function getDataGridCellSelectionCellAttrs<TData extends object>(
   cell: Cell<DataGridFeatures, TData, unknown>,
@@ -319,11 +322,11 @@ export function getDataGridCellSelectionCellAttrs<TData extends object>(
 /**
  * Selection chrome for a body td, activated by the data attributes above plus
  * the imperatively toggled `data-cell-fill-target` (fill-drag preview, written
- * outside React like the resize indicator). A ::before overlay, not outline
- * or box-shadow: an outline ring hugs the cell box and cannot line up with
- * the gridlines the perimeter paints on, and the pinned-column dividers
- * already own the cell's shadow slot (tailwind-merge would collapse a second
- * shadow-[...] into it).
+ * outside React like the resize indicator). A ::before overlay, not outline or
+ * box-shadow: an outline ring hugs the cell box and cannot line up with the
+ * gridlines the perimeter paints on, and the pinned-column dividers already own
+ * the cell's shadow slot (tailwind-merge would collapse a second shadow-[...]
+ * into it).
  */
 export const dataGridCellSelectionCellClasses = cn(
   "relative select-none",
@@ -420,10 +423,7 @@ export type DataGridApiFetchParams = {
 export type DataGridApiResponse<T> = {
   data: T[];
   empty: boolean;
-  pagination: {
-    total: number;
-    page: number;
-  };
+  pagination: { total: number; page: number };
 };
 
 /**
@@ -465,16 +465,15 @@ export type DataGridAutoSizeController = {
   /**
    * Feeds the controller one viewport measurement: the SIGNED free space
    * between the scroll container and the table, negative while the table
-   * overflows. The first sight of a `meta.autoSize` column absorbs the
-   * free space into its width; after that, every measurement REFLOWS the
-   * same growth - a wider window widens the column, a narrower one gives
-   * the space back down to the column's `minSize` (or its starting width
-   * when none is set) - so the grid tracks its container live. Commits
-   * are coalesced for performance: sub-pixel deltas are dropped, a
-   * streaming resize gets one leading commit plus one trailing commit at
-   * settle, and a width the user dragged is never touched. Safe to call
-   * from every viewport measurement; returns true when a sizing update
-   * was dispatched.
+   * overflows. The first sight of a `meta.autoSize` column absorbs the free
+   * space into its width; after that, every measurement REFLOWS the same growth -
+   * a wider window widens the column, a narrower one gives the space back down
+   * to the column's `minSize` (or its starting width when none is set) - so the
+   * grid tracks its container live. Commits are coalesced for performance:
+   * sub-pixel deltas are dropped, a streaming resize gets one leading commit
+   * plus one trailing commit at settle, and a width the user dragged is never
+   * touched. Safe to call from every viewport measurement; returns true when a
+   * sizing update was dispatched.
    */
   apply: (freeSpace: number) => boolean;
   /**
@@ -487,8 +486,8 @@ export type DataGridAutoSizeController = {
   ) => { columnId: string; current: number; size: number } | null;
   /**
    * Records a width the caller commits for the armed column, so the next
-   * measurement reads it as this coordinator's own write and keeps
-   * reflowing, rather than as a user drag that stands it down.
+   * measurement reads it as this coordinator's own write and keeps reflowing,
+   * rather than as a user drag that stands it down.
    */
   adopt: (columnId: string, size: number) => void;
 };
@@ -502,12 +501,12 @@ type DataGridAutoSizeReflowState = {
 
 /**
  * Bookkeeping keyed on the TABLE STORE, never on a React instance: dev
- * StrictMode double-mounts the tree, so two controller instances serve one
- * page and only the first would remember what it absorbed - the second
- * reads the grown width as a user drag and freezes the column. The store
- * object is the one identity that provably survives that dance (the
- * absorbed sizing rides inside it), and the WeakMap lets a discarded
- * table take its bookkeeping with it.
+ * StrictMode double-mounts the tree, so two controller instances serve one page
+ * and only the first would remember what it absorbed - the second reads the
+ * grown width as a user drag and freezes the column. The store object is the
+ * one identity that provably survives that dance (the absorbed sizing rides
+ * inside it), and the WeakMap lets a discarded table take its bookkeeping with
+ * it.
  */
 const dataGridAutoSizeStates = new WeakMap<
   object,
@@ -532,7 +531,7 @@ function createDataGridAutoSizeController<TData extends object>(
   /**
    * A getter, not the table itself.
    *
-   * v8 handed back one stable table whose state mutated in place, so a
+   * V8 handed back one stable table whose state mutated in place, so a
    * controller could close over it. v9 returns a NEW table wrapper on every
    * state change, and a captured one keeps reporting the state it was built
    * with - here that meant `columnSizing` looked permanently empty, the
@@ -607,10 +606,7 @@ function createDataGridAutoSizeController<TData extends object>(
     const { table, state, applied, target } = resolved;
     if (Math.abs(target - applied.grown) < 1) return false;
     state.applied = { ...applied, grown: target };
-    table.setColumnSizing((old) => ({
-      ...old,
-      [applied.columnId]: target,
-    }));
+    table.setColumnSizing((old) => ({ ...old, [applied.columnId]: target }));
     return true;
   };
 
@@ -741,7 +737,10 @@ export interface DataGridCellChange<TData> {
   row: TData;
   /** Accessor value at dispatch time; enables consumer-side undo stacks. */
   previousValue: unknown;
-  /** Typed value produced by `meta.cellEdit.parse`, or `clearValue` for clear/cut. */
+  /**
+   * Typed value produced by `meta.cellEdit.parse`, or `clearValue` for
+   * clear/cut.
+   */
   value: unknown;
 }
 
@@ -786,23 +785,23 @@ export interface DataGridCellRejection {
 }
 
 /**
- * Lifecycle of a row for the optional CRUD indications: "new" and "dirty"
- * tint the row, "deleted" mutes and strikes it. Purely presentational - the
+ * Lifecycle of a row for the optional CRUD indications: "new" and "dirty" tint
+ * the row, "deleted" mutes and strikes it. Purely presentational - the
  * consumer's state stays the only owner of what the statuses mean.
  */
 export type DataGridRowStatus = "new" | "dirty" | "deleted";
 
 /**
- * Lifecycle of a cell for the optional CRUD indications: a corner mark in
- * the amber tone for "dirty", the destructive tone for "invalid".
+ * Lifecycle of a cell for the optional CRUD indications: a corner mark in the
+ * amber tone for "dirty", the destructive tone for "invalid".
  */
 export type DataGridCellStatus = "dirty" | "invalid";
 
 /**
- * Asks the consumer to open its editor for the focused cell: Enter or F2, or
- * a typed printable character (then `initialText` carries it, the
- * Notion/Airtable type-to-replace flow). Dispatched only for cells whose
- * column is writable via `meta.cellEdit`.
+ * Asks the consumer to open its editor for the focused cell: Enter or F2, or a
+ * typed printable character (then `initialText` carries it, the Notion/Airtable
+ * type-to-replace flow). Dispatched only for cells whose column is writable via
+ * `meta.cellEdit`.
  */
 export interface DataGridCellEditRequest<TData> {
   rowId: string;
@@ -814,9 +813,9 @@ export interface DataGridCellEditRequest<TData> {
 }
 
 /**
- * One batch per operation, however many cells it spans: a 10k-cell paste is
- * one callback, one consumer setState, one table rebuild. The grid never
- * writes data itself.
+ * One batch per operation, however many cells it spans: a 10k-cell paste is one
+ * callback, one consumer setState, one table rebuild. The grid never writes
+ * data itself.
  */
 export interface DataGridCellsChangeDetails<TData> {
   source: DataGridCellsChangeSource;
@@ -840,37 +839,37 @@ export interface DataGridProps<
    */
   onCellsChange?: (details: DataGridCellsChangeDetails<TData>) => void;
   /**
-   * Opens the consumer's editor from the keyboard: Enter, F2, or typing on
-   * the focused cell. Absent: Enter keeps moving down, typing does nothing.
+   * Opens the consumer's editor from the keyboard: Enter, F2, or typing on the
+   * focused cell. Absent: Enter keeps moving down, typing does nothing.
    */
   onCellEditRequest?: (request: DataGridCellEditRequest<TData>) => void;
   /**
-   * Fires on every cell-selection change (focus moves, ranges grow or
-   * clear) with a resolved snapshot, so a selection count, formula bar or
-   * context panel needs no reach into TanStack internals.
+   * Fires on every cell-selection change (focus moves, ranges grow or clear)
+   * with a resolved snapshot, so a selection count, formula bar or context
+   * panel needs no reach into TanStack internals.
    */
   onCellSelectionChange?: (snapshot: DataGridCellSelectionSnapshot) => void;
   /**
-   * Fires after the grid writes the clipboard (Cmd/Ctrl+C or X, or the
-   * native copy and cut events), e.g. to confirm with a toast.
+   * Fires after the grid writes the clipboard (Cmd/Ctrl+C or X, or the native
+   * copy and cut events), e.g. to confirm with a toast.
    */
   onCellsCopy?: (details: DataGridCopyDetails) => void;
   /**
-   * Renders an "Add row" affordance as the table body's last row; clicking
-   * it is the consumer's cue to start creating a row. Absent: no row.
+   * Renders an "Add row" affordance as the table body's last row; clicking it
+   * is the consumer's cue to start creating a row. Absent: no row.
    */
   onRowCreate?: () => void;
   /** Label of the onRowCreate affordance. Defaults to "Add row". */
   rowCreateLabel?: ReactNode;
   /**
-   * Rendered inside the table body after the data rows: the slot a DRAFT
-   * row lives in while it is being created, before it joins `data` and the
+   * Rendered inside the table body after the data rows: the slot a DRAFT row
+   * lives in while it is being created, before it joins `data` and the
    * pagination math. Supply a `<tr>` of cells; the colgroup sizes them.
    */
   appendRow?: ReactNode;
   /**
-   * Optional CRUD indication per row. Return undefined for no indication;
-   * omit the prop entirely to render none anywhere.
+   * Optional CRUD indication per row. Return undefined for no indication; omit
+   * the prop entirely to render none anywhere.
    */
   getRowStatus?: (row: TData) => DataGridRowStatus | undefined;
   /**
@@ -883,10 +882,10 @@ export interface DataGridProps<
   ) => DataGridCellStatus | undefined;
   isLoading?: boolean;
   /**
-   * Overrides for every built-in string: menu items, aria labels,
-   * pagination copy, state messages. Merged over the defaults; a more
-   * specific component prop (`rowCreateLabel`, `loadingMessage`, the
-   * pagination label props) still wins over its `i18n` counterpart.
+   * Overrides for every built-in string: menu items, aria labels, pagination
+   * copy, state messages. Merged over the defaults; a more specific component
+   * prop (`rowCreateLabel`, `loadingMessage`, the pagination label props) still
+   * wins over its `i18n` counterpart.
    */
   i18n?: DataGridI18nOverrides;
   loadingMode?: "skeleton" | "spinner";
@@ -913,21 +912,24 @@ export interface DataGridProps<
     columnsDraggable?: boolean;
     rowsDraggable?: boolean;
     rowsPinnable?: boolean;
-    /** Spreadsheet cell range selection: mouse ranges, keyboard, clipboard chrome. */
+    /**
+     * Spreadsheet cell range selection: mouse ranges, keyboard, clipboard
+     * chrome.
+     */
     cellSelection?: boolean;
     /**
-     * "range" (default): drag, Shift and Ctrl/Cmd gestures and Shift+keys
-     * grow multi-cell regions. "single": one focused cell only - every
-     * gesture collapses to it and Ctrl/Cmd+A is inert.
+     * "range" (default): drag, Shift and Ctrl/Cmd gestures and Shift+keys grow
+     * multi-cell regions. "single": one focused cell only - every gesture
+     * collapses to it and Ctrl/Cmd+A is inert.
      */
     cellSelectionMode?: "single" | "range";
     /** Drag-to-fill handle on the selection corner. Requires cellSelection. */
     cellFillHandle?: boolean;
     /**
-     * How a cell opens its editor from the mouse: "dblclick" (default,
-     * the spreadsheet standard - first click focuses, second edits) or
-     * "click", opening the editor as soon as a plain click lands on the
-     * focused cell; modifier clicks and drags still select.
+     * How a cell opens its editor from the mouse: "dblclick" (default, the
+     * spreadsheet standard - first click focuses, second edits) or "click",
+     * opening the editor as soon as a plain click lands on the focused cell;
+     * modifier clicks and drags still select.
      */
     cellEditMode?: "dblclick" | "click";
     /**
@@ -937,10 +939,10 @@ export interface DataGridProps<
      */
     cellEditEnterAdvance?: boolean;
     /**
-     * The handle's look: "dot" is a solid primary dot kept inside the
-     * cell corner; "ring" is the Sheets-style hollow circle riding the
-     * corner point, clamped at the grid's own boundary; "square" is the
-     * Excel-style solid square inside the corner. Default "dot".
+     * The handle's look: "dot" is a solid primary dot kept inside the cell
+     * corner; "ring" is the Sheets-style hollow circle riding the corner point,
+     * clamped at the grid's own boundary; "square" is the Excel-style solid
+     * square inside the corner. Default "dot".
      */
     cellFillHandleVariant?: "dot" | "ring" | "square";
   };
@@ -958,14 +960,17 @@ export interface DataGridProps<
     rowDirty?: string;
     rowDeleted?: string;
     /**
-     * Override the pinned-row chrome (muted tint, boundary shadow). A grid
-     * that pins a draft row for quick-create wants it to read as an active
-     * row, not a muted one.
+     * Override the pinned-row chrome (muted tint, boundary shadow). A grid that
+     * pins a draft row for quick-create wants it to read as an active row, not
+     * a muted one.
      */
     rowPinned?: string;
     /** The onRowCreate affordance row, e.g. to match the grid's row height. */
     rowCreate?: string;
-    /** The fill handle, e.g. to restyle or resize it beyond the built-in variants. */
+    /**
+     * The fill handle, e.g. to restyle or resize it beyond the built-in
+     * variants.
+     */
     cellFillHandle?: string;
   };
 }
@@ -978,8 +983,8 @@ const DataGridContext = createContext<
 /**
  * Reads the grid context. Pass `TData` from the calling component when the
  * table, a row or a cell is handed on to something typed against that row
- * shape: v9 declares `TData` invariant, so the default `any` no longer
- * unifies with a concrete row type the way it did on v8.
+ * shape: v9 declares `TData` invariant, so the default `any` no longer unifies
+ * with a concrete row type the way it did on v8.
  */
 function useDataGrid<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1002,9 +1007,9 @@ type DataGridStateAtom<TValue> = {
 const noopUnsubscribe = () => {};
 
 /**
- * Re-renders the caller when one table state atom changes, without waiting
- * for a render from above. The context holds still while a column resize is
- * in flight (see DataGridProvider), and React Compiler caches a consumer's
+ * Re-renders the caller when one table state atom changes, without waiting for
+ * a render from above. The context holds still while a column resize is in
+ * flight (see DataGridProvider), and React Compiler caches a consumer's
  * `<DataGridTable />` element, so whatever a drag must keep live (the width
  * variables, the resize line and indicator) subscribes here. `select` must
  * return the slice itself or a primitive, or every write re-renders.
@@ -1221,10 +1226,7 @@ function DataGrid<TFeatures extends TableFeatures, TData extends object>({
   const mergedProps: DataGridProps<TFeatures, TData> = {
     ...defaultProps,
     ...props,
-    tableLayout: {
-      ...defaultProps.tableLayout,
-      ...(props.tableLayout || {}),
-    },
+    tableLayout: { ...defaultProps.tableLayout, ...(props.tableLayout || {}) },
     tableClassNames: {
       ...defaultProps.tableClassNames,
       ...(props.tableClassNames || {}),

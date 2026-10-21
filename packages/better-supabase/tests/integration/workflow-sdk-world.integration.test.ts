@@ -30,12 +30,7 @@ async function createRun(
 ): Promise<string> {
   const result = await world.events.create(null, {
     eventType: "run_created",
-    eventData: {
-      deploymentId: "test",
-      workflowName,
-      input: [],
-      attributes,
-    },
+    eventData: { deploymentId: "test", workflowName, input: [], attributes },
   });
 
   const runId = result.run.runId;
@@ -211,10 +206,7 @@ describe.skipIf(!live)("Supabase World", () => {
     expect(next.data[0]?.eventType).toBe("step_created");
     expect(next.data[0]?.stepName).toBe("send");
 
-    const step = await analytics.events.list({
-      runId,
-      correlationId: STEP,
-    });
+    const step = await analytics.events.list({ runId, correlationId: STEP });
 
     expect(step.data).toHaveLength(1);
     const event = await analytics.events.get(runId, step.data[0]!.eventId);

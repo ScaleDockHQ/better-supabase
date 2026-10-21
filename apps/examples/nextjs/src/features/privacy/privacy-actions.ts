@@ -19,8 +19,8 @@ const SCHEMA = blockConfig["data-lifecycle"].api;
 const ID = v.pipe(v.string(), v.uuid());
 
 /**
- * Writes the export's files right away with the service role. An app with
- * a queue runs `exporter.job` from a worker instead.
+ * Writes the export's files right away with the service role. An app with a
+ * queue runs `exporter.job` from a worker instead.
  */
 async function runExport(exportId: string): Promise<void> {
   const service = bs.admin().$client;
@@ -86,8 +86,8 @@ export const downloadExport = bs.action(
 );
 
 /**
- * Disables the organization and schedules its purge after the module's
- * grace period (`organization.delete`).
+ * Disables the organization and schedules its purge after the module's grace
+ * period (`organization.delete`).
  */
 export const requestOrganizationDeletion = bs.action(
   {

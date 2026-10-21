@@ -57,15 +57,18 @@ export interface OpenApiOptions<
 }
 
 /**
- * An OpenAPI document for REST resources over your tables, with schemas
- * from the generated metadata, list-query parameters, Supabase security
- * schemes and Problem Details errors. Throws when building or checking the
- * document finds an error; use `defineApi` to read every finding instead.
+ * An OpenAPI document for REST resources over your tables, with schemas from
+ * the generated metadata, list-query parameters, Supabase security schemes and
+ * Problem Details errors. Throws when building or checking the document finds
+ * an error; use `defineApi` to read every finding instead.
  *
  * ```ts
  * const doc = createOpenApi(betterSupabase, {
  *   info: { title: "CRM API", version: "1.0.0" },
- *   resources: { customers: { list: customerList }, notes: { operations: ["list", "get"] } },
+ *   resources: {
+ *     customers: { list: customerList },
+ *     notes: { operations: ["list", "get"] },
+ *   },
  * });
  * ```
  */

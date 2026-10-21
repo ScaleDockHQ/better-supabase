@@ -14,7 +14,9 @@ import {
  * Details, or a redirect to `signIn` or `mfa`.
  *
  * ```ts
- * app.get('/admin', handler, { beforeHandle: guard(bridge, { roles: ['admin'] }) })
+ * app.get("/admin", handler, {
+ *   beforeHandle: guard(bridge, { roles: ["admin"] }),
+ * });
  * ```
  */
 export function guard<Entries extends readonly AnyEntry[]>(
@@ -29,11 +31,11 @@ export function guard<Entries extends readonly AnyEntry[]>(
 }
 
 /**
- * An `onError` hook that answers thrown `DbException`s (from `.orThrow()`)
- * with Problem Details and leaves every other error to Elysia.
+ * An `onError` hook that answers thrown `DbException`s (from `.orThrow()`) with
+ * Problem Details and leaves every other error to Elysia.
  *
  * ```ts
- * new Elysia().onError(problemOnError())
+ * new Elysia().onError(problemOnError());
  * ```
  */
 export function problemOnError(

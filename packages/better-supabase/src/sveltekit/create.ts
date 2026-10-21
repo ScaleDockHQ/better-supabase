@@ -41,8 +41,8 @@ export interface SvelteKitFailure<T> {
 
 /**
  * `error`, `redirect` and `fail` from `@sveltejs/kit`. Pass them so refused
- * callers get SvelteKit's own errors and redirects, and failed form actions
- * a `fail()` with the status.
+ * callers get SvelteKit's own errors and redirects, and failed form actions a
+ * `fail()` with the status.
  */
 export interface SvelteKitHelpers {
   error(status: number, message: string): never;
@@ -83,21 +83,26 @@ export interface BetterSvelteKit<
   P = unknown,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
-  /** The keys on `event.locals`, for `App.Locals`. Type only: `undefined` at runtime. */
+  /**
+   * The keys on `event.locals`, for `App.Locals`. Type only: `undefined` at
+   * runtime.
+   */
   readonly Locals: FrameworkLocals<M, F, E, C, P, B>;
   /**
    * The `handle` hook: verifies the caller, refreshes the session cookie on
-   * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and
-   * the serializable `session` on `event.locals`.
+   * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and the
+   * serializable `session` on `event.locals`.
    */
   readonly handle: SvelteKitHandle<Partial<FrameworkLocals<M, F, E, C, P, B>>>;
   /**
-   * The caller in a `load` or endpoint, or a refusal: a redirect to
-   * `signIn` or `mfa` when configured, else SvelteKit's `error()`.
+   * The caller in a `load` or endpoint, or a refusal: a redirect to `signIn` or
+   * `mfa` when configured, else SvelteKit's `error()`.
    *
    * ```ts
    * export const load = async (event) => {
-   *   const { db, tenant } = await bs.require(event, { requireTenant: true });
+   *   const { db, tenant } = await bs.require(event, {
+   *     requireTenant: true,
+   *   });
    *   return { customers: await db.customers.findMany().orThrow() };
    * };
    * ```
@@ -113,9 +118,9 @@ export interface BetterSvelteKit<
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
-   * A form action returning an `ActionResult`: validates the form with
-   * `input`, runs the guard and `authorize`, and on failure answers with
-   * `fail(status, result)` when `kit` is set, so `form.error` is a `DbError`.
+   * A form action returning an `ActionResult`: validates the form with `input`,
+   * runs the guard and `authorize`, and on failure answers with `fail(status,
+   * result)` when `kit` is set, so `form.error` is a `DbError`.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
     options: BlockActionOptions<
@@ -137,12 +142,15 @@ export interface BetterSvelteKit<
     ActionResult<Unwrapped<Awaited<T>>> | SvelteKitFailure<ActionResult<never>>
   >;
   /**
-   * `handleError` for `hooks.server.ts`: `DbError`s keep their message and
-   * kind as `code`; other errors become a generic message unless
-   * `exposeErrors` is on.
+   * `handleError` for `hooks.server.ts`: `DbError`s keep their message and kind
+   * as `code`; other errors become a generic message unless `exposeErrors` is
+   * on.
    */
   handleError(input: { readonly error: unknown }): SvelteKitAppError;
-  /** Registers `bs:<table>` dependencies, so `invalidate(tagFor(table))` reruns the load. */
+  /**
+   * Registers `bs:<table>` dependencies, so `invalidate(tagFor(table))` reruns
+   * the load.
+   */
   depends(load: SvelteKitDepends, ...tables: readonly string[]): void;
 }
 

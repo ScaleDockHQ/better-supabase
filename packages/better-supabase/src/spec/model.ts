@@ -1,4 +1,7 @@
-/** A JSON Schema (2020-12) object. Model schemas reference components as `#/components/schemas/<Name>`. */
+/**
+ * A JSON Schema (2020-12) object. Model schemas reference components as
+ * `#/components/schemas/<Name>`.
+ */
 export type JsonSchema = Readonly<Record<string, unknown>>;
 
 /** A JSON object, for extensions and free-form fields. */
@@ -37,7 +40,10 @@ export interface ModelExample {
   readonly value: unknown;
 }
 
-/** Media type to its schema. `itemSchema` describes each item of a stream (SSE, JSON Lines). */
+/**
+ * Media type to its schema. `itemSchema` describes each item of a stream (SSE,
+ * JSON Lines).
+ */
 export interface ModelContent {
   readonly schema?: JsonSchema;
   readonly itemSchema?: JsonSchema;
@@ -76,11 +82,7 @@ export type OperationSource =
       readonly table: string;
       readonly operation: ResourceOperation;
     }
-  | {
-      readonly kind: "action";
-      readonly table: string;
-      readonly action: string;
-    }
+  | { readonly kind: "action"; readonly table: string; readonly action: string }
   | {
       readonly kind: "data-api";
       /** The table's app key, for `select`, `insert`, `update` and `delete`. */
@@ -108,7 +110,10 @@ export interface ModelOperation {
   readonly parameters: readonly ModelParameter[];
   readonly requestBody?: ModelBody;
   readonly responses: Readonly<Record<string, ModelResponseOrRef>>;
-  /** Overrides the model's `servers`, e.g. the Supabase project for the Data API. */
+  /**
+   * Overrides the model's `servers`, e.g. the Supabase project for the Data
+   * API.
+   */
   readonly servers?: readonly ModelServer[];
   /** Overrides the model's `security`; `[]` makes the operation public. */
   readonly security?: readonly SecurityRequirement[];
@@ -118,8 +123,8 @@ export interface ModelOperation {
   /** `x-` fields, with their prefix. */
   readonly extensions: JsonObject;
   /**
-   * Deep-merged into the operation object a format renders (OpenAPI), after
-   * the fragments, so it wins over both the generated fields and fragments.
+   * Deep-merged into the operation object a format renders (OpenAPI), after the
+   * fragments, so it wins over both the generated fields and fragments.
    */
   readonly extend?: JsonObject;
 }
@@ -257,11 +262,17 @@ export interface ModelWebhook {
   readonly summary?: string;
   readonly description?: string;
   readonly payload: JsonSchema;
-  /** Standard Webhooks headers (`webhook-id`, `webhook-timestamp`, `webhook-signature`). */
+  /**
+   * Standard Webhooks headers (`webhook-id`, `webhook-timestamp`,
+   * `webhook-signature`).
+   */
   readonly standardWebhooks: boolean;
 }
 
-/** A step calls an operation by id or sends or receives on a channel (Arazzo 1.1). */
+/**
+ * A step calls an operation by id or sends or receives on a channel (Arazzo
+ * 1.1).
+ */
 export interface ModelStep {
   readonly id: string;
   readonly description?: string;
@@ -313,8 +324,8 @@ export interface ModelInfo {
 
 /**
  * A version-neutral description of the API. `defineApi` builds it once; each
- * `DocumentFormat` lowers it to one version of its format. Formats never
- * mutate it.
+ * `DocumentFormat` lowers it to one version of its format. Formats never mutate
+ * it.
  */
 export interface ApiModel {
   readonly info: ModelInfo;

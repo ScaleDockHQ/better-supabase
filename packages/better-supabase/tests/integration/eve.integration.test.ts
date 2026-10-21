@@ -109,12 +109,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         ),
       ).toEqual([
         { id: "t1:1", role: "user", format: "canonical", parent_id: null },
-        {
-          id: "t1:0:2",
-          role: "assistant",
-          format: "eve",
-          parent_id: "t1:1",
-        },
+        { id: "t1:0:2", role: "assistant", format: "eve", parent_id: "t1:1" },
       ]);
       expect(
         await s.rows(

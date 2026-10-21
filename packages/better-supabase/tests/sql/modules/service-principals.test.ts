@@ -35,9 +35,7 @@ describe("service-principals module", () => {
   });
 
   it("writes no membership when the tenant module is custom", () => {
-    const sql = renderModules(BASE, {
-      modules: { tenant: { mode: "custom" } },
-    })
+    const sql = renderModules(BASE, { modules: { tenant: { mode: "custom" } } })
       .filter((file) => file.module === "service-principals")
       .map((file) => file.contents)
       .join("\n");

@@ -112,8 +112,8 @@ function managedTextColumns(
 }
 
 /**
- * Every table the adopt-mode modules in `modules` use, with the columns
- * their SQL names: mapped to `null` and unused optional columns are left out.
+ * Every table the adopt-mode modules in `modules` use, with the columns their
+ * SQL names: mapped to `null` and unused optional columns are left out.
  */
 export function adoptedTables(
   modules: AnyBlocksConfig,
@@ -204,9 +204,9 @@ export function adoptedTables(
 }
 
 /**
- * Adopt-mode modules that default an optional column to its physical name
- * while the adopted `create table` has no such column. `sql sync` refuses
- * those configs so `has()` does not treat a missing column as present.
+ * Adopt-mode modules that default an optional column to its physical name while
+ * the adopted `create table` has no such column. `sql sync` refuses those
+ * configs so `has()` does not treat a missing column as present.
  */
 export function adoptedColumnProblems(
   modules: AnyBlocksConfig,

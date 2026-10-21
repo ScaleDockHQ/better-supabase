@@ -844,10 +844,7 @@ describe("createOrganizationPurger", () => {
       storage: storage.storage,
       buckets: [
         { bucket: "files", path: "orgs/{organizationId}/files/" },
-        {
-          bucket: "media",
-          path: (id) => [`public/${id}`, `private/${id}`],
-        },
+        { bucket: "media", path: (id) => [`public/${id}`, `private/${id}`] },
       ],
     })
       .purge("org-1")

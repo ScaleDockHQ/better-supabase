@@ -31,9 +31,7 @@ function vectorsApi() {
   const index = {
     putVectors: vi.fn(async (_options: unknown) => empty),
     queryVectors: vi.fn(async () => ({
-      data: {
-        vectors: [{ key: "a", distance: 0, metadata: { kind: "x" } }],
-      },
+      data: { vectors: [{ key: "a", distance: 0, metadata: { kind: "x" } }] },
       error: null,
     })),
     getVectors: vi.fn(async () => ({

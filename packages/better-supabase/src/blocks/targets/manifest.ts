@@ -9,9 +9,7 @@ export const targetsBlock: BlockOf<"targets", typeof createTargets> =
   defineBlock({
     name: "targets",
     sql: ["targets"],
-    options: {
-      targets: targetsSqlOptions,
-    },
+    options: { targets: targetsSqlOptions },
     create: createTargets,
     category: "crm",
     recipes: ["targets-progress"],

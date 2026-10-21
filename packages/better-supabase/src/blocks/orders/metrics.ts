@@ -21,8 +21,8 @@ export type OrderMetrics = readonly [
 
 /**
  * Metric definitions over the orders table: orders placed, and revenue and
- * average order value from paid orders, in minor units of `currency`. Pass
- * them to `blocks.metrics.options.metrics` and `createMetrics`.
+ * average order value from paid orders, in minor units of `currency`. Pass them
+ * to `blocks.metrics.options.metrics` and `createMetrics`.
  */
 export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   const shared = {
@@ -61,7 +61,10 @@ export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   ];
 }
 
-/** The events that add rows to `orderMetrics`, for `metricsSink` or `createBlocks({ metricEvents })`. */
+/**
+ * The events that add rows to `orderMetrics`, for `metricsSink` or
+ * `createBlocks({ metricEvents })`.
+ */
 export const ORDER_METRIC_EVENTS: {
   readonly "order.placed": readonly ["orders"];
   readonly "order.paid": readonly ["revenue", "average_order_value"];

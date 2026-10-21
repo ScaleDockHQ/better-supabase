@@ -29,7 +29,10 @@ export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
 
 export type LocationKind = (typeof LOCATION_KINDS)[number];
 
-/** The reasons `adjustStock` accepts. Counts, sales and transfers write their own. */
+/**
+ * The reasons `adjustStock` accepts. Counts, sales and transfers write their
+ * own.
+ */
 export const ADJUST_REASONS = [
   "adjustment",
   "damage",
@@ -55,9 +58,8 @@ export interface InventoryOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the locations' extra columns
-   * (`blocks.inventory.options.extraColumns`), keyed by column name. It
-   * types and parses `fields` on `saveLocation` and validates the ones it
-   * writes.
+   * (`blocks.inventory.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on `saveLocation` and validates the ones it writes.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around any inventory method. */
@@ -74,7 +76,10 @@ export interface LocationInput<F extends object = Record<never, never>> {
   readonly name: string;
   /** Default `warehouse`. */
   readonly kind?: LocationKind;
-  /** Values for the extra columns, by column name; the ones left out keep their value. */
+  /**
+   * Values for the extra columns, by column name; the ones left out keep their
+   * value.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -82,7 +87,10 @@ export interface SavedLocation<F extends object = Record<never, never>> {
   readonly id: string;
   readonly code: string;
   readonly active: boolean;
-  /** The app's extra columns (`options.extraColumns`), by column name; absent without any. */
+  /**
+   * The app's extra columns (`options.extraColumns`), by column name; absent
+   * without any.
+   */
   readonly fields?: Readonly<Record<string, unknown>> & F;
 }
 
@@ -165,7 +173,10 @@ export interface Inventory<F extends object = Record<never, never>> {
   setLocationActive(locationId: string, active: boolean): AsyncResult<boolean>;
   /** Refused with `INVENTORY_LOCATION_IN_USE` once it has stock history. */
   deleteLocation(locationId: string): AsyncResult<boolean>;
-  /** Writes a movement of `quantity` (negative to remove). Emits `stock.adjusted`. */
+  /**
+   * Writes a movement of `quantity` (negative to remove). Emits
+   * `stock.adjusted`.
+   */
   adjustStock(
     variantId: string,
     locationId: string,
@@ -173,7 +184,10 @@ export interface Inventory<F extends object = Record<never, never>> {
     reason: AdjustReason,
     note?: string,
   ): AsyncResult<StockChange>;
-  /** Sets on-hand to a counted number and writes the difference as a `count` movement. */
+  /**
+   * Sets on-hand to a counted number and writes the difference as a `count`
+   * movement.
+   */
   countStock(
     variantId: string,
     locationId: string,
@@ -273,7 +287,10 @@ function purchaseLines(
   return lines;
 }
 
-/** Locations, a stock ledger, reservations, transfers and purchase orders over the `inventory` SQL module. */
+/**
+ * Locations, a stock ledger, reservations, transfers and purchase orders over
+ * the `inventory` SQL module.
+ */
 export function createInventory<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: InventoryOptions<S>): Inventory<FieldsOf<S>> {

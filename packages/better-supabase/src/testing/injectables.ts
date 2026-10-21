@@ -45,8 +45,8 @@ export interface TestEmbedderOptions {
 
 /**
  * Proves an `Embedder` for the knowledge and memory blocks names its model,
- * embeds an empty list to nothing, and returns one finite vector per value,
- * all of the same length on every call. It calls the real model.
+ * embeds an empty list to nothing, and returns one finite vector per value, all
+ * of the same length on every call. It calls the real model.
  */
 export function testEmbedder(
   embedder: Embedder,
@@ -199,8 +199,8 @@ export interface TestBuilderStarterOptions {
 }
 
 /**
- * Proves a `BuilderStarter` returns a run id and returns the same id when
- * the same idempotency key starts again. It starts real runs.
+ * Proves a `BuilderStarter` returns a run id and returns the same id when the
+ * same idempotency key starts again. It starts real runs.
  */
 export function testBuilderStarter(
   start: BuilderStarter,

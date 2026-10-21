@@ -14,9 +14,8 @@ import {
 } from "./design.ts";
 
 /**
- * Why `checkDesign` rejects a design: a `DesignErrorCode` from parsing, or
- * a rule that needs the preset. The codes are stable; the messages may
- * change.
+ * Why `checkDesign` rejects a design: a `DesignErrorCode` from parsing, or a
+ * rule that needs the preset. The codes are stable; the messages may change.
  */
 export type DesignIssueCode =
   | DesignErrorCode
@@ -45,8 +44,8 @@ export interface DesignIssue {
   readonly code: DesignIssueCode;
   /**
    * A JSON Pointer (RFC 6901) into the design, such as
-   * `/appTables/tasks/columns/title`. `""` is the design itself, and the
-   * path of an issue with the preset.
+   * `/appTables/tasks/columns/title`. `""` is the design itself, and the path
+   * of an issue with the preset.
    */
   readonly path: string;
   /** The app table or block module the issue is on, or `design` or `preset`. */
@@ -57,9 +56,9 @@ export interface DesignIssue {
 /**
  * What would stop `sql sync` from writing the design: a table name a block
  * already uses, a reference to a table the preset no longer installs, a
- * set-null delete on a required column, a composite key on a column the
- * table doesn't have, and extra columns for a block that is gone or no
- * longer takes them.
+ * set-null delete on a required column, a composite key on a column the table
+ * doesn't have, and extra columns for a block that is gone or no longer takes
+ * them.
  */
 export function designIssues(
   design: Design,

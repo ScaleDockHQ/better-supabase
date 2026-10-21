@@ -8,7 +8,8 @@ import { createSettings } from "./settings.ts";
 
 /**
  * The `settings` block's manifest (ADR 0029). Pass the app's settings with
- * `settingsBlock.using((options) => createSettings({ ...options, settings }))`.
+ * `settingsBlock.using((options) => createSettings({ ...options, settings
+ * }))`.
  */
 export const settingsBlock: BlockOf<
   "settings",
@@ -17,9 +18,7 @@ export const settingsBlock: BlockOf<
 > = defineBlock({
   name: "settings",
   sql: ["settings"],
-  options: {
-    settings: settingsSqlOptions,
-  },
+  options: { settings: settingsSqlOptions },
   events: settingsEvents,
   create: createSettings,
   category: "tenancy",

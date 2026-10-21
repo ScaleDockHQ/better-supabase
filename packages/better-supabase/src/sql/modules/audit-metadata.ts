@@ -10,8 +10,8 @@ export interface AuditInsert {
 }
 
 /**
- * `blocks.audit.options.metadataColumns`: an adopted log's own columns
- * and the metadata key that fills each.
+ * `blocks.audit.options.metadataColumns`: an adopted log's own columns and the
+ * metadata key that fills each.
  */
 export function metadataColumns(
   ctx: ModuleContext,
@@ -54,7 +54,10 @@ export function metadataColumns(
   });
 }
 
-/** The event's metadata as stored: without the mapped keys unless `keepMappedMetadata`. */
+/**
+ * The event's metadata as stored: without the mapped keys unless
+ * `keepMappedMetadata`.
+ */
 export function storedMetadata(
   ctx: ModuleContext,
   extra: readonly (readonly [column: string, key: string])[],
@@ -70,8 +73,8 @@ export function storedMetadata(
 
 /**
  * The entry insert. With metadata columns it runs as dynamic SQL that names
- * only the mapped columns whose key the metadata has, so an omitted key
- * leaves the column to its default.
+ * only the mapped columns whose key the metadata has, so an omitted key leaves
+ * the column to its default.
  */
 export function eventInsert(
   ctx: ModuleContext,

@@ -69,12 +69,18 @@ export function getRecipe(slug: string): AvailableRecipe | undefined {
   return availableRecipes.find((recipe) => recipe.slug === slug);
 }
 
-/** The `generateStaticParams` of `app/(recipes)/recipes/[slug]`: one page per available recipe. */
+/**
+ * The `generateStaticParams` of `app/(recipes)/recipes/[slug]`: one page per
+ * available recipe.
+ */
 export function recipeStaticParams(): { slug: string }[] {
   return availableRecipes.map((recipe) => ({ slug: recipe.slug }));
 }
 
-/** The platforms a recipe has code for: always the web, and native where it fits a phone. */
+/**
+ * The platforms a recipe has code for: always the web, and native where it fits
+ * a phone.
+ */
 export function recipePlatformsOf(recipe: Recipe): RecipePlatform[] {
   return [
     ...(recipe.web ? (["web"] as const) : []),
@@ -158,12 +164,18 @@ export function recipeGroups(): RecipeGroup[] {
     .filter((group) => group.available.length + group.planned.length > 0);
 }
 
-/** The recipes that use a block, as the primary block or another one, for its `/blocks` page. */
+/**
+ * The recipes that use a block, as the primary block or another one, for its
+ * `/blocks` page.
+ */
 export function recipesFor(block: string): readonly Recipe[] {
   return recipes.filter((recipe) => recipe.blocks.includes(block));
 }
 
-/** `npx shadcn add` for the shadcn components or the `@better-supabase` glue items. */
+/**
+ * `npx shadcn add` for the shadcn components or the `@better-supabase` glue
+ * items.
+ */
 export function shadcnAdd(names: readonly string[], registry = false): string {
   const items = registry
     ? names.map((name) => `@better-supabase/${name}`)
@@ -181,9 +193,9 @@ const codeList = (names: readonly string[]): string =>
   names.map((name) => `\`${name}\``).join(", ");
 
 /**
- * A prompt for a coding agent that builds the recipe on one platform. It
- * names the commands and the hook, and links the Markdown mirror and the
- * block's docs so the agent can read the full code.
+ * A prompt for a coding agent that builds the recipe on one platform. It names
+ * the commands and the hook, and links the Markdown mirror and the block's docs
+ * so the agent can read the full code.
  */
 export function recipePrompt(
   recipe: AvailableRecipe,

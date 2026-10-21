@@ -18,8 +18,8 @@ export interface VueController<S, A> {
 }
 
 /**
- * Makes a controller once and keeps `state` current. Its work starts on
- * mount (at once in an effect scope, never during server rendering), and the
+ * Makes a controller once and keeps `state` current. Its work starts on mount
+ * (at once in an effect scope, never during server rendering), and the
  * controller is disposed with the component or scope.
  */
 export function useBlockController<O, S, A>(

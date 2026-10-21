@@ -20,11 +20,14 @@ import {
 } from "./shared.ts";
 
 export interface StandardSchemaGeneratorOptions {
-  /** Output path relative to the project root. Defaults to `<output>.standard.ts`. */
+  /**
+   * Output path relative to the project root. Defaults to
+   * `<output>.standard.ts`.
+   */
   readonly output?: string;
   /**
-   * Standard Schemas for typed jsonb columns:
-   * `{ 'customers.metadata': './schemas.ts#metadata' }`.
+   * Standard Schemas for typed jsonb columns: `{ 'customers.metadata':
+   * './schemas.ts#metadata' }`.
    */
   readonly json?: Readonly<Record<string, string>>;
 }

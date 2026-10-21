@@ -716,7 +716,10 @@ const project = (rows: readonly Row[], selection: Selection | undefined) =>
     ),
   );
 
-/** An in-memory executor over `tags` that honours eq filters, writes and sources. */
+/**
+ * An in-memory executor over `tags` that honours eq filters, writes and
+ * sources.
+ */
 function storeExecutor(
   seed: readonly Row[],
   quirks: {

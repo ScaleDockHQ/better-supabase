@@ -102,9 +102,7 @@ describe.skipIf(!live)("flags", () => {
       const sql = sqlTransport(s.sql);
 
       const admin = createFlags({
-        transport: {
-          call: (_schema, fn, args) => sql.call(api, fn, args),
-        },
+        transport: { call: (_schema, fn, args) => sql.call(api, fn, args) },
       });
 
       await s.asRole(staff, { platform_permissions: ["flags.manage"] });

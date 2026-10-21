@@ -52,18 +52,21 @@ export interface AsyncApiOptions<
 }
 
 /**
- * An AsyncAPI document for the app's events: Realtime table change signals
- * and broadcast topics, CloudEvents for row and block events, outgoing
- * webhooks and the events HTTP operations emit. Pass `events` (and
- * `realtimeUrl` for the websocket server). Throws when building or checking
- * the document finds an error; use `defineApi(...).render(asyncapiFormat)`
- * to read every finding instead.
+ * An AsyncAPI document for the app's events: Realtime table change signals and
+ * broadcast topics, CloudEvents for row and block events, outgoing webhooks and
+ * the events HTTP operations emit. Pass `events` (and `realtimeUrl` for the
+ * websocket server). Throws when building or checking the document finds an
+ * error; use `defineApi(...).render(asyncapiFormat)` to read every finding
+ * instead.
  *
  * ```ts
  * const doc = createAsyncApi(betterSupabase, {
  *   info: { title: "CRM events", version: "1.0.0" },
  *   realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
- *   events: { tables: ["customers"], cloudEvents: { source: "/crm", blocks: { "support.started": true } } },
+ *   events: {
+ *     tables: ["customers"],
+ *     cloudEvents: { source: "/crm", blocks: { "support.started": true } },
+ *   },
  * });
  * ```
  */

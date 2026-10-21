@@ -9,10 +9,10 @@ export type ExposePrivilege = Privilege | ColumnPrivilege;
 export type ExposeRole = "anon" | "authenticated" | "service_role";
 
 /**
- * Data API grants for one table: privileges for `authenticated`, or per
- * role. `serviceRole` defaults to every privilege. For a function, keyed by
- * its signature (`search_notes(text, integer)`), `execute` lists the roles
- * that may call it; `service_role` is added unless `serviceRole` is false.
+ * Data API grants for one table: privileges for `authenticated`, or per role.
+ * `serviceRole` defaults to every privilege. For a function, keyed by its
+ * signature (`search_notes(text, integer)`), `execute` lists the roles that may
+ * call it; `service_role` is added unless `serviceRole` is false.
  */
 export type ExposeConfig =
   | readonly ExposePrivilege[]

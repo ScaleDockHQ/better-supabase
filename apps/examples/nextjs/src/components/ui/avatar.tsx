@@ -9,9 +9,7 @@ function Avatar({
   className,
   size = "default",
   ...props
-}: AvatarPrimitive.Root.Props & {
-  size?: "default" | "sm" | "lg";
-}) {
+}: AvatarPrimitive.Root.Props & { size?: "default" | "sm" | "lg" }) {
   return (
     <AvatarPrimitive.Root
       data-slot="avatar"

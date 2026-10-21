@@ -99,11 +99,11 @@ const NAMES: ModuleNames = {
 const RESERVED = ["fields", "token"] as const;
 
 /**
- * The conditions a live link meets, for the functions that open a link of
- * one subject type: `links` is the share-links context, `alias` the table
- * alias, `token` the presented token (a text expression) and `subjectType`
- * a SQL expression. Every consumer checks the hash, the type, revocation,
- * expiry and the use limit through this, so none of them can drop one.
+ * The conditions a live link meets, for the functions that open a link of one
+ * subject type: `links` is the share-links context, `alias` the table alias,
+ * `token` the presented token (a text expression) and `subjectType` a SQL
+ * expression. Every consumer checks the hash, the type, revocation, expiry and
+ * the use limit through this, so none of them can drop one.
  */
 export function liveShareLink(
   links: ModuleContext,
@@ -140,9 +140,9 @@ const SUBJECT_ARGS = {
 } as const;
 
 /**
- * The subject types other blocks own, each with the SQL that finds the
- * subject in the link's tenant. ai-chat also requires the caller to own the
- * chat, as `share_ai_chat` does.
+ * The subject types other blocks own, each with the SQL that finds the subject
+ * in the link's tenant. ai-chat also requires the caller to own the chat, as
+ * `share_ai_chat` does.
  */
 function blockSubjects(
   ctx: ModuleContext,
@@ -232,8 +232,8 @@ ${blocks.map(([type, sql]) => `    when ${sqlString(type)} then ${sql}`).join("\
 }
 
 /**
- * A link pinned to a version names one of the subject's versions; without
- * the versions module there is nothing to pin.
+ * A link pinned to a version names one of the subject's versions; without the
+ * versions module there is nothing to pin.
  */
 function versionCheck(ctx: ModuleContext): string {
   const refuse = (message: string): string =>

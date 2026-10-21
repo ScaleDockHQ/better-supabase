@@ -212,9 +212,7 @@ describe("createInbox", () => {
     await inbox.messages.remove("m1").orThrow();
     expect(
       await inbox.messages.react("m1", "👍", { actor: "bot" }).orThrow(),
-    ).toEqual({
-      "👍": ["u1", "bot"],
-    });
+    ).toEqual({ "👍": ["u1", "bot"] });
 
     await inbox.deliveries
       .record({ messageId: "m1", channel: "whatsapp", externalId: "w1" })

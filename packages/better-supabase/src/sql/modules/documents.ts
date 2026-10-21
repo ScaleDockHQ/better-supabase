@@ -584,11 +584,7 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["{id}", "text", "text", "text"],
       returns: "jsonb",
     },
-    {
-      name: "push_document_update",
-      args: ["uuid", "text"],
-      returns: "bigint",
-    },
+    { name: "push_document_update", args: ["uuid", "text"], returns: "bigint" },
     {
       name: "pull_document_updates",
       args: ["uuid", "bigint"],

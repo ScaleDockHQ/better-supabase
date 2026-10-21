@@ -172,9 +172,7 @@ function token(value: string, expiresAt?: Temporal.Instant) {
 
 function provider(
   overrides: Partial<CredentialProvider> = {},
-): CredentialProvider & {
-  readonly getToken: ReturnType<typeof vi.fn>;
-} {
+): CredentialProvider & { readonly getToken: ReturnType<typeof vi.fn> } {
   return {
     apiVersion: 1,
     name: "test",
@@ -315,9 +313,7 @@ describe("credentialAuth", () => {
     const callbackUrl = "https://app.test/eve/v1/connections/linear/callback";
     expect(
       await auth.startAuthorization?.({ ...request(connected), callbackUrl }),
-    ).toEqual({
-      challenge: { url: "https://linear.app/oauth" },
-    });
+    ).toEqual({ challenge: { url: "https://linear.app/oauth" } });
     expect(start).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
       redirectUri: callbackUrl,
@@ -716,10 +712,7 @@ function fakeChats(leaf: string | null = "m0") {
       appendUser: record("appendUser", {}),
       saveAssistant: record("saveAssistant", {}),
     },
-    runs: {
-      claim: record("claim", {}),
-      release: record("release", true),
-    },
+    runs: { claim: record("claim", {}), release: record("release", true) },
   };
 
   return { chats: chats as unknown as AiChat, calls };

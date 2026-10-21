@@ -10,9 +10,7 @@ const conditions = [
 ];
 
 export default defineConfig({
-  test: {
-    include: ["tests/**/*.test.ts"],
-  },
+  test: { include: ["tests/**/*.test.ts"] },
   resolve: { conditions },
   ssr: { resolve: { conditions } },
 });

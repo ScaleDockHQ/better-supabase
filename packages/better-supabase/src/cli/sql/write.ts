@@ -38,8 +38,8 @@ const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 
 /**
  * Test files a SQL module wrote for an earlier layout (a table that is no
- * longer audited), for the modules in `names`. With `appTables`, also the
- * app tables files once `appTables` is empty.
+ * longer audited), for the modules in `names`. With `appTables`, also the app
+ * tables files once `appTables` is empty.
  */
 export async function staleModuleTests(
   config: ResolvedConfig,
@@ -207,7 +207,10 @@ export async function nextStep(config: ResolvedConfig): Promise<NextStep> {
       };
 }
 
-/** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */
+/**
+ * A note when migra's `schema_paths` is set and misses module files, which
+ * `supabase db diff` would then skip.
+ */
 export async function unlistedModuleFiles(
   config: ResolvedConfig,
   names: readonly string[],

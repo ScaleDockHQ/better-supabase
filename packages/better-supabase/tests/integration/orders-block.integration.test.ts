@@ -106,7 +106,10 @@ describe.skipIf(!live)("orders block in Postgres", () => {
   let flat: string;
   let warehouse: string;
 
-  /** Runs each call in a savepoint, as `role`, so a raised error doesn't end the test's transaction. */
+  /**
+   * Runs each call in a savepoint, as `role`, so a raised error doesn't end the
+   * test's transaction.
+   */
   const transport = (role: () => Promise<void>): BlockTransport => {
     const inner = sqlTransport(session.sql);
 

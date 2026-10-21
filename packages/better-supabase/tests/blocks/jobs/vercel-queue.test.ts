@@ -18,7 +18,10 @@ interface Stored {
   gone: boolean;
 }
 
-/** A PollingQueueClient in memory: receive locks, runs handlers, then acks or retries. */
+/**
+ * A PollingQueueClient in memory: receive locks, runs handlers, then acks or
+ * retries.
+ */
 function fakeClient(): VercelQueueClient {
   const topics = new Map<string, Stored[]>();
   let count = 0;

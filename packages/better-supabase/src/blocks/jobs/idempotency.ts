@@ -22,12 +22,15 @@ import {
 } from "../shared.ts";
 import { transportRows } from "./backends.ts";
 
-/** Where `createIdempotency` stores keys: a transport, or a service SQL connection. */
+/**
+ * Where `createIdempotency` stores keys: a transport, or a service SQL
+ * connection.
+ */
 export type IdempotencySource =
   | {
       /**
-       * A service-role transport, such as `rpcTransport(adminClient, { schema: "api" })`
-       * over the wrappers `blocks.idempotency.api` writes.
+       * A service-role transport, such as `rpcTransport(adminClient, { schema:
+       * "api" })` over the wrappers `blocks.idempotency.api` writes.
        */
       readonly transport: BlockTransport;
       readonly sql?: never;
@@ -53,15 +56,24 @@ export interface IdempotencySettings
   readonly ttl?: number | string;
   /** How long a running request holds the key. Defaults to `1 minute`. */
   readonly lock?: number | string;
-  /** Answer 400 when the header is missing. Defaults to false (run without a key). */
+  /**
+   * Answer 400 when the header is missing. Defaults to false (run without a
+   * key).
+   */
   readonly required?: boolean;
   /** Defaults to `Idempotency-Key`. */
   readonly header?: string;
-  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  /**
+   * The schema the functions live in, over a transport. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
   /** Error mappers that run before the built-in ones, over a transport. */
   readonly mappers?: readonly ErrorMapper[];
-  /** `withBlockHooks` hooks around `begin`, `extend`, `complete`, `release` and `purge`. */
+  /**
+   * `withBlockHooks` hooks around `begin`, `extend`, `complete`, `release` and
+   * `purge`.
+   */
   readonly hooks?: BlockHooks<Idempotency>;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
@@ -71,8 +83,8 @@ export type IdempotencyState = "started" | "replay" | "running" | "mismatch";
 
 export interface Idempotency {
   /**
-   * Runs `handler` at most once per key: retries with the same key and body
-   * get the stored response (with `Idempotency-Replayed: true`).
+   * Runs `handler` at most once per key: retries with the same key and body get
+   * the stored response (with `Idempotency-Replayed: true`).
    */
   handle(
     request: Request,
@@ -92,13 +104,13 @@ export interface Idempotency {
   }>;
   /**
    * Moves the lock of a running key `lock` further for `holder`. `false` once
-   * the lock ran out or another caller took the key over. `handle` calls it
-   * at half the lock while the handler runs.
+   * the lock ran out or another caller took the key over. `handle` calls it at
+   * half the lock while the handler runs.
    */
   extend(key: string, holder: string, scope?: string): AsyncResult<boolean>;
   /**
-   * Stores the response for `holder`. `false` when the lock ran out and
-   * another caller took the key over, so the response was not stored.
+   * Stores the response for `holder`. `false` when the lock ran out and another
+   * caller took the key over, so the response was not stored.
    */
   complete(
     key: string,
@@ -268,9 +280,9 @@ function transportCalls(
 }
 
 /**
- * HTTP idempotency keys (IETF `Idempotency-Key` header) over the
- * `idempotency` SQL module: a service SQL connection, or a service-role
- * `rpcTransport` over the wrappers `blocks.idempotency.api` writes.
+ * HTTP idempotency keys (IETF `Idempotency-Key` header) over the `idempotency`
+ * SQL module: a service SQL connection, or a service-role `rpcTransport` over
+ * the wrappers `blocks.idempotency.api` writes.
  */
 export function createIdempotency(options: IdempotencyOptions): Idempotency {
   applyTemporal(options);
@@ -290,18 +302,20 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
     purge: () => calls.purge(),
     purgeJob: () => async () => hooked.purge().orThrow(),
     begin: (key, fingerprint, scope = "") =>
-      calls.begin(scope, key, fingerprint, ttl, lock).andThen((row) =>
-        row
-          ? AsyncResult.ok({
-              state: row.state,
-              status: row.status_code,
-              body: row.response,
-              holder: row.holder ?? undefined,
-            })
-          : AsyncResult.err(
-              dbError("unexpected", "begin_idempotent returned no row"),
-            ),
-      ),
+      calls
+        .begin(scope, key, fingerprint, ttl, lock)
+        .andThen((row) =>
+          row
+            ? AsyncResult.ok({
+                state: row.state,
+                status: row.status_code,
+                body: row.response,
+                holder: row.holder ?? undefined,
+              })
+            : AsyncResult.err(
+                dbError("unexpected", "begin_idempotent returned no row"),
+              ),
+        ),
     extend: (key, holder, scope = "") => calls.extend(scope, key, holder, lock),
     complete: (key, holder, status, body, scope = "") =>
       calls.complete(scope, key, holder, status, body),
@@ -317,9 +331,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
               dbError(
                 "invalid_request",
                 `The ${headerName} header is required`,
-                {
-                  code: "IDEMPOTENCY_KEY_MISSING",
-                },
+                { code: "IDEMPOTENCY_KEY_MISSING" },
               ),
               { instance, format },
             )
@@ -376,9 +388,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             dbError(
               "conflict",
               "A request with this idempotency key is still running",
-              {
-                code: "IDEMPOTENCY_KEY_IN_USE",
-              },
+              { code: "IDEMPOTENCY_KEY_IN_USE" },
             ),
             { instance, format, headers: { "retry-after": "1" } },
           );

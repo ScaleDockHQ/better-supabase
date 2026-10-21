@@ -12,7 +12,7 @@ import type {
 } from "@workflow/world";
 import type { Pool } from "pg";
 
-/** world-postgres stores UTC in `timestamp without time zone` columns. */
+/** World-postgres stores UTC in `timestamp without time zone` columns. */
 const utc = (column: string): string => `(${column} at time zone 'UTC')`;
 
 /** The column every keyset query adds: the row's sort key as `text[]`. */
@@ -46,7 +46,10 @@ const EVENT_COLUMNS = `
   case when e.payload ? 'retryAfter' then (e.payload ->> 'retryAfter')::timestamptz end as "retryAfter",
   e.payload ->> 'errorCode' as "errorCode"`;
 
-/** world-postgres keys waits `<runId>-<correlationId>`; analytics names them by the correlation id, as steps and hooks. */
+/**
+ * World-postgres keys waits `<runId>-<correlationId>`; analytics names them by
+ * the correlation id, as steps and hooks.
+ */
 const WAIT_COLUMNS = `
   w.run_id as "runId",
   case when starts_with(w.wait_id, w.run_id || '-')
@@ -55,7 +58,10 @@ const WAIT_COLUMNS = `
   ${utc("w.resume_at")} as "resumeAt", ${utc("w.created_at")} as "createdAt",
   ${utc("w.updated_at")} as "updatedAt", ${utc("w.completed_at")} as "completedAt"`;
 
-/** Hooks keep their row only while active, so the status comes from the event log. */
+/**
+ * Hooks keep their row only while active, so the status comes from the event
+ * log.
+ */
 const HOOKS = `
   select e.run_id as "runId", e.correlation_id as "hookId",
     case
@@ -159,7 +165,10 @@ function cursorColumn(columns: readonly string[]): string {
   return `array[${columns.map((column) => `(${column})::text`).join(", ")}] as "${CURSOR}"`;
 }
 
-/** Converts SQL nulls to the optional fields the analytics schemas allow, and drops the cursor column. */
+/**
+ * Converts SQL nulls to the optional fields the analytics schemas allow, and
+ * drops the cursor column.
+ */
 function compact<T>(row: Record<string, unknown>): T {
   const out: Record<string, unknown> = {};
 
@@ -188,8 +197,8 @@ const MAX_ATTRIBUTE_FILTERS = 8;
 
 /**
  * The World's `analytics` namespace over the world-postgres tables: the run
- * listing filters by status, name, window and latest attributes (the GIN
- * index on `workflow_runs.attributes` serves the filter).
+ * listing filters by status, name, window and latest attributes (the GIN index
+ * on `workflow_runs.attributes` serves the filter).
  */
 export function createAnalytics(pool: Pool): Analytics {
   const rows = async <T>(

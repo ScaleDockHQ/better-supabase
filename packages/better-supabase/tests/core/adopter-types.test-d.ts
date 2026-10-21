@@ -66,9 +66,7 @@ describe("orderBy from a ternary", () => {
 
     void db.customers.findMany({ orderBy: merged });
     void db.customers.findMany({ orderBy: [merged] });
-    void db.customers.findMany({
-      orderBy: { name: flag ? "asc" : undefined },
-    });
+    void db.customers.findMany({ orderBy: { name: flag ? "asc" : undefined } });
 
     expectTypeOf(orderBy).toExtend<OrderByOf<"customers">>();
   });

@@ -24,15 +24,18 @@ export interface MountedBinding {
 }
 
 export interface ControllerBindingHarness {
-  /** Mounts the binding over the controller `create` returns, as a component would. */
+  /**
+   * Mounts the binding over the controller `create` returns, as a component
+   * would.
+   */
   readonly mount: (
     create: () => ProbeController,
   ) => MountedBinding | Promise<MountedBinding>;
   /** Lets the framework apply pending updates: a tick, a flush. */
   readonly settle?: () => void | Promise<void>;
   /**
-   * Whether unmounting disposes the controller. React keeps it for
-   * StrictMode's second mount and only stops its work. Default true.
+   * Whether unmounting disposes the controller. React keeps it for StrictMode's
+   * second mount and only stops its work. Default true.
    */
   readonly disposes?: boolean;
 }

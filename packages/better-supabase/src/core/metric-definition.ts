@@ -41,9 +41,8 @@ export interface MetricDefinition<
   /** Column equalities every counted row meets. */
   readonly where?: Readonly<Record<string, MetricWhereValue>>;
   /**
-   * Counts rows of a subject table whose `deletedAt` column is set. By
-   * default the SQL module adds `deletedAt is null` unless `where` names
-   * that column.
+   * Counts rows of a subject table whose `deletedAt` column is set. By default
+   * the SQL module adds `deletedAt is null` unless `where` names that column.
    */
   readonly includeDeleted?: boolean;
   /**

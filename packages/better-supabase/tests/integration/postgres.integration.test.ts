@@ -454,9 +454,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
           tenant_id: "00000000-0000-4000-8000-000000000002",
         }),
       ),
-      {
-        tenant: "00000000-0000-4000-8000-000000000002",
-      },
+      { tenant: "00000000-0000-4000-8000-000000000002" },
     );
 
     const rows = await other.customers.findMany({ select: ["name"] }).orThrow();

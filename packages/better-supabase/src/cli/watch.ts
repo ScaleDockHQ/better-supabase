@@ -15,7 +15,10 @@ export const sleep = (
 ): Promise<void> =>
   delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
 
-/** The modification time of `file`, or `undefined` when it is unset or unreadable. */
+/**
+ * The modification time of `file`, or `undefined` when it is unset or
+ * unreadable.
+ */
 export const modifiedTime = (
   file: string | undefined,
 ): Promise<number | undefined> =>
@@ -31,8 +34,8 @@ export const stampFiles = async (files: readonly string[]): Promise<string> =>
   JSON.stringify([files, await Promise.all(files.map(modifiedTime))]);
 
 /**
- * A positive number of milliseconds from `--interval`, `gen.watchInterval`
- * or the default, or an error message to print.
+ * A positive number of milliseconds from `--interval`, `gen.watchInterval` or
+ * the default, or an error message to print.
  */
 export function parseInterval(
   flag: string | number | undefined,
@@ -47,7 +50,10 @@ export function parseInterval(
     : `--interval must be a positive number of milliseconds, got "${flag ?? configured}".`;
 }
 
-/** Returns `true` the first time it sees `message` after a different one, so a repeating failure prints once. */
+/**
+ * Returns `true` the first time it sees `message` after a different one, so a
+ * repeating failure prints once.
+ */
 export function onceReporter(): (message: string) => boolean {
   let reported = "";
 
@@ -70,14 +76,17 @@ export interface WatchLoopOptions {
    * fails to load is reported, and loading is retried the next interval.
    */
   readonly reload: (config: ResolvedConfig) => Promise<void> | void;
-  /** One round: the result of a run, or `undefined` when nothing changed. A thrown error counts as a failed run. */
+  /**
+   * One round: the result of a run, or `undefined` when nothing changed. A
+   * thrown error counts as a failed run.
+   */
   readonly tick: () => Promise<CommandResult | undefined>;
 }
 
 /**
- * Runs `tick` every `interval` until the signal aborts, and prints each
- * result through `emit`: the text output, or one NDJSON envelope per run
- * under `--json`. The same failure in a row is printed once.
+ * Runs `tick` every `interval` until the signal aborts, and prints each result
+ * through `emit`: the text output, or one NDJSON envelope per run under
+ * `--json`. The same failure in a row is printed once.
  */
 export async function watchLoop(
   options: WatchLoopOptions,

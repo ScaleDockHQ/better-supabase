@@ -24,7 +24,8 @@ export interface ExecuteResult {
 /**
  * Runs IR operations. PostgREST (`postgrestExecutor`) and SQL
  * (`better-supabase/postgres`) are built in; any other backend can implement
- * this interface and prove it with `testExecutor` from `better-supabase/testing`.
+ * this interface and prove it with `testExecutor` from
+ * `better-supabase/testing`.
  */
 export interface Executor {
   readonly name: string;
@@ -42,8 +43,8 @@ export interface Executor {
   ): Promise<Result<unknown>>;
   /**
    * Runs several reads together, for `db.$many`: one transaction on a SQL
-   * connection. Returns one result per operation, in order. Optional;
-   * without it `db.$many` runs the operations in parallel.
+   * connection. Returns one result per operation, in order. Optional; without
+   * it `db.$many` runs the operations in parallel.
    */
   batch?(
     ops: readonly Operation[],

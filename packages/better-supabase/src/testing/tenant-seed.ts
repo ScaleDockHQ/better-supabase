@@ -17,10 +17,10 @@ export interface SeedTenantOnCreateOptions {
 const development = (): boolean => process.env["NODE_ENV"] === "development";
 
 /**
- * Applies `seed` to each organization created through the organizations
- * block, so a new tenant starts with demo data in development. The seed runs
- * after the event and can never change the result of the create call. Returns
- * a function that stops listening.
+ * Applies `seed` to each organization created through the organizations block,
+ * so a new tenant starts with demo data in development. The seed runs after the
+ * event and can never change the result of the create call. Returns a function
+ * that stops listening.
  *
  * ```ts
  * seedTenantOnCreate(betterSupabase, tenantSeed, { sql: serviceSql });

@@ -15,7 +15,10 @@ export interface H3Event<Context extends object> {
     /** Where Nitro 2's Cloudflare presets put the bindings. */
     readonly cloudflare?: { readonly env?: unknown } | undefined;
   };
-  /** The status and headers a handler set with `event.res`, kept on a plain return value. */
+  /**
+   * The status and headers a handler set with `event.res`, kept on a plain
+   * return value.
+   */
   readonly res?:
     | {
         readonly status?: number | undefined;
@@ -41,14 +44,16 @@ export type H3Middleware<Context extends object> = (
 ) => Promise<Response>;
 
 /**
- * Runs an entry array as H3 2 middleware (`app.use(...)`, Nitro and Nuxt
- * server middleware). Every contributed key lands on `event.context`, and
- * the handler's value comes back as a `Response` (JSON for plain values)
- * so response-phase entries can add headers and cookies.
+ * Runs an entry array as H3 2 middleware (`app.use(...)`, Nitro and Nuxt server
+ * middleware). Every contributed key lands on `event.context`, and the
+ * handler's value comes back as a `Response` (JSON for plain values) so
+ * response-phase entries can add headers and cookies.
  *
  * ```ts
- * app.use(toH3([withBetterSupabase(server)]))
- * app.get('/notes', (event) => event.context.db.notes.findMany().orThrow())
+ * app.use(toH3([withBetterSupabase(server)]));
+ * app.get("/notes", (event) =>
+ *   event.context.db.notes.findMany().orThrow(),
+ * );
  * ```
  */
 export function toH3<const Entries extends readonly AnyEntry[]>(

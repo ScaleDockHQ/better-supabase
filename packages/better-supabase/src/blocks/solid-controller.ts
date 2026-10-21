@@ -13,9 +13,9 @@ export interface SolidController<S, A> {
 }
 
 /**
- * Makes a controller once and reads it through `from`. Its work starts on
- * mount (never during server rendering), and the controller is disposed
- * with the owner.
+ * Makes a controller once and reads it through `from`. Its work starts on mount
+ * (never during server rendering), and the controller is disposed with the
+ * owner.
  */
 export function useBlockController<O, S, A>(
   create: (options: O) => Controller<S, A>,

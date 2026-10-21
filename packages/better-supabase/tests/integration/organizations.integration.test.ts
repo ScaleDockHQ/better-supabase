@@ -34,7 +34,10 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-/** A provider over `schema`'s stand-in functions; `forUser` adds the `_for` and assignment templates. */
+/**
+ * A provider over `schema`'s stand-in functions; `forUser` adds the `_for` and
+ * assignment templates.
+ */
 const testProvider = (
   schema: string,
   forUser = false,
@@ -67,7 +70,10 @@ type Who = keyof typeof USERS;
 
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-/** Runs each call in a savepoint, so a refused call leaves the test transaction usable. */
+/**
+ * Runs each call in a savepoint, so a refused call leaves the test transaction
+ * usable.
+ */
 const savepointSql = (client: PoolClient) => ({
   async queryRaw(text: string, params: readonly unknown[] = []) {
     await client.query("savepoint call");
@@ -701,14 +707,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
-            columns: {
-              memberships: { updatedAt: null, lastUsedAt: null },
-            },
+            columns: { memberships: { updatedAt: null, lastUsedAt: null } },
           },
-          organizations: {
-            schema,
-            options: { assignmentGuard: "external" },
-          },
+          organizations: { schema, options: { assignmentGuard: "external" } },
         },
       };
 
@@ -1708,9 +1709,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(forbidden.error).toMatchObject({ hint: "ORGANIZATION_FORBIDDEN" });
       expect(
         await organizations.acceptInvitation(sent.token).orThrow(),
-      ).toEqual({
-        organizationId: created.id,
-      });
+      ).toEqual({ organizationId: created.id });
       expect(await s.role(created.id, "member")).toBe("member");
       await organizations.leave(created.id).orThrow();
       expect(await s.role(created.id, "member")).toBeNull();

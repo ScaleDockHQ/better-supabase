@@ -11,9 +11,7 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
   defineBlock({
     name: "agents",
     sql: ["agents"],
-    options: {
-      agents: agentsSqlOptions,
-    },
+    options: { agents: agentsSqlOptions },
     events: agentsEvents,
     create: createAgents,
     category: "ai",

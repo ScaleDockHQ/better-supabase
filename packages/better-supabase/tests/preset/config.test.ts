@@ -75,10 +75,7 @@ describe("expandPreset", () => {
       preset: code,
       casing: "snake",
       sql: { schema: "app" },
-      blocks: {
-        access: { idType: "text" },
-        tags: { mode: "managed" },
-      },
+      blocks: { access: { idType: "text" }, tags: { mode: "managed" } },
     });
 
     expect(expanded.casing).toBe("snake");

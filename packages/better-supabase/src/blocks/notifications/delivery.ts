@@ -1,7 +1,7 @@
 /**
- * What a message is for. `security` (sign-in codes, password resets,
- * new-device alerts) and `approval` (a request waiting on the reader) mail
- * never carries an unsubscribe link: the reader can't opt out of it.
+ * What a message is for. `security` (sign-in codes, password resets, new-device
+ * alerts) and `approval` (a request waiting on the reader) mail never carries
+ * an unsubscribe link: the reader can't opt out of it.
  */
 export type MailCategory = "notification" | "security" | "approval";
 
@@ -15,9 +15,9 @@ export interface EmailMessage {
   readonly replyTo?: string;
   readonly category: MailCategory;
   /**
-   * Headers the provider sends as given: `Auto-Submitted` on every message,
-   * and `List-Unsubscribe` with `List-Unsubscribe-Post` on notification mail
-   * that has an unsubscribe address.
+   * Headers the provider sends as given: `Auto-Submitted` on every message, and
+   * `List-Unsubscribe` with `List-Unsubscribe-Post` on notification mail that
+   * has an unsubscribe address.
    */
   readonly headers: Readonly<Record<string, string>>;
 }
@@ -31,8 +31,8 @@ export type DeliveryChannel = keyof DeliveryMessages;
 
 export interface DeliverySendOptions {
   /**
-   * The delivery id. A provider that dedupes by key sends a retried
-   * delivery once; pass it as the provider's idempotency key.
+   * The delivery id. A provider that dedupes by key sends a retried delivery
+   * once; pass it as the provider's idempotency key.
    */
   readonly idempotencyKey: string;
 }
@@ -43,8 +43,8 @@ export interface DeliveryReceipt {
 }
 
 /**
- * Sends one message through a provider (Resend, Postmark, SES, SMTP). A
- * throw retries the delivery after its lease, with the same idempotency key.
+ * Sends one message through a provider (Resend, Postmark, SES, SMTP). A throw
+ * retries the delivery after its lease, with the same idempotency key.
  */
 export interface DeliveryTransport<
   C extends DeliveryChannel = DeliveryChannel,
@@ -59,7 +59,10 @@ export interface DeliveryTransport<
   ): DeliveryReceipt | void | Promise<DeliveryReceipt | void>;
 }
 
-/** Where a reader unsubscribes: an `https:` URL for one-click, a `mailto:` address, or both. */
+/**
+ * Where a reader unsubscribes: an `https:` URL for one-click, a `mailto:`
+ * address, or both.
+ */
 export interface UnsubscribeTarget {
   /** Receives the RFC 8058 one-click `POST`; must be `https:`. */
   readonly url?: string;
@@ -68,13 +71,12 @@ export interface UnsubscribeTarget {
 }
 
 /**
- * The headers automated mail carries: `Auto-Submitted: auto-generated`
- * (RFC 3834) on every message, so auto-responders stay quiet, and on
- * `notification` mail with an unsubscribe target, `List-Unsubscribe`
- * (RFC 2369). `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
- * (RFC 8058) needs the `https:` URL, so a `mailto:`-only target leaves it
- * out. Throws a `TypeError` for a URL that isn't `https:` or an address that
- * isn't `mailto:`.
+ * The headers automated mail carries: `Auto-Submitted: auto-generated` (RFC 3834)
+ * on every message, so auto-responders stay quiet, and on `notification` mail
+ * with an unsubscribe target, `List-Unsubscribe` (RFC 2369).
+ * `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) needs the
+ * `https:` URL, so a `mailto:`-only target leaves it out. Throws a `TypeError`
+ * for a URL that isn't `https:` or an address that isn't `mailto:`.
  */
 export function mailHeaders(
   category: MailCategory,

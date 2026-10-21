@@ -16,7 +16,10 @@ export type AccountEventType =
   | "account.sessions_ended";
 
 export interface ServerAudit {
-  /** Sends one account event; failures go to the logger and never change a result. */
+  /**
+   * Sends one account event; failures go to the logger and never change a
+   * result.
+   */
   account(
     type: AccountEventType,
     userId: string,

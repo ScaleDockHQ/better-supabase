@@ -81,9 +81,7 @@ and a run with errors has the `findings` error code.
 ## Ignoring checks
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({
-  doctor: { ignore: ["BS204"], strict: true },
-});
+export default defineConfig({ doctor: { ignore: ["BS204"], strict: true } });
 ```
 
 `doctor.sources` lists the app files that checks such as BS210 scan, as globs

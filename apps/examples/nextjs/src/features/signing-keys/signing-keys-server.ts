@@ -12,8 +12,8 @@ import { bs } from "@/lib/supabase/server";
 const API_SCHEMA = blockConfig["signing-keys"].api;
 
 /**
- * Every signing-keys function is service-role only, because the private
- * keys sit in Vault. Callers check the member's permission first.
+ * Every signing-keys function is service-role only, because the private keys
+ * sit in Vault. Callers check the member's permission first.
  */
 export function signingKeys(): SigningKeys {
   return createSigningKeys({

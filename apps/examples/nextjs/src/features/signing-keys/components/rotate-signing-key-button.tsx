@@ -22,8 +22,8 @@ import { useErrorMessage } from "@/lib/use-error-message";
 import { rotateSigningKey } from "../signing-keys-actions";
 
 /**
- * Rotates behind a confirm. With no key yet (`first`), the same action
- * creates one, so the empty state uses it too.
+ * Rotates behind a confirm. With no key yet (`first`), the same action creates
+ * one, so the empty state uses it too.
  */
 export function RotateSigningKeyButton({ first }: { first: boolean }) {
   const t = useExtracted("signingKeys");

@@ -13,7 +13,10 @@ export interface NotificationRow {
   readonly createdAt: string;
 }
 
-/** The caller's latest notifications in the active organization, for `useNotifications`. */
+/**
+ * The caller's latest notifications in the active organization, for
+ * `useNotifications`.
+ */
 export const loadNotifications = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {

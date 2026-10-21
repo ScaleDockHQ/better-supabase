@@ -10,7 +10,10 @@ import { upgradePlan } from "../../../src/sql/upgrade.ts";
 const audit = (config: BlockConfig = {}) =>
   moduleBody("audit", { modules: { audit: config } })!;
 
-/** CentraKit's audit tables: uuid ids, no row snapshots, restricted details apart. */
+/**
+ * CentraKit's audit tables: uuid ids, no row snapshots, restricted details
+ * apart.
+ */
 const CENTRAKIT: BlockConfig = {
   mode: "adopt",
   tables: {

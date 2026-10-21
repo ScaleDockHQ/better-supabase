@@ -110,10 +110,7 @@ describe("bs.authed()", () => {
     );
     expect(
       await failureOf(call(write, undefined, { context: await context() })),
-    ).toMatchObject({
-      code: "FORBIDDEN",
-      data: { code: "PERMISSION_DENIED" },
-    });
+    ).toMatchObject({ code: "FORBIDDEN", data: { code: "PERMISSION_DENIED" } });
     expect(
       await failureOf(call(admins, undefined, { context: await context() })),
     ).toMatchObject({ code: "FORBIDDEN", data: { code: "MISSING_ROLE" } });

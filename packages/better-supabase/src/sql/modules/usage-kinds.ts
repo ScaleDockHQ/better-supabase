@@ -34,10 +34,10 @@ function usageKindsOf(ctx: ModuleContext): UsageKinds {
 }
 
 /**
- * Distinct meters (`track_usage`: one unit per subject and period) and
- * computed meters (`usage_refresh`: a gauge a query reports per tenant). Both
- * write the counters table, so quotas, status and Stripe reporting read them
- * like any counter.
+ * Distinct meters (`track_usage`: one unit per subject and period) and computed
+ * meters (`usage_refresh`: a gauge a query reports per tenant). Both write the
+ * counters table, so quotas, status and Stripe reporting read them like any
+ * counter.
  */
 export function usageKindsSql(ctx: ModuleContext): string {
   const kinds = usageKindsOf(ctx);

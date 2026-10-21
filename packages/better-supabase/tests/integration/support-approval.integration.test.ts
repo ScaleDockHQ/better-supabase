@@ -25,7 +25,10 @@ interface Request {
   readonly session_id: string | null;
 }
 
-/** Installs `module` from `layout` over what the session already has, its own file only. */
+/**
+ * Installs `module` from `layout` over what the session already has, its own
+ * file only.
+ */
 async function reinstall(
   s: BlockSession,
   modules: readonly string[],
@@ -41,7 +44,10 @@ async function reinstall(
   }
 }
 
-/** A provider whose `isApprover` allows everyone for `kind`, so only the requester check can refuse. */
+/**
+ * A provider whose `isApprover` allows everyone for `kind`, so only the
+ * requester check can refuse.
+ */
 async function providerLayout(
   s: BlockSession,
   kind: string,

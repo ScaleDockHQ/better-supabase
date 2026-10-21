@@ -90,7 +90,10 @@ function callArguments(
   return calls;
 }
 
-/** The first column of `table` an argument list refers to, bare or as `table.column`. */
+/**
+ * The first column of `table` an argument list refers to, bare or as
+ * `table.column`.
+ */
 function columnArgument(args: string, table: CatalogTable): string | undefined {
   return table.columns.find((column) =>
     new RegExp(
@@ -105,9 +108,9 @@ const expressions = (policy: CatalogPolicy): (string | null)[] => [
 ];
 
 /**
- * Why Postgres can't inline `fn` into the query that calls it, or
- * `undefined` when it can: only `language sql` functions that are not
- * volatile, not security definer and have no `set` options are inlined.
+ * Why Postgres can't inline `fn` into the query that calls it, or `undefined`
+ * when it can: only `language sql` functions that are not volatile, not
+ * security definer and have no `set` options are inlined.
  */
 function notInlinable(fn: ExtrasFunction): string | undefined {
   if (fn.language !== "sql") {
@@ -216,7 +219,10 @@ interface GrantColumn {
   provider: boolean;
 }
 
-/** The body of `schema.name` from the snapshot, else from the first SQL file that creates it. */
+/**
+ * The body of `schema.name` from the snapshot, else from the first SQL file
+ * that creates it.
+ */
 export function functionBody(
   context: DoctorContext,
   schema: string,
@@ -303,7 +309,10 @@ function findPolicyHelpers(context: DoctorContext): Map<string, string> {
   return bodies;
 }
 
-/** Tables a function body reads (`from` and `join`), with the names it refers to them by. */
+/**
+ * Tables a function body reads (`from` and `join`), with the names it refers to
+ * them by.
+ */
 function readTables(
   body: string,
   tables: readonly CatalogTable[],
@@ -340,12 +349,11 @@ function readTables(
 }
 
 /**
- * Columns that decide who may read other rows, by `schema.table`: the
- * columns of the tables policy helpers read that their bodies mention
- * (qualified, or bare when the body reads one table), and the manifest's
- * `decidingColumns`. A subject's `deletedAt` column and a module's
- * `hidingColumns` only hide rows, so they count only when the manifest
- * lists them.
+ * Columns that decide who may read other rows, by `schema.table`: the columns
+ * of the tables policy helpers read that their bodies mention (qualified, or
+ * bare when the body reads one table), and the manifest's `decidingColumns`. A
+ * subject's `deletedAt` column and a module's `hidingColumns` only hide rows,
+ * so they count only when the manifest lists them.
  */
 function grantColumns(
   context: DoctorContext,
@@ -423,7 +431,10 @@ function grantColumns(
   return columns;
 }
 
-/** Whether `role` may run `command` on rows of `table` at all: no RLS, or a permissive policy for it. */
+/**
+ * Whether `role` may run `command` on rows of `table` at all: no RLS, or a
+ * permissive policy for it.
+ */
 const policyAllows = (
   table: CatalogTable,
   command: (typeof WRITES)[number],
@@ -437,14 +448,17 @@ const policyAllows = (
       appliesTo(policy, role),
   );
 
-/** Whether `grant` reaches `role`: granted to it, or to PUBLIC, which every role inherits. */
+/**
+ * Whether `grant` reaches `role`: granted to it, or to PUBLIC, which every role
+ * inherits.
+ */
 const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
   grant.role === role || grant.role === "PUBLIC";
 
 /**
- * Whether every call of `name` (`schema.function`) in `expressions` takes
- * no arguments inside `(select ...)`, which Postgres runs once per
- * statement. An argument may come from the row, and then it runs per row.
+ * Whether every call of `name` (`schema.function`) in `expressions` takes no
+ * arguments inside `(select ...)`, which Postgres runs once per statement. An
+ * argument may come from the row, and then it runs per row.
  */
 function onlyWrapped(
   name: string,
@@ -470,11 +484,11 @@ function onlyWrapped(
 }
 
 /**
- * Whether every permissive policy that lets `role` run `command` holds
- * `column` to a tenant the caller acts in, with no `or` around it: equal to
- * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in
- * `(select tenant_ids_with(...))` or `(select member_<tenant>_ids())`. A
- * write can't name a tenant the caller isn't in then.
+ * Whether every permissive policy that lets `role` run `command` holds `column`
+ * to a tenant the caller acts in, with no `or` around it: equal to
+ * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in `(select
+ * tenant_ids_with(...))` or `(select member_<tenant>_ids())`. A write can't
+ * name a tenant the caller isn't in then.
  */
 function pinnedToTenant(
   table: CatalogTable,
@@ -515,11 +529,10 @@ function pinnedToTenant(
 }
 
 /**
- * The grant columns `role` may write with `command`, through a table-level
- * or a column-level grant. A single-column primary key is left out (its
- * uniqueness stops a write from taking over another row), and so is a
- * column every policy pins to the request's tenant, unless the provider
- * lists it in `deciding`.
+ * The grant columns `role` may write with `command`, through a table-level or a
+ * column-level grant. A single-column primary key is left out (its uniqueness
+ * stops a write from taking over another row), and so is a column every policy
+ * pins to the request's tenant, unless the provider lists it in `deciding`.
  */
 function writableColumns(
   table: CatalogTable,
@@ -568,7 +581,10 @@ const DEFAULT_HOISTED = [
 
 const TIMEOUT_ROLES = ["anon", "authenticated", "authenticator"] as const;
 
-/** Partitions of an RLS table that have RLS off: queried by name, they skip the parent's policies. */
+/**
+ * Partitions of an RLS table that have RLS off: queried by name, they skip the
+ * parent's policies.
+ */
 function partitionsWithoutRls(context: DoctorContext): FindingInput[] {
   const tables = catalogOf(context).tables;
   const byName = new Map(tables.map((table) => [qualified(table), table]));

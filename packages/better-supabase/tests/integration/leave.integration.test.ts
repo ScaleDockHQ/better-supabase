@@ -94,10 +94,7 @@ describe.skipIf(!live)("leave", () => {
       expect(week).toMatchObject({ amount: 5, status: "pending" });
       expect(
         await leave
-          .request(tenant, {
-            typeId: vacation.id,
-            startsOn: day("2027-03-03"),
-          })
+          .request(tenant, { typeId: vacation.id, startsOn: day("2027-03-03") })
           .then(hint),
       ).toBe("LEAVE_OVERLAP");
       expect(

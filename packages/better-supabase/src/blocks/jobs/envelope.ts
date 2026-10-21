@@ -43,10 +43,10 @@ function ticketOf(
 }
 
 /**
- * The context a job records: the actor, the tenant, the ticket, and the
- * `act` chain and delegation of the token, so a job an OAuth or MCP client
- * queued runs with that client's scopes, never the user's full rights.
- * An invalid `act` chain or malformed delegation is `forbidden`.
+ * The context a job records: the actor, the tenant, the ticket, and the `act`
+ * chain and delegation of the token, so a job an OAuth or MCP client queued
+ * runs with that client's scopes, never the user's full rights. An invalid
+ * `act` chain or malformed delegation is `forbidden`.
  */
 function recordContext(
   context: RequestContext | undefined,

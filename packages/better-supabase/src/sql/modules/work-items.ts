@@ -246,9 +246,9 @@ ${read("assignees")}
 }
 
 /**
- * The guard trigger: no parent cycles, a locked item keeps its dates, a
- * closing state stamps closed_at and a close reason and records
- * work_item.closed, and reopening clears both.
+ * The guard trigger: no parent cycles, a locked item keeps its dates, a closing
+ * state stamps closed_at and a close reason and records work_item.closed, and
+ * reopening clears both.
  */
 function guard(ctx: ModuleContext, n: WorkItemNames): string {
   const { t, c } = n;

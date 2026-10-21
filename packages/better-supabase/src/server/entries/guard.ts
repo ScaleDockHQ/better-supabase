@@ -6,7 +6,10 @@ import { problemResponse } from "../../core/problem.ts";
 import { defaultExpose, guard, type GuardOptions } from "../respond.ts";
 
 export interface GuardEntryConfig extends GuardOptions {
-  /** Include error messages in problem responses. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include error messages in problem responses. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly expose?: boolean;
 }
 

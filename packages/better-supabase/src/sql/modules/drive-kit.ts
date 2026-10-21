@@ -297,7 +297,10 @@ export interface DriveKit {
   ) => string;
 }
 
-/** `ctx` is the drive module's context; `own` records the events of the module rendering. */
+/**
+ * `ctx` is the drive module's context; `own` records the events of the module
+ * rendering.
+ */
 export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
   const T = ctx.table("nodes");
   const G = ctx.table("grants");

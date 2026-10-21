@@ -127,9 +127,9 @@ async function renderEmit(
 }
 
 /**
- * Reads `--metadata <path|->` (a file relative to `cwd`, or stdin for `-`)
- * into a snapshot. Throws `MetadataRejectedError` for a document that can't
- * be read or that `parseMetadataDocument` refuses.
+ * Reads `--metadata <path|->` (a file relative to `cwd`, or stdin for `-`) into
+ * a snapshot. Throws `MetadataRejectedError` for a document that can't be read
+ * or that `parseMetadataDocument` refuses.
  */
 export async function readMetadataSnapshot(
   source: string,
@@ -155,18 +155,27 @@ export async function readMetadataSnapshot(
   return fromMetadata(await parseMetadataDocument(text));
 }
 
-/** The `gen` flags that decide whether `--metadata`, `--emit` and `--out-dir` fit together. */
+/**
+ * The `gen` flags that decide whether `--metadata`, `--emit` and `--out-dir`
+ * fit together.
+ */
 export interface MetadataFlags {
   readonly metadata?: string;
   readonly emit?: string;
   readonly out?: string;
   readonly check: boolean;
   readonly json: boolean;
-  /** Flags that pick another schema source or mode, by name (`--watch`), when passed. */
+  /**
+   * Flags that pick another schema source or mode, by name (`--watch`), when
+   * passed.
+   */
   readonly conflicting: readonly string[];
 }
 
-/** Refuses `--metadata` next to `conflicting`, the passed flags that read the schema from somewhere else. */
+/**
+ * Refuses `--metadata` next to `conflicting`, the passed flags that read the
+ * schema from somewhere else.
+ */
 export function refuseWithMetadata(conflicting: readonly string[]): void {
   if (conflicting.length > 0) {
     throw new CliError(
@@ -176,7 +185,10 @@ export function refuseWithMetadata(conflicting: readonly string[]): void {
   }
 }
 
-/** Throws the usage error for flags that don't combine with `--metadata`, or need it. */
+/**
+ * Throws the usage error for flags that don't combine with `--metadata`, or
+ * need it.
+ */
 export function checkMetadataFlags(flags: MetadataFlags): void {
   if (flags.metadata === undefined) {
     if (flags.emit !== undefined || flags.out !== undefined) {
@@ -220,7 +232,10 @@ export interface MetadataGenOptions {
   readonly paint?: Paint;
 }
 
-/** Exit code for a document `gen --metadata` refuses (`EX_DATAERR`), as Dart's `supabase_typegen` uses. */
+/**
+ * Exit code for a document `gen --metadata` refuses (`EX_DATAERR`), as Dart's
+ * `supabase_typegen` uses.
+ */
 export const METADATA_REJECTED = 65;
 
 /**

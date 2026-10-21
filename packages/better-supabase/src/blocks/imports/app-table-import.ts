@@ -27,9 +27,8 @@ export interface AppTableImportRepository<
 }
 
 /**
- * How an import treats a row that already exists: `fill` writes only the
- * fields that are empty in the database, `overwrite` writes every field
- * the file has.
+ * How an import treats a row that already exists: `fill` writes only the fields
+ * that are empty in the database, `overwrite` writes every field the file has.
  */
 export type AppTableImportUpdate = "fill" | "overwrite";
 
@@ -41,7 +40,10 @@ export interface AppTableImportOptions<
   readonly table: string;
   readonly columns: StandardSchemaV1<unknown, T>;
   readonly repository: AppTableImportRepository<NoInfer<T>, NoInfer<K>>;
-  /** One of the table's unique sets (or its primary key) that finds an existing row. */
+  /**
+   * One of the table's unique sets (or its primary key) that finds an existing
+   * row.
+   */
   readonly key: readonly K[];
   /** Defaults to `fill`. */
   readonly update?: AppTableImportUpdate;
@@ -56,17 +58,20 @@ export interface ImportPreview {
   readonly unchanged: number;
 }
 
-/** An import that upserts into an app table; `runImport` and `previewImport` take it. */
+/**
+ * An import that upserts into an app table; `runImport` and `previewImport`
+ * take it.
+ */
 export interface AppTableImport<T extends object> extends ImportDefinition<T> {
   /** Counts the rows the import creates, changes and leaves; writes nothing. */
   readonly preview: (rows: readonly T[]) => Promise<ImportPreview>;
 }
 
 /**
- * An import that upserts rows into an app table on one of its unique sets.
- * A row whose key exists updates that row (see `update`); the rest are
- * inserted. Pass no `importedKeys` to `runImport`, so a rerun updates rows
- * instead of skipping them.
+ * An import that upserts rows into an app table on one of its unique sets. A
+ * row whose key exists updates that row (see `update`); the rest are inserted.
+ * Pass no `importedKeys` to `runImport`, so a rerun updates rows instead of
+ * skipping them.
  */
 export function appTableImport<
   T extends object,
@@ -88,11 +93,7 @@ export function appTableImport<
     }
 
     const found = await repository
-      .findMany({
-        where: {
-          OR: rows.map((row) => pick(row, key)),
-        },
-      })
+      .findMany({ where: { OR: rows.map((row) => pick(row, key)) } })
       .orThrow();
 
     return new Map(found.map((row) => [keyOf(row), row]));
@@ -149,8 +150,8 @@ export interface PreviewImportResult<T> extends DryRunResult<T> {
 }
 
 /**
- * Validates the file like `dryRun`, then counts the valid rows the import
- * would create, change and leave unchanged. Nothing is written.
+ * Validates the file like `dryRun`, then counts the valid rows the import would
+ * create, change and leave unchanged. Nothing is written.
  */
 export async function previewImport<T extends object>(
   definition: AppTableImport<T>,

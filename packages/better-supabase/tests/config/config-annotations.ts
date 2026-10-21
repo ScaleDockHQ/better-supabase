@@ -1,9 +1,8 @@
 /**
- * Descriptions and defaults for `schemas/config-v1.json`, keyed by config
- * path: `*` is any key of a record, `[]` an array item, and `$defs.<name>`
- * a shared definition. They stay out of the valibot schema so the CLI
- * bundle doesn't carry them; the renderer throws on a path the schema
- * doesn't have.
+ * Descriptions and defaults for `schemas/config-v1.json`, keyed by config path:
+ * `*` is any key of a record, `[]` an array item, and `$defs.<name>` a shared
+ * definition. They stay out of the valibot schema so the CLI bundle doesn't
+ * carry them; the renderer throws on a path the schema doesn't have.
  */
 export interface Annotation {
   readonly description?: string;

@@ -7,7 +7,10 @@ import {
 
 import { type Functions, type Models, schema } from "./generated";
 
-/** The one `defineSupabase` in the monorepo. Domain packages never import `./generated`. */
+/**
+ * The one `defineSupabase` in the monorepo. Domain packages never import
+ * `./generated`.
+ */
 export const betterSupabase = defineSupabase(schema);
 
 /** The request context every domain package receives. */

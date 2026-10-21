@@ -1,12 +1,18 @@
 export interface BoundedTtlCache<K, V> {
   /** The value, or `undefined` when it is missing or expired. */
   get(key: K): V | undefined;
-  /** Stores `value` until `expiresAt` (epoch milliseconds). The oldest entry goes when the cache is full. */
+  /**
+   * Stores `value` until `expiresAt` (epoch milliseconds). The oldest entry
+   * goes when the cache is full.
+   */
   set(key: K, value: V, expiresAt: number): void;
   readonly size: number;
 }
 
-/** A map with a size cap and per-entry expiry, oldest-inserted evicted first. `now` is injectable for tests. */
+/**
+ * A map with a size cap and per-entry expiry, oldest-inserted evicted first.
+ * `now` is injectable for tests.
+ */
 export function boundedTtlCache<K, V>(options: {
   readonly max: number;
   readonly now?: () => number;

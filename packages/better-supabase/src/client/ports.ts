@@ -50,7 +50,10 @@ export interface PickFilesOptions {
   readonly multiple?: boolean;
 }
 
-/** Opens the platform's file picker; resolves with no files when the user cancels. */
+/**
+ * Opens the platform's file picker; resolves with no files when the user
+ * cancels.
+ */
 export type FilePickerPort = (
   options?: PickFilesOptions,
 ) => Promise<readonly PickedFile[]>;
@@ -72,8 +75,8 @@ export interface PushTokenPort {
   /** The push provider the token belongs to, such as `expo` or `webpush`. */
   readonly provider: string;
   /**
-   * The token, asking for permission first unless `request` is false.
-   * Resolves with `null` when the user denies it or the platform has none.
+   * The token, asking for permission first unless `request` is false. Resolves
+   * with `null` when the user denies it or the platform has none.
    */
   readonly token: (options?: {
     readonly request?: boolean;

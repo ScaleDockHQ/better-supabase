@@ -54,8 +54,8 @@ async function streamedText(response: Response): Promise<string> {
 
 /**
  * Answers the visitor's Help message with the `/assistant` setup, in the
- * visitor's own chat (its id is the conversation's), then posts the answer
- * as the bot. A handoff to staff while it writes drops the answer.
+ * visitor's own chat (its id is the conversation's), then posts the answer as
+ * the bot. A handoff to staff while it writes drops the answer.
  */
 export async function answerHelp(
   supabase: Client,

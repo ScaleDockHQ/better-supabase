@@ -32,16 +32,16 @@ export interface EmailChannelOptions {
   readonly from: string;
   readonly replyTo?: string;
   /**
-   * The mail for a delivery. Defaults to the rendered title as the subject
-   * and the rendered body (or the title) as the text, so it needs
+   * The mail for a delivery. Defaults to the rendered title as the subject and
+   * the rendered body (or the title) as the text, so it needs
    * `createNotifications({ render })`.
    */
   readonly compose?: (
     message: NotificationMessage,
   ) => ComposedEmail | Promise<ComposedEmail>;
   /**
-   * Where the reader unsubscribes from this mail, such as a signed link to
-   * your preferences route. Only `notification` mail carries it.
+   * Where the reader unsubscribes from this mail, such as a signed link to your
+   * preferences route. Only `notification` mail carries it.
    */
   readonly unsubscribe?: (
     message: NotificationMessage,
@@ -61,9 +61,9 @@ function defaultCompose(message: NotificationMessage): ComposedEmail {
 }
 
 /**
- * A `NotificationChannel` named `email` that sends through `transport`,
- * with the delivery id as the idempotency key. A recipient without an
- * address is skipped.
+ * A `NotificationChannel` named `email` that sends through `transport`, with
+ * the delivery id as the idempotency key. A recipient without an address is
+ * skipped.
  */
 export function emailChannel(
   options: EmailChannelOptions,

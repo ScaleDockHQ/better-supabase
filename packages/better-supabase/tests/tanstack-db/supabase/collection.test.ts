@@ -241,9 +241,7 @@ describe("supabaseCollection", () => {
     await expect(
       config.onDelete?.({
         ...params,
-        transaction: {
-          mutations: [{ ...mutation, original: { id: "c1" } }],
-        },
+        transaction: { mutations: [{ ...mutation, original: { id: "c1" } }] },
       } as never),
     ).resolves.toEqual({ refetch: true });
     expect(mutation.modified).toEqual({ id: "c1" });

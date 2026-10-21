@@ -48,9 +48,9 @@ function sample(channel: string, email: string | null): NotificationMessage {
 }
 
 /**
- * Runs the `NotificationChannel` contract against `channel`: the API version,
- * a name, and one frozen sample message it must send without mutating.
- * Throws a `ConformanceError` listing every failed check.
+ * Runs the `NotificationChannel` contract against `channel`: the API version, a
+ * name, and one frozen sample message it must send without mutating. Throws a
+ * `ConformanceError` listing every failed check.
  */
 export function testNotificationChannel(
   channel: NotificationChannel,

@@ -67,7 +67,10 @@ export interface Address {
   readonly phone?: string;
 }
 
-/** Something that keeps a cart from checkout, such as `unpriced` or `shipping_required`. */
+/**
+ * Something that keeps a cart from checkout, such as `unpriced` or
+ * `shipping_required`.
+ */
 export interface CartProblem {
   readonly problem: string;
   readonly lineId?: string;
@@ -75,7 +78,10 @@ export interface CartProblem {
   readonly code?: string;
   /** For `promotion_unavailable`: the promotion behind the code. */
   readonly promotionId?: string;
-  /** For `promotion_unavailable`, such as `expired`, `limit_reached` or `not_combinable`. */
+  /**
+   * For `promotion_unavailable`, such as `expired`, `limit_reached` or
+   * `not_combinable`.
+   */
   readonly reason?: string;
 }
 

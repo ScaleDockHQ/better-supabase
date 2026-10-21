@@ -32,8 +32,8 @@ export interface QuoteNames {
 }
 
 /**
- * SQL that links `source` to `origin` with a `created_from` relation when
- * the relations module is installed, so lineage reads find the chain.
+ * SQL that links `source` to `origin` with a `created_from` relation when the
+ * relations module is installed, so lineage reads find the chain.
  */
 export function createdFromLink(
   ctx: ModuleContext,

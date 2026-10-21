@@ -13,9 +13,7 @@ import {
   verifyCompact,
 } from "../../src/core/jws.ts";
 
-const keySet = (kid: string, jwk: Jwk): Jwks => ({
-  keys: [{ ...jwk, kid }],
-});
+const keySet = (kid: string, jwk: Jwk): Jwks => ({ keys: [{ ...jwk, kid }] });
 
 describe("jws", () => {
   it.each(["Ed25519", "ES256"] as const)(

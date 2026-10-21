@@ -10,7 +10,10 @@ export interface UsageMeterControllerOptions {
   readonly auth: AuthPort;
   /** The organization whose usage to read; the meter waits without one. */
   readonly organizationId: string | null;
-  /** Only these meters, in this order. Default every meter with usage or a quota. */
+  /**
+   * Only these meters, in this order. Default every meter with usage or a
+   * quota.
+   */
   readonly meters?: readonly string[];
 }
 

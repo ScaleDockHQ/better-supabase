@@ -100,9 +100,12 @@ function read<T>(value: MaybeAccessor<T>): T {
 
 export interface BetterSupabaseProviderProps {
   readonly client: ClientLike;
-  /** better-supabase queries are reset when the user signs out or changes. */
+  /** Better-supabase queries are reset when the user signs out or changes. */
   readonly queryClient?: QueryClient;
-  /** A server-verified session (`createAsync(() => getSession())`) for `useSession()`. */
+  /**
+   * A server-verified session (`createAsync(() => getSession())`) for
+   * `useSession()`.
+   */
   readonly session?: Accessor<AuthSession | undefined>;
   readonly children?: JSX.Element;
 }
@@ -126,12 +129,7 @@ export function BetterSupabaseProvider(
     }
   });
 
-  const value: Context = {
-    client,
-    queryClient,
-    auth,
-    session: props.session,
-  };
+  const value: Context = { client, queryClient, auth, session: props.session };
 
   return createComponent(ClientContext.Provider, {
     value,
@@ -141,7 +139,10 @@ export function BetterSupabaseProvider(
   });
 }
 
-/** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */
+/**
+ * The session state for UI: `loading`, `signed-out` or `signed-in` with the
+ * user and claims.
+ */
 export function useAuth(): Accessor<AuthSnapshot> {
   return useContext().auth;
 }
@@ -150,7 +151,10 @@ export function useSupabase(): SupabaseClient {
   return useContext().client.supabase;
 }
 
-/** The session passed to `<BetterSupabaseProvider session={...}>`, `undefined` while it loads. */
+/**
+ * The session passed to `<BetterSupabaseProvider session={...}>`, `undefined`
+ * while it loads.
+ */
 export function useSession<C = unknown, P = unknown>(): Accessor<
   AuthSession<C, P> | undefined
 > {
@@ -181,7 +185,10 @@ export function useSupportSession(): Accessor<SupportView | undefined> {
 export interface BetterPrimitives<B extends ClientLike> {
   /** Repositories bound to the current session. */
   readonly useDb: () => B["db"];
-  /** TanStack Query option factories: `useQuery(() => useQueries().customers.findMany())`. */
+  /**
+   * TanStack Query option factories: `useQuery(() =>
+   * useQueries().customers.findMany())`.
+   */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => Accessor<AuthSnapshot>;
@@ -194,7 +201,8 @@ export interface BetterPrimitives<B extends ClientLike> {
  * Primitives typed for your schema.
  *
  * ```ts
- * export const { useDb, useQueries, useAuth } = createBindings<typeof bs>();
+ * export const { useDb, useQueries, useAuth } =
+ *   createBindings<typeof bs>();
  * ```
  */
 export function createBindings<B extends ClientLike>(): BetterPrimitives<B> {
@@ -270,7 +278,12 @@ function supabaseFor(
  * resubscribes when the topic values or the signed-in user change.
  *
  * ```ts
- * useBroadcast(customersTopic, () => ({ organizationId: org() }), {}, { invalidate: ['customers'] });
+ * useBroadcast(
+ *   customersTopic,
+ *   () => ({ organizationId: org() }),
+ *   {},
+ *   { invalidate: ["customers"] },
+ * );
  * ```
  */
 export function useBroadcast<P extends string, E extends EventSchemas>(
@@ -330,7 +343,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
  * spec touches whenever one of them changes. A `null` spec pauses.
  *
  * ```ts
- * useLiveQuery(() => betterSupabase.spec.customers.findMany({ where: { orgId: org() } }));
+ * useLiveQuery(() =>
+ *   betterSupabase.spec.customers.findMany({ where: { orgId: org() } }),
+ * );
  * ```
  */
 export function useLiveQuery(
@@ -394,8 +409,10 @@ export interface LiveCount {
  * seed; `null` pauses. The returned object's fields are reactive.
  *
  * ```tsx
- * const unread = useLiveCount(() => betterSupabase.spec.messages.count({ where: { read: false } }));
- * <span>{unread.count}</span>
+ * const unread = useLiveCount(() =>
+ *   betterSupabase.spec.messages.count({ where: { read: false } }),
+ * );
+ * <span>{unread.count}</span>;
  * ```
  */
 export function useLiveCount(
@@ -476,7 +493,9 @@ const NO_MEMBERS: readonly never[] = [];
  * `null` value pauses. The returned object's fields are reactive.
  *
  * ```ts
- * const room = usePresence(roomTopic, () => ({ roomId: id() }), { state: () => ({ name: name() }) });
+ * const room = usePresence(roomTopic, () => ({ roomId: id() }), {
+ *   state: () => ({ name: name() }),
+ * });
  * ```
  */
 export function usePresence<P extends string, I, O>(
@@ -569,13 +588,16 @@ export interface ActionHandle<I, T> extends ActionState<I, T> {
 }
 
 /**
- * Calls a server action (`action()` from SolidStart, or a `bs.action()`)
- * from an event handler: tracks pending inputs and the last result, and
- * calls `onSuccess` or `onError`. The returned object's fields are reactive.
+ * Calls a server action (`action()` from SolidStart, or a `bs.action()`) from
+ * an event handler: tracks pending inputs and the last result, and calls
+ * `onSuccess` or `onError`. The returned object's fields are reactive.
  *
  * ```tsx
  * const remove = useAction(removeMember);
- * <button disabled={remove.pending} onClick={() => remove.run({ userId })} />
+ * <button
+ *   disabled={remove.pending}
+ *   onClick={() => remove.run({ userId })}
+ * />;
  * ```
  */
 export function useAction<I, T>(

@@ -67,11 +67,7 @@ const NAMES: ModuleNames = {
     },
     received: {
       name: "ssf_received",
-      columns: {
-        issuer: "issuer",
-        jti: "jti",
-        receivedAt: "received_at",
-      },
+      columns: { issuer: "issuer", jti: "jti", receivedAt: "received_at" },
     },
   },
 };
@@ -634,11 +630,7 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "text"],
       returns: "text",
     },
-    {
-      name: "ssf_streams_for_event",
-      args: ["text", "text"],
-      returns: "jsonb",
-    },
+    { name: "ssf_streams_for_event", args: ["text", "text"], returns: "jsonb" },
     {
       name: "poll_ssf_events",
       args: ["uuid", "integer", "text[]", "jsonb"],

@@ -50,7 +50,10 @@ describe.skipIf(!live)("service principals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
-  /** An Auth admin that writes the user the way GoTrue would, inside the test's transaction. */
+  /**
+   * An Auth admin that writes the user the way GoTrue would, inside the test's
+   * transaction.
+   */
   function admin(s: BlockSession): ServicePrincipalAuthAdmin {
     return {
       createUser: async (attributes) => {

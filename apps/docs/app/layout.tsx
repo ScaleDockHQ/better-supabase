@@ -14,10 +14,7 @@ export const ensureStatic = "navigation";
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
-  title: {
-    default: "better-supabase",
-    template: "%s | better-supabase",
-  },
+  title: { default: "better-supabase", template: "%s | better-supabase" },
   description:
     "Strongly typed repositories, auth glue, framework adapters and cache helpers for Supabase.",
   // The marketing app serves /icon on the same domain.

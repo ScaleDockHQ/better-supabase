@@ -14,9 +14,7 @@ export const employeesBlock: BlockOf<
 > = defineBlock({
   name: "employees",
   sql: ["employees"],
-  options: {
-    employees: employeesSqlOptions,
-  },
+  options: { employees: employeesSqlOptions },
   events: employeesEvents,
   create: createEmployees,
   category: "people",

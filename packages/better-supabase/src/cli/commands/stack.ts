@@ -126,8 +126,8 @@ function actionLine(action: PruneAction): string {
 
 /**
  * Destroys stacks whose worktree or branch is gone and, with `--stop-idle`,
- * stops the running stacks of other branches, which frees their shared
- * memory segments.
+ * stops the running stacks of other branches, which frees their shared memory
+ * segments.
  */
 export async function runStackPrune(
   root: string,

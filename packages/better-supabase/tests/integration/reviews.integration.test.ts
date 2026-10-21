@@ -328,10 +328,7 @@ describe.skipIf(!live)("reviews module", () => {
         .submit(tenant, "ticket", ticket!.id, { rating: 3 })
         .orThrow();
 
-      expect(submitted).toMatchObject({
-        status: "pending",
-        verified: false,
-      });
+      expect(submitted).toMatchObject({ status: "pending", verified: false });
       expect(
         (await reviews.mine(tenant, "ticket", ticket!.id).orThrow())?.rating,
       ).toBe(3);

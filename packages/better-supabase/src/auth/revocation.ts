@@ -20,9 +20,9 @@ const ACTIVE = `select exists (
  * `undefined` when the user token's session still exists in `auth.sessions`;
  * otherwise an `unauthorized` error with code `SESSION_REVOKED`. A verified
  * access token stays valid until it expires, even after sign-out; call this
- * before sensitive actions (deleting the account, changing the email) to
- * reject tokens of ended sessions. It costs one query, so nothing calls it
- * by default. Non-user callers pass: `guard` decides about them.
+ * before sensitive actions (deleting the account, changing the email) to reject
+ * tokens of ended sessions. It costs one query, so nothing calls it by default.
+ * Non-user callers pass: `guard` decides about them.
  */
 export async function checkSession(
   sql: SessionLookup,

@@ -30,13 +30,16 @@ export interface AccessRequestsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the request columns the app adds
-   * (`blocks.access-requests.options.extraColumns`), keyed by column name.
-   * It types and parses them on every read, and validates them on
-   * `request`, which returns a `validation` error for a bad value.
+   * (`blocks.access-requests.options.extraColumns`), keyed by column name. It
+   * types and parses them on every read, and validates them on `request`, which
+   * returns a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -47,8 +50,8 @@ export interface AccessRequestsOptions<
 }
 
 /**
- * `pending`, `rejected`, `cancelled` and `expired` follow the approval
- * request; `granted` and `ended` follow the role itself.
+ * `pending`, `rejected`, `cancelled` and `expired` follow the approval request;
+ * `granted` and `ended` follow the role itself.
  */
 export type AccessRequestStatus =
   | "pending"

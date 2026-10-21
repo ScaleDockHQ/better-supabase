@@ -76,8 +76,8 @@ export interface ModuleTableLifecycle {
   readonly export?: boolean;
   /**
    * Columns that hold a `credential_ref`. Exports leave them out, and the
-   * organization purger revokes each ref that carries the row's tenant
-   * through the `CredentialProvider` before the purge deletes the row.
+   * organization purger revokes each ref that carries the row's tenant through
+   * the `CredentialProvider` before the purge deletes the row.
    */
   readonly credentials?: readonly string[];
   /** Revoke for the row's `user` instead of the app. Default `app`. */
@@ -86,9 +86,15 @@ export interface ModuleTableLifecycle {
 
 export interface ModuleNames {
   readonly tables: Readonly<Record<string, ModuleTableSpec>>;
-  /** The `before_*` and `after_*` hooks the module calls, so `blocks.<name>.hooks.functions` is checked. */
+  /**
+   * The `before_*` and `after_*` hooks the module calls, so
+   * `blocks.<name>.hooks.functions` is checked.
+   */
   readonly hooks?: readonly string[];
-  /** The `blocks.<name>.options` keys the module reads; any other key is rejected. */
+  /**
+   * The `blocks.<name>.options` keys the module reads; any other key is
+   * rejected.
+   */
   readonly options?: readonly string[];
   /**
    * The events the module records, typed against its block's event map
@@ -106,7 +112,10 @@ export interface ModuleEventSpec<
   readonly subject: string;
   /** The payload keys, all of them in the event's data in the block's event map. */
   readonly payload: readonly PayloadKey<M, K>[];
-  /** A job, a webhook or an engine may call the writer again, so the event needs a `key`. */
+  /**
+   * A job, a webhook or an engine may call the writer again, so the event needs
+   * a `key`.
+   */
   readonly retries?: boolean;
 }
 
@@ -141,8 +150,8 @@ export interface ModuleEmit {
 }
 
 /**
- * The categories module actions are audited under. An adopted log with its
- * own names maps them through `blocks.audit.options.values.category`.
+ * The categories module actions are audited under. An adopted log with its own
+ * names maps them through `blocks.audit.options.values.category`.
  */
 export const AUDIT_CATEGORIES = [
   "membership",
@@ -174,24 +183,30 @@ export interface ModuleAudit {
   /** A `uuid` expression for the actor; defaults to the caller. */
   readonly actor?: string;
   /**
-   * A `uuid` expression for the support session the action belongs to.
-   * Defaults to the session in the caller's `act` claim, which wins when set.
+   * A `uuid` expression for the support session the action belongs to. Defaults
+   * to the session in the caller's `act` claim, which wins when set.
    */
   readonly supportSession?: string;
-  /** A `uuid` expression for the admin acting as the user; defaults to `act.sub`. */
+  /**
+   * A `uuid` expression for the admin acting as the user; defaults to
+   * `act.sub`.
+   */
   readonly impersonatedBy?: string;
-  /** A `text` expression for why the admin acts as the user; defaults to `act.reason`. */
+  /**
+   * A `text` expression for why the admin acts as the user; defaults to
+   * `act.reason`.
+   */
   readonly impersonationReason?: string;
 }
 
 /**
- * An action a module records once: the outbox gets it as an event and the
- * audit log as an entry, each when its module is installed.
+ * An action a module records once: the outbox gets it as an event and the audit
+ * log as an entry, each when its module is installed.
  */
 export interface ModuleAction extends ModuleEmit {
   /**
-   * How the action is audited, or `false` for an event that is not an
-   * audited action, such as a chat message or a run status.
+   * How the action is audited, or `false` for an event that is not an audited
+   * action, such as a chat message or a run status.
    */
   readonly audit: ModuleAudit | false;
 }
@@ -218,7 +233,10 @@ const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   ]),
 };
 
-/** A function of a module's contract: what other modules and the TypeScript side call. */
+/**
+ * A function of a module's contract: what other modules and the TypeScript side
+ * call.
+ */
 export interface ModuleContractFunction {
   readonly name: string;
   /** Argument types; `{id}` stands for the module's id type. */
@@ -252,8 +270,8 @@ export interface ModuleContext {
   /** The tenant concept's names (`sql.naming.tenant`). */
   readonly naming: TenantNames;
   /**
-   * `schema.name` of a module function, quoted. The name is the default
-   * one; `sql.naming` and `blocks.<name>.functions` rename it.
+   * `schema.name` of a module function, quoted. The name is the default one;
+   * `sql.naming` and `blocks.<name>.functions` rename it.
    */
   fn(name: string): string;
   /** The unquoted name a module function is written under (see `fn`). */
@@ -276,9 +294,9 @@ export interface ModuleContext {
   /** Whether a logical column exists (adopted tables can map it to `null`). */
   has(table: string, column: string): boolean;
   /**
-   * `value`, a text expression, as the type of a logical column the table
-   * spec lists in `typed`. In adopt mode the column may be an enum or another
-   * type with a text input, so the value goes through
+   * `value`, a text expression, as the type of a logical column the table spec
+   * lists in `typed`. In adopt mode the column may be an enum or another type
+   * with a text input, so the value goes through
    * `better_supabase.as_column_type`; in managed mode it stays as it is.
    */
   cast(table: string, column: string, value: string): string;
@@ -317,11 +335,11 @@ export interface ModuleContext {
     reserved?: readonly string[],
   ): readonly ExtraColumn[];
   /**
-   * PL/pgSQL that calls the app's hook function when it exists, with
-   * `[type, expression]` arguments: `if to_regprocedure(...) is not null
-   * then execute format(...) using ...; end if;`. The name comes from
-   * `to_regprocedure` rather than a literal: plpgsql_check (`supabase db
-   * lint`) checks constant dynamic SQL and fails when the hook is missing.
+   * PL/pgSQL that calls the app's hook function when it exists, with `[type,
+   * expression]` arguments: `if to_regprocedure(...) is not null then execute
+   * format(...) using ...; end if;`. The name comes from `to_regprocedure`
+   * rather than a literal: plpgsql_check (`supabase db lint`) checks constant
+   * dynamic SQL and fails when the hook is missing.
    */
   hook(name: string, args: readonly (readonly [string, string])[]): string;
   /** The app function a hook calls, quoted, for hooks that return a value. */
@@ -333,21 +351,27 @@ export interface ModuleContext {
    */
   emit(event: ModuleEmit): string;
   /**
-   * PL/pgSQL that writes the action to the outbox (as `emit` does) and, when
-   * it carries `audit` and the `audit` module is installed, to the audit log
-   * (`audit_event`), with `key` as the idempotency key of both. `null;`
-   * when neither applies, so it is always a valid statement.
+   * PL/pgSQL that writes the action to the outbox (as `emit` does) and, when it
+   * carries `audit` and the `audit` module is installed, to the audit log
+   * (`audit_event`), with `key` as the idempotency key of both. `null;` when
+   * neither applies, so it is always a valid statement.
    */
   record(action: ModuleAction): string;
   /**
-   * PL/pgSQL that calls `notify(fields)` as the service role, which
-   * `notify()` requires, then restores the caller's claims. The function
-   * declares `v_claims text`. `null;` without the `notifications` module.
+   * PL/pgSQL that calls `notify(fields)` as the service role, which `notify()`
+   * requires, then restores the caller's claims. The function declares
+   * `v_claims text`. `null;` without the `notifications` module.
    */
   notify(fields: string, options?: { readonly indent?: string }): string;
-  /** PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs` module. */
+  /**
+   * PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs`
+   * module.
+   */
   enqueue(queue: string, payload: string, dedupe: string): string;
-  /** The `text[]` of a tenant's entitlements, or `fallback` without the `entitlements` module. */
+  /**
+   * The `text[]` of a tenant's entitlements, or `fallback` without the
+   * `entitlements` module.
+   */
   entitlements(tenant: string): string | undefined;
   entitlements(tenant: string, fallback: string): string;
   /**
@@ -356,12 +380,15 @@ export interface ModuleContext {
    * `fallback`; just `fallback` without the `data-lifecycle` module.
    */
   retention(kind: string, tenant: string, fallback: string): string;
-  /** Whether a legal hold covers `kind` for `tenant`; `false` without the `data-lifecycle` module. */
+  /**
+   * Whether a legal hold covers `kind` for `tenant`; `false` without the
+   * `data-lifecycle` module.
+   */
   held(kind: string, tenant: string): string;
   /**
    * The condition a purge deletes on: the row's timestamp `at` is past
-   * `retention` and no hold covers it. With data-lifecycle it first bounds
-   * `at` by the shortest policy, so the timestamp index still serves.
+   * `retention` and no hold covers it. With data-lifecycle it first bounds `at`
+   * by the shortest policy, so the timestamp index still serves.
    */
   expired(
     kind: string,
@@ -374,13 +401,13 @@ export interface ModuleContext {
   /**
    * Before when every tenant's rows of `kind` may go (a timestamptz
    * expression), for dropping whole partitions: null under any hold on the
-   * kind, else the longest policy or `fallback`; `now() - fallback` without
-   * the `data-lifecycle` module.
+   * kind, else the longest policy or `fallback`; `now() - fallback` without the
+   * `data-lifecycle` module.
    */
   cutoff(kind: string, fallback: string): string;
   /**
-   * PL/pgSQL that broadcasts on a Realtime topic when `realtime.send`
-   * exists: projects without Realtime skip it.
+   * PL/pgSQL that broadcasts on a Realtime topic when `realtime.send` exists:
+   * projects without Realtime skip it.
    */
   broadcast(
     topic: string,
@@ -389,9 +416,8 @@ export interface ModuleContext {
     options?: { readonly indent?: string },
   ): string;
   /**
-   * `coalesce(better_supabase.can(scope, id, permission), false)`;
-   * `permission` is a SQL expression. The `tenant` scope goes through
-   * `scope.can`.
+   * `coalesce(better_supabase.can(scope, id, permission), false)`; `permission`
+   * is a SQL expression. The `tenant` scope goes through `scope.can`.
    */
   can(scope: string, id: string, permission: string): string;
   /**

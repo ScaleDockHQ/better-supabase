@@ -85,9 +85,7 @@ describe("overlayFromDiff", () => {
     const overlay = overlayFromDiff(base, enriched, { version });
     expect(overlay.overlay).toBe(version);
 
-    const { document, diagnostics } = applyOverlay(base, overlay, {
-      jsonpath,
-    });
+    const { document, diagnostics } = applyOverlay(base, overlay, { jsonpath });
 
     expect(diagnostics).toEqual([]);
     expect(document).toEqual(enriched);

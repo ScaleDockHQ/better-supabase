@@ -4,11 +4,10 @@ import { bs } from "@/lib/supabase/server";
 
 /**
  * The first page of the caller's customers plus the count per status.
- * `bs.cached()` queries with the user's token, so RLS decides the rows;
- * the private cache keeps them in this browser only, for as long as the
- * session view may be reused. The page doesn't read `searchParams`, so it
- * stays in the instant App Shell; filtered pages go through
- * `/api/customers/list`.
+ * `bs.cached()` queries with the user's token, so RLS decides the rows; the
+ * private cache keeps them in this browser only, for as long as the session
+ * view may be reused. The page doesn't read `searchParams`, so it stays in the
+ * instant App Shell; filtered pages go through `/api/customers/list`.
  */
 export async function getCustomers() {
   "use cache: private";

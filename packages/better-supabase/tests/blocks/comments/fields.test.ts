@@ -19,9 +19,7 @@ const ROW = {
   fields: { visibility: "internal" },
 };
 
-const Fields = v.object({
-  visibility: v.picklist(["internal", "customer"]),
-});
+const Fields = v.object({ visibility: v.picklist(["internal", "customer"]) });
 
 describe("comments fields", () => {
   it("sends the extra fields under fields and parses every read", async () => {

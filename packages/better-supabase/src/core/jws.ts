@@ -19,14 +19,17 @@ const decoder = {
 export type SigningAlgorithm = "Ed25519" | "ES256";
 
 /**
- * The JWS `alg` a key signs with: `ES256`, or for an Ed25519 key `EdDSA`
- * (RFC 8037) or the fully specified `Ed25519` (RFC 9864). `RS256` and
- * `PS256` (RSA, 2048 bits or more) only verify, and only when a caller
- * lists them in `algorithms`.
+ * The JWS `alg` a key signs with: `ES256`, or for an Ed25519 key `EdDSA` (RFC 8037)
+ * or the fully specified `Ed25519` (RFC 9864). `RS256` and `PS256` (RSA, 2048
+ * bits or more) only verify, and only when a caller lists them in
+ * `algorithms`.
  */
 export type JwsAlgorithm = "EdDSA" | "Ed25519" | "ES256" | "PS256" | "RS256";
 
-/** A public or private JSON Web Key (RFC 7517): Ed25519, P-256, or a public RSA key. */
+/**
+ * A public or private JSON Web Key (RFC 7517): Ed25519, P-256, or a public RSA
+ * key.
+ */
 export interface Jwk {
   readonly kty: string;
   readonly crv?: string;
@@ -80,7 +83,10 @@ const signParams = (alg: SigningAlgorithm) =>
 /** A key type `verifyCompact` checks signatures with. */
 type VerifyAlgorithm = SigningAlgorithm | "PS256" | "RS256";
 
-/** The key type behind a JWS `alg`, or undefined for one this module doesn't verify. */
+/**
+ * The key type behind a JWS `alg`, or undefined for one this module doesn't
+ * verify.
+ */
 function keyAlgorithmOf(alg: string): VerifyAlgorithm | undefined {
   if (alg === "ES256" || alg === "RS256" || alg === "PS256") {
     return alg;
@@ -197,7 +203,9 @@ export async function jwkThumbprint(jwk: Jwk): Promise<string> {
 }
 
 /** A new key pair as JWKs, with the RFC 7638 thumbprint as `kid`. */
-export async function generateSigningKey(alg: SigningAlgorithm): Promise<{
+export async function generateSigningKey(
+  alg: SigningAlgorithm,
+): Promise<{
   readonly kid: string;
   readonly publicKey: Jwk;
   readonly privateKey: Jwk;
@@ -239,7 +247,10 @@ export function importSigningKey(jwk: Jwk): Promise<SigningCryptoKey> {
   );
 }
 
-/** Imports the public JWK of a key whose type `verifiesWith` already matched to `alg`. */
+/**
+ * Imports the public JWK of a key whose type `verifiesWith` already matched to
+ * `alg`.
+ */
 function importVerifyKey(
   jwk: Jwk,
   alg: VerifyAlgorithm,
@@ -263,7 +274,10 @@ function importVerifyKey(
   );
 }
 
-/** The raw signature of `data`: 64 bytes for Ed25519, `r || s` for ES256 (as JWS needs). */
+/**
+ * The raw signature of `data`: 64 bytes for Ed25519, `r || s` for ES256 (as JWS
+ * needs).
+ */
 export async function signBytes(
   key: SigningCryptoKey,
   alg: SigningAlgorithm,
@@ -332,8 +346,8 @@ function part(text: string | undefined): Record<string, unknown> {
 }
 
 /**
- * Verifies a compact JWS against `jwks`: the header's `kid` picks the key
- * (or the only key of the matching type when there is no `kid`). Throws a
+ * Verifies a compact JWS against `jwks`: the header's `kid` picks the key (or
+ * the only key of the matching type when there is no `kid`). Throws a
  * `JwsError`; checks no claims, which are the caller's to read.
  */
 export async function verifyCompact(
@@ -401,7 +415,10 @@ function isJwkCandidate(value: unknown): value is Jwk {
   return isRecord(value) && typeof value["kty"] === "string";
 }
 
-/** Parses a JWK Set, keeping only the Ed25519 and P-256 keys (and RSA keys with `rsa`). */
+/**
+ * Parses a JWK Set, keeping only the Ed25519 and P-256 keys (and RSA keys with
+ * `rsa`).
+ */
 export function jwksOf(value: unknown, options: JwksOfOptions = {}): Jwks {
   const keys =
     isRecord(value) && Array.isArray(value["keys"]) ? value["keys"] : [];

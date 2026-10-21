@@ -46,8 +46,8 @@ export interface TemplateType<Settings = unknown, Body = unknown> {
   readonly body?: StandardSchemaV1<unknown, Body>;
   readonly mergeFields?: MergeFieldCatalog;
   /**
-   * Creates the record from the published snapshot and names it. A method,
-   * so a type with typed settings is still a `TemplateType` in `types`.
+   * Creates the record from the published snapshot and names it. A method, so a
+   * type with typed settings is still a `TemplateType` in `types`.
    */
   apply?(
     call: TemplateApplyCall<Settings, Body>,
@@ -64,9 +64,9 @@ export interface TemplateApplyCall<Settings = unknown, Body = unknown> {
   /** The values `apply` was called with, such as merge field values. */
   readonly values: Readonly<Record<string, unknown>>;
   /**
-   * The caller's idempotency key, when it has one (the `templates.apply`
-   * step passes `<runKey>:<node>`), so a retried apply can find the record
-   * it created.
+   * The caller's idempotency key, when it has one (the `templates.apply` step
+   * passes `<runKey>:<node>`), so a retried apply can find the record it
+   * created.
    */
   readonly key?: string;
 }
@@ -215,25 +215,34 @@ export interface TemplateApplyResult {
 
 export interface Templates<F extends object = Record<never, never>> {
   save(input: TemplateInput<F>): AsyncResult<Template<F>>;
-  /** The organization's templates and the system ones (only those with `null`), defaults first. */
+  /**
+   * The organization's templates and the system ones (only those with `null`),
+   * defaults first.
+   */
   list(
     organizationId: string | null,
     filter?: { readonly type?: string; readonly language?: string },
   ): AsyncResult<readonly Template<F>[]>;
-  /** With its newest published version and its draft; `undefined` when the caller can't read it. */
+  /**
+   * With its newest published version and its draft; `undefined` when the
+   * caller can't read it.
+   */
   get(id: string): AsyncResult<TemplateDetail<F> | undefined>;
   remove(id: string): AsyncResult<boolean>;
-  /** Makes it the default for its organization, type and language (or stops it being one). */
+  /**
+   * Makes it the default for its organization, type and language (or stops it
+   * being one).
+   */
   setDefault(id: string, isDefault?: boolean): AsyncResult<boolean>;
   /**
-   * Copies the newest published version of a system template (or one of
-   * the organization's) into a new template there, published as version 1,
-   * with its workflow attachments.
+   * Copies the newest published version of a system template (or one of the
+   * organization's) into a new template there, published as version 1, with its
+   * workflow attachments.
    */
   fork(source: string, organizationId: string): AsyncResult<Template<F>>;
   /**
-   * Upserts the system templates by key and publishes a new version of
-   * each whose body changed. Service role. Returns how many it published.
+   * Upserts the system templates by key and publishes a new version of each
+   * whose body changed. Service role. Returns how many it published.
    */
   sync(starters: readonly TemplateStarter[]): AsyncResult<number>;
   readonly versions: {
@@ -250,9 +259,9 @@ export interface Templates<F extends object = Record<never, never>> {
     list(template: string): AsyncResult<readonly TemplateWorkflow[]>;
   };
   /**
-   * Creates a record from the template's newest published version through
-   * its type's `apply`, records the application and starts the attached
-   * workflows on the new record. `templates.apply` in `into`.
+   * Creates a record from the template's newest published version through its
+   * type's `apply`, records the application and starts the attached workflows
+   * on the new record. `templates.apply` in `into`.
    */
   apply(
     template: string,
@@ -274,12 +283,15 @@ export interface TemplatesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the template's extra columns
-   * (`blocks.templates.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `save`.
+   * (`blocks.templates.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `save`.
    */
   readonly fields?: S;
   /** The template types, by name. A type without `apply` can't be applied. */
@@ -400,9 +412,9 @@ async function checked(
 }
 
 /**
- * The `templates` SQL module as typed calls: typed, versioned templates
- * that create records, system starters and forks, and the workflows each
- * record starts.
+ * The `templates` SQL module as typed calls: typed, versioned templates that
+ * create records, system starters and forks, and the workflows each record
+ * starts.
  */
 export function createTemplates<
   S extends StandardSchemaV1 | undefined = undefined,

@@ -67,9 +67,7 @@ describe("topic types", () => {
       client,
       { organizationId: "o", userId: "u" },
       "created",
-      {
-        title: "x",
-      },
+      { title: "x" },
     );
     void notifications.send(
       client,

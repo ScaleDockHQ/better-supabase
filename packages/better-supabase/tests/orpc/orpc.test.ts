@@ -29,10 +29,7 @@ const signer = await createTestSigner();
 describe("createOrpc", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createOrpc(betterSupabase, {
-    env,
-    auth: { jwks: signer.jwks },
-  });
+  const bs = createOrpc(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
   const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
 

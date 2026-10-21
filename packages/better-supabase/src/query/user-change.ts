@@ -10,13 +10,16 @@ export interface UserChangeSource {
   };
 }
 
-/** Claims every refresh changes; the rest says who the caller is and what RLS lets them read. */
+/**
+ * Claims every refresh changes; the rest says who the caller is and what RLS
+ * lets them read.
+ */
 const TIME_CLAIMS = new Set(["exp", "iat", "nbf", "jti"]);
 
 /**
  * The user plus every claim except the time claims, so a token refresh keeps
- * the identity and an organization switch, a role change or a second factor
- * (a new `tenant_id`, `role` or `aal`) changes it.
+ * the identity and an organization switch, a role change or a second factor (a
+ * new `tenant_id`, `role` or `aal`) changes it.
  */
 export function identityKey(
   snapshot: ReturnType<UserChangeSource["current"]>,
@@ -34,15 +37,15 @@ export function identityKey(
 
 /**
  * Resets every `['bs', ...]` query when the caller changes: another user,
- * signing out, or new claims for the same user (an organization switch, a
- * role change). Mounted queries refetch, so no one sees the previous
- * identity's rows. Returns the function that stops listening.
- * `BetterSupabaseProvider` calls it for React; call it yourself with Vue,
- * Solid, Svelte or Angular Query.
+ * signing out, or new claims for the same user (an organization switch, a role
+ * change). Mounted queries refetch, so no one sees the previous identity's
+ * rows. Returns the function that stops listening. `BetterSupabaseProvider`
+ * calls it for React; call it yourself with Vue, Solid, Svelte or Angular
+ * Query.
  *
- * Queries that fetched while the session was still loading ran as anon, so
- * they are reset when a user arrives. Data already in the cache when loading
- * started (hydrated from the server) stays.
+ * Queries that fetched while the session was still loading ran as anon, so they
+ * are reset when a user arrives. Data already in the cache when loading started
+ * (hydrated from the server) stays.
  *
  * ```ts
  * const stop = clearOnUserChange(queryClient, bs.auth);

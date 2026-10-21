@@ -46,9 +46,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
   });
 
   afterAll(async () => {
-    await admin.tags.deleteMany({
-      where: { name: { startsWith: PREFIX } },
-    });
+    await admin.tags.deleteMany({ where: { name: { startsWith: PREFIX } } });
     await db.close();
   });
 

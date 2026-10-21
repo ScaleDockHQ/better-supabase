@@ -30,9 +30,9 @@ function idOf(value: unknown): unknown {
 
 /**
  * `next` with every part that equals `prev` replaced by `prev`'s object, so
- * unchanged rows keep their identity and `memo` skips them. Array items
- * match by their `id` when they have one (a reordered list keeps its rows),
- * else by position. Returns `prev` itself when nothing changed.
+ * unchanged rows keep their identity and `memo` skips them. Array items match
+ * by their `id` when they have one (a reordered list keeps its rows), else by
+ * position. Returns `prev` itself when nothing changed.
  */
 export function shareStructure<T>(prev: unknown, next: T): T {
   if (sameValue(prev, next)) {

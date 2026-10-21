@@ -265,7 +265,10 @@ const raiseSlug = (
   end case;`
     : "";
 
-/** The columns `create_organization` and `update_organization` copy from `attrs`. */
+/**
+ * The columns `create_organization` and `update_organization` copy from
+ * `attrs`.
+ */
 function attributeColumns(ctx: ModuleContext): readonly string[] {
   const extra = organizationAttributes(ctx).map((column) => sqlIdent(column));
 
@@ -414,8 +417,8 @@ $$;
 /**
  * `permissions.updatePlatform`, `deletePlatform`, `updateRolePlatform` and
  * `removeMemberPlatform`: a platform key (`is_platform`) that lets platform
- * staff edit or delete any tenant, or manage its members, without the
- * service role. Nothing when unset.
+ * staff edit or delete any tenant, or manage its members, without the service
+ * role. Nothing when unset.
  */
 function platformOverride(
   ctx: ModuleContext,
@@ -802,9 +805,10 @@ $$;
 }
 
 /**
- * `switch_organization(organization)`: makes organization the caller's active tenant through
- * `blocks.access.activeTenant`. A claim source writes \`app_metadata\` and
- * returns refresh = true, so the client refreshes its session.
+ * `switch_organization(organization)`: makes organization the caller's active
+ * tenant through `blocks.access.activeTenant`. A claim source writes
+ * \`app_metadata\` and returns refresh = true, so the client refreshes its
+ * session.
  */
 function switcher(ctx: ModuleContext, n: OrganizationNames): string {
   const source = activeTenantSource(ctx);
@@ -910,10 +914,7 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
 ${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${organizationDeletion(
     ctx,
     n,
-    {
-      platformOverride: platformOverride(ctx, "deletePlatform"),
-      event,
-    },
+    { platformOverride: platformOverride(ctx, "deletePlatform"), event },
   )}${guards(ctx, n)}${members(ctx, n)}${memberSuspension(ctx, n, {
     isOwner: (alias) => isOwner(ctx, n, alias),
     activeOrganization: (organization) =>

@@ -47,15 +47,11 @@ function BreadcrumbLink({
   return useRender({
     defaultTagName: "a",
     props: mergeProps<"a">(
-      {
-        className: cn("transition-colors hover:text-foreground", className),
-      },
+      { className: cn("transition-colors hover:text-foreground", className) },
       props,
     ),
     render,
-    state: {
-      slot: "breadcrumb-link",
-    },
+    state: { slot: "breadcrumb-link" },
   });
 }
 

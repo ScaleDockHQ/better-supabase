@@ -197,7 +197,9 @@ describe("toExpress", () => {
   });
 });
 
-function fakeReply(raw: ServerResponse): FastifyReplyLike & {
+function fakeReply(
+  raw: ServerResponse,
+): FastifyReplyLike & {
   readonly state: { status: number; payload: unknown; sent: boolean };
 } {
   const state = { status: 200, payload: undefined as unknown, sent: false };

@@ -15,7 +15,10 @@ import { defineController, whileSignedIn } from "../controller.ts";
 /** How a settings page renders a key. */
 export type SettingKind = "boolean" | "number" | "text" | "choice" | "json";
 
-/** One generated form field: a key of the settings definition and what its schema says about it. */
+/**
+ * One generated form field: a key of the settings definition and what its
+ * schema says about it.
+ */
 export interface SettingField<K extends string = string> {
   readonly key: K;
   /**
@@ -110,8 +113,8 @@ function fieldOf<K extends string>(
 }
 
 /**
- * The form fields of one scope of a settings definition, in declaration
- * order: `settingFields(settings.schemas.organization)`.
+ * The form fields of one scope of a settings definition, in declaration order:
+ * `settingFields(settings.schemas.organization)`.
  */
 export function settingFields<E extends SettingEntries>(
   entries: E,
@@ -133,12 +136,21 @@ export function settingFields<E extends SettingEntries>(
 }
 
 export interface SettingsControllerOptions<E extends SettingEntries> {
-  /** One scope of the definition: `settings.schemas.user` or `settings.schemas.organization`. */
+  /**
+   * One scope of the definition: `settings.schemas.user` or
+   * `settings.schemas.organization`.
+   */
   readonly entries: E;
   readonly auth: AuthPort;
-  /** The caller's own settings: a `createSettings` client. Pass this or `organization`. */
+  /**
+   * The caller's own settings: a `createSettings` client. Pass this or
+   * `organization`.
+   */
   readonly user?: Pick<Settings<E>, "getUser" | "setUser" | "resetUser">;
-  /** An organization's settings: a `createSettings` client, with `organizationId`. */
+  /**
+   * An organization's settings: a `createSettings` client, with
+   * `organizationId`.
+   */
   readonly organization?: Pick<
     Settings<SettingEntries, E>,
     "getOrganization" | "setOrganization" | "resetOrganization"
@@ -158,7 +170,10 @@ export interface SettingsSnapshot<E extends SettingEntries> {
 }
 
 export interface SettingsActions<E extends SettingEntries> {
-  /** Validates and stores one value, then shows it; a failure is also kept in `error`. */
+  /**
+   * Validates and stores one value, then shows it; a failure is also kept in
+   * `error`.
+   */
   readonly set: <K extends keyof E & string>(
     key: K,
     value: SettingInputs<E>[K],
@@ -225,8 +240,8 @@ function storeOf<E extends SettingEntries>(
 
 /**
  * One scope of the app's settings for a settings page: the form fields
- * generated from the definition, the stored values over the defaults, and
- * `set` and `reset` per key.
+ * generated from the definition, the stored values over the defaults, and `set`
+ * and `reset` per key.
  */
 export function createSettingsController<E extends SettingEntries>(
   options: SettingsControllerOptions<E>,

@@ -3,7 +3,10 @@ import type { MutationNotice, RpcNotice } from "./events.ts";
 
 import { invalidationTargets } from "../ir/tables.ts";
 
-/** What a mutation changed: a table, the primary keys of its rows and the tenant. */
+/**
+ * What a mutation changed: a table, the primary keys of its rows and the
+ * tenant.
+ */
 export interface CacheTarget {
   /** App key of the table. */
   readonly table: string;
@@ -20,8 +23,8 @@ export interface CacheTarget {
 
 /**
  * Invalidates cached reads after a mutation. First-party adapters:
- * `nextCache()` (Next.js cache tags) and `queryCache(client)` (TanStack
- * Query). Attach one with `betterSupabase.cache(adapter)`; prove custom ones with
+ * `nextCache()` (Next.js cache tags) and `queryCache(client)` (TanStack Query).
+ * Attach one with `betterSupabase.cache(adapter)`; prove custom ones with
  * `testCacheAdapter`.
  */
 export interface CacheAdapter {

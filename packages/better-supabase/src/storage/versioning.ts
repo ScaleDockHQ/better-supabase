@@ -3,16 +3,25 @@ import type { DbError } from "../core/errors.ts";
 /** A bucket's object versioning state in Storage. */
 export type VersioningStatus = "DISABLED" | "ENABLED" | "SUSPENDED";
 
-/** One rule of a bucket lifecycle policy. Storage only expires noncurrent versions today. */
+/**
+ * One rule of a bucket lifecycle policy. Storage only expires noncurrent
+ * versions today.
+ */
 export interface BucketLifecycleRule {
   /** Storage generates one when you omit it. */
   readonly id?: string;
   /** Defaults to `Enabled`. `Disabled` keeps the rule stored but inactive. */
   readonly status?: "Enabled" | "Disabled";
   readonly noncurrentVersionExpiration: {
-    /** How old a noncurrent version must be before it expires, in days (at least 1). */
+    /**
+     * How old a noncurrent version must be before it expires, in days (at least
+     * 1).
+     */
     readonly noncurrentDays: number;
-    /** Keep this many of the newest noncurrent versions regardless of age (1 to 100). */
+    /**
+     * Keep this many of the newest noncurrent versions regardless of age (1 to
+     * 100).
+     */
     readonly newerNoncurrentVersions?: number;
   };
 }
@@ -22,7 +31,10 @@ export interface BucketLifecycle {
   readonly rules: readonly [BucketLifecycleRule, ...BucketLifecycleRule[]];
 }
 
-/** The lifecycle payload Storage takes and stores in `storage.buckets.lifecycle_configuration`. */
+/**
+ * The lifecycle payload Storage takes and stores in
+ * `storage.buckets.lifecycle_configuration`.
+ */
 export interface LifecyclePayload {
   rules: {
     id?: string;
@@ -55,7 +67,10 @@ function wholeIn(value: number, min: number, max: number): boolean {
   return Number.isInteger(value) && value >= min && value <= max;
 }
 
-/** Checks a lifecycle policy and fills Storage's defaults; throws a `TypeError` for one Storage would refuse. */
+/**
+ * Checks a lifecycle policy and fills Storage's defaults; throws a `TypeError`
+ * for one Storage would refuse.
+ */
 export function lifecyclePayload(
   id: string,
   lifecycle: BucketLifecycle,
@@ -154,7 +169,10 @@ export function sameLifecycle(
   return want.length === have.length && want.every((key, i) => key === have[i]);
 }
 
-/** Storage codes for a lifecycle that is absent or a feature the project doesn't have. */
+/**
+ * Storage codes for a lifecycle that is absent or a feature the project doesn't
+ * have.
+ */
 export function lifecycleAbsent(error: DbError): boolean {
   return (
     error.code === "NoSuchLifecycleConfiguration" ||

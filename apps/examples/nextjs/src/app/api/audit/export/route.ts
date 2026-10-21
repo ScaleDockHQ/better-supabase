@@ -6,8 +6,8 @@ import { blocks } from "../../../../lib/blocks";
 import { bs } from "../../../../lib/supabase/server";
 
 /**
- * `GET /api/audit/export`: the active organization's audit log as CSV,
- * streamed page by page from the audit module.
+ * `GET /api/audit/export`: the active organization's audit log as CSV, streamed
+ * page by page from the audit module.
  */
 export const GET = bs.route(
   (_request, { session, tenant: organizationId, supabase }) => {
@@ -32,8 +32,5 @@ export const GET = bs.route(
       },
     });
   },
-  {
-    requireTenant: true,
-    authorize: (session) => can(session, "audit.read"),
-  },
+  { requireTenant: true, authorize: (session) => can(session, "audit.read") },
 );

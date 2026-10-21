@@ -32,10 +32,10 @@ function dataGridPropsSignatureReplacer(_key: string, value: unknown) {
 }
 
 /**
- * Inputs that always publish: every state slice but the two above, `data`
- * and `columns` (TanStack needs both stable already), and props by value.
- * `data` must stay in: an edit in place keeps `recordCount`, so without it
- * the grid keeps showing the old row.
+ * Inputs that always publish: every state slice but the two above, `data` and
+ * `columns` (TanStack needs both stable already), and props by value. `data`
+ * must stay in: an edit in place keeps `recordCount`, so without it the grid
+ * keeps showing the old row.
  */
 export function getDataGridStateInputs(
   table: DataGridInputsTable,

@@ -53,12 +53,7 @@ const tree: FilterQuery = {
   combinator: "and",
   rules: [
     rule("a"),
-    {
-      id: "g",
-      type: "group",
-      combinator: "or",
-      rules: [rule("b"), rule("c")],
-    },
+    { id: "g", type: "group", combinator: "or", rules: [rule("b"), rule("c")] },
   ],
 };
 

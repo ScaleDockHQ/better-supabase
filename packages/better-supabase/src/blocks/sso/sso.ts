@@ -64,10 +64,16 @@ export interface SsoDomain {
 export interface SsoOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** `withBlockHooks` hooks around the client's methods, such as a rule on which domains an organization may claim. */
+  /**
+   * `withBlockHooks` hooks around the client's methods, such as a rule on which
+   * domains an organization may claim.
+   */
   readonly hooks?: BlockHooks<Sso>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
@@ -90,7 +96,10 @@ export interface Sso {
   ): AsyncResult<OrganizationDomain>;
   removeDomain(domainId: string): AsyncResult<boolean>;
   providers(organizationId: string): AsyncResult<readonly SsoProvider[]>;
-  /** The SSO provider for an email address, for the sign-in page. Works signed out. */
+  /**
+   * The SSO provider for an email address, for the sign-in page. Works signed
+   * out.
+   */
   domainFor(email: string): AsyncResult<SsoDomain | undefined>;
 }
 
@@ -211,7 +220,10 @@ export type TxtResolver = (
 ) => Promise<readonly string[]>;
 
 export interface DohResolverOptions {
-  /** A DNS-over-HTTPS JSON endpoint. Default Cloudflare's `https://cloudflare-dns.com/dns-query`. */
+  /**
+   * A DNS-over-HTTPS JSON endpoint. Default Cloudflare's
+   * `https://cloudflare-dns.com/dns-query`.
+   */
   readonly endpoint?: string;
   readonly fetch?: typeof fetch;
 }
@@ -282,7 +294,10 @@ export interface SsoAuthAdmin {
 }
 
 export interface SsoAdminOptions extends BlockTemporalOptions {
-  /** A service-role transport: these functions are granted to `service_role` only. */
+  /**
+   * A service-role transport: these functions are granted to `service_role`
+   * only.
+   */
   readonly transport: BlockTransport;
   /** Supabase Auth's admin API, for SAML providers. */
   readonly auth?: SsoAuthAdmin;
@@ -302,20 +317,32 @@ export type SamlMetadata =
   | { readonly metadataXml: string; readonly metadataUrl?: never };
 
 export type SamlProviderInput = SamlMetadata & {
-  /** Verified domains of the organization whose users sign in with this provider. */
+  /**
+   * Verified domains of the organization whose users sign in with this
+   * provider.
+   */
   readonly domains: readonly string[];
-  /** Supabase Auth's `attribute_mapping`, such as `{ keys: { email: { name: "mail" } } }`. */
+  /**
+   * Supabase Auth's `attribute_mapping`, such as `{ keys: { email: { name:
+   * "mail" } } }`.
+   */
   readonly attributeMapping?: Readonly<Record<string, unknown>>;
   readonly nameIdFormat?: string;
 };
 
 export interface SsoAdmin {
-  /** Looks up the domain's TXT record and marks it verified when the token is there. */
+  /**
+   * Looks up the domain's TXT record and marks it verified when the token is
+   * there.
+   */
   verifyDomain(
     domainId: string,
     options?: SsoActor & { readonly signal?: AbortSignal },
   ): AsyncResult<OrganizationDomain>;
-  /** Creates a SAML provider in Supabase Auth and records it for the organization. */
+  /**
+   * Creates a SAML provider in Supabase Auth and records it for the
+   * organization.
+   */
   addSamlProvider(
     organizationId: string,
     input: SamlProviderInput,
@@ -326,7 +353,10 @@ export interface SsoAdmin {
     input: Partial<SamlProviderInput> & { readonly domains: readonly string[] },
     options?: SsoActor,
   ): AsyncResult<SsoProvider>;
-  /** Deletes the provider from Supabase Auth; `undefined` when the organization has no such provider. */
+  /**
+   * Deletes the provider from Supabase Auth; `undefined` when the organization
+   * has no such provider.
+   */
   removeSamlProvider(
     providerId: string,
     options?: SsoActor,

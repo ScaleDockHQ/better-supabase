@@ -9,7 +9,10 @@ import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 /** The database doctor checks, for statistics and plans. */
 export interface LiveDatabase {
   readonly describe: string;
-  /** Runs statements one at a time on one session (false for the Management API). */
+  /**
+   * Runs statements one at a time on one session (false for the Management
+   * API).
+   */
   readonly session: boolean;
   query<R = Record<string, unknown>>(sql: string): Promise<R[]>;
 }
@@ -22,11 +25,17 @@ export interface ExplainRequest {
   readonly claims: Readonly<Record<string, unknown>>;
 }
 
-/** Statements slower than this (ms, mean) with more calls than `SLOW_CALLS` are BS209. */
+/**
+ * Statements slower than this (ms, mean) with more calls than `SLOW_CALLS` are
+ * BS209.
+ */
 const SLOW_MEAN_MS = 50;
 const SLOW_CALLS = 1000;
 
-/** Rows `--explain` reads, like a `findMany()` under Supabase's default `max_rows`. */
+/**
+ * Rows `--explain` reads, like a `findMany()` under Supabase's default
+ * `max_rows`.
+ */
 const EXPLAIN_LIMIT = 1000;
 
 const escape = (name: string): string =>
@@ -100,8 +109,8 @@ interface FunctionTime {
 }
 
 /**
- * Function calls and self time so far in this transaction. The view can
- * still hold unflushed counts from earlier transactions, so callers diff two
+ * Function calls and self time so far in this transaction. The view can still
+ * hold unflushed counts from earlier transactions, so callers diff two
  * readings.
  */
 async function functionTimes(
@@ -132,7 +141,10 @@ export interface PlanSummary {
   readonly executionMs: number;
 }
 
-/** Node types, timings and loops of an `EXPLAIN (ANALYZE, FORMAT JSON)` plan; never rows. */
+/**
+ * Node types, timings and loops of an `EXPLAIN (ANALYZE, FORMAT JSON)` plan;
+ * never rows.
+ */
 export function summarizePlan(output: ExplainOutput): PlanSummary {
   const nodes: string[] = [];
   const perRowSubPlans: string[] = [];
@@ -351,10 +363,7 @@ export const LIVE_RULES: readonly Rule[] = [
 
       if ("skipped" in db) {
         return [
-          {
-            severity: "info",
-            message: `Skipped --stats: ${db.skipped}`,
-          },
+          { severity: "info", message: `Skipped --stats: ${db.skipped}` },
         ];
       }
 

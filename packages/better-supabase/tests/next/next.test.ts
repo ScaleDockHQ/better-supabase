@@ -650,9 +650,7 @@ describe("createNext", () => {
           `https://app.test/api/customers/${id}`,
           token ? { headers: { authorization: `Bearer ${token}` } } : {},
         ),
-        {
-          params: Promise.resolve({ id }),
-        },
+        { params: Promise.resolve({ id }) },
       );
 
     const anonymous = await call("1");
@@ -732,9 +730,7 @@ describe("createNext", () => {
 
     await route(
       new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
-      {
-        params: Promise.resolve({}),
-      },
+      { params: Promise.resolve({}) },
     );
     expect(mocks.after).toHaveBeenCalledTimes(1);
     let flushed = false;
@@ -844,11 +840,7 @@ describe("createNext", () => {
     );
 
     const save = bs.action(
-      {
-        input: v.object({ name: v.string() }),
-        requireTenant: true,
-        authorize,
-      },
+      { input: v.object({ name: v.string() }), requireTenant: true, authorize },
       (input, ctx) => {
         const tenant: string = ctx.tenant;
 
@@ -1097,9 +1089,7 @@ describe("createNext", () => {
       "https://app.test/mfa?next=%2Fdashboard",
     );
 
-    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), {
-      protect,
-    });
+    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), { protect });
 
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
@@ -1177,10 +1167,7 @@ describe("createNext", () => {
 
     protect.mockClear();
 
-    const guarded = await bs.proxy(action, {
-      protect,
-      protectMethods: true,
-    });
+    const guarded = await bs.proxy(action, { protect, protectMethods: true });
 
     expect(protect).toHaveBeenCalled();
     expect(guarded.status).toBe(307);
@@ -1410,10 +1397,7 @@ describe("next.route conformance", () => {
 describe("next.liveCount", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createNext(betterSupabase, {
-    env,
-    auth: { jwks: signer.jwks },
-  });
+  const bs = createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
   const spec = betterSupabase.spec.notes.count({
     where: { body: { contains: "x" } },

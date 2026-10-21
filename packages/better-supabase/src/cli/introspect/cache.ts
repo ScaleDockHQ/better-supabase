@@ -34,8 +34,8 @@ function isEntry(value: unknown): value is CacheEntry {
 /**
  * Calls `read`, or returns the snapshot cached under `root` when the catalog
  * fingerprint, the `inputs` (schemas and hooks), the CLI version and the
- * typegen version all match. One file per source keeps the cache from growing. A source that
- * cannot report a fingerprint is read every time.
+ * typegen version all match. One file per source keeps the cache from growing.
+ * A source that cannot report a fingerprint is read every time.
  */
 export async function cachedIntrospect(
   root: string,
@@ -83,10 +83,10 @@ export async function cachedIntrospect(
 }
 
 /**
- * Calls `produce`, or returns the `database.types.ts` cached under `root`
- * for the same `inputs`, CLI version and typegen version. Typegen and oxfmt
- * are most of a `gen` run on a large schema, and their output only depends
- * on the inputs.
+ * Calls `produce`, or returns the `database.types.ts` cached under `root` for
+ * the same `inputs`, CLI version and typegen version. Typegen and oxfmt are
+ * most of a `gen` run on a large schema, and their output only depends on the
+ * inputs.
  */
 export async function cachedDatabaseTypes(
   root: string,
@@ -119,7 +119,10 @@ export async function cachedDatabaseTypes(
   return contents;
 }
 
-/** Writes through a temporary file, so a concurrent reader never sees half a file. */
+/**
+ * Writes through a temporary file, so a concurrent reader never sees half a
+ * file.
+ */
 export async function writeAtomic(
   file: string,
   contents: string,

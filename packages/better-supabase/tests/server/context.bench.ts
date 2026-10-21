@@ -14,12 +14,15 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const RUNS = 2000;
 
 /**
- * A verified token must cost at most this share of a first verification;
- * past it, the per-process memo has stopped working.
+ * A verified token must cost at most this share of a first verification; past
+ * it, the per-process memo has stopped working.
  */
 const MAX_WARM_SHARE = 0.5;
 
-/** A repeat call on the same request must cost at most this share of a verified one. */
+/**
+ * A repeat call on the same request must cost at most this share of a verified
+ * one.
+ */
 const MAX_REPEAT_SHARE = 0.25;
 
 const signer = await createTestSigner();

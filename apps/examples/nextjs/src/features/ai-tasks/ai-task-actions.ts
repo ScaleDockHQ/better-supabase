@@ -37,10 +37,7 @@ export const scheduleSampleTask = bs.action(
 /** Turns a task off or back on; a resumed task runs at its next occurrence. */
 export const setAiTaskEnabled = bs.action(
   {
-    input: v.object({
-      id: v.pipe(v.string(), v.uuid()),
-      enabled: v.boolean(),
-    }),
+    input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
     requireTenant: true,
     authorize: (session) => can(session, "ai.create"),
   },

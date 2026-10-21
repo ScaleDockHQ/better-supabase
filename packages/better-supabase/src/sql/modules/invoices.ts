@@ -254,11 +254,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "void_invoice", args: ["uuid", "text"], returns: "jsonb" },
     { name: "write_off_invoice", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "invoice_aging",
-      args: ["{id}", "text", "date"],
-      returns: "jsonb",
-    },
+    { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },
     ...(ctx.installed("quotes")
       ? [
           {

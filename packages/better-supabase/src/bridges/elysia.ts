@@ -8,25 +8,25 @@ import { around, type Validated } from "./shared.ts";
 
 export interface ElysiaBridge<Entries extends readonly AnyEntry[]> {
   /**
-   * Runs the entries around the app's fetch (`app.handle`), so short
-   * circuits answer before Elysia routes and the route's response passes
-   * back through the entries.
+   * Runs the entries around the app's fetch (`app.handle`), so short circuits
+   * answer before Elysia routes and the route's response passes back through
+   * the entries.
    */
   wrap(
     handle: (request: Request) => Promise<Response>,
   ): (request: Request, env?: unknown) => Promise<Response>;
   /**
    * The contributions for a request `wrap` is serving. Throws for any other
-   * request, so a route reached without the entries fails closed.
-   * Expose it with `.derive(({ request }) => bridge.context(request))`.
+   * request, so a route reached without the entries fails closed. Expose it
+   * with `.derive(({ request }) => bridge.context(request))`.
    */
   context(request: Request): Contributions<Entries>;
 }
 
 /**
- * Runs an entry array around an Elysia app. Elysia has no middleware slot
- * that sees the response it produces, so the bridge wraps the app's fetch
- * and hands the contributions to routes through `context(request)`.
+ * Runs an entry array around an Elysia app. Elysia has no middleware slot that
+ * sees the response it produces, so the bridge wraps the app's fetch and hands
+ * the contributions to routes through `context(request)`.
  *
  * ```ts
  * const bridge = toElysia([withBetterSupabase(server)])

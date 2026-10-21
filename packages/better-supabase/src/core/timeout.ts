@@ -58,8 +58,8 @@ export function isTimeout(value: unknown): value is number {
 }
 
 /**
- * `signal` combined with a `timeoutMs` timer. Without a timeout it returns
- * the signal unchanged, so calls without one allocate nothing.
+ * `signal` combined with a `timeoutMs` timer. Without a timeout it returns the
+ * signal unchanged, so calls without one allocate nothing.
  */
 export function deadline(
   signal: AbortSignal | undefined,

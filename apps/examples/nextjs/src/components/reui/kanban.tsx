@@ -97,11 +97,7 @@ const ItemContext = createContext<{
   listeners: DraggableSyntheticListeners | undefined;
   isDragging?: boolean | undefined;
   disabled?: boolean | undefined;
-}>({
-  listeners: undefined,
-  isDragging: false,
-  disabled: false,
-});
+}>({ listeners: undefined, isDragging: false, disabled: false });
 
 const IsOverlayContext = createContext(false);
 
@@ -110,11 +106,7 @@ const animateLayoutChanges: AnimateLayoutChanges = (args) =>
 
 const dropAnimationConfig: DropAnimation = {
   sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: "0.4",
-      },
-    },
+    styles: { active: { opacity: "0.4" } },
   }),
 };
 
@@ -123,12 +115,12 @@ const dropAnimationConfig: DropAnimation = {
  * `document.body` and so must not run on the server or during hydration.
  *
  * A never-notifying subscription makes `useSyncExternalStore` return the server
- * snapshot (`false`) while rendering on the server and while hydrating, then the
- * client snapshot (`true`) once mounted - the same gate the previous
- * `useLayoutEffect(() => setMounted(true), [])` provided, minus the extra render
- * pass that `react-hooks/set-state-in-effect` flags. All three functions are
- * module-scoped so their identities stay stable; an inline `getSnapshot` is the
- * classic cause of an infinite re-subscribe loop.
+ * snapshot (`false`) while rendering on the server and while hydrating, then
+ * the client snapshot (`true`) once mounted - the same gate the previous
+ * `useLayoutEffect(() => setMounted(true), [])` provided, minus the extra
+ * render pass that `react-hooks/set-state-in-effect` flags. All three functions
+ * are module-scoped so their identities stay stable; an inline `getSnapshot` is
+ * the classic cause of an infinite re-subscribe loop.
  */
 const subscribeToNothing = () => () => {};
 const getIsMounted = () => true;
@@ -141,9 +133,7 @@ const TOUCH_SENSOR_OPTIONS = {
 const KEYBOARD_SENSOR_OPTIONS = {
   coordinateGetter: sortableKeyboardCoordinates,
 };
-const MEASURING_CONFIG = {
-  droppable: { strategy: MeasuringStrategy.Always },
-};
+const MEASURING_CONFIG = { droppable: { strategy: MeasuringStrategy.Always } };
 
 export interface KanbanMoveEvent {
   event: DragEndEvent;

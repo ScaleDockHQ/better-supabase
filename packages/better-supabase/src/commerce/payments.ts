@@ -6,8 +6,8 @@ import { isMoney, type Money } from "./money.ts";
 
 /**
  * Where a payment stands. `requires_action`: the customer still has to act
- * (pick a method, confirm, pass 3-D Secure). `authorized`: the funds are
- * held and wait for `capture`.
+ * (pick a method, confirm, pass 3-D Secure). `authorized`: the funds are held
+ * and wait for `capture`.
  */
 export type PaymentStatus =
   | "requires_action"
@@ -31,9 +31,8 @@ export interface Payment {
   /** The order or cart the payment is for, as `createPayment` got it. */
   readonly reference: string;
   /**
-   * The secret a client confirms the payment with (Stripe's
-   * `client_secret`). Hand it to the paying browser only; never store or
-   * log it.
+   * The secret a client confirms the payment with (Stripe's `client_secret`).
+   * Hand it to the paying browser only; never store or log it.
    */
   readonly clientSecret?: string;
   /** Where to send the customer to finish, when the provider redirects. */
@@ -106,11 +105,10 @@ export interface PaymentEvent {
 
 /**
  * Takes payments for orders. Versioned: a breaking change ships a new
- * `apiVersion`. Every method returns a `Result`: `invalid_input` for an
- * amount the provider can't charge or a refund above what was captured,
- * `not_found` for an unknown payment, `unauthorized` for a webhook whose
- * signature fails, and `raised` with the hint `PAYMENT_DECLINED` when the
- * provider declines.
+ * `apiVersion`. Every method returns a `Result`: `invalid_input` for an amount
+ * the provider can't charge or a refund above what was captured, `not_found`
+ * for an unknown payment, `unauthorized` for a webhook whose signature fails,
+ * and `raised` with the hint `PAYMENT_DECLINED` when the provider declines.
  */
 export interface PaymentProvider {
   readonly apiVersion: 1;

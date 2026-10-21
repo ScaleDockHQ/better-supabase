@@ -99,8 +99,8 @@ function keysFromWhere(
 }
 
 /**
- * Rows in conflict-key order, so concurrent upserts lock the same rows in
- * the same order instead of deadlocking.
+ * Rows in conflict-key order, so concurrent upserts lock the same rows in the
+ * same order instead of deadlocking.
  */
 export function byKey(
   rows: readonly Readonly<Record<string, unknown>>[],

@@ -46,7 +46,10 @@ import {
   subscriptionRecord,
 } from "./stripe-helpers.ts";
 
-/** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
+/**
+ * Stripe customers, checkout, the portal and seat sync over the `billing`
+ * module.
+ */
 export function createBilling(options: BillingOptions): Billing {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -750,13 +753,15 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
     allCustomers: () =>
       call("billing_all_customers", {}, (value) =>
-        (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
-          organizationId: textOf(row["tenant"]),
-          customerId: textOf(row["customer"]),
-          email: optionalText(row["email"]),
-          name: optionalText(row["name"]),
-          created: optionalInstant(row["created"]),
-        })),
+        (Array.isArray(value) ? value : [])
+          .filter(isRecord)
+          .map((row) => ({
+            organizationId: textOf(row["tenant"]),
+            customerId: textOf(row["customer"]),
+            email: optionalText(row["email"]),
+            name: optionalText(row["name"]),
+            created: optionalInstant(row["created"]),
+          })),
       ),
     allSubscriptions: (list) =>
       call(

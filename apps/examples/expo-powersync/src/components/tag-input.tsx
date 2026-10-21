@@ -15,8 +15,8 @@ import { API_SCHEMA } from "../lib/blocks";
 
 /**
  * A customer's tags as chips that remove themselves when pressed, the
- * organization's other tags as suggestions, and a field that adds or
- * creates one by name.
+ * organization's other tags as suggestions, and a field that adds or creates
+ * one by name.
  */
 export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");

@@ -4,7 +4,10 @@ import { methodNotAllowed } from "../core/problem.ts";
 export interface SerializeOptions {
   /** Spaces per level. Defaults to 2; 0 writes one line. */
   readonly indent?: number;
-  /** Sorts object keys by UTF-16 code unit. Off by default, so generated order stays. */
+  /**
+   * Sorts object keys by UTF-16 code unit. Off by default, so generated order
+   * stays.
+   */
   readonly sortKeys?: boolean;
 }
 
@@ -51,9 +54,8 @@ function normalize(
 }
 
 /**
- * The document as JSON text: the same document always gives the same
- * bytes, ending in a newline. Throws on `NaN` and infinities, which JSON
- * cannot hold.
+ * The document as JSON text: the same document always gives the same bytes,
+ * ending in a newline. Throws on `NaN` and infinities, which JSON cannot hold.
  */
 export function serializeDocument(
   document: unknown,
@@ -126,10 +128,10 @@ function matches(header: string, etag: string): boolean {
 }
 
 /**
- * A `Response` that serves a rendered document with a strong ETag (the
- * SHA-256 of the body). A matching `If-None-Match` gets `304`; `HEAD` gets
- * the headers only; other methods than `GET` and `HEAD` get `405`. The body
- * and ETag are computed once per document object.
+ * A `Response` that serves a rendered document with a strong ETag (the SHA-256
+ * of the body). A matching `If-None-Match` gets `304`; `HEAD` gets the headers
+ * only; other methods than `GET` and `HEAD` get `405`. The body and ETag are
+ * computed once per document object.
  */
 export async function specResponse(
   document: object,
@@ -151,10 +153,7 @@ export async function specResponse(
   const { body, etag } = encode(document, indent);
   const tag = await etag;
 
-  const headers = {
-    "cache-control": cacheControl,
-    etag: tag,
-  };
+  const headers = { "cache-control": cacheControl, etag: tag };
 
   const ifNoneMatch = request?.headers.get("if-none-match");
 

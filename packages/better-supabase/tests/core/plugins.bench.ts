@@ -1,7 +1,7 @@
 /**
- * What plugins add to `connect()` and `findMany` on an executor that answers
- * at once, with 0, 3 and 6 plugins installed.
- * Run with `pnpm --filter better-supabase bench`.
+ * What plugins add to `connect()` and `findMany` on an executor that answers at
+ * once, with 0, 3 and 6 plugins installed. Run with `pnpm --filter
+ * better-supabase bench`.
  */
 import type { Executor } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";

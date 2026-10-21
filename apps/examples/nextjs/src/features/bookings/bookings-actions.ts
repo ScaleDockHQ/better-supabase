@@ -32,8 +32,8 @@ const notSetUp = () =>
 
 /**
  * Creates the signed-in member's booking page: a bookable resource only its
- * service uses, a 30 minute service, weekday hours from 09:00 to 17:00, and
- * the calendar that indexes them.
+ * service uses, a 30 minute service, weekday hours from 09:00 to 17:00, and the
+ * calendar that indexes them.
  */
 export const setUpBookingPage = bs.action(
   {

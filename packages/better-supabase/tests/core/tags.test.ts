@@ -39,11 +39,7 @@ describe("tagCache", () => {
     const invalidate = vi.fn();
     const adapter = tagCache(invalidate, "cdn");
     expect(adapter.name).toBe("cdn");
-    await adapter.invalidate({
-      table: "notes",
-      tables: ["notes"],
-      ids: ["1"],
-    });
+    await adapter.invalidate({ table: "notes", tables: ["notes"], ids: ["1"] });
     expect(invalidate).toHaveBeenCalledWith([
       "bs:notes",
       "bs:notes@*",

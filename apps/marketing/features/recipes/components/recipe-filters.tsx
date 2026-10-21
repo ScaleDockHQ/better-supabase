@@ -53,8 +53,8 @@ const isKind = (value: unknown): value is RecipeKind =>
   recipeKinds.some((kind) => kind === value);
 
 /**
- * Filters the available recipes by category, platform and kind. With no
- * filter it shows `children`, the category sections rendered on the server.
+ * Filters the available recipes by category, platform and kind. With no filter
+ * it shows `children`, the category sections rendered on the server.
  */
 export function RecipeFilters({
   recipes,

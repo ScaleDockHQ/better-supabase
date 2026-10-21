@@ -73,9 +73,9 @@ const STATUS_VARIANT: Record<AccessRequestStatus, BadgeProps["variant"]> = {
 
 // #region recipe:access-requests-inbox
 /**
- * Requests for a temporary role in the active organization. Members ask
- * for one; members with `members.update_role` approve or deny it, and the
- * role goes back to the previous one when the duration runs out.
+ * Requests for a temporary role in the active organization. Members ask for
+ * one; members with `members.update_role` approve or deny it, and the role goes
+ * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
   if (!can(await getSession(), "access_requests.create")) {

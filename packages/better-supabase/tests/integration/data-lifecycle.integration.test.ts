@@ -174,15 +174,17 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(memberships).not.toContain(owner.id);
       expect((await exporter.run(mine.id)).ok).toBe(false);
 
-      await exporter.sink().send([
-        {
-          specversion: "1.0",
-          id: "e1",
-          source: "/t",
-          type: "dev.better-supabase.data_export.requested",
-          data: { exportId: theirs.id },
-        },
-      ]);
+      await exporter
+        .sink()
+        .send([
+          {
+            specversion: "1.0",
+            id: "e1",
+            source: "/t",
+            type: "dev.better-supabase.data_export.requested",
+            data: { exportId: theirs.id },
+          },
+        ]);
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where type like 'data_export.%' order by position",
@@ -393,10 +395,7 @@ describe.skipIf(!live)("data lifecycle", () => {
                   after: "180 days",
                   from: "ended_at",
                   unless: "{row}.keep_until > now()",
-                  set: {
-                    first_name: "Anonymized",
-                    email: { sql: "null" },
-                  },
+                  set: { first_name: "Anonymized", email: { sql: "null" } },
                   markedBy: "anonymized_at",
                 },
               ],
@@ -580,9 +579,7 @@ describe.skipIf(!live)("data lifecycle", () => {
             usage: { options: { history: true } },
             "data-lifecycle": {
               options: {
-                tables: {
-                  bs_test_lifecycle: { tenant: "organization_id" },
-                },
+                tables: { bs_test_lifecycle: { tenant: "organization_id" } },
               },
             },
           },

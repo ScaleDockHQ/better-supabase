@@ -37,8 +37,8 @@ async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
 
 /**
  * The plans with a checkout button each. The server renders the catalog;
- * `choose` runs the `startCheckout` server action, which talks to Stripe,
- * and sends the browser to the Checkout URL it returns.
+ * `choose` runs the `startCheckout` server action, which talks to Stripe, and
+ * sends the browser to the Checkout URL it returns.
  */
 export function PlanPicker({
   initial,

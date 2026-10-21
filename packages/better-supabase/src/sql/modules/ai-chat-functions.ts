@@ -27,7 +27,10 @@ export const AI_RUN_STATES: string = [
   .map(sqlString)
   .join(", ");
 
-/** `jsonb_build_object` of a chat row, with stable keys whatever the column names. */
+/**
+ * `jsonb_build_object` of a chat row, with stable keys whatever the column
+ * names.
+ */
 function chatJson(names: AiChatNames, row: string): string {
   const ch = names.c.chats;
 

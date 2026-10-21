@@ -11,7 +11,10 @@ export interface UndoEntry {
 }
 
 export interface UndoStackOptions {
-  /** Applies a token, e.g. a server action that calls `createUndo().apply(token)`. */
+  /**
+   * Applies a token, e.g. a server action that calls
+   * `createUndo().apply(token)`.
+   */
   readonly apply: (token: UndoToken) => Promise<unknown>;
   /** How many entries to keep; older ones drop off. Default 20. */
   readonly limit?: number | undefined;
@@ -32,7 +35,8 @@ export interface UndoActions {
   readonly push: (token: UndoToken | null | undefined, label?: string) => void;
   /**
    * Applies the newest entry and removes it. A failed undo removes it too,
-   * since its rows changed since, and sets `error`. Resolves whether it worked.
+   * since its rows changed since, and sets `error`. Resolves whether it
+   * worked.
    */
   readonly undo: () => Promise<boolean>;
   readonly clear: () => void;
@@ -40,7 +44,10 @@ export interface UndoActions {
 
 export type UndoController = Controller<UndoSnapshot, UndoActions>;
 
-/** A stack of undo tokens on the client, for a toast's Undo button or a Cmd+Z handler. */
+/**
+ * A stack of undo tokens on the client, for a toast's Undo button or a Cmd+Z
+ * handler.
+ */
 export function createUndoController(
   options: UndoStackOptions,
 ): UndoController {

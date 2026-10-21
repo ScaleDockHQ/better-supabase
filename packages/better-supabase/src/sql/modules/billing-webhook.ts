@@ -4,7 +4,10 @@ import type { PlanLookup } from "./billing-platform.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 
-/** The subscription source: the Stripe Sync Engine, or a table the webhook fills. */
+/**
+ * The subscription source: the Stripe Sync Engine, or a table the webhook
+ * fills.
+ */
 export type SubscriptionSource = "sync-engine" | "webhook";
 
 export function subscriptionSourceOf(ctx: ModuleContext): SubscriptionSource {

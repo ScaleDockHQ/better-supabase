@@ -16,8 +16,8 @@ export interface SettableTable {
 /**
  * The columns `appTables.set` may write: the table's own columns, without
  * identities and without the columns signed-in users can't write (`access`).
- * The id, the scope column and the timestamps aren't own columns, so they
- * are never in the list.
+ * The id, the scope column and the timestamps aren't own columns, so they are
+ * never in the list.
  */
 export function settableColumns(config: AppTableConfig): readonly string[] {
   return Object.entries(config.columns ?? {})
@@ -28,11 +28,11 @@ export function settableColumns(config: AppTableConfig): readonly string[] {
 }
 
 /**
- * `public.app_table_set(tenant, subject_type, subject_id, args)`, the
- * function the bulk action `appTables.set` calls for each row. It runs as
- * the caller, so the table's policies and grants decide what changes, and
- * casts `args.values` to the column types through `jsonb_populate_record`.
- * Empty without an app table that is a subject.
+ * `public.app_table_set(tenant, subject_type, subject_id, args)`, the function
+ * the bulk action `appTables.set` calls for each row. It runs as the caller, so
+ * the table's policies and grants decide what changes, and casts `args.values`
+ * to the column types through `jsonb_populate_record`. Empty without an app
+ * table that is a subject.
  */
 export function appTableSetSql(
   tables: readonly SettableTable[],

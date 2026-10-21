@@ -39,9 +39,7 @@ const config: KnipConfig = {
     "packages/better-supabase/src/workflow-sdk/world/index.ts": ["duplicates"],
   },
   workspaces: {
-    ".": {
-      entry: ["scripts/*.{ts,mjs}"],
-    },
+    ".": { entry: ["scripts/*.{ts,mjs}"] },
     "packages/better-supabase": {
       entry: [
         "src/*/index.ts",
@@ -72,13 +70,9 @@ const config: KnipConfig = {
     "packages/next-config": {},
     // Registry items are copied into apps by the shadcn CLI, so each one is
     // an entry; the stubs stand in for the app files they import.
-    "packages/registry": {
-      entry: ["items/**/*.ts"],
-    },
+    "packages/registry": { entry: ["items/**/*.ts"] },
     "apps/docs": {},
-    "apps/marketing": {
-      ignore: ["components/ui/**", "components/reui/**"],
-    },
+    "apps/marketing": { ignore: ["components/ui/**", "components/reui/**"] },
     "apps/examples/edge": edgeExample,
     "apps/examples/mcp": edgeExample,
     "apps/examples/hono-api": serverExample,
@@ -109,9 +103,7 @@ const config: KnipConfig = {
     "apps/examples/vite-react": browserExample,
     // eve loads the agent's files by path, and the World by package name
     // from agent/agent.ts.
-    "apps/examples/eve": {
-      entry: ["agent/**/*.ts"],
-    },
+    "apps/examples/eve": { entry: ["agent/**/*.ts"] },
     "apps/examples/monorepo/runtime": serverExample,
     // Expo Router loads the routes by file name and Metro picks the
     // `.native` files on iOS and Android.
@@ -135,20 +127,14 @@ const config: KnipConfig = {
       // make Turbo build them first.
       ignoreDependencies: ["better-supabase"],
     },
-    "tests/types/shared": {
-      entry: ["*.ts"],
-    },
+    "tests/types/shared": { entry: ["*.ts"] },
     // Type-only checks; `tsc` is the runner, so the exports are the checks.
-    "tests/types/frameworks-previous": {
-      entry: ["src/*.ts"],
-    },
+    "tests/types/frameworks-previous": { entry: ["src/*.ts"] },
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
     },
     // Modules ported from production apps; their exports are the app's API.
-    "tests/validation-*": {
-      entry: ["src/**/*.ts"],
-    },
+    "tests/validation-*": { entry: ["src/**/*.ts"] },
   },
 };
 

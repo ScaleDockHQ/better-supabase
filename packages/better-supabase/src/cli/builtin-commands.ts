@@ -4,8 +4,8 @@ import type { CommandTreeInit } from "./core/run.ts";
 import { COMMANDS } from "./core/manifest.ts";
 
 /**
- * The module behind each built-in command, by its path in the manifest.
- * Each loads on demand, so `--version` and `--help` import no command.
+ * The module behind each built-in command, by its path in the manifest. Each
+ * loads on demand, so `--version` and `--help` import no command.
  */
 const LOADERS: readonly (readonly [string, Loader])[] = [
   ["init", () => import("./commands/init.ts").then((m) => m.initCommand)],

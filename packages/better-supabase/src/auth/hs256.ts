@@ -3,11 +3,7 @@ import type { JWTClaims, UserClaims } from "@supabase/server";
 import { base64ToText, fromBase64 } from "../core/base64.ts";
 
 export type Hs256Result =
-  | {
-      readonly ok: true;
-      readonly claims: JWTClaims;
-      readonly user: UserClaims;
-    }
+  | { readonly ok: true; readonly claims: JWTClaims; readonly user: UserClaims }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
 export interface Hs256Options {
@@ -106,8 +102,8 @@ function matches(
 }
 
 /**
- * Verifies an HS256 user token against a shared secret with WebCrypto:
- * the signature, `exp`, `nbf`, and `aud` and `iss` when they are given.
+ * Verifies an HS256 user token against a shared secret with WebCrypto: the
+ * signature, `exp`, `nbf`, and `aud` and `iss` when they are given.
  */
 export async function verifyHs256(
   token: string,

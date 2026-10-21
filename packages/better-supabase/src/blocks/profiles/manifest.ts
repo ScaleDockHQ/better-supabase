@@ -9,9 +9,7 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
   defineBlock({
     name: "profiles",
     sql: ["profiles"],
-    options: {
-      profiles: profilesSqlOptions,
-    },
+    options: { profiles: profilesSqlOptions },
     create: createProfiles,
     category: "tenancy",
     recipes: ["profile-form"],

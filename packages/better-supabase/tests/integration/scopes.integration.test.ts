@@ -288,10 +288,7 @@ describe.skipIf(!live)("a workspace-named app", () => {
     await s.as(owner);
 
     const { id } = await workspaces
-      .create({
-        name: "Acme",
-        slug: `acme-${owner.id.slice(0, 8)}`,
-      })
+      .create({ name: "Acme", slug: `acme-${owner.id.slice(0, 8)}` })
       .orThrow();
 
     expect(

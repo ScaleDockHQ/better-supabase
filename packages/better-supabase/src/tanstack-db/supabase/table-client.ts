@@ -74,7 +74,10 @@ function valueEnd(text: string, start: number): number {
   return index;
 }
 
-/** Renames the columns in a PostgREST logic tree: `(a.eq.1,and(b.gt.2,c.is.null))`. */
+/**
+ * Renames the columns in a PostgREST logic tree:
+ * `(a.eq.1,and(b.gt.2,c.is.null))`.
+ */
 function renameLogic(text: string, rename: Rename): string {
   let out = "";
   let index = 0;
@@ -221,8 +224,8 @@ function bound<T extends object>(target: T, prop: string | symbol): unknown {
 
 /**
  * The client `@supabase-labs/tanstack-db` sees for one table: requests and
- * Realtime listeners run in the table's schema, and when app names differ
- * from column names, rows arrive in app names and leave in column names.
+ * Realtime listeners run in the table's schema, and when app names differ from
+ * column names, rows arrive in app names and leave in column names.
  */
 export function tableClient(
   supabase: SupabaseClient,

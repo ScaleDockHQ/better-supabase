@@ -7,8 +7,6 @@ import { streamsSqlOptions } from "./options.ts";
 export const streamsBlock: Block<"streams"> = defineBlock({
   name: "streams",
   sql: ["streams"],
-  options: {
-    streams: streamsSqlOptions,
-  },
+  options: { streams: streamsSqlOptions },
   category: "automation",
 });

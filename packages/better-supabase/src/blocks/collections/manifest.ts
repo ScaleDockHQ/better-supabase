@@ -14,9 +14,7 @@ export const collectionsBlock: BlockOf<
 > = defineBlock({
   name: "collections",
   sql: ["collections"],
-  options: {
-    collections: collectionsSqlOptions,
-  },
+  options: { collections: collectionsSqlOptions },
   events: collectionsEvents,
   create: createCollections,
   category: "work",

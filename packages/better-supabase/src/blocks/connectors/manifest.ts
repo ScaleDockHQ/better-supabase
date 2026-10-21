@@ -14,9 +14,7 @@ export const connectorsBlock: BlockOf<
 > = defineBlock({
   name: "connectors",
   sql: ["connectors"],
-  options: {
-    connectors: connectorsSqlOptions,
-  },
+  options: { connectors: connectorsSqlOptions },
   events: connectorsEvents,
   create: createConnectors,
   category: "automation",

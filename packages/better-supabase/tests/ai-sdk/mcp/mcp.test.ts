@@ -17,10 +17,7 @@ import type { VaultCredentials } from "../../../src/credentials/vault.ts";
 import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
-const mcp = vi.hoisted(() => ({
-  auth: vi.fn(),
-  createMCPClient: vi.fn(),
-}));
+const mcp = vi.hoisted(() => ({ auth: vi.fn(), createMCPClient: vi.fn() }));
 
 vi.mock("@ai-sdk/mcp", async (original) => ({
   ...(await original<typeof McpModule>()),

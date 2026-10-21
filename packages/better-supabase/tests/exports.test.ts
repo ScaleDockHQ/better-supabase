@@ -10,7 +10,10 @@ const subpaths = Object.keys(packageJson.exports).filter(
 const entryOf = (subpath: string): string =>
   subpath === "." ? "index" : `${subpath.slice(2)}/index`;
 
-/** Type-only exports declared in an entry file: `export type { A }`, `export interface B`, `export type * from`. */
+/**
+ * Type-only exports declared in an entry file: `export type { A }`, `export
+ * interface B`, `export type * from`.
+ */
 function typeExports(source: string): string[] {
   const names = new Set<string>();
 

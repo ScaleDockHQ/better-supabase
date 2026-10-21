@@ -29,7 +29,10 @@ export async function readText(
     : undefined;
 }
 
-/** The declarative schemas in the diff engine's order, then the migrations newest first. */
+/**
+ * The declarative schemas in the diff engine's order, then the migrations
+ * newest first.
+ */
 export async function sqlFiles(
   root: string,
   toml: SupabaseToml | undefined,

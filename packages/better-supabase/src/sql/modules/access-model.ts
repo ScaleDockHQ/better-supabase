@@ -156,12 +156,12 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * The permission key each operation checks by default, keyed
- * `<module>.<action>`. `blocks.<name>.permissions` renames a key per
- * module, `authorization.operations` overrides it for a provider, and the
- * access module's `operation_permission(op)` answers the result in SQL.
- * Keys are `<area>.<verb>`, with `read` for viewing; platform-wide actions
- * use the `platform` area or a key that `is_platform()` checks. The AI
- * blocks other than ai-chat check `ai.*` keys.
+ * `<module>.<action>`. `blocks.<name>.permissions` renames a key per module,
+ * `authorization.operations` overrides it for a provider, and the access
+ * module's `operation_permission(op)` answers the result in SQL. Keys are
+ * `<area>.<verb>`, with `read` for viewing; platform-wide actions use the
+ * `platform` area or a key that `is_platform()` checks. The AI blocks other
+ * than ai-chat check `ai.*` keys.
  */
 export const OPERATIONS = {
   "organizations.update": "organization.update",
@@ -407,9 +407,9 @@ export function moduleOperations<M extends OperationModule>(
 }
 
 /**
- * Where each module action checks its key: `tenant` through `member_can`,
- * `can` or `tenant_ids_with` (a provider's `idsWith`), and `platform`
- * through `is_platform` or `platform_can` (a provider's `isPlatform`).
+ * Where each module action checks its key: `tenant` through `member_can`, `can`
+ * or `tenant_ids_with` (a provider's `idsWith`), and `platform` through
+ * `is_platform` or `platform_can` (a provider's `isPlatform`).
  */
 export const MODULE_PERMISSION_SCOPES: {
   readonly [M in OperationModule]: {
@@ -510,11 +510,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   orders: { manage: "tenant", read: "tenant" },
   promotions: { manage: "tenant", read: "tenant" },
-  "custom-fields": {
-    manage: "tenant",
-    read: "tenant",
-    sensitive: "tenant",
-  },
+  "custom-fields": { manage: "tenant", read: "tenant", sensitive: "tenant" },
   "share-links": { create: "tenant", read: "tenant" },
   reminders: { manage: "tenant", read: "tenant" },
   imports: { manage: "tenant" },
@@ -595,16 +591,16 @@ export const roleNames = (ctx: ModuleContext): readonly string[] =>
 
 /**
  * The scope name tenants use in `can(scope, id, permission)`
- * (`blocks.access.options.scope`, default `organization`). `tenant` is
- * accepted too.
+ * (`blocks.access.options.scope`, default `organization`). `tenant` is accepted
+ * too.
  */
 export const tenantScope = (ctx: ModuleContext): string =>
   ctx.of("access").text("scope", "organization");
 
 /**
- * `blocks.invitations.options.platformRoles` under the `provider` model:
- * the app's table of platform role assignments, so platform invitations
- * insert into it.
+ * `blocks.invitations.options.platformRoles` under the `provider` model: the
+ * app's table of platform role assignments, so platform invitations insert into
+ * it.
  */
 export interface ProviderPlatformRoles {
   /** Quoted `schema.table`. */
@@ -620,7 +616,10 @@ export interface ProviderPlatformRoles {
     /** A condition on the roles row `{row}` that holds for platform roles only. */
     readonly where?: string;
   };
-  /** A SQL template with `{user}` and `{role}` (the role name) deciding who assigns which platform role. */
+  /**
+   * A SQL template with `{user}` and `{role}` (the role name) deciding who
+   * assigns which platform role.
+   */
   readonly canAssign?: string;
   readonly canAssignFor?: string;
 }

@@ -26,7 +26,10 @@ export interface WriteFlags {
 
 export const CANCELLED: CommandResult = { code: 1, error: "Cancelled." };
 
-/** `--force`, or the person's answer when files exist; `undefined` when they cancel. */
+/**
+ * `--force`, or the person's answer when files exist; `undefined` when they
+ * cancel.
+ */
 export async function overwrite(
   root: string,
   files: readonly TemplateFile[],
@@ -55,7 +58,10 @@ export async function overwrite(
   );
 }
 
-/** Template files as a plan: each is written once, and an existing file is the app's. */
+/**
+ * Template files as a plan: each is written once, and an existing file is the
+ * app's.
+ */
 export function templatePlan(
   root: string,
   files: readonly TemplateFile[],

@@ -53,7 +53,10 @@ export function parseAs(
   return value;
 }
 
-/** A property of a parsed document, or `undefined` when the value is not an object. */
+/**
+ * A property of a parsed document, or `undefined` when the value is not an
+ * object.
+ */
 export function fieldOf(value: unknown, key: string): unknown {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? Object.getOwnPropertyDescriptor(value, key)?.value

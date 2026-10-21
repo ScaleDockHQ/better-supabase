@@ -16,9 +16,9 @@ export interface Choice<T extends string> {
 }
 
 /**
- * Questions for a person at a terminal. `run()` only gets one
- * from the bin on a TTY outside CI. A method that resolves `undefined` gave
- * no answer, and the command takes its default.
+ * Questions for a person at a terminal. `run()` only gets one from the bin on a
+ * TTY outside CI. A method that resolves `undefined` gave no answer, and the
+ * command takes its default.
  */
 export interface Prompter {
   readonly select: <T extends string>(
@@ -52,7 +52,10 @@ const options = (choices: readonly Choice<string>[]): Option<string>[] =>
     ...(choice.hint ? { hint: choice.hint } : {}),
   }));
 
-/** The @clack/prompts implementation; it writes to `output` (stderr in the bin) so stdout stays pipeable. */
+/**
+ * The @clack/prompts implementation; it writes to `output` (stderr in the bin)
+ * so stdout stays pipeable.
+ */
 export const createClackPrompter = (output: NodeJS.WriteStream): Prompter => ({
   select: async (message, choices, initial) => {
     const answer = answered<string>(

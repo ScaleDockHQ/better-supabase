@@ -252,18 +252,14 @@ describe("doctor command", () => {
 
     await write("node_modules/dep/index.ts", "db.notes.aggregate({});\n");
 
-    const clean = await doctor(["--only", "BS210", "--json"], {
-      snapshot,
-    });
+    const clean = await doctor(["--only", "BS210", "--json"], { snapshot });
 
     expect(findings(clean)).toEqual([]);
 
     await write("src/z.ts", "\n\ndb.notes.aggregate({});\n");
     await write("src/a.ts", "db.notes.list({ facetCounts: true });\n");
 
-    const result = await doctor(["--only", "BS210", "--json"], {
-      snapshot,
-    });
+    const result = await doctor(["--only", "BS210", "--json"], { snapshot });
 
     expect(findings(result)).toEqual([
       expect.objectContaining({

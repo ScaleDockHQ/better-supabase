@@ -14,9 +14,7 @@ export const vercelMarketplaceBlock: BlockOf<
 > = defineBlock({
   name: "vercel-marketplace",
   sql: ["vercel-marketplace"],
-  options: {
-    "vercel-marketplace": vercelMarketplaceSqlOptions,
-  },
+  options: { "vercel-marketplace": vercelMarketplaceSqlOptions },
   events: vercelMarketplaceEvents,
   create: createVercelMarketplace,
   category: "developer",

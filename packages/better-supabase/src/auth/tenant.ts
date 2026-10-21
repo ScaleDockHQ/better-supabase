@@ -6,8 +6,8 @@ import { claimAt, tenantClaimPaths } from "../core/claims.ts";
 /**
  * The active tenant of a user session: the `claim` claim (`tenant_id` by
  * default, as `config.claims.tenant`) at the top level of the token, then in
- * `app_metadata`. `undefined` for every other session. Takes a server
- * session or the client's `useAuth()` snapshot.
+ * `app_metadata`. `undefined` for every other session. Takes a server session
+ * or the client's `useAuth()` snapshot.
  *
  * ```ts
  * const organizationId = tenantOf(await bs.session());

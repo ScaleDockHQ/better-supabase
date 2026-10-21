@@ -5,9 +5,15 @@ export interface StreamOpenOptions {
   /** The user who may read the stream and cancel it. */
   readonly owner?: string;
   readonly tenant?: string;
-  /** What the stream carries, such as `chat` or `workflow`. Defaults to `default`. */
+  /**
+   * What the stream carries, such as `chat` or `workflow`. Defaults to
+   * `default`.
+   */
   readonly kind?: string;
-  /** Seconds the stream lives, or a Postgres interval such as `"2 hours"`. Defaults to one day. */
+  /**
+   * Seconds the stream lives, or a Postgres interval such as `"2 hours"`.
+   * Defaults to one day.
+   */
   readonly ttl?: number | string;
 }
 
@@ -31,15 +37,18 @@ export interface StreamReadOptions {
 }
 
 export interface StreamPurgeOptions {
-  /** How long a closed stream is kept: seconds or an interval. Defaults to one day. */
+  /**
+   * How long a closed stream is kept: seconds or an interval. Defaults to one
+   * day.
+   */
   readonly olderThan?: number | string;
 }
 
 /**
  * Durable, resumable output: one writer appends ordered text chunks and any
- * number of readers read from a chunk index, live or after a reconnect.
- * Chunks keep the index they were appended at, so a reader that counted `n`
- * chunks resumes with `read(id, n)`.
+ * number of readers read from a chunk index, live or after a reconnect. Chunks
+ * keep the index they were appended at, so a reader that counted `n` chunks
+ * resumes with `read(id, n)`.
  */
 export interface StreamStore {
   readonly apiVersion: 1;
@@ -47,8 +56,8 @@ export interface StreamStore {
   /** Creates the stream; `true` when it was new, `false` when it existed. */
   open(id: string, options?: StreamOpenOptions): AsyncResult<boolean>;
   /**
-   * Stores `chunks` at `fromIdx`, `fromIdx + 1`, ... Indexes already stored
-   * are skipped, so a retried batch is harmless. Fails with the hint
+   * Stores `chunks` at `fromIdx`, `fromIdx + 1`, ... Indexes already stored are
+   * skipped, so a retried batch is harmless. Fails with the hint
    * `STREAM_NOT_FOUND`, `STREAM_CLOSED` or `STREAM_GAP` (`fromIdx` past the
    * end).
    */
@@ -59,8 +68,8 @@ export interface StreamStore {
   ): AsyncResult<StreamAppendResult>;
   /**
    * The chunks from `fromIdx` on, waiting for new ones until the stream is
-   * closed. A stream that doesn't exist (or that the caller can't read) ends
-   * at once. A read error errors the stream with the `DbError`.
+   * closed. A stream that doesn't exist (or that the caller can't read) ends at
+   * once. A read error errors the stream with the `DbError`.
    */
   read(
     id: string,
@@ -70,11 +79,17 @@ export interface StreamStore {
   /** The stream's state, or `undefined` when it doesn't exist. */
   status(id: string): AsyncResult<StreamStatus | undefined>;
   isCancelled(id: string): AsyncResult<boolean>;
-  /** Marks the stream finished; `false` when it was closed already or doesn't exist. */
+  /**
+   * Marks the stream finished; `false` when it was closed already or doesn't
+   * exist.
+   */
   close(id: string): AsyncResult<boolean>;
   /** Asks the writer to stop; it learns on its next append. */
   cancel(id: string): AsyncResult<boolean>;
-  /** Deletes expired streams and closed ones past `olderThan`; resolves with the count. */
+  /**
+   * Deletes expired streams and closed ones past `olderThan`; resolves with the
+   * count.
+   */
   purge(options?: StreamPurgeOptions): AsyncResult<number>;
 }
 
@@ -94,7 +109,10 @@ export interface PollingReadOptions {
   readonly subscribe?: (wake: () => void) => () => void;
 }
 
-/** A reader that fetches pages and waits for a wake-up or `pollMs` between empty ones. */
+/**
+ * A reader that fetches pages and waits for a wake-up or `pollMs` between empty
+ * ones.
+ */
 export function pollingRead(
   options: PollingReadOptions,
 ): ReadableStream<string> {

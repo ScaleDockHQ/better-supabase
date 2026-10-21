@@ -75,7 +75,10 @@ export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   }));
 }
 
-/** Everything the canvas needs for one definition; `null` when it isn't the caller's to read. */
+/**
+ * Everything the canvas needs for one definition; `null` when it isn't the
+ * caller's to read.
+ */
 export async function getBuilderDetail(
   id: string,
 ): Promise<BuilderDetail | null> {

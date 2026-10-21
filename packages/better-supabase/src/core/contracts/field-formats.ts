@@ -1,10 +1,10 @@
 import type { FormFieldType } from "./form-definition.ts";
 
 /**
- * The one field vocabulary: the formats an app table column takes and the
- * types a custom field takes. App tables render each format's check from
- * here, `scaffold screens` picks the input, and the forms block answers a
- * custom field with the form field type it maps to.
+ * The one field vocabulary: the formats an app table column takes and the types
+ * a custom field takes. App tables render each format's check from here,
+ * `scaffold screens` picks the input, and the forms block answers a custom
+ * field with the form field type it maps to.
  */
 
 /** The Postgres column types a format fits. */
@@ -50,8 +50,8 @@ const EMAIL = String.raw`^[^@\s]+@[^@\s]+\.[^@\s]+$`;
 const URL = String.raw`^https?://\S+$`;
 
 /**
- * Money is a `currency` `bigint` of minor units next to a `text` column of
- * 3 characters for the code (ADR 0037).
+ * Money is a `currency` `bigint` of minor units next to a `text` column of 3
+ * characters for the code (ADR 0037).
  */
 export const FIELD_FORMATS: Readonly<Record<FieldFormatName, FieldFormat>> = {
   email: { types: ["text"], pattern: EMAIL, input: "email", formType: "email" },
@@ -75,10 +75,10 @@ export const FIELD_FORMATS: Readonly<Record<FieldFormatName, FieldFormat>> = {
 };
 
 /**
- * The types of a custom field definition. A value is stored as text either
- * way; the type tells the form and the UI what it holds. `user` holds a user
- * id, `currency` an integer of minor units, and `multi_option` a JSON array
- * of option values.
+ * The types of a custom field definition. A value is stored as text either way;
+ * the type tells the form and the UI what it holds. `user` holds a user id,
+ * `currency` an integer of minor units, and `multi_option` a JSON array of
+ * option values.
  */
 export const CUSTOM_FIELD_TYPES = [
   "text",

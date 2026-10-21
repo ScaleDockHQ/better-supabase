@@ -15,9 +15,7 @@ export const metricsBlock: BlockOf<
 > = defineBlock({
   name: "metrics",
   sql: ["metrics"],
-  options: {
-    metrics: metricsSqlOptions,
-  },
+  options: { metrics: metricsSqlOptions },
   provides: {
     sink: (client, options) =>
       options.sink === undefined

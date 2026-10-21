@@ -12,7 +12,10 @@ interface AccessTable {
   readonly scoped: boolean;
 }
 
-/** Of `names`, the columns signed-in users read: those without `access: "server"`. */
+/**
+ * Of `names`, the columns signed-in users read: those without `access:
+ * "server"`.
+ */
 export function readableColumns(
   config: AppTableConfig,
   names: readonly string[],
@@ -50,8 +53,8 @@ function privilege(
 
 /**
  * The pgTAP checks of the column grants (ADR 0051), run as the superuser:
- * signed-in users read a `read` column but don't write it, and neither read
- * nor write a `server` column. Empty without `access` on any column.
+ * signed-in users read a `read` column but don't write it, and neither read nor
+ * write a `server` column. Empty without `access` on any column.
  */
 export function columnAccessChecks(table: AccessTable): readonly string[] {
   const readOnly = columnsWithAccess(table.config, "read");
@@ -73,9 +76,9 @@ export function columnAccessChecks(table: AccessTable): readonly string[] {
 
 /**
  * The checks run as a signed-in user: selecting a `server` column and, on a
- * table they write, updating a restricted column both fail with 42501.
- * Postgres checks column privileges when it plans the statement, so
- * `where false` still refuses.
+ * table they write, updating a restricted column both fail with 42501. Postgres
+ * checks column privileges when it plans the statement, so `where false` still
+ * refuses.
  */
 export function columnAccessRefusals(table: AccessTable): readonly string[] {
   const target = `${sqlIdent(SCHEMA)}.${sqlIdent(table.name)}`;

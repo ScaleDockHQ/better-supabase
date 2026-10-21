@@ -19,8 +19,8 @@ export type LocalStackCheck =
 const SEGMENT_WARNING_SHARE = 0.8;
 
 /**
- * Larger than the interlock segment every postmaster keeps (56 bytes), so
- * the stack keeps its shared buffers in System V memory.
+ * Larger than the interlock segment every postmaster keeps (56 bytes), so the
+ * stack keeps its shared buffers in System V memory.
  */
 const SYSV_SEGMENT_BYTES = 1024 * 1024;
 

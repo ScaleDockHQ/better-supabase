@@ -24,9 +24,9 @@ export const migrationStamp = (now: Date): string =>
   now.toISOString().replaceAll(/[-:T]/g, "").slice(0, 14);
 
 /**
- * A stamp for `now`, or one second after the newest migration when that one
- * has the same stamp or a later one: the Supabase CLI keys migrations by
- * stamp, and the data has to run after the schema.
+ * A stamp for `now`, or one second after the newest migration when that one has
+ * the same stamp or a later one: the Supabase CLI keys migrations by stamp, and
+ * the data has to run after the schema.
  */
 export function stampAfter(migrations: readonly string[], now: Date): string {
   // Every name that starts with 14 digits counts, whatever follows them
@@ -62,11 +62,7 @@ const MIGRATION_EXTENSION =
 async function unmigratedExtensions(
   config: ResolvedConfig,
   files: readonly ModuleFile[],
-): Promise<{
-  dir: string;
-  existing: string[];
-  missing: ModuleExtension[];
-}> {
+): Promise<{ dir: string; existing: string[]; missing: ModuleExtension[] }> {
   const dir = migrationsDir(config);
 
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
@@ -139,9 +135,9 @@ export const DATA_NEXT =
 const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 /**
- * Writes the data files of `blocks` into one migration, meant to run after
- * the schema migration that creates their tables. Every statement is
- * idempotent, so the migration carries all of them, not only the changes.
+ * Writes the data files of `blocks` into one migration, meant to run after the
+ * schema migration that creates their tables. Every statement is idempotent, so
+ * the migration carries all of them, not only the changes.
  */
 export async function dataMigration(
   config: ResolvedConfig,

@@ -299,9 +299,9 @@ import {
 type None = Record<never, never>;
 
 /**
- * The options of every SQL module, keyed by module name. `BlocksConfig`
- * types `blocks.<module>.options` from it, and `schemas/config-v1.json` is
- * generated from `BLOCK_OPTION_SCHEMAS`.
+ * The options of every SQL module, keyed by module name. `BlocksConfig` types
+ * `blocks.<module>.options` from it, and `schemas/config-v1.json` is generated
+ * from `BLOCK_OPTION_SCHEMAS`.
  */
 export interface BlockOptionsRegistry {
   readonly access: AccessSqlOptions;

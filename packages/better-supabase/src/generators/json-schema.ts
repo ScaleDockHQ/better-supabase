@@ -22,13 +22,16 @@ import {
 export type { JsonSchemaTarget } from "./json-schema-target.ts";
 
 export interface JsonSchemaGeneratorOptions {
-  /** Output path relative to the project root. Defaults to `<output>.schema.json`. */
+  /**
+   * Output path relative to the project root. Defaults to
+   * `<output>.schema.json`.
+   */
   readonly output?: string;
   /** `$id` of the document. */
   readonly id?: string;
   /**
-   * The dialect. `draft-2020-12` (the default) writes `$defs`; `draft-07`
-   * and `openapi-3.0` (`nullable`, `example`) write `definitions`.
+   * The dialect. `draft-2020-12` (the default) writes `$defs`; `draft-07` and
+   * `openapi-3.0` (`nullable`, `example`) write `definitions`.
    */
   readonly target?: JsonSchemaTarget;
 }
@@ -68,9 +71,9 @@ function withDeprecated(
 }
 
 /**
- * JSON Schema `$defs` for every table: `customersRow`, `customersInsert`,
- * ... `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect,
- * which keep the schemas under `definitions`.
+ * JSON Schema `$defs` for every table: `customersRow`, `customersInsert`, ...
+ * `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect, which
+ * keep the schemas under `definitions`.
  */
 export function buildJsonSchema(
   input: DocsSource,

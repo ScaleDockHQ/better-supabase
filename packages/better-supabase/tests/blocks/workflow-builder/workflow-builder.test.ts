@@ -132,11 +132,7 @@ describe("row mappers", () => {
   it("reads rows and rejects unknown values", () => {
     expect(
       definitionOf({ ...DEFINITION, published: 2, draft: true }),
-    ).toMatchObject({
-      published: 2,
-      draft: true,
-      description: undefined,
-    });
+    ).toMatchObject({ published: 2, draft: true, description: undefined });
     expect(definitionOf({ ...DEFINITION, published: null })).toMatchObject({
       published: undefined,
     });
@@ -173,10 +169,7 @@ describe("row mappers", () => {
     );
     expect(
       triggerOf({ ...TRIGGER, config: null, enabled: null }),
-    ).toMatchObject({
-      config: {},
-      enabled: true,
-    });
+    ).toMatchObject({ config: {}, enabled: true });
     expect(credentialOf({ ...CREDENTIAL, scopes: null }).scopes).toEqual([]);
     expect(() => credentialOf({ ...CREDENTIAL, ref: {} })).toThrow(
       "has no provider",
@@ -730,11 +723,7 @@ describe("createWorkflowBuilder", () => {
       actor: undefined,
       input: { a: 1 },
       subject: { type: "deal", id: "x" },
-      stubs: {
-        lookup: { plan: "pro" },
-        welcome: "sent",
-        nudge: "sent",
-      },
+      stubs: { lookup: { plan: "pro" }, welcome: "sent", nudge: "sent" },
     });
     expect(starts[0]?.idempotencyKey).toMatch(/^test:/);
 
@@ -1075,10 +1064,7 @@ describe("createWorkflowBuilder", () => {
     ).toEqual(["wrun_1", "wrun_2"]);
 
     const failing = await createWorkflowBuilder({ transport }).triggers.onEvent(
-      {
-        id: "e1",
-        type: "x",
-      },
+      { id: "e1", type: "x" },
     );
 
     expect(failing.ok).toBe(false);

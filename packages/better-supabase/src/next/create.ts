@@ -75,8 +75,8 @@ import {
 } from "./support.ts";
 
 /**
- * The Next.js adapter: proxy, Server Components, route handlers, server
- * actions and cache tags, on top of `createServer`.
+ * The Next.js adapter: proxy, Server Components, route handlers, server actions
+ * and cache tags, on top of `createServer`.
  *
  * ```ts
  * export const bs = createNext(betterSupabase);
@@ -169,7 +169,10 @@ export function createNext<
       headers: new Headers(await headers()),
     });
 
-  /** One token verification per render scope backs `context()`, `session()` and `cached()`. */
+  /**
+   * One token verification per render scope backs `context()`, `session()` and
+   * `cached()`.
+   */
   const incoming = cache(
     async (): Promise<{
       readonly request: Request;
@@ -197,7 +200,10 @@ export function createNext<
   ): string | undefined =>
     scopedTenants.get(ctx) ?? tenantOf(view, tenantClaim);
 
-  /** `requireTenant`, `roles`, `permission` and `authorize`, for the context's tenant. */
+  /**
+   * `requireTenant`, `roles`, `permission` and `authorize`, for the context's
+   * tenant.
+   */
   const authorizeCaller = <I, X>(
     ctx: ServerContext<M, F, E, C, P, B>,
     checks: AuthorizeOptions<I, C, P, boolean, unknown, X>,

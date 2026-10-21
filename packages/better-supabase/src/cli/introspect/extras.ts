@@ -113,7 +113,10 @@ where p.oid in (
   )))
 order by 1, 2, 3`;
 
-/** Roles the hook checks care about: the one Auth calls it as, and the API roles. */
+/**
+ * Roles the hook checks care about: the one Auth calls it as, and the API
+ * roles.
+ */
 const HOOK_ROLES = literalArray([
   "supabase_auth_admin",
   "authenticated",
@@ -287,11 +290,7 @@ interface FunctionRow {
 const VOLATILITY: Record<
   FunctionRow["volatility"],
   ExtrasFunction["volatility"]
-> = {
-  i: "immutable",
-  s: "stable",
-  v: "volatile",
-};
+> = { i: "immutable", s: "stable", v: "volatile" };
 
 /** `['statement_timeout=5s']` as `{ statement_timeout: '5s' }`. */
 function settingsOf(config: readonly string[] | null): Record<string, string> {
@@ -319,7 +318,10 @@ interface HookRow extends FunctionRow {
   source: string | null;
 }
 
-/** A hook function to introspect: `[auth.hook.<hook>]` pointing at `schema.name`. */
+/**
+ * A hook function to introspect: `[auth.hook.<hook>]` pointing at
+ * `schema.name`.
+ */
 export interface HookTarget {
   readonly hook: string;
   readonly schema: string;

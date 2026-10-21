@@ -79,7 +79,10 @@ function fakeClient(
   };
 }
 
-/** Unsubscribes under fake timers: leaving waits a tick before removing the channel. */
+/**
+ * Unsubscribes under fake timers: leaving waits a tick before removing the
+ * channel.
+ */
 async function leaveFaked(live: { unsubscribe(): Promise<void> }) {
   const left = live.unsubscribe();
   await vi.advanceTimersByTimeAsync(1);

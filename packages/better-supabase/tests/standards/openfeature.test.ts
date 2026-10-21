@@ -83,11 +83,7 @@ describe("OpenFeature", () => {
     });
     expect(
       await client.getStringDetails("theme", "light", context),
-    ).toMatchObject({
-      value: "dark",
-      variant: "dark",
-      reason: "SPLIT",
-    });
+    ).toMatchObject({ value: "dark", variant: "dark", reason: "SPLIT" });
     expect(
       await client.getBooleanValue("new_editor", true, { targetingKey: USER }),
     ).toBe(false);

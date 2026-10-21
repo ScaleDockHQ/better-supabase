@@ -35,9 +35,8 @@ const ALL_TEAMS = "";
 
 // #region recipe:team-picker
 /**
- * Scopes the page to one of the organization's teams through `?team=`.
- * With no teams yet, it offers to create one when the caller holds
- * `teams.manage`.
+ * Scopes the page to one of the organization's teams through `?team=`. With no
+ * teams yet, it offers to create one when the caller holds `teams.manage`.
  */
 export function TeamPicker({
   teams,

@@ -50,8 +50,8 @@ export function moduleFilePaths(
 /**
  * Where a module's data statements go: `better-supabase-data/` next to the
  * declarative schema folder, or next to `dir` when `dir` is outside it.
- * pg-delta loads every file under the schema folder, nested folders
- * included, and rejects a managed table that has rows afterwards.
+ * pg-delta loads every file under the schema folder, nested folders included,
+ * and rejects a managed table that has rows afterwards.
  */
 export function moduleDataPath(
   module: SqlModule,

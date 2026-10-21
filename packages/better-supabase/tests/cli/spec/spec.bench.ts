@@ -1,7 +1,7 @@
 /**
- * What `better-supabase spec` costs per output: a cold render, a cache
- * hit, a render checked against the official schema, and every OpenAPI
- * version at once. Run with `pnpm --filter better-supabase bench`.
+ * What `better-supabase spec` costs per output: a cold render, a cache hit, a
+ * render checked against the official schema, and every OpenAPI version at
+ * once. Run with `pnpm --filter better-supabase bench`.
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -18,7 +18,10 @@ const definitionInvalid = (errors: string): string =>
   `raise exception 'the form definition is invalid: %', array_to_string(${errors}, '; ')
       using errcode = '22023', detail = to_jsonb(${errors})::text, hint = 'FORM_DEFINITION_INVALID';`;
 
-/** The form field type a custom field type answers as (`CUSTOM_FIELD_FORM_TYPES`). */
+/**
+ * The form field type a custom field type answers as
+ * (`CUSTOM_FIELD_FORM_TYPES`).
+ */
 function formTypeOf(type: string): string {
   const renamed = Object.entries(CUSTOM_FIELD_FORM_TYPES)
     .filter(([custom, form]) => custom !== form)

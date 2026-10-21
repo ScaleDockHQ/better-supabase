@@ -239,9 +239,7 @@ describe("useLiveQuery", () => {
     const view = mount(
       browser,
       () => useLiveQuery(current, { debounceMs: 1 }),
-      {
-        queryClient: cache.queryClient,
-      },
+      { queryClient: cache.queryClient },
     );
 
     await flush();

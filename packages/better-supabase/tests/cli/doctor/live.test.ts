@@ -248,12 +248,7 @@ describe("BS209 slow statements", () => {
         [
           /mean_exec_time >/,
           [
-            {
-              queryid: "1",
-              query: long,
-              calls: "2000",
-              mean_exec_time: "60",
-            },
+            { queryid: "1", query: long, calls: "2000", mean_exec_time: "60" },
             {
               queryid: "2",
               query: "select 1",

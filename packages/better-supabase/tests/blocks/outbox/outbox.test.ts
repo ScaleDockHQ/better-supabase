@@ -71,10 +71,7 @@ describe("createOutbox", () => {
     const result = await outbox.emit(
       "invoice.paid",
       { id: 1 },
-      {
-        tenant: "t1",
-        key: "inv-1",
-      },
+      { tenant: "t1", key: "inv-1" },
     );
 
     expect(result).toMatchObject({
@@ -396,9 +393,7 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).relay("crm", {
-      send: () => undefined,
-    });
+    }).relay("crm", { send: () => undefined });
 
     expect(result.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
   });
@@ -409,9 +404,7 @@ describe("createOutbox", () => {
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).history({
-      subject: "organizations/4",
-    });
+    }).history({ subject: "organizations/4" });
 
     expect(result.data?.map((event) => event.position)).toEqual([4]);
     expect(result.data?.[0]?.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
@@ -490,10 +483,7 @@ describe("relayRoute", () => {
     const route = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
-    }).relayRoute({
-      secret: "s",
-      consumers: {},
-    });
+    }).relayRoute({ secret: "s", consumers: {} });
 
     expect((await route(request("PUT"))).status).toBe(405);
     expect((await route(request("GET", "wrong"))).status).toBe(401);
@@ -579,10 +569,7 @@ describe("createOutbox subscribers", () => {
   });
 
   it("skips the handler when nothing is kept, and reads authorization.delivery", async () => {
-    const { sql } = fakeSql({
-      outbox_claim: [[row(1)]],
-      outbox_ack: [true],
-    });
+    const { sql } = fakeSql({ outbox_claim: [[row(1)]], outbox_ack: [true] });
 
     let handled = 0;
 

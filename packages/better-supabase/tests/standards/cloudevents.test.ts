@@ -143,12 +143,7 @@ describe("CloudEvents 1.0", () => {
     const { type: _type, ...missing } = events[0]!;
     expect(isCloudEvent(events[0])).toBe(true);
     expect(isCloudEvent(missing)).toBe(false);
-    expect(
-      isCloudEvent({
-        ...events[0],
-        specversion: "0.3",
-      }),
-    ).toBe(false);
+    expect(isCloudEvent({ ...events[0], specversion: "0.3" })).toBe(false);
   });
 });
 

@@ -130,8 +130,8 @@ const INIT_ARGS = {
 const LITE_VERSION = "0.11";
 
 /**
- * pg (or `@supabase/lite`, with `lite`) and the pinned postgrest-typegen as
- * dev dependencies, the ones the project lacks.
+ * Pg (or `@supabase/lite`, with `lite`) and the pinned postgrest-typegen as dev
+ * dependencies, the ones the project lacks.
  */
 function devPackages(project: Project, lite: boolean): string[][] {
   const database = lite ? "@supabase/lite" : "pg";
@@ -188,9 +188,7 @@ async function initTarget(
       `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
       {
         missing: ["--package"],
-        choices: {
-          "--package": [...new Set([suggested, ...others, "."])],
-        },
+        choices: { "--package": [...new Set([suggested, ...others, "."])] },
       },
     );
   }

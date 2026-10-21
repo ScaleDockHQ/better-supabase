@@ -192,11 +192,7 @@ function fakeBus() {
   return { client };
 }
 
-const ref = {
-  organizationId: "org",
-  subjectType: "page",
-  subjectId: "p1",
-};
+const ref = { organizationId: "org", subjectType: "page", subjectId: "p1" };
 
 describe("createDocumentProvider", () => {
   it("syncs two documents through the log and the topic", async () => {

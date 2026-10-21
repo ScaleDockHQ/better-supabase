@@ -9,9 +9,7 @@ describe("npm provenance", () => {
   it("publishes with provenance from a workflow that can mint an OIDC token", async () => {
     const manifest = JSON.parse(
       await readFile(join(PACKAGE, "package.json"), "utf-8"),
-    ) as {
-      publishConfig?: { provenance?: boolean; access?: string };
-    };
+    ) as { publishConfig?: { provenance?: boolean; access?: string } };
 
     expect(manifest.publishConfig?.provenance).toBe(true);
 

@@ -83,10 +83,7 @@ const { sandboxes } = createAiChat({ transport, service: serviceTransport });
 const row = await sandboxes
   .register(organizationId, { provider: "vercel", sandboxId, chatId, userId })
   .orThrow();
-const sandbox = trackedSandbox(session, {
-  sandboxes,
-  id: row.id,
-});
+const sandbox = trackedSandbox(session, { sandboxes, id: row.id });
 ```
 
 Before starting a sandbox for a chat, `sandboxes.forChat(chatId, "vercel")`

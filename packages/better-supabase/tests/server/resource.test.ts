@@ -379,11 +379,7 @@ describe("defineResource actions", () => {
           query: v.object({ format: v.picklist(["csv", "json"]) }),
           handler: (_ctx, { query }) => ({ query }),
         },
-        ping: {
-          method: "POST",
-          path: "/ping",
-          handler: () => undefined,
-        },
+        ping: { method: "POST", path: "/ping", handler: () => undefined },
       },
     });
 
@@ -554,9 +550,7 @@ describe("defineResource hooks", () => {
     const { db, queries } = fakeDb();
 
     const denied = defineResource(betterSupabase, "customers", {
-      hooks: {
-        authorize: () => err(dbError("forbidden", "Not yours")),
-      },
+      hooks: { authorize: () => err(dbError("forbidden", "Not yours")) },
     });
 
     const response = await denied.handle(request("/customers"), db, undefined);
@@ -626,10 +620,7 @@ describe("defineResource permissions", () => {
       subject: {
         type: "user",
         id: "u1",
-        properties: {
-          role: "authenticated",
-          claims: { scope: "read write" },
-        },
+        properties: { role: "authenticated", claims: { scope: "read write" } },
       },
       action: "customers.update",
       resource: {

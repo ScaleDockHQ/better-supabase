@@ -182,9 +182,7 @@ describe("BS308 tenant claim", () => {
   });
 
   const tenantConfig = resolveConfig(
-    {
-      blocks: { tenant: {}, access: { activeTenant: "claim" } },
-    },
+    { blocks: { tenant: {}, access: { activeTenant: "claim" } } },
     "/project",
   );
 
@@ -224,9 +222,7 @@ describe("BS308 tenant claim", () => {
 
   it("skips other active-tenant sources, missing users, failures and runs without --as", async () => {
     const resolver = resolveConfig(
-      {
-        blocks: { tenant: {}, access: { activeTenant: "resolver" } },
-      },
+      { blocks: { tenant: {}, access: { activeTenant: "resolver" } } },
       "/project",
     );
 

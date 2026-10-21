@@ -90,7 +90,10 @@ const OPERATION_STATUSES: Readonly<
   delete: [401, 403, 404, 409],
 };
 
-/** Statuses an operation only documents when it can answer with them; other errors apply everywhere. */
+/**
+ * Statuses an operation only documents when it can answer with them; other
+ * errors apply everywhere.
+ */
 const SCOPED_STATUSES: ReadonlySet<number> = new Set([
   400, 401, 403, 404, 409, 422,
 ]);
@@ -125,7 +128,10 @@ function isPlanCarrier<Ref>(
   return typeof input === "object" && "plan" in input;
 }
 
-/** `description` and `deprecated` from comments, read structurally so older metadata still works. */
+/**
+ * `description` and `deprecated` from comments, read structurally so older
+ * metadata still works.
+ */
 function docsOf(value: object | undefined): {
   readonly description?: string;
   readonly deprecated?: true;
@@ -176,7 +182,10 @@ function mutableProperties(schema: Json): Record<string, Json> | undefined {
   return copy;
 }
 
-/** The state one `build` shares across resources and routes, and the helpers that write to it. */
+/**
+ * The state one `build` shares across resources and routes, and the helpers
+ * that write to it.
+ */
 export interface BuildContext<Ref> {
   readonly meta: SchemaMeta;
   readonly options: ApiOptions<Ref>;

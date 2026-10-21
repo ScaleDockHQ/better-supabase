@@ -523,10 +523,7 @@ describe("writes", () => {
     const result = await db.customers.update(
       "c1",
       { name: "New" },
-      {
-        where: { organizationId: "t" },
-        expect: { status: { in: ["lead"] } },
-      },
+      { where: { organizationId: "t" }, expect: { status: { in: ["lead"] } } },
     );
 
     expect(result.error?.kind).toBe("not_found");
@@ -595,9 +592,7 @@ describe("writes", () => {
   });
 
   it("returns null for an empty update with returning false", async () => {
-    const { client, last } = capturingClient(() => ({
-      body: [{ id: "c1" }],
-    }));
+    const { client, last } = capturingClient(() => ({ body: [{ id: "c1" }] }));
 
     const db = sbCamel.connect(client);
 

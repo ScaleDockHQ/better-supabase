@@ -18,7 +18,9 @@ export interface RawOAuthClient {
 
 /** The part of `supabase.auth.oauth` the consent controllers call. */
 export interface OAuthApi {
-  getAuthorizationDetails(authorizationId: string): PromiseLike<
+  getAuthorizationDetails(
+    authorizationId: string,
+  ): PromiseLike<
     AuthReply<
       | {
           readonly authorization_id: string;
@@ -90,9 +92,9 @@ const hostOf = (uri: string): string => {
 type Details = Result<OAuthConsentRequest | { readonly redirectUrl: string }>;
 
 /**
- * Reads per authorization id. A request the user approved before is used up
- * by its first read, so a second controller for the same id (React Strict
- * Mode mounts twice) has to share the answer.
+ * Reads per authorization id. A request the user approved before is used up by
+ * its first read, so a second controller for the same id (React Strict Mode
+ * mounts twice) has to share the answer.
  */
 const reads = new Map<string, Promise<Details>>();
 
@@ -139,7 +141,10 @@ export interface OAuthConsentControllerOptions {
 }
 
 export interface OAuthConsentSnapshot {
-  /** The request to approve or deny; `undefined` while it loads or after a redirect. */
+  /**
+   * The request to approve or deny; `undefined` while it loads or after a
+   * redirect.
+   */
   readonly request: OAuthConsentRequest | undefined;
   /** The URL the controller sent the browser to. */
   readonly redirectUrl: string | undefined;
@@ -165,8 +170,8 @@ const assign = (url: string): void => {
 };
 
 /**
- * The consent page of the Supabase Auth OAuth server: it reads the request
- * for `authorizationId`, and `approve` or `deny` send the browser to the
+ * The consent page of the Supabase Auth OAuth server: it reads the request for
+ * `authorizationId`, and `approve` or `deny` send the browser to the
  * `redirect_url` that Auth returns, never to a URL from the page.
  */
 export function createOAuthConsentController(
@@ -291,8 +296,8 @@ export interface OAuthGrantsSnapshot {
 
 export interface OAuthGrantsActions {
   /**
-   * Disconnects a client: its sessions end and its refresh tokens stop
-   * working. An access token it holds stays valid until it expires.
+   * Disconnects a client: its sessions end and its refresh tokens stop working.
+   * An access token it holds stays valid until it expires.
    */
   readonly revoke: (clientId: string) => Promise<Result<boolean>>;
   readonly refresh: () => Promise<void>;
@@ -303,7 +308,10 @@ export type OAuthGrantsController = Controller<
   OAuthGrantsActions
 >;
 
-/** The OAuth clients (such as MCP clients) the user approved, for a connected agents list. */
+/**
+ * The OAuth clients (such as MCP clients) the user approved, for a connected
+ * agents list.
+ */
 export function createOAuthGrantsController(
   options: OAuthGrantsControllerOptions,
 ): OAuthGrantsController {

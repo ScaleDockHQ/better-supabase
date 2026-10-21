@@ -117,9 +117,7 @@ describe("documents client", () => {
   });
 
   it("lists documents to compact with optional limits", async () => {
-    const fake = transport({
-      documents_to_compact: () => ["d1", "d2"],
-    });
+    const fake = transport({ documents_to_compact: () => ["d1", "d2"] });
 
     const documents = createDocuments({ transport: fake, schema: "app" });
     expect(await documents.toCompact().orThrow()).toEqual(["d1", "d2"]);

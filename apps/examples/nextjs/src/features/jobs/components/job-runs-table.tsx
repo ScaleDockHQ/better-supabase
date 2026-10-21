@@ -108,9 +108,9 @@ function JobStatusBadge({ status, t }: { status: JobRunStatus; t: Translate }) {
 }
 
 /**
- * Render inside `<Suspense>`: the organization's latest background jobs
- * across every queue, with a retry button on failed runs. Gated by
- * `audit.read`, since it reads with the database owner.
+ * Render inside `<Suspense>`: the organization's latest background jobs across
+ * every queue, with a retry button on failed runs. Gated by `audit.read`, since
+ * it reads with the database owner.
  */
 export async function JobRunsTable() {
   const [session, t, format] = await Promise.all([

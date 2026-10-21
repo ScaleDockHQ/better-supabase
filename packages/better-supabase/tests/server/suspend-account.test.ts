@@ -18,11 +18,7 @@ type UpdateUser = (
 ) => Promise<{ error: unknown }>;
 
 function setup(
-  options: {
-    ended?: number;
-    sqlError?: Error;
-    updateUser?: UpdateUser;
-  } = {},
+  options: { ended?: number; sqlError?: Error; updateUser?: UpdateUser } = {},
 ) {
   const order: string[] = [];
 

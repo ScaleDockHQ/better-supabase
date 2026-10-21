@@ -13,10 +13,10 @@ const FORM_TYPES = ["application/x-www-form-urlencoded", "multipart/form-data"];
 
 /**
  * Whether a request should refresh an expired session cookie: page loads,
- * client navigations (`rsc`, `x-sveltekit-*`, `_data` loaders), form posts
- * and Server Actions. Prefetches, assets and `fetch` calls from scripts
- * read the session as it is, so a burst of parallel requests never races
- * on the single-use refresh token.
+ * client navigations (`rsc`, `x-sveltekit-*`, `_data` loaders), form posts and
+ * Server Actions. Prefetches, assets and `fetch` calls from scripts read the
+ * session as it is, so a burst of parallel requests never races on the
+ * single-use refresh token.
  */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
@@ -76,7 +76,10 @@ export function shouldCheckSession(
   return paths?.includes(new URL(request.url).pathname) ?? false;
 }
 
-/** When a session entry refreshes: always, never, on navigations, or a predicate. */
+/**
+ * When a session entry refreshes: always, never, on navigations, or a
+ * predicate.
+ */
 export type RefreshPolicy =
   | boolean
   | "navigation"

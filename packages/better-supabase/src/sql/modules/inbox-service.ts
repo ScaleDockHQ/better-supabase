@@ -4,7 +4,10 @@ import { serviceGrant, pageSize } from "../shared.ts";
 import { forbidden, missing } from "./inbox-functions.ts";
 import { topics } from "./inbox-names.ts";
 
-/** The service calls: deliveries, stored webhook events, sweeps, templates and typing. */
+/**
+ * The service calls: deliveries, stored webhook events, sweeps, templates and
+ * typing.
+ */
 export function inboxServiceFunctions(q: InboxSql): string {
   const { id, fn } = q;
   const cv = q.cols("conversations");

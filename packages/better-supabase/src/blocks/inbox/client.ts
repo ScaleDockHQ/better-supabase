@@ -29,7 +29,10 @@ export interface InboxControllerOptions<T> {
   /** The organization; the controller joins `inbox:org:<id>`. `null` waits. */
   readonly organizationId: string | null;
   readonly load: InboxSource<T>;
-  /** `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to `inbox`. */
+  /**
+   * `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to
+   * `inbox`.
+   */
   readonly topic?: string;
   /** Runs for each broadcast, e.g. to show a toast for `message`. */
   readonly onMessage?: (event: string, payload: unknown) => void;
@@ -54,8 +57,8 @@ function loader<T>(
 }
 
 /**
- * The staff view of an organization's conversations, kept current: loads,
- * then loads again after each ping on `inbox:org:<id>` and on rejoin.
+ * The staff view of an organization's conversations, kept current: loads, then
+ * loads again after each ping on `inbox:org:<id>` and on rejoin.
  */
 export function createInboxController<T>(
   options: InboxControllerOptions<T>,
@@ -251,8 +254,8 @@ export interface InboxWidgetControllerOptions<T> {
   readonly send: (conversationId: string, message: string) => Promise<void>;
   readonly load: (conversationId: string) => Promise<readonly T[]>;
   /**
-   * Remembers the conversation across reloads in the storage port.
-   * Defaults to `better-supabase:inbox-widget`; `null` forgets it.
+   * Remembers the conversation across reloads in the storage port. Defaults to
+   * `better-supabase:inbox-widget`; `null` forgets it.
    */
   readonly storageKey?: string | null;
   readonly topic?: string;
@@ -276,8 +279,8 @@ export type InboxWidgetController<T> = Controller<
 
 /**
  * The visitor side of an in-app inbox: the first message opens the
- * conversation, later ones go into it, and the messages and typing pings
- * stay current. Visitors without an account sign in anonymously first.
+ * conversation, later ones go into it, and the messages and typing pings stay
+ * current. Visitors without an account sign in anonymously first.
  */
 export function createInboxWidgetController<T>(
   options: InboxWidgetControllerOptions<T>,

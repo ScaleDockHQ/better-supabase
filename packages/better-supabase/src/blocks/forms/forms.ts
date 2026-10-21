@@ -37,12 +37,15 @@ export interface FormsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the forms' extra columns
-   * (`blocks.forms.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on `create` and `update`.
+   * (`blocks.forms.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on reads and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -144,7 +147,10 @@ export interface FormUpdate<F extends object = Record<never, never>> {
   readonly title?: string;
   readonly description?: string;
   readonly status?: FormStatus;
-  /** Values for the extra columns, by column name; the ones left out keep their value. */
+  /**
+   * Values for the extra columns, by column name; the ones left out keep their
+   * value.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -159,7 +165,10 @@ export interface SubmitOptions {
 }
 
 export interface PublicSubmitOptions {
-  /** Passed to the `before_public_form_submission` hook, such as a Turnstile token. */
+  /**
+   * Passed to the `before_public_form_submission` hook, such as a Turnstile
+   * token.
+   */
   readonly botToken?: string;
 }
 
@@ -323,7 +332,10 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       fields: value,
     }));
 
-  /** `{ fields }` for a write that sets extra columns, checked first; `{}` otherwise. */
+  /**
+   * `{ fields }` for a write that sets extra columns, checked first; `{}`
+   * otherwise.
+   */
   const extra = (
     input: Readonly<Record<string, unknown>> | undefined,
   ): AsyncResult<{ readonly fields?: Readonly<Record<string, unknown>> }> =>

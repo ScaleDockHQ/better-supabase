@@ -9,10 +9,6 @@ import { betterSupabase } from "../../lib/supabase/index.ts";
  */
 export const seed = defineTenantSeed(betterSupabase, (tenant) => ({
   customers: {
-    demo: {
-      organizationId: tenant.id,
-      name: "Demo customer",
-      status: "lead",
-    },
+    demo: { organizationId: tenant.id, name: "Demo customer", status: "lead" },
   },
 }));

@@ -1,9 +1,9 @@
 /**
  * Pins `blocks["webhooks-out"].options.defaultFormat` in an adopted
- * outgoing-webhooks block that maps no `columns.endpoints.format`. Such a
- * block sends every endpoint in `defaultFormat`, whose default moved from the
- * 0.8 body (`standard`) to `cloudevents` in 0.9, and which adopt mode
- * requires since 0.11.
+ * outgoing-webhooks block that maps no `columns.endpoints.format`. Such a block
+ * sends every endpoint in `defaultFormat`, whose default moved from the 0.8
+ * body (`standard`) to `cloudevents` in 0.9, and which adopt mode requires
+ * since 0.11.
  */
 
 import type { ConfigEdit, Property } from "./config-edit.ts";
@@ -142,7 +142,10 @@ function pinTs(source: string, format: WebhookFormat): FormatPin {
   return setPathInConfig(source, PATH, format);
 }
 
-/** Pins `defaultFormat` to `format` where an adopted block leaves it to the default. */
+/**
+ * Pins `defaultFormat` to `format` where an adopted block leaves it to the
+ * default.
+ */
 export function pinWebhookFormat(
   source: string,
   json: boolean,

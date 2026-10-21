@@ -58,10 +58,7 @@ const customers = defineTopic("organization:{organizationId}:customers");
 
 const notifications = defineTopic(
   "organization:{organizationId}:notifications:{userId}",
-  {
-    events: { created: title },
-    send: true,
-  },
+  { events: { created: title }, send: true },
 );
 
 function waitFor<T>(

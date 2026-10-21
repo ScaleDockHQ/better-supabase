@@ -27,12 +27,12 @@ import {
  * Windowing for the cascader, in its own file so the primitive's own install
  * never pulls `@tanstack/react-virtual` in. Base UI forces three rules:
  *
- * 1. A windowed row MUST carry an explicit `index`; the fallback
- *    `findItemIndex` is O(n) per row and returns `-1` on the frame a level swap
- *    renders empty, dangling `aria-activedescendant`.
- * 2. That index is DESTRUCTIVE while unvirtualized (`useCompositeListItem`
- *    skips registration, `CompositeList` truncates `elementsRef` to zero and
- *    the first arrow key highlights nothing), so rows stay plain until the root
+ * 1. A windowed row MUST carry an explicit `index`; the fallback `findItemIndex`
+ *    is O(n) per row and returns `-1` on the frame a level swap renders empty,
+ *    dangling `aria-activedescendant`.
+ * 2. That index is DESTRUCTIVE while unvirtualized (`useCompositeListItem` skips
+ *    registration, `CompositeList` truncates `elementsRef` to zero and the
+ *    first arrow key highlights nothing), so rows stay plain until the root
  *    flips `virtualized`, gated inside `CascaderItem`.
  * 3. No `Combobox.Collection` and no FUNCTION CHILD on `Combobox.List`, which
  *    implicitly wraps one in a Collection: a Collection renders every filtered
@@ -176,7 +176,8 @@ function cascaderScrollElement(
 
 /**
  * `role="presentation"` keeps the listbox owning nothing but options, and this
- * node's parent IS the rows' box, saving a ref threaded through `CascaderList`.
+ * node's parent IS the rows' box, saving a ref threaded through
+ * `CascaderList`.
  */
 function CascaderVirtualSpacer({
   height,

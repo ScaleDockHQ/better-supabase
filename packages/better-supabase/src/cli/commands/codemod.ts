@@ -62,7 +62,10 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
-/** Source, config and script files under `path`, skipping dependencies, build output and `.d.ts` files. */
+/**
+ * Source, config and script files under `path`, skipping dependencies, build
+ * output and `.d.ts` files.
+ */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 

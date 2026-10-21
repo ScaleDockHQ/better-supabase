@@ -15,7 +15,10 @@ export interface JwksSourceOptions extends JwksOfOptions {
   readonly now?: () => number;
 }
 
-/** A key set to verify with; `refresh` asks for a fresh copy after an unknown `kid`. */
+/**
+ * A key set to verify with; `refresh` asks for a fresh copy after an unknown
+ * `kid`.
+ */
 export type JwksSource = (refresh: boolean) => Promise<Result<Jwks>>;
 
 /** The most bytes read from a JWKS response. */

@@ -48,8 +48,8 @@ async function loadOrganizationMembers(): Promise<readonly Member[]> {
 }
 
 /**
- * The organization's members. The server renders the rows; a role change
- * shows at once and goes through `update_member_role` in the browser.
+ * The organization's members. The server renders the rows; a role change shows
+ * at once and goes through `update_member_role` in the browser.
  */
 export function MemberTable({
   organizationId,

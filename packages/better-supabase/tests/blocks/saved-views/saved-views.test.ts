@@ -320,9 +320,7 @@ describe("display state", () => {
     expect(
       sameDisplayState(
         { columns: { order: ["a", "b"] } },
-        {
-          columns: { order: ["b", "a"] },
-        },
+        { columns: { order: ["b", "a"] } },
       ),
     ).toBe(false);
     expect(sameDisplayState(undefined, {})).toBe(true);

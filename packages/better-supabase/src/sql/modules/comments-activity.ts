@@ -13,15 +13,18 @@ export interface ActivityReads {
   readonly dropReadable: string;
   /** The per-row registry check appended to the read policy. */
   readonly rowCheck: string;
-  /** list_activity's early return for a subject the caller can't read. */
+  /** List_activity's early return for a subject the caller can't read. */
   readonly gate: string;
   /** Sets v_table to the subject type's registry table. */
   readonly auditSetup: string;
   /** The audit log entries on the subject's row, unioned into the timeline. */
   readonly auditBranch: string;
-  /** The subject's workflow runs and notification deliveries, unioned into the timeline. */
+  /**
+   * The subject's workflow runs and notification deliveries, unioned into the
+   * timeline.
+   */
   readonly sourceBranches: string;
-  /** activity_subject_deliveries, or the statement that drops it. */
+  /** Activity_subject_deliveries, or the statement that drops it. */
   readonly helpers: string;
   /** The sources list_activity can return, in order. */
   readonly sources: readonly ActivitySourceName[];
@@ -33,12 +36,12 @@ const DELIVERIES_SIGNATURE = (ctx: ModuleContext): string =>
   `${ctx.fn("activity_subject_deliveries")}(${ctx.idType}, text, text, timestamptz, integer)`;
 
 /**
- * How the activity feed reads through the `subjects` registry and the
- * audit log. A registered subject type needs `can_subject(read)`, per row in
- * the read policy and once for a subject's timeline; types the registry
- * doesn't know keep the tenant check alone. With `audit` and its
- * `readPolicy`, a registered subject's timeline also returns the log's
- * entries on its row, which that policy gates by the audit read permission.
+ * How the activity feed reads through the `subjects` registry and the audit
+ * log. A registered subject type needs `can_subject(read)`, per row in the read
+ * policy and once for a subject's timeline; types the registry doesn't know
+ * keep the tenant check alone. With `audit` and its `readPolicy`, a registered
+ * subject's timeline also returns the log's entries on its row, which that
+ * policy gates by the audit read permission.
  */
 export function activityReads(ctx: ModuleContext): ActivityReads {
   const none: ActivityReads = {
@@ -154,8 +157,8 @@ function entry(
 }
 
 /**
- * The subject's workflow runs. list_activity runs as the caller, so the
- * runs' own read policy applies on top of the can_subject gate.
+ * The subject's workflow runs. list_activity runs as the caller, so the runs'
+ * own read policy applies on top of the can_subject gate.
  */
 function runBranch(ctx: ModuleContext, types: string): string {
   if (ctx.scope.kind !== "tenant" || !ctx.installed("workflows")) {
@@ -220,9 +223,9 @@ function runBranch(ctx: ModuleContext, types: string): string {
 }
 
 /**
- * activity_subject_deliveries: the deliveries of the notifications about a
- * registered subject. Deliveries are readable only by their recipient, so
- * it runs as definer and asks for the activity read and notification send
+ * Activity_subject_deliveries: the deliveries of the notifications about a
+ * registered subject. Deliveries are readable only by their recipient, so it
+ * runs as definer and asks for the activity read and notification send
  * permissions in the tenant, the bar list_subject_deliveries sets.
  * list_activity has already checked can_subject.
  */

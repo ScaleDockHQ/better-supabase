@@ -1,7 +1,10 @@
 import { type StripeClient, stripeClient } from "../blocks/stripe.ts";
 import { memoized } from "../core/optional-peer.ts";
 
-/** The secret key and, optionally, the API version of the Stripe client to create. */
+/**
+ * The secret key and, optionally, the API version of the Stripe client to
+ * create.
+ */
 export interface StripeFromKeyOptions {
   readonly secretKey: string;
   readonly apiVersion?: string;

@@ -79,7 +79,10 @@ function autoEntries(
   });
 }
 
-/** The explicit entries, then the derived ones whose `table.column` no explicit entry names. */
+/**
+ * The explicit entries, then the derived ones whose `table.column` no explicit
+ * entry names.
+ */
 function entriesOf(
   ctx: ModuleContext,
   layout: ModuleLayout,
@@ -252,7 +255,10 @@ function parseEntries(
   });
 }
 
-/** The unquoted trigger name `sameTenant` gives `column`, within Postgres' 63 bytes. */
+/**
+ * The unquoted trigger name `sameTenant` gives `column`, within Postgres' 63
+ * bytes.
+ */
 export function sameTenantTrigger(column: string): string {
   return `bs_same_tenant_${column}`.slice(0, 63);
 }
@@ -261,15 +267,18 @@ function triggerName(column: string): string {
   return sqlIdent(sameTenantTrigger(column));
 }
 
-/** The tenant column `sameTenant` entries default to: the memberships tenant column. */
+/**
+ * The tenant column `sameTenant` entries default to: the memberships tenant
+ * column.
+ */
 export function sameTenantColumn(layout: ModuleLayout): string {
   return moduleContext("tenant", layout).colName("memberships", "tenant");
 }
 
 /**
- * `blocks.tenant.options.sameTenant`: one `same_tenant()` trigger per
- * entry, listed or derived with `auto`, so a reference to a row of another
- * tenant fails for every writer. Empty without entries.
+ * `blocks.tenant.options.sameTenant`: one `same_tenant()` trigger per entry,
+ * listed or derived with `auto`, so a reference to a row of another tenant
+ * fails for every writer. Empty without entries.
  */
 export function sameTenantSql(
   ctx: ModuleContext,

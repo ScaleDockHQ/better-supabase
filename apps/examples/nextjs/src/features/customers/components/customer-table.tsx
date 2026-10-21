@@ -39,8 +39,8 @@ export interface CustomerRow {
 }
 
 /**
- * The first page from the server, filtered and searched in the browser.
- * Deeper pages and server-side filters go through `/api/customers/list`.
+ * The first page from the server, filtered and searched in the browser. Deeper
+ * pages and server-side filters go through `/api/customers/list`.
  */
 export function CustomerTable({
   customers,

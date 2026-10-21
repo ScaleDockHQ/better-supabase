@@ -19,9 +19,9 @@ import {
 let pool: BetterPostgres | undefined;
 
 /**
- * A direct Postgres connection for module tables the Data API doesn't
- * expose (`better_supabase.*`, `pgmq.*`). It shares `WORKFLOW_POSTGRES_URL`
- * with the Workflow SDK; `null` when that is unset.
+ * A direct Postgres connection for module tables the Data API doesn't expose
+ * (`better_supabase.*`, `pgmq.*`). It shares `WORKFLOW_POSTGRES_URL` with the
+ * Workflow SDK; `null` when that is unset.
  */
 export function postgres(): BetterPostgres | null {
   const connectionString = process.env["WORKFLOW_POSTGRES_URL"];

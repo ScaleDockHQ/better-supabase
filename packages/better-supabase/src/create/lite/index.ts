@@ -13,7 +13,10 @@ export interface DesignIssue {
   readonly message: string;
 }
 
-/** A module PGlite can't run, such as one that needs an extension it doesn't ship. */
+/**
+ * A module PGlite can't run, such as one that needs an extension it doesn't
+ * ship.
+ */
 export interface SkippedModule {
   readonly module: string;
   readonly reason: string;
@@ -42,10 +45,11 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Applies the files `previewFiles` returns to an in-memory PGlite database
- * and reports what Postgres rejects. A module that needs an extension PGlite
+ * Applies the files `previewFiles` returns to an in-memory PGlite database and
+ * reports what Postgres rejects. A module that needs an extension PGlite
  * doesn't ship (`pgmq`, `btree_gist`) is skipped, not failed, along with its
- * other files. pgTAP test files are left out, as in `deployQuery`. Throws when `@supabase/lite` isn't installed.
+ * other files. pgTAP test files are left out, as in `deployQuery`. Throws when
+ * `@supabase/lite` isn't installed.
  */
 export async function validateDesign(
   files: readonly PresetMigrationFile[],

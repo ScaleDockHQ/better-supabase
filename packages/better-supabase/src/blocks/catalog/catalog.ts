@@ -45,10 +45,10 @@ export interface CatalogOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the product columns the app adds
-   * (`blocks.catalog.options.extraColumns`), keyed by column name. It
-   * validates them on `createProduct` and `updateProduct`, which return a
-   * `validation` error for a bad value, and types and parses them on the
-   * saved product they return.
+   * (`blocks.catalog.options.extraColumns`), keyed by column name. It validates
+   * them on `createProduct` and `updateProduct`, which return a `validation`
+   * error for a bad value, and types and parses them on the saved product they
+   * return.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around any catalog method. */
@@ -59,7 +59,10 @@ export interface CatalogOptions<
 
 export interface ProductInput {
   readonly title: string;
-  /** Lower-case letters, digits and hyphens; derived from the title when left out. */
+  /**
+   * Lower-case letters, digits and hyphens; derived from the title when left
+   * out.
+   */
   readonly slug?: string;
   readonly description?: string;
   /** Default `physical`. */
@@ -176,8 +179,8 @@ interface CollectionBase {
 }
 
 /**
- * A manual collection lists ranked products; a rule collection stores a
- * filter tree that the app evaluates with its list query over products.
+ * A manual collection lists ranked products; a rule collection stores a filter
+ * tree that the app evaluates with its list query over products.
  */
 export type CollectionInput =
   | (CollectionBase & { readonly kind: "manual" })
@@ -229,7 +232,10 @@ export interface Catalog<F extends object = Record<never, never>> {
     input: PriceListInput,
   ): AsyncResult<{ readonly id: string }>;
   deletePriceList(priceListId: string): AsyncResult<boolean>;
-  /** Sets a variant's price in the amount's currency. Emits `catalog.price_changed`. */
+  /**
+   * Sets a variant's price in the amount's currency. Emits
+   * `catalog.price_changed`.
+   */
   setPrice(variantId: string, input: PriceInput): AsyncResult<SavedPrice>;
   deletePrice(priceId: string): AsyncResult<boolean>;
   /** The price list's price when it has one, otherwise the base price. */
@@ -242,7 +248,10 @@ export interface Catalog<F extends object = Record<never, never>> {
     organizationId: string,
     input: CategoryInput,
   ): AsyncResult<SavedCategory>;
-  /** Moves a category under `parentId` (null for the top level) between two siblings. */
+  /**
+   * Moves a category under `parentId` (null for the top level) between two
+   * siblings.
+   */
   moveCategory(
     categoryId: string,
     parentId: string | null,
@@ -258,7 +267,10 @@ export interface Catalog<F extends object = Record<never, never>> {
     input: CollectionInput,
   ): AsyncResult<SavedCollection>;
   deleteCollection(collectionId: string): AsyncResult<boolean>;
-  /** Adds a product to a manual collection, last or between two neighbors. Resolves to its rank key. */
+  /**
+   * Adds a product to a manual collection, last or between two neighbors.
+   * Resolves to its rank key.
+   */
   addToCollection(
     collectionId: string,
     productId: string,
@@ -268,7 +280,10 @@ export interface Catalog<F extends object = Record<never, never>> {
     collectionId: string,
     productId: string,
   ): AsyncResult<boolean>;
-  /** With `options.storefront: "public"`, anyone can read a published storefront's active products. */
+  /**
+   * With `options.storefront: "public"`, anyone can read a published
+   * storefront's active products.
+   */
   publishStorefront(
     organizationId: string,
     published: boolean,
@@ -331,7 +346,10 @@ function variantArgs(
   };
 }
 
-/** Products, variants, prices, categories and collections over the `catalog` SQL module. */
+/**
+ * Products, variants, prices, categories and collections over the `catalog` SQL
+ * module.
+ */
 export function createCatalog<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CatalogOptions<S>): Catalog<FieldsOf<S>> {
@@ -613,14 +631,17 @@ export function createCatalog<
 export interface CatalogSubjectsOptions {
   /** The catalog module's schema. Default `better_supabase`. */
   readonly schema?: string;
-  /** The product page path, with `{column}` placeholders. Default `/products/{slug}`. */
+  /**
+   * The product page path, with `{column}` placeholders. Default
+   * `/products/{slug}`.
+   */
   readonly productUrl?: string;
 }
 
 /**
  * `config.subjects` entries for products and variants, so comments, tags,
- * watchers and the search index attach to them:
- * `subjects: { ...catalogSubjects(), task: { ... } }`.
+ * watchers and the search index attach to them: `subjects: {
+ * ...catalogSubjects(), task: { ... } }`.
  */
 export function catalogSubjects(
   subjectOptions: CatalogSubjectsOptions = {},

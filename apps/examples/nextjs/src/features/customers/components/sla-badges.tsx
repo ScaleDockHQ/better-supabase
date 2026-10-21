@@ -33,9 +33,9 @@ const VARIANT = {
 } as const satisfies Record<SlaClockRow["state"], string>;
 
 /**
- * The customer's SLA clocks as badges. Without clocks, the empty state
- * starts them; with no policy for customers, a caller who manages SLAs gets
- * a default policy first.
+ * The customer's SLA clocks as badges. Without clocks, the empty state starts
+ * them; with no policy for customers, a caller who manages SLAs gets a default
+ * policy first.
  */
 export function SlaBadges({
   customerId,

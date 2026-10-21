@@ -26,11 +26,21 @@ import { fromPgError } from "../postgres/pg-error.ts";
 export interface SupportStorageOptions {
   /** The service-role `supabase.storage` that serves what the target may read. */
   readonly admin: StorageApi;
-  /** Runs as the target, such as `postgres.asUser(support.claims)`, so RLS on `storage.objects` decides. Writes need its `transaction`. */
+  /**
+   * Runs as the target, such as `postgres.asUser(support.claims)`, so RLS on
+   * `storage.objects` decides. Writes need its `transaction`.
+   */
   readonly sql: SqlClient;
-  /** Runs as the connection-string role, such as `postgres.admin`. Writes and signed upload claims need it to make the target the owner of what they store. */
+  /**
+   * Runs as the connection-string role, such as `postgres.admin`. Writes and
+   * signed upload claims need it to make the target the owner of what they
+   * store.
+   */
   readonly adminSql?: SqlClient;
-  /** The session the writes are recorded under. Writes need it; claims only take objects stored after its `startedAt`. */
+  /**
+   * The session the writes are recorded under. Writes need it; claims only take
+   * objects stored after its `startedAt`.
+   */
   readonly session?: Pick<
     SupportSession,
     "id" | "adminId" | "targetUserId" | "startedAt"
@@ -157,7 +167,10 @@ type Cursor = Partial<Record<CursorPart, string>>;
 const isCursorKey = (key: string): key is keyof typeof CURSOR_PARTS =>
   Object.hasOwn(CURSOR_PARTS, key);
 
-/** The path storage-js sends for an upload: no leading or trailing `/`, and no empty folders. */
+/**
+ * The path storage-js sends for an upload: no leading or trailing `/`, and no
+ * empty folders.
+ */
 function normalizePath(path: string): string {
   return path.replaceAll(/^\/|\/$/g, "").replaceAll(/\/+/g, "/");
 }
@@ -185,7 +198,7 @@ function iso(value: unknown): unknown {
   return Number.isNaN(time) ? value : new Date(time).toISOString();
 }
 
-/** storage-api's continuation token: `key:value` lines, base64 encoded. */
+/** Storage-api's continuation token: `key:value` lines, base64 encoded. */
 function encodeCursor(cursor: Cursor): string {
   const text = Object.entries(CURSOR_PARTS)
     .flatMap(([key, part]) => (cursor[part] ? [`${key}:${cursor[part]}`] : []))
@@ -254,7 +267,10 @@ const failed = <T>(error: StorageFailure): StorageResponse<T> => ({
   error,
 });
 
-/** Storage answers a hidden object like a missing one: HTTP 400 with `statusCode` 404. */
+/**
+ * Storage answers a hidden object like a missing one: HTTP 400 with
+ * `statusCode` 404.
+ */
 const NOT_FOUND: StorageFailure = {
   name: "StorageApiError",
   message: "Object not found",
@@ -266,7 +282,10 @@ const NOT_FOUND: StorageFailure = {
 const invalid = (message: string): StorageFailure =>
   apiError(400, message, "InvalidRequest");
 
-/** A database failure as a Storage `error` that `fromStorageError` passes through unchanged. */
+/**
+ * A database failure as a Storage `error` that `fromStorageError` passes
+ * through unchanged.
+ */
 function sqlFailure(cause: unknown): StorageFailure {
   const raw = fromPgError(cause);
   const error: DbError = raw ? mapDbError(raw) : toDbError(cause);
@@ -274,7 +293,10 @@ function sqlFailure(cause: unknown): StorageFailure {
   return { name: "DbError", ...error };
 }
 
-/** An RLS or duplicate failure of a dry run, as Storage reports it for the target's own request. */
+/**
+ * An RLS or duplicate failure of a dry run, as Storage reports it for the
+ * target's own request.
+ */
 function refusedWrite(cause: unknown): StorageFailure | undefined {
   const raw = fromPgError(cause);
 
@@ -393,7 +415,10 @@ limit $2::int`,
   };
 }
 
-/** Groups the entries below the next delimiter into folders, as storage-api does. */
+/**
+ * Groups the entries below the next delimiter into folders, as storage-api
+ * does.
+ */
 function delimited(entries: readonly Row[], prefix: string): Row[] {
   const grouped: Row[] = [];
   let previous = "";
@@ -501,35 +526,33 @@ function infoOf(row: Row): StorageObjectInfo {
  * Storage for a support session, with the same `from(bucket)` file API as
  * `supabase.storage`, so `bucket.connect()` and the blocks take it.
  *
- * Storage policies read `auth.uid()` from the request's token, and there is
- * no token for the target, so reads go through Postgres as the target.
- * `exists`, `info`, `list` and `listV2` run entirely there: the listings
- * call the invoker-rights `storage.search` functions storage-api calls, so
- * RLS filters each page as it would for the target's own request.
- * `download` and the signed URLs first check there that the target may see
- * the object, then the service client serves it. A hidden object answers
- * like a missing one. `getPublicUrl` is built without a check, as it is
- * built without a request.
+ * Storage policies read `auth.uid()` from the request's token, and there is no
+ * token for the target, so reads go through Postgres as the target. `exists`,
+ * `info`, `list` and `listV2` run entirely there: the listings call the
+ * invoker-rights `storage.search` functions storage-api calls, so RLS filters
+ * each page as it would for the target's own request. `download` and the signed
+ * URLs first check there that the target may see the object, then the service
+ * client serves it. A hidden object answers like a missing one. `getPublicUrl`
+ * is built without a check, as it is built without a request.
  *
- * In a writable session, `upload`, `update`, `remove`, `copy` and `move`
- * first run the row change Storage would make as the target, inside a
- * savepoint that is rolled back, so the policies on `storage.objects`
- * decide as for the target's own request. Then the service client writes,
- * the admin connection makes the target the owner of the stored object,
- * and its `user_metadata` records the session id and the admin's id. A
- * refused dry run resolves to Storage's `403`.
+ * In a writable session, `upload`, `update`, `remove`, `copy` and `move` first
+ * run the row change Storage would make as the target, inside a savepoint that
+ * is rolled back, so the policies on `storage.objects` decide as for the
+ * target's own request. Then the service client writes, the admin connection
+ * makes the target the owner of the stored object, and its `user_metadata`
+ * records the session id and the admin's id. A refused dry run resolves to
+ * Storage's `403`.
  *
- * `createSignedUploadUrl` runs the same dry run as `upload` before the
- * service client signs the URL. The object a browser uploads there has no
- * owner, so `claimSignedUpload(bucket, path)` finishes the upload: it
- * checks again that the target may insert at the path, then makes the
- * target the owner of an object without one that was stored after
- * `session.startedAt`, and stamps the session on its `user_metadata`. An
- * older object, or one another user owns, is refused with a `403`.
- * `uploadToSignedUrl` claims what it stores and removes it when the claim
- * fails. Every write in a read-only session resolves to a
- * `403` `SUPPORT_READ_ONLY` error, and without `adminSql`, `session` or a
- * `sql` client with `transaction` to a `403` `SUPPORT_STORAGE_WRITES` error.
+ * `createSignedUploadUrl` runs the same dry run as `upload` before the service
+ * client signs the URL. The object a browser uploads there has no owner, so
+ * `claimSignedUpload(bucket, path)` finishes the upload: it checks again that
+ * the target may insert at the path, then makes the target the owner of an
+ * object without one that was stored after `session.startedAt`, and stamps the
+ * session on its `user_metadata`. An older object, or one another user owns, is
+ * refused with a `403`. `uploadToSignedUrl` claims what it stores and removes
+ * it when the claim fails. Every write in a read-only session resolves to a
+ * `403` `SUPPORT_READ_ONLY` error, and without `adminSql`, `session` or a `sql`
+ * client with `transaction` to a `403` `SUPPORT_STORAGE_WRITES` error.
  */
 export function supportStorage(options: SupportStorageOptions): StorageApi {
   const readOnly = options.readOnly ?? true;

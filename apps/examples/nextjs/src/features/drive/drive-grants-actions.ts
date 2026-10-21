@@ -14,10 +14,7 @@ import { DRIVE_ROLES } from "./drive-roles";
 
 const Id = v.pipe(v.string(), v.uuid());
 
-const Principal = v.object({
-  type: v.picklist(["user", "team"]),
-  id: Id,
-});
+const Principal = v.object({ type: v.picklist(["user", "team"]), id: Id });
 
 export interface SharingGrant {
   readonly type: "user" | "team" | "role";
@@ -35,8 +32,8 @@ export interface SharingTarget {
 }
 
 /**
- * The item's grants, inherited ones included, and the members and teams it
- * can be shared with. The drive functions decide who may read the grants.
+ * The item's grants, inherited ones included, and the members and teams it can
+ * be shared with. The drive functions decide who may read the grants.
  */
 export const loadDriveSharing = bs.action(
   {

@@ -28,7 +28,10 @@ export interface CommandSearchOptions {
 export interface CommandSearchSnapshot {
   readonly open: boolean;
   readonly query: string;
-  /** Favorites and recents for an empty query, otherwise the matches by subject type. */
+  /**
+   * Favorites and recents for an empty query, otherwise the matches by subject
+   * type.
+   */
   readonly groups: readonly CommandSearchGroup[];
   readonly results: readonly SearchHit[];
   readonly recents: readonly SearchUserItem[];

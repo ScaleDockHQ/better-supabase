@@ -57,14 +57,8 @@ const TIMESHEET_PAYLOAD = [
 
 const EVENTS: ModuleEvents<TimeTrackingEvents> = {
   "time_entry.started": { subject: "time-entries", payload: ENTRY_PAYLOAD },
-  "time_entry.recorded": {
-    subject: "time-entries",
-    payload: RECORDED_PAYLOAD,
-  },
-  "time_entry.updated": {
-    subject: "time-entries",
-    payload: UPDATED_PAYLOAD,
-  },
+  "time_entry.recorded": { subject: "time-entries", payload: RECORDED_PAYLOAD },
+  "time_entry.updated": { subject: "time-entries", payload: UPDATED_PAYLOAD },
   "time_entry.deleted": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.approved": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
@@ -166,9 +160,9 @@ function timesheetPolicy(ctx: ModuleContext): string {
 }
 
 /**
- * The rate's currency is an uppercase three-letter code (the client checks
- * it against ISO 4217) and is set exactly when the rate is. Added once, so
- * new and upgraded tables carry the same named checks.
+ * The rate's currency is an uppercase three-letter code (the client checks it
+ * against ISO 4217) and is set exactly when the rate is. Added once, so new and
+ * upgraded tables carry the same named checks.
  */
 function rateChecks(ctx: ModuleContext): string {
   const entries = ctx.table("entries");
@@ -206,8 +200,8 @@ function dropNumericSignatures(ctx: ModuleContext): string {
 
 /**
  * Version 1 stored the rate as `numeric(12, 2)` with no currency. Its two
- * decimals become minor units (times 100), and rates stay without a
- * currency until the app sets one; the pair check then warns.
+ * decimals become minor units (times 100), and rates stay without a currency
+ * until the app sets one; the pair check then warns.
  */
 function upgradeRateToMoney(ctx: ModuleContext): string {
   if (!ctx.manages) {
@@ -1019,11 +1013,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["{id}", "date", "text"],
       returns: "jsonb",
     },
-    {
-      name: "get_timesheet",
-      args: ["{id}", "date", "uuid"],
-      returns: "jsonb",
-    },
+    { name: "get_timesheet", args: ["{id}", "date", "uuid"], returns: "jsonb" },
   ];
 }
 

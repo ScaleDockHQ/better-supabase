@@ -6,7 +6,10 @@ export const FLAG_FORMATS: readonly DoctorFormat[] = DOCTOR_FORMATS.filter(
   (format) => format !== "json",
 );
 
-/** `--json` picks the JSON report; `--format`, then `doctor.format`, picks between the others. */
+/**
+ * `--json` picks the JSON report; `--format`, then `doctor.format`, picks
+ * between the others.
+ */
 export function reportFormat(
   args: {
     readonly format: string | undefined;
@@ -83,8 +86,6 @@ export function explainClaims(args: {
     // SAFETY: the check above narrows parsed to a plain object.
     return { role: "anon", ...(parsed as Record<string, unknown>) };
   } catch (cause) {
-    return {
-      error: `--claims is not valid JSON: ${errorText(cause)}`,
-    };
+    return { error: `--claims is not valid JSON: ${errorText(cause)}` };
   }
 }

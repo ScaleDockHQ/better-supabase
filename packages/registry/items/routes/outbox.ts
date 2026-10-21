@@ -17,8 +17,8 @@ const relay = outbox.relayRoute({
 });
 
 /**
- * Relays each registered consumer's events. Mount it with
- * `app.route("/outbox", outboxRoutes)` and call it from a cron that sends
- * `Authorization: Bearer <CRON_SECRET>`.
+ * Relays each registered consumer's events. Mount it with `app.route("/outbox",
+ * outboxRoutes)` and call it from a cron that sends `Authorization: Bearer
+ * <CRON_SECRET>`.
  */
 export const outboxRoutes = new Hono().get("/", (c) => relay(c.req.raw));

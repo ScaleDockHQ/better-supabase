@@ -32,8 +32,8 @@ import { WorkLoadError } from "./work-load-error";
 const TeamParam = v.pipe(v.string(), v.uuid());
 
 /**
- * Render inside `<Suspense>`: the team picker and the board of the default
- * work item workflow, scoped to `teamId` when one is picked.
+ * Render inside `<Suspense>`: the team picker and the board of the default work
+ * item workflow, scoped to `teamId` when one is picked.
  */
 export async function WorkBoard({
   searchParams,

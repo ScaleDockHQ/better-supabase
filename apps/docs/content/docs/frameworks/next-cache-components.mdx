@@ -18,10 +18,7 @@ The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/a
 implements all of it: ten menu items, five of which only admins see.
 
 ```ts title="next.config.ts"
-const config: NextConfig = {
-  cacheComponents: true,
-  partialPrefetching: true,
-};
+const config: NextConfig = { cacheComponents: true, partialPrefetching: true };
 ```
 
 ## 1. Read the session once, privately cached

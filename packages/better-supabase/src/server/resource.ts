@@ -43,13 +43,13 @@ import { respond, type RespondOptions } from "./respond.ts";
 type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
 
 /**
- * Operations over one table, matching the paths and responses of the API
- * model: `GET/POST /<table>`, `GET/PATCH/DELETE /<table>/{id}` and each
- * action's path. Shared by the HTTP adapters and the MCP table tools.
+ * Operations over one table, matching the paths and responses of the API model:
+ * `GET/POST /<table>`, `GET/PATCH/DELETE /<table>/{id}` and each action's path.
+ * Shared by the HTTP adapters and the MCP table tools.
  *
- * With permissions, the authorizer decides before the repository runs:
- * `get`, `update` and `delete` fetch the row first (under RLS) and pass it
- * as the resource's properties, and `list` keeps only the rows it grants.
+ * With permissions, the authorizer decides before the repository runs: `get`,
+ * `update` and `delete` fetch the row first (under RLS) and pass it as the
+ * resource's properties, and `list` keeps only the rows it grants.
  */
 export function defineResource<
   M extends AnyModels,

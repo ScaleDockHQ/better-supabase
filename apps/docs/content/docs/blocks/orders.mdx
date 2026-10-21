@@ -255,9 +255,7 @@ observes any method; see [extending blocks](/docs/extending/blocks).
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    orders: { options: { extraColumns: { channel: "text" } } },
-  },
+  blocks: { orders: { options: { extraColumns: { channel: "text" } } } },
 });
 ```
 

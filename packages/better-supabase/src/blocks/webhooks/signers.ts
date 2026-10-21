@@ -14,8 +14,8 @@ export interface WebhookSignInput {
 }
 
 /**
- * Adds the signature headers to an outgoing webhook. `standardWebhooks()`
- * is the default; `hmacSigner()` covers custom header and payload formats.
+ * Adds the signature headers to an outgoing webhook. `standardWebhooks()` is
+ * the default; `hmacSigner()` covers custom header and payload formats.
  */
 export interface WebhookSigner {
   readonly apiVersion: 1;
@@ -43,9 +43,9 @@ function needSecrets(secrets: readonly string[]): void {
 }
 
 /**
- * Signs with the [Standard Webhooks](https://www.standardwebhooks.com/)
- * scheme: `webhook-id`, `webhook-timestamp` and one `v1,` signature per
- * secret in `webhook-signature`. `verifyWebhook` checks it.
+ * Signs with the [Standard Webhooks](https://www.standardwebhooks.com/) scheme:
+ * `webhook-id`, `webhook-timestamp` and one `v1,` signature per secret in
+ * `webhook-signature`. `verifyWebhook` checks it.
  */
 export function standardWebhooks(
   options: StandardWebhooksOptions = {},
@@ -79,7 +79,8 @@ export function standardWebhooks(
 
 /**
  * Signs raw bytes with an Ed25519 key, such as
- * `createSigningKeys(options).signer(owner)` from `better-supabase/blocks/signing-keys`.
+ * `createSigningKeys(options).signer(owner)` from
+ * `better-supabase/blocks/signing-keys`.
  */
 export interface RawSigner {
   sign(
@@ -92,17 +93,17 @@ export interface RawSigner {
 export interface AsymmetricWebhooksOptions extends StandardWebhooksOptions {
   readonly signer: RawSigner;
   /**
-   * Also sends a `v1,` HMAC signature per endpoint secret, for receivers
-   * that move from secrets to the public key. Default: false.
+   * Also sends a `v1,` HMAC signature per endpoint secret, for receivers that
+   * move from secrets to the public key. Default: false.
    */
   readonly hmac?: boolean;
 }
 
 /**
  * Signs with the Standard Webhooks asymmetric scheme: one `v1a,` Ed25519
- * signature over `id.timestamp.body` in `webhook-signature`. Receivers
- * verify it with the `whpk_` key `webhookPublicKey` returns, through
- * `verifyWebhook`. Endpoints opt in with `signing = 'v1a'`.
+ * signature over `id.timestamp.body` in `webhook-signature`. Receivers verify
+ * it with the `whpk_` key `webhookPublicKey` returns, through `verifyWebhook`.
+ * Endpoints opt in with `signing = 'v1a'`.
  */
 export function standardWebhooksAsymmetric(
   options: AsymmetricWebhooksOptions,
@@ -171,7 +172,7 @@ export function webhookPublicKey(jwk: {
 
 export interface HmacSignerOptions {
   readonly name?: string;
-  /** e.g. `x-acme-signature`. */
+  /** E.g. `x-acme-signature`. */
   readonly signatureHeader: string;
   /** Sends the epoch-seconds timestamp in this header. */
   readonly timestampHeader?: string;

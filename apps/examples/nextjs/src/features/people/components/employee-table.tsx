@@ -138,8 +138,8 @@ function PrivateDetails({
 }
 
 /**
- * The directory rows, indented under their manager, filtered by name,
- * title or email as you type.
+ * The directory rows, indented under their manager, filtered by name, title or
+ * email as you type.
  */
 export function EmployeeTable({
   employees,

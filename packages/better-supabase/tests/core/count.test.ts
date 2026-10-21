@@ -71,9 +71,11 @@ describe("_count includes", () => {
   it("rejects counts over to-one relations", async () => {
     const { client } = capturingClient();
 
-    const result = await betterSupabase.connect(client).customers.findMany({
-      include: { _count: { organization: true } as never },
-    });
+    const result = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        include: { _count: { organization: true } as never },
+      });
 
     expect(result.error?.message).toContain("needs a to-many relation");
   });

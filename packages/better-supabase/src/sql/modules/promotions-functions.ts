@@ -449,7 +449,10 @@ ${userGrant(`${fn("remove_promotion_code")}(uuid, text)`)}
 `;
 }
 
-/** The SQL condition that product `product` falls in promotion `v_promo`'s scope. */
+/**
+ * The SQL condition that product `product` falls in promotion `v_promo`'s
+ * scope.
+ */
 function scopeCheck(ctx: ModuleContext, product: string): string {
   const catalog = ctx.of("catalog");
 

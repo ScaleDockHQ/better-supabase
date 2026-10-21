@@ -42,9 +42,9 @@ $$;`;
 }
 
 /**
- * `create_comment` and `edit_comment`. With extra columns they take
- * `fields jsonb`, run as PL/pgSQL to copy the columns after the write, and
- * return them under `fields`; without, they stay `language sql`.
+ * `create_comment` and `edit_comment`. With extra columns they take `fields
+ * jsonb`, run as PL/pgSQL to copy the columns after the write, and return them
+ * under `fields`; without, they stay `language sql`.
  */
 export function commentWrites(
   ctx: ModuleContext,

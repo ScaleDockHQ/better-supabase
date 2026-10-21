@@ -155,8 +155,9 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
- * Mirrors `better_supabase.role_permissions` (supabase/schemas/better_supabase/functions/role_permissions.sql),
- * which RLS and the SQL modules check. Owners hold everything.
+ * Mirrors `better_supabase.role_permissions`
+ * (supabase/schemas/better_supabase/functions/role_permissions.sql), which RLS
+ * and the SQL modules check. Owners hold everything.
  */
 const grants = {
   owner: "*",
@@ -378,8 +379,8 @@ const grants = {
 const RANK = { owner: 3, admin: 2, member: 1 } satisfies Record<Role, number>;
 
 /**
- * The role of the membership in the active organization, from the
- * `memberships` claim. Never `user_metadata`: users can edit that.
+ * The role of the membership in the active organization, from the `memberships`
+ * claim. Never `user_metadata`: users can edit that.
  */
 export function roleOf(session: AuthSession<Claims>): Role | undefined {
   const tenant = tenantOf(session);

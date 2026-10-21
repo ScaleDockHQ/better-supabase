@@ -15,8 +15,8 @@ import { type Permission, can } from "../user-permissions";
 import { getSession } from "../user-queries";
 
 /**
- * Renders `children` only when the session has `permission`. UI only: the
- * data behind it is still protected by RLS and by each Server Action.
+ * Renders `children` only when the session has `permission`. UI only: the data
+ * behind it is still protected by RLS and by each Server Action.
  */
 export async function PermissionGate({
   permission,

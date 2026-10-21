@@ -117,10 +117,7 @@ describe("evaluateFlag", () => {
       }),
     ).toMatchObject({ variant: "on", reason: "TARGETING_MATCH" });
     expect(await evaluateFlag(definition, { targetingKey: "x" })).toMatchObject(
-      {
-        variant: "off",
-        reason: "DEFAULT",
-      },
+      { variant: "off", reason: "DEFAULT" },
     );
   });
 
@@ -130,16 +127,10 @@ describe("evaluateFlag", () => {
       flag({ rolloutPercentage, rolloutVariant: "on" });
 
     expect(await evaluateFlag(at(11.55), { targetingKey: USER })).toMatchObject(
-      {
-        variant: "on",
-        reason: "SPLIT",
-      },
+      { variant: "on", reason: "SPLIT" },
     );
     expect(await evaluateFlag(at(11.54), { targetingKey: USER })).toMatchObject(
-      {
-        variant: "off",
-        reason: "DEFAULT",
-      },
+      { variant: "off", reason: "DEFAULT" },
     );
     expect(await evaluateFlag(at(7), { tenant: "org-1" })).toMatchObject({
       reason: "SPLIT",
@@ -345,11 +336,7 @@ describe("createFlagsProvider", () => {
     expect(provider.metadata.name).toBe("better-supabase");
     expect(
       await provider.resolveBooleanEvaluation("new_editor", true, {}),
-    ).toEqual({
-      value: false,
-      variant: "off",
-      reason: "DEFAULT",
-    });
+    ).toEqual({ value: false, variant: "off", reason: "DEFAULT" });
     expect(
       await provider.resolveStringEvaluation("banner", "x", {}),
     ).toMatchObject({ value: "blue" });
@@ -358,9 +345,7 @@ describe("createFlagsProvider", () => {
     ).toMatchObject({ value: 5 });
     expect(
       await provider.resolveObjectEvaluation("layout", {}, {}),
-    ).toMatchObject({
-      value: { cols: 2 },
-    });
+    ).toMatchObject({ value: { cols: 2 } });
     expect(
       await provider.resolveBooleanEvaluation("missing", true, {}),
     ).toMatchObject({
@@ -370,16 +355,10 @@ describe("createFlagsProvider", () => {
     });
     expect(
       await provider.resolveNumberEvaluation("banner", 1, {}),
-    ).toMatchObject({
-      value: 1,
-      reason: "ERROR",
-      errorCode: "TYPE_MISMATCH",
-    });
+    ).toMatchObject({ value: 1, reason: "ERROR", errorCode: "TYPE_MISMATCH" });
     expect(
       await provider.resolveObjectEvaluation("limit", {}, {}),
-    ).toMatchObject({
-      errorCode: "TYPE_MISMATCH",
-    });
+    ).toMatchObject({ errorCode: "TYPE_MISMATCH" });
   });
 
   it("reports a flag of an unknown type as PARSE_ERROR", async () => {
@@ -457,9 +436,7 @@ describe("createFlagsProvider", () => {
     });
     expect(
       await provider.resolveBooleanEvaluation("new_editor", false, {}),
-    ).toMatchObject({
-      errorCode: "FLAG_NOT_FOUND",
-    });
+    ).toMatchObject({ errorCode: "FLAG_NOT_FOUND" });
     expect(call).toHaveBeenCalledTimes(3);
   });
 

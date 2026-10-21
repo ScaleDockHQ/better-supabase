@@ -115,10 +115,7 @@ describe("schema design rules", () => {
       cache_key: "unindexed_foreign_keys_public_notes",
     } satisfies Lint;
 
-    const advisors = {
-      describe: "test",
-      lints: () => Promise.resolve([lint]),
-    };
+    const advisors = { describe: "test", lints: () => Promise.resolve([lint]) };
 
     const both = await runRules(
       context(snap, { advisors }),

@@ -11,9 +11,7 @@ import { createOutbox } from "./outbox.ts";
 export const outboxBlock: BlockOf<"outbox", typeof createOutbox> = defineBlock({
   name: "outbox",
   sql: ["outbox"],
-  options: {
-    outbox: outboxSqlOptions,
-  },
+  options: { outbox: outboxSqlOptions },
   create: createOutbox,
   category: "automation",
 });

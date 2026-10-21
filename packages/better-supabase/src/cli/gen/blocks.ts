@@ -28,8 +28,8 @@ function hasSchema(
 
 /**
  * How `sql.naming` and the modules' `blocks.<module>.functions` rename the
- * block's functions, or undefined when nothing does.
- * `blocks.access.functions` is the custom model's templates, not renames.
+ * block's functions, or undefined when nothing does. `blocks.access.functions`
+ * is the custom model's templates, not renames.
  */
 function namingOf(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
@@ -57,10 +57,10 @@ function namingOf(
 }
 
 /**
- * The generated config of every installed block: its schema, its API
- * schema, and the options marked `client` with the configured value or the
- * module's default. Blocks without a creator get an entry too, since
- * `block.using(...)` builds them with these options.
+ * The generated config of every installed block: its schema, its API schema,
+ * and the options marked `client` with the configured value or the module's
+ * default. Blocks without a creator get an entry too, since `block.using(...)`
+ * builds them with these options.
  */
 export function blockConfigEntries(
   config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
@@ -153,7 +153,10 @@ function appTableEvents(
   );
 }
 
-/** `appTableEvents` and `appTableEventSchemas`, for app tables that set `events`. */
+/**
+ * `appTableEvents` and `appTableEventSchemas`, for app tables that set
+ * `events`.
+ */
 function appTableEventLines(types: readonly string[]): string[] {
   if (types.length === 0) {
     return [];
@@ -181,8 +184,8 @@ function appTableEventLines(types: readonly string[]): string[] {
 
 /**
  * `blocks.generated.ts`: each installed block's schema, API schema and the
- * options its TypeScript side reads, for `defineBlocks(blockConfig, ...)`,
- * and the app table events. `undefined` when the config installs no blocks.
+ * options its TypeScript side reads, for `defineBlocks(blockConfig, ...)`, and
+ * the app table events. `undefined` when the config installs no blocks.
  */
 export function emitBlockConfig(
   config: Pick<

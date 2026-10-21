@@ -21,7 +21,10 @@ export interface UseInboxOptions<T> {
   /** The organization; the hook joins `inbox:org:<id>`. `null` waits. */
   readonly organizationId: string | null;
   readonly load: InboxSource<T>;
-  /** `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to `inbox`. */
+  /**
+   * `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to
+   * `inbox`.
+   */
   readonly topic?: string;
   /** Runs for each broadcast, e.g. to show a toast for `message`. */
   readonly onMessage?: (event: string, payload: unknown) => void;
@@ -31,8 +34,8 @@ export interface InboxListState<T>
   extends InboxListSnapshot<T>, InboxListActions {}
 
 /**
- * The staff view of an organization's conversations, kept current: loads,
- * then loads again after each ping on `inbox:org:<id>` and on rejoin.
+ * The staff view of an organization's conversations, kept current: loads, then
+ * loads again after each ping on `inbox:org:<id>` and on rejoin.
  */
 export function useInbox<T>(options: UseInboxOptions<T>): InboxListState<T> {
   const { auth, ports } = useBlockEnv();
@@ -116,8 +119,8 @@ export interface InboxWidgetState<T>
 
 /**
  * The visitor side of an in-app inbox: the first message opens the
- * conversation, later ones go into it, and the messages and typing pings
- * stay current. Visitors without an account sign in anonymously first.
+ * conversation, later ones go into it, and the messages and typing pings stay
+ * current. Visitors without an account sign in anonymously first.
  */
 export function useInboxWidget<T>(
   options: UseInboxWidgetOptions<T>,

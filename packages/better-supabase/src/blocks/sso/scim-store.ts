@@ -42,9 +42,9 @@ export interface ScimListQuery {
 export interface ScimListPage {
   readonly resources: readonly ScimStoredResource[];
   /**
-   * Set when the store applied `filter`, `startIndex` and `count` itself:
-   * the handler then pages nothing and reports this total. Leave it out to
-   * return every resource of the tenant for the handler to filter and page.
+   * Set when the store applied `filter`, `startIndex` and `count` itself: the
+   * handler then pages nothing and reports this total. Leave it out to return
+   * every resource of the tenant for the handler to filter and page.
    */
   readonly totalResults?: number;
 }
@@ -53,14 +53,14 @@ export interface ScimSaveInput {
   /** `undefined` creates the resource. */
   readonly id: string | undefined;
   /**
-   * The resource the client sent, or the result of a PATCH, without
-   * `meta`. Extension schemas and their attributes are left in.
+   * The resource the client sent, or the result of a PATCH, without `meta`.
+   * Extension schemas and their attributes are left in.
    */
   readonly resource: Doc;
   /**
-   * The core attributes the handler validated. Users: `userName`,
-   * `externalId`, `displayName`, `givenName`, `familyName`, `emails` and
-   * `active`. Groups: `displayName`, `externalId` and `members` (ids).
+   * The core attributes the handler validated. Users: `userName`, `externalId`,
+   * `displayName`, `givenName`, `familyName`, `emails` and `active`. Groups:
+   * `displayName`, `externalId` and `members` (ids).
    */
   readonly data: Doc;
   /** The version an `If-Match` (or the read before a PUT or PATCH) requires. */
@@ -68,10 +68,10 @@ export interface ScimSaveInput {
 }
 
 /**
- * Where the SCIM handler keeps users and groups. `sqlScimStore` is the
- * default; another store can relay to a directory or a provider. Errors are
- * `DbError`s: `not_found` answers 404, `stale` 412, `conflict` 409, and
- * `invalid_input` or `validation` 400.
+ * Where the SCIM handler keeps users and groups. `sqlScimStore` is the default;
+ * another store can relay to a directory or a provider. Errors are `DbError`s:
+ * `not_found` answers 404, `stale` 412, `conflict` 409, and `invalid_input` or
+ * `validation` 400.
  */
 export interface ScimStore {
   readonly apiVersion: 1;
@@ -183,10 +183,9 @@ function stored(type: ScimResourceType, value: unknown): ScimStoredResource {
 }
 
 /**
- * The SCIM store over the sso module's `scim_*` functions. Needs a
- * service-role transport. It keeps the core attributes only, so extension
- * attributes are not stored; the handler leaves the filter and paging to
- * itself.
+ * The SCIM store over the sso module's `scim_*` functions. Needs a service-role
+ * transport. It keeps the core attributes only, so extension attributes are not
+ * stored; the handler leaves the filter and paging to itself.
  */
 export function sqlScimStore(
   transport: BlockTransport,
@@ -247,8 +246,8 @@ export interface ScimSyncEntry {
 }
 
 /**
- * Records SCIM writes. The handler waits for `record` but ignores its
- * failures, so a log can never change an answer.
+ * Records SCIM writes. The handler waits for `record` but ignores its failures,
+ * so a log can never change an answer.
  */
 export interface ScimSyncLog {
   readonly apiVersion: 1;

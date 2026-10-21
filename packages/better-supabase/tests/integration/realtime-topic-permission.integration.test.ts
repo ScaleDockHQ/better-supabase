@@ -52,7 +52,10 @@ describe.skipIf(!live)("realtime topic permission", () => {
   });
   afterEach(() => s.close());
 
-  /** Sends one broadcast as postgres, then counts what `user` can select on `topic`. */
+  /**
+   * Sends one broadcast as postgres, then counts what `user` can select on
+   * `topic`.
+   */
   const visible = async (topic: string, user: TestUser): Promise<number> => {
     await s.client.query("reset role");
     await s.client.query(

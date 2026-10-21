@@ -44,14 +44,15 @@ export interface WatchState<T> {
 }
 
 /**
- * A live repository call over PowerSync's SQLite database: reruns when
- * one of `tables` changes, keeps unchanged rows' identity, and restarts
- * when `deps` change.
+ * A live repository call over PowerSync's SQLite database: reruns when one of
+ * `tables` changes, keeps unchanged rows' identity, and restarts when `deps`
+ * change.
  *
  * ```tsx
  * const { data, loading } = useWatch({
  *   db: powersync,
- *   query: () => customerList.run(local, { ...customerList.defaults, search }),
+ *   query: () =>
+ *     customerList.run(local, { ...customerList.defaults, search }),
  *   tables,
  *   deps: [search],
  * });
@@ -155,8 +156,8 @@ function sameState(a: SyncState, b: SyncState): boolean {
 }
 
 /**
- * PowerSync's connection and sync progress, for a status badge or a
- * "syncing" banner. Re-renders only when one of the fields changes.
+ * PowerSync's connection and sync progress, for a status badge or a "syncing"
+ * banner. Re-renders only when one of the fields changes.
  */
 export function useSyncStatus(db: SyncStatusSource): SyncState {
   const store = useMemo(() => statusStore(db), [db]);
@@ -164,7 +165,10 @@ export function useSyncStatus(db: SyncStatusSource): SyncState {
   return useSyncExternalStore(store.subscribe, store.read, store.read);
 }
 
-/** Keeps the last snapshot while its fields stay equal, as `useSyncExternalStore` needs. */
+/**
+ * Keeps the last snapshot while its fields stay equal, as
+ * `useSyncExternalStore` needs.
+ */
 function statusStore(db: SyncStatusSource) {
   let snapshot = stateOf(db.currentStatus);
 
@@ -191,9 +195,9 @@ export interface Conflicts {
 }
 
 /**
- * The changes `createUploadConnector` could not upload: conflicts with a
- * newer server row and changes the server refused. Show them next to the
- * row, then `dismiss` them.
+ * The changes `createUploadConnector` could not upload: conflicts with a newer
+ * server row and changes the server refused. Show them next to the row, then
+ * `dismiss` them.
  */
 export function useConflicts(connector: {
   readonly rejected: RejectedStore;

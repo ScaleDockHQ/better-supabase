@@ -1,7 +1,7 @@
 /**
- * Source rewrites for `better-supabase codemod`. A small scanner masks
- * strings, template literals and comments, so renames only touch code; there
- * is no parser dependency, so each transform is a narrow, mechanical rename.
+ * Source rewrites for `better-supabase codemod`. A small scanner masks strings,
+ * template literals and comments, so renames only touch code; there is no
+ * parser dependency, so each transform is a narrow, mechanical rename.
  */
 
 import type { ConfigEdit } from "./sql/config-edit.ts";
@@ -26,14 +26,20 @@ import {
   type WebhookFormat,
 } from "./sql/config-webhook-format.ts";
 
-/** `better-supabase.config.*`, the files a codemod's `configFile` edit applies to. */
+/**
+ * `better-supabase.config.*`, the files a codemod's `configFile` edit applies
+ * to.
+ */
 export const CONFIG_FILE: RegExp =
   /(?:^|[\\/])better-supabase\.config\.(?:ts|mts|cts|js|mjs|cjs|json)$/;
 
 export interface Codemod {
   readonly name: string;
   readonly description: string;
-  /** Exported names, renamed in imports from `better-supabase` and where the import is used. */
+  /**
+   * Exported names, renamed in imports from `better-supabase` and where the
+   * import is used.
+   */
   readonly imports?: Readonly<Record<string, string>>;
   /** Member names, renamed after a `.` anywhere in code. */
   readonly members?: readonly MemberRename[];
@@ -43,15 +49,24 @@ export interface Codemod {
   readonly options?: readonly OptionRename[];
   /** Option keys added where a default changed, to keep the old behavior. */
   readonly pins?: readonly OptionPin[];
-  /** Whole string literals, such as event types, renamed in strings, templates and comments. */
+  /**
+   * Whole string literals, such as event types, renamed in strings, templates
+   * and comments.
+   */
   readonly strings?: Readonly<Record<string, string>>;
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
   readonly review?: readonly ReviewHint[];
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
   readonly configFile?: (source: string, json: boolean) => CodemodConfigEdit;
-  /** Renamed CLI calls, rewritten in `package.json` and workflows and listed in other shell files. */
+  /**
+   * Renamed CLI calls, rewritten in `package.json` and workflows and listed in
+   * other shell files.
+   */
   readonly cliCalls?: CliCallMigration;
-  /** CLI calls left as they are, listed for review in scripts, workflows and shell files. */
+  /**
+   * CLI calls left as they are, listed for review in scripts, workflows and
+   * shell files.
+   */
   readonly cliReview?: readonly ReviewHint[];
 }
 
@@ -97,7 +112,10 @@ export interface OptionPin {
   readonly value: string;
   /** Keys whose presence means the call needs no pin. */
   readonly unless?: readonly string[];
-  /** Pins only in files this matches; other calls without the key are listed for review. */
+  /**
+   * Pins only in files this matches; other calls without the key are listed for
+   * review.
+   */
   readonly when: RegExp;
   readonly message: string;
 }
@@ -139,7 +157,10 @@ function environmentModules(text: string): ReviewLine[] {
     );
 }
 
-/** `edit` with `defaultFormat` pinned to `format` where an adopted webhooks-out block needs it. */
+/**
+ * `edit` with `defaultFormat` pinned to `format` where an adopted webhooks-out
+ * block needs it.
+ */
 function withWebhookFormat(
   edit: CodemodConfigEdit,
   json: boolean,
@@ -359,12 +380,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     cliReview: [SQL_ADD_HINT],
     pins: [
       { call: "defineListQuery", argument: 2, ...OFFSET_PIN },
-      {
-        call: "defineResource",
-        argument: 2,
-        unless: ["list"],
-        ...OFFSET_PIN,
-      },
+      { call: "defineResource", argument: 2, unless: ["list"], ...OFFSET_PIN },
     ],
     review: [
       {
@@ -707,7 +723,10 @@ function closing(
   return text.length;
 }
 
-/** Calls `visit(index, depth)` for each code character from `open` to its closing bracket. */
+/**
+ * Calls `visit(index, depth)` for each code character from `open` to its
+ * closing bracket.
+ */
 function walkBrackets(
   text: string,
   open: number,
@@ -841,7 +860,10 @@ function callArguments(
   return args;
 }
 
-/** Calls of `pin.call` whose options object lacks `pin.key`, with the insertion when one is safe. */
+/**
+ * Calls of `pin.call` whose options object lacks `pin.key`, with the insertion
+ * when one is safe.
+ */
 function pinTargets(text: string, pin: OptionPin): PinTarget[] {
   const ranges = codeRanges(text);
 

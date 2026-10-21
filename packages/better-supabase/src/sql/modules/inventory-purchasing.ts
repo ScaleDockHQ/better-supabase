@@ -9,8 +9,8 @@ const UUID =
 const COUNT = "'^[1-9][0-9]{0,8}$'";
 
 /**
- * Raises unless `lines` is a non-empty array of objects whose `key` is a
- * uuid (once each) and whose `quantity` is a positive whole number.
+ * Raises unless `lines` is a non-empty array of objects whose `key` is a uuid
+ * (once each) and whose `quantity` is a positive whole number.
  */
 function linesCheck(lines: string, key: string, extra = ""): string {
   return `if jsonb_typeof(${lines}) is distinct from 'array' or jsonb_array_length(${lines}) = 0

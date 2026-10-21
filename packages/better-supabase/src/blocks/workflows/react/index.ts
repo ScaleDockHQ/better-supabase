@@ -18,12 +18,19 @@ import {
 import { createWorkflows } from "../workflows.ts";
 
 export interface UseWorkflowRunsOptions {
-  /** The tenant whose runs to list; it also joins the tenant's `workflow-runs:<tenant>` topic. Without one, the signed-in user's own runs load once. */
+  /**
+   * The tenant whose runs to list; it also joins the tenant's
+   * `workflow-runs:<tenant>` topic. Without one, the signed-in user's own runs
+   * load once.
+   */
   readonly tenant?: string | null;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
   readonly limit?: number;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.workflows.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.workflows.api`.
+   */
   readonly schema?: string;
 }
 
@@ -31,8 +38,8 @@ export interface WorkflowRunsState
   extends WorkflowRunsSnapshot, WorkflowRunsActions {}
 
 /**
- * The runs the signed-in user may read, newest first, loaded again when a
- * run in the tenant changes status.
+ * The runs the signed-in user may read, newest first, loaded again when a run
+ * in the tenant changes status.
  *
  * ```tsx
  * const { runs } = useWorkflowRuns({ tenant: organizationId });

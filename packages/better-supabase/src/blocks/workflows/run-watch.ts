@@ -11,7 +11,10 @@ export interface RunWatchOptions<S extends object> {
   readonly ports: { readonly topic: TopicPort };
   /** The run's id or its engine's id; `null` waits. */
   readonly run: string | null;
-  /** Loads the run and whatever else the snapshot holds; resolves with the run's id. */
+  /**
+   * Loads the run and whatever else the snapshot holds; resolves with the run's
+   * id.
+   */
   readonly load: () => Promise<{
     readonly id: string | null;
     readonly patch: Partial<S>;
@@ -19,8 +22,8 @@ export interface RunWatchOptions<S extends object> {
 }
 
 /**
- * The shared part of the run controllers: loads while signed in, then
- * joins `workflow-run:<id>` once the run's id is known.
+ * The shared part of the run controllers: loads while signed in, then joins
+ * `workflow-run:<id>` once the run's id is known.
  */
 export function watchRun<S extends { readonly status: SubscriptionStatus }>(
   options: RunWatchOptions<S>,

@@ -14,7 +14,10 @@ export interface Impersonator {
   readonly readOnly?: boolean;
 }
 
-/** `actingAs(userId, claims, { actor, reason })`: who acts, and why (recorded by the audit module). */
+/**
+ * `actingAs(userId, claims, { actor, reason })`: who acts, and why (recorded by
+ * the audit module).
+ */
 export interface ImpersonationOptions {
   readonly actor: string;
   readonly reason: string;
@@ -49,8 +52,8 @@ export function impersonatorClaim(
 
 /**
  * The admin in `claims.act`: a support session or an impersonated session
- * (`actorOf` reads the same level, so the two always agree). `undefined`
- * for a normal session, an OAuth client or agent chain, and an invalid `act`.
+ * (`actorOf` reads the same level, so the two always agree). `undefined` for a
+ * normal session, an OAuth client or agent chain, and an invalid `act`.
  */
 export function impersonatorOf(
   claims: Readonly<Record<string, unknown>>,
@@ -82,9 +85,9 @@ export function impersonatorOf(
 }
 
 /**
- * The repository context of a signed-in user: the actor, with the
- * impersonator from `act`, and the claims. Every adapter builds it here, so
- * plugins see the same actor on the server, in middleware and in the browser.
+ * The repository context of a signed-in user: the actor, with the impersonator
+ * from `act`, and the claims. Every adapter builds it here, so plugins see the
+ * same actor on the server, in middleware and in the browser.
  */
 export function userContext(
   user: {

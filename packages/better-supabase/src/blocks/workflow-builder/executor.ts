@@ -37,7 +37,10 @@ export interface GraphStepCall {
   readonly subject?: GraphSubject;
 }
 
-/** What an approval node passes to `GraphRuntime.requestApproval`: plain data, so it serializes. */
+/**
+ * What an approval node passes to `GraphRuntime.requestApproval`: plain data,
+ * so it serializes.
+ */
 export interface GraphApprovalCall {
   readonly node: string;
   /** The node's config, e.g. the approvals `action` to file the request under. */
@@ -57,24 +60,27 @@ export interface GraphRuntime {
   readonly version?: string;
   /** The run's tenant, passed to each step. */
   readonly tenant?: string;
-  /** The record the run belongs to: passed to each step, and conditions read it as `subject`. */
+  /**
+   * The record the run belongs to: passed to each step, and conditions read it
+   * as `subject`.
+   */
   readonly subject?: GraphSubject;
   /** The trigger node the run starts at; required when the graph has several. */
   readonly triggerNode?: string;
   /**
-   * Set for a test run: each step node returns its stub (by node id, else
-   * `{ stubbed: true }`) instead of calling `step`, sleeps are skipped, and
-   * an approval node takes its stub as the decision (else approved).
+   * Set for a test run: each step node returns its stub (by node id, else `{
+   * stubbed: true }`) instead of calling `step`, sleeps are skipped, and an
+   * approval node takes its stub as the decision (else approved).
    */
   readonly stubs?: Readonly<Record<string, unknown>>;
   step(call: GraphStepCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
   /**
-   * Files the approval request for an approval node and returns its id,
-   * which becomes the hook token. Run it as a step that calls the approvals
-   * block's `request`; `wakeOnApproval` resumes the run once an eligible
-   * approver decides. Without it the token is `<runKey>:<node>`, which
-   * anyone who knows the run key can guess.
+   * Files the approval request for an approval node and returns its id, which
+   * becomes the hook token. Run it as a step that calls the approvals block's
+   * `request`; `wakeOnApproval` resumes the run once an eligible approver
+   * decides. Without it the token is `<runKey>:<node>`, which anyone who knows
+   * the run key can guess.
    */
   requestApproval?(call: GraphApprovalCall): PromiseLike<string>;
   /** Waits for the approval hook with `token` and returns its payload. */
@@ -98,7 +104,10 @@ const active = (
   return edge.branch === undefined || String(outcome) === edge.branch;
 };
 
-/** The run fields a graph run's meta carries (`GraphRunMeta` in `workflow-sdk/builder`). */
+/**
+ * The run fields a graph run's meta carries (`GraphRunMeta` in
+ * `workflow-sdk/builder`).
+ */
 export type GraphRunFields = Pick<
   GraphRuntime,
   "runKey" | "version" | "tenant" | "subject" | "triggerNode" | "stubs"
@@ -148,8 +157,8 @@ function stubOf(
 }
 
 /**
- * The trigger node a run starts at: `requested` when the graph has it, else
- * the graph's only trigger. Throws when neither picks one.
+ * The trigger node a run starts at: `requested` when the graph has it, else the
+ * graph's only trigger. Throws when neither picks one.
  */
 export function startNodeOf(
   graph: WorkflowGraph,
@@ -177,9 +186,9 @@ export function startNodeOf(
  * Runs `graph` in dependency order from its start trigger
  * (`runtime.triggerNode`): a node runs when the trigger reaches it through
  * edges whose sources ran (and, from a condition or an approval, took the
- * edge's branch). Returns each node's output by id. It only calls
- * `runtime`, so it is deterministic and runs inside a `"use workflow"`
- * function as the static executor.
+ * edge's branch). Returns each node's output by id. It only calls `runtime`, so
+ * it is deterministic and runs inside a `"use workflow"` function as the static
+ * executor.
  */
 export async function executeGraph(
   graph: WorkflowGraph,

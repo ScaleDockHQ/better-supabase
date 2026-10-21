@@ -183,9 +183,7 @@ describe("compileReadSet", () => {
       betterSupabase,
       "open",
       { roles: ["anon"] },
-      (s) => ({
-        tags: s.tags.count(),
-      }),
+      (s) => ({ tags: s.tags.count() }),
     );
 
     expect((await compileReadSet(open)).sql).toContain(
@@ -198,9 +196,7 @@ describe("compileReadSet", () => {
       betterSupabase,
       "wrong",
       { params: { id: "uuid" } },
-      (s, p) => ({
-        one: s.customers.count({ where: { id: { in: [p.id] } } }),
-      }),
+      (s, p) => ({ one: s.customers.count({ where: { id: { in: [p.id] } } }) }),
     );
 
     await expect(compileReadSet(wrong)).rejects.toThrow(/used as/);
@@ -256,9 +252,7 @@ describe("compileReadSet", () => {
       "nested",
       { params: { id: "uuid" } },
       (s, p) => ({
-        one: s.customers.count({
-          where: { id: { in: [p.id, "x"] } },
-        }),
+        one: s.customers.count({ where: { id: { in: [p.id, "x"] } } }),
       }),
     );
 
@@ -329,10 +323,7 @@ describe("auth.uid", () => {
 
   it("sends no user id over PostgREST", async () => {
     const { client, requests } = capturingClient(() => ({
-      body: {
-        mine: { rows: [], count: 2 },
-        named: { rows: [], count: 0 },
-      },
+      body: { mine: { rows: [], count: 2 }, named: { rows: [], count: 0 } },
     }));
 
     const result = await betterSupabase.connect(client).$many(mine, {});
@@ -475,11 +466,13 @@ describe("db.$many with Executor.batch", () => {
   it("binds read-set parameters instead of calling a function", async () => {
     const executor = fakeExecutor();
 
-    const result = await betterSupabase.connect(executor).$many(chrome, {
-      organizationId: USER,
-      kinds: ["call", "email"],
-      search: "ac",
-    });
+    const result = await betterSupabase
+      .connect(executor)
+      .$many(chrome, {
+        organizationId: USER,
+        kinds: ["call", "email"],
+        search: "ac",
+      });
 
     expect(result.ok).toBe(true);
     expect(executor.batches).toHaveLength(1);

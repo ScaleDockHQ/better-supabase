@@ -14,9 +14,8 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
- * A record's tags. Typing a name adds the organization's tag of the
- * subject's kind with that name, or creates it for callers with
- * `tags.manage`.
+ * A record's tags. Typing a name adds the organization's tag of the subject's
+ * kind with that name, or creates it for callers with `tags.manage`.
  */
 export function TagInput({
   organizationId,

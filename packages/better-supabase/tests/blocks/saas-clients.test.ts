@@ -128,10 +128,7 @@ describe("saas block clients", () => {
 
   it("saves and marks a reminder", async () => {
     const reminders = createReminders(
-      options({
-        save_reminder: { id: "r1" },
-        mark_reminder_sent: true,
-      }),
+      options({ save_reminder: { id: "r1" }, mark_reminder_sent: true }),
     );
 
     expect((await reminders.save("org", "invoices", "i1").orThrow()).id).toBe(

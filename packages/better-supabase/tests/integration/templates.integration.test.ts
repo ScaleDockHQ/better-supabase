@@ -131,9 +131,7 @@ describe.skipIf(!live)("templates module", () => {
 
       expect(draft).toMatchObject({ version: 2, publishedAt: undefined });
       expect(await templates.versions.publish(fork.id).orThrow()).toMatchObject(
-        {
-          version: 2,
-        },
+        { version: 2 },
       );
       expect(await templates.versions.publish(fork.id).then(hint)).toBe(
         "TEMPLATE_NO_DRAFT",

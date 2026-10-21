@@ -27,9 +27,7 @@ const DoctorReport = v.object({
   properties: v.object({
     findings: v.object({
       items: v.object({
-        properties: v.object({
-          code: v.object({ enum: v.array(v.string()) }),
-        }),
+        properties: v.object({ code: v.object({ enum: v.array(v.string()) }) }),
       }),
     }),
   }),
@@ -77,10 +75,9 @@ function markdownFiles(dir: string, extension: string): string[] {
 }
 
 /**
- * The imports in the README's subpath and blocks tables: every cell that
- * starts with a `better-supabase` import. A cell may group entries:
- * `` `/edge` `` is relative to the cell's first import, and `plugins/*`
- * covers every plugin.
+ * The imports in the README's subpath and blocks tables: every cell that starts
+ * with a `better-supabase` import. A cell may group entries: `` `/edge` `` is
+ * relative to the cell's first import, and `plugins/*` covers every plugin.
  */
 function readmeImports(readme: string): string[] {
   return readme.split("\n").flatMap((line) => {
@@ -231,9 +228,9 @@ function titledBlocks(text: string): CodeBlock[] {
 }
 
 /**
- * The Naming page's file layout: the definition from `defineSupabase` lives
- * in `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that
- * create `bs`, and a Next.js `server.ts` starts with `import "server-only"`.
+ * The Naming page's file layout: the definition from `defineSupabase` lives in
+ * `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that create
+ * `bs`, and a Next.js `server.ts` starts with `import "server-only"`.
  */
 function naming(): string[] {
   const files = [

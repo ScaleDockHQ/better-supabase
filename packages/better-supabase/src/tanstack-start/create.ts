@@ -52,21 +52,24 @@ export interface BetterTanStackStart<
 > extends BetterServer<M, F, E, C, P, B> {
   /**
    * The `.server()` callback of a request middleware: verifies the caller,
-   * refreshes the session cookie on navigations and form posts, and puts
-   * `db`, `bs`, `auth`, `tenant` and the serializable `session` on `context`.
+   * refreshes the session cookie on navigations and form posts, and puts `db`,
+   * `bs`, `auth`, `tenant` and the serializable `session` on `context`.
    *
-   * ```ts title="src/start.ts"
-   * const supabase = createMiddleware().server(bs.middleware)
-   * export const startInstance = createStart(() => ({ requestMiddleware: [supabase] }))
+   * ```ts
+   * // src/start.ts
+   * const supabase = createMiddleware().server(bs.middleware);
+   * export const startInstance = createStart(() => ({
+   *   requestMiddleware: [supabase],
+   * }));
    * ```
    */
   readonly middleware: <Result extends object>(
     args: TanStackStartServerArgs<FrameworkLocals<M, F, E, C, P, B>, Result>,
   ) => Promise<Result>;
   /**
-   * The caller in a server function or route handler, or a thrown
-   * refusal: a redirect to `signIn` or `mfa` when configured, else a
-   * Problem Details response, which TanStack Start sends.
+   * The caller in a server function or route handler, or a thrown refusal: a
+   * redirect to `signIn` or `mfa` when configured, else a Problem Details
+   * response, which TanStack Start sends.
    */
   require<R extends boolean = false>(
     context: FrameworkLocals<M, F, E, C, P, B>,
@@ -80,8 +83,8 @@ export interface BetterTanStackStart<
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A `createServerFn().handler()` returning an `ActionResult`, for
-   * `useAction`. Pass the same schema to `.inputValidator()` to type `data`
-   * on the client; `input` validates it again on the server.
+   * `useAction`. Pass the same schema to `.inputValidator()` to type `data` on
+   * the client; `input` validates it again on the server.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
     options: BlockActionOptions<
@@ -101,7 +104,10 @@ export interface BetterTanStackStart<
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
 
-/** TanStack Start integration: request middleware, guards and server function actions. */
+/**
+ * TanStack Start integration: request middleware, guards and server function
+ * actions.
+ */
 export function createTanStackStart<
   M extends AnyModels,
   D,

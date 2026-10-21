@@ -8,9 +8,9 @@ import { decodeJwtPayload } from "../core/base64.ts";
 import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
 
 /**
- * The session's user id. With `tokens-only` cookies and no stored user,
- * auth-js puts a placeholder in `session.user` whose getters throw, so the
- * id falls back to the token's `sub`.
+ * The session's user id. With `tokens-only` cookies and no stored user, auth-js
+ * puts a placeholder in `session.user` whose getters throw, so the id falls
+ * back to the token's `sub`.
  */
 export function sessionUserId(session: Session): string | null {
   try {

@@ -1,6 +1,9 @@
 import type { connect, PgQueryable } from "../../../src/cli/db.ts";
 
-/** A `connect` that hands out `client` and records the URLs it opened and the closes. */
+/**
+ * A `connect` that hands out `client` and records the URLs it opened and the
+ * closes.
+ */
 export function fakeConnect(client: PgQueryable): {
   connect: typeof connect;
   urls: string[];

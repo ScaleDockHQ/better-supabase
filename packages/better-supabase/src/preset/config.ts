@@ -38,13 +38,19 @@ export function presetOf(input: PresetInput): Preset {
   );
 }
 
-/** The conventions that map onto config keys; `tenantName` takes any name `sql.naming.tenant` allows. */
+/**
+ * The conventions that map onto config keys; `tenantName` takes any name
+ * `sql.naming.tenant` allows.
+ */
 export type ConfigConventions = Pick<
   Preset,
   "casing" | "idType" | "scope" | "access" | "api"
 > & { readonly tenantName: string };
 
-/** `blocks.access` for the conventions: the model and id type that differ from the defaults. */
+/**
+ * `blocks.access` for the conventions: the model and id type that differ from
+ * the defaults.
+ */
 function accessEntry(conventions: ConfigConventions): AccessBlockConfig {
   return {
     ...(conventions.access === "roles" ? {} : { model: conventions.access }),
@@ -77,10 +83,9 @@ function sqlOf(conventions: ConfigConventions): BetterSupabaseConfig["sql"] {
  * The config keys conventions set without a preset: `casing`, `sql`, and
  * `blocks.access` when the access model or id type differ from the defaults.
  */
-export function conventionConfig(conventions: ConfigConventions): Pick<
-  BetterSupabaseConfig,
-  "casing" | "sql"
-> & {
+export function conventionConfig(
+  conventions: ConfigConventions,
+): Pick<BetterSupabaseConfig, "casing" | "sql"> & {
   readonly blocks?: { readonly access: AccessBlockConfig };
 } {
   const sql = sqlOf(conventions);
@@ -93,11 +98,13 @@ export function conventionConfig(conventions: ConfigConventions): Pick<
   };
 }
 
-/** The config keys a resolved preset sets: its blocks and the conventions that differ from the defaults. */
-export function presetConfig(resolved: ResolvedPreset): Pick<
-  BetterSupabaseConfig,
-  "casing" | "sql" | "integrations"
-> & {
+/**
+ * The config keys a resolved preset sets: its blocks and the conventions that
+ * differ from the defaults.
+ */
+export function presetConfig(
+  resolved: ResolvedPreset,
+): Pick<BetterSupabaseConfig, "casing" | "sql" | "integrations"> & {
   readonly blocks: AnyBlocksConfig;
 } {
   const { preset } = resolved;

@@ -28,8 +28,7 @@ export interface TrashOptions<
   /**
    * A Standard Schema for the trash item's extra columns
    * (`blocks.trash.options.extraColumns`), keyed by database name, such as a
-   * reason. It types and parses them on `list`, and validates them on
-   * `trash`.
+   * reason. It types and parses them on `list`, and validates them on `trash`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -70,7 +69,10 @@ export interface TrashListOptions {
 }
 
 export interface Trash<F extends object = Record<never, never>> {
-  /** Trashes the subject and its children in one batch; `fields` sets the item's extra columns. */
+  /**
+   * Trashes the subject and its children in one batch; `fields` sets the item's
+   * extra columns.
+   */
   trash(
     organizationId: string,
     subjectType: string,
@@ -133,18 +135,20 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Trash<F> = {
     trash: (organizationId, subjectType, subjectId, extra) =>
-      fields.args(extra).andThen((checked) =>
-        call(
-          "trash",
-          {
-            tenant: organizationId,
-            subject_type: subjectType,
-            subject_id: subjectId,
-            fields: checked,
-          },
-          (value) => batchOf(value, "trash"),
+      fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "trash",
+            {
+              tenant: organizationId,
+              subject_type: subjectType,
+              subject_id: subjectId,
+              fields: checked,
+            },
+            (value) => batchOf(value, "trash"),
+          ),
         ),
-      ),
     restore: (id) =>
       call("restore_trash", { item_id: id }, (value) =>
         batchOf(value, "restore_trash"),

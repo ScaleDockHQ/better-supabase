@@ -14,9 +14,7 @@ export const invoicesBlock: BlockOf<
 > = defineBlock({
   name: "invoices",
   sql: ["invoices"],
-  options: {
-    invoices: invoicesSqlOptions,
-  },
+  options: { invoices: invoicesSqlOptions },
   events: invoicesEvents,
   create: createInvoices,
   category: "commerce",

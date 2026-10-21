@@ -9,7 +9,10 @@ export type WorkflowBuilderEvents = {
   readonly "workflow_alert.triggered": WorkflowEventData;
 };
 
-/** The `workflow-builder` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `workflow-builder` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const workflowBuilderEvents: Events<WorkflowBuilderEvents> =
   defineEvents({
     "workflow.published": event<WorkflowEventData>(),

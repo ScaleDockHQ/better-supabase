@@ -66,7 +66,10 @@ export function readableColumns(
   ];
 }
 
-/** The columns `aggregate` can read: numbers for sum and avg, ordered types for min and max, none for count. */
+/**
+ * The columns `aggregate` can read: numbers for sum and avg, ordered types for
+ * min and max, none for count.
+ */
 export function rollupColumns(
   child: AppTable,
   aggregate: RollupAggregate,
@@ -93,7 +96,10 @@ export function filterColumns(
   );
 }
 
-/** Each app table column that references `parent`, as `{ table, via }`: what a rollup on `parent` can aggregate. */
+/**
+ * Each app table column that references `parent`, as `{ table, via }`: what a
+ * rollup on `parent` can aggregate.
+ */
 export function rollupSources(
   tables: Tables,
   parent: string,
@@ -110,7 +116,10 @@ export function rollupSources(
   );
 }
 
-/** Each column of `name` that references another app table, with that table: what a lookup can follow. */
+/**
+ * Each column of `name` that references another app table, with that table:
+ * what a lookup can follow.
+ */
 export function lookupSources(
   tables: Tables,
   name: string,
@@ -212,7 +221,10 @@ function withComputed(
   return next;
 }
 
-/** `table` with a rollup or lookup set under `name`, replacing `previous` in its place. */
+/**
+ * `table` with a rollup or lookup set under `name`, replacing `previous` in its
+ * place.
+ */
 export function tableWithComputed(
   table: AppTable,
   name: string,
@@ -255,9 +267,9 @@ export function tableWithoutComputed(table: AppTable, name: string): AppTable {
 
 /**
  * The tables with every rollup and lookup that no longer fits dropped: one
- * whose table, link or column was deleted or retyped, or whose name a
- * column now uses. `sql sync` would refuse them, and the design code would
- * not encode.
+ * whose table, link or column was deleted or retyped, or whose name a column
+ * now uses. `sql sync` would refuse them, and the design code would not
+ * encode.
  */
 export function prunedComputed(tables: Tables): Tables {
   return Object.fromEntries(
@@ -307,7 +319,10 @@ export function computedTableRenamed(
   );
 }
 
-/** The rollup fitted to a new source or aggregate: a column the aggregate can read, and a filter the child still has. */
+/**
+ * The rollup fitted to a new source or aggregate: a column the aggregate can
+ * read, and a filter the child still has.
+ */
 export function fittedRollup(tables: Tables, rollup: AppRollup): AppRollup {
   const child = tables[rollup.table] ?? {};
   const columns = rollupColumns(child, rollup.aggregate);
@@ -333,11 +348,7 @@ export function fittedRollup(tables: Tables, rollup: AppRollup): AppRollup {
       ? rollup.where
       : undefined;
 
-  const next: DraftRollup = {
-    table: rollup.table,
-    via: rollup.via,
-    aggregate,
-  };
+  const next: DraftRollup = { table: rollup.table, via: rollup.via, aggregate };
 
   if (column !== undefined) {
     next.column = column;
@@ -369,8 +380,8 @@ function rollupRenamed(
 
 /**
  * Every rollup and lookup that reads `table.from`, reading `table.to`. The
- * tables already have the column renamed, so a lookup finds its target
- * through the renamed link.
+ * tables already have the column renamed, so a lookup finds its target through
+ * the renamed link.
  */
 export function computedColumnRenamed(
   tables: Tables,

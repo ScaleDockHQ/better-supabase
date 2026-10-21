@@ -4,9 +4,9 @@ import { fillTemplate, templatePlaceholders } from "../core/access-sql.ts";
 import { SERVICE_CALLER } from "./shared.ts";
 
 /**
- * Functions granted to `authenticated` that write, but a read-only support
- * or impersonation session may still call. Ending or starting the session
- * is how that session is left.
+ * Functions granted to `authenticated` that write, but a read-only support or
+ * impersonation session may still call. Ending or starting the session is how
+ * that session is left.
  */
 export const WRITE_GUARD_ALLOWLIST: ReadonlySet<string> = new Set([
   "end_support_session",

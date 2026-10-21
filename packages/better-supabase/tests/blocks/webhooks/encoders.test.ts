@@ -31,10 +31,7 @@ const target = {
   tenant: null,
 };
 
-const token = {
-  token: "tok-1",
-  headers: { authorization: "Bearer tok-1" },
-};
+const token = { token: "tok-1", headers: { authorization: "Bearer tok-1" } };
 
 describe("cloudEvents", () => {
   it("writes a structured event, or a batch for a batch endpoint", async () => {
@@ -265,9 +262,7 @@ describe("splunkHec", () => {
 
     expect(
       classify({ status: 200, body: '{"text":"Success","code":0}' }),
-    ).toEqual({
-      outcome: "succeeded",
-    });
+    ).toEqual({ outcome: "succeeded" });
     expect(classify({ status: 400, body: '{"code":0}' })).toBeUndefined();
     expect(classify({ status: 200, body: "ok" })).toBeUndefined();
     expect(

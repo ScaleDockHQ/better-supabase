@@ -267,12 +267,7 @@ export async function runEnv(
       ...changeLines(applied),
       ...warnings.map((warning) => `Warning: ${warning}`),
     ].join("\n"),
-    data: {
-      file,
-      files: applied.changes,
-      keys: Object.keys(values),
-      warnings,
-    },
+    data: { file, files: applied.changes, keys: Object.keys(values), warnings },
   };
 }
 

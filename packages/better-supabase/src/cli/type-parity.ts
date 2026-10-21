@@ -64,9 +64,9 @@ type ObjectPaths<A, B, P extends string> =
     }[keyof A & keyof B];
 
 /**
- * The paths where `A` and `B` differ: a key only one of them has, keys
- * optional in only one, or leaves that aren't assignable both ways. Unions
- * are compared as a whole, and functions only by shape.
+ * The paths where `A` and `B` differ: a key only one of them has, keys optional
+ * in only one, or leaves that aren't assignable both ways. Unions are compared
+ * as a whole, and functions only by shape.
  */
 export type ParityPaths<A, B, P extends string = ""> =
   IsUnion<A> extends true

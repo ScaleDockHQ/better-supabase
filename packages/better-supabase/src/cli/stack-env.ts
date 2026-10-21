@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 
 import type { StackStatus } from "./stack-status.ts";
 
-/** Framework names `--prefix` accepts, with the prefix each one exposes to the browser. */
+/**
+ * Framework names `--prefix` accepts, with the prefix each one exposes to the
+ * browser.
+ */
 export const PREFIX_NAMES: Readonly<Record<string, string>> = {
   next: "NEXT_PUBLIC_",
   vite: "VITE_",
@@ -13,7 +16,10 @@ export const PREFIX_NAMES: Readonly<Record<string, string>> = {
   none: "",
 };
 
-/** A `--prefix` value as a variable prefix: a framework name, `none`, or the prefix itself. */
+/**
+ * A `--prefix` value as a variable prefix: a framework name, `none`, or the
+ * prefix itself.
+ */
 export function prefixFromFlag(flag: string): string {
   return PREFIX_NAMES[flag.toLowerCase()] ?? flag;
 }
@@ -86,9 +92,9 @@ export function stackEnvValues(
 }
 
 /**
- * A value safe to print: a URL shows its host and port (and a database URL
- * its database name), anything else a SHA-256 fingerprint. Never the value
- * itself, so keys and passwords stay out of logs.
+ * A value safe to print: a URL shows its host and port (and a database URL its
+ * database name), anything else a SHA-256 fingerprint. Never the value itself,
+ * so keys and passwords stay out of logs.
  */
 export function redactValue(value: string): string {
   if (/^(?:https?|postgres(?:ql)?):\/\//i.test(value)) {
@@ -116,8 +122,8 @@ export interface StaleVariable {
 
 /**
  * The stack variables the shell exports with another value, such as a
- * `SUPABASE_URL` left over from another checkout's stack. Values are
- * redacted with `redactValue`.
+ * `SUPABASE_URL` left over from another checkout's stack. Values are redacted
+ * with `redactValue`.
  */
 export function staleVariables(
   shell: Readonly<Record<string, string | undefined>>,

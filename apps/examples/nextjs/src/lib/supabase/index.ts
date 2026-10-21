@@ -9,9 +9,9 @@ import { schema } from "./generated.ts";
 export type { Functions, Models } from "./generated.ts";
 
 /**
- * `.orThrow()` throws an `AppError`; results keep their `DbError`.
- * `maxRows` matches `[api] max_rows` in `supabase/config.toml`. Node 24 and
- * Safari have no `Temporal`, which the blocks return times as.
+ * `.orThrow()` throws an `AppError`; results keep their `DbError`. `maxRows`
+ * matches `[api] max_rows` in `supabase/config.toml`. Node 24 and Safari have
+ * no `Temporal`, which the blocks return times as.
  */
 export const betterSupabase = defineSupabase(schema, {
   maxRows: 1000,

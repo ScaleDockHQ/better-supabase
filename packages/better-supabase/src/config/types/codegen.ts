@@ -24,9 +24,9 @@ export interface SourceConfig {
   /** Read a saved `better-supabase introspect` snapshot instead of connecting. */
   readonly snapshot?: string;
   /**
-   * Read a Supabase Lite project's schema the way Lite runs it, from
-   * `[db] driver` in `supabase/config.toml`. On by default when that key is
-   * present; `false` reads the database like any other project.
+   * Read a Supabase Lite project's schema the way Lite runs it, from `[db]
+   * driver` in `supabase/config.toml`. On by default when that key is present;
+   * `false` reads the database like any other project.
    */
   readonly lite?: boolean;
 }
@@ -51,7 +51,10 @@ export type JsonTypeConfig = (
   | { readonly import: string }
   | { readonly type: string }
 ) & {
-  /** Enforced in the database by `better-supabase add jsonb-schemas` (pg_jsonschema). */
+  /**
+   * Enforced in the database by `better-supabase add jsonb-schemas`
+   * (pg_jsonschema).
+   */
   readonly schema?: JsonSchemaSource;
 };
 
@@ -60,10 +63,9 @@ export interface TableConfig {
   /** Leave the table out of the generated models. */
   readonly exclude?: boolean;
   /**
-   * Keep the table off the Data API on purpose: only `service_role` reaches
-   * it. The models are still generated for admin clients, and doctor (BS106)
-   * checks that `anon` and `authenticated` have no grants instead of
-   * requiring them.
+   * Keep the table off the Data API on purpose: only `service_role` reaches it.
+   * The models are still generated for admin clients, and doctor (BS106) checks
+   * that `anon` and `authenticated` have no grants instead of requiring them.
    */
   readonly serviceRole?: boolean;
   /** Rename generated relations: `{ primaryContact: 'contact' }`. */
@@ -77,7 +79,10 @@ export interface TableConfig {
 }
 
 export interface FunctionConfig {
-  /** `true`, or the `returns table` columns (database names) that are never null. */
+  /**
+   * `true`, or the `returns table` columns (database names) that are never
+   * null.
+   */
   readonly notNull?: true | readonly string[];
 }
 
@@ -91,7 +96,10 @@ export interface SoftDeleteConfig {
 }
 
 export interface TenantConfig {
-  /** Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant is renamed. */
+  /**
+   * Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant
+   * is renamed.
+   */
   readonly column?: string;
 }
 
@@ -99,18 +107,30 @@ export interface TenantConfig {
 export interface ClaimsConfig {
   /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
   readonly tenant?: string;
-  /** `scope` of the tenant entries `membership_claims()` writes. Defaults to `tenant`. */
+  /**
+   * `scope` of the tenant entries `membership_claims()` writes. Defaults to
+   * `tenant`.
+   */
   readonly scope?: string;
-  /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
+  /**
+   * Claim holding plan features per tenant (`{ [tenantId]: string[] }`).
+   * Defaults to `features`.
+   */
   readonly features?: string;
-  /** Claim the memberships hook (`membership_claims()` or the provider's) writes. Defaults to `memberships`. */
+  /**
+   * Claim the memberships hook (`membership_claims()` or the provider's)
+   * writes. Defaults to `memberships`.
+   */
   readonly memberships?: string;
 }
 
 export interface ActorConfig {
   readonly createdBy?: string;
   readonly updatedBy?: string;
-  /** Defaults to `impersonated_by`, the column the SQL modules' `track_actor` fills. */
+  /**
+   * Defaults to `impersonated_by`, the column the SQL modules' `track_actor`
+   * fills.
+   */
   readonly impersonatedBy?: string;
 }
 
@@ -122,16 +142,16 @@ export interface PluginFlagsConfig {
 }
 
 /**
- * Runtime types for columns whose JSON form loses information. Defaults
- * match `supabase gen types`: timestamps as ISO strings, `int8` and
- * `numeric` as numbers.
+ * Runtime types for columns whose JSON form loses information. Defaults match
+ * `supabase gen types`: timestamps as ISO strings, `int8` and `numeric` as
+ * numbers.
  */
 export interface CodecsConfig {
   /**
    * `'instant'` decodes `timestamptz` columns to `Temporal.Instant` and
    * `timestamp` columns to `Temporal.PlainDateTime`. `'utc'` keeps
-   * `timestamptz` columns as strings, always in UTC as ISO 8601 with a `Z`
-   * and every fraction digit (`2026-10-21T05:10:00.123456Z`).
+   * `timestamptz` columns as strings, always in UTC as ISO 8601 with a `Z` and
+   * every fraction digit (`2026-10-21T05:10:00.123456Z`).
    */
   readonly timestamptz?: "string" | "instant" | "utc";
   /** `'bigint'` or `'string'` read `int8` exactly (above 2^53). */
@@ -149,8 +169,8 @@ export interface GeneratedFile {
 export interface GeneratorInput {
   readonly meta: SchemaMeta;
   /**
-   * The `@supabase/postgrest-typegen` metadata for the configured schemas,
-   * the same contract `supabase gen types` is built on.
+   * The `@supabase/postgrest-typegen` metadata for the configured schemas, the
+   * same contract `supabase gen types` is built on.
    */
   readonly introspection: GeneratorMetadata;
   /** Constraints, indexes, policies, triggers and grants typegen leaves out. */
@@ -223,9 +243,9 @@ export interface Generator {
 export interface RelationsConfig {
   /**
    * Type a to-one include as `| null` when the related table has row level
-   * security, even over a `not null` foreign key, since a policy can hide
-   * the related row. `required: true` on the include keeps it non-null.
-   * Defaults to `false`.
+   * security, even over a `not null` foreign key, since a policy can hide the
+   * related row. `required: true` on the include keeps it non-null. Defaults to
+   * `false`.
    */
   readonly nullableUnderRls?: boolean;
 }

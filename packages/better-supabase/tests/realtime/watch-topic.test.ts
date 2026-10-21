@@ -18,8 +18,8 @@ interface FakeChannel {
 
 /**
  * A realtime-js stand-in that keeps its rules: `channel()` returns the open
- * channel for a topic, a channel subscribes once, and a removed channel
- * leaves the list only after the server acknowledges the leave.
+ * channel for a topic, a channel subscribes once, and a removed channel leaves
+ * the list only after the server acknowledges the leave.
  */
 function fakeRealtime() {
   const open: FakeChannel[] = [];

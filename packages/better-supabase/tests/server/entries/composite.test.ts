@@ -252,10 +252,7 @@ describe("withBetterSupabase", () => {
       undefined,
       Record<never, never>,
       string
-    >({
-      key: "auth",
-      run: () => () => Promise.resolve({ auth: "upstream" }),
-    });
+    >({ key: "auth", run: () => () => Promise.resolve({ auth: "upstream" }) });
 
     const token = await signer.sign({ sub: USER });
 
@@ -392,9 +389,7 @@ describe("session cookies", () => {
     );
 
     const response = await fetch(
-      new Request("https://app.test/", {
-        headers: { cookie: `${NAME}=x` },
-      }),
+      new Request("https://app.test/", { headers: { cookie: `${NAME}=x` } }),
     );
 
     const cleared = response.headers

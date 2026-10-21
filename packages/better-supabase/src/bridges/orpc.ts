@@ -8,14 +8,14 @@ import {
 
 import type { Validated } from "./shared.ts";
 
-/** The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`) a bridge calls. */
+/**
+ * The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`) a bridge
+ * calls.
+ */
 export interface OrpcHandlerLike<Context> {
   handle(
     request: Request,
-    options: {
-      readonly prefix?: `/${string}`;
-      readonly context: Context;
-    },
+    options: { readonly prefix?: `/${string}`; readonly context: Context },
   ): Promise<{
     readonly matched: boolean;
     readonly response?: Response | undefined;
@@ -29,13 +29,17 @@ export interface ToOrpcOptions {
 
 /**
  * Runs an entry array around an oRPC fetch handler. The procedures' initial
- * context is `{ request }` plus every contributed key, and the response
- * passes back through the entries, so refreshed cookies and response-phase
- * headers reach it. A request no procedure matched answers 404.
+ * context is `{ request }` plus every contributed key, and the response passes
+ * back through the entries, so refreshed cookies and response-phase headers
+ * reach it. A request no procedure matched answers 404.
  *
  * ```ts
- * const os = implement(contract).$context<{ request: Request; db: Db }>()
- * export default { fetch: toOrpc([withBetterSupabase(server)], new RPCHandler(router), { prefix: '/rpc' }) }
+ * const os = implement(contract).$context<{ request: Request; db: Db }>();
+ * export default {
+ *   fetch: toOrpc([withBetterSupabase(server)], new RPCHandler(router), {
+ *     prefix: "/rpc",
+ *   }),
+ * };
  * ```
  */
 export function toOrpc<const Entries extends readonly AnyEntry[]>(

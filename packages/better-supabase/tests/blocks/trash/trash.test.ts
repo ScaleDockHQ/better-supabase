@@ -40,13 +40,7 @@ describe("trash client", () => {
       restore_trash: () => ({ id: "t1", batchId: "b1", count: 3 }),
       list_trash: () => [
         ITEM,
-        {
-          ...ITEM,
-          id: "t2",
-          title: null,
-          trashedBy: null,
-          purgeAfter: null,
-        },
+        { ...ITEM, id: "t2", title: null, trashedBy: null, purgeAfter: null },
       ],
       purge_trash: () => 3,
     });

@@ -14,9 +14,7 @@ export const numberSequencesBlock: BlockOf<
 > = defineBlock({
   name: "number-sequences",
   sql: ["number-sequences"],
-  options: {
-    "number-sequences": numberSequencesSqlOptions,
-  },
+  options: { "number-sequences": numberSequencesSqlOptions },
   events: numberSequencesEvents,
   create: createNumberSequences,
   category: "database",

@@ -58,7 +58,10 @@ function isInList(condition: Condition): condition is InCondition {
   );
 }
 
-/** Column types whose order JavaScript reproduces without the database's collation. */
+/**
+ * Column types whose order JavaScript reproduces without the database's
+ * collation.
+ */
 const SORTABLE = new Set([
   "int2",
   "int4",
@@ -121,8 +124,8 @@ export interface ChunkedRead {
  * Splits a read whose query string is over `max` into reads that each fit,
  * along its longest top-level `in` list. Only reads without a limit, offset,
  * count or single row qualify, since chunks can't share those; their rows are
- * disjoint, and an order is re-applied in memory on columns that sort the
- * same in JavaScript.
+ * disjoint, and an order is re-applied in memory on columns that sort the same
+ * in JavaScript.
  */
 export function chunkRead(
   op: SelectOp,
@@ -405,9 +408,9 @@ export function chunkRead(
 }
 
 /**
- * A comparable value, or `undefined` for SQL null. Times compare by
- * instant, which text can't do across offsets, with the microseconds
- * `Date.parse` drops appended.
+ * A comparable value, or `undefined` for SQL null. Times compare by instant,
+ * which text can't do across offsets, with the microseconds `Date.parse` drops
+ * appended.
  */
 function sortValue(
   value: unknown,

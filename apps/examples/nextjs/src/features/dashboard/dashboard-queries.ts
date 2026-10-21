@@ -7,8 +7,8 @@ import { bs } from "@/lib/supabase/server";
 
 /**
  * Four numbers, one GET: the read set runs as a single `stable` function.
- * `cacheTags` tags the entry with every table the set reads, so a new
- * customer or note revalidates it.
+ * `cacheTags` tags the entry with every table the set reads, so a new customer
+ * or note revalidates it.
  */
 export async function getWorkspaceSummary() {
   "use cache: private";
@@ -33,8 +33,8 @@ const DAY_MS = 86_400_000;
 
 /**
  * New customers over the last 30 days against the 30 before, and how many of
- * them are leads or active (the metrics SQL module, read live with
- * `rollup: false`).
+ * them are leads or active (the metrics SQL module, read live with `rollup:
+ * false`).
  */
 export async function getCustomerCounts(
   organizationId: string,
@@ -43,10 +43,7 @@ export async function getCustomerCounts(
   const { supabase } = await bs.cached();
   const until = Temporal.Now.instant();
 
-  const range = {
-    from: until.subtract({ milliseconds: 30 * DAY_MS }),
-    until,
-  };
+  const range = { from: until.subtract({ milliseconds: 30 * DAY_MS }), until };
 
   const { metrics } = blocks(supabase);
 
@@ -58,10 +55,7 @@ export async function getCustomerCounts(
       .kpi("customers", range, { organizationId, filter: { status: "lead" } })
       .orThrow(),
     metrics
-      .kpi("customers", range, {
-        organizationId,
-        filter: { status: "active" },
-      })
+      .kpi("customers", range, { organizationId, filter: { status: "active" } })
       .orThrow(),
   ]);
 

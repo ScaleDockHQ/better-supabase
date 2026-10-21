@@ -696,10 +696,7 @@ describe.skipIf(!live)("attachments", () => {
       });
 
       expect(await scanner.scan(DRIVE, "a/report.pdf").orThrow()).toMatchObject(
-        {
-          status: "clean",
-          bucket: DRIVE,
-        },
+        { status: "clean", bucket: DRIVE },
       );
       await scanner.scan(DRIVE, "a/report.pdf").orThrow();
       expect(scanned).toEqual(["a/report.pdf"]);

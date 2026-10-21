@@ -49,7 +49,10 @@ export function invalidRequest(message: string, table?: string): never {
 
 type Input = Readonly<Record<string, unknown>>;
 
-/** A regconfig name, optionally schema-qualified; PostgREST puts it in the operator unquoted. */
+/**
+ * A regconfig name, optionally schema-qualified; PostgREST puts it in the
+ * operator unquoted.
+ */
 const TEXT_SEARCH_CONFIG = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)?$/;
 
 const FIELD_OPS = new Set([
@@ -111,8 +114,8 @@ function text(value: unknown): unknown {
 }
 
 /**
- * `in` over a list: `null` never equals anything in SQL, so a list with
- * `null` also matches the rows where the column is null.
+ * `in` over a list: `null` never equals anything in SQL, so a list with `null`
+ * also matches the rows where the column is null.
  */
 function inList(
   values: readonly unknown[],
@@ -129,7 +132,10 @@ function inList(
   return present.length === 0 ? isNull : or(make("in", present), isNull);
 }
 
-/** A primary key value; `null` and `undefined` match no row, so they are a caller error. */
+/**
+ * A primary key value; `null` and `undefined` match no row, so they are a
+ * caller error.
+ */
 function keyValue(table: TableMeta, name: string, value: unknown): unknown {
   if (value === null || value === undefined) {
     invalidRequest(
@@ -362,7 +368,10 @@ export class IrBuilder {
     return and(...items) ?? { kind: "and", items: [] };
   }
 
-  /** `{ path: ["a", "b"], eq: "x" }` on a json column: compares the text at the path. */
+  /**
+   * `{ path: ["a", "b"], eq: "x" }` on a json column: compares the text at the
+   * path.
+   */
   private pathFilter(
     table: TableMeta,
     name: string,
@@ -697,8 +706,8 @@ export class IrBuilder {
   }
 
   /**
-   * `db.x.aggregate(args)`: the grouping columns, `_count` and the measures
-   * of each group.
+   * `db.x.aggregate(args)`: the grouping columns, `_count` and the measures of
+   * each group.
    */
   aggregation(table: TableMeta, args: Input): Selection {
     const groupBy = args["groupBy"] ?? [];
@@ -967,8 +976,8 @@ export class IrBuilder {
   }
 
   /**
-   * Sort terms for `db.x.aggregate(args)`: `groupBy` columns of `grouped`,
-   * `{ _count: "desc" }` and measures such as `{ _sum: { amount: "desc" } }`.
+   * Sort terms for `db.x.aggregate(args)`: `groupBy` columns of `grouped`, `{
+   * _count: "desc" }` and measures such as `{ _sum: { amount: "desc" } }`.
    */
   aggregateOrderBy(
     table: TableMeta,
@@ -1174,8 +1183,8 @@ export class IrBuilder {
   }
 
   /**
-   * Condition matching exactly one row by the primary key or by the columns
-   * of a named unique key. The given columns must be one complete key.
+   * Condition matching exactly one row by the primary key or by the columns of
+   * a named unique key. The given columns must be one complete key.
    */
   uniqueKey(table: TableMeta, input: unknown): Condition {
     if (!isPlainObject(input)) {

@@ -45,11 +45,7 @@ export function moduleLayout(
         role: "authenticated" as const,
         privileges: roles.authenticated,
       },
-      {
-        table,
-        role: "service_role" as const,
-        privileges: roles.serviceRole,
-      },
+      { table, role: "service_role" as const, privileges: roles.serviceRole },
     ]),
     functionGrants: Object.entries(config.exposeFunctions).map(
       ([fn, roles]) => ({ function: fn, roles }),

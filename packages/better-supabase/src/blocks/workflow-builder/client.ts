@@ -112,8 +112,8 @@ export type WorkflowCanvasRunController = Controller<
 const NO_NODES: Readonly<Record<string, WorkflowNodeRun>> = {};
 
 /**
- * A run and the status of each of its nodes, loaded again on each message
- * on `workflow-run:<id>` (run status changes and node records).
+ * A run and the status of each of its nodes, loaded again on each message on
+ * `workflow-run:<id>` (run status changes and node records).
  */
 export function createWorkflowCanvasRunController(
   options: WorkflowCanvasRunControllerOptions,

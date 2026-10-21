@@ -168,8 +168,8 @@ export interface HiringOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the jobs' extra columns
-   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `saveJob` and validates the ones it writes.
+   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on `saveJob` and validates the ones it writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Hiring<FieldsOf<S>>>>;
@@ -252,8 +252,8 @@ function interviewOf(value: unknown): Interview {
 
 /**
  * The hiring block: jobs and applications on a pipeline per job, with
- * scorecards and interviews. Act on `application.hired` to create the
- * employee in your app.
+ * scorecards and interviews. Act on `application.hired` to create the employee
+ * in your app.
  */
 export function createHiring<
   S extends StandardSchemaV1 | undefined = undefined,

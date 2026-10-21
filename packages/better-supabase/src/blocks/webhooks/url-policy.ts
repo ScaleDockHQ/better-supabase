@@ -10,9 +10,9 @@ export type ResolveHost = (hostname: string) => Promise<readonly string[]>;
 
 export interface PublicUrlOptions {
   /**
-   * Resolves host names so each address can be checked. Defaults to
-   * `node:dns` where the runtime has it (Node, Bun, Deno); pass one on other
-   * runtimes, or `false` to check only the URL.
+   * Resolves host names so each address can be checked. Defaults to `node:dns`
+   * where the runtime has it (Node, Bun, Deno); pass one on other runtimes, or
+   * `false` to check only the URL.
    */
   readonly resolve?: ResolveHost | false;
   /** Allow `http:` URLs, e.g. for local development. */
@@ -244,12 +244,12 @@ function builtinResolver(): ResolveHost | undefined {
 }
 
 /**
- * The default `allowUrl`: HTTPS only, no credentials in the URL, no local
- * host names, and every address the host resolves to must be public. The
- * delivery transport calls it again for each redirect.
+ * The default `allowUrl`: HTTPS only, no credentials in the URL, no local host
+ * names, and every address the host resolves to must be public. The delivery
+ * transport calls it again for each redirect.
  *
- * DNS can change between this check and the connection. Route webhooks
- * through an egress proxy when that matters.
+ * DNS can change between this check and the connection. Route webhooks through
+ * an egress proxy when that matters.
  */
 export function publicUrl(options: PublicUrlOptions = {}): AllowUrl {
   const resolve =

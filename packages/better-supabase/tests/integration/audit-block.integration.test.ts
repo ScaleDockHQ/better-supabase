@@ -212,9 +212,7 @@ describe.skipIf(!live)("audit block", () => {
     try {
       await s.install(["audit"], {
         modules: {
-          audit: {
-            options: { eventRoles: ["service_role", "authenticated"] },
-          },
+          audit: { options: { eventRoles: ["service_role", "authenticated"] } },
         },
       });
       await s.client.query(`

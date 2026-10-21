@@ -29,14 +29,8 @@ const EVENTS: ModuleEvents<SettingsEvents> = {
     subject: "organizations",
     payload: ["organizationId", "key"],
   },
-  "platform_setting.reset": {
-    subject: "settings",
-    payload: ["key"],
-  },
-  "platform_setting.updated": {
-    subject: "settings",
-    payload: ["key"],
-  },
+  "platform_setting.reset": { subject: "settings", payload: ["key"] },
+  "platform_setting.updated": { subject: "settings", payload: ["key"] },
 };
 
 const NAMES: ModuleNames = {
@@ -77,7 +71,10 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** Who reads a platform key: anyone, signed-in users, or staff with its permission. */
+/**
+ * Who reads a platform key: anyone, signed-in users, or staff with its
+ * permission.
+ */
 type PlatformRead = "public" | "authenticated" | "staff";
 
 interface PlatformKey {
@@ -92,8 +89,8 @@ const isRead = (value: unknown): value is PlatformRead =>
   value === "public" || value === "authenticated" || value === "staff";
 
 /**
- * The platform scope's defaults (`options.platform`: `permission` and
- * `read`) and its keys with their own `permission` and `read`, from
+ * The platform scope's defaults (`options.platform`: `permission` and `read`)
+ * and its keys with their own `permission` and `read`, from
  * `options.schemas.platform`.
  */
 function platformKeys(ctx: ModuleContext): {
@@ -221,8 +218,8 @@ function jsonSchemaOf(
 }
 
 /**
- * `blocks.settings.options.schemas`: `{ user, organization }` maps of
- * key to schema, or a `defineSettings()` result (its `schemas`).
+ * `blocks.settings.options.schemas`: `{ user, organization }` maps of key to
+ * schema, or a `defineSettings()` result (its `schemas`).
  */
 function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   const option = ctx.option("schemas");

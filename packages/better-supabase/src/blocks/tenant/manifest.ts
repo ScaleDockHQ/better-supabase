@@ -7,8 +7,6 @@ import { tenantSqlOptions } from "./options.ts";
 export const tenantBlock: Block<"tenant"> = defineBlock({
   name: "tenant",
   sql: ["tenant"],
-  options: {
-    tenant: tenantSqlOptions,
-  },
+  options: { tenant: tenantSqlOptions },
   category: "tenancy",
 });

@@ -2,7 +2,10 @@ import type { QuestionnaireView, UseQuestionnaireOptions } from "./index.ts";
 
 export type { QuestionnaireView, UseQuestionnaireOptions } from "./index.ts";
 
-/** The `react-server` build of `useQuestionnaire`: render the form in a Client Component. */
+/**
+ * The `react-server` build of `useQuestionnaire`: render the form in a Client
+ * Component.
+ */
 export const useQuestionnaire: (
   options: UseQuestionnaireOptions,
 ) => QuestionnaireView = () => {

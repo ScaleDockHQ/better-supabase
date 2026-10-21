@@ -82,9 +82,7 @@ describe("testAuthorizationHooks", () => {
         mayPublish: () => true,
       },
       chat: { onAction: () => ({ allowed: true }) },
-      support: {
-        authorize: ({ admin }) => ({ approvedBy: admin.user.id }),
-      },
+      support: { authorize: ({ admin }) => ({ approvedBy: admin.user.id }) },
       delegation: { permissions: () => ["*"] },
     };
 

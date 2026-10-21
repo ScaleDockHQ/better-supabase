@@ -263,10 +263,7 @@ describe("createWebhooks: deliver", () => {
     );
 
     const before = Date.now();
-    expect(await webhooks.deliver()).toMatchObject({
-      retrying: 1,
-      dead: 2,
-    });
+    expect(await webhooks.deliver()).toMatchObject({ retrying: 1, dead: 2 });
 
     const [retry, last, gone] = ["del-1", "del-2", "del-3"].map((id) =>
       outcomeOf(calls, id),
@@ -284,10 +281,7 @@ describe("createWebhooks: deliver", () => {
     expect(retryAt - before).toBeLessThan(6000);
     expect(last).toMatchObject({ status: "dead", attempt: 8 });
     expect(last).not.toHaveProperty("retry_at");
-    expect(gone).toMatchObject({
-      status: "dead",
-      response_status: 410,
-    });
+    expect(gone).toMatchObject({ status: "dead", response_status: 410 });
     expect(seen.map((event) => event.type)).toEqual([
       "webhook.failed",
       "webhook.failed",
@@ -309,10 +303,7 @@ describe("createWebhooks: deliver", () => {
             : new WebhookPolicyError("Endpoint URL is not allowed"),
     );
 
-    expect(await webhooks.deliver()).toMatchObject({
-      retrying: 2,
-      dead: 1,
-    });
+    expect(await webhooks.deliver()).toMatchObject({ retrying: 2, dead: 1 });
     expect(outcomes()).toHaveLength(3);
     expect(outcomeOf(calls, "del-3")).toMatchObject({
       status: "retrying",
@@ -523,15 +514,10 @@ describe("createWebhooks: deliver", () => {
       [row()],
       () => ({ status: 400, body: "" }),
       {},
-      {
-        complete_webhook_delivery: () => "disabled",
-      },
+      { complete_webhook_delivery: () => "disabled" },
     );
 
-    expect(await webhooks.deliver()).toMatchObject({
-      dead: 1,
-      disabled: 1,
-    });
+    expect(await webhooks.deliver()).toMatchObject({ dead: 1, disabled: 1 });
     expect(seen.map((event) => event.type)).toEqual([
       "webhook.failed",
       "webhook.disabled",

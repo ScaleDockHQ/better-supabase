@@ -16,7 +16,10 @@ import {
   type BlockTemporalOptions,
 } from "../shared.ts";
 
-/** Why `verify` stopped: the row changed, a link or an entry is missing, or a signed head disagrees. */
+/**
+ * Why `verify` stopped: the row changed, a link or an entry is missing, or a
+ * signed head disagrees.
+ */
 export type AuditChainBreak = "hash" | "link" | "gap" | "checkpoint";
 
 export type AuditChainVerdict =
@@ -25,7 +28,10 @@ export type AuditChainVerdict =
       readonly checked: number;
       /** The last entry's position, absent for an empty range. */
       readonly seq: number | undefined;
-      /** The last entry's hash (hex), to compare with a checkpoint kept elsewhere. */
+      /**
+       * The last entry's hash (hex), to compare with a checkpoint kept
+       * elsewhere.
+       */
       readonly hash: string | undefined;
     }
   | {

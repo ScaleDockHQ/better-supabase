@@ -18,7 +18,10 @@ export interface ParsedDeliveries {
   readonly only: boolean;
 }
 
-/** Reads delivery statuses from a stored webhook event; `null` when the body is not one it knows. */
+/**
+ * Reads delivery statuses from a stored webhook event; `null` when the body is
+ * not one it knows.
+ */
 export type DeliveryParser = (event: {
   readonly body: string;
   readonly headers: Readonly<Record<string, string>>;
@@ -104,7 +107,10 @@ export const whatsappDeliveries: DeliveryParser = ({ body }) => {
   return { updates, only: updates.length > 0 && !other };
 };
 
-/** Messenger and Instagram: `entry[].messaging[].delivery.mids`. Read receipts carry no ids and are skipped. */
+/**
+ * Messenger and Instagram: `entry[].messaging[].delivery.mids`. Read receipts
+ * carry no ids and are skipped.
+ */
 export const messengerDeliveries: DeliveryParser = ({ body }) => {
   const payload = json(body);
 
@@ -141,7 +147,10 @@ export const messengerDeliveries: DeliveryParser = ({ body }) => {
   };
 };
 
-/** Twilio status callbacks: a form body with `MessageSid` and `MessageStatus` and no `Body`. */
+/**
+ * Twilio status callbacks: a form body with `MessageSid` and `MessageStatus`
+ * and no `Body`.
+ */
 export const twilioDeliveries: DeliveryParser = ({ body, headers }) => {
   const type = headers["content-type"] ?? "";
 

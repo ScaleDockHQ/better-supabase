@@ -45,9 +45,9 @@ function isHeaders(value: unknown): value is Readonly<Record<string, string>> {
 }
 
 /**
- * Runs the `WebhookSigner` contract against `signer`: the API version, a
- * name, string headers that depend on the body and are stable for the same
- * input, and, with `verify`, a signature the receiver accepts.
+ * Runs the `WebhookSigner` contract against `signer`: the API version, a name,
+ * string headers that depend on the body and are stable for the same input,
+ * and, with `verify`, a signature the receiver accepts.
  */
 export function testWebhookSigner(
   signer: WebhookSigner,
@@ -121,9 +121,9 @@ export interface TestWebhookTransportOptions {
 }
 
 /**
- * Runs the `WebhookTransport` contract against `transport`: the API version,
- * a name, and one POST to `options.url` that returns an HTTP status and a
- * string body.
+ * Runs the `WebhookTransport` contract against `transport`: the API version, a
+ * name, and one POST to `options.url` that returns an HTTP status and a string
+ * body.
  */
 export function testWebhookTransport(
   transport: WebhookTransport,
@@ -189,8 +189,8 @@ export interface TestWebhookSecretStoreOptions {
 
 /**
  * Runs the `WebhookSecretStore` contract against `store`: the API version, a
- * list of strings, and, when it can rotate, a new secret listed first while
- * the previous one keeps signing.
+ * list of strings, and, when it can rotate, a new secret listed first while the
+ * previous one keeps signing.
  */
 export function testWebhookSecretStore(
   store: WebhookSecretStore,

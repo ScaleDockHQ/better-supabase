@@ -52,8 +52,8 @@ export function createUrl(resolved: ResolvedPreset, designCode = ""): string {
 }
 
 /**
- * `better-supabase.config.ts` with these keys: every block with its reason,
- * the conventions, and the app tables, under a comment with the `/create` URL.
+ * `better-supabase.config.ts` with these keys: every block with its reason, the
+ * conventions, and the app tables, under a comment with the `/create` URL.
  */
 export function configSource(
   resolved: ResolvedPreset,
@@ -119,10 +119,10 @@ export function presetConfigSource(resolved: ResolvedPreset): string {
 
 /**
  * `lib/blocks.ts`: the blocks with a TypeScript client, wired with
- * `defineBlocks` over the Data API as the caller. Each block's schema (the
- * API schema when `sql.api` is set) and shared options come from
- * `blockConfig`, which `better-supabase gen` writes to
- * `blocks.generated.ts`; `blockConfigImport` is its import path.
+ * `defineBlocks` over the Data API as the caller. Each block's schema (the API
+ * schema when `sql.api` is set) and shared options come from `blockConfig`,
+ * which `better-supabase gen` writes to `blocks.generated.ts`;
+ * `blockConfigImport` is its import path.
  */
 export function presetBlocksSource(
   resolved: ResolvedPreset,
@@ -166,8 +166,8 @@ export function presetBlocksSource(
 const WIRING_TARGET = "@lib/blocks.ts";
 
 /**
- * The registry glue for the preset's framework and platforms: each item
- * whose blocks are all installed, except bundles and items that write
+ * The registry glue for the preset's framework and platforms: each item whose
+ * blocks are all installed, except bundles and items that write
  * `lib/blocks.ts`, which the preset writes itself.
  */
 export function presetGlue(

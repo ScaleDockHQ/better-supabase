@@ -17,7 +17,8 @@ function plugin(specifier: string): string {
 
 /**
  * Every config spreads these: a workspace's `ignorePatterns` replaces the
- * inherited list. `apps/docs/content/docs/build` is a docs section, not output.
+ * inherited list. `apps/docs/content/docs/build` is a docs section, not
+ * output.
  */
 export const ignorePatterns: string[] = [
   ...(core.ignorePatterns ?? []).filter((pattern) => pattern !== "**/build"),
@@ -33,8 +34,8 @@ export const ignorePatterns: string[] = [
 
 /**
  * Imports that the one-library-per-concern rule keeps out of the repo. A
- * `no-restricted-imports` override replaces the whole rule, so overrides
- * spread these in.
+ * `no-restricted-imports` override replaces the whole rule, so overrides spread
+ * these in.
  */
 export const restrictedImportPaths: { name: string; message: string }[] = [
   { name: "zod", message: "Use Valibot; any Standard Schema library works." },
@@ -109,7 +110,10 @@ export const library: OxlintConfig = defineConfig({
   ],
 });
 
-/** React components: Ultracite's react preset, react-doctor and the effect rules. */
+/**
+ * React components: Ultracite's react preset, react-doctor and the effect
+ * rules.
+ */
 export const react: OxlintConfig = defineConfig({
   extends: [ultraciteReact, reactDoctor],
   jsPlugins: [

@@ -21,8 +21,8 @@ import { schema } from "../../../fixtures/generated-camel.ts";
 
 /**
  * A synchronous hook runtime standing in for React's dispatcher: no DOM
- * renderer is installed, and effects are what these hooks are about.
- * Effects run after each render; state updates re-render.
+ * renderer is installed, and effects are what these hooks are about. Effects
+ * run after each render; state updates re-render.
  */
 const runtime = vi.hoisted(() => {
   interface Slot {
@@ -535,9 +535,7 @@ describe("useConversation", () => {
     renderHook(
       () => useConversation({ conversationId: null, load: async () => [] }),
       undefined,
-      {
-        client: waiting.browser,
-      },
+      { client: waiting.browser },
     ).unmount();
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
@@ -638,9 +636,7 @@ describe("useInboxWidget", () => {
     const view = renderHook(
       () => useInboxWidget({ ...options, storageKey: null }),
       undefined,
-      {
-        client: bare.browser,
-      },
+      { client: bare.browser },
     );
 
     await view.result.submit("hi");

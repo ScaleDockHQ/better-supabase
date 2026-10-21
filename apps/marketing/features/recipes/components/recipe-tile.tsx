@@ -5,7 +5,10 @@ import { type RecipeSummary, recipePath } from "@/lib/recipe-filter";
 
 import { RecipeCover } from "./recipe-cover";
 
-/** A recipe in the `/recipes` grid: its cover, then what it builds, with which hook and where. */
+/**
+ * A recipe in the `/recipes` grid: its cover, then what it builds, with which
+ * hook and where.
+ */
 export function RecipeTile({ recipe }: { recipe: RecipeSummary }) {
   return (
     <SiteLink

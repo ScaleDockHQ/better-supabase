@@ -46,9 +46,7 @@ function fileApi(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 
-  const client = {
-    storage: { from: () => api },
-  } as unknown as StorageClient;
+  const client = { storage: { from: () => api } } as unknown as StorageClient;
 
   return { api, client };
 }

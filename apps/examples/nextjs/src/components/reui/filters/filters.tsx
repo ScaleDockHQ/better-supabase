@@ -104,10 +104,7 @@ const filtersBarVariants = cva("flex flex-wrap items-center", {
     // call sites, which is what keeps the two ladders in step: a cva default
     // only applies to a value nobody passed, so a raw `"lg"` reaching here
     // would leave the bar with no gap at all.
-    size: {
-      sm: "gap-1.5",
-      default: "gap-2",
-    },
+    size: { sm: "gap-1.5", default: "gap-2" },
   },
   defaultVariants: { size: "default" },
 });
@@ -216,7 +213,8 @@ export interface FiltersProps<V = unknown, O = unknown> {
 
   /**
    * Offers "Convert to advanced filter" in every chip's kebab; its presence IS
-   * the switch, since `variant` belongs to the consumer. Not drawn in advanced.
+   * the switch, since `variant` belongs to the consumer. Not drawn in
+   * advanced.
    */
   onConvertToAdvanced?: () => void;
 
@@ -397,11 +395,10 @@ export function Filters<V = unknown, O = unknown>({
 
   /**
    * THE MUTATION BOUNDARY, asked here and not at the nine buttons, because the
-   * routes into a query are not only buttons. It needs BOTH the closure and
-   * the ref: `latest` is written in a passive effect and effects run
-   * child-first, so a consumer effect in the commit that turns `readOnly` on
-   * runs BEFORE the ref learns of it, while the ref is what a stale handler
-   * reads afterwards.
+   * routes into a query are not only buttons. It needs BOTH the closure and the
+   * ref: `latest` is written in a passive effect and effects run child-first,
+   * so a consumer effect in the commit that turns `readOnly` on runs BEFORE the
+   * ref learns of it, while the ref is what a stale handler reads afterwards.
    */
   const locked = React.useCallback(
     () => disabled || readOnly || isFilterLocked(latest.current),

@@ -29,7 +29,10 @@ export type ApiKeyAuth = Extract<AuthState, { readonly kind: "apiKey" }>;
 /** The keys `withApiKey` puts on `ctx`. */
 export interface ApiKeyContributions {
   readonly auth: ApiKeyAuth;
-  /** The key's claims (`sub`, `role: authenticated`, `api_key`), for `withPostgresClient`. */
+  /**
+   * The key's claims (`sub`, `role: authenticated`, `api_key`), for
+   * `withPostgresClient`.
+   */
   readonly jwtClaims: JWTClaims | null;
   readonly userClaims: UserClaims | null;
   readonly authMode: AuthMode;

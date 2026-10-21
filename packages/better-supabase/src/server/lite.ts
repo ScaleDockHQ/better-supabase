@@ -7,7 +7,10 @@ export type LiteDriver = "sqlite-postgres" | "sqlite" | "pglite" | "postgres";
 /** Lite's default driver, the one `lite init` scaffolds. */
 const DEFAULT_LITE_DRIVER: LiteDriver = "sqlite-postgres";
 
-/** Whether the driver stores data in SQLite, where Lite has no database functions. */
+/**
+ * Whether the driver stores data in SQLite, where Lite has no database
+ * functions.
+ */
 function isSqliteDriver(driver: LiteDriver): boolean {
   switch (driver) {
     case "sqlite-postgres":

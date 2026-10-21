@@ -330,11 +330,7 @@ describe("toUIMessages", () => {
           { type: "tool-result", toolCallId: "t", toolName: "get", output: 3 },
         ],
       },
-      {
-        id: "n",
-        role: "assistant",
-        parts: [{ type: "text", text: "done" }],
-      },
+      { id: "n", role: "assistant", parts: [{ type: "text", text: "done" }] },
     ];
 
     const out = toUIMessages(history);
@@ -486,12 +482,7 @@ describe("fromModelMessages", () => {
   it("converts an agent's turn into one canonical answer", () => {
     const message = fromModelMessages("m1", turn, {
       sources: [
-        {
-          sourceType: "url",
-          id: "s1",
-          url: "https://a.b",
-          title: "A",
-        },
+        { sourceType: "url", id: "s1", url: "https://a.b", title: "A" },
         {
           sourceType: "document",
           id: "s2",

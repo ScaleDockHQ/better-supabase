@@ -34,7 +34,10 @@ const live = await reachable();
 
 const ADDRESS = { country: "NL", city: "Amsterdam", line1: "Dam 1" };
 
-/** The commerce page's event mapping: the order's watchers hear it was paid and shipped. */
+/**
+ * The commerce page's event mapping: the order's watchers hear it was paid and
+ * shipped.
+ */
 const ORDER_EVENTS = {
   "order.paid": "order.paid",
   "fulfillment.shipped": "order.shipped",
@@ -212,10 +215,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       await s.as(shopper);
 
       const saved = await orders
-        .createCart(organizationId, {
-          currency: "EUR",
-          email: shopper.email,
-        })
+        .createCart(organizationId, { currency: "EUR", email: shopper.email })
         .orThrow();
 
       await orders.addToCart(saved.id, tee.id, 1).orThrow();

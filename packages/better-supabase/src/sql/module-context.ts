@@ -81,13 +81,15 @@ export function moduleContext(
   );
 }
 
-/** The modules that install their functions in `better_supabase` whatever `schema` says. */
+/**
+ * The modules that install their functions in `better_supabase` whatever
+ * `schema` says.
+ */
 
 /**
- * `blocks` with what the authorization provider already says: an
- * adopted `tenant` module on a membership table whose role the provider
- * reads through a roles table gets the same `roleThrough`, unless the config
- * sets one.
+ * `blocks` with what the authorization provider already says: an adopted
+ * `tenant` module on a membership table whose role the provider reads through a
+ * roles table gets the same `roleThrough`, unless the config sets one.
  */
 export function withProviderDefaults(
   layout: ModuleLayout,
@@ -176,7 +178,10 @@ function withProviderRoles(
   };
 }
 
-/** The tenant id type the authorization provider gives, preferring the access model's scope. */
+/**
+ * The tenant id type the authorization provider gives, preferring the access
+ * model's scope.
+ */
 export function providerIdType(layout: ModuleLayout): {
   providerIdType?: ModuleIdType;
 } {

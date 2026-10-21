@@ -63,8 +63,8 @@ export function encodeBoundCursor(
 }
 
 /**
- * The values of a `paginate()` cursor made for the sort `key`. `sort` means
- * the cursor is valid but continues another sort or table.
+ * The values of a `paginate()` cursor made for the sort `key`. `sort` means the
+ * cursor is valid but continues another sort or table.
  */
 export function decodeBoundCursor(
   cursor: string,

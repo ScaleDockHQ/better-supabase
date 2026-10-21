@@ -237,7 +237,10 @@ export interface AiToolApprovalRequest {
   readonly input?: unknown;
   readonly runId?: string;
   readonly messageId?: string;
-  /** A signature over the input, so the decision can't be replayed on other input. */
+  /**
+   * A signature over the input, so the decision can't be replayed on other
+   * input.
+   */
   readonly signature?: string;
 }
 
@@ -355,17 +358,19 @@ export interface AiChatOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the chat columns the app adds
-   * (`blocks.ai-chat.options.extraColumns`), keyed by column name. It
-   * types and parses them on the chat reads, and validates them on
-   * `chats.create` and `chats.update`, which return a `validation` error
-   * for a bad value.
+   * (`blocks.ai-chat.options.extraColumns`), keyed by column name. It types and
+   * parses them on the chat reads, and validates them on `chats.create` and
+   * `chats.update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<AiChat<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-  /** Calls as the user: `rpcTransport(supabase)` or `sqlTransport(postgres.asUser(claims))`. */
+  /**
+   * Calls as the user: `rpcTransport(supabase)` or
+   * `sqlTransport(postgres.asUser(claims))`.
+   */
   readonly transport: BlockTransport;
   /**
    * Calls as the service role, for what only the server writes (assistant
@@ -407,9 +412,9 @@ export interface AiChat<F extends object = Record<never, never>> {
   };
   readonly messages: {
     /**
-     * Stores the user's message under the chat's leaf. A retry with the same
-     * id is a no-op; the same id with other parts is an edit, stored as a
-     * sibling with a fresh id.
+     * Stores the user's message under the chat's leaf. A retry with the same id
+     * is a no-op; the same id with other parts is an edit, stored as a sibling
+     * with a fresh id.
      */
     appendUser(
       chatId: string,
@@ -438,8 +443,8 @@ export interface AiChat<F extends object = Record<never, never>> {
     switchBranch(chatId: string, messageId: string): AsyncResult<string>;
   };
   /**
-   * The sandboxes chats and harness sessions started, with one idle-stop
-   * claim for both (service role, except `list`).
+   * The sandboxes chats and harness sessions started, with one idle-stop claim
+   * for both (service role, except `list`).
    */
   readonly sandboxes: AiSandboxes;
   /** Runs: the stream claim, lookups, steps and the approval inbox. */
@@ -776,11 +781,7 @@ export function createAiChat<
       setCost: (generationId, costMicroUsd, usage) =>
         service(
           "set_ai_run_cost",
-          {
-            generation_id: generationId,
-            cost_micro_usd: costMicroUsd,
-            usage,
-          },
+          { generation_id: generationId, cost_micro_usd: costMicroUsd, usage },
           isTrue,
         ),
     },

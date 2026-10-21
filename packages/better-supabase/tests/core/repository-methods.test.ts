@@ -87,7 +87,10 @@ const col = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
 
-/** A `paginate()` cursor for `customers` sorted by `order` (`column.direction.nulls` terms). */
+/**
+ * A `paginate()` cursor for `customers` sorted by `order`
+ * (`column.direction.nulls` terms).
+ */
 const cursor = (values: readonly unknown[], order: string) =>
   encodeBoundCursor(values, sortKey(`customers|${order}`));
 
@@ -1303,10 +1306,7 @@ describe("cursor pagination", () => {
     ) as never as {
       ledger: {
         paginate(args: object): {
-          orThrow(): Promise<{
-            items: unknown[];
-            nextCursor: string | null;
-          }>;
+          orThrow(): Promise<{ items: unknown[]; nextCursor: string | null }>;
         };
       };
     };

@@ -33,7 +33,10 @@ export interface MutationNotice {
   readonly context: RequestContext;
 }
 
-/** A successful RPC registered with `betterSupabase.defineRpc(name, { invalidates })`. */
+/**
+ * A successful RPC registered with `betterSupabase.defineRpc(name, {
+ * invalidates })`.
+ */
 export interface RpcNotice {
   readonly name: string;
   /** App keys of the tables the function changes. */
@@ -47,8 +50,8 @@ export interface ErrorEvent {
 }
 
 /**
- * The `error` event for `error`: a frozen copy, so a handler can't change
- * the `DbError` the caller gets back (invariant 5).
+ * The `error` event for `error`: a frozen copy, so a handler can't change the
+ * `DbError` the caller gets back (invariant 5).
  */
 export function errorEvent(error: DbError, table?: string): ErrorEvent {
   // SAFETY: cloneValue keeps the shape of the plain DbError object.
@@ -62,8 +65,8 @@ export interface AuthEvent {
   readonly ok: boolean;
   readonly userId?: string;
   /**
-   * Why there is no user: the anon reason (`expired`, `signed_out`, ...) or
-   * the invalid reason (`token`, `claims`, `actor`).
+   * Why there is no user: the anon reason (`expired`, `signed_out`, ...) or the
+   * invalid reason (`token`, `claims`, `actor`).
    */
   readonly reason?:
     | "none"
@@ -83,8 +86,8 @@ export interface RefreshEvent {
   readonly durationMs: number;
   /**
    * Why a failed refresh failed: `network` (Auth unreachable, timed out, or
-   * answering 5xx or 429; the session is kept) or `rejected` (the refresh
-   * token is dead; the user is signed out).
+   * answering 5xx or 429; the session is kept) or `rejected` (the refresh token
+   * is dead; the user is signed out).
    */
   readonly reason?: "network" | "rejected";
   /** The Auth server's HTTP status, when it answered. */
@@ -94,10 +97,10 @@ export interface RefreshEvent {
 }
 
 /**
- * A refresh that failed because the Auth server was unreachable, timed out
- * or answered 5xx or 429. `kept`: the access token was still valid, so the
- * request runs as the user; otherwise it runs as `anon` with
- * `reason: "refresh_failed"` and the cookies stay untouched.
+ * A refresh that failed because the Auth server was unreachable, timed out or
+ * answered 5xx or 429. `kept`: the access token was still valid, so the request
+ * runs as the user; otherwise it runs as `anon` with `reason: "refresh_failed"`
+ * and the cookies stay untouched.
  */
 export interface AuthOutageEvent {
   readonly cause: "network" | "timeout" | "status";

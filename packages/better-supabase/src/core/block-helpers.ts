@@ -18,19 +18,25 @@ import { provideTemporal } from "./temporal.ts";
 /** The `temporal` option every block creator takes. */
 export interface BlockTemporalOptions {
   /**
-   * The Temporal namespace for runtimes without a global one, such as
-   * `import { Temporal } from "temporal-polyfill"`. Blocks use it instead of
-   * `globalThis.Temporal`, which stays untouched; like
-   * `defineSupabase(schema, { temporal })`, it applies to the whole process.
+   * The Temporal namespace for runtimes without a global one, such as `import {
+   * Temporal } from "temporal-polyfill"`. Blocks use it instead of
+   * `globalThis.Temporal`, which stays untouched; like `defineSupabase(schema,
+   * { temporal })`, it applies to the whole process.
    */
   readonly temporal?: typeof Temporal;
 }
 
 /** The options every block creator shares. */
 export interface BlockOptions extends BlockTemporalOptions {
-  /** `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API schema. */
+  /**
+   * `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API
+   * schema.
+   */
   readonly transport: BlockTransport;
-  /** The transport for service-only calls (jobs, purges). Defaults to `transport`. */
+  /**
+   * The transport for service-only calls (jobs, purges). Defaults to
+   * `transport`.
+   */
   readonly service?: BlockTransport;
   /** The module's schema, or its API schema. Default `better_supabase`. */
   readonly schema?: string;
@@ -74,7 +80,10 @@ export function toBlockError(
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }
 
-/** A `BlockCall` over `transport`, in `schema`, with the app's error mappers first. */
+/**
+ * A `BlockCall` over `transport`, in `schema`, with the app's error mappers
+ * first.
+ */
 export function blockCall(
   transport: BlockTransport,
   schema: string = DEFAULT_BLOCK_SCHEMA,
@@ -104,7 +113,10 @@ export interface Budget {
   remaining(): number;
 }
 
-/** A budget of `ms` milliseconds from now, or none for `undefined`. `now` is injectable for tests. */
+/**
+ * A budget of `ms` milliseconds from now, or none for `undefined`. `now` is
+ * injectable for tests.
+ */
 export function budget(
   ms: number | undefined,
   now: () => number = Date.now,
@@ -337,8 +349,8 @@ export function run<T>(fn: () => Promise<T>): AsyncResult<T> {
 
 /**
  * The request body as text, or `undefined` once it is longer than `limit`
- * bytes. A larger `Content-Length` is refused before reading; otherwise
- * reading stops at the limit, so a body without one can't fill memory.
+ * bytes. A larger `Content-Length` is refused before reading; otherwise reading
+ * stops at the limit, so a body without one can't fill memory.
  */
 export async function readBodyCapped(
   request: Request,
@@ -398,9 +410,8 @@ export function workerId(): string {
 }
 
 /**
- * Runs `fn` over `items` with at most `limit` calls in flight. After the
- * first rejection no new item starts; the ones running finish, then it
- * rethrows.
+ * Runs `fn` over `items` with at most `limit` calls in flight. After the first
+ * rejection no new item starts; the ones running finish, then it rethrows.
  */
 export async function eachLimit<T>(
   items: readonly T[],
@@ -450,7 +461,10 @@ export const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
     signal?.addEventListener("abort", done, { once: true });
   });
 
-/** pgmq and the inbox return `timestamptz` as text over RPC and as `Date` from `pg`. */
+/**
+ * Pgmq and the inbox return `timestamptz` as text over RPC and as `Date` from
+ * `pg`.
+ */
 export const toInstant = (value: Date | string): Temporal.Instant =>
   value instanceof Date
     ? temporal().Instant.fromEpochMilliseconds(value.getTime())
@@ -522,10 +536,9 @@ export function pageOf<Cursor>(
 
 /**
  * The per-event results of a batched block function (`audit_event_many`,
- * `publish_webhook_events`, `send_notifications`), in the order of the
- * events: `{ [key]: value }` becomes `ok(then(value))` and `{ error }` a
- * `DbError` through the app's mappers. An event the reply leaves out is
- * `unexpected`.
+ * `publish_webhook_events`, `send_notifications`), in the order of the events:
+ * `{ [key]: value }` becomes `ok(then(value))` and `{ error }` a `DbError`
+ * through the app's mappers. An event the reply leaves out is `unexpected`.
  */
 export function batchResultsOf<T>(
   value: unknown,

@@ -6,8 +6,8 @@ export function pointerToken(key: string): string {
 }
 
 /**
- * Deep merge: objects merge key by key, anything else (arrays included)
- * is replaced by the patch. `onConflict` hears each replaced leaf whose value
+ * Deep merge: objects merge key by key, anything else (arrays included) is
+ * replaced by the patch. `onConflict` hears each replaced leaf whose value
  * differs, with its JSON Pointer. Neither input is changed.
  */
 export function mergeJson<T>(

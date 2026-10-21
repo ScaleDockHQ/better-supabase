@@ -9,9 +9,9 @@ export interface BookingEventOptions {
 }
 
 /**
- * Bookings as event calendar events for a resource view (ReUI's Event
- * Calendar with `resources`, or a schedule): each booking sits on its
- * resource's row. Cancelled bookings are left out.
+ * Bookings as event calendar events for a resource view (ReUI's Event Calendar
+ * with `resources`, or a schedule): each booking sits on its resource's row.
+ * Cancelled bookings are left out.
  */
 export function toEventCalendarBookings(
   bookings: readonly Booking[],
@@ -39,7 +39,10 @@ export function toEventCalendarBookings(
   });
 }
 
-/** Slots grouped by their local date (`YYYY-MM-DD`), in start order, for a day-by-day picker. */
+/**
+ * Slots grouped by their local date (`YYYY-MM-DD`), in start order, for a
+ * day-by-day picker.
+ */
 export function slotsByDay(
   slots: readonly BookingSlot[],
 ): Map<string, BookingSlot[]> {

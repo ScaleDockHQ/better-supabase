@@ -170,12 +170,7 @@ describe("createNotifications().sink", () => {
 
     await sink.send([event("x", { partitionkey: "organization_1" })]);
     expect(calls[0]?.args).toMatchObject({
-      events: [
-        {
-          tenant: "organization_2",
-          key: "own-dev.better-supabase.x",
-        },
-      ],
+      events: [{ tenant: "organization_2", key: "own-dev.better-supabase.x" }],
     });
 
     const failing = createNotifications({
@@ -185,9 +180,7 @@ describe("createNotifications().sink", () => {
         },
       },
       types,
-    }).sink({
-      map: () => ({ type: "task.assigned", data: { title: "Hi" } }),
-    });
+    }).sink({ map: () => ({ type: "task.assigned", data: { title: "Hi" } }) });
 
     await expect(failing.send([event("x")])).rejects.toThrow("denied");
   });
@@ -608,9 +601,7 @@ describe("createNotifications reads and writes", () => {
       (
         items: readonly { actorId: string | null }[],
         _context: { readonly locale?: string },
-      ) => ({
-        names: new Map(items.map((item) => [item.actorId, "Ada"])),
-      }),
+      ) => ({ names: new Map(items.map((item) => [item.actorId, "Ada"])) }),
     );
 
     const notifications = createNotifications({

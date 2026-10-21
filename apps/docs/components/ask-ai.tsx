@@ -7,8 +7,8 @@ import { useState } from "react";
 const loadPanel = () => import("./chat-panel");
 
 /**
- * The chat client (`ai`, `@ai-sdk/react`) loads on first hover or click, so
- * it stays out of every docs page's bundle.
+ * The chat client (`ai`, `@ai-sdk/react`) loads on first hover or click, so it
+ * stays out of every docs page's bundle.
  */
 const ChatPanel = dynamic(loadPanel, { ssr: false });
 

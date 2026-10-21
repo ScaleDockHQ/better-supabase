@@ -54,7 +54,10 @@ export function record(
 export const live = (p: Parts, alias: string): string =>
   `(${alias}.${p.b("status")} = 'confirmed' or (${alias}.${p.b("status")} = 'hold' and ${alias}.${p.b("holdExpiresAt")} > now()))`;
 
-/** The calendar event that mirrors a confirmed booking, when the resource has a calendar. */
+/**
+ * The calendar event that mirrors a confirmed booking, when the resource has a
+ * calendar.
+ */
 export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
   const { ctx } = p;
 
@@ -136,7 +139,10 @@ export function reminderMirror(p: Parts, op: "confirm" | "cancel"): string {
   ${offsets}`;
 }
 
-/** Throttles a public call by share link and client address, when `rate-limit` is installed. */
+/**
+ * Throttles a public call by share link and client address, when `rate-limit`
+ * is installed.
+ */
 function rateLimit(p: Parts, link: string): string {
   if (!p.ctx.installed("rate-limit")) {
     return "";

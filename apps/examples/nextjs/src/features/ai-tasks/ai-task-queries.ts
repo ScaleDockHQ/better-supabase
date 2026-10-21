@@ -35,8 +35,8 @@ export type AiTasksRead =
   | { readonly ok: false; readonly error: DbError };
 
 /**
- * The caller's scheduled tasks in the active organization, or every task
- * with `ai.admin`, newest first. Not cached: runs change their status.
+ * The caller's scheduled tasks in the active organization, or every task with
+ * `ai.admin`, newest first. Not cached: runs change their status.
  */
 export async function getAiTasks(): Promise<AiTasksRead> {
   const [session, { supabase }] = await Promise.all([

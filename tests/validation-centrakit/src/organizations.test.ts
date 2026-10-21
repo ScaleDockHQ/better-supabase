@@ -107,9 +107,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       // The member's permissions come from the provider, never from the role name.
       expect(
         (await organizations.update(organization, { name: "Mine" })).error,
-      ).toMatchObject({
-        hint: "ORGANIZATION_FORBIDDEN",
-      });
+      ).toMatchObject({ hint: "ORGANIZATION_FORBIDDEN" });
       expect(
         await s.value(
           "better_supabase.can('organization', $1, 'notifications.send')",

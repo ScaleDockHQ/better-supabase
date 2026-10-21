@@ -25,7 +25,10 @@ import { unwrap } from "../inbox-load";
 
 const TYPING_EVERY_MS = 2000;
 
-/** The customer side of the Help inbox: the assistant answers until staff take over in /inbox. */
+/**
+ * The customer side of the Help inbox: the assistant answers until staff take
+ * over in /inbox.
+ */
 export function HelpSheet() {
   const t = useExtracted("inbox");
   const [open, setOpen] = useState(false);

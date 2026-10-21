@@ -19,7 +19,10 @@ export class AppError extends Error {
 
 export const toAppError = (error: DbError): AppError => new AppError(error);
 
-/** For `withBetterResult(db, appErrors)`: better-result values with an `AppError`. */
+/**
+ * For `withBetterResult(db, appErrors)`: better-result values with an
+ * `AppError`.
+ */
 export const appErrors: BetterResultMapping<AppError> = {
   Result,
   mapError: toAppError,

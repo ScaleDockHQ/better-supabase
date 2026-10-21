@@ -28,7 +28,10 @@ export interface SqlDeps {
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
-/** Runs one `sql` subcommand: `args._` is the subcommand name, then its arguments. */
+/**
+ * Runs one `sql` subcommand: `args._` is the subcommand name, then its
+ * arguments.
+ */
 export async function runSql(
   config: ResolvedConfig,
   args: SqlFlags,
@@ -114,22 +117,14 @@ export const sqlAddCommand: AnyCommand = defineCliCommand({
 
 export const sqlSyncCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("sql sync"),
-  args: {
-    ...TESTS_DIR,
-    check: SQL_ARGS.check,
-    "dry-run": SQL_ARGS["dry-run"],
-  },
+  args: { ...TESTS_DIR, check: SQL_ARGS.check, "dry-run": SQL_ARGS["dry-run"] },
   run: (args, { config, paint }) =>
     runSql(config, { ...args, _: ["sync"] }, paint),
 });
 
 export const sqlUpgradeCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("sql upgrade"),
-  args: {
-    ...TESTS_DIR,
-    check: SQL_ARGS.check,
-    "dry-run": SQL_ARGS["dry-run"],
-  },
+  args: { ...TESTS_DIR, check: SQL_ARGS.check, "dry-run": SQL_ARGS["dry-run"] },
   run: (args, { config, paint }) =>
     runSql(config, { ...args, _: ["upgrade"] }, paint),
 });

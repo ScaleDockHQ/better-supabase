@@ -18,7 +18,10 @@ import {
 
 export type { RouteGuardOptions } from "../../server/refusal.ts";
 
-/** The part of an H3 1 event (Nitro 2, Nuxt 3 and 4) the bridge reads and writes. */
+/**
+ * The part of an H3 1 event (Nitro 2, Nuxt 3 and 4) the bridge reads and
+ * writes.
+ */
 export interface H3V1Event<Context extends object = Record<string, unknown>> {
   readonly node: {
     readonly req: NodeRequestHead;
@@ -31,29 +34,32 @@ export interface H3V1Event<Context extends object = Record<string, unknown>> {
 }
 
 export interface ToH3V1Options<Context extends object> {
-  /** The host's env object for `getEnv`; defaults to `event.context.cloudflare.env`. */
+  /**
+   * The host's env object for `getEnv`; defaults to
+   * `event.context.cloudflare.env`.
+   */
   readonly env?: (event: H3V1Event<Context>) => unknown;
   /** Read the protocol and host from `x-forwarded-*`. Defaults to false. */
   readonly trustProxy?: boolean;
 }
 
 /**
- * An H3 1 handler, typed structurally so the package does not import `h3`.
- * It returns a `Response` to end the request or `undefined` to continue.
+ * An H3 1 handler, typed structurally so the package does not import `h3`. It
+ * returns a `Response` to end the request or `undefined` to continue.
  */
 export type H3V1Handler<Context extends object> = (
   event: H3V1Event<Context>,
 ) => Promise<Response | undefined>;
 
 /**
- * Runs an entry array as Nitro 2 server middleware. A short circuit (a 401,
- * a CORS preflight) ends the request; otherwise the entries' cookies and
- * headers go on the response and every contribution lands on
- * `event.context`. Response-phase entries (`withDbStats`) see an empty
- * response under H3 1.
+ * Runs an entry array as Nitro 2 server middleware. A short circuit (a 401, a
+ * CORS preflight) ends the request; otherwise the entries' cookies and headers
+ * go on the response and every contribution lands on `event.context`.
+ * Response-phase entries (`withDbStats`) see an empty response under H3 1.
  *
- * ```ts title="server/middleware/supabase.ts"
- * export default defineEventHandler(toH3V1([withBetterSupabase(server)]))
+ * ```ts
+ * // server/middleware/supabase.ts
+ * export default defineEventHandler(toH3V1([withBetterSupabase(server)]));
  * ```
  */
 export function toH3V1<const Entries extends readonly AnyEntry[]>(
@@ -84,14 +90,18 @@ export function toH3V1<const Entries extends readonly AnyEntry[]>(
 }
 
 /**
- * Refuses callers outside `options`: Problem Details, or a redirect to
- * `signIn` or `mfa`. Returns `undefined` for callers it lets through, so a
- * route handler can return its result.
+ * Refuses callers outside `options`: Problem Details, or a redirect to `signIn`
+ * or `mfa`. Returns `undefined` for callers it lets through, so a route handler
+ * can return its result.
  *
- * ```ts title="server/api/admin.get.ts"
- * const admins = guard({ roles: ['admin'] })
- * export default defineEventHandler(async (event) =>
- *   (await admins(event)) ?? event.context.db.members.findMany().orThrow())
+ * ```ts
+ * // server/api/admin.get.ts
+ * const admins = guard({ roles: ["admin"] });
+ * export default defineEventHandler(
+ *   async (event) =>
+ *     (await admins(event)) ??
+ *     event.context.db.members.findMany().orThrow(),
+ * );
  * ```
  */
 export function guard(
@@ -106,9 +116,9 @@ export function guard(
 }
 
 /**
- * Answers thrown `DbException`s (from `.orThrow()`) with Problem Details
- * and returns `undefined` for every other error, for a Nitro `error` hook
- * or a handler's `catch`.
+ * Answers thrown `DbException`s (from `.orThrow()`) with Problem Details and
+ * returns `undefined` for every other error, for a Nitro `error` hook or a
+ * handler's `catch`.
  */
 export function problemOnError(
   options: { readonly expose?: boolean } = {},

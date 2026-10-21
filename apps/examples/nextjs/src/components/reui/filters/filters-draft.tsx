@@ -29,11 +29,7 @@ export type FilterDraftAction<V = unknown> =
   /** Where the user is BROWSING, not the selected field's path. */
   | { type: "setCascaderPath"; path: string[] }
   | { type: "setQuery"; query: string }
-  | {
-      type: "selectField";
-      path: string[];
-      defaultOperator: string | null;
-    }
+  | { type: "selectField"; path: string[]; defaultOperator: string | null }
   | {
       type: "selectOperator";
       operator: string;
@@ -61,7 +57,7 @@ export function createFilterDraft<V = unknown>(
   };
 }
 
-/** null means Back closes the builder rather than stepping back. */
+/** Null means Back closes the builder rather than stepping back. */
 function previousStep(step: FilterDraftStep): FilterDraftStep | null {
   if (step === "value") return "operator";
   if (step === "operator") return "field";

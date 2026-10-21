@@ -14,9 +14,7 @@ export const oauthServerBlock: BlockOf<
 > = defineBlock({
   name: "oauth-server",
   sql: ["oauth-server"],
-  options: {
-    "oauth-server": oauthServerSqlOptions,
-  },
+  options: { "oauth-server": oauthServerSqlOptions },
   events: oauthServerEvents,
   create: createOAuthServer,
   category: "developer",

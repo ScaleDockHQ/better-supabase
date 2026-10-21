@@ -203,10 +203,9 @@ export function integrations(): unknown[] {
     }),
     defineConfig({ generators: [zod()] }),
     list,
-    logos.path({
-      organizationId: "o",
-      customerId: "c",
-    }) satisfies Result<StoragePath<"customer-logos">>,
+    logos.path({ organizationId: "o", customerId: "c" }) satisfies Result<
+      StoragePath<"customer-logos">
+    >,
     defineBuckets({ logos }).byId("customer-logos") satisfies Result<
       typeof logos
     >,
@@ -290,9 +289,9 @@ export function integrations(): unknown[] {
 }
 
 /**
- * A raw supabase-js select on the enriched Database keeps the embedded
- * shape from the Relationships and narrows a CHECK column to its union, so
- * an app can drop its casts when it adopts `better-supabase gen`.
+ * A raw supabase-js select on the enriched Database keeps the embedded shape
+ * from the Relationships and narrows a CHECK column to its union, so an app can
+ * drop its casts when it adopts `better-supabase gen`.
  */
 export async function rawSelect(): Promise<void> {
   const { data } = await typedClient

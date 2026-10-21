@@ -10,8 +10,8 @@ export interface ContextValue {
 }
 
 /**
- * The provider's client. It lives in its own module so the block hooks read
- * it without bundling the rest of the React bindings.
+ * The provider's client. It lives in its own module so the block hooks read it
+ * without bundling the rest of the React bindings.
  */
 export const ClientContext: Context<ContextValue | null> =
   createContext<ContextValue | null>(null);

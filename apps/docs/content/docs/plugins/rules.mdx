@@ -89,10 +89,7 @@ mistaken for an object.
 ## Reporting
 
 ```ts
-rules({
-  rules: recommended(),
-  report: (violation) => logger.warn(violation),
-});
+rules({ rules: recommended(), report: (violation) => logger.warn(violation) });
 ```
 
 A violation has `rule`, `level`, `table`, `operation` and `message`.

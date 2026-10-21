@@ -17,18 +17,12 @@ const OTHER = "00000000-0000-4000-8000-0000000000ff";
 
 const layout: ModuleLayout = {
   subjects: {
-    deal: {
-      table: "rank_it.deals",
-      rank: { column: "rank", group: "stage" },
-    },
+    deal: { table: "rank_it.deals", rank: { column: "rank", group: "stage" } },
     ticket: {
       table: "rank_it.tickets",
       rank: { column: "rank", group: "stage_id" },
     },
-    bug: {
-      table: "rank_it.bugs",
-      rank: { column: "rank", group: "lane" },
-    },
+    bug: { table: "rank_it.bugs", rank: { column: "rank", group: "lane" } },
   },
   modules: {
     "state-machine": {

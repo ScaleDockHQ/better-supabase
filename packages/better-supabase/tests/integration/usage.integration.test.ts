@@ -713,9 +713,7 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
       );
 
       expect(rejected).toHaveLength(1);
-      expect(rejected[0]).toMatchObject({
-        reason: { hint: "QUOTA_EXCEEDED" },
-      });
+      expect(rejected[0]).toMatchObject({ reason: { hint: "QUOTA_EXCEEDED" } });
 
       const { rows } = await pool.query<{ used: string }>(
         "select coalesce(sum(value), 0)::text as used from better_supabase.usage_counters where organization_id = $1 and meter = 'race'",

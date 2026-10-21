@@ -6,9 +6,9 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
- * The active organization's members. Pressing a role switches it between
- * member and admin at once; the organizations module refuses a role above
- * the caller's, and the row shows the old role again.
+ * The active organization's members. Pressing a role switches it between member
+ * and admin at once; the organizations module refuses a role above the
+ * caller's, and the row shows the old role again.
  */
 export function MembersTable() {
   const auth = useAuth();

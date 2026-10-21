@@ -15,13 +15,14 @@ const REQUEST: BlockTransportRequest = {
 };
 
 /**
- * Proves a `BlockTransportMiddleware` meets the contract: it declares API 1
- * and a name, calls `next` at most once per call, leaves the request it got
+ * Proves a `BlockTransportMiddleware` meets the contract: it declares API 1 and
+ * a name, calls `next` at most once per call, leaves the request it got
  * unchanged, resolves when `next` does, and rejects with the database error
  * `next` rejected with, so blocks still map it to a `DbError`.
  *
  * ```ts
- * it('conforms', () => testBlockTransportMiddleware(statementTimeout('5s')));
+ * it("conforms", () =>
+ *   testBlockTransportMiddleware(statementTimeout("5s")));
  * ```
  */
 export function testBlockTransportMiddleware(

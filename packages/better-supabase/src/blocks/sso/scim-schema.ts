@@ -1,4 +1,7 @@
-/** SCIM 2.0 schema URIs and the attributes this service provider supports (RFC 7643). */
+/**
+ * SCIM 2.0 schema URIs and the attributes this service provider supports (RFC
+ * 7643).
+ */
 
 export const SCIM_USER = "urn:ietf:params:scim:schemas:core:2.0:User";
 export const SCIM_GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group";

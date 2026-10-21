@@ -10,7 +10,7 @@ import { request } from "../core/http.ts";
 import { type TomlTable, tomlGet } from "../supabase-toml.ts";
 
 /**
- * splinter (https://github.com/supabase/splinter), the linter behind the
+ * Splinter (https://github.com/supabase/splinter), the linter behind the
  * dashboard's Security and Performance Advisors. It has no license, so it is
  * downloaded at this commit and checked against the hash instead of bundled.
  */
@@ -128,7 +128,10 @@ export function apiSchemas(document: TomlTable | undefined): string[] {
 
 const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
-/** The read-only transaction splinter runs in, with `pgrst.db_schemas` set first. */
+/**
+ * The read-only transaction splinter runs in, with `pgrst.db_schemas` set
+ * first.
+ */
 export function splinterScript(
   sql: string,
   schemas: readonly string[] = [],
@@ -194,8 +197,8 @@ function lintRows(result: unknown): readonly unknown[] {
 }
 
 /**
- * Runs splinter against a database (local stack, `$DATABASE_URL` or `--db-url-stdin`) in a
- * read-only transaction that is rolled back.
+ * Runs splinter against a database (local stack, `$DATABASE_URL` or
+ * `--db-url-stdin`) in a read-only transaction that is rolled back.
  */
 export function splinterAdvisors(
   queryable: Queryable,

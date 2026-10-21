@@ -22,7 +22,10 @@ const MISSING_FEATURES: readonly {
   },
 ];
 
-/** The `[db] driver` of a Supabase Lite project, or `undefined` for any other project. */
+/**
+ * The `[db] driver` of a Supabase Lite project, or `undefined` for any other
+ * project.
+ */
 function liteDriver(context: DoctorContext): LiteDriver | undefined {
   try {
     return liteDriverOf(context.configToml);

@@ -69,24 +69,24 @@ export interface RemindersOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * Runs after `deliver` records an occurrence for the first time. Defaults
-   * to sending `notification` through `notifier`.
+   * Runs after `deliver` records an occurrence for the first time. Defaults to
+   * sending `notification` through `notifier`.
    */
   readonly notifyDelivery?: (delivery: DeliveryPayload) => unknown;
   /** The `notifier` port: the `notifications` block, from `createBlocks`. */
   readonly notifier?: Notifier;
   /**
    * The notification type `notifier` sends for a delivered reminder, to the
-   * user who set it and the reminded subject's watchers. Its data is
-   * `{ reminderId, occurrenceAt }`.
+   * user who set it and the reminded subject's watchers. Its data is `{
+   * reminderId, occurrenceAt }`.
    */
   readonly notification?: string;
   /**
-   * Checks the reminder's user before `notifyDelivery` runs; a user it
-   * leaves out gets nothing, and a throw fails the delivery so the job
-   * retries. Defaults to `authorization.delivery.audience`; with
-   * `authorization` but no such policy, to `subjectReaders(transport)`, so
-   * a user who lost access to the subject stops getting its reminders.
+   * Checks the reminder's user before `notifyDelivery` runs; a user it leaves
+   * out gets nothing, and a throw fails the delivery so the job retries.
+   * Defaults to `authorization.delivery.audience`; with `authorization` but no
+   * such policy, to `subjectReaders(transport)`, so a user who lost access to
+   * the subject stops getting its reminders.
    */
   readonly audience?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.audience` policy. */
@@ -127,7 +127,10 @@ export interface Reminders<F extends object = Record<never, never>> {
     offsetMinutes?: number,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
   ): AsyncResult<SavedReminder<F>>;
-  /** The caller's reminders on a subject, the earliest before the occurrence first. */
+  /**
+   * The caller's reminders on a subject, the earliest before the occurrence
+   * first.
+   */
   list(
     organizationId: string,
     subjectType: string,
@@ -136,8 +139,8 @@ export interface Reminders<F extends object = Record<never, never>> {
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
-   * Service role. Records one delivery and the reminder.sent event.
-   * Resolves to `false` when the occurrence was already delivered.
+   * Service role. Records one delivery and the reminder.sent event. Resolves to
+   * `false` when the occurrence was already delivered.
    */
   markSent(reminderId: string, occurrenceAt: string): AsyncResult<boolean>;
   /**
@@ -187,7 +190,10 @@ export function createReminders<
           options.schema === undefined ? {} : { schema: options.schema },
         ));
 
-  /** Whether `audience` lets the reminder's user have it, or the policy's failure. */
+  /**
+   * Whether `audience` lets the reminder's user have it, or the policy's
+   * failure.
+   */
   const permitted = (delivery: DeliveryPayload): AsyncResult<boolean> =>
     AsyncResult.from(async () => {
       if (audience === undefined || delivery.userId === undefined) {

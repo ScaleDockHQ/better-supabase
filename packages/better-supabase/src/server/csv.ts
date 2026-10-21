@@ -3,7 +3,10 @@ import { type CsvOptions, toCsv } from "../core/csv.ts";
 export interface CsvResponseOptions extends CsvOptions {
   /** The download name, such as `invoices.csv`. */
   readonly filename: string;
-  /** Extra headers, such as `cache-control`. `content-type` and `content-disposition` win. */
+  /**
+   * Extra headers, such as `cache-control`. `content-type` and
+   * `content-disposition` win.
+   */
   readonly headers?: ConstructorParameters<typeof Headers>[0];
   readonly status?: number;
 }

@@ -6,8 +6,8 @@ import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { blocks } from "../lib/blocks";
 
 /**
- * The caller's latest notifications, loaded again after each broadcast on
- * their private topic `notifications:<user id>`: a new one, or one marked read.
+ * The caller's latest notifications, loaded again after each broadcast on their
+ * private topic `notifications:<user id>`: a new one, or one marked read.
  */
 export function NotificationList() {
   const auth = useAuth();

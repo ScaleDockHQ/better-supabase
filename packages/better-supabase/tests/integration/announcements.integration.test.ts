@@ -65,10 +65,7 @@ describe.skipIf(!live)("announcements", () => {
         })
         .orThrow();
       await announcements
-        .publish({
-          title: "Later",
-          startsAt: now.add({ hours: 1 }),
-        })
+        .publish({ title: "Later", startsAt: now.add({ hours: 1 }) })
         .orThrow();
 
       const ended = await announcements

@@ -181,7 +181,10 @@ const NAMES: ModuleNames = {
   hooks: ["audit_retention"],
 };
 
-/** How the caller acted: service, support, impersonation, oauth-client, user or system. */
+/**
+ * How the caller acted: service, support, impersonation, oauth-client, user or
+ * system.
+ */
 const ACTOR_KIND = `case
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
@@ -227,7 +230,10 @@ function contextPairs(
   ];
 }
 
-/** The restricted table is in use: an option when managed, a mapping when adopted. */
+/**
+ * The restricted table is in use: an option when managed, a mapping when
+ * adopted.
+ */
 function restrictedOn(ctx: ModuleContext): boolean {
   return ctx.manages
     ? ctx.flag("restricted", false)
@@ -405,7 +411,10 @@ exception when others then
 end;
 $$;`;
 
-/** SQL that writes the restricted details of `entry_id`, when the table is in use. */
+/**
+ * SQL that writes the restricted details of `entry_id`, when the table is in
+ * use.
+ */
 function restrictedInsert(
   ctx: ModuleContext,
   restricted: boolean,

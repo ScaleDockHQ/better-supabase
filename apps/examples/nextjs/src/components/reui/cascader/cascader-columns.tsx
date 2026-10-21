@@ -206,10 +206,7 @@ function CascaderColumnPanel({
             className={open ? "bg-accent/60 text-accent-foreground" : undefined}
             /* Set metadata is option-only; a trail row is a `role="button"`. */
             {...(column.active
-              ? {
-                  "aria-setsize": column.items.length,
-                  "aria-posinset": i + 1,
-                }
+              ? { "aria-setsize": column.items.length, "aria-posinset": i + 1 }
               : null)}
             {...(!column.active && open
               ? {

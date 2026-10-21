@@ -34,9 +34,7 @@ export function ForgotPasswordForm() {
     async (_previous: State, form: FormData): Promise<State> => {
       const { error } = await supabase.auth.resetPasswordForEmail(
         String(form.get("email")),
-        {
-          redirectTo: `${window.location.origin}/${locale}/reset-password`,
-        },
+        { redirectTo: `${window.location.origin}/${locale}/reset-password` },
       );
 
       return error ? { error: error.message } : { sent: true };

@@ -44,9 +44,9 @@ export function storefrontOption(ctx: ModuleContext): boolean {
 }
 
 /**
- * Whether a `state-machine` machine drives the products table's status
- * column: `set_product_status` then writes the status and leaves the
- * transition rules, history and `status.changed` to the machine's trigger.
+ * Whether a `state-machine` machine drives the products table's status column:
+ * `set_product_status` then writes the status and leaves the transition rules,
+ * history and `status.changed` to the machine's trigger.
  */
 function machineGoverns(ctx: ModuleContext): boolean {
   if (!ctx.installed("state-machine")) {

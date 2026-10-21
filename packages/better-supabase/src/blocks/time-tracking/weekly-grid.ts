@@ -11,7 +11,11 @@ export type WeeklyGridEntry = Pick<
 export interface WeeklyGridOptions<E extends WeeklyGridEntry> {
   /** Any day of the week; the grid starts on its Monday. */
   readonly week: Temporal.PlainDate;
-  /** The IANA zone days start in: `blockConfig["time-tracking"].options.timeZone` from `blocks.generated.ts`. */
+  /**
+   * The IANA zone days start in:
+   * `blockConfig["time-tracking"].options.timeZone` from
+   * `blocks.generated.ts`.
+   */
   readonly timeZone: string;
   /** Where a running entry ends. Default: now. */
   readonly now?: Temporal.Instant;
@@ -60,8 +64,8 @@ interface MutableRow {
 
 /**
  * Time entries as a weekly grid: one row per record (or `rowKey`) with the
- * seconds of each day, the shape of a weekly timesheet Data Grid. An entry
- * that crosses midnight counts on each day it covers.
+ * seconds of each day, the shape of a weekly timesheet Data Grid. An entry that
+ * crosses midnight counts on each day it covers.
  */
 export function toWeeklyGrid<E extends WeeklyGridEntry>(
   entries: readonly E[],

@@ -9,8 +9,8 @@ export interface TenantQuery {
 
 /**
  * The organizations `seed --tenant` fills: the one whose slug or id is
- * `tenant`, or every live one for `*`. Each row has `id`, `slug` and `name`
- * as text. Undefined when the organizations module isn't installed.
+ * `tenant`, or every live one for `*`. Each row has `id`, `slug` and `name` as
+ * text. Undefined when the organizations module isn't installed.
  */
 export function tenantsQuery(
   layout: ModuleLayout,

@@ -87,9 +87,9 @@ export interface TaskImportOutcome {
 }
 
 /**
- * Validates the file and counts the tasks it creates, changes and leaves.
- * A task with the same title in the project is the same task (the
- * `(project_id, title)` unique set). Nothing is written.
+ * Validates the file and counts the tasks it creates, changes and leaves. A
+ * task with the same title in the project is the same task (the `(project_id,
+ * title)` unique set). Nothing is written.
  */
 export const previewTaskImport = bs.action(
   {
@@ -116,8 +116,8 @@ export const previewTaskImport = bs.action(
 );
 
 /**
- * Upserts the file's tasks into the project. An existing task keeps the
- * fields it already has and gains the ones that were empty (`fill`).
+ * Upserts the file's tasks into the project. An existing task keeps the fields
+ * it already has and gains the ones that were empty (`fill`).
  */
 export const runTaskImport = bs.action(
   {

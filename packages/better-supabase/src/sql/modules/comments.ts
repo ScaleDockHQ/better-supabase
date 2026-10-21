@@ -213,8 +213,8 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
 
 /**
  * With notifications (and its subscriptions table) and `options.follow`
- * (default true): the comments_after_write statement that makes the author
- * of a new comment and its newly mentioned members follow the subject.
+ * (default true): the comments_after_write statement that makes the author of a
+ * new comment and its newly mentioned members follow the subject.
  */
 function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
   if (!ctx.installed("notifications") || !ctx.flag("follow", true)) {

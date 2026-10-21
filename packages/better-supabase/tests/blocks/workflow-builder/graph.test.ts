@@ -342,10 +342,7 @@ describe("graph parsing and diffs", () => {
     expect(edgeOf(1)).toBeUndefined();
     expect(
       graphOf({ nodes: [{ id: "a", kind: "trigger" }, 1], edges: "x" }),
-    ).toEqual({
-      nodes: [{ id: "a", kind: "trigger" }],
-      edges: [],
-    });
+    ).toEqual({ nodes: [{ id: "a", kind: "trigger" }], edges: [] });
     expect(graphOf(undefined)).toEqual({ nodes: [], edges: [] });
   });
 
@@ -485,10 +482,7 @@ describe("executeGraph", () => {
     const results = await executeGraph(
       GRAPH,
       {},
-      {
-        ...runtime,
-        stubs: { lookup: { plan: "pro" } },
-      },
+      { ...runtime, stubs: { lookup: { plan: "pro" } } },
     );
 
     expect(runtime.log).toEqual([]);

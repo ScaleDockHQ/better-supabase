@@ -1,6 +1,9 @@
 import type { Args, Row } from "./runner.ts";
 
-/** The page size and row offset of a list call, or the reason its arguments are invalid. */
+/**
+ * The page size and row offset of a list call, or the reason its arguments are
+ * invalid.
+ */
 export function pageWindow(
   args: Args,
 ): { size: number; offset: number } | { invalid: string } {
@@ -39,7 +42,10 @@ export function pageWindow(
   return { size, offset: (number - 1) * size };
 }
 
-/** The `{ items, page }` answer of an offset page from the rows read with one extra row. */
+/**
+ * The `{ items, page }` answer of an offset page from the rows read with one
+ * extra row.
+ */
 export function offsetEnvelope(
   rows: readonly Row[],
   total: number | null,

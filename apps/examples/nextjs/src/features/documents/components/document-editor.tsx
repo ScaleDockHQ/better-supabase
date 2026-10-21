@@ -87,9 +87,9 @@ interface DocumentTarget {
 }
 
 /**
- * The customer's notes as a Yjs document: a title and a body. Edits are
- * stored as updates through the documents block and reach the other
- * editors over the document's realtime topic.
+ * The customer's notes as a Yjs document: a title and a body. Edits are stored
+ * as updates through the documents block and reach the other editors over the
+ * document's realtime topic.
  */
 export function DocumentEditor(target: DocumentTarget) {
   const [attempt, setAttempt] = useState(0);

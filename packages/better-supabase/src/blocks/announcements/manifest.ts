@@ -14,9 +14,7 @@ export const announcementsBlock: BlockOf<
 > = defineBlock({
   name: "announcements",
   sql: ["announcements"],
-  options: {
-    announcements: announcementsSqlOptions,
-  },
+  options: { announcements: announcementsSqlOptions },
   events: announcementsEvents,
   create: createAnnouncements,
   client: "announcements",

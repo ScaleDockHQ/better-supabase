@@ -1,9 +1,7 @@
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 
 /** A bag of words hashed into 1536 dimensions, so equal words land close. */
-export function wordEmbedder(model = "words-v1"): Embedder & {
-  calls: number;
-} {
+export function wordEmbedder(model = "words-v1"): Embedder & { calls: number } {
   const embedder = {
     model,
     calls: 0,

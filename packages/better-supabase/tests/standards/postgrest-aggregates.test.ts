@@ -47,12 +47,14 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
       body: [{ status: "active", _count: 2 }],
     }));
 
-    await betterSupabase.connect(client).customers.aggregate({
-      groupBy: ["status"],
-      _count: true,
-      _min: { createdAt: true },
-      _max: { createdAt: true },
-    });
+    await betterSupabase
+      .connect(client)
+      .customers.aggregate({
+        groupBy: ["status"],
+        _count: true,
+        _min: { createdAt: true },
+        _max: { createdAt: true },
+      });
     const select = last().params.get("select")!;
 
     for (const item of items(select)) {
@@ -66,13 +68,15 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
 
   it("compiles _sum/_avg/_min/_max includes to embedded aggregates", async () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
-    await betterSupabase.connect(client).customers.findMany({
-      select: ["id"],
-      include: {
-        _sum: { notes: { id: true } },
-        _max: { notes: { createdAt: true } },
-      },
-    });
+    await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id"],
+        include: {
+          _sum: { notes: { id: true } },
+          _max: { notes: { createdAt: true } },
+        },
+      });
     const select = last().params.get("select")!;
     const embedded = items(select).filter((item) => item.includes("("));
     expect(embedded.length).toBe(2);
@@ -89,9 +93,11 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
   it("rejects _sum on a non-numeric column before sending a request", async () => {
     const { client, requests } = capturingClient();
 
-    const result = await betterSupabase.connect(client).customers.findMany({
-      include: { _sum: { notes: { body: true } } } as never,
-    });
+    const result = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        include: { _sum: { notes: { body: true } } } as never,
+      });
 
     expect(result.ok).toBe(false);
     expect(requests).toHaveLength(0);

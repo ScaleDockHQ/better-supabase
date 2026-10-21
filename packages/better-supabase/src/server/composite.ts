@@ -52,7 +52,10 @@ export interface BetterSupabaseContributions<
   P = unknown,
   B = unknown,
 > {
-  /** The full request context: `auth`, `supabase`, `stats()`, `apply()` and the rest. */
+  /**
+   * The full request context: `auth`, `supabase`, `stats()`, `apply()` and the
+   * rest.
+   */
   bs: ServerContext<M, F, E, C, P, B>;
   /** The verified token's payload, or `null`; the key `withSupabase` uses. */
   jwtClaims: (JWTClaims & C) | null;
@@ -60,14 +63,20 @@ export interface BetterSupabaseContributions<
   authMode: AuthMode;
   /** Repositories over PostgREST as the caller. */
   db: Db<M, F, E, SupabaseClient, B>;
-  /** Repositories over direct Postgres as the caller, when Postgres is configured or upstream. */
+  /**
+   * Repositories over direct Postgres as the caller, when Postgres is
+   * configured or upstream.
+   */
   sql: Db<M, F, E, undefined, B> | undefined;
   tenant: string | undefined;
   support: ActiveSupport | undefined;
   replica: ReplicaState | undefined;
 }
 
-/** The entry `withBetterSupabase` returns, for `pipeline` and the framework bridges. */
+/**
+ * The entry `withBetterSupabase` returns, for `pipeline` and the framework
+ * bridges.
+ */
 export type BetterSupabaseEntry<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -207,20 +216,23 @@ function isDefinition<
  * The whole better-supabase server as one `@supabase/middleware` entry: it
  * verifies the caller (bearer token or session cookie), refuses callers the
  * guard rejects with Problem Details, and contributes `ctx.db`, `ctx.sql`,
- * `ctx.bs` and the `withSupabase` keys (`jwtClaims`, `userClaims`,
- * `authMode`), so `withPostgresClient` and `withOpenFeature` compose after
- * it. Refreshed cookies and `bs-primary-until` go out on the response.
+ * `ctx.bs` and the `withSupabase` keys (`jwtClaims`, `userClaims`, `authMode`),
+ * so `withPostgresClient` and `withOpenFeature` compose after it. Refreshed
+ * cookies and `bs-primary-until` go out on the response.
  *
  * ```ts
  * export default {
- *   fetch: pipeline([withBetterSupabase(betterSupabase)], async (req, ctx) =>
- *     Response.json(await ctx.db.notes.findMany().orThrow())),
- * }
+ *   fetch: pipeline(
+ *     [withBetterSupabase(betterSupabase)],
+ *     async (req, ctx) =>
+ *       Response.json(await ctx.db.notes.findMany().orThrow()),
+ *   ),
+ * };
  * ```
  *
- * Pass a server from `createServer` to share its clients and JWKS cache
- * with the rest of the app; pass the definition to build one with
- * `config`'s server options.
+ * Pass a server from `createServer` to share its clients and JWKS cache with
+ * the rest of the app; pass the definition to build one with `config`'s server
+ * options.
  */
 export function withBetterSupabase<
   M extends AnyModels,

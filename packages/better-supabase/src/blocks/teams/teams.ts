@@ -26,8 +26,8 @@ export interface TeamsOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the team's extra columns
-   * (`blocks.teams.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `create` and `update`.
+   * (`blocks.teams.options.extraColumns`), keyed by database name. It types and
+   * parses them on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -90,35 +90,39 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Teams<F> = {
     create: (organizationId, name, description, extra) =>
-      fields.args(extra).andThen((checked) =>
-        call(
-          "create_team",
-          {
-            tenant: organizationId,
-            name,
-            description: description ?? null,
-            fields: checked,
-          },
-          (value) => ({ ...teamOf(value), name }),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "create_team",
+            {
+              tenant: organizationId,
+              name,
+              description: description ?? null,
+              fields: checked,
+            },
+            (value) => ({ ...teamOf(value), name }),
+          ).andThen(fields.row),
+        ),
     update: (id, name, description, extra) =>
-      fields.args(extra).andThen((checked) =>
-        call(
-          "update_team",
-          {
-            team: id,
-            name,
-            description: description ?? null,
-            fields: checked,
-          },
-          (value) => ({
-            ...teamOf(value),
-            name,
-            slug: optionalText(recordOf(value, "team")["slug"]) ?? "",
-          }),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "update_team",
+            {
+              team: id,
+              name,
+              description: description ?? null,
+              fields: checked,
+            },
+            (value) => ({
+              ...teamOf(value),
+              name,
+              slug: optionalText(recordOf(value, "team")["slug"]) ?? "",
+            }),
+          ).andThen(fields.row),
+        ),
     archive: (id) =>
       call("archive_team", { team: id }, (value) => value === true),
     delete: (id) =>

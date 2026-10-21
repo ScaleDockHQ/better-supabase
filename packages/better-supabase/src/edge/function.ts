@@ -19,7 +19,10 @@ import { settle } from "../server/respond.ts";
 
 export type { FunctionContract };
 
-/** A fetch handler that carries its contract in its type and its schemas at runtime. */
+/**
+ * A fetch handler that carries its contract in its type and its schemas at
+ * runtime.
+ */
 export type TypedFunction<In, Out> = EdgeHandler &
   DescribedFunction & {
     /** Type-only: never set at runtime. */
@@ -59,7 +62,10 @@ export interface FunctionDefinition<
    * answers 500, so a function never sends data its contract doesn't promise.
    */
   readonly output?: StandardSchemaV1<unknown, Out>;
-  /** A one-line summary for the operation `functionRoute` describes in `better-supabase/spec`. */
+  /**
+   * A one-line summary for the operation `functionRoute` describes in
+   * `better-supabase/spec`.
+   */
   readonly summary?: string;
   /** Runs as the caller with the parsed input. Returns data or a `Result`. */
   readonly handler: (

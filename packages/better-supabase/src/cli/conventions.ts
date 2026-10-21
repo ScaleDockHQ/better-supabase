@@ -129,8 +129,8 @@ export const hasConventionFlags = (
 ): boolean => Object.keys(flags).length > 0;
 
 /**
- * `preset` with the flags' conventions. A preset code stores the tenant
- * names /create offers, so another `--tenant-name` throws.
+ * `preset` with the flags' conventions. A preset code stores the tenant names
+ * /create offers, so another `--tenant-name` throws.
  */
 export function withConventions(
   preset: Preset,
@@ -167,8 +167,8 @@ export const defaultConventions = (
 ): ConfigConventions => ({ ...DEFAULT_CONVENTIONS, ...flags });
 
 /**
- * Asks for each convention in /create's order, with its labels and hints.
- * The tenant name is asked only for tenant scope. Undefined when the person
+ * Asks for each convention in /create's order, with its labels and hints. The
+ * tenant name is asked only for tenant scope. Undefined when the person
  * cancels.
  */
 export async function promptConventions(

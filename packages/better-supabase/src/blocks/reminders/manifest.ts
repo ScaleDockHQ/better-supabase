@@ -15,9 +15,7 @@ export const remindersBlock: BlockOf<
 > = defineBlock({
   name: "reminders",
   sql: ["reminders"],
-  options: {
-    reminders: remindersSqlOptions,
-  },
+  options: { reminders: remindersSqlOptions },
   events: remindersEvents,
   consumes: { notifier: "optional" },
   create: createReminders,

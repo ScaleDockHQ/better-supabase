@@ -20,8 +20,8 @@ import { ClientContext, useBroadcastAuth } from "./hooks.ts";
 
 export interface PresenceHookOptions<I> {
   /**
-   * The state this client shares while mounted. It is tracked after the
-   * join and tracked again when its JSON changes; `null` stays untracked.
+   * The state this client shares while mounted. It is tracked after the join
+   * and tracked again when its JSON changes; `null` stays untracked.
    */
   readonly state?: I | null;
   /** A supabase-js client for apps without `<BetterSupabaseProvider>`. */
@@ -61,11 +61,15 @@ const notJoined = (): Promise<DbError> =>
   );
 
 /**
- * Joins a presence topic while mounted and returns who is on it. Pass
- * `null` values to pause. It rejoins when the topic or the user changes.
+ * Joins a presence topic while mounted and returns who is on it. Pass `null`
+ * values to pause. It rejoins when the topic or the user changes.
  *
  * ```tsx
- * const { members } = usePresence(roomTopic, { roomId }, { state: { name } });
+ * const { members } = usePresence(
+ *   roomTopic,
+ *   { roomId },
+ *   { state: { name } },
+ * );
  * ```
  */
 export function usePresence<P extends string, I, O>(

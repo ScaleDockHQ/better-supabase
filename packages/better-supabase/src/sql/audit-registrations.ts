@@ -35,7 +35,10 @@ export function withoutComments(text: string): string {
   return out;
 }
 
-/** The index after the quote that closes the one at `start`; doubled quotes escape. */
+/**
+ * The index after the quote that closes the one at `start`; doubled quotes
+ * escape.
+ */
 function closing(text: string, start: number, quote: string): number {
   let index = start + 1;
 
@@ -54,7 +57,10 @@ function closing(text: string, start: number, quote: string): number {
   return text.length;
 }
 
-/** The arguments between the parenthesis at `open` and its match, split on top-level commas. */
+/**
+ * The arguments between the parenthesis at `open` and its match, split on
+ * top-level commas.
+ */
 function callArgs(text: string, open: number): string[] | undefined {
   const args: string[] = [];
   let depth = 0;
@@ -92,7 +98,10 @@ function callArgs(text: string, open: number): string[] | undefined {
 
 const NAMED = /^([a-z_]+)\s*(?:=>|:=)\s*([\s\S]+)$/i;
 
-/** The value of a string literal, with any `::type` cast; undefined for other expressions. */
+/**
+ * The value of a string literal, with any `::type` cast; undefined for other
+ * expressions.
+ */
 function literal(expression: string): string | undefined {
   const match = /^[eE]?'((?:[^']|'')*)'(?:\s*::\s*[\w.[\]\s]+)?$/.exec(
     expression.trim(),
@@ -101,7 +110,10 @@ function literal(expression: string): string | undefined {
   return match ? match[1]!.replaceAll("''", "'") : undefined;
 }
 
-/** A `'{a,b}'` literal or `array['a', 'b']`, as names; undefined when it is neither. */
+/**
+ * A `'{a,b}'` literal or `array['a', 'b']`, as names; undefined when it is
+ * neither.
+ */
 function nameList(expression: string): string[] | undefined {
   const text = literal(expression);
 
@@ -132,7 +144,10 @@ function nameList(expression: string): string[] | undefined {
   return names.every((name) => name !== undefined) ? names : undefined;
 }
 
-/** `schema.table`, unquoted, from a regclass literal such as `'public."Customers"'`. */
+/**
+ * `schema.table`, unquoted, from a regclass literal such as
+ * `'public."Customers"'`.
+ */
 function qualifiedName(target: string): string {
   const parts = target.match(/"(?:[^"]|"")*"|[^.]+/g) ?? [];
 
@@ -147,7 +162,10 @@ function qualifiedName(target: string): string {
 
 const POSITIONS = ["target", "ignore", "replace_trigger", "redact"] as const;
 
-/** One `audit(...)` or `unaudit(...)` call's target and lists, or undefined when they are not literals. */
+/**
+ * One `audit(...)` or `unaudit(...)` call's target and lists, or undefined when
+ * they are not literals.
+ */
 function registration(args: readonly string[]): AuditedTable | undefined {
   const named = new Map<string, string>();
   args.forEach((arg, index) => {
@@ -235,9 +253,8 @@ function triggerRegistration(
  * The tables `files` register with `better_supabase.audit(...)` or a static
  * `create trigger bs_audit ... execute function
  * better_supabase.audit_row_change('{...}')`, in file order: a later
- * registration for the same table replaces the earlier one, and
- * `unaudit(...)` or a `drop table` removes it. Calls with non-literal
- * arguments are skipped.
+ * registration for the same table replaces the earlier one, and `unaudit(...)`
+ * or a `drop table` removes it. Calls with non-literal arguments are skipped.
  */
 export function auditRegistrations(
   files: readonly { readonly text: string }[],

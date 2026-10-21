@@ -469,9 +469,7 @@ export function CsvImportWizard() {
                     <Badge variant="success-light">
                       {t(
                         "{count, plural, =1 {# valid row} other {# valid rows}}",
-                        {
-                          count: preview.valid,
-                        },
+                        { count: preview.valid },
                       )}
                     </Badge>
                     {preview.errors.length > 0 ? (

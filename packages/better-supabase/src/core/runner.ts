@@ -306,8 +306,8 @@ export class OperationRunner {
 
   /**
    * Runs `op` without plugins or decoding, with the connection's timeout and
-   * retry, and fails on `table`: for reads the library makes itself, such
-   * as the scores of `db.$search({ score: true })`.
+   * retry, and fails on `table`: for reads the library makes itself, such as
+   * the scores of `db.$search({ score: true })`.
    */
   async runInternal(
     op: Operation,

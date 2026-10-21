@@ -52,7 +52,10 @@ export interface WaitlistEntry<F extends object = Record<never, never>> {
  * sees the real status, with rejected entries read as `waiting`.
  */
 export interface WaitlistPlace {
-  /** Their place among the waiting entries; `undefined` for the service role once the entry left the line. */
+  /**
+   * Their place among the waiting entries; `undefined` for the service role
+   * once the entry left the line.
+   */
   readonly position: number | undefined;
   readonly status: Exclude<WaitlistStatus, "rejected">;
 }
@@ -77,7 +80,10 @@ export interface CreateInviteCodeInput {
   readonly expiresAt?: Temporal.Instant;
   /** Adds whoever redeems the code to this organization. */
   readonly organizationId?: string;
-  /** The role in `organizationId`; `blocks.waitlist.options.defaultRole` otherwise. */
+  /**
+   * The role in `organizationId`; `blocks.waitlist.options.defaultRole`
+   * otherwise.
+   */
   readonly role?: string;
   /** Your own code, such as `LAUNCH2026`; a random one otherwise. */
   readonly code?: string;
@@ -94,9 +100,9 @@ export interface WaitlistOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the entry's extra columns
-   * (`blocks.waitlist.options.extraColumns`), keyed by database name, such
-   * as a company or a use case from the sign-up form. It types and parses
-   * them on `entries`, `approve` and `reject`, and validates them on `join`.
+   * (`blocks.waitlist.options.extraColumns`), keyed by database name, such as a
+   * company or a use case from the sign-up form. It types and parses them on
+   * `entries`, `approve` and `reject`, and validates them on `join`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -108,8 +114,8 @@ export interface WaitlistOptions<
 export interface Waitlist<F extends object = Record<never, never>> {
   /**
    * Adds an address, or returns its place when it is already there. Works
-   * signed out; see `WaitlistPlace`. `fields` is written only when the
-   * address is new.
+   * signed out; see `WaitlistPlace`. `fields` is written only when the address
+   * is new.
    */
   join(
     email: string,
@@ -300,7 +306,11 @@ export interface WaitlistHookOptions {
   readonly transport: BlockTransport;
   /** The hook secret, `v1,whsec_...`, or several while rotating. */
   readonly secret: string | readonly string[];
-  /** The user metadata field the client puts the code in: `blockConfig.waitlist.options.codeField` from `blocks.generated.ts`, default `invite_code`. */
+  /**
+   * The user metadata field the client puts the code in:
+   * `blockConfig.waitlist.options.codeField` from `blocks.generated.ts`,
+   * default `invite_code`.
+   */
   readonly codeField?: string;
   /** What Supabase Auth tells a rejected sign-up. */
   readonly message?: string;
@@ -313,7 +323,10 @@ export interface WaitlistHookOptions {
  * approved on the waitlist or the sign-up carries a valid invite code.
  *
  * ```ts
- * export const POST = waitlistHook({ transport, secret: env.BEFORE_USER_CREATED_SECRET });
+ * export const POST = waitlistHook({
+ *   transport,
+ *   secret: env.BEFORE_USER_CREATED_SECRET,
+ * });
  * ```
  */
 export function waitlistHook(

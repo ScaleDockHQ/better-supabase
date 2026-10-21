@@ -199,7 +199,10 @@ export interface Extra {
   readonly subjects?: SubjectsConfig;
 }
 
-/** Runs `body` against CentraKit's tables with the block installed, then rolls back. */
+/**
+ * Runs `body` against CentraKit's tables with the block installed, then rolls
+ * back.
+ */
 export async function withCentraKit(
   pool: Pool,
   body: (session: Session) => Promise<void>,

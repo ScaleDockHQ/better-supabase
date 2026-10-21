@@ -98,7 +98,7 @@ const SESSION: InjectionKey<MaybeRefOrGetter<AuthSession>> = Symbol(
 );
 
 export interface BetterSupabaseVueOptions {
-  /** better-supabase queries are reset when the user signs out or changes. */
+  /** Better-supabase queries are reset when the user signs out or changes. */
   readonly queryClient?: QueryClient;
 }
 
@@ -111,7 +111,9 @@ export interface BetterSupabasePlugin {
  * `queryClient`, resets better-supabase queries when the caller changes.
  *
  * ```ts
- * app.use(VueQueryPlugin, { queryClient }).use(betterSupabase(bs, { queryClient }));
+ * app
+ *   .use(VueQueryPlugin, { queryClient })
+ *   .use(betterSupabase(bs, { queryClient }));
  * ```
  */
 export function betterSupabase(
@@ -146,7 +148,10 @@ export function betterSupabase(
   };
 }
 
-/** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */
+/**
+ * The session state for UI: `loading`, `signed-out` or `signed-in` with the
+ * user and claims.
+ */
 export function useAuth(): Readonly<Ref<AuthSnapshot>> {
   return useContext().auth;
 }
@@ -156,8 +161,8 @@ export function useSupabase(): SupabaseClient {
 }
 
 /**
- * Shares a server-verified session (from `useAsyncData`, a loader or a
- * prop) with the components below.
+ * Shares a server-verified session (from `useAsyncData`, a loader or a prop)
+ * with the components below.
  */
 export function provideSession(session: MaybeRefOrGetter<AuthSession>): void {
   provide(SESSION, session);
@@ -190,7 +195,10 @@ export function useSupportSession(): ComputedRef<SupportView | undefined> {
 export interface BetterComposables<B extends ClientLike> {
   /** Repositories bound to the current session. */
   readonly useDb: () => B["db"];
-  /** TanStack Query option factories: `useQuery(useQueries().customers.findMany())`. */
+  /**
+   * TanStack Query option factories:
+   * `useQuery(useQueries().customers.findMany())`.
+   */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => Readonly<Ref<AuthSnapshot>>;
@@ -203,7 +211,8 @@ export interface BetterComposables<B extends ClientLike> {
  * Composables typed for your schema.
  *
  * ```ts
- * export const { useDb, useQueries, useAuth } = createBindings<typeof bs>();
+ * export const { useDb, useQueries, useAuth } =
+ *   createBindings<typeof bs>();
  * ```
  */
 export function createBindings<B extends ClientLike>(): BetterComposables<B> {
@@ -261,11 +270,16 @@ function supabaseFor(
 }
 
 /**
- * Subscribes to a topic while the component is mounted. A `null` value
- * pauses. It resubscribes when the topic values or the signed-in user change.
+ * Subscribes to a topic while the component is mounted. A `null` value pauses.
+ * It resubscribes when the topic values or the signed-in user change.
  *
  * ```ts
- * useBroadcast(customersTopic, () => ({ organizationId: org.value }), {}, { invalidate: ['customers'] });
+ * useBroadcast(
+ *   customersTopic,
+ *   () => ({ organizationId: org.value }),
+ *   {},
+ *   { invalidate: ["customers"] },
+ * );
  * ```
  */
 export function useBroadcast<P extends string, E extends EventSchemas>(
@@ -328,7 +342,11 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
  * spec touches whenever one of them changes. A `null` spec pauses.
  *
  * ```ts
- * const spec = computed(() => betterSupabase.spec.customers.findMany({ where: { orgId: org.value } }));
+ * const spec = computed(() =>
+ *   betterSupabase.spec.customers.findMany({
+ *     where: { orgId: org.value },
+ *   }),
+ * );
  * useLiveQuery(spec);
  * ```
  */
@@ -402,7 +420,9 @@ export interface LiveCount {
  * seed; `null` pauses. The returned object's fields are reactive.
  *
  * ```ts
- * const unread = useLiveCount(() => betterSupabase.spec.messages.count({ where: { read: false } }));
+ * const unread = useLiveCount(() =>
+ *   betterSupabase.spec.messages.count({ where: { read: false } }),
+ * );
  * // {{ unread.count }}
  * ```
  */
@@ -497,11 +517,13 @@ export interface VuePresenceOptions<I> extends Omit<
 const NO_MEMBERS: readonly never[] = [];
 
 /**
- * Joins a presence topic while mounted and returns who is on it. A `null`
- * value pauses. The returned object's fields are reactive.
+ * Joins a presence topic while mounted and returns who is on it. A `null` value
+ * pauses. The returned object's fields are reactive.
  *
  * ```ts
- * const room = usePresence(roomTopic, () => ({ roomId: id.value }), { state: () => ({ name: name.value }) });
+ * const room = usePresence(roomTopic, () => ({ roomId: id.value }), {
+ *   state: () => ({ name: name.value }),
+ * });
  * ```
  */
 export function usePresence<P extends string, I, O>(
@@ -590,12 +612,14 @@ export interface ActionHandle<I, T> extends ActionState<I, T> {
 }
 
 /**
- * Calls a server action from an event handler: tracks pending inputs and
- * the last result, and calls `onSuccess` or `onError`. The returned
- * object's fields are reactive.
+ * Calls a server action from an event handler: tracks pending inputs and the
+ * last result, and calls `onSuccess` or `onError`. The returned object's fields
+ * are reactive.
  *
  * ```ts
- * const remove = useAction(removeMember, { onError: (e) => toast.error(e.message) });
+ * const remove = useAction(removeMember, {
+ *   onError: (e) => toast.error(e.message),
+ * });
  * // <button :disabled="remove.pending" @click="remove.run({ userId })">
  * ```
  */

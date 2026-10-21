@@ -17,14 +17,17 @@ export interface ColumnMeta {
   readonly generated?: boolean;
   /** Identity column; `'always'` columns can't be written. */
   readonly identity?: "always" | "by default";
-  /** `false` when inserts can't set this column (generated, identity always, view). */
+  /**
+   * `false` when inserts can't set this column (generated, identity always,
+   * view).
+   */
   readonly insertable?: false;
   /** `false` when updates can't set this column. */
   readonly updatable?: false;
   /**
-   * `false` when signed-in users can't read the column (an app table
-   * column with `access: "server"`). Reads without `select` leave it out;
-   * the service role can still select it by name.
+   * `false` when signed-in users can't read the column (an app table column
+   * with `access: "server"`). Reads without `select` leave it out; the service
+   * role can still select it by name.
    */
   readonly selectable?: false;
   readonly array?: boolean;
@@ -33,9 +36,15 @@ export interface ColumnMeta {
   readonly enum?: readonly string[];
   /** How values are decoded from the wire (see the `codecs` config). */
   readonly codec?: Codec;
-  /** Listed in `config.sensitive`; the `noSensitiveSelect` rule guards reads of it. */
+  /**
+   * Listed in `config.sensitive`; the `noSensitiveSelect` rule guards reads of
+   * it.
+   */
   readonly sensitive?: true;
-  /** Bucket id of the objects this text column points to (`config.storagePaths`). */
+  /**
+   * Bucket id of the objects this text column points to
+   * (`config.storagePaths`).
+   */
   readonly storage?: string;
   /** The column's `COMMENT ON`, without its `@example` and `@deprecated` lines. */
   readonly description?: string;
@@ -69,7 +78,10 @@ export interface RelationMeta {
   readonly references: readonly string[];
   /** `forward`: this table holds the FK. `reverse`: the target holds it. */
   readonly direction: "forward" | "reverse";
-  /** What deleting the referenced row does to the referencing rows, when it changes them. */
+  /**
+   * What deleting the referenced row does to the referencing rows, when it
+   * changes them.
+   */
   readonly onDelete?: "cascade" | "set null" | "set default";
 }
 
@@ -116,9 +128,9 @@ export interface FunctionMeta extends FunctionSignature {
   readonly name: string;
   readonly schema: string;
   /**
-   * Every signature of an overloaded function, in signature order. The
-   * fields above describe the first one; `$rpc` picks the signature whose
-   * argument names match the call.
+   * Every signature of an overloaded function, in signature order. The fields
+   * above describe the first one; `$rpc` picks the signature whose argument
+   * names match the call.
    */
   readonly overloads?: readonly FunctionSignature[];
 }
@@ -134,8 +146,8 @@ export interface FunctionSignature {
   readonly returnsSet: boolean;
   readonly volatility: "immutable" | "stable" | "volatile";
   /**
-   * How `$rpc` decodes the returned rows, present when decoding changes
-   * them: the rows of a table (by app key), or a `returns table (...)` record.
+   * How `$rpc` decodes the returned rows, present when decoding changes them:
+   * the rows of a table (by app key), or a `returns table (...)` record.
    */
   readonly result?: FunctionResult;
 }
@@ -161,7 +173,10 @@ export interface SchemaMeta {
   readonly functions: Readonly<Record<string, FunctionMeta>>;
   readonly buckets?: Readonly<Record<string, BucketMeta>>;
   readonly topics?: Readonly<Record<string, string>>;
-  /** Tables that broadcast change signals (`config.realtime.tables`), keyed by app key. */
+  /**
+   * Tables that broadcast change signals (`config.realtime.tables`), keyed by
+   * app key.
+   */
   readonly realtime?: Readonly<Record<string, RealtimeTableMeta>>;
   /** Claim names from `config.claims` that differ from the defaults. */
   readonly claims?: Partial<ClaimsMeta>;
@@ -171,11 +186,20 @@ export interface SchemaMeta {
 export interface ClaimsMeta {
   /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
   readonly tenant: string;
-  /** `scope` of the tenant entries in the `memberships` claim. Defaults to `tenant`. */
+  /**
+   * `scope` of the tenant entries in the `memberships` claim. Defaults to
+   * `tenant`.
+   */
   readonly scope: string;
-  /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
+  /**
+   * Claim holding plan features per tenant (`{ [tenantId]: string[] }`).
+   * Defaults to `features`.
+   */
   readonly features: string;
-  /** Claim holding the caller's memberships (`{ scope, id, role }[]`). Defaults to `memberships`. */
+  /**
+   * Claim holding the caller's memberships (`{ scope, id, role }[]`). Defaults
+   * to `memberships`.
+   */
   readonly memberships: string;
 }
 
@@ -194,7 +218,10 @@ export type BucketPolicyName = "tenant" | "owner" | "public" | "none";
  * `{permission}` is the key as a literal and `{scope}` the policy's scope.
  */
 export interface AccessPolicySql {
-  /** The ids of the `{scope}` instances where the caller holds `{permission}`, as a set. */
+  /**
+   * The ids of the `{scope}` instances where the caller holds `{permission}`,
+   * as a set.
+   */
   readonly idsWith: string;
   /** Whether the caller holds `{permission}` platform-wide. */
   readonly isPlatform: string;
@@ -221,23 +248,32 @@ export interface AccessBucketPolicy {
    * platform permissions. With `sql`, any scope name its templates take.
    */
   readonly scope?: string;
-  /** 1-based path segment holding the scope id. Defaults to the `{organizationId}` segment. */
+  /**
+   * 1-based path segment holding the scope id. Defaults to the
+   * `{organizationId}` segment.
+   */
   readonly segment?: number;
   /**
-   * The templates to call, or `"provider"` for `authorization.functions`
-   * from the config, which `gen` copies in.
+   * The templates to call, or `"provider"` for `authorization.functions` from
+   * the config, which `gen` copies in.
    */
   readonly sql?: AccessPolicySql | "provider";
 }
 
-/** An access topic policy: `select` (receive) and `insert` (send) on `realtime.messages`. */
+/**
+ * An access topic policy: `select` (receive) and `insert` (send) on
+ * `realtime.messages`.
+ */
 export interface AccessTopicPolicy {
   readonly receive: string;
   /** Lets clients send on the topic with this permission. */
   readonly send?: string;
   /** As for {@link AccessBucketPolicy}. */
   readonly scope?: string;
-  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{organizationId}` segment. */
+  /**
+   * 1-based `:`-separated topic segment holding the scope id. Defaults to the
+   * `{organizationId}` segment.
+   */
   readonly segment?: number;
   /** As for {@link AccessBucketPolicy}. */
   readonly sql?: AccessPolicySql | "provider";
@@ -248,7 +284,10 @@ export interface BucketMeta {
   readonly public: boolean;
   readonly path: string | readonly [string, ...string[]];
   readonly policy?: BucketPolicyName | AccessBucketPolicy;
-  /** Claim paths for the tenant policy, when `config.claims.tenant` is not the default. */
+  /**
+   * Claim paths for the tenant policy, when `config.claims.tenant` is not the
+   * default.
+   */
   readonly tenant?: { readonly claim: readonly string[] };
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
@@ -333,7 +372,10 @@ export type WritableColumns<M extends AnyModels, T extends keyof M> = [
         : K;
     }[keyof M[T]["Insert"]];
 
-/** Columns of `T` the database fills (generated or identity `always`): in `Row`, never in `Insert`. */
+/**
+ * Columns of `T` the database fills (generated or identity `always`): in `Row`,
+ * never in `Insert`.
+ */
 export type GeneratedColumns<M extends AnyModels, T extends keyof M> = [
   M[T]["Insert"],
 ] extends [never]
@@ -392,8 +434,8 @@ type UniqueKeyColumns<
 >;
 
 /**
- * Values for exactly one unique key: the primary key columns, or the columns
- * of one named unique constraint or unique index.
+ * Values for exactly one unique key: the primary key columns, or the columns of
+ * one named unique constraint or unique index.
  */
 export type UniqueWhere<M extends AnyModels, T extends keyof M> =
   | { readonly [C in PrimaryKeyColumn<M, T>]: Row<M, T>[C] }

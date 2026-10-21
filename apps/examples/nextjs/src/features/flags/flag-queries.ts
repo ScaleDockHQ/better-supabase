@@ -11,8 +11,8 @@ export type FlagKey = (typeof FLAGS)[number];
 
 /**
  * The flags that are on for the caller's organization, evaluated by
- * `flag_enabled` (the flags SQL module) with its rules and overrides.
- * Cached per session; switching organizations refreshes the session.
+ * `flag_enabled` (the flags SQL module) with its rules and overrides. Cached
+ * per session; switching organizations refreshes the session.
  */
 export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
   "use cache: private";

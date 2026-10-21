@@ -93,8 +93,8 @@ export function refuseHeldTenant(ctx: ModuleContext, tenant: string): string {
 
 /**
  * `data_lifecycle_credentials()` and `organization_credential_refs(tenant)`,
- * which list the refs in the rows a due purge deletes for the purger to
- * revoke first.
+ * which list the refs in the rows a due purge deletes for the purger to revoke
+ * first.
  */
 export function credentialsSql(ctx: ModuleContext): string {
   const id = ctx.idType;

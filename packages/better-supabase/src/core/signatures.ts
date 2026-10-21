@@ -25,9 +25,9 @@ export interface VerifyOptions {
    * Records a verified `webhook-id` and answers whether it was already
    * recorded, atomically (a unique insert, Redis `SET NX`). A seen id is
    * refused as a replay (`WEBHOOK_REPLAYED`, 409). `until` is when the
-   * timestamp leaves the tolerance window, so the store may forget the id
-   * after it. Runs only after the signature checks out, and a throw
-   * refuses the request.
+   * timestamp leaves the tolerance window, so the store may forget the id after
+   * it. Runs only after the signature checks out, and a throw refuses the
+   * request.
    */
   readonly seen?: (
     id: string,
@@ -145,8 +145,8 @@ export const unauthorized = (code: string, message: string): DbError =>
   dbError("unauthorized", message, { code });
 
 /**
- * The error for a webhook id `options.seen` already recorded, or for a
- * `seen` that throws; `undefined` for a first delivery or without `seen`.
+ * The error for a webhook id `options.seen` already recorded, or for a `seen`
+ * that throws; `undefined` for a first delivery or without `seen`.
  */
 export async function replayed(
   options: VerifyOptions,
@@ -165,9 +165,7 @@ export async function replayed(
     return dbError(
       "unexpected",
       "Could not check the webhook id for a replay",
-      {
-        code: "WEBHOOK_DEDUPE_FAILED",
-      },
+      { code: "WEBHOOK_DEDUPE_FAILED" },
     );
   }
 
@@ -199,8 +197,8 @@ export async function signWebhook(
 
 /**
  * Verifies a Standard Webhooks signature (`webhook-id`, `webhook-timestamp`,
- * `webhook-signature`, or the `svix-` names Svix-based senders use) and
- * parses the JSON body. Pass several secrets while rotating.
+ * `webhook-signature`, or the `svix-` names Svix-based senders use) and parses
+ * the JSON body. Pass several secrets while rotating.
  */
 export async function verifyWebhook<T = unknown>(
   input: WebhookInput,
@@ -301,9 +299,7 @@ export async function verifyWebhook<T = unknown>(
       dbError(
         "unexpected",
         "Webhook secret is not whsec_ or whpk_ followed by base64",
-        {
-          code: "WEBHOOK_INVALID_SECRET",
-        },
+        { code: "WEBHOOK_INVALID_SECRET" },
       ),
     );
   }

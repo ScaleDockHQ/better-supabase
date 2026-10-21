@@ -429,8 +429,8 @@ export function PreviewSurface({
 }
 
 /**
- * A category's mini UI on its surface. `size="lg"` is the block page hero;
- * the default fits a catalog tile.
+ * A category's mini UI on its surface. `size="lg"` is the block page hero; the
+ * default fits a catalog tile.
  */
 export function BlockPreview({
   category,

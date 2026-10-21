@@ -1,9 +1,9 @@
 import type { JsonSchemaSource } from "./types/codegen.ts";
 
 /**
- * The JSON Schema document for a `json[...].schema` entry. A Standard
- * Schema converts for `target` (2020-12 by default); a JSON Schema object is
- * returned as it is.
+ * The JSON Schema document for a `json[...].schema` entry. A Standard Schema
+ * converts for `target` (2020-12 by default); a JSON Schema object is returned
+ * as it is.
  */
 export function resolveJsonSchema(
   source: JsonSchemaSource,

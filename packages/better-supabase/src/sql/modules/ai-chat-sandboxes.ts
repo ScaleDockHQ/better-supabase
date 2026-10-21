@@ -36,11 +36,11 @@ function sandboxJson(names: AiChatNames, row: string): string {
 }
 
 /**
- * The sandboxes table: every sandbox or provider container a chat started,
- * a harness session's included (`harness_id`), so one idle-stop claim
- * covers them all. `create table if not exists`, so the upgrade step can run
- * it on a database where ai-providers 1 created the table; `adapt`
- * runs between the table and its indexes.
+ * The sandboxes table: every sandbox or provider container a chat started, a
+ * harness session's included (`harness_id`), so one idle-stop claim covers them
+ * all. `create table if not exists`, so the upgrade step can run it on a
+ * database where ai-providers 1 created the table; `adapt` runs between the
+ * table and its indexes.
  */
 export function sandboxTable(
   ctx: ModuleContext,

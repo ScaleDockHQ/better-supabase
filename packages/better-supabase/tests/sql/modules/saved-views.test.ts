@@ -137,10 +137,7 @@ describe("saved-views module with the provider's teamIdsOf", () => {
   });
 
   it("keeps the teams block's own lookup under the roles model", () => {
-    const sql = sqlOf(["teams", "saved-views"], {
-      ...provider,
-      modules: {},
-    });
+    const sql = sqlOf(["teams", "saved-views"], { ...provider, modules: {} });
 
     expect(sql).not.toContain("authz.team_ids_of");
   });

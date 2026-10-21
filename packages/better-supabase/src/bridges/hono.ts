@@ -39,8 +39,8 @@ function publishAll(c: Context, ctx: object): void {
 }
 
 /**
- * The Hono middleware for `entries`. `publish` decides what lands on
- * `c.var`; `createHono` adds `auth` from `ctx.bs`.
+ * The Hono middleware for `entries`. `publish` decides what lands on `c.var`;
+ * `createHono` adds `auth` from `ctx.bs`.
  */
 export function honoMiddleware(
   entries: readonly AnyEntry[],
@@ -77,8 +77,8 @@ export function honoMiddleware(
 }
 
 /**
- * Runs an entry array in Hono's middleware slot. The pipeline folds once,
- * so entries keep their state across requests; each request publishes every
+ * Runs an entry array in Hono's middleware slot. The pipeline folds once, so
+ * entries keep their state across requests; each request publishes every
  * contributed key on `c.var`, runs the rest of the Hono chain, and returns
  * Hono's response back up through the entries, so response-phase entries
  * (refreshed cookies, `withCors`) see it.
@@ -87,8 +87,8 @@ export function honoMiddleware(
  * const app = new Hono().use(toHono([withBetterSupabase(server)])).get('/notes', (c) => ...)
  * ```
  *
- * Chain `.use()` into the routes it gates: Hono carries the contributed
- * keys through the chained call's type.
+ * Chain `.use()` into the routes it gates: Hono carries the contributed keys
+ * through the chained call's type.
  */
 export function toHono<const Entries extends readonly AnyEntry[]>(
   entries: Entries,

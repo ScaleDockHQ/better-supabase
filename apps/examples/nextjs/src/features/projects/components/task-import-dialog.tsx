@@ -62,9 +62,9 @@ function mappedOnly(
 }
 
 /**
- * Imports tasks into the project from pasted CSV: map the columns, preview
- * what the file creates and changes, then run it. A task with the same
- * title in the project is updated instead of added twice.
+ * Imports tasks into the project from pasted CSV: map the columns, preview what
+ * the file creates and changes, then run it. A task with the same title in the
+ * project is updated instead of added twice.
  */
 export function TaskImportDialog({ projectId }: { projectId: string }) {
   const t = useExtracted("projects");

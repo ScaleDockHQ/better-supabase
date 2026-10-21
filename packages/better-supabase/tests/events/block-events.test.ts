@@ -8,10 +8,7 @@ import {
   blockCloudEvent,
 } from "../../src/events/index.ts";
 
-const fixed = {
-  id: () => "evt-1",
-  source: "/crm",
-};
+const fixed = { id: () => "evt-1", source: "/crm" };
 
 const time = Temporal.Instant.from("2026-01-01T00:00:00Z");
 

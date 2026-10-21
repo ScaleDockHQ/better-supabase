@@ -27,8 +27,8 @@ import {
 /**
  * Synchronous on purpose: the sidebar frame, header and skeletons are the
  * static shell. The sidebar starts open instead of reading its cookie, which
- * would make every page dynamic. Everything that reads the session streams
- * in behind its own `<Suspense>` boundary.
+ * would make every page dynamic. Everything that reads the session streams in
+ * behind its own `<Suspense>` boundary.
  */
 export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const t = useExtracted("navigation");

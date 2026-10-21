@@ -171,10 +171,7 @@ module.exports = {
   it("refuses an object it can't read", () => {
     expect(
       addBlocksToConfig("export default defineConfig({ 1: 2 });", ["tags"]),
-    ).toEqual({
-      ok: false,
-      reason: "its config object can't be read",
-    });
+    ).toEqual({ ok: false, reason: "its config object can't be read" });
     expect(
       addBlocksToConfig("export default defineConfig({ blocks: { 1: 2 } });", [
         "tags",
@@ -538,9 +535,7 @@ describe("setPathInConfig", () => {
     const text = set(
       source,
       ["blocks", "profiles", "options", "extraColumns"],
-      {
-        nickname: "text",
-      },
+      { nickname: "text" },
     );
 
     expect(text).toContain("tags: {}");

@@ -7,13 +7,7 @@ import { memoryStorage, storageUpload } from "../../src/client/ports.ts";
 const file = (
   read: () => Promise<Blob | ArrayBuffer>,
   type?: string,
-): PickedFile => ({
-  name: "a.png",
-  type,
-  size: 3,
-  uri: undefined,
-  read,
-});
+): PickedFile => ({ name: "a.png", type, size: 3, uri: undefined, read });
 
 function fakeStorage(answer: { data?: { path: string }; error?: unknown }) {
   const upload = vi.fn(async () => ({

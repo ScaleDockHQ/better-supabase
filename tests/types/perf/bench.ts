@@ -28,8 +28,8 @@ interface Profile {
    * CentraKit's shape: uuid keys, `unique (id, organization_id)` on every
    * table, composite foreign keys that repeat `organization_id`, and the
    * `graphql_public` schema next to `public`, plus one each of an enum column,
-   * a CHECK union, two foreign keys to one table, a view, a JSON override and
-   * a function the consumer calls.
+   * a CHECK union, two foreign keys to one table, a view, a JSON override and a
+   * function the consumer calls.
    */
   readonly composite: boolean;
 }
@@ -40,7 +40,10 @@ interface BaselineEntry extends Profile {
 }
 
 interface Baseline {
-  /** Check time of the calibration program on the machine that wrote the baseline. */
+  /**
+   * Check time of the calibration program on the machine that wrote the
+   * baseline.
+   */
   readonly calibration: Readonly<Record<Compiler, number>>;
   readonly profiles: Readonly<Record<string, BaselineEntry>>;
 }
@@ -369,7 +372,10 @@ function consumer(profile: Profile): string {
   return lines.join("\n");
 }
 
-/** Plain TypeScript with no better-supabase types, so its check time tracks the machine only. */
+/**
+ * Plain TypeScript with no better-supabase types, so its check time tracks the
+ * machine only.
+ */
 function calibrationProgram(): string {
   const lines = [
     "type Deep<T> = { readonly [K in keyof T]: T[K] extends object ? Deep<T[K]> : T[K] };",
@@ -419,9 +425,7 @@ function measure(tsc: string): Measurement {
   const result = spawnSync(
     process.execPath,
     [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
-    {
-      encoding: "utf-8",
-    },
+    { encoding: "utf-8" },
   );
 
   const output = `${result.stdout}${result.stderr}`;
@@ -607,8 +611,8 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
 }
 
 /**
- * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is
- * the closer measure of how much slower this machine is.
+ * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is the
+ * closer measure of how much slower this machine is.
  */
 function checkGen(
   profileName: string,

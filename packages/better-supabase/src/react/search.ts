@@ -24,12 +24,16 @@ export interface DebouncedSearch {
 }
 
 /**
- * A search box's value, debounced. Pass `term` to `contains` (which
- * escapes it) or `pattern` to `ilike`; both are `undefined` while empty.
+ * A search box's value, debounced. Pass `term` to `contains` (which escapes it)
+ * or `pattern` to `ilike`; both are `undefined` while empty.
  *
  * ```tsx
  * const search = useDebouncedSearch();
- * useQuery(q.customers.findMany({ where: search.term ? { name: { contains: search.term } } : {} }));
+ * useQuery(
+ *   q.customers.findMany({
+ *     where: search.term ? { name: { contains: search.term } } : {},
+ *   }),
+ * );
  * ```
  */
 export function useDebouncedSearch(

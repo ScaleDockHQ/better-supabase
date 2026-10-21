@@ -70,8 +70,8 @@ const generator = v.custom<Generator>(
 
 /**
  * The top level of `better-supabase.config.*`. It rejects unknown keys and
- * checks the leaves a typo or an old value breaks; nested objects the
- * library reads loosely stay loose.
+ * checks the leaves a typo or an old value breaks; nested objects the library
+ * reads loosely stay loose.
  */
 const blockEntries = {
   mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
@@ -97,10 +97,7 @@ const blockEntries = {
     v.union([
       v.string(),
       v.literal(false),
-      v.strictObject({
-        schema: v.string(),
-        functions: v.optional(strings),
-      }),
+      v.strictObject({ schema: v.string(), functions: v.optional(strings) }),
     ]),
   ),
 };
@@ -716,10 +713,7 @@ const ENTRIES = {
           }),
         ),
         rank: v.optional(
-          v.strictObject({
-            column: v.string(),
-            group: v.optional(v.string()),
-          }),
+          v.strictObject({ column: v.string(), group: v.optional(v.string()) }),
         ),
         versions: v.optional(
           v.strictObject({ columns: strings, auto: v.boolean() }),
@@ -840,16 +834,17 @@ const ENTRIES = {
   ),
   integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
   skills: v.optional(
-    v.strictObject({
-      agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))),
-    }),
+    v.strictObject({ agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))) }),
   ),
   keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),
 } satisfies { [K in keyof Required<EnvironmentConfig>]: v.GenericSchema };
 
 const EnvironmentSchema = v.strictObject(ENTRIES);
 
-/** The shape of a `/create` design; `parseDesign` adds the rules a schema can't state. */
+/**
+ * The shape of a `/create` design; `parseDesign` adds the rules a schema can't
+ * state.
+ */
 const DesignSchema = v.strictObject({
   version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   appTables: v.optional(appTables),
@@ -880,8 +875,8 @@ const hasSqlModules = (value: unknown): boolean =>
   "modules" in value.sql;
 
 /**
- * `sql.modules` in the config or one of its environment blocks. The key
- * moved to `blocks` in 0.9, and the codemod moves it.
+ * `sql.modules` in the config or one of its environment blocks. The key moved
+ * to `blocks` in 0.9, and the codemod moves it.
  */
 function sqlModulesIssues(value: unknown): string[] {
   if (typeof value !== "object" || value === null) {
@@ -954,10 +949,16 @@ type ConfigDrift = ParityPaths<
   BetterSupabaseConfig
 >;
 
-/** Adds a `drift` key naming the paths, so `satisfies` fails while there are any. */
+/**
+ * Adds a `drift` key naming the paths, so `satisfies` fails while there are
+ * any.
+ */
 type InStep<T, Drift> = [Drift] extends [never] ? T : T & { drift: Drift };
 
-/** The schemas `scripts/gen-config-schema.ts` renders into `schemas/config-v1.json`. */
+/**
+ * The schemas `scripts/gen-config-schema.ts` renders into
+ * `schemas/config-v1.json`.
+ */
 export interface ConfigSchemas {
   readonly config: v.GenericSchema;
   readonly environment: v.GenericSchema;

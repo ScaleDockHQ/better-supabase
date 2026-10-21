@@ -35,11 +35,11 @@ export interface WorkflowContextOptions {
 
 /**
  * The actor, tenant and ticket of `context` as plain data, to pass into a
- * workflow as an argument; inside a step, `bs.forContext(context)` runs as
- * that user with RLS. A delegated token's `client_id`, `scope`,
- * `authorization_details` and `act` chain stay in `claims`, so the step is
- * as narrow as the token; other claims stay out of the run's serialized
- * state. Throws a `TypeError` for an invalid `act` chain or ticket.
+ * workflow as an argument; inside a step, `bs.forContext(context)` runs as that
+ * user with RLS. A delegated token's `client_id`, `scope`,
+ * `authorization_details` and `act` chain stay in `claims`, so the step is as
+ * narrow as the token; other claims stay out of the run's serialized state.
+ * Throws a `TypeError` for an invalid `act` chain or ticket.
  */
 export function workflowContext(
   context: RequestContext,
@@ -71,8 +71,8 @@ export function contextAttributes(
 
 export interface StartForOptions {
   /**
-   * Starting again with the same key returns the run the first start
-   * created, while that run is in the World. Schedules and admission pass
+   * Starting again with the same key returns the run the first start created,
+   * while that run is in the World. Schedules and admission pass
    * `schedule:{id}:{fireAt}` and `admission:{id}`.
    */
   readonly idempotencyKey?: string;
@@ -114,9 +114,9 @@ export async function runForKey(
 
 /**
  * `start(workflow, args)` for the caller in `context`: the run carries
- * `bs.tenant` and `bs.actor`, so `workflow_runs` lists it to the tenant and
- * the actor under RLS. With `idempotencyKey`, a run that already has the key
- * is returned instead of starting another (the key lookup needs a World with
+ * `bs.tenant` and `bs.actor`, so `workflow_runs` lists it to the tenant and the
+ * actor under RLS. With `idempotencyKey`, a run that already has the key is
+ * returned instead of starting another (the key lookup needs a World with
  * `analytics`, as the Supabase World has).
  */
 export function startFor<TArgs extends unknown[], TResult>(
@@ -134,9 +134,9 @@ const RUN_AS_ATTRIBUTES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `startFor` with `trusted` applied last: a `runAs` start sets the
- * principal and replaces `bs.actor` with the user who triggered it
- * (`undefined` removes a key).
+ * `startFor` with `trusted` applied last: a `runAs` start sets the principal
+ * and replaces `bs.actor` with the user who triggered it (`undefined` removes a
+ * key).
  */
 async function startRun<TArgs extends unknown[], TResult>(
   context: RequestContext,
@@ -190,12 +190,12 @@ async function startRun<TArgs extends unknown[], TResult>(
 }
 
 /**
- * Who an event or schedule start runs as: the publisher, a user who holds
- * the permissions, and the permission keys its steps may use. A step's
- * `bs.forContext(context)` runs as the publisher, capped to `permissions`,
- * so a publisher who lost one fails the step. The event actor or schedule
- * creator is the run's actor (and `bs.trigger`) and grants nothing; the
- * publisher is recorded as the run's principal.
+ * Who an event or schedule start runs as: the publisher, a user who holds the
+ * permissions, and the permission keys its steps may use. A step's
+ * `bs.forContext(context)` runs as the publisher, capped to `permissions`, so a
+ * publisher who lost one fails the step. The event actor or schedule creator is
+ * the run's actor (and `bs.trigger`) and grants nothing; the publisher is
+ * recorded as the run's principal.
  */
 export interface WorkflowRunAs {
   readonly publisher: string;
@@ -203,9 +203,9 @@ export interface WorkflowRunAs {
   /** The tenant the steps run in. Defaults to the event's or schedule's. */
   readonly tenant?: string;
   /**
-   * What the publisher is, recorded as the run's `principal_kind`:
-   * `user` (default), or `service_principal` for the app's service
-   * principal (an auth user too, so steps still run as it).
+   * What the publisher is, recorded as the run's `principal_kind`: `user`
+   * (default), or `service_principal` for the app's service principal (an auth
+   * user too, so steps still run as it).
    */
   readonly principalKind?: WorkflowPrincipalKind;
 }
@@ -307,8 +307,8 @@ function userContext(call: WorkflowStartCall): RequestContext {
 export interface WorkflowStarterOptions extends Pick<StartForOptions, "world"> {
   /**
    * The publisher a start runs as. Required for schedules: a schedule start
-   * without it, or with `null` for it, throws and the tick records the
-   * failure. An admission request runs as its actor unless this is set.
+   * without it, or with `null` for it, throws and the tick records the failure.
+   * An admission request runs as its actor unless this is set.
    */
   readonly runAs?: WorkflowRunAsFor<WorkflowStartCall>;
   /**
@@ -324,8 +324,8 @@ export interface WorkflowStarterOptions extends Pick<StartForOptions, "world"> {
 /**
  * The `start` callback for `schedules.tick` and `admission.tick` of
  * `better-supabase/blocks/workflows`: looks the workflow up by the name the
- * schedule or request stored and starts it with `startFor`, keyed by the
- * tick's idempotency key. A schedule runs as its `runAs` publisher.
+ * schedule or request stored and starts it with `startFor`, keyed by the tick's
+ * idempotency key. A schedule runs as its `runAs` publisher.
  */
 export function workflowStarter(
   workflows: Readonly<Record<string, WorkflowFn<never[]>>>,
@@ -380,8 +380,8 @@ export function workflowStarter(
 }
 
 /**
- * Hook metadata that `authorizeHook` checks: the actor and tenant of
- * `context`, and the permission a tenant member needs to resume it instead.
+ * Hook metadata that `authorizeHook` checks: the actor and tenant of `context`,
+ * and the permission a tenant member needs to resume it instead.
  */
 export function hookMetadata(
   context: RequestContext,
@@ -404,9 +404,9 @@ export class HookForbiddenError extends Error {
 
 export interface AuthorizeHookOptions {
   /**
-   * Whether the caller holds `permission` in `tenant`, for hooks created
-   * with `hookMetadata(context, permission)`, such as an approval any admin
-   * of the tenant may give.
+   * Whether the caller holds `permission` in `tenant`, for hooks created with
+   * `hookMetadata(context, permission)`, such as an approval any admin of the
+   * tenant may give.
    */
   readonly can?: (
     tenant: string,
@@ -426,10 +426,10 @@ function stringField(value: unknown, key: string): string | undefined {
 }
 
 /**
- * The hook for `token` when the caller in `context` may resume it: the
- * actor in its `hookMetadata`, or a member of its tenant whom `can` grants
- * its permission. Throws `HookForbiddenError` otherwise, so a leaked token
- * alone never resumes a run.
+ * The hook for `token` when the caller in `context` may resume it: the actor in
+ * its `hookMetadata`, or a member of its tenant whom `can` grants its
+ * permission. Throws `HookForbiddenError` otherwise, so a leaked token alone
+ * never resumes a run.
  */
 export async function authorizeHook(
   token: string,
@@ -480,7 +480,10 @@ export interface StartOnEventOptions<TArgs extends unknown[]> {
    * `context` is the event's `workflowContext`, with its ticket.
    */
   readonly args?: (event: OutboxEvent, context: RequestContext) => TArgs;
-  /** The opaque ticket for an event's run, stored as `bs.ticket`; `undefined` for none. */
+  /**
+   * The opaque ticket for an event's run, stored as `bs.ticket`; `undefined`
+   * for none.
+   */
   readonly ticket?: (event: OutboxEvent) => string | undefined;
   /**
    * The publisher each run starts as. The event's actor is recorded as
@@ -491,10 +494,9 @@ export interface StartOnEventOptions<TArgs extends unknown[]> {
 }
 
 /**
- * An outbox handler (`outbox.consume(name, handler)`) that starts
- * `workflow` for each matching event, as its `runAs` publisher in the
- * event's tenant, keyed by `event:{id}` so a redelivered batch starts
- * nothing twice.
+ * An outbox handler (`outbox.consume(name, handler)`) that starts `workflow`
+ * for each matching event, as its `runAs` publisher in the event's tenant,
+ * keyed by `event:{id}` so a redelivered batch starts nothing twice.
  */
 export function startOnEvent<TArgs extends unknown[]>(
   workflow: WorkflowFn<TArgs>,
@@ -538,8 +540,8 @@ export function startOnEvent<TArgs extends unknown[]>(
 export interface ProtectWebHandlerOptions {
   /**
    * Whether the request's caller holds `permission`: resolve the session
-   * (`server.context(request)`) and check it, e.g. with `member_can`.
-   * Return `undefined` when there is no session (401).
+   * (`server.context(request)`) and check it, e.g. with `member_can`. Return
+   * `undefined` when there is no session (401).
    */
   readonly can: (
     request: Request,
@@ -559,9 +561,9 @@ function problem(status: 401 | 403): Response {
 }
 
 /**
- * Puts a route of the workflow web UI or a run's stream behind
- * `permission`: answers 401 without a session and 403 without the
- * permission, as `application/problem+json`.
+ * Puts a route of the workflow web UI or a run's stream behind `permission`:
+ * answers 401 without a session and 403 without the permission, as
+ * `application/problem+json`.
  */
 export function protectWebHandler(
   handler: (request: Request) => Response | Promise<Response>,

@@ -52,8 +52,8 @@ export interface GenOptions extends SnapshotSource {
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
   /**
-   * Writes only the generated files (`gen --metadata --out-dir`): no read-set SQL
-   * module, and the manifest that removes files an earlier run wrote is
+   * Writes only the generated files (`gen --metadata --out-dir`): no read-set
+   * SQL module, and the manifest that removes files an earlier run wrote is
    * neither read nor written.
    */
   readonly isolated?: boolean;
@@ -81,9 +81,8 @@ async function readSetFile(
 }
 
 /**
- * `buckets` keys that reach the authorization provider's functions but
- * aren't marked `sqlComplete: true` in `authorization.permissions`, as
- * error lines.
+ * `buckets` keys that reach the authorization provider's functions but aren't
+ * marked `sqlComplete: true` in `authorization.permissions`, as error lines.
  */
 function rowConditionedBuckets(config: ResolvedConfig): string[] {
   const provider = config.authorization;
@@ -103,7 +102,10 @@ function rowConditionedBuckets(config: ResolvedConfig): string[] {
   );
 }
 
-/** The exit `gen` stops with when bucket keys aren't fully answered by the provider's SQL functions. */
+/**
+ * The exit `gen` stops with when bucket keys aren't fully answered by the
+ * provider's SQL functions.
+ */
 export function refuseRowConditionedBuckets(
   config: ResolvedConfig,
 ): CommandResult | undefined {

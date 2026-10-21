@@ -85,10 +85,7 @@ describe("nativeFilePicker", () => {
     const [file] = await nativeFilePicker(
       { getDocumentAsync },
       read,
-    )({
-      accept: ["application/pdf"],
-      multiple: true,
-    });
+    )({ accept: ["application/pdf"], multiple: true });
 
     expect(getDocumentAsync).toHaveBeenCalledWith({
       type: ["application/pdf"],

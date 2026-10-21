@@ -18,10 +18,7 @@ export const stepLibrary: readonly WorkflowStepInfo[] = [
     description: "Counts the words and sentences of the input's text.",
     outputSchema: {
       type: "object",
-      properties: {
-        words: { type: "number" },
-        sentences: { type: "number" },
-      },
+      properties: { words: { type: "number" }, sentences: { type: "number" } },
     },
   },
   {

@@ -45,7 +45,10 @@ export async function chatStep<K extends DurableStepName>(
   return runDurableStep(createAiChat(serviceOptions()), name, input);
 }
 
-/** Records one step of a research run in `ai_run_steps`, for the activity console. */
+/**
+ * Records one step of a research run in `ai_run_steps`, for the activity
+ * console.
+ */
 export async function recordRunStep(
   runId: string,
   step: AiRunStepInput,

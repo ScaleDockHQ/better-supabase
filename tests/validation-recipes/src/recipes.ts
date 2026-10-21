@@ -15,7 +15,10 @@ export interface Recipe {
   readonly config: ReturnType<typeof defineConfig>;
   /** The app's own tables, created before the module files. */
   readonly tables: string;
-  /** App SQL over module tables (views, hook functions), run after the module files. */
+  /**
+   * App SQL over module tables (views, hook functions), run after the module
+   * files.
+   */
   readonly after?: string;
 }
 
@@ -206,7 +209,10 @@ ${readable("recipe_scheduling.bookings")}`,
   }),
 };
 
-/** The commerce page's metrics: orders, revenue and order value from the orders block, units from paid lines. */
+/**
+ * The commerce page's metrics: orders, revenue and order value from the orders
+ * block, units from paid lines.
+ */
 export const commerceMetrics = [
   ...orderMetrics({ currency: "EUR" }),
   defineMetric({
@@ -222,7 +228,10 @@ export const commerceMetrics = [
 /** Refunds above this many cents need an approved `refund` request on the order. */
 export const REFUND_APPROVAL_ABOVE = 5000;
 
-/** Percentage promotions above this need an approved `activate` request on the promotion. */
+/**
+ * Percentage promotions above this need an approved `activate` request on the
+ * promotion.
+ */
 export const PROMOTION_APPROVAL_ABOVE = 30;
 
 export const commerce: Recipe = {
@@ -324,9 +333,7 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
       approvals: {
         options: {
           policies: {
-            order: {
-              refund: { steps: [{ approvers: { role: "admin" } }] },
-            },
+            order: { refund: { steps: [{ approvers: { role: "admin" } }] } },
             promotion: {
               activate: { steps: [{ approvers: { role: "admin" } }] },
             },

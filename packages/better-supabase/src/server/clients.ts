@@ -20,7 +20,10 @@ const STATELESS = {
   detectSessionInUrl: false,
 } as const;
 
-/** What the server's Supabase clients are built from; `createClient` is injectable for tests. */
+/**
+ * What the server's Supabase clients are built from; `createClient` is
+ * injectable for tests.
+ */
 export interface ClientsInput {
   readonly options: ServerOptions;
   readonly env: () => BetterSupabaseEnv;
@@ -29,7 +32,10 @@ export interface ClientsInput {
   readonly createClient: typeof createClientType;
 }
 
-/** The Supabase and PostgREST clients of one server: shared service and anon clients, per-request user clients. */
+/**
+ * The Supabase and PostgREST clients of one server: shared service and anon
+ * clients, per-request user clients.
+ */
 export function createClients(input: ClientsInput): Clients {
   const { options, env, definitionExecutor, lite, createClient } = input;
   let adminClient: SupabaseClient | undefined;
@@ -65,7 +71,10 @@ export function createClients(input: ClientsInput): Clients {
     ...dbOptions,
   };
 
-  /** postgrest-js options a bare `PostgrestClient` takes; `timeout` is the executor's. */
+  /**
+   * Postgrest-js options a bare `PostgrestClient` takes; `timeout` is the
+   * executor's.
+   */
   const restOptions = {
     ...(db.retry === undefined ? {} : { retry: db.retry }),
     ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
@@ -185,8 +194,8 @@ export function createClients(input: ClientsInput): Clients {
 
   /**
    * The client queries run on. Requests need only PostgREST, so they skip
-   * building Realtime, Storage and Auth clients per request; the shared
-   * service and anon clients for the primary are built once anyway.
+   * building Realtime, Storage and Auth clients per request; the shared service
+   * and anon clients for the primary are built once anyway.
    */
   const restAt = (
     url: string,

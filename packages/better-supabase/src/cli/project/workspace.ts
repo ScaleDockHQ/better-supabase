@@ -12,7 +12,10 @@ export interface WorkspacePackage {
 }
 
 export interface Workspace {
-  /** The file that declares the packages: `pnpm-workspace.yaml` or `package.json`. */
+  /**
+   * The file that declares the packages: `pnpm-workspace.yaml` or
+   * `package.json`.
+   */
   readonly file: string;
   readonly packages: readonly WorkspacePackage[];
 }
@@ -91,9 +94,9 @@ async function matches(root: string, pattern: string): Promise<string[]> {
 }
 
 /**
- * The workspace declared at `root` by `pnpm-workspace.yaml` or the
- * `workspaces` field of `package.json`, with its packages in path order.
- * `undefined` when `root` declares none.
+ * The workspace declared at `root` by `pnpm-workspace.yaml` or the `workspaces`
+ * field of `package.json`, with its packages in path order. `undefined` when
+ * `root` declares none.
  */
 export async function detectWorkspace(
   root: string,
@@ -160,7 +163,10 @@ export async function detectWorkspace(
   return { file, packages };
 }
 
-/** The package `init` suggests: one that uses better-supabase, then one with a framework. */
+/**
+ * The package `init` suggests: one that uses better-supabase, then one with a
+ * framework.
+ */
 export function suggestedPackage(workspace: Workspace): string | undefined {
   const packages = workspace.packages;
 

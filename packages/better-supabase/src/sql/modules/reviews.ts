@@ -164,11 +164,11 @@ function requirePurchaseOf(ctx: ModuleContext): boolean {
 }
 
 /**
- * Whether the caller may read and review the subject, as SQL for a
- * `security definer` function. A product is readable when it is active and
- * either on a published public storefront or the caller reads the catalog.
- * Any other subject type must be registered (`options.subjects` or the
- * subjects registry), and the caller must be a member of its organization.
+ * Whether the caller may read and review the subject, as SQL for a `security
+ * definer` function. A product is readable when it is active and either on a
+ * published public storefront or the caller reads the catalog. Any other
+ * subject type must be registered (`options.subjects` or the subjects
+ * registry), and the caller must be a member of its organization.
  */
 function readableCase(
   ctx: ModuleContext,

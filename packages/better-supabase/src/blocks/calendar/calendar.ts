@@ -45,10 +45,9 @@ export interface CalendarOptions<
 > {
   /**
    * A Standard Schema for the event columns the app adds
-   * (`blocks.calendar.options.extraColumns`), keyed by column name. It
-   * types and parses them on `events`, and validates them on `save` and
-   * the occurrence edits, which return a `validation` error for a bad
-   * value.
+   * (`blocks.calendar.options.extraColumns`), keyed by column name. It types
+   * and parses them on `events`, and validates them on `save` and the
+   * occurrence edits, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -116,8 +115,8 @@ export interface Calendar<F extends object = Record<never, never>> {
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
   /**
-   * Inserts an event, or updates the one with `id`. Keys besides the
-   * input's own are the event's extra columns.
+   * Inserts an event, or updates the one with `id`. Keys besides the input's
+   * own are the event's extra columns.
    */
   save(
     calendarId: string,
@@ -496,9 +495,7 @@ export function createCalendar<
           dbError(
             "invalid_input",
             cause instanceof Error ? cause.message : String(cause),
-            {
-              hint: "CALENDAR_SPLIT_INVALID",
-            },
+            { hint: "CALENDAR_SPLIT_INVALID" },
           ),
         );
       }
@@ -605,10 +602,7 @@ export function createCalendar<
 
         return toIcs(
           recordsOf(row["events"], "calendar_feed").map(calendarEventOf),
-          {
-            name: textOf(info["name"]),
-            tz: optionalText(info["tz"]) ?? "UTC",
-          },
+          { name: textOf(info["name"]), tz: optionalText(info["tz"]) ?? "UTC" },
         );
       }),
   };

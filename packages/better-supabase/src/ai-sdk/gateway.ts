@@ -28,7 +28,10 @@ export interface AiUsage {
   readonly totalTokens: number;
   readonly cachedInputTokens: number;
   readonly reasoningTokens: number;
-  /** The gateway's generation id, for `costBackfill` when the cost isn't known yet. */
+  /**
+   * The gateway's generation id, for `costBackfill` when the cost isn't known
+   * yet.
+   */
   readonly generationId: string | undefined;
   /** The cost in millionths of a US dollar, when the gateway reported it. */
   readonly costMicroUsd: number | undefined;
@@ -112,7 +115,10 @@ export function runRelease(
   };
 }
 
-/** The usage meters `usageEntries` writes, by default `ai.input_tokens` and `ai.output_tokens`. */
+/**
+ * The usage meters `usageEntries` writes, by default `ai.input_tokens` and
+ * `ai.output_tokens`.
+ */
 export interface AiUsageMeters {
   readonly input?: string;
   readonly output?: string;
@@ -203,7 +209,9 @@ export function usageQuota(
 
 /** The AI Gateway calls the job handlers make (`gateway` from `ai`). */
 export interface GatewayClient {
-  getGenerationInfo(params: { id: string }): PromiseLike<{
+  getGenerationInfo(params: {
+    id: string;
+  }): PromiseLike<{
     readonly totalCost: number;
     readonly model?: string;
     readonly promptTokens?: number;
@@ -240,9 +248,9 @@ export interface CostBackfillOptions {
 }
 
 /**
- * A job handler that looks up a generation's cost in the AI Gateway and
- * writes it to the run (`runs.setCost`). Enqueue it when `usageOf` found no
- * cost; it throws so the queue retries while the gateway doesn't know it yet.
+ * A job handler that looks up a generation's cost in the AI Gateway and writes
+ * it to the run (`runs.setCost`). Enqueue it when `usageOf` found no cost; it
+ * throws so the queue retries while the gateway doesn't know it yet.
  */
 export function costBackfill(
   options: CostBackfillOptions,
@@ -327,8 +335,8 @@ export function modelInputOf(
 }
 
 /**
- * A job handler that copies the AI Gateway's model list into the chat
- * block's catalog (`models.upsert`); schedule it daily.
+ * A job handler that copies the AI Gateway's model list into the chat block's
+ * catalog (`models.upsert`); schedule it daily.
  */
 export function modelCatalogRefresh(
   options: ModelCatalogRefreshOptions,

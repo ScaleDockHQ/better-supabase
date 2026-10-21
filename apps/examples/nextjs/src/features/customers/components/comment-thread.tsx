@@ -13,8 +13,8 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
- * A record's comments, oldest first, through the browser client. `subject`
- * is any type in `config.subjects`, such as a customer or a project.
+ * A record's comments, oldest first, through the browser client. `subject` is
+ * any type in `config.subjects`, such as a customer or a project.
  */
 export function CommentThread({
   organizationId,

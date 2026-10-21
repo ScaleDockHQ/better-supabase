@@ -80,9 +80,7 @@ describe("createSavedViewsController", () => {
     const match = matchSavedViews(
       controller.getSnapshot(),
       {},
-      {
-        columns: { visible: ["name"] },
-      },
+      { columns: { visible: ["name"] } },
     );
 
     expect(match).toMatchObject({ active: open, isDirty: false });
@@ -90,9 +88,7 @@ describe("createSavedViewsController", () => {
       matchSavedViews(
         controller.getSnapshot(),
         {},
-        {
-          columns: { visible: ["email"] },
-        },
+        { columns: { visible: ["email"] } },
       ),
     ).toMatchObject({ active: undefined, isDirty: true });
     expect(

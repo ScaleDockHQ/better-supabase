@@ -976,8 +976,8 @@ ${authed(`${fn("inbox_counts")}(${id})`)}`;
 }
 
 /**
- * With the `reactions` module, `react_to_message` writes to its table and
- * keeps the message's `reactions` column as a copy of it.
+ * With the `reactions` module, `react_to_message` writes to its table and keeps
+ * the message's `reactions` column as a copy of it.
  */
 function reactionWrite(
   q: InboxSql,

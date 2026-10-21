@@ -41,9 +41,9 @@ function Chips({
 }
 
 /**
- * The organization's audit trail, newest first, filtered by actor and by
- * action with the values on the loaded page. Members without `audit.read`
- * get the module's error.
+ * The organization's audit trail, newest first, filtered by actor and by action
+ * with the values on the loaded page. Members without `audit.read` get the
+ * module's error.
  */
 export function AuditLogTable() {
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =

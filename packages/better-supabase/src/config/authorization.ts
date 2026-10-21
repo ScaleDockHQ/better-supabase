@@ -3,16 +3,15 @@ import type { DisabledRow } from "./blocks.ts";
 /**
  * SQL expression templates the SQL modules and the access policies call.
  * `{permission}` is a text expression (a literal or a parameter), `{user}` a
- * uuid expression, `{tenant}` an expression of the tenant id type and
- * `{role}` a text expression. `{scope}` is the scope's name unquoted, so it
- * can be part of a function name (`app.ids_{scope}({permission})`); write
- * `'{scope}'` to pass it as text.
+ * uuid expression, `{tenant}` an expression of the tenant id type and `{role}`
+ * a text expression. `{scope}` is the scope's name unquoted, so it can be part
+ * of a function name (`app.ids_{scope}({permission})`); write `'{scope}'` to
+ * pass it as text.
  */
 export interface AuthorizationFunctions {
   /**
-   * The ids of the `{scope}` instances where the caller holds
-   * `{permission}`, as a set: it is used as
-   * `select t.id::text from <template> as t(id)`.
+   * The ids of the `{scope}` instances where the caller holds `{permission}`,
+   * as a set: it is used as `select t.id::text from <template> as t(id)`.
    */
   readonly idsWith: string;
   /** Whether the caller holds `{permission}` platform-wide. */
@@ -23,14 +22,16 @@ export interface AuthorizationFunctions {
   readonly isPlatformFor?: string;
   /** The ids of the `{scope}` instances the caller is a member of, as a set. */
   readonly memberIds?: string;
-  /** `memberIds` for `{user}`, which the access token hook calls as `supabase_auth_admin`. */
+  /**
+   * `memberIds` for `{user}`, which the access token hook calls as
+   * `supabase_auth_admin`.
+   */
   readonly memberIdsFor?: string;
   /**
-   * The team ids `{user}` belongs to, as a set of the team id type: it is
-   * used as `select t.id from <template> as t(id)`. Under the provider
-   * model the teams module's `team_ids_of()`, and the team sharing in
-   * `saved-views` and `collections`, call it instead of reading
-   * `team_members`.
+   * The team ids `{user}` belongs to, as a set of the team id type: it is used
+   * as `select t.id from <template> as t(id)`. Under the provider model the
+   * teams module's `team_ids_of()`, and the team sharing in `saved-views` and
+   * `collections`, call it instead of reading `team_members`.
    */
   readonly teamIdsOf?: string;
   /** Whether the caller may assign `{role}` in `{tenant}`. */
@@ -38,9 +39,9 @@ export interface AuthorizationFunctions {
   /** Whether `{user}` may assign `{role}` in `{tenant}`. */
   readonly canAssignFor?: string;
   /**
-   * The permission keys `{user}` holds in `{tenant}`, as a `text[]`. It
-   * fills `member_permissions` and the `permissions` claim; without it
-   * both are empty.
+   * The permission keys `{user}` holds in `{tenant}`, as a `text[]`. It fills
+   * `member_permissions` and the `permissions` claim; without it both are
+   * empty.
    */
   readonly permissionsFor?: string;
   /**
@@ -56,18 +57,17 @@ export interface AuthorizationFunctions {
    * Whether the caller may approve the request `{subject}` (text) of kind
    * `{kind}` (a text literal: `'ai-tool'` with the tool name as `{subject}`,
    * `'support-session'` with the request id, or the app's own kind) in
-   * `{tenant}`. `{requester}` is the uuid of the user who asked (the
-   * approval's `requested_by`, the support admin, the chat's owner), or
-   * `null`; a provider that resolves out-of-office covers reads it to
-   * refuse a cover by the requester's own delegator. It replaces each
-   * module's own eligibility check; the requester is refused before it
-   * runs. Without it a module falls back to its default approver (the
-   * chat's owner, a platform permission).
+   * `{tenant}`. `{requester}` is the uuid of the user who asked (the approval's
+   * `requested_by`, the support admin, the chat's owner), or `null`; a provider
+   * that resolves out-of-office covers reads it to refuse a cover by the
+   * requester's own delegator. It replaces each module's own eligibility check;
+   * the requester is refused before it runs. Without it a module falls back to
+   * its default approver (the chat's owner, a platform permission).
    */
   readonly isApprover?: string;
   /**
-   * The user ids that hold `{permission}` on `{tenant}`, as a set: it is
-   * used as `select u from <template> as t(u)`. A notification's `permission`
+   * The user ids that hold `{permission}` on `{tenant}`, as a set: it is used
+   * as `select u from <template> as t(u)`. A notification's `permission`
    * audience calls it. Without it, naming `permission` is refused.
    */
   readonly holdersOf?: string;
@@ -78,8 +78,8 @@ export interface AuthorizationFunctions {
   readonly actorMayWrite?: string;
   /**
    * Whether the caller holds `{permission}` on the instance `{id}` (text) of
-   * `{resource}` in `{tenant}`, at `{scope}`. A realtime topic that declares
-   * a `permission` calls it for the instance in its topic name.
+   * `{resource}` in `{tenant}`, at `{scope}`. A realtime topic that declares a
+   * `permission` calls it for the instance in its topic name.
    */
   readonly permitted?: string;
 }
@@ -88,7 +88,10 @@ export interface AuthorizationFunctions {
 export interface AuthorizationScope {
   /** Lower case letters, digits and `_`, starting with a letter. */
   readonly name: string;
-  /** The Postgres type of the scope's ids: `uuid`, `text`, `bigint` or `integer`. */
+  /**
+   * The Postgres type of the scope's ids: `uuid`, `text`, `bigint` or
+   * `integer`.
+   */
   readonly idType?: string;
   /** The scope this one sits in; the root scope has none. */
   readonly parent?: string;
@@ -107,9 +110,9 @@ export interface AuthorizationRequirement {
 export interface AuthorizationPermission {
   readonly key: string;
   /**
-   * `true` when the SQL functions answer for the key completely. A key with
-   * row conditions they don't check is `false`, and policies refuse it.
-   * Unset means unknown, which counts as `false`.
+   * `true` when the SQL functions answer for the key completely. A key with row
+   * conditions they don't check is `false`, and policies refuse it. Unset means
+   * unknown, which counts as `false`.
    */
   readonly sqlComplete?: boolean;
   /** The scopes it can be granted at. */
@@ -166,7 +169,10 @@ export interface AuthorizationTokenHook {
   readonly tenantClaim?: string;
   /** Claims it writes itself, which a second writer would contradict. */
   readonly ownedClaims: readonly string[];
-  /** Claims it fills from other functions, such as `features` from `better_supabase.feature_claims`. */
+  /**
+   * Claims it fills from other functions, such as `features` from
+   * `better_supabase.feature_claims`.
+   */
   readonly registeredClaims?: readonly {
     readonly name: string;
     /** `schema.name`. */
@@ -176,10 +182,16 @@ export interface AuthorizationTokenHook {
   readonly budget?: {
     readonly claims: readonly string[];
     readonly bytes: number;
-    /** A claim the hook sets to `true` when it dropped entries to stay within the budget. */
+    /**
+     * A claim the hook sets to `true` when it dropped entries to stay within
+     * the budget.
+     */
     readonly truncatedClaim?: string;
   };
-  /** Comment lines the provider's generated files contain, so doctor recognises them. */
+  /**
+   * Comment lines the provider's generated files contain, so doctor recognises
+   * them.
+   */
   readonly markers?: {
     /** In the file that defines the hook. */
     readonly hook?: string;
@@ -191,8 +203,8 @@ export interface AuthorizationTokenHook {
 }
 
 /**
- * An authorization system the SQL modules, the policies and doctor delegate
- * to. It is plain data, usually built from the provider's own output files.
+ * An authorization system the SQL modules, the policies and doctor delegate to.
+ * It is plain data, usually built from the provider's own output files.
  */
 export interface AuthorizationProvider {
   readonly apiVersion: 1;
@@ -206,8 +218,8 @@ export interface AuthorizationProvider {
   readonly permissions?: readonly AuthorizationPermission[];
   /**
    * Operations by name (`workflow.node.http`, `mcp.tool.search_posts`,
-   * `ai.tool.send_email`, `inbox.command.assign`). A module looks an
-   * operation up here first and uses its own default permission otherwise.
+   * `ai.tool.send_email`, `inbox.command.assign`). A module looks an operation
+   * up here first and uses its own default permission otherwise.
    */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
   readonly memberships?: readonly AuthorizationMembership[];
@@ -223,8 +235,8 @@ export interface AuthorizationProvider {
   /** What a delegated token (an OAuth client or agent) may use. */
   readonly delegation?: {
     /**
-     * OAuth scope to the permission keys it grants (RFC 9396 details stay
-     * with the app). `blocks.access.scopes` is merged over it.
+     * OAuth scope to the permission keys it grants (RFC 9396 details stay with
+     * the app). `blocks.access.scopes` is merged over it.
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
   };
@@ -238,8 +250,8 @@ export interface AuthorizationProvider {
 }
 
 /**
- * The error for a provider built for another API version, or `undefined`
- * for version 1.
+ * The error for a provider built for another API version, or `undefined` for
+ * version 1.
  */
 export function providerApiProblem(provider: {
   readonly name?: unknown;

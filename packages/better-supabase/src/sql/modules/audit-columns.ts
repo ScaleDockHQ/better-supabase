@@ -2,7 +2,10 @@ import type { ModuleContext } from "../context.ts";
 
 export type AuditImpersonators = "show" | "hide";
 
-/** `blocks.audit.options.impersonators`: whether tenant readers see who impersonated. */
+/**
+ * `blocks.audit.options.impersonators`: whether tenant readers see who
+ * impersonated.
+ */
 export function impersonators(ctx: ModuleContext): AuditImpersonators {
   const value = ctx.text("impersonators", "show");
 
@@ -17,8 +20,7 @@ export function impersonators(ctx: ModuleContext): AuditImpersonators {
 
 /**
  * Columns added in version 3. A managed table has them; an adopted one only
- * when `blocks.audit.columns` maps them, so existing configs keep
- * working.
+ * when `blocks.audit.columns` maps them, so existing configs keep working.
  */
 const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   log: [

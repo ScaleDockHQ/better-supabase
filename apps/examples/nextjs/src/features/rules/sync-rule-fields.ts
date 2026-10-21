@@ -6,9 +6,9 @@ import { bs } from "@/lib/supabase/server";
 import { customerRuleFields } from "./rule-fields";
 
 /**
- * Writes the customer field catalog, so the rule editor offers these fields
- * and saved rules are checked against them. A database that is down at
- * start-up leaves the previous catalog in place.
+ * Writes the customer field catalog, so the rule editor offers these fields and
+ * saved rules are checked against them. A database that is down at start-up
+ * leaves the previous catalog in place.
  */
 export async function syncRuleFields(): Promise<void> {
   const schema = blockConfig.rules.api;

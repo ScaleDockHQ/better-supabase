@@ -9,7 +9,10 @@ export type NumberSequenceEntityOptions = {
     | "format"
     | { readonly fiscalYearStartMonth: number };
   readonly format: string;
-  /** A tenant's own format: `column` is `schema.table.column`, `key` holds the tenant id (default `id`). */
+  /**
+   * A tenant's own format: `column` is `schema.table.column`, `key` holds the
+   * tenant id (default `id`).
+   */
   readonly formatFrom?: { readonly column: string; readonly key?: string };
   readonly periodFrom?: { readonly column: string; readonly key?: string };
   readonly table?: string;

@@ -38,8 +38,8 @@ function choices(
 
 /**
  * The organization's audit trail through the browser client, newest first,
- * filtered by actor and action. The audit module's read policy decides
- * which entries the caller sees.
+ * filtered by actor and action. The audit module's read policy decides which
+ * entries the caller sees.
  */
 export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const t = useExtracted("audit");

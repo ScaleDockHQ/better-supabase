@@ -45,10 +45,10 @@ export interface SqliteSelectPlan {
 }
 
 /**
- * An insert as one statement per row. PowerSync tables are views with
- * `INSTEAD OF` triggers, which take neither `RETURNING` nor `ON CONFLICT`,
- * so the executor checks for a conflicting row itself and reads the
- * written rows back by key.
+ * An insert as one statement per row. PowerSync tables are views with `INSTEAD
+ * OF` triggers, which take neither `RETURNING` nor `ON CONFLICT`, so the
+ * executor checks for a conflicting row itself and reads the written rows back
+ * by key.
  */
 export interface SqliteInsertPlan {
   readonly kind: "insert";
@@ -89,17 +89,17 @@ export type SqlitePlan =
 
 export interface SqliteCompilerOptions {
   /**
-   * The SQLite table or view for a table. Defaults to its database name
-   * without the schema, which is how PowerSync names its views.
+   * The SQLite table or view for a table. Defaults to its database name without
+   * the schema, which is how PowerSync names its views.
    */
   readonly tableName?: (table: TableMeta) => string;
 }
 
 /**
- * The operation needs something the SQLite dialect can't express: an
- * include (embedding), full-text search, a function source. Thrown while
- * compiling, before anything runs; executors return it as a `DbError` of
- * kind `unsupported`, with the feature in `details`.
+ * The operation needs something the SQLite dialect can't express: an include
+ * (embedding), full-text search, a function source. Thrown while compiling,
+ * before anything runs; executors return it as a `DbError` of kind
+ * `unsupported`, with the feature in `details`.
  */
 function unsupported(feature: string, table: TableMeta): never {
   throw new DbException(
@@ -174,8 +174,8 @@ export function sqliteValue(value: unknown): SqliteValue {
 }
 
 /**
- * A LIKE pattern (backslash escapes) as a GLOB pattern, which SQLite
- * matches case-sensitively, like Postgres `like`.
+ * A LIKE pattern (backslash escapes) as a GLOB pattern, which SQLite matches
+ * case-sensitively, like Postgres `like`.
  */
 export function likeToGlob(pattern: string): string {
   let out = "";
@@ -232,7 +232,10 @@ class SqliteCompiler {
     return `${alias}.${quoteSqliteIdent(name)}`;
   }
 
-  /** A column as compared and sorted: timestamps by their instant, not their text. */
+  /**
+   * A column as compared and sorted: timestamps by their instant, not their
+   * text.
+   */
   comparable(table: TableMeta, alias: string, name: string): string {
     const column = this.column(alias, name);
 
@@ -507,7 +510,10 @@ class SqliteCompiler {
     return this.comparable(table, alias, name);
   }
 
-  /** Postgres sorts nulls last ascending and first descending; SQLite does the opposite. */
+  /**
+   * Postgres sorts nulls last ascending and first descending; SQLite does the
+   * opposite.
+   */
   orderBy(
     terms: readonly OrderTerm[],
     table: TableMeta,
@@ -643,10 +649,10 @@ function byKeys(
 }
 
 /**
- * Compiles IR operations for SQLite (PowerSync's local database). Reads
- * become one statement; writes become steps the executor runs in a write
- * transaction. Throws a `DbException` with kind `unsupported` for what
- * SQLite can't express, before anything runs.
+ * Compiles IR operations for SQLite (PowerSync's local database). Reads become
+ * one statement; writes become steps the executor runs in a write transaction.
+ * Throws a `DbException` with kind `unsupported` for what SQLite can't express,
+ * before anything runs.
  */
 export function compileSqlite(
   op: Operation,

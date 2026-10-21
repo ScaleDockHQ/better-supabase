@@ -270,11 +270,15 @@ describe("oversized in lists", () => {
   it("returns invalid_request for a page of a long list", async () => {
     const { client, requests } = capturingClient();
 
-    const page = await betterSupabase.connect(client).customers.paginate({
-      where: { id: { in: ids } },
-      include: { notes: { where: { OR: [{ kind: "call" }, { body: "x" }] } } },
-      size: 20,
-    });
+    const page = await betterSupabase
+      .connect(client)
+      .customers.paginate({
+        where: { id: { in: ids } },
+        include: {
+          notes: { where: { OR: [{ kind: "call" }, { body: "x" }] } },
+        },
+        size: 20,
+      });
 
     expect(page.error?.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
@@ -382,7 +386,9 @@ describe("oversized in lists on other key types", () => {
   });
 
   interface Repository {
-    findMany(args: object): PromiseLike<{
+    findMany(
+      args: object,
+    ): PromiseLike<{
       readonly data: Record<string, unknown>[] | null;
       readonly error: { readonly message: string } | null;
     }> & { orThrow(): Promise<Record<string, unknown>[]> };

@@ -27,7 +27,10 @@ import {
 } from "../../src/cli/templates.ts";
 import { libraryFixture } from "./fixtures/library.ts";
 
-/** better-supabase, whose source the generated code and templates compile against. */
+/**
+ * Better-supabase, whose source the generated code and templates compile
+ * against.
+ */
 const packageRoot = fileURLToPath(libraryFixture("../../"));
 const src = join(packageRoot, "src");
 
@@ -405,9 +408,7 @@ describe("templates", () => {
       const result = await promisify(execFile)(
         tsc,
         ["--noEmit", "-p", join(root, "tsconfig.json")],
-        {
-          cwd: root,
-        },
+        { cwd: root },
       ).then(
         () => ({ code: 0, output: "" }),
         (error: unknown) => {
@@ -514,9 +515,7 @@ describe("env", () => {
 
     const result = await run(
       ["env", "--status-file", "status.txt", "--cwd", dir],
-      {
-        io: { stdout: () => {}, stderr: () => {} },
-      },
+      { io: { stdout: () => {}, stderr: () => {} } },
     );
 
     expect(result.code).toBe(1);
@@ -646,10 +645,7 @@ describe("keys in a monorepo package", () => {
   it("writes the key next to the config.toml found above --cwd", async () => {
     await project(
       {},
-      {
-        "supabase/config.toml": "[auth]\n",
-        "apps/web/package.json": "{}",
-      },
+      { "supabase/config.toml": "[auth]\n", "apps/web/package.json": "{}" },
     );
     const result = await run(["keys", "--cwd", join(dir, "apps/web")]);
     expect(result.code).toBe(0);

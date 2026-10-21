@@ -27,8 +27,8 @@ import { Link } from "@/i18n/navigation";
 import { statusVariant, workflowName } from "../workflow-labels";
 
 /**
- * The organization's runs from the workflows block, loaded again when a
- * run changes status (`workflow-runs:<tenant>`).
+ * The organization's runs from the workflows block, loaded again when a run
+ * changes status (`workflow-runs:<tenant>`).
  */
 export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   const t = useExtracted("workflows");

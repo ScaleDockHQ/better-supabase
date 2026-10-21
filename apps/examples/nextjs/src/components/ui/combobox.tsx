@@ -237,9 +237,7 @@ function ComboboxChip({
   children,
   showRemove = true,
   ...props
-}: ComboboxPrimitive.Chip.Props & {
-  showRemove?: boolean;
-}) {
+}: ComboboxPrimitive.Chip.Props & { showRemove?: boolean }) {
   return (
     <ComboboxPrimitive.Chip
       data-slot="combobox-chip"

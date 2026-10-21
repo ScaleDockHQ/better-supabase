@@ -40,7 +40,10 @@ interface FieldChange {
   readonly after: string | undefined;
 }
 
-/** The fields a version changed from the one before it; all of them for the first. */
+/**
+ * The fields a version changed from the one before it; all of them for the
+ * first.
+ */
 function changesOf(
   version: ProjectVersion,
   previous: ProjectVersion | undefined,

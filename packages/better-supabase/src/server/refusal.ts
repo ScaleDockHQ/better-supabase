@@ -94,9 +94,15 @@ export interface RouteGuardOptions<C = unknown, P = unknown>
       GuardedLocals & ResourceLoaderContext<C, P>
     >,
     RefusalRedirects {
-  /** Include internal error messages in Problem Details. Defaults to development only. */
+  /**
+   * Include internal error messages in Problem Details. Defaults to development
+   * only.
+   */
   readonly expose?: boolean;
-  /** Decides `permission`; without one, a route with a `permission` refuses every caller. */
+  /**
+   * Decides `permission`; without one, a route with a `permission` refuses
+   * every caller.
+   */
   readonly authorizer?: AnyAuthorizer;
 }
 
@@ -148,7 +154,10 @@ export function errorResponse(
   });
 }
 
-/** Reads the guard's view of a request's contributions; throws without `withBetterSupabase`. */
+/**
+ * Reads the guard's view of a request's contributions; throws without
+ * `withBetterSupabase`.
+ */
 export function guardedLocals(contributions: object): GuardedLocals {
   const bs: unknown = "bs" in contributions ? contributions.bs : undefined;
 

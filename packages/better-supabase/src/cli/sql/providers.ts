@@ -22,15 +22,18 @@ export const MEMBERSHIP_CLAIM_MODULES: ReadonlySet<string> = new Set([
   "tenant",
 ]);
 
-/** Whether the provider's access token hook writes the `memberships` claim itself. */
+/**
+ * Whether the provider's access token hook writes the `memberships` claim
+ * itself.
+ */
 export const providerOwnsMemberships = (config: ResolvedConfig): boolean =>
   config.authorization?.tokenHook?.ownedClaims.includes("memberships") ?? false;
 
 /**
  * The provider's memberships for the `entitlements` module. When `names`
- * resolve to that module, an invalid mode (no provider, a scope it lacks,
- * an unknown id type) throws instead of falling back to the tenant module.
- * Without `names` (`sql list`) it only describes the modules, so it doesn't.
+ * resolve to that module, an invalid mode (no provider, a scope it lacks, an
+ * unknown id type) throws instead of falling back to the tenant module. Without
+ * `names` (`sql list`) it only describes the modules, so it doesn't.
  */
 function entitlementsProviderFor(
   config: ResolvedConfig,
@@ -69,10 +72,10 @@ function entitlementsProviderFor(
 }
 
 /**
- * The provider for the `access` module's `provider` model. When `names`
- * resolve to `access`, an invalid mode throws, and so does a module
- * permission key the provider doesn't mark `sqlComplete: true`. `sql list`
- * (no `names`) doesn't render, so it doesn't throw.
+ * The provider for the `access` module's `provider` model. When `names` resolve
+ * to `access`, an invalid mode throws, and so does a module permission key the
+ * provider doesn't mark `sqlComplete: true`. `sql list` (no `names`) doesn't
+ * render, so it doesn't throw.
  */
 function accessProviderFor(
   config: ResolvedConfig,

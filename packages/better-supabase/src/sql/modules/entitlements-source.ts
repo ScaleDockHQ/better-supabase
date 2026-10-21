@@ -10,7 +10,10 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { splitTable } from "../shared.ts";
 import { memberships } from "./entitlements-checks.ts";
 
-/** The column the managed `organizations` module adds for the entitlements module. */
+/**
+ * The column the managed `organizations` module adds for the entitlements
+ * module.
+ */
 export const ORGANIZATION_CUSTOMER_COLUMN = "stripe_customer_id";
 
 /** The table holding each tenant's Stripe customer id. */
@@ -21,13 +24,19 @@ export interface EntitlementsSource {
   readonly column?: string;
   /** Column with the tenant id. */
   readonly key: string;
-  /** Where entitlements come from; the customer lookups are for `stripe-sync` only. */
+  /**
+   * Where entitlements come from; the customer lookups are for `stripe-sync`
+   * only.
+   */
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
   readonly claim?: FeatureClaimOption;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
-/** Users with a membership in a tenant of `customer`, from the provider's membership tables. */
+/**
+ * Users with a membership in a tenant of `customer`, from the provider's
+ * membership tables.
+ */
 function providerEntitlementMembers(
   provider: ModuleEntitlementsProvider,
 ): string {

@@ -29,7 +29,10 @@ import {
 /** A workflow run's state, in the words ai-chat and ai-tasks runs share. */
 export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
-/** The record a run belongs to: a subject type from `config.subjects` and its id. */
+/**
+ * The record a run belongs to: a subject type from `config.subjects` and its
+ * id.
+ */
 export interface WorkflowSubject {
   readonly type: string;
   readonly id: string;
@@ -133,7 +136,10 @@ export interface WorkflowScheduleInput {
   /** Unique per tenant: creating it again replaces it. */
   readonly name: string;
   readonly workflow: string;
-  /** Five cron fields, a macro such as `@daily`, or an interval such as `30 seconds`. */
+  /**
+   * Five cron fields, a macro such as `@daily`, or an interval such as `30
+   * seconds`.
+   */
   readonly cron: string;
   /** IANA time zone the cron fields are read in (default `UTC`). */
   readonly timezone?: string;
@@ -200,12 +206,15 @@ export interface WorkflowStartTicket {
 
 export interface WorkflowsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * `withBlockHooks` hooks around the methods of each group, such as a rule
-   * on who may create a schedule: `{ schedules: { create: { before } } }`.
+   * `withBlockHooks` hooks around the methods of each group, such as a rule on
+   * who may create a schedule: `{ schedules: { create: { before } } }`.
    */
   readonly hooks?: WorkflowsHooks;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -227,8 +236,8 @@ export interface Workflows {
     /** A run by its id or its engine's id. */
     get(run: string): AsyncResult<WorkflowRun | undefined>;
     /**
-     * Marks a run for cancellation: the actor, `workflow.admin` in its
-     * tenant, or the service role. The engine does the cancelling.
+     * Marks a run for cancellation: the actor, `workflow.admin` in its tenant,
+     * or the service role. The engine does the cancelling.
      */
     requestCancel(run: string): AsyncResult<WorkflowRun | undefined>;
     /** Creates or updates a run (service role; engines call it). */
@@ -240,20 +249,26 @@ export interface Workflows {
     }): AsyncResult<number>;
   };
   readonly schedules: {
-    /** Creates or replaces a schedule: the service role, or `workflow.admin` in its tenant. */
+    /**
+     * Creates or replaces a schedule: the service role, or `workflow.admin` in
+     * its tenant.
+     */
     create(input: WorkflowScheduleInput): AsyncResult<WorkflowSchedule>;
     list(tenant?: string): AsyncResult<readonly WorkflowSchedule[]>;
     pause(id: string, paused?: boolean): AsyncResult<boolean>;
     remove(id: string): AsyncResult<boolean>;
     /**
-     * Starts every due schedule once (service role), with the idempotency
-     * key `schedule:<id>:<fire time>`, then moves it to its next cron time
-     * after now. Call it from a cron route or a job.
+     * Starts every due schedule once (service role), with the idempotency key
+     * `schedule:<id>:<fire time>`, then moves it to its next cron time after
+     * now. Call it from a cron route or a job.
      */
     tick(options: WorkflowTickOptions): AsyncResult<WorkflowTickResult>;
   };
   readonly semaphores: {
-    /** Takes one of `max` slots of `key` for `holder`, for `ttl` seconds (default 300). */
+    /**
+     * Takes one of `max` slots of `key` for `holder`, for `ttl` seconds
+     * (default 300).
+     */
     acquire(
       key: string,
       holder: string,
@@ -282,7 +297,10 @@ function isStatus(text: string): text is WorkflowRunStatus {
   return STATUSES.has(text);
 }
 
-/** An engine may add statuses: an unknown one reads as `running`, never as finished. */
+/**
+ * An engine may add statuses: an unknown one reads as `running`, never as
+ * finished.
+ */
 function statusOf(value: unknown): WorkflowRunStatus {
   const text = textOf(value);
 
@@ -372,9 +390,9 @@ const optionalRun = (value: unknown): WorkflowRun | undefined =>
   isRecord(value) ? workflowRunOf(value) : undefined;
 
 /**
- * The `workflows` module's runs, schedules, semaphores and start admission,
- * for any engine. Run with the user's transport to read what RLS allows;
- * the ticks and `record` need the service role.
+ * The `workflows` module's runs, schedules, semaphores and start admission, for
+ * any engine. Run with the user's transport to read what RLS allows; the ticks
+ * and `record` need the service role.
  *
  * ```ts
  * const workflows = createWorkflows({ transport: rpcTransport(supabase) });

@@ -96,8 +96,8 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 /**
  * A synchronous hook runtime standing in for React's dispatcher: no DOM
- * renderer is installed, and effects are what these hooks are about.
- * Effects run after each render; state updates re-render.
+ * renderer is installed, and effects are what these hooks are about. Effects
+ * run after each render; state updates re-render.
  */
 const runtime = vi.hoisted(() => {
   interface Slot {
@@ -1410,9 +1410,7 @@ describe("useAnnouncements", () => {
     const view = renderHook(
       () => useAnnouncements({ organizationId: "org-1" }),
       undefined,
-      {
-        client: browser,
-      },
+      { client: browser },
     );
 
     await flush();
@@ -1461,9 +1459,7 @@ describe("useAnnouncements", () => {
     const view = renderHook(
       () => useAnnouncements({ topic: null, schema: "app" }),
       undefined,
-      {
-        client: browser,
-      },
+      { client: browser },
     );
 
     await flush();
@@ -3027,9 +3023,7 @@ describe("ai-chat hooks", () => {
       return { items: [chat("c")], next: null };
     });
 
-    const view = renderHook(() => useAiChats(), undefined, {
-      client: browser,
-    });
+    const view = renderHook(() => useAiChats(), undefined, { client: browser });
 
     await flush();
     offline = true;
@@ -3114,9 +3108,7 @@ describe("ai-chat hooks", () => {
       next: "cursor",
     }));
 
-    const view = renderHook(() => useAiChats(), undefined, {
-      client: browser,
-    });
+    const view = renderHook(() => useAiChats(), undefined, { client: browser });
 
     await flush();
     expect(view.result.items).toHaveLength(1);
@@ -3214,9 +3206,7 @@ describe("ai-chat hooks", () => {
     const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
       (id) => useAiChatTree(id),
       "c1",
-      {
-        client: browser,
-      },
+      { client: browser },
     );
 
     await flush();
@@ -3300,9 +3290,7 @@ describe("ai-chat hooks", () => {
     const none = renderHook(
       () => useAiModels(undefined, { schema: "api" }),
       undefined,
-      {
-        client: browser,
-      },
+      { client: browser },
     );
 
     await flush();
@@ -3341,9 +3329,7 @@ describe("ai-chat hooks", () => {
     const view = renderHook<string | null, ReturnType<typeof useAiShare>>(
       (id) => useAiShare(id),
       "c1",
-      {
-        client: browser,
-      },
+      { client: browser },
     );
 
     await flush();
@@ -3760,9 +3746,7 @@ describe("react/native", () => {
     const onSuccess = vi.fn();
     let redirect = { type: "success", url: "app://cb?code=abc" };
 
-    const browser = {
-      openAuthSessionAsync: vi.fn(async () => redirect),
-    };
+    const browser = { openAuthSessionAsync: vi.fn(async () => redirect) };
 
     const view = renderHook(
       () => useOAuth({ browser, redirectTo: "app://cb", client, onSuccess }),
@@ -3957,12 +3941,7 @@ describe("powersync/react", () => {
 
       const view = renderHook(
         () =>
-          useWatch({
-            db,
-            query,
-            tables: ["t"],
-            refresh: { everyMs: 1000 },
-          }),
+          useWatch({ db, query, tables: ["t"], refresh: { everyMs: 1000 } }),
         {},
         null,
       );

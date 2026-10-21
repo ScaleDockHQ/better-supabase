@@ -50,8 +50,8 @@ export interface ConnectToolsOptions {
   readonly prefix?: string;
   /**
    * Types the tools and keeps only the ones it names, such as
-   * `supabaseMcp().schemas`. The fingerprint still covers every tool the
-   * server lists.
+   * `supabaseMcp().schemas`. The fingerprint still covers every tool the server
+   * lists.
    */
   readonly schemas?: McpToolSchemas;
 }
@@ -68,7 +68,9 @@ export interface ConnectedTools {
 const forbidden = (message: string, hint: string): DbError =>
   dbError("forbidden", message, { hint });
 
-async function authOf(options: ConnectToolsOptions): Promise<
+async function authOf(
+  options: ConnectToolsOptions,
+): Promise<
   | {
       ok: true;
       headers: Record<string, string>;
@@ -197,10 +199,10 @@ function prefixed(tools: ToolSet, prefix: string | undefined): ToolSet {
 }
 
 /**
- * Connects to a server as the user and returns its tools, once the
- * fingerprint of their definitions is approved. A changed tool list waits
- * for an admin (`CONNECTOR_TOOLS_CHANGED`) and the client is closed. Close
- * the client when the run ends.
+ * Connects to a server as the user and returns its tools, once the fingerprint
+ * of their definitions is approved. A changed tool list waits for an admin
+ * (`CONNECTOR_TOOLS_CHANGED`) and the client is closed. Close the client when
+ * the run ends.
  */
 export function connectTools(
   options: ConnectToolsOptions,
@@ -355,8 +357,8 @@ export interface ConnectAllResult {
 
 /**
  * Connects to several servers (an agent's `connectorIds`) and merges their
- * tools, each prefixed with its server's name. A server that fails is
- * skipped and reported, not fatal.
+ * tools, each prefixed with its server's name. A server that fails is skipped
+ * and reported, not fatal.
  */
 export async function connectAll(
   servers: readonly ConnectorServer[],

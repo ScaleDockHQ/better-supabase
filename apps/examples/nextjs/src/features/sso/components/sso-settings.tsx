@@ -52,9 +52,9 @@ async function loadSettings(): Promise<
 
 // #region recipe:sso-settings
 /**
- * The organization's email domains (claimed with a TXT record, then
- * verified) and its SAML connection. A verified domain sets the role new
- * users at it join with and whether they must sign in with SSO.
+ * The organization's email domains (claimed with a TXT record, then verified)
+ * and its SAML connection. A verified domain sets the role new users at it join
+ * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
   if (!can(await getSession(), "sso.manage")) {

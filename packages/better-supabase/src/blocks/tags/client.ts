@@ -43,8 +43,8 @@ export interface TagInputActions {
   /** Removes a tag, hidden at once and put back when it fails. */
   readonly remove: (tagId: string) => Promise<Result<boolean>>;
   /**
-   * Adds the tag called `name`: an existing one of the kind with the same
-   * name (ignoring case), or a new one, which needs `tags.manage`.
+   * Adds the tag called `name`: an existing one of the kind with the same name
+   * (ignoring case), or a new one, which needs `tags.manage`.
    */
   readonly create: (name: string) => Promise<Result<Tag>>;
   readonly refresh: () => Promise<void>;
@@ -59,9 +59,9 @@ const noOrganization = (): Result<never> =>
   err(dbError("invalid_input", "No organization is active"));
 
 /**
- * One subject's tags for a tag input: the tags on it, every tag of the
- * kind for suggestions, and `add`, `remove` and `create`, which show the
- * change at once.
+ * One subject's tags for a tag input: the tags on it, every tag of the kind for
+ * suggestions, and `add`, `remove` and `create`, which show the change at
+ * once.
  */
 export function createTagInputController(
   options: TagInputControllerOptions,

@@ -13,9 +13,7 @@ const MODULES = Object.entries(SQL_MODULES)
 
 function render(module: string, extraColumns?: object): string {
   return renderModules([module], {
-    modules: {
-      [module]: { options: extraColumns ? { extraColumns } : {} },
-    },
+    modules: { [module]: { options: extraColumns ? { extraColumns } : {} } },
   })
     .filter((file) => file.module === module)
     .map((file) => file.contents)

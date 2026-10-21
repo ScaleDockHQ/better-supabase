@@ -81,7 +81,10 @@ export interface Signature {
   readonly typedName?: string;
   /** The attachment that holds a drawn signature's image. */
   readonly imageAttachmentId?: string;
-  /** SHA-256 over the request, the content hash, the signer, the method and the time. */
+  /**
+   * SHA-256 over the request, the content hash, the signer, the method and the
+   * time.
+   */
   readonly signedHash: string;
   readonly ip?: string;
   readonly userAgent?: string;
@@ -258,23 +261,25 @@ export function createSignatures<
 
   const client: Signatures<F> = {
     request: (input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "create_signature_request",
-          {
-            tenant: input.organizationId,
-            subject_type: input.subjectType,
-            subject_id: input.subjectId,
-            signers: input.signers,
-            version_id: input.versionId ?? null,
-            sign_order: input.order ?? "parallel",
-            approval_request_id: input.approvalRequestId ?? null,
-            message: input.message ?? null,
-            fields: checked,
-          },
-          (value) => requestOf(value, "create_signature_request"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "create_signature_request",
+            {
+              tenant: input.organizationId,
+              subject_type: input.subjectType,
+              subject_id: input.subjectId,
+              signers: input.signers,
+              version_id: input.versionId ?? null,
+              sign_order: input.order ?? "parallel",
+              approval_request_id: input.approvalRequestId ?? null,
+              message: input.message ?? null,
+              fields: checked,
+            },
+            (value) => requestOf(value, "create_signature_request"),
+          ).andThen(fields.row),
+        ),
     sign: (requestId, input) =>
       call(
         "sign_signature",

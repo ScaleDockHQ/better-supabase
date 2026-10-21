@@ -39,9 +39,9 @@ import { endSession } from "../sessions-actions";
 // #region recipe:sessions-list
 /**
  * The caller's signed-in session with its sign-in method and time, and the
- * sessions on other devices (`list_my_sessions`). Each one can be ended on
- * its own (`end_my_session`), or all of them at once
- * (`signOut({ scope: "others" })`).
+ * sessions on other devices (`list_my_sessions`). Each one can be ended on its
+ * own (`end_my_session`), or all of them at once (`signOut({ scope: "others"
+ * })`).
  */
 export function SessionsList({
   session,

@@ -3,7 +3,10 @@ import type { CommandResult, NextStep } from "./io.ts";
 import { highlight, type Paint } from "../style.ts";
 import { CliError, type CliErrorCode, type CliProblem } from "./errors.ts";
 
-/** What one run writes: text, or under `--json` exactly one JSON document on stdout. */
+/**
+ * What one run writes: text, or under `--json` exactly one JSON document on
+ * stdout.
+ */
 export interface Rendered {
   readonly stdout?: string;
   readonly stderr?: string;
@@ -97,8 +100,8 @@ function nextText(next: readonly NextStep[], paint: Paint): string {
 
 /**
  * A command's result. Under `--json`, stdout gets the envelope with the
- * command's `data`, its `next` steps, and Problem Details when it failed;
- * the text output moves to stderr as a diagnostic.
+ * command's `data`, its `next` steps, and Problem Details when it failed; the
+ * text output moves to stderr as a diagnostic.
  */
 export function renderResult(
   result: CommandResult,

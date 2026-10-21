@@ -48,8 +48,8 @@ export const loadPlanCatalog = bs.action(
 
 /**
  * Starts Stripe Checkout for a plan of the fixture's catalog (`public.plans`).
- * It runs on the server, so the Stripe key never reaches the browser: with
- * the billing SQL module and a test-mode key (`sk_test_...`), it returns
+ * It runs on the server, so the Stripe key never reaches the browser: with the
+ * billing SQL module and a test-mode key (`sk_test_...`), it returns
  * `billing.checkout(organizationId, { plan, successUrl, cancelUrl })`. This
  * example installs neither, so it answers `unsupported`.
  */

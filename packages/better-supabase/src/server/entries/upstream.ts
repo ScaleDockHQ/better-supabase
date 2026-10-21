@@ -59,8 +59,8 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
 /**
  * Entry contributing `ctx.db`: repositories bound to `ctx.supabase`, the
  * caller-scoped client from `withSupabase`. Use it when `withSupabase`
- * authenticates the request (bearer tokens only); `withBetterSupabase`
- * covers cookie sessions too.
+ * authenticates the request (bearer tokens only); `withBetterSupabase` covers
+ * cookie sessions too.
  *
  * ```ts
  * pipeline([withSupabase({ auth: 'user' }), withBetterDb(betterSupabase)()], (req, ctx) => ...)

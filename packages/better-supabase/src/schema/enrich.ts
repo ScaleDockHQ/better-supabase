@@ -22,7 +22,8 @@ type EnrichSchema<S, O> = {
 
 /**
  * Narrows column types of a `supabase gen types` `Database`: CHECK-constraint
- * unions and typed jsonb. Overrides are keyed `{ schema: { table: { column } } }`.
+ * unions and typed jsonb. Overrides are keyed `{ schema: { table: { column } }
+ * }`.
  */
 export type EnrichDatabase<D, O> = {
   [S in keyof D]: S extends keyof O ? EnrichSchema<D[S], O[S]> : D[S];

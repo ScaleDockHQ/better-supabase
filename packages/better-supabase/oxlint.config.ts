@@ -161,9 +161,7 @@ export default defineConfig({
       // ESLint and oxlint load plugins from the module's default export, and
       // WORKFLOW_TARGET_WORLD loads a World factory from it.
       files: ["src/lint/index.ts", "src/workflow-sdk/world/index.ts"],
-      rules: {
-        "import/no-default-export": "off",
-      },
+      rules: { "import/no-default-export": "off" },
     },
   ],
 });

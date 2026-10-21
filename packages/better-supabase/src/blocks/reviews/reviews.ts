@@ -31,12 +31,15 @@ export interface ReviewsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the review's extra columns
-   * (`blocks.reviews.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `submit`.
+   * (`blocks.reviews.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `submit`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -54,7 +57,10 @@ export interface Review<F extends object = Record<never, never>> {
   readonly organizationId: string;
   readonly subjectType: string;
   readonly subjectId: string;
-  /** Missing on `list`, which hides who wrote each review; `mine` marks the caller's. */
+  /**
+   * Missing on `list`, which hides who wrote each review; `mine` marks the
+   * caller's.
+   */
   readonly authorId?: string;
   readonly authorName?: string;
   /** Whether the caller wrote it. */
@@ -119,8 +125,8 @@ export interface ReviewSummary {
 
 export interface Reviews<F extends object = Record<never, never>> {
   /**
-   * Writes the caller's review of a subject, or replaces it (one per user
-   * and subject). It waits for `publish` under pre-moderation.
+   * Writes the caller's review of a subject, or replaces it (one per user and
+   * subject). It waits for `publish` under pre-moderation.
    */
   submit(
     organizationId: string,
@@ -134,14 +140,20 @@ export interface Reviews<F extends object = Record<never, never>> {
     subjectType: string,
     subjectId: string,
   ): AsyncResult<Review<F> | undefined>;
-  /** The subject's published reviews, newest first. Anonymous visitors can call it for a public storefront's products. */
+  /**
+   * The subject's published reviews, newest first. Anonymous visitors can call
+   * it for a public storefront's products.
+   */
   list(
     organizationId: string,
     subjectType: string,
     subjectId: string,
     options?: ReviewListOptions,
   ): AsyncResult<readonly Review<F>[]>;
-  /** The rating aggregate of up to 200 subjects of one type, by subject id. Subjects without published reviews are left out. */
+  /**
+   * The rating aggregate of up to 200 subjects of one type, by subject id.
+   * Subjects without published reviews are left out.
+   */
   summary(
     organizationId: string,
     subjectType: string,
@@ -156,7 +168,10 @@ export interface Reviews<F extends object = Record<never, never>> {
   publish(reviewId: string): AsyncResult<Review<F>>;
   /** Needs `reviews.manage`. */
   reject(reviewId: string, reason?: string): AsyncResult<Review<F>>;
-  /** Sets the organization's public reply; `null` removes it. Needs `reviews.manage`. */
+  /**
+   * Sets the organization's public reply; `null` removes it. Needs
+   * `reviews.manage`.
+   */
   reply(reviewId: string, reply: string | null): AsyncResult<Review<F>>;
   /** The author or a moderator; `false` when the review is gone. */
   remove(reviewId: string): AsyncResult<boolean>;
@@ -247,22 +262,24 @@ export function createReviews<
 
   const client: Reviews<F> = {
     submit: (organizationId, subjectType, subjectId, input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "submit_review",
-          {
-            tenant: organizationId,
-            subject_type: subjectType,
-            subject_id: subjectId,
-            rating: input.rating,
-            body: input.body ?? null,
-            title: input.title ?? null,
-            author_name: input.authorName ?? null,
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          one("submit_review"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "submit_review",
+            {
+              tenant: organizationId,
+              subject_type: subjectType,
+              subject_id: subjectId,
+              rating: input.rating,
+              body: input.body ?? null,
+              title: input.title ?? null,
+              author_name: input.authorName ?? null,
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            one("submit_review"),
+          ).andThen(fields.row),
+        ),
     mine: (organizationId, subjectType, subjectId) =>
       call(
         "my_review",

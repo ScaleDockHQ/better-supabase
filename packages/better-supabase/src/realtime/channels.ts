@@ -35,8 +35,8 @@ const topicChannels = new WeakMap<RealtimeClient, Map<string, SharedTopic>>();
 
 /**
  * One channel per topic and client, shared by every `subscribe()` on it:
- * supabase-js hands back the open channel for a topic, so a second join or
- * an early `removeChannel` would break the first subscription.
+ * supabase-js hands back the open channel for a topic, so a second join or an
+ * early `removeChannel` would break the first subscription.
  */
 export function joinTopic(
   client: RealtimeClient,
@@ -45,10 +45,7 @@ export function joinTopic(
   self: boolean,
   presence: boolean,
   subscriber: Subscriber,
-): {
-  shared: SharedTopic;
-  leave: () => Promise<void>;
-} {
+): { shared: SharedTopic; leave: () => Promise<void> } {
   let byTopic = topicChannels.get(client);
 
   if (!byTopic) {

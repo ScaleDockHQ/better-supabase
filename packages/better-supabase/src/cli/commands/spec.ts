@@ -70,10 +70,7 @@ const ARGS = {
       "Defaults to specs.entry. Exports `api` (defineApi) or a document",
     valueHint: "file",
   },
-  yaml: {
-    type: "boolean",
-    description: "Write YAML instead of JSON",
-  },
+  yaml: { type: "boolean", description: "Write YAML instead of JSON" },
   ui: {
     type: "string",
     description:
@@ -134,7 +131,10 @@ export interface SpecRunOptions {
   readonly dryRun?: boolean;
 }
 
-/** The options for running the spec step from the config alone, as `gen` does (no filter, the config's `failOn`, cache on). */
+/**
+ * The options for running the spec step from the config alone, as `gen` does
+ * (no filter, the config's `failOn`, cache on).
+ */
 export function specOptionsFromConfig(
   config: ResolvedConfig,
   action: SpecAction,
@@ -159,7 +159,10 @@ export function specOptionsFromConfig(
   };
 }
 
-/** The reference page for an OpenAPI output: `openapi.html` next to `openapi.json`. */
+/**
+ * The reference page for an OpenAPI output: `openapi.html` next to
+ * `openapi.json`.
+ */
 export function uiPath(output: string): string {
   return join(
     dirname(output),
@@ -434,7 +437,10 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   };
 }
 
-/** The files a render reads: the config, the entry, its overlays, the generated module and the topic modules. */
+/**
+ * The files a render reads: the config, the entry, its overlays, the generated
+ * module and the topic modules.
+ */
 function watchedFiles(
   options: SpecRunOptions,
   configFile: string | undefined,
@@ -455,8 +461,8 @@ function watchedFiles(
 }
 
 /**
- * Emits whenever a watched file changes. A changed config file is loaded
- * again first. A failed run is retried on the next change.
+ * Emits whenever a watched file changes. A changed config file is loaded again
+ * first. A failed run is retried on the next change.
  */
 function watch(
   initial: SpecRunOptions,

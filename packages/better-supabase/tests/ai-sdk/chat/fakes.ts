@@ -113,10 +113,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         organizationId: string,
         input: { id: string; model?: string },
       ) => {
-        const chat = record(input.id, {
-          organizationId,
-          model: input.model,
-        });
+        const chat = record(input.id, { organizationId, model: input.model });
 
         chats.set(chat.id, chat);
 

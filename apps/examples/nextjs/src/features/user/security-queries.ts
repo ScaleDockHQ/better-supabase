@@ -56,7 +56,10 @@ async function authGet<S extends v.GenericSchema>(
   return v.parse(schema, body);
 }
 
-/** An Auth read that failed renders its message in the card instead of the error page. */
+/**
+ * An Auth read that failed renders its message in the card instead of the error
+ * page.
+ */
 export type AuthRead<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: string };

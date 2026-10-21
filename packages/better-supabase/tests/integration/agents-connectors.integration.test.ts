@@ -234,9 +234,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       ).toBe(true);
       expect(
         await connectors.sessions.get(server.id, "c1").orThrow(),
-      ).toMatchObject({
-        sessionId: "sess",
-      });
+      ).toMatchObject({ sessionId: "sess" });
 
       await s.asRole(owner);
       expect(

@@ -4,10 +4,16 @@ import type { ExtraColumn, ModuleContext } from "./context.ts";
 import { MAX_BATCH } from "../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 
-/** What `record` and the other statement helpers return when there is nothing to do. */
+/**
+ * What `record` and the other statement helpers return when there is nothing to
+ * do.
+ */
 export const NOTHING = "null;";
 
-/** `alter table ... add column if not exists` for each extra column of a managed table. */
+/**
+ * `alter table ... add column if not exists` for each extra column of a managed
+ * table.
+ */
 export const addExtraColumns = (
   table: string,
   columns: readonly ExtraColumn[],
@@ -20,8 +26,8 @@ export const addExtraColumns = (
     .join("");
 
 /**
- * A `jsonb` object of `columns` of row `alias`, keyed by column name, so
- * reads return extra columns without exposing the rest of the row.
+ * A `jsonb` object of `columns` of row `alias`, keyed by column name, so reads
+ * return extra columns without exposing the rest of the row.
  */
 export const columnsObject = (
   alias: string,
@@ -32,8 +38,8 @@ export const columnsObject = (
     .join(", ")})`;
 
 /**
- * `, 'fields', jsonb_build_object(...)` of the extra columns of row
- * `alias`, for a read built with `jsonb_build_object`; empty without any.
+ * `, 'fields', jsonb_build_object(...)` of the extra columns of row `alias`,
+ * for a read built with `jsonb_build_object`; empty without any.
  */
 export const extraFieldsJson = (
   alias: string,
@@ -47,11 +53,10 @@ export const extraFieldsJson = (
       )}`;
 
 /**
- * PL/pgSQL that copies the extra columns from `source`, a `jsonb` object
- * keyed by column name, onto the rows of `table` (alias `x`) that `where`
- * matches. A key `source` leaves out keeps the column's value, so it runs
- * after an insert (the defaults stay) and on a partial update. Empty
- * without extra columns.
+ * PL/pgSQL that copies the extra columns from `source`, a `jsonb` object keyed
+ * by column name, onto the rows of `table` (alias `x`) that `where` matches. A
+ * key `source` leaves out keeps the column's value, so it runs after an insert
+ * (the defaults stay) and on a partial update. Empty without extra columns.
  */
 export const writeExtraColumns = (
   table: string,
@@ -75,8 +80,8 @@ export const writeExtraColumns = (
   where ${where}${into === undefined ? "" : `\n  returning x.* into ${into}`};`;
 
 /**
- * `json` (a `jsonb` expression of row `alias`) with the extra columns
- * under `fields`, or `json` itself without any.
+ * `json` (a `jsonb` expression of row `alias`) with the extra columns under
+ * `fields`, or `json` itself without any.
  */
 export const withExtraFields = (
   json: string,
@@ -91,10 +96,10 @@ export const withExtraFields = (
       )}))`;
 
 /**
- * The `fields jsonb` parameter of a function that writes extra columns,
- * after its other parameters. Every module that takes `extraColumns` on a
- * write uses it: `param` in the parameter list, `type` in the grants,
- * `contract` in the contract entry, and `drop` before the function.
+ * The `fields jsonb` parameter of a function that writes extra columns, after
+ * its other parameters. Every module that takes `extraColumns` on a write uses
+ * it: `param` in the parameter list, `type` in the grants, `contract` in the
+ * contract entry, and `drop` before the function.
  */
 export interface ExtraFieldsArg {
   /** `, fields jsonb default null`, or nothing without extra columns. */
@@ -130,8 +135,8 @@ export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
 /**
- * A SQL condition true for the service role and for a direct admin
- * connection (no JWT, a privileged session user), which may act for others.
+ * A SQL condition true for the service role and for a direct admin connection
+ * (no JWT, a privileged session user), which may act for others.
  */
 export const SERVICE_CALLER =
   "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
@@ -161,7 +166,10 @@ export function memberAddedRecord(
   });
 }
 
-/** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
+/**
+ * Creates the module's schema when it isn't `better_supabase`, then the module
+ * schema.
+ */
 export function schemaPreamble(ctx: ModuleContext): string {
   if (ctx.schemaName === "better_supabase") {
     return SCHEMA;
@@ -220,8 +228,8 @@ const QUOTED_IDENT = /^"(.*)"$/s;
 
 /**
  * Replaces the check constraints on one column of a table a module created
- * earlier: `create table if not exists` never changes an inline check, and
- * its generated name follows the table's configured name. For upgrade steps.
+ * earlier: `create table if not exists` never changes an inline check, and its
+ * generated name follows the table's configured name. For upgrade steps.
  * `column` is a quoted identifier; the catalog stores the bare name.
  */
 export function replaceColumnCheck(check: {
@@ -251,8 +259,8 @@ alter table ${check.table} add constraint ${sqlIdent(check.name)} check (${check
 }
 
 /**
- * Adds a foreign key to a table a module created earlier, once: `create
- * table if not exists` can't add it to a table that already exists, and the
+ * Adds a foreign key to a table a module created earlier, once: `create table
+ * if not exists` can't add it to a table that already exists, and the
  * referenced table can come from a module that renders later. Existing rows
  * without a match leave the key unvalidated, with a warning.
  */
@@ -283,9 +291,9 @@ $$;`;
 }
 
 /**
- * Adds a check constraint to a table a module created earlier, once, for
- * the same reason as `addForeignKey`. Existing rows that fail it leave the
- * check unvalidated, with a warning, so an upgrade never stops on old data.
+ * Adds a check constraint to a table a module created earlier, once, for the
+ * same reason as `addForeignKey`. Existing rows that fail it leave the check
+ * unvalidated, with a warning, so an upgrade never stops on old data.
  */
 export function addCheck(check: {
   readonly table: string;
@@ -312,8 +320,8 @@ $$;`;
 }
 
 /**
- * An `updated_at` column on a managed table, kept current by the
- * `updated-at` module's `set_updated_at()` (the module must require it).
+ * An `updated_at` column on a managed table, kept current by the `updated-at`
+ * module's `set_updated_at()` (the module must require it).
  */
 export function updatedAt(table: string, column: string): string {
   return `alter table ${table} add column if not exists ${column} timestamptz not null default now();
@@ -521,8 +529,8 @@ grant execute on function better_supabase.user_disabled(uuid) to service_role, s
  */
 /**
  * The condition that `value` is disabled: a set column (`schema.table.column`,
- * matched on `key`), or no active row (an authorization provider's
- * suspension row, where a missing row counts as disabled).
+ * matched on `key`), or no active row (an authorization provider's suspension
+ * row, where a missing row counts as disabled).
  */
 function disabledCheck(
   where: string,
@@ -595,8 +603,13 @@ export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
   );
 }
 
-/** The managed organizations table and its disabling columns, when installed and managed. */
-function managedOrganizations(ctx: ModuleContext):
+/**
+ * The managed organizations table and its disabling columns, when installed and
+ * managed.
+ */
+function managedOrganizations(
+  ctx: ModuleContext,
+):
   | {
       readonly table: string;
       readonly id: string;
@@ -667,13 +680,19 @@ end;
 $$;
 revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;`;
 
-/** A `pg_jsonschema` check on a jsonb column, for the `jsonb-schemas` module and key-value tables. */
+/**
+ * A `pg_jsonschema` check on a jsonb column, for the `jsonb-schemas` module and
+ * key-value tables.
+ */
 export interface JsonSchemaCheck {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly column: string;
   readonly schema: Readonly<Record<string, unknown>>;
-  /** Checks only rows whose `where.column` equals `where.value` (a settings key). */
+  /**
+   * Checks only rows whose `where.column` equals `where.value` (a settings
+   * key).
+   */
   readonly where?: { readonly column: string; readonly value: string };
 }
 
@@ -723,9 +742,9 @@ $$;`;
 
 /**
  * The constraint and trigger name of a check. A key that sanitizing or the
- * 63-byte limit would change (`notify.email`, `notify-email`, a long key)
- * gets a hash of the key, so two keys never share a name and drop each
- * other's check.
+ * 63-byte limit would change (`notify.email`, `notify-email`, a long key) gets
+ * a hash of the key, so two keys never share a name and drop each other's
+ * check.
  */
 function jsonCheckName(check: JsonSchemaCheck): string {
   const base = `bs_json_${check.column}`;
@@ -826,8 +845,8 @@ create policy ${sqlIdent(name(command))} on ${table} ${body};`;
 
 /**
  * SQL that turns on RLS for a table the module manages, takes it from `anon`
- * and `authenticated` and gives it to the service role. `read` grants
- * `select` back to `authenticated`, for tables its policies expose.
+ * and `authenticated` and gives it to the service role. `read` grants `select`
+ * back to `authenticated`, for tables its policies expose.
  */
 export const lockTable = (
   table: string,
@@ -840,8 +859,8 @@ ${options.read ? `grant select on ${table} to authenticated;\n` : ""}grant all o
  * Monthly range partitions for any table created `partition by range` on a
  * timestamptz column: a registry, `ensure_partitions(parent, months_ahead)`,
  * which creates `<parent>_pYYYYMM` for this month and the next ones (UTC
- * bounds) with RLS on and the client roles revoked, `maintain_partitions()`
- * for every registered table, and `expired_partitions(parent, cutoff)`, the
+ * bounds) with RLS on and the client roles revoked, `maintain_partitions()` for
+ * every registered table, and `expired_partitions(parent, cutoff)`, the
  * partitions wholly before `cutoff`. A table that isn't partitioned (one
  * created before the option) is left alone.
  */
@@ -931,7 +950,10 @@ revoke execute on function better_supabase.maintain_partitions() from public, an
 revoke execute on function better_supabase.expired_partitions(regclass, timestamptz) from public, anon, authenticated;
 grant execute on function better_supabase.maintain_partitions() to service_role;`;
 
-/** SQL that registers a partitioned table for `maintain_partitions()` and creates its first partitions. */
+/**
+ * SQL that registers a partitioned table for `maintain_partitions()` and
+ * creates its first partitions.
+ */
 export const registerPartitions = (table: string, monthsAhead = 3): string =>
   `insert into better_supabase.partitioned_tables (parent, months_ahead)
 select ${sqlString(table)}::regclass, ${monthsAhead}
@@ -939,7 +961,10 @@ where exists (select 1 from pg_catalog.pg_class c where c.oid = ${sqlString(tabl
 on conflict (parent) do nothing;
 select better_supabase.ensure_partitions(${sqlString(table)}::regclass, ${monthsAhead});`;
 
-/** The quoted name of a table's default partition: `<name>_default` in its schema. */
+/**
+ * The quoted name of a table's default partition: `<name>_default` in its
+ * schema.
+ */
 export const defaultPartitionName = (table: {
   readonly schema: string;
   readonly name: string;
@@ -972,8 +997,8 @@ export type BatchArgument = readonly [
  * array, so a sink sends a whole batch in one round trip. Every element keeps
  * the single-row function's checks and gets its own savepoint: it returns
  * `{"<result>": value}` or `{"error": {code, message, hint}}`, in order, and
- * one bad event never rolls back the others. More than `max` elements fail
- * with 22023 before any is written. The caller adds the grants.
+ * one bad event never rolls back the others. More than `max` elements fail with
+ * 22023 before any is written. The caller adds the grants.
  */
 export function batchFunction(options: {
   readonly name: string;
@@ -1054,12 +1079,11 @@ export const PARTITION_VARIABLES = `
   v_part_busy boolean;`;
 
 /**
- * PL/pgSQL that drops each monthly partition of `table` wholly before
- * `cutoff` (null drops none, as `ctx.cutoff` returns under a legal hold) and
- * adds its rows to `purged`. A partition with a row that matches `busy`
- * (a condition over `p`, with `$1`.. bound to `using`) stays for the row
- * deletes, so a purge never drops a row it would keep. Declare
- * `PARTITION_VARIABLES` first.
+ * PL/pgSQL that drops each monthly partition of `table` wholly before `cutoff`
+ * (null drops none, as `ctx.cutoff` returns under a legal hold) and adds its
+ * rows to `purged`. A partition with a row that matches `busy` (a condition
+ * over `p`, with `$1`.. bound to `using`) stays for the row deletes, so a purge
+ * never drops a row it would keep. Declare `PARTITION_VARIABLES` first.
  */
 export function dropExpiredPartitions(options: {
   readonly table: string;
@@ -1111,9 +1135,9 @@ export const triggerGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon, authenticated;`;
 
 /**
- * `serviceGrant` for each function in `schema` (as SQL, e.g. `ctx.schema`),
- * one statement per function, so `blocks.<module>.api` sees the grants
- * and writes an entry point for each.
+ * `serviceGrant` for each function in `schema` (as SQL, e.g. `ctx.schema`), one
+ * statement per function, so `blocks.<module>.api` sees the grants and writes
+ * an entry point for each.
  */
 export function serviceOnly(
   signatures: readonly string[],
@@ -1125,9 +1149,10 @@ export function serviceOnly(
 }
 
 /**
- * `raise exception` with an errcode and, when given, a hint the TypeScript side maps.
- * Sites that put `using` on its own line, raise without an errcode or compute
- * the hint stay inline: this one-line form would change SQL apps have generated.
+ * `raise exception` with an errcode and, when given, a hint the TypeScript side
+ * maps. Sites that put `using` on its own line, raise without an errcode or
+ * compute the hint stay inline: this one-line form would change SQL apps have
+ * generated.
  */
 export const raise = (
   message: string,
@@ -1137,7 +1162,10 @@ export const raise = (
 ): string =>
   `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}'${hint === undefined ? "" : `, hint = '${hint}'`};`;
 
-/** `raise` for a module function: the hint first, the errcode defaulting to insufficient privilege. */
+/**
+ * `raise` for a module function: the hint first, the errcode defaulting to
+ * insufficient privilege.
+ */
 export const fail = (
   code: string,
   message: string,
@@ -1160,9 +1188,9 @@ export const pageSize = (
 /**
  * A row trigger that records writes to a table that callers change through
  * `security invoker` functions or policies, which can't call `emit_event` or
- * `audit_event` themselves. `written` and `removed` are `ctx.record`
- * statements over `v_row`, the new row (or the old one on delete). When
- * both are `null;` the trigger and its function are dropped.
+ * `audit_event` themselves. `written` and `removed` are `ctx.record` statements
+ * over `v_row`, the new row (or the old one on delete). When both are `null;`
+ * the trigger and its function are dropped.
  */
 export function recordTrigger(
   ctx: ModuleContext,

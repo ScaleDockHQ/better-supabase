@@ -16,11 +16,11 @@ import { bs } from "@/lib/supabase/server";
 const Id = v.pipe(v.string(), v.uuid());
 
 /**
- * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`).
- * The plan's `customers.created` quota is consumed first, so a full quota
- * fails with `quota_exceeded` before the row exists. With
- * `select better_supabase.set_rate_limit('/customers', 30)` (the
- * `rate-limit` SQL module), a burst of creates returns `rate_limited`.
+ * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`). The
+ * plan's `customers.created` quota is consumed first, so a full quota fails
+ * with `quota_exceeded` before the row exists. With `select
+ * better_supabase.set_rate_limit('/customers', 30)` (the `rate-limit` SQL
+ * module), a burst of creates returns `rate_limited`.
  */
 export const createCustomer = bs.action(
   {
@@ -64,8 +64,8 @@ export const createCustomer = bs.action(
 );
 
 /**
- * Uploads a new logo, points the row at its path, then removes the old one.
- * The row keeps the path; URLs are built when rendering.
+ * Uploads a new logo, points the row at its path, then removes the old one. The
+ * row keeps the path; URLs are built when rendering.
  */
 export const uploadCustomerLogo = bs.action(
   {

@@ -69,7 +69,10 @@ export function pascal(name: string): string {
     .replace(/^[a-z]/, (char) => char.toUpperCase());
 }
 
-/** A valid TypeScript identifier: other characters become `_`, a leading digit gets one. */
+/**
+ * A valid TypeScript identifier: other characters become `_`, a leading digit
+ * gets one.
+ */
 export function identifier(name: string): string {
   const safe = name.replaceAll(/[^\w$]/g, "_");
 
@@ -77,8 +80,8 @@ export function identifier(name: string): string {
 }
 
 /**
- * The config entry for a database object, keyed `schema.name` or `name`.
- * The qualified key wins.
+ * The config entry for a database object, keyed `schema.name` or `name`. The
+ * qualified key wins.
  */
 export function configFor<T>(
   entries: Readonly<Record<string, T>>,
@@ -221,8 +224,8 @@ const IS_NOT_NULL = /^(?:"((?:[^"]|"")+)"|([\w$]+)) IS NOT NULL$/i;
 
 /**
  * Columns a CHECK constraint makes not null: `CHECK ((slug IS NOT NULL))` and
- * the `IS NOT NULL` terms of a top-level `AND`. A term under `OR`, `NOT` or
- * any other expression narrows nothing, and neither does a `NOT VALID` one.
+ * the `IS NOT NULL` terms of a top-level `AND`. A term under `OR`, `NOT` or any
+ * other expression narrows nothing, and neither does a `NOT VALID` one.
  */
 export function parseCheckNotNull(definition: string): string[] {
   const text = definition.trim();

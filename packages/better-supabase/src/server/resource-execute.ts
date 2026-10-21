@@ -29,7 +29,10 @@ function failure(cause: unknown, message: string): Result<never> {
   );
 }
 
-/** Runs a hook: its `Result` passes through, anything else is an `unexpected` error. */
+/**
+ * Runs a hook: its `Result` passes through, anything else is an `unexpected`
+ * error.
+ */
 export async function runHook(
   name: string,
   call: () => unknown,
@@ -71,7 +74,10 @@ export async function runHandler(
   }
 }
 
-/** Defines an action and types its handler's `data` and `query` from the schemas. */
+/**
+ * Defines an action and types its handler's `data` and `query` from the
+ * schemas.
+ */
 export function defineAction<
   DbT = unknown,
   Ref = string,

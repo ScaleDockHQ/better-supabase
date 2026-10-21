@@ -23,18 +23,17 @@ export interface NotificationSendResult {
   /** The provider's id for the message, kept for support and webhooks. */
   readonly providerMessageId?: string;
   /**
-   * The template the message was built from, e.g. `task-assigned-v2`,
-   * stored on the delivery for `subjectDeliveries`. Needs notifications
-   * module version 6.
+   * The template the message was built from, e.g. `task-assigned-v2`, stored on
+   * the delivery for `subjectDeliveries`. Needs notifications module version 6.
    */
   readonly templateKey?: string;
 }
 
 /**
- * Sends notifications on one channel (email, push, Slack). The delivery
- * worker (`notifications.deliver()`) claims pending deliveries for the
- * channel's `name` and calls `send` for each. Throwing retries the delivery
- * after its lease, up to `maxAttempts`, then marks it `failed`.
+ * Sends notifications on one channel (email, push, Slack). The delivery worker
+ * (`notifications.deliver()`) claims pending deliveries for the channel's
+ * `name` and calls `send` for each. Throwing retries the delivery after its
+ * lease, up to `maxAttempts`, then marks it `failed`.
  */
 export interface NotificationChannel {
   readonly apiVersion: 1;

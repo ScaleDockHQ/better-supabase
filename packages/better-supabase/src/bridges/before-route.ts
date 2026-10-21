@@ -18,11 +18,11 @@ export type BeforeRoute =
     };
 
 /**
- * Runs the entries ahead of a framework that owns the route and the
- * response (Express, Fastify, Koa, Nitro 2, SolidStart, NestJS). A short
- * circuit is the answer; otherwise the framework copies the headers and
- * hands the contributions to the route. Response-phase entries see an
- * empty response, so `withDbStats` and `withServerTiming` report nothing here.
+ * Runs the entries ahead of a framework that owns the route and the response
+ * (Express, Fastify, Koa, Nitro 2, SolidStart, NestJS). A short circuit is the
+ * answer; otherwise the framework copies the headers and hands the
+ * contributions to the route. Response-phase entries see an empty response, so
+ * `withDbStats` and `withServerTiming` report nothing here.
  */
 export function beforeRoute(
   entries: readonly AnyEntry[],

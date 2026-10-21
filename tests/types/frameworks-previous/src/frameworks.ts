@@ -3,12 +3,12 @@
 /// <reference types="@nuxt/nitro-server" />
 
 /**
- * The framework adapters checked against the previous major of each
- * framework their peer ranges still cover, through the public subpaths an
- * app imports. Each `Fits` fails to compile when the framework's type and
- * the adapter's no longer line up. The current majors are checked in
- * `packages/better-supabase/tests/frameworks.test-d.ts`; SvelteKit declares
- * its types as an ambient module, so two majors can't share one program.
+ * The framework adapters checked against the previous major of each framework
+ * their peer ranges still cover, through the public subpaths an app imports.
+ * Each `Fits` fails to compile when the framework's type and the adapter's no
+ * longer line up. The current majors are checked in
+ * `packages/better-supabase/tests/frameworks.test-d.ts`; SvelteKit declares its
+ * types as an ambient module, so two majors can't share one program.
  */
 
 import type {

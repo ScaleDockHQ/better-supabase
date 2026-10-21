@@ -205,10 +205,7 @@ describe("appTables SQL", () => {
   it("renders the golden SQL with the tenant renamed", async () => {
     await expect(
       golden(
-        render(BLOCKS, {
-          naming: { tenant: "workspace" },
-          appTables: TABLES,
-        }),
+        render(BLOCKS, { naming: { tenant: "workspace" }, appTables: TABLES }),
       ),
     ).toMatchFileSnapshot("__golden__/app-tables/workspace.sql");
   });
@@ -272,10 +269,7 @@ describe("appTables SQL", () => {
   });
 
   it("skips the updated_at trigger without the updated-at block", () => {
-    const [schema] = render([], {
-      scope: "user",
-      appTables: { projects: {} },
-    });
+    const [schema] = render([], { scope: "user", appTables: { projects: {} } });
 
     expect(schema?.contents).not.toContain("set_updated_at");
   });
@@ -485,9 +479,7 @@ describe("appTables SQL errors", () => {
 
   it("refuses a name a block table already has", () => {
     expect(() =>
-      render(["tenant", "organizations", "tags"], {
-        appTables: { tags: {} },
-      }),
+      render(["tenant", "organizations", "tags"], { appTables: { tags: {} } }),
     ).toThrow(
       "appTables.tags: the tags block already keeps a table named tags; choose another name",
     );

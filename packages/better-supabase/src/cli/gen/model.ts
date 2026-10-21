@@ -114,7 +114,10 @@ function tableKey(
 
 const TEXT_UDTS = new Set(["text", "varchar", "bpchar"]);
 
-/** `config.storagePaths` resolved to bucket ids, with a check that every key is used. */
+/**
+ * `config.storagePaths` resolved to bucket ids, with a check that every key is
+ * used.
+ */
 function numberedColumnsOf(
   config: ResolvedConfig,
 ): ReadonlyMap<string, ReadonlySet<string>> {
@@ -924,11 +927,11 @@ export function generatorModel(model: Model): GeneratorModel {
 }
 
 /**
- * Makes relation names unique per table and distinct from column names:
- * two FKs to the same table become `customersByPrimaryContact`-style names.
- * When those still collide, the names use every column of the key
- * (`locationsByCustomerOrganization`), then the constraint name, and only
- * then a trailing `_`.
+ * Makes relation names unique per table and distinct from column names: two FKs
+ * to the same table become `customersByPrimaryContact`-style names. When those
+ * still collide, the names use every column of the key
+ * (`locationsByCustomerOrganization`), then the constraint name, and only then
+ * a trailing `_`.
  */
 function dedupeRelations(
   list: readonly RelationModel[],

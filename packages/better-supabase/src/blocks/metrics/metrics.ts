@@ -45,8 +45,8 @@ export interface MetricsOptions<
   M extends readonly MetricDefinition[],
 > extends Pick<BlockOptions, "transport" | "service" | "schema" | "mappers"> {
   /**
-   * The same `defineMetric` definitions as `blocks.metrics.options.metrics`,
-   * so `series` and `kpi` type the keys and dimensions.
+   * The same `defineMetric` definitions as `blocks.metrics.options.metrics`, so
+   * `series` and `kpi` type the keys and dimensions.
    */
   readonly metrics?: M;
   /** `withBlockHooks` hooks around the methods. */
@@ -137,7 +137,10 @@ export interface MetricsRollupRequest {
 export interface Metrics<
   M extends readonly MetricDefinition[] = readonly MetricDefinition[],
 > {
-  /** One point per bucket of `range`, gaps filled. Checked against the metric's permission. */
+  /**
+   * One point per bucket of `range`, gaps filled. Checked against the metric's
+   * permission.
+   */
   series<K extends MetricKey<M>>(
     metric: K,
     range: MetricRange,
@@ -155,7 +158,10 @@ export interface Metrics<
    * Service only. Resolves to the number of points written.
    */
   rollup(request?: MetricsRollupRequest): AsyncResult<number>;
-  /** The handler for `metrics.rollup` jobs, whose payload is a `MetricsRollupRequest` as JSON. */
+  /**
+   * The handler for `metrics.rollup` jobs, whose payload is a
+   * `MetricsRollupRequest` as JSON.
+   */
   readonly job: JobHandler<unknown>;
 }
 
@@ -240,8 +246,8 @@ function requestOf(value: unknown): MetricsRollupRequest {
 }
 
 /**
- * The `metrics` SQL module as typed calls: `series` and `kpi` for charts
- * and stat cards as the caller, and `rollup` with a service transport.
+ * The `metrics` SQL module as typed calls: `series` and `kpi` for charts and
+ * stat cards as the caller, and `rollup` with a service transport.
  */
 export function createMetrics<
   const M extends readonly MetricDefinition[] = readonly MetricDefinition[],

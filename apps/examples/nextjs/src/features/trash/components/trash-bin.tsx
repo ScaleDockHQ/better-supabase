@@ -48,7 +48,10 @@ async function retry() {
   refresh();
 }
 
-/** Render inside `<Suspense>`: what was deleted, with Restore and Delete forever. */
+/**
+ * Render inside `<Suspense>`: what was deleted, with Restore and Delete
+ * forever.
+ */
 export async function TrashBin() {
   const [view, session, t, format] = await Promise.all([
     getTrash(),

@@ -45,9 +45,9 @@ export async function assistantTurn(
 }
 
 /**
- * The research agent: it outlines sub-questions, answers each with a
- * subagent step and records its progress in `ai_run_steps`. Sending the
- * report needs the user's approval, which can wait for hours.
+ * The research agent: it outlines sub-questions, answers each with a subagent
+ * step and records its progress in `ai_run_steps`. Sending the report needs the
+ * user's approval, which can wait for hours.
  */
 export async function researchTurn(
   input: DurableTurnInput,

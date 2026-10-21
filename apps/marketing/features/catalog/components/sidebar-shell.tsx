@@ -4,9 +4,9 @@ import { CatalogSheet } from "./catalog-sheet";
 import { SidebarScroll } from "./sidebar-scroll";
 
 /**
- * A section layout with a sticky sidebar on large screens and the same nav
- * in a sheet on small ones. The layout stays mounted, so the sidebar keeps
- * its scroll position while the pages under it change.
+ * A section layout with a sticky sidebar on large screens and the same nav in a
+ * sheet on small ones. The layout stays mounted, so the sidebar keeps its
+ * scroll position while the pages under it change.
  */
 export function SidebarShell({
   nav,

@@ -98,7 +98,10 @@ function splitParams(text: string): string[] {
   return parts.filter((part) => part !== "");
 }
 
-/** The type arguments that pass a declaration's parameters through: `<Id, Scope>`. */
+/**
+ * The type arguments that pass a declaration's parameters through: `<Id,
+ * Scope>`.
+ */
 export const typeArgs = (generics: string): string => {
   const names = paramNames(generics);
 
@@ -125,7 +128,10 @@ function sourceOf(source: string, name: string): string {
   throw new Error(`better-supabase: can't find where ${name} comes from`);
 }
 
-/** Whether the interface `name` (or one it extends in `source`) declares `auth` or `ports`. */
+/**
+ * Whether the interface `name` (or one it extends in `source`) declares `auth`
+ * or `ports`.
+ */
 function usesEnv(source: string, name: string): boolean {
   const match = new RegExp(
     `^export interface ${name}(?:<[\\s\\S]*?>)?(?: extends ([\\s\\S]*?))? \\{([\\s\\S]*?)^\\}`,

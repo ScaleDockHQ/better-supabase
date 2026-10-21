@@ -17,7 +17,10 @@ function same(a: FormJson | undefined, b: FormJson): boolean {
 
 const EMPTY: ReadonlySet<FormJson> = new Set<FormJson>([null, ""]);
 
-/** Whether `condition` holds for `answers`, with the semantics of its JSON Schema `if`. */
+/**
+ * Whether `condition` holds for `answers`, with the semantics of its JSON
+ * Schema `if`.
+ */
 export function conditionHolds(
   condition: FormCondition | undefined,
   answers: FormAnswers,
@@ -77,8 +80,8 @@ function visibleKeys(
 }
 
 /**
- * The answers without the ones for hidden steps and fields. Removing an
- * answer can hide a later field, so it repeats until nothing changes.
+ * The answers without the ones for hidden steps and fields. Removing an answer
+ * can hide a later field, so it repeats until nothing changes.
  */
 export function pruneAnswers(
   definition: FormDefinition,
@@ -148,7 +151,10 @@ export function initialQuestionnaire(
   return { step: first?.key ?? "", answers, completed: [], issues: [] };
 }
 
-/** The step on screen, or the nearest visible one before it when an answer hid it. */
+/**
+ * The step on screen, or the nearest visible one before it when an answer hid
+ * it.
+ */
 function stepAfterAnswer(
   form: QuestionnaireForm,
   step: string,
@@ -173,9 +179,9 @@ function stepAfterAnswer(
 }
 
 /**
- * The questionnaire as a reducer: answers, the current step and the steps
- * done. `next` checks the step's fields against the version's schema and
- * stays put with `issues` when one fails; hidden steps are skipped.
+ * The questionnaire as a reducer: answers, the current step and the steps done.
+ * `next` checks the step's fields against the version's schema and stays put
+ * with `issues` when one fails; hidden steps are skipped.
  */
 export function questionnaireReducer(
   form: QuestionnaireForm,

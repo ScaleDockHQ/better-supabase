@@ -247,10 +247,7 @@ describe("createBilling", () => {
     });
     expect(
       t.calls.find(([fn]) => fn === "billing_subscription_item")?.[1],
-    ).toEqual({
-      tenant: "org",
-      price: "price_seat",
-    });
+    ).toEqual({ tenant: "org", price: "price_seat" });
     item = { ...(item as object), quantity: 1 };
     await billing.syncSeats("org").orThrow();
     expect(t.stripeCalls.at(-1)).toMatchObject([
@@ -540,10 +537,7 @@ describe("createBilling", () => {
       hint: "BILLING_ALREADY_SUBSCRIBED",
     });
 
-    const external = createBilling({
-      ...t,
-      external: () => "vercel",
-    });
+    const external = createBilling({ ...t, external: () => "vercel" });
 
     const viaProvider = await external.checkout("org-1", {
       price: "price_pro",

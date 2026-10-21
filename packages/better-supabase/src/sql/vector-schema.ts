@@ -2,7 +2,10 @@ import type { ModuleLayout } from "./module-types.ts";
 
 const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
 
-/** The schema pgvector is installed in: `blocks.vector-search.options.schema`, then `vectorSchema`. */
+/**
+ * The schema pgvector is installed in: `blocks.vector-search.options.schema`,
+ * then `vectorSchema`.
+ */
 export function vectorSchemaOf(layout: ModuleLayout): string {
   const option = layout.modules?.["vector-search"]?.options?.["schema"];
 

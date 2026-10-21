@@ -54,8 +54,8 @@ function isOtpType(value: string): value is OtpType {
 }
 
 /**
- * The query and fragment parameters of a URL. Parsed by hand: Hermes'
- * `URL` and `URLSearchParams` leave parts unimplemented.
+ * The query and fragment parameters of a URL. Parsed by hand: Hermes' `URL` and
+ * `URLSearchParams` leave parts unimplemented.
  */
 export function linkParams(url: string): ReadonlyMap<string, string> {
   const params = new Map<string, string>();
@@ -101,12 +101,15 @@ const settle = async (
 };
 
 /**
- * Finishes a sign-in from a deep link: an OAuth or PKCE `code`, implicit
- * flow tokens in the fragment, or a magic link's `token_hash`. Returns
- * `none` for links that carry none of them, so it can see every URL.
+ * Finishes a sign-in from a deep link: an OAuth or PKCE `code`, implicit flow
+ * tokens in the fragment, or a magic link's `token_hash`. Returns `none` for
+ * links that carry none of them, so it can see every URL.
  *
  * ```ts
- * Linking.addEventListener('url', ({ url }) => void handleAuthDeepLink(supabase, url));
+ * Linking.addEventListener(
+ *   "url",
+ *   ({ url }) => void handleAuthDeepLink(supabase, url),
+ * );
  * ```
  */
 export function handleAuthDeepLink(
@@ -184,20 +187,24 @@ export interface OAuthClient extends AuthLinkClient {
 }
 
 export interface OAuthSignInOptions {
-  /** The app's deep link back, e.g. `Linking.createURL('auth/callback')`. Add it to the redirect allow list. */
+  /**
+   * The app's deep link back, e.g. `Linking.createURL('auth/callback')`. Add it
+   * to the redirect allow list.
+   */
   readonly redirectTo: string;
   readonly scopes?: string;
   readonly queryParams?: Readonly<Record<string, string>>;
 }
 
 /**
- * OAuth on a device: opens the provider in an auth session, then finishes
- * the sign-in from the redirect. A cancelled or dismissed browser returns
- * `none`.
+ * OAuth on a device: opens the provider in an auth session, then finishes the
+ * sign-in from the redirect. A cancelled or dismissed browser returns `none`.
  *
  * ```ts
- * import * as WebBrowser from 'expo-web-browser';
- * await signInWithOAuthBrowser(supabase, WebBrowser, 'github', { redirectTo: Linking.createURL('auth/callback') });
+ * import * as WebBrowser from "expo-web-browser";
+ * await signInWithOAuthBrowser(supabase, WebBrowser, "github", {
+ *   redirectTo: Linking.createURL("auth/callback"),
+ * });
  * ```
  */
 export async function signInWithOAuthBrowser(

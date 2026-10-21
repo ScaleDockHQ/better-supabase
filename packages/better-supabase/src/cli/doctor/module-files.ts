@@ -20,9 +20,15 @@ import { permissionCatalogKeys, workflowOf } from "./shared.ts";
 
 export interface ModuleFileState {
   readonly file: ModuleFile;
-  /** Where the module lives: its file, or the module migration under the migrations workflow. */
+  /**
+   * Where the module lives: its file, or the module migration under the
+   * migrations workflow.
+   */
   readonly path: string;
-  /** The installed text, or the rendered one when the module migration holds it unchanged. */
+  /**
+   * The installed text, or the rendered one when the module migration holds it
+   * unchanged.
+   */
   readonly current: string | undefined;
   /** The installed `@bs-module` version (1 without one). */
   readonly installed?: number | undefined;

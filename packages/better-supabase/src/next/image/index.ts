@@ -15,20 +15,22 @@ export interface ImageLoaderOptions {
   /** Resize mode for the transform. Defaults to Storage's own (`cover`). */
   readonly resize?: "cover" | "contain" | "fill";
   /**
-   * For images that are not public Storage objects (local files, other
-   * hosts). Defaults to returning `src` unchanged.
+   * For images that are not public Storage objects (local files, other hosts).
+   * Defaults to returning `src` unchanged.
    */
   readonly fallback?: ImageLoader;
 }
 
 /**
- * A `next/image` loader that serves public Storage objects through
- * Supabase image transformations (`/render/image/public`), so Next.js does
- * not proxy or re-encode them:
+ * A `next/image` loader that serves public Storage objects through Supabase
+ * image transformations (`/render/image/public`), so Next.js does not proxy or
+ * re-encode them:
  *
  * ```ts
  * // src/image-loader.ts, set as `images.loaderFile` in next.config.ts
- * export default createImageLoader({ url: process.env.NEXT_PUBLIC_SUPABASE_URL! });
+ * export default createImageLoader({
+ *   url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+ * });
  * ```
  *
  * Signed URLs pass through unchanged: their token covers the transform they

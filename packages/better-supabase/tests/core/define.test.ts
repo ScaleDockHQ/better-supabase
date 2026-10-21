@@ -166,9 +166,7 @@ describe("connect", () => {
       fake({ answer: () => ok({ rows: [], count: 9 }) }),
     );
 
-    const extended = db.tags.extend((base) => ({
-      total: () => base.count(),
-    }));
+    const extended = db.tags.extend((base) => ({ total: () => base.count() }));
 
     expect(await extended.total()).toEqual(ok(9));
     expect(typeof extended.findMany).toBe("function");
@@ -500,9 +498,7 @@ describe("$search", () => {
       dbError(
         "invalid_input",
         "db.$search() needs a vector of finite numbers (or text alone on a hybrid entry) and a positive integer k",
-        {
-          table: "notes",
-        },
+        { table: "notes" },
       ),
     );
   });
@@ -514,12 +510,14 @@ describe("$search", () => {
     });
 
     expect(
-      await betterSupabase.connect(executor).$search("notes", {
-        vector: "[1,2]",
-        k: 3,
-        select: ["id"],
-        where: { kind: "call" },
-      }),
+      await betterSupabase
+        .connect(executor)
+        .$search("notes", {
+          vector: "[1,2]",
+          k: 3,
+          select: ["id"],
+          where: { kind: "call" },
+        }),
     ).toEqual(ok([{ id: "1" }]));
     expect(executor.ops[0]).toMatchObject({
       limit: 3,
@@ -562,11 +560,13 @@ describe("$search", () => {
 
   it("passes filter and text to the search function", async () => {
     const executor = fake({ functionSources: true });
-    await betterSupabase.connect(executor).$search("notes", {
-      vector,
-      filter: { kind: ["call", null] },
-      text: "renewal",
-    });
+    await betterSupabase
+      .connect(executor)
+      .$search("notes", {
+        vector,
+        filter: { kind: ["call", null] },
+        text: "renewal",
+      });
     expect(executor.ops[0]).toMatchObject({
       source: {
         args: {

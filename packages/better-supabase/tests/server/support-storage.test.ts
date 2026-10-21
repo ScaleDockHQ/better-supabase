@@ -26,7 +26,10 @@ const INFO_SQL =
 const CREATED = new Date("2026-10-01T00:00:00.123Z");
 const UPDATED = new Date("2026-10-02T00:00:00.456Z");
 
-/** One folder level of `visible`, folders included, as `storage.search` returns it. */
+/**
+ * One folder level of `visible`, folders included, as `storage.search` returns
+ * it.
+ */
 function search(visible: readonly string[], call: SqlCall) {
   const [prefix, , limit, , offset, term] = call.values as [
     string,
@@ -1483,9 +1486,7 @@ describe("supportStorage refusals and failures", () => {
       { sql: sql.sql, session: SESSION },
       { sql: sql.sql, adminSql: sql.sql },
       {
-        sql: {
-          queryRaw: <T>(text: string) => sql.sql.queryRaw<T>(text),
-        },
+        sql: { queryRaw: <T>(text: string) => sql.sql.queryRaw<T>(text) },
         adminSql: sql.sql,
         session: SESSION,
       },

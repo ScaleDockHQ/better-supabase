@@ -29,7 +29,8 @@ export const powersync = new PowerSyncDatabase({
 
 /**
  * Repositories over the device database: the same `db.customers` API, read
- * offline. `$rpc` and reads SQLite can't run go to PostgREST and need a connection.
+ * offline. `$rpc` and reads SQLite can't run go to PostgREST and need a
+ * connection.
  */
 export const local = betterSupabase.connect(
   powersyncExecutor(powersync, {

@@ -5,8 +5,8 @@ export interface DbStats {
   /** Executor calls: repository operations and RPCs. */
   readonly calls: number;
   /**
-   * Sequential rounds. A wave starts when a call begins while nothing else
-   * is in flight, so `Promise.all` of three reads is one wave.
+   * Sequential rounds. A wave starts when a call begins while nothing else is
+   * in flight, so `Promise.all` of three reads is one wave.
    */
   readonly waves: number;
   /** App keys of the tables read or written, and `name()` for RPCs. */
@@ -18,8 +18,8 @@ export interface DbStats {
 export const EMPTY_STATS: DbStats = { calls: 0, waves: 0, tables: [], ms: 0 };
 
 /**
- * Counts calls and waves. A recorder with a `parent` also reports to it, so
- * a request-wide recorder sees every scope's calls.
+ * Counts calls and waves. A recorder with a `parent` also reports to it, so a
+ * request-wide recorder sees every scope's calls.
  */
 export class StatsRecorder {
   readonly #parent: StatsRecorder | undefined;

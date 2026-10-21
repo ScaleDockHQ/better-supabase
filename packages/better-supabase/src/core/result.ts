@@ -10,7 +10,10 @@ import {
   type RawDbError,
 } from "./errors.ts";
 
-/** Turns a `DbError` into the error `.orThrow()` throws; set with `betterSupabase.mapError()`. */
+/**
+ * Turns a `DbError` into the error `.orThrow()` throws; set with
+ * `betterSupabase.mapError()`.
+ */
 export type ThrowMapper = (error: DbError) => unknown;
 
 const throwMappers = new WeakMap<AsyncResult<unknown>, ThrowMapper>();
@@ -92,9 +95,10 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   }
 
   /**
-   * Resolves with the data, or rejects with a `DbException`. Pass `factory`
-   * to throw your own error instead, e.g. an HTTP error for your framework;
-   * without it, the mapper from `betterSupabase.mapError()` applies when one is set.
+   * Resolves with the data, or rejects with a `DbException`. Pass `factory` to
+   * throw your own error instead, e.g. an HTTP error for your framework;
+   * without it, the mapper from `betterSupabase.mapError()` applies when one is
+   * set.
    */
   async orThrow(factory?: (error: DbError) => unknown): Promise<T> {
     const result = await this.#promise;
@@ -146,7 +150,10 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   }
 }
 
-/** What `toBetterResult` returns: the `status`/`value`/`error` fields every better-result value has. */
+/**
+ * What `toBetterResult` returns: the `status`/`value`/`error` fields every
+ * better-result value has.
+ */
 export type BetterResultValue<T, E> =
   | { readonly status: "ok"; readonly value: T }
   | { readonly status: "error"; readonly error: E };
@@ -176,15 +183,16 @@ export type BetterResultErr<R> = R extends {
 /**
  * Builds a better-result value with the `Result` namespace you pass, so
  * better-result stays your dependency. Errors go through `mapError`, or, for a
- * result from a `db` of `betterSupabase.mapError(fn)`, through `fn` (typed `unknown`).
+ * result from a `db` of `betterSupabase.mapError(fn)`, through `fn` (typed
+ * `unknown`).
  *
- * The value is typed as better-result's `Result<T, E>` when the call has one
- * as its expected type (an annotation or a function's return type) or as its
- * type argument. That type is checked against the row type and `mapError`.
- * Without one, it is a `BetterResultValue<T, E>`.
+ * The value is typed as better-result's `Result<T, E>` when the call has one as
+ * its expected type (an annotation or a function's return type) or as its type
+ * argument. That type is checked against the row type and `mapError`. Without
+ * one, it is a `BetterResultValue<T, E>`.
  *
  * ```ts
- * import { Result } from 'better-result';
+ * import { Result } from "better-result";
  * const customer: Result<Customer, AppError> = toBetterResult(
  *   await db.customers.findById(id),
  *   Result,
@@ -258,8 +266,8 @@ export function toBetterResult(
 }
 
 /**
- * An error class for one `DbError` kind. better-result's
- * `class NotFound extends TaggedError("NotFound")<{ message: string; error: DbError }> {}`
+ * An error class for one `DbError` kind. better-result's `class NotFound
+ * extends TaggedError("NotFound")<{ message: string; error: DbError }> {}`
  * fits, as does any class whose constructor takes `{ message, error }`.
  */
 export type DbErrorClass<K extends DbErrorKind = DbErrorKind> = new (props: {
@@ -287,9 +295,9 @@ export type MappedDbError<
 
 /**
  * Converts results with a fixed `Result` namespace and error mapping. Like
- * `toBetterResult`, the value is typed as better-result's `Result<T, E>`
- * when the call has one as its expected type, and `E` must accept every
- * error the mapping returns.
+ * `toBetterResult`, the value is typed as better-result's `Result<T, E>` when
+ * the call has one as its expected type, and `E` must accept every error the
+ * mapping returns.
  */
 export interface BetterResultErrors<
   M extends DbErrorClasses,
@@ -312,17 +320,29 @@ export interface BetterResultErrors<
 }
 
 /**
- * A typed mapping from `DbError` kinds to error classes, usually
- * better-result `TaggedError` classes, bound to better-result's `Result`
- * namespace. Kinds without a class use `fallback`. Each instance gets the
- * error's `message` and the `DbError` itself as `error`.
+ * A typed mapping from `DbError` kinds to error classes, usually better-result
+ * `TaggedError` classes, bound to better-result's `Result` namespace. Kinds
+ * without a class use `fallback`. Each instance gets the error's `message` and
+ * the `DbError` itself as `error`.
  *
  * ```ts
- * import { Result, TaggedError } from 'better-result';
- * class NotFound extends TaggedError('NotFound')<{ message: string; error: DbError }> {}
- * class DbFailure extends TaggedError('DbFailure')<{ message: string; error: DbError }> {}
- * const toResult = defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure);
- * const customer: Result<Customer, NotFound | DbFailure> = await toResult(db.customers.findById(id));
+ * import { Result, TaggedError } from "better-result";
+ * class NotFound extends TaggedError("NotFound")<{
+ *   message: string;
+ *   error: DbError;
+ * }> {}
+ * class DbFailure extends TaggedError("DbFailure")<{
+ *   message: string;
+ *   error: DbError;
+ * }> {}
+ * const toResult = defineBetterResultErrors(
+ *   Result,
+ *   { not_found: NotFound },
+ *   DbFailure,
+ * );
+ * const customer: Result<Customer, NotFound | DbFailure> = await toResult(
+ *   db.customers.findById(id),
+ * );
  * ```
  */
 export function defineBetterResultErrors<
@@ -350,10 +370,9 @@ export function defineBetterResultErrors<
 }
 
 /**
- * Converts a better-result value back into a `Result`, by its `status`
- * field, so it works across better-result versions. A `DbError`, or an
- * error whose `cause` is one, is kept; others go through `mapError`
- * (default `toDbError`).
+ * Converts a better-result value back into a `Result`, by its `status` field,
+ * so it works across better-result versions. A `DbError`, or an error whose
+ * `cause` is one, is kept; others go through `mapError` (default `toDbError`).
  */
 export function fromBetterResult<T>(
   result: BetterResultValue<T, unknown>,

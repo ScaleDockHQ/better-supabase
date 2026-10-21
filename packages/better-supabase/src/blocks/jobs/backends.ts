@@ -37,7 +37,10 @@ export interface QueueStats {
   readonly delayed: number;
   /** Dead letters kept in the archive. */
   readonly dead: number;
-  /** Seconds since the oldest message that isn't done was enqueued; null when none is waiting. */
+  /**
+   * Seconds since the oldest message that isn't done was enqueued; null when
+   * none is waiting.
+   */
   readonly oldestAgeSeconds: number | null;
 }
 
@@ -64,8 +67,8 @@ export interface DueSchedule {
 /** A Supabase client, or anything with `.schema(name).rpc(fn, args)`. */
 export interface QueueRpcClient {
   /**
-   * `never` parameters, so a typed `SupabaseClient<Database>` whose types
-   * leave out `pgmq_public` fits too.
+   * `never` parameters, so a typed `SupabaseClient<Database>` whose types leave
+   * out `pgmq_public` fits too.
    */
   schema(name: never): {
     rpc(fn: never, args: never): PromiseLike<{ data: unknown; error: unknown }>;
@@ -84,9 +87,9 @@ interface UntypedQueueClient {
 
 /**
  * Where `createJobs` stores jobs. `sqlQueueBackend` (the `jobs` SQL module
- * module, on pgmq or its table backend) and `pgmqPublicBackend` ship with
- * the package; `testQueueBackend` from `better-supabase/testing` checks
- * another one.
+ * module, on pgmq or its table backend) and `pgmqPublicBackend` ship with the
+ * package; `testQueueBackend` from `better-supabase/testing` checks another
+ * one.
  */
 export interface QueueBackend {
   readonly apiVersion: 1;
@@ -99,7 +102,10 @@ export interface QueueBackend {
     delay: number,
     maxAttempts: number,
     dedupeKey: string | undefined,
-    /** `"waiting"` coalesces only onto a job no worker has claimed; `undefined` means `"always"`. */
+    /**
+     * `"waiting"` coalesces only onto a job no worker has claimed; `undefined`
+     * means `"always"`.
+     */
     dedupe?: "always" | "waiting",
   ): Promise<number>;
   /**
@@ -126,17 +132,26 @@ export interface QueueBackend {
     retryIn: number | undefined,
   ): Promise<"queued" | "dead" | null>;
   extend(job: Job, lease: number): Promise<boolean>;
-  /** Re-enqueues a dead letter; `null` when it isn't one. Absent when the backend can't. */
+  /**
+   * Re-enqueues a dead letter; `null` when it isn't one. Absent when the
+   * backend can't.
+   */
   replay?(queue: string, id: number): Promise<number | null>;
   /** Counts for one queue. Absent when the backend can't. */
   stats?(queue: string): Promise<QueueStats>;
-  /** Dead letters, newest first, before `before` when given. Absent when the backend can't. */
+  /**
+   * Dead letters, newest first, before `before` when given. Absent when the
+   * backend can't.
+   */
   listDead?(
     queue: string,
     limit: number,
     before: number | undefined,
   ): Promise<readonly DeadJobRow[]>;
-  /** Re-enqueues the dead letters `ids`, or the newest `limit`; returns how many. */
+  /**
+   * Re-enqueues the dead letters `ids`, or the newest `limit`; returns how
+   * many.
+   */
   retryDead?(
     queue: string,
     ids: readonly number[] | undefined,
@@ -157,13 +172,22 @@ export interface QueueBackend {
     tenant?: string,
   ): Promise<void>;
   unschedule(name: string): Promise<boolean>;
-  /** Schedules by name prefix and tenant. Absent when the backend can't list them. */
+  /**
+   * Schedules by name prefix and tenant. Absent when the backend can't list
+   * them.
+   */
   listSchedules?(filter: ScheduleFilter): Promise<readonly ScheduleInfo[]>;
-  /** Removes a tenant's schedules and returns how many. Absent when the backend can't. */
+  /**
+   * Removes a tenant's schedules and returns how many. Absent when the backend
+   * can't.
+   */
   unscheduleTenant?(tenant: string): Promise<number>;
   /** Leases due schedules (the drain scheduler); absent or empty with pg_cron. */
   dueSchedules?(lease: number, batch: number): Promise<readonly DueSchedule[]>;
-  /** Moves a schedule from `ran` to `next`; `false` when it changed since the claim. */
+  /**
+   * Moves a schedule from `ran` to `next`; `false` when it changed since the
+   * claim.
+   */
   advanceSchedule?(
     name: string,
     ran: Temporal.Instant,
@@ -196,11 +220,17 @@ interface ScheduleRow {
   readonly first_after?: Date | string | null;
 }
 
-/** Schedule times are stored to the millisecond, the precision `Date` reads back. */
+/**
+ * Schedule times are stored to the millisecond, the precision `Date` reads
+ * back.
+ */
 export const millis = (instant: Temporal.Instant): Temporal.Instant =>
   instant.round({ smallestUnit: "millisecond", roundingMode: "floor" });
 
-/** The first run of a schedule written without one, or undefined for a cron the drain can't read. */
+/**
+ * The first run of a schedule written without one, or undefined for a cron the
+ * drain can't read.
+ */
 function firstRun(
   row: ScheduleRow,
   now: () => Temporal.Instant,
@@ -219,8 +249,8 @@ function firstRun(
 }
 
 /**
- * The due schedules among claimed rows. A row written in SQL without a next
- * run gets its first run here; one not due yet is moved to it with `advance`.
+ * The due schedules among claimed rows. A row written in SQL without a next run
+ * gets its first run here; one not due yet is moved to it with `advance`.
  */
 async function dueOf(
   rows: readonly ScheduleRow[],
@@ -306,9 +336,9 @@ const onceOf = (
 };
 
 /**
- * The `jobs` SQL module over a service SQL connection. The same
- * functions back both `blocks.jobs.options.backend` values (pgmq and table)
- * and both schedulers. `now` dates a schedule's first run.
+ * The `jobs` SQL module over a service SQL connection. The same functions back
+ * both `blocks.jobs.options.backend` values (pgmq and table) and both
+ * schedulers. `now` dates a schedule's first run.
  */
 export function sqlQueueBackend(
   sql: SqlClient,
@@ -555,10 +585,10 @@ export interface QueuePurgeArgs {
 
 /**
  * The `jobs` SQL module over a `BlockTransport`, with named arguments: a
- * service-role `rpcTransport(supabase, { schema: "api" })` reaches the
- * wrappers `blocks.jobs.api` writes, so stats, dead letters, replays
- * and schedules work without a direct Postgres connection. Over Postgres,
- * pass the `SqlClient` to `createJobs` instead.
+ * service-role `rpcTransport(supabase, { schema: "api" })` reaches the wrappers
+ * `blocks.jobs.api` writes, so stats, dead letters, replays and schedules work
+ * without a direct Postgres connection. Over Postgres, pass the `SqlClient` to
+ * `createJobs` instead.
  */
 export function transportQueueBackend(
   transport: BlockTransport,
@@ -711,8 +741,8 @@ export function sqlOnly(feature: string): never {
 
 /**
  * Supabase's `pgmq_public` RPCs (Integrations, Queues, "Expose Queues via
- * PostgREST"). No lease check on complete, no retry delay, no deduplication
- * and no schedules: a failed job reappears when its lease ends.
+ * PostgREST"). No lease check on complete, no retry delay, no deduplication and
+ * no schedules: a failed job reappears when its lease ends.
  */
 export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
   // Method parameters are bivariant, so the never parameters widen back.
@@ -776,12 +806,14 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
 
       // pgmq_public.archive takes one id, so the dead messages go in parallel.
       await Promise.all(
-        rows.filter(dead).map((row) =>
-          call<boolean>("archive", {
-            queue_name: queue,
-            message_id: row.msg_id,
-          }),
-        ),
+        rows
+          .filter(dead)
+          .map((row) =>
+            call<boolean>("archive", {
+              queue_name: queue,
+              message_id: row.msg_id,
+            }),
+          ),
       );
 
       return live.map((row) => ({

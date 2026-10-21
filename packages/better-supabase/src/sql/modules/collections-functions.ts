@@ -21,7 +21,10 @@ export interface CollectionNames {
   readonly read: string;
   readonly write: string;
   readonly share: string;
-  /** SQL that is true when `value` (text) is one of the caller's teams; `false` without `teams`. */
+  /**
+   * SQL that is true when `value` (text) is one of the caller's teams; `false`
+   * without `teams`.
+   */
   readonly inTeam: (value: string) => string;
   readonly canSubject: string;
   readonly subjectTitle: string;

@@ -80,7 +80,10 @@ export interface PipelineInput<F extends object = Record<never, never>> {
   readonly name: string;
   readonly scopeId?: string;
   readonly isDefault?: boolean;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -154,7 +157,10 @@ export interface PipelineHealth {
 export interface Pipelines<F extends object = Record<never, never>> {
   /** The organization's active pipelines of a subject type, with their stages. */
   list(organizationId: string, subjectType: string): AsyncResult<Pipeline<F>[]>;
-  /** Creates or renames a pipeline. The first of a type and scope is its default. */
+  /**
+   * Creates or renames a pipeline. The first of a type and scope is its
+   * default.
+   */
   save(
     organizationId: string,
     input: PipelineInput<F>,
@@ -197,7 +203,10 @@ export interface PipelinesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the extra columns of the pipelines table
@@ -326,9 +335,9 @@ function healthOf(value: unknown): PipelineHealth {
 
 /**
  * The pipelines block: tenant-editable pipelines and stages for the subject
- * types `blocks.pipelines.options.subjects` binds, and the board,
- * stats and health reads over them. Moving a record is a plain update of
- * its stage column, or `rank.move` with the stage id as the group.
+ * types `blocks.pipelines.options.subjects` binds, and the board, stats and
+ * health reads over them. Moving a record is a plain update of its stage
+ * column, or `rank.move` with the stage id as the group.
  */
 export function createPipelines<
   S extends StandardSchemaV1 | undefined = undefined,

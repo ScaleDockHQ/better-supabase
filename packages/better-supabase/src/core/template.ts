@@ -1,6 +1,9 @@
 import { DbException, dbError } from "./errors.ts";
 
-/** Placeholder names in a `{name}` template; a rest placeholder `{...name}` is `name`. */
+/**
+ * Placeholder names in a `{name}` template; a rest placeholder `{...name}` is
+ * `name`.
+ */
 export type TemplateParams<P extends string> =
   P extends `${string}{${infer K}}${infer R}`
     ? (K extends `...${infer N}` ? N : K) | TemplateParams<R>
@@ -289,7 +292,10 @@ export function slug(value: string): string {
     .toLowerCase();
 }
 
-/** SQL for the JWT claim at a dotted path, or the first set one of several (`coalesce`). */
+/**
+ * SQL for the JWT claim at a dotted path, or the first set one of several
+ * (`coalesce`).
+ */
 export function claimSql(claim: string | readonly string[]): string {
   const paths = typeof claim === "string" ? [claim] : claim;
 

@@ -19,8 +19,8 @@ import { isRecord } from "../../shared.ts";
 
 /**
  * What the handler writes through: `createNotifications` over the service
- * transport. Without `recordDeliveryEvent` (a custom writer), it only
- * writes suppressions.
+ * transport. Without `recordDeliveryEvent` (a custom writer), it only writes
+ * suppressions.
  */
 export interface SuppressionWriter {
   suppress(input: SuppressInput): AsyncResult<boolean>;
@@ -55,8 +55,8 @@ const instantOf = (value: unknown): Temporal.Instant | undefined => {
 /**
  * The delivery event a Resend event reports, matched to the delivery by
  * `data.email_id`: `email.delivered`, `opened`, `clicked`, `bounced`,
- * `complained` and `delivery_delayed`. A `Transient` bounce doesn't
- * suppress the address. `undefined` for any other event.
+ * `complained` and `delivery_delayed`. A `Transient` bounce doesn't suppress
+ * the address. `undefined` for any other event.
  */
 export function resendDeliveryEvent(
   event: unknown,
@@ -187,9 +187,9 @@ export function resendSuppressions(
 /**
  * A `Request` handler for Resend's webhooks. It verifies the Svix (Standard
  * Webhooks) signature, records each delivery status on its delivery
- * (`recordDeliveryEvent`), writes a suppression for each bounced or
- * complaining address, and answers 204. A failed write answers 500 so
- * Resend retries; other events are acknowledged and ignored.
+ * (`recordDeliveryEvent`), writes a suppression for each bounced or complaining
+ * address, and answers 204. A failed write answers 500 so Resend retries; other
+ * events are acknowledged and ignored.
  */
 export function resendWebhook(
   options: ResendWebhookOptions,

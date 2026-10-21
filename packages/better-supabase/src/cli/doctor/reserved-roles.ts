@@ -1,7 +1,7 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 /**
- * supautils' `reserved_roles` on Supabase. Nobody but a superuser may alter,
+ * Supautils' `reserved_roles` on Supabase. Nobody but a superuser may alter,
  * drop or change the memberships of these.
  */
 const RESERVED_ROLES = new Set([
@@ -17,7 +17,10 @@ const RESERVED_ROLES = new Set([
   "pgbouncer",
 ]);
 
-/** Reserved roles whose settings (`alter role ... set`) supautils allows changing. */
+/**
+ * Reserved roles whose settings (`alter role ... set`) supautils allows
+ * changing.
+ */
 const SETTINGS_ONLY_ROLES = new Set([
   "authenticator",
   "authenticated",
@@ -94,7 +97,10 @@ function reservedRoleChange(statement: string): string | undefined {
     : `${membership[1]!.toLowerCase()}s a membership of the reserved role ${role}`;
 }
 
-/** Where a statement ends, including statements inside `do` blocks and function bodies. */
+/**
+ * Where a statement ends, including statements inside `do` blocks and function
+ * bodies.
+ */
 const STATEMENT_BOUNDARY = /;|\$\w*\$|\b(?:begin|then|else|loop)\b/gi;
 
 /** Statements in schema files and migrations that supautils rejects on Supabase. */

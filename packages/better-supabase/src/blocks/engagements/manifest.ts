@@ -14,9 +14,7 @@ export const engagementsBlock: BlockOf<
 > = defineBlock({
   name: "engagements",
   sql: ["engagements"],
-  options: {
-    engagements: engagementsSqlOptions,
-  },
+  options: { engagements: engagementsSqlOptions },
   events: engagementsEvents,
   create: createEngagements,
   category: "crm",

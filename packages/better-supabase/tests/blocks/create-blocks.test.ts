@@ -30,9 +30,7 @@ import { AsyncResult } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 
 const transport = rpcTransport({
-  schema: () => ({
-    rpc: () => Promise.resolve({ data: null, error: null }),
-  }),
+  schema: () => ({ rpc: () => Promise.resolve({ data: null, error: null }) }),
 });
 
 const fakeFiles = {} as AiFiles;

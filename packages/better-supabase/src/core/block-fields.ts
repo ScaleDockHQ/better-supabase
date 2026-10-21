@@ -25,21 +25,21 @@ export interface WithExtraFields {
 }
 
 /**
- * Parses and validates the extra fields an app adds to a block's table,
- * with any Standard Schema (zod, valibot, arktype) for an object.
+ * Parses and validates the extra fields an app adds to a block's table, with
+ * any Standard Schema (zod, valibot, arktype) for an object.
  */
 export interface BlockFields<T extends object> {
   /**
    * Parses a row the block read: the schema's output replaces the fields it
-   * covers, and the other fields stay as read. A row the schema rejects is
-   * a `validation` error.
+   * covers, and the other fields stay as read. A row the schema rejects is a
+   * `validation` error.
    */
   read<R extends object>(row: R): Promise<Result<R & T>>;
   /**
-   * Validates the fields a write sets. Issues about fields the write leaves
-   * out are ignored, so partial updates pass; the database applies its
-   * defaults and `not null` checks. A rejected write is a `validation`
-   * error, and nothing is sent to the database.
+   * Validates the fields a write sets. Issues about fields the write leaves out
+   * are ignored, so partial updates pass; the database applies its defaults and
+   * `not null` checks. A rejected write is a `validation` error, and nothing is
+   * sent to the database.
    */
   write<A extends object>(attrs: A): Promise<Result<A>>;
   /**
@@ -62,7 +62,10 @@ export interface BlockFields<T extends object> {
   ) => AsyncResult<Readonly<Record<string, unknown>> | undefined>;
 }
 
-/** The extra columns a block row carries, by column name, typed by its `fields` schema. */
+/**
+ * The extra columns a block row carries, by column name, typed by its `fields`
+ * schema.
+ */
 export type RowFields<F extends object> = Readonly<Record<string, unknown>> & F;
 
 /** A row the block read, with its `fields` parsed. */
@@ -140,8 +143,8 @@ const invalid = (
 ): Result<never> => err(dbError("validation", `Invalid ${label}`, { issues }));
 
 /**
- * The `fields` helper block creators use. Without a schema, reads and
- * writes pass through unchanged.
+ * The `fields` helper block creators use. Without a schema, reads and writes
+ * pass through unchanged.
  */
 export function blockFields<T extends object = Record<never, never>>(
   schema: StandardSchemaV1 | undefined,
@@ -255,9 +258,9 @@ const extraFieldsOf = (value: unknown): Record<string, unknown> =>
   isRecord(value) && isRecord(value["fields"]) ? value["fields"] : {};
 
 /**
- * Parses the extra columns of `raw` (a row a block function returned) and
- * adds them to `row`, the block's typed row. The row's own keys win, so an
- * extra column never replaces one the block types.
+ * Parses the extra columns of `raw` (a row a block function returned) and adds
+ * them to `row`, the block's typed row. The row's own keys win, so an extra
+ * column never replaces one the block types.
  */
 export async function withFields<R extends object, T extends object>(
   fields: BlockFields<T>,
@@ -294,9 +297,9 @@ export async function allWithFields<R extends object, T extends object>(
 }
 
 /**
- * Validates the extra fields of a write: `{ fields }` to spread into
- * the call's arguments, or `{}` when the write sets none, so a module
- * without extra columns is called as before.
+ * Validates the extra fields of a write: `{ fields }` to spread into the call's
+ * arguments, or `{}` when the write sets none, so a module without extra
+ * columns is called as before.
  */
 export async function extraFieldsArg(
   fields: BlockFields<object>,

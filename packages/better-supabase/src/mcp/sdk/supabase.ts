@@ -31,8 +31,8 @@ export interface SupabaseMcpHandlerOptions<
   /** The app credential that holds a Management API access token. */
   readonly credentialRef: CredentialRef;
   /**
-   * Who may use the server once the bearer token verified. Its tools
-   * administer the project, so allow only the people who run it.
+   * Who may use the server once the bearer token verified. Its tools administer
+   * the project, so allow only the people who run it.
    */
   readonly authorize: (auth: UserAuth<C, P>) => boolean | Promise<boolean>;
   /** The Management API URL; Supabase's when unset. */

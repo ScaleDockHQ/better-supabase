@@ -19,10 +19,10 @@ export interface PoolErrorOptions {
 }
 
 /**
- * Listens for errors on idle pooled connections, such as a server restart or
- * an ended session. `pg.Pool` emits them as an `error` event, and Node exits
- * on an `error` event nobody listens to. The listener reports the error and
- * never throws.
+ * Listens for errors on idle pooled connections, such as a server restart or an
+ * ended session. `pg.Pool` emits them as an `error` event, and Node exits on an
+ * `error` event nobody listens to. The listener reports the error and never
+ * throws.
  */
 export function watchPoolErrors(
   pool: PoolErrorSource,

@@ -15,7 +15,10 @@ export interface DocumentRow {
   readonly createdAt: string;
 }
 
-/** The documents the caller can read in the active organization. Not cached: status changes as embedding runs. */
+/**
+ * The documents the caller can read in the active organization. Not cached:
+ * status changes as embedding runs.
+ */
 export async function getDocuments(): Promise<readonly DocumentRow[]> {
   const [session, { supabase }] = await Promise.all([
     getSession(),

@@ -8,7 +8,10 @@ import {
 const escape = (name: string): string =>
   name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Where a table, function or policy is declared: declarative schemas first, then the newest migration. */
+/**
+ * Where a table, function or policy is declared: declarative schemas first,
+ * then the newest migration.
+ */
 export function locate(
   files: readonly TextFile[],
   object: SqlObject,

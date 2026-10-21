@@ -85,7 +85,10 @@ revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 `;
 
-/** Records the module in `better_supabase.modules`, which `sql upgrade` and doctor read. */
+/**
+ * Records the module in `better_supabase.modules`, which `sql upgrade` and
+ * doctor read.
+ */
 function moduleRow(module: SqlModule, mode: BlockMode): string {
   return `insert into better_supabase.modules (name, version, mode)
 values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
@@ -94,11 +97,11 @@ on conflict (name) do update
 }
 
 /**
- * The files `sql add` writes for these modules. Modules in `custom` mode
- * write nothing: the app implements their contract. A schema module's rows,
- * role settings and other statements a schema diff can't capture go to a
- * second file in `better-supabase-data/` (`kind: 'data'`), which
- * `sql data` writes into a migration.
+ * The files `sql add` writes for these modules. Modules in `custom` mode write
+ * nothing: the app implements their contract. A schema module's rows, role
+ * settings and other statements a schema diff can't capture go to a second file
+ * in `better-supabase-data/` (`kind: 'data'`), which `sql data` writes into a
+ * migration.
  */
 export function renderModules(
   names: readonly string[],
@@ -218,7 +221,10 @@ export function renderModules(
   return [...files, ...appTablesFiles(layout, installed)];
 }
 
-/** Throws when `sql.naming.tenant` gives a renamed table or column a name a module already uses. */
+/**
+ * Throws when `sql.naming.tenant` gives a renamed table or column a name a
+ * module already uses.
+ */
 function checkTenantName(
   modules: readonly SqlModule[],
   layout: ModuleLayout,
@@ -307,10 +313,9 @@ export function customContracts(
         module: module.name,
         schema: ctx.schemaName,
         idType: ctx.idType,
-        functions: module.contract(ctx).map((fn) => ({
-          ...fn,
-          name: ctx.fnName(fn.name),
-        })),
+        functions: module
+          .contract(ctx)
+          .map((fn) => ({ ...fn, name: ctx.fnName(fn.name) })),
       },
     ];
   });

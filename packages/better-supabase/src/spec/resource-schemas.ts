@@ -7,7 +7,10 @@ export interface PageQueryParameter {
   readonly schema: Json;
 }
 
-/** The `after` or `page` parameter and `size` of a list, for the spec and the MCP tools alike. */
+/**
+ * The `after` or `page` parameter and `size` of a list, for the spec and the
+ * MCP tools alike.
+ */
 export function pageQuery(
   cursor: boolean,
   maxPageSize: number,

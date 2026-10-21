@@ -36,11 +36,14 @@ export interface WebhookDelivery {
   readonly runId: string | null;
   /** The CloudEvents `subject`, such as `invoices/123`, when the event has one. */
   readonly subject: string | null;
-  /** The user who owns the endpoint, or `null` for a service principal's endpoint. */
+  /**
+   * The user who owns the endpoint, or `null` for a service principal's
+   * endpoint.
+   */
   readonly owner: string | null;
   /**
-   * The tenant's default service principal, which an endpoint without an
-   * owner runs as, when the service-principals module is installed.
+   * The tenant's default service principal, which an endpoint without an owner
+   * runs as, when the service-principals module is installed.
    */
   readonly principal: string | null;
   /** The permissions a service principal's endpoint declares. */
@@ -49,7 +52,10 @@ export interface WebhookDelivery {
   readonly batch: boolean;
   /** `v1` signs with the endpoint's secrets, `v1a` with `asymmetricSigner`. */
   readonly signing: "v1" | "v1a";
-  /** The encoder that writes the request body, such as `cloudevents` or `otlp-logs`. */
+  /**
+   * The encoder that writes the request body, such as `cloudevents` or
+   * `otlp-logs`.
+   */
   readonly format: string;
   /** The credential whose token authenticates the request, if any. */
   readonly credentialRef: CredentialRef | null;
@@ -61,12 +67,15 @@ export interface RetryPolicy {
   readonly maxAttempts?: number;
   /**
    * Seconds before the next attempt. Defaults to 5 seconds, 5 minutes, 30
-   * minutes, 2 hours, 5 hours, then 10 hours. Each wait is at least half
-   * its step and at least a second, plus a random share of the rest. A
-   * receiver's `Retry-After` wins when it asks for longer, up to a day.
+   * minutes, 2 hours, 5 hours, then 10 hours. Each wait is at least half its
+   * step and at least a second, plus a random share of the rest. A receiver's
+   * `Retry-After` wins when it asks for longer, up to a day.
    */
   readonly backoff?: (attempt: number) => number;
-  /** Statuses worth retrying. Defaults to 408, 429 and 5xx; network errors always retry. */
+  /**
+   * Statuses worth retrying. Defaults to 408, 429 and 5xx; network errors
+   * always retry.
+   */
   readonly retryable?: (status: number) => boolean;
 }
 
@@ -82,9 +91,15 @@ export interface WebhookSubscriber {
 }
 
 export interface WebhooksOptions extends BlockTemporalOptions {
-  /** `sqlTransport(postgres.admin)` for the worker, or the user's connection to manage. */
+  /**
+   * `sqlTransport(postgres.admin)` for the worker, or the user's connection to
+   * manage.
+   */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   /** Defaults to `fetchTransport({ allowUrl })`. */
   readonly http?: WebhookTransport;
@@ -94,29 +109,28 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly signer?: WebhookSigner;
   /**
    * Signs deliveries to endpoints with `signing = 'v1a'`, usually
-   * `standardWebhooksAsymmetric({ signer })`. Without it those deliveries
-   * are dead-lettered.
+   * `standardWebhooksAsymmetric({ signer })`. Without it those deliveries are
+   * dead-lettered.
    */
   readonly asymmetricSigner?: WebhookSigner;
   /** Defaults to `sqlSecretStore(transport)`. */
   readonly secrets?: WebhookSecretStore;
   /**
    * Encoders for endpoint `format`s beyond, or replacing, the built-in
-   * `cloudevents`, `standard`, `otlp-logs`, `splunk-hec` and `set`. A
-   * delivery to a format without an encoder is dead-lettered.
+   * `cloudevents`, `standard`, `otlp-logs`, `splunk-hec` and `set`. A delivery
+   * to a format without an encoder is dead-lettered.
    */
   readonly encoders?: readonly WebhookEncoder[];
   /**
-   * The format of an endpoint whose row has none, such as an adopted table
-   * that doesn't map `format` or holds `null`.
+   * The format of an endpoint whose row has none, such as an adopted table that
+   * doesn't map `format` or holds `null`.
    * `blocks.webhooks-out.options.defaultFormat`, which `defineBlocks` passes,
    * and the column default. Defaults to `cloudevents`.
    */
   readonly defaultFormat?: string;
   /**
-   * Resolves an endpoint's `credential_ref` to the token that
-   * authenticates its requests. Without it, such deliveries are
-   * dead-lettered.
+   * Resolves an endpoint's `credential_ref` to the token that authenticates its
+   * requests. Without it, such deliveries are dead-lettered.
    */
   readonly credentials?: CredentialProvider;
   readonly retry?: RetryPolicy;
@@ -136,26 +150,26 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   /** Prepended to each type with a dot, such as `com.example`. Defaults to none. */
   readonly typePrefix?: string;
   /**
-   * The CloudEvents `dataschema`: an absolute URI, or a function that picks
-   * one per delivery or leaves it out with `undefined`.
+   * The CloudEvents `dataschema`: an absolute URI, or a function that picks one
+   * per delivery or leaves it out with `undefined`.
    */
   readonly dataschema?:
     | string
     | ((delivery: WebhookDelivery) => string | undefined);
   /**
    * The W3C `traceparent` of the delivery, sent as the CloudEvents
-   * `traceparent` extension. A value that is not a valid trace context is
-   * left out.
+   * `traceparent` extension. A value that is not a valid trace context is left
+   * out.
    */
   readonly traceparent?: (delivery: WebhookDelivery) => string | undefined;
   /**
-   * Narrows each event's claimed deliveries to the endpoints whose owner
-   * may read it. A delivery it leaves out is canceled; a throw retries every
+   * Narrows each event's claimed deliveries to the endpoints whose owner may
+   * read it. A delivery it leaves out is canceled; a throw retries every
    * delivery of the event. Each delivery is checked against its own stored
    * `subject`. Defaults to `authorization.delivery.subscribers`; with
-   * `authorization` but no such policy, to `subjectReaders(transport)`, so
-   * an event about a `config.subjects` record only reaches endpoints whose
-   * owner (or service principal) may read that record.
+   * `authorization` but no such policy, to `subjectReaders(transport)`, so an
+   * event about a `config.subjects` record only reaches endpoints whose owner
+   * (or service principal) may read that record.
    */
   readonly subscribers?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.subscribers` policy. */
@@ -168,10 +182,16 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly responseBodyLimit?: number;
   /** `betterSupabase.events`, for `webhook.*` block events. */
   readonly events?: EventHub;
-  /** `withBlockHooks` hooks around the client's methods, such as a check before `publish`. */
+  /**
+   * `withBlockHooks` hooks around the client's methods, such as a check before
+   * `publish`.
+   */
   readonly hooks?: BlockHooks<Webhooks>;
   readonly context?: RequestContext;
-  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  /**
+   * Error mappers that run before the built-in ones, as in
+   * `betterSupabase.mapError()`.
+   */
   readonly mappers?: readonly ErrorMapper[];
 }
 
@@ -184,9 +204,9 @@ export interface PublishInput {
   /** What the event is about, such as `invoices/123`: the CloudEvents `subject`. */
   readonly subject?: string;
   /**
-   * The permission an endpoint owner needs in the tenant to receive the
-   * event, such as `invoices.read`. Defaults to the module's view
-   * permission (`webhooks.read`).
+   * The permission an endpoint owner needs in the tenant to receive the event,
+   * such as `invoices.read`. Defaults to the module's view permission
+   * (`webhooks.read`).
    */
   readonly readPermission?: string;
 }
@@ -235,8 +255,8 @@ export interface Webhooks {
   publish(event: PublishInput): AsyncResult<number>;
   /**
    * Queues up to 1000 events in one `publish_webhook_events` call, with
-   * `publish`'s checks per event: one `Result` (how many endpoints) per
-   * event, in order. The outer result fails only when the call does.
+   * `publish`'s checks per event: one `Result` (how many endpoints) per event,
+   * in order. The outer result fails only when the call does.
    */
   publishMany(
     events: readonly PublishInput[],
@@ -252,7 +272,10 @@ export interface Webhooks {
   ): AsyncResult<string>;
   /** Sends due deliveries. Run it from a cron route or a job. */
   deliver(options?: DeliverWebhooksOptions): Promise<DeliverWebhooksResult>;
-  /** A `GET`/`POST` handler for Vercel Cron that runs `deliver` behind a bearer secret. */
+  /**
+   * A `GET`/`POST` handler for Vercel Cron that runs `deliver` behind a bearer
+   * secret.
+   */
   deliverRoute(
     options: WebhooksRouteOptions,
   ): (request: Request) => Promise<Response>;
@@ -264,8 +287,8 @@ export interface Webhooks {
   sink(options?: WebhookSinkOptions): EventSink;
   /**
    * Deletes up to `batch` finished deliveries created before `olderThan`
-   * (`purge_webhook_deliveries`); returns how many. Keep `olderThan` above
-   * the window you republish in: a purged event id can be queued again.
+   * (`purge_webhook_deliveries`); returns how many. Keep `olderThan` above the
+   * window you republish in: a purged event id can be queued again.
    */
   purge(options?: PurgeWebhookDeliveriesOptions): AsyncResult<number>;
   /** A job handler that runs `purge`; schedule it nightly. */

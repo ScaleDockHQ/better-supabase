@@ -61,9 +61,9 @@ interface BuilderLike extends PromiseLike<PostgrestResponseLike> {
   single(): BuilderLike;
   maybeSingle(): BuilderLike;
   abortSignal(signal: AbortSignal): BuilderLike;
-  /** postgrest-js 2.x: `Prefer: handling=strict, max-affected=<rows>`. */
+  /** Postgrest-js 2.x: `Prefer: handling=strict, max-affected=<rows>`. */
   maxAffected?(rows: number): BuilderLike;
-  /** postgrest-js 2.x: retries idempotent requests on network errors, 503 and 520. */
+  /** Postgrest-js 2.x: retries idempotent requests on network errors, 503 and 520. */
   retry?(enabled: boolean): BuilderLike;
 }
 
@@ -118,7 +118,10 @@ function scope(client: PostgrestClientLike, schema: string): ScopedClient {
   return scoped;
 }
 
-/** `schema()` builds a new client on every call; one per client and schema is enough. */
+/**
+ * `schema()` builds a new client on every call; one per client and schema is
+ * enough.
+ */
 const scopedClients = new WeakMap<object, Map<string, ScopedClient>>();
 
 function fromTable(
@@ -131,7 +134,10 @@ function fromTable(
   return scope(client, schema).from(table) as BuilderLike;
 }
 
-/** A POST to the function: arguments such as query vectors are too long for a URL. */
+/**
+ * A POST to the function: arguments such as query vectors are too long for a
+ * URL.
+ */
 function fromFunction(
   client: PostgrestClientLike,
   source: FunctionSource,
@@ -179,9 +185,7 @@ function applyOrderAndLimits(
       ascending: boolean;
       nullsFirst?: boolean;
       referencedTable?: string;
-    } = {
-      ascending: order.ascending,
-    };
+    } = { ascending: order.ascending };
 
     if (order.nullsFirst !== undefined) {
       options.nullsFirst = order.nullsFirst;
@@ -208,7 +212,10 @@ function applyOrderAndLimits(
   return query;
 }
 
-/** A mutation without `returning` reports its row count, `exact` unless the op says otherwise. */
+/**
+ * A mutation without `returning` reports its row count, `exact` unless the op
+ * says otherwise.
+ */
 function countOf(op: MutationOp, plan: PostgrestPlan): { count?: string } {
   return plan.select === undefined ? { count: op.count ?? "exact" } : {};
 }
@@ -333,8 +340,8 @@ function rowsOf(data: unknown): readonly Record<string, unknown>[] {
 const ONLY_ROWS = /there are only (\d+) rows/;
 
 /**
- * PostgREST answers a counted read whose offset is past the last row with
- * 416 (`PGRST103`); the SQL executor returns no rows and the total.
+ * PostgREST answers a counted read whose offset is past the last row with 416
+ * (`PGRST103`); the SQL executor returns no rows and the total.
  */
 function pastLastRow(op: Operation, error: RawDbError): number | undefined {
   if (op.kind !== "select" || !op.count || error.code !== "PGRST103") {
@@ -371,35 +378,38 @@ const timedOut = (ms: number): DbError =>
 
 export interface PostgrestExecutorOptions extends PostgrestCompileOptions {
   /**
-   * The longest query string a read may send, in characters. A longer read
-   * is split along its longest `in` list into reads that fit, or fails with
-   * `invalid_request` when it can't be split. Defaults to 6000, below the
-   * 8 KB request line the Supabase API gateway and common proxies accept,
-   * or to the client's `db.urlLengthLimit` when that is lower.
+   * The longest query string a read may send, in characters. A longer read is
+   * split along its longest `in` list into reads that fit, or fails with
+   * `invalid_request` when it can't be split. Defaults to 6000, below the 8 KB
+   * request line the Supabase API gateway and common proxies accept, or to the
+   * client's `db.urlLengthLimit` when that is lower.
    */
   readonly urlLengthLimit?: number;
   /**
-   * Aborts each request after this many milliseconds with a `timeout`
-   * error. A call's own `timeout` replaces it. Off by default.
+   * Aborts each request after this many milliseconds with a `timeout` error. A
+   * call's own `timeout` replaces it. Off by default.
    */
   readonly timeout?: number;
   /**
-   * postgrest-js retries of idempotent requests (GET and HEAD) on network
+   * Postgrest-js retries of idempotent requests (GET and HEAD) on network
    * errors, 503 and 520. A call's own `retry` replaces it. Defaults to the
    * client's setting, which is on.
    */
   readonly retry?: boolean;
   /**
-   * When set, `rpc()` fails with an `unsupported` error carrying this
-   * message and sends no request: the backend has no database functions
-   * (Supabase Lite on SQLite).
+   * When set, `rpc()` fails with an `unsupported` error carrying this message
+   * and sends no request: the backend has no database functions (Supabase Lite
+   * on SQLite).
    */
   readonly rpcUnavailable?: string;
 }
 
 const DEFAULT_URL_LENGTH_LIMIT = 6000;
 
-/** `urlLengthLimit` on a bare `PostgrestClient`, or on supabase-js's `rest` client. */
+/**
+ * `urlLengthLimit` on a bare `PostgrestClient`, or on supabase-js's `rest`
+ * client.
+ */
 function clientUrlLengthLimit(client: PostgrestClientLike): number | undefined {
   // SAFETY: both fields are read only after a typeof check.
   const loose = client as {
@@ -412,7 +422,10 @@ function clientUrlLengthLimit(client: PostgrestClientLike): number | undefined {
   return typeof limit === "number" && limit > 0 ? limit : undefined;
 }
 
-/** The query-string budget for one read: the option, else the lower of 6000 and the client's limit. */
+/**
+ * The query-string budget for one read: the option, else the lower of 6000 and
+ * the client's limit.
+ */
 export function resolveUrlLengthLimit(
   client: PostgrestClientLike,
   options: Pick<PostgrestExecutorOptions, "urlLengthLimit">,

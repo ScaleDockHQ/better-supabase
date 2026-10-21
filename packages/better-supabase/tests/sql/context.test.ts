@@ -494,9 +494,7 @@ describe("module modes", () => {
   });
 
   it("defines the disabled helpers in one module file", () => {
-    const disabled = {
-      tenant: "public.organizations.disabled_at",
-    } as const;
+    const disabled = { tenant: "public.organizations.disabled_at" } as const;
 
     const files = renderModules(["access"], {
       modules: { access: { disabled } },

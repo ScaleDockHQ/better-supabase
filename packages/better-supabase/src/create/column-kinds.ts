@@ -21,8 +21,8 @@ export const KIND_GROUPS = [
 export type KindGroup = (typeof KIND_GROUPS)[number];
 
 /**
- * A choice in the column type picker: a Postgres type with the format,
- * options, identity or reference that make it, say, an email or a rating.
+ * A choice in the column type picker: a Postgres type with the format, options,
+ * identity or reference that make it, say, an email or a rating.
  */
 export interface ColumnKind {
   readonly id: string;
@@ -235,7 +235,10 @@ export function kindById(id: string): ColumnKind | undefined {
   return BY_ID.get(id);
 }
 
-/** The kind a column's identity, reference or options make it, before its format and type. */
+/**
+ * The kind a column's identity, reference or options make it, before its format
+ * and type.
+ */
 function structuralKind(column: AppColumn): string | undefined {
   if (column.identity === true) {
     return "autonumber";
@@ -311,10 +314,10 @@ function moneyColumns(name: string): MoneyColumns {
 }
 
 /**
- * Sets an app table column to `kind`. Currency keeps money as two columns:
- * the column becomes `<name>_minor` (unless the name is taken) and a
- * `<name>_currency` text column of 3 characters joins it. Returns the
- * column's name after the change.
+ * Sets an app table column to `kind`. Currency keeps money as two columns: the
+ * column becomes `<name>_minor` (unless the name is taken) and a
+ * `<name>_currency` text column of 3 characters joins it. Returns the column's
+ * name after the change.
  */
 export function setColumnKind(
   design: Design,

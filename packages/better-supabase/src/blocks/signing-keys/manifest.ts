@@ -14,9 +14,7 @@ export const signingKeysBlock: BlockOf<
 > = defineBlock({
   name: "signing-keys",
   sql: ["signing-keys"],
-  options: {
-    "signing-keys": signingKeysSqlOptions,
-  },
+  options: { "signing-keys": signingKeysSqlOptions },
   events: signingKeysEvents,
   create: createSigningKeys,
   category: "developer",

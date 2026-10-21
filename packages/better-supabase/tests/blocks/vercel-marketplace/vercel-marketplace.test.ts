@@ -698,9 +698,7 @@ describe("createVercelMarketplace", () => {
 
     const throwing = make(
       {},
-      {
-        accessToken: () => Promise.reject(new Error("vault down")),
-      },
+      { accessToken: () => Promise.reject(new Error("vault down")) },
     );
 
     expect((await down.submitInvoice(input)).error?.message).toContain(
@@ -893,10 +891,7 @@ describe("createVercelMarketplace", () => {
         { jwks, fetch: respond(token) },
       );
 
-      const result = await marketplace.exchangeSso({
-        code: "c",
-        state: "s",
-      });
+      const result = await marketplace.exchangeSso({ code: "c", state: "s" });
 
       expect(result.data).toMatchObject({
         configurationId: "icfg_1",
@@ -949,9 +944,7 @@ describe("createVercelMarketplace", () => {
     it("retries with refreshed keys for a kid it does not know, then refuses", async () => {
       const { token, jwks } = await idToken(claims());
 
-      const renamed = {
-        keys: jwks.keys.map((key) => ({ ...key, kid: "k2" })),
-      };
+      const renamed = { keys: jwks.keys.map((key) => ({ ...key, kid: "k2" })) };
 
       const { marketplace } = make(
         {},

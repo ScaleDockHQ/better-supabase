@@ -65,8 +65,8 @@ const INTEGRATES = [
 
 /**
  * The tree, grants and sharing. It renders before the modules that read
- * subjects (comments, attachments, versions, trash), so `drive_node` can be
- * one of them; `drive-files` adds what needs those modules.
+ * subjects (comments, attachments, versions, trash), so `drive_node` can be one
+ * of them; `drive-files` adds what needs those modules.
  */
 export const DRIVE: ModuleDefinition = {
   name: "drive",

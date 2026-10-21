@@ -109,8 +109,10 @@ const CONTENT_COLUMNS = ["combinator", "field", "operator", "value"] as const;
 
 const ACTION_COLUMNS = ["drag", "menu", "add", "remove"] as const;
 
-/** Every column a row may draw, in two bands. Navigation is by COLUMN NAME and
- * never position: the BANDS keep ArrowDown off a group's footer button. */
+/**
+ * Every column a row may draw, in two bands. Navigation is by COLUMN NAME and
+ * never position: the BANDS keep ArrowDown off a group's footer button.
+ */
 type FilterColumn =
   | (typeof CONTENT_COLUMNS)[number]
   | (typeof ACTION_COLUMNS)[number];
@@ -133,26 +135,34 @@ function nearestColumn(
   return undefined;
 }
 
-/** Marks a focusable cell control, read by the keyboard walker. Not
- * `data-slot`: a cell control is handed to a Base UI trigger through `render`,
- * which stamps its own, so a slot here would be two owners on one attribute. */
+/**
+ * Marks a focusable cell control, read by the keyboard walker. Not `data-slot`:
+ * a cell control is handed to a Base UI trigger through `render`, which stamps
+ * its own, so a slot here would be two owners on one attribute.
+ */
 const CELL_ATTRIBUTE = "data-filter-cell";
 
-/** Marks a cell the user TYPES into: the builder claims the arrows, Home, End
- * and Delete, and each means something else in a text box. */
+/**
+ * Marks a cell the user TYPES into: the builder claims the arrows, Home, End
+ * and Delete, and each means something else in a text box.
+ */
 const CELL_INPUT_ATTRIBUTE = "data-filter-cell-input";
 
 const ROW_SELECTOR = FILTER_ROW_SELECTOR;
 
-/** Hands every row's handle its pointer wiring: only the panel, which owns the
- * body element, can measure a drop. */
+/**
+ * Hands every row's handle its pointer wiring: only the panel, which owns the
+ * body element, can measure a drop.
+ */
 
 const FilterDragContext = React.createContext<ReturnType<
   typeof useFilterRowDrag
 > | null>(null);
 
-/** What each node is missing, by id. An empty map by default, so a row mounted
- * outside the shipped panel gets "nothing is wrong" instead of a throw. */
+/**
+ * What each node is missing, by id. An empty map by default, so a row mounted
+ * outside the shipped panel gets "nothing is wrong" instead of a throw.
+ */
 const FilterIssueContext = React.createContext<
   ReadonlyMap<string, FilterIssue>
 >(new Map());
@@ -165,8 +175,10 @@ function cellProps(column: FilterColumn, active: FilterColumn | null) {
   };
 }
 
-/** What an INVALID cell wears: `aria-invalid` to announce it, `data-invalid`
- * to style it, `aria-description` for the sentence. */
+/**
+ * What an INVALID cell wears: `aria-invalid` to announce it, `data-invalid` to
+ * style it, `aria-description` for the sentence.
+ */
 function issueProps(
   issue: FilterIssue | undefined,
   column: FilterIssue["column"],
@@ -182,8 +194,10 @@ function issueProps(
   } as const;
 }
 
-/** Sera's uppercase and wide tracking cost about a third of a cell, so where
- * every other style drew "migration" sera drew "MIGRATI...". */
+/**
+ * Sera's uppercase and wide tracking cost about a third of a cell, so where
+ * every other style drew "migration" sera drew "MIGRATI...".
+ */
 const SERA_TEXT_CLASS = "";
 
 const CELL_CLASS = cn(
@@ -200,14 +214,18 @@ const CELL_CLASS = cn(
   SERA_TEXT_CLASS,
 );
 
-/** What an invalid cell looks like. A ring, not a border: a border changes the
- * box, so a cell turning invalid would nudge every cell beside it. */
+/**
+ * What an invalid cell looks like. A ring, not a border: a border changes the
+ * box, so a cell turning invalid would nudge every cell beside it.
+ */
 const CELL_INVALID_CLASS =
   "data-invalid:ring-destructive/40 data-invalid:ring-1";
 
-/** Width of the leading combinator column. The 58.72px pill put this track at
+/**
+ * Width of the leading combinator column. The 58.72px pill put this track at
  * 4rem and it does not shrink now the pill has: it is sized for the longest of
- * the three things in it, "Where", 51.44px in every style. */
+ * the three things in it, "Where", 51.44px in every style.
+ */
 const COMBINATOR_CLASS = cn(
   "w-16 shrink-0 items-center justify-center",
   // 6px of its own on TOP of the band's `gap-1.5`: this column is the
@@ -215,45 +233,56 @@ const COMBINATOR_CLASS = cn(
   "me-1.5",
 );
 
-/** The two static words in that column, CENTRED because the pill's own
- * `justify-center` centres its word. `w-full`, or `truncate` has no box. */
+/**
+ * The two static words in that column, CENTRED because the pill's own
+ * `justify-center` centres its word. `w-full`, or `truncate` has no box.
+ */
 const COMBINATOR_TEXT_CLASS = cn(
   "w-full truncate px-1 text-center text-sm text-muted-foreground",
   SERA_TEXT_CLASS,
 );
 
-/** A row is TWO BANDS. The trailing pair of every row at every depth shares one
+/**
+ * A row is TWO BANDS. The trailing pair of every row at every depth shares one
  * vertical axis - 0.00px of spread from 1104px to 240px, eight styles, depth
- * three - and only because the content band may shrink to nothing. */
+ * three - and only because the content band may shrink to nothing.
+ */
 const ROW_BAND_CLASS = "flex min-w-0 items-center gap-1.5";
 
 const CONTENT_BAND_CLASS = "flex min-w-0 flex-1 items-center gap-1.5";
 
-/** FLEX and not a block: a `Button` is `inline-flex`, so a block wrapper builds
- * a line box as tall as its font's strut - 28px buttons in 28.141px wrappers. */
+/**
+ * FLEX and not a block: a `Button` is `inline-flex`, so a block wrapper builds
+ * a line box as tall as its font's strut - 28px buttons in 28.141px wrappers.
+ */
 const CELL_BOX_CLASS = "@container/cell flex min-w-0 shrink grow-0";
 
-/** THE DEFAULT WIDTH OF EACH CONTENT CELL. An INLINE FALLBACK and not a
+/**
+ * THE DEFAULT WIDTH OF EACH CONTENT CELL. An INLINE FALLBACK and not a
  * declaration on the panel: declared, the panel would beat anything an ANCESTOR
  * set, which is where a consumer sets it in popover mode. So all four work:
- *
- *   <Filters variant="advanced" className="[--filter-field-width:14rem]" />
- *   <FiltersAdvancedPanel className="[--filter-operator-width:7rem]" />
- *   <Card className="[--filter-value-width:16rem]"><Filters … /></Card>
- *   [data-slot="filters-advanced"] { --filter-field-width: 14rem } */
+ * <Filters variant="advanced" className="[--filter-field-width:14rem]" />
+ * <FiltersAdvancedPanel className="[--filter-operator-width:7rem]" /> <Card
+ * className="[--filter-value-width:16rem]"><Filters … /></Card>
+ * [data-slot="filters-advanced"] { --filter-field-width: 14rem }
+ */
 const FIELD_CELL_CLASS = "basis-[var(--filter-field-width,11rem)]";
 const OPERATOR_CELL_CLASS = "basis-[var(--filter-operator-width,9rem)]";
 const VALUE_CELL_CLASS = "basis-[var(--filter-value-width,12rem)]";
 
-/** The trailing band. `pe-1` is on the BAND and not the gutter, since a group
- * card is `pe-0`; the footer and `DROP_SLOT_INDICATOR` restate the same four. */
+/**
+ * The trailing band. `pe-1` is on the BAND and not the gutter, since a group
+ * card is `pe-0`; the footer and `DROP_SLOT_INDICATOR` restate the same four.
+ */
 const ACTION_BAND_CLASS = cn(
   "flex shrink-0 items-center gap-0.5 pe-1 text-muted-foreground",
 );
 
-/** What the grip and the kebab wear while open. TWO ATTRIBUTES, because Radix
+/**
+ * What the grip and the kebab wear while open. TWO ATTRIBUTES, because Radix
  * sets `data-state="open"` and Base UI `data-popup-open`, so one selector alone
- * would be dead in one twin, silently, in a byte-locked file. */
+ * would be dead in one twin, silently, in a byte-locked file.
+ */
 const ACTION_CONTROL_CLASS = cn(
   "hover:inset-ring hover:inset-ring-border",
   // Base UI.
@@ -262,8 +291,10 @@ const ACTION_CONTROL_CLASS = cn(
   "data-[state=open]:inset-ring data-[state=open]:inset-ring-border",
 );
 
-/** The gap between sibling rows, one third of one measurement:
- * `FILTER_ROW_SEAM_PX` is HALF of it and the footer's `-mt-*` cancels it. */
+/**
+ * The gap between sibling rows, one third of one measurement:
+ * `FILTER_ROW_SEAM_PX` is HALF of it and the footer's `-mt-*` cancels it.
+ */
 const FILTER_ROW_GAP_CLASS = "gap-3";
 const FILTER_ROW_GAP_CANCEL_CLASS = "-mt-3";
 const FILTER_ROW_HALF_GAP_CLASS = {
@@ -273,22 +304,28 @@ const FILTER_ROW_HALF_GAP_CLASS = {
   after: "data-[drop-edge=after]:after:mt-[5px]",
 } as const;
 
-/** POPOVER: the popover content is `p-0`, so this IS the popup's own inner
+/**
+ * POPOVER: the popover content is `p-0`, so this IS the popup's own inner
  * padding. INLINE there is no popup, and a panel that pads itself as well is a
- * second inset the page did not ask for. */
+ * second inset the page did not ask for.
+ */
 const PANEL_PAD_VAR = "--filter-panel-pad";
 const PANEL_PAD_POPOVER = "0.75rem";
 const PANEL_PAD_INLINE = "0px";
 
-/** The panel's ONE horizontal rhythm: a row's trailing controls sit at the
- * content edge, which IS this padding, so a footer that disagrees breaks it. */
+/**
+ * The panel's ONE horizontal rhythm: a row's trailing controls sit at the
+ * content edge, which IS this padding, so a footer that disagrees breaks it.
+ */
 const PANEL_GUTTER_CLASS = "px-(--filter-panel-pad)";
 
 const PANEL_CLASS =
   "flex w-full min-w-0 flex-col gap-2 py-(--filter-panel-pad)";
 
-/** A RING and not a border, the whole answer to the staggered trailing
- * controls: a border pushes the content edge inward a pixel per level. */
+/**
+ * A RING and not a border, the whole answer to the staggered trailing controls:
+ * a border pushes the content edge inward a pixel per level.
+ */
 const GROUP_CARD_CLASS = cn(
   "min-w-0 flex-1 rounded-md bg-muted/40",
   "inset-ring inset-ring-border",
@@ -301,23 +338,31 @@ const GROUP_CARD_CLASS = cn(
   "data-drop-into:-outline-offset-2 data-drop-into:outline-border",
 );
 
-/** THE CONTAINER a row measures its own room against, on the panel body and on
- * every group's list, so a row asks how wide the list it is IN is. */
+/**
+ * THE CONTAINER a row measures its own room against, on the panel body and on
+ * every group's list, so a row asks how wide the list it is IN is.
+ */
 const TRACK_CONTAINER_CLASS = "@container/track";
 
-/** When a group stops putting its combinator BESIDE the card. A DEPTH budget
- * was wrong both ways: at 380px the depth-three row painted zero pixels of
- * field, operator and value and fanned the kebab column out by up to 119px.
- * 26rem is what a row MEASURES: 134px of fixed cost plus about 200px of cells. */
+/**
+ * When a group stops putting its combinator BESIDE the card. A DEPTH budget was
+ * wrong both ways: at 380px the depth-three row painted zero pixels of field,
+ * operator and value and fanned the kebab column out by up to 119px. 26rem is
+ * what a row MEASURES: 134px of fixed cost plus about 200px of cells.
+ */
 const GROUP_COMBINATOR_WRAP_CLASS = "@max-[26rem]/track:w-full";
 
-/** The combinator itself, once its wrapper has a whole line. Pinned to the
- * same 4rem the gutter track is, so it is the same control at every width. */
+/**
+ * The combinator itself, once its wrapper has a whole line. Pinned to the same
+ * 4rem the gutter track is, so it is the same control at every width.
+ */
 const GROUP_COMBINATOR_WRAPPED_CLASS = "@max-[26rem]/track:w-16";
 
-/** How a row shows where a dragged node would land. `data-drop-edge` is an
+/**
+ * How a row shows where a dragged node would land. `data-drop-edge` is an
  * insertion BETWEEN rows, drawn here; `data-drop-into` is painted on the CARD,
- * so "inside this group" and "after this group" are not one picture. */
+ * so "inside this group" and "after this group" are not one picture.
+ */
 const DROP_SLOT_INDICATOR = cn(
   // The SOURCE in flight, faded rather than hidden. THREE FIFTHS is a contrast
   // measurement: at 35 under a `blur-[1px]` the text composited to #a9a9a9,
@@ -337,15 +382,19 @@ const DROP_SLOT_INDICATOR = cn(
   FILTER_ROW_HALF_GAP_CLASS.after,
 );
 
-/** What a CONDITION row draws, which is what a group's row draws: the slot and
+/**
+ * What a CONDITION row draws, which is what a group's row draws: the slot and
  * nothing else. It used to add a faint dashed outline of its own, a second
- * dashed rectangle a few pixels from the first saying what it already said. */
+ * dashed rectangle a few pixels from the first saying what it already said.
+ */
 const DROP_INDICATOR = DROP_SLOT_INDICATOR;
 
-/** How the footer says "append to the top level": the same RULE the rows draw.
+/**
+ * How the footer says "append to the top level": the same RULE the rows draw.
  * `data-drop-into` and not `data-drop-edge`, because an explicit zone is a
  * DESTINATION. Both ends restate the padding VARIABLE, since `inset` resolves
- * against the PADDING box and `inset-x-0` overran every rule above it. */
+ * against the PADDING box and `inset-x-0` overran every rule above it.
+ */
 const FOOTER_DROP_CLASS = cn(
   "data-drop-into:after:absolute",
   "data-drop-into:after:start-(--filter-panel-pad)",
@@ -354,8 +403,10 @@ const FOOTER_DROP_CLASS = cn(
   "data-drop-into:after:rounded-full data-drop-into:after:bg-primary",
 );
 
-/** The cells a row owns ITSELF: a group's row contains its children's rows, so
- * a bare `querySelectorAll` would let ArrowRight walk into the first of them. */
+/**
+ * The cells a row owns ITSELF: a group's row contains its children's rows, so a
+ * bare `querySelectorAll` would let ArrowRight walk into the first of them.
+ */
 function ownCells(row: HTMLElement): HTMLElement[] {
   return Array.from(
     row.querySelectorAll<HTMLElement>(`[${CELL_ATTRIBUTE}]`),
@@ -373,8 +424,10 @@ interface RowPosition {
   depth: number;
 }
 
-/** The leading and/or slot: one group is joined by ONE operator, and mixing is
- * what a nested group is FOR. */
+/**
+ * The leading and/or slot: one group is joined by ONE operator, and mixing is
+ * what a nested group is FOR.
+ */
 function CombinatorCell({
   index,
   parentId,
@@ -445,13 +498,15 @@ function CombinatorCell({
   );
 }
 
-/** Whether dragging this node could change the tree at all; the grip is drawn
+/**
+ * Whether dragging this node could change the tree at all; the grip is drawn
  * only when it could. Every destination outside the footer zone lives inside
  * some row and the drop layer discards any inside the dragged one, so the sole
  * child of the root is the one case with nowhere to go. A pure function of the
  * QUERY, deliberately blind to `disabled` and `readOnly`: a locked bar keeps
  * its grip, because "you may not move this" and "there is nowhere to move it"
- * are different sentences. */
+ * are different sentences.
+ */
 function canFilterNodeMove(
   query: FilterQuery<unknown>,
   position: { parentId: string },
@@ -460,8 +515,10 @@ function canFilterNodeMove(
   return query.rules.length > 1;
 }
 
-/** The error, as a QUIET mark the pointer can ask about: ONE per ROW, and
- * `aria-hidden`, since the cell carries it as `aria-description`. */
+/**
+ * The error, as a QUIET mark the pointer can ask about: ONE per ROW, and
+ * `aria-hidden`, since the cell carries it as `aria-description`.
+ */
 function RowIssueHint({
   message,
   className,
@@ -496,9 +553,11 @@ function RowIssueHint({
   );
 }
 
-/** The drag handle: what ARMS the gesture, since arming the row would turn
- * every text selection into a drag, and the only thing a screen reader can be
- * told about, which is why Alt+arrow hangs off it. */
+/**
+ * The drag handle: what ARMS the gesture, since arming the row would turn every
+ * text selection into a drag, and the only thing a screen reader can be told
+ * about, which is why Alt+arrow hangs off it.
+ */
 function RowHandle({
   nodeId,
   active,
@@ -541,8 +600,10 @@ function RowHandle({
   );
 }
 
-/** Which cell of a row owns the builder's single tab stop. An operator change
- * can take the value column out from under the focus pointing at it. */
+/**
+ * Which cell of a row owns the builder's single tab stop. An operator change
+ * can take the value column out from under the focus pointing at it.
+ */
 function useActiveColumn(
   nodeId: string,
   columns: FilterColumn[],
@@ -568,10 +629,12 @@ function useFilterIssue(nodeId: string): FilterIssue | undefined {
 /*                              Inline free text                              */
 /* -------------------------------------------------------------------------- */
 
-/** Whether a value is FREE TEXT, and therefore typed in the row itself. The
- * CHIP row keeps its popover for every value, deliberately, which is why this
- * lives here and not in the shared display hook. NUMBER is in: empty clears,
- * and anything unparseable snaps back to the last committed number. */
+/**
+ * Whether a value is FREE TEXT, and therefore typed in the row itself. The CHIP
+ * row keeps its popover for every value, deliberately, which is why this lives
+ * here and not in the shared display hook. NUMBER is in: empty clears, and
+ * anything unparseable snaps back to the last committed number.
+ */
 function usesInlineTextEditor<V, O>(
   field: FilterField<V, O>,
   operator: FilterOperator | undefined,
@@ -585,9 +648,11 @@ function usesInlineTextEditor<V, O>(
   return getFilterArity(operator) === "one";
 }
 
-/** The value cell as a real text box. COMMIT IS BLUR AND ENTER: per keystroke
+/**
+ * The value cell as a real text box. COMMIT IS BLUR AND ENTER: per keystroke
  * makes the ROOT the source of truth for every character, and debouncing only
- * adds a window where the cell and the query disagree with no event. */
+ * adds a window where the cell and the query disagree with no event.
+ */
 function FilterInlineValueCell<V, O>({
   rule,
   field,
@@ -1055,14 +1120,18 @@ function FilterAdvancedRowImpl<V, O>({
   );
 }
 
-/** One rule, as a row, memoized: the query tree shares structure, so editing
- * one row of twenty re-renders one. */
+/**
+ * One rule, as a row, memoized: the query tree shares structure, so editing one
+ * row of twenty re-renders one.
+ */
 export const FilterAdvancedRow = React.memo(
   FilterAdvancedRowImpl,
 ) as typeof FilterAdvancedRowImpl;
 
-/** A rule whose field the schema no longer has: dropping it would lose a saved
- * view's data, rendering nothing would leave it filtering invisibly. */
+/**
+ * A rule whose field the schema no longer has: dropping it would lose a saved
+ * view's data, rendering nothing would leave it filtering invisibly.
+ */
 function FilterUnknownRow<V>({
   rule,
   position,
@@ -1118,8 +1187,10 @@ function FilterUnknownRow<V>({
 /*                                    Group                                   */
 /* -------------------------------------------------------------------------- */
 
-/** A nested group: an indented card, its conditions, and one way to add
- * another. The HEADLINE went; the pill outside already says "or". */
+/**
+ * A nested group: an indented card, its conditions, and one way to add another.
+ * The HEADLINE went; the pill outside already says "or".
+ */
 function FilterAdvancedGroup<V, O>({
   group,
   position,
@@ -1417,8 +1488,10 @@ function FilterAdvancedNode<V, O>({
 /*                                   Adding                                   */
 /* -------------------------------------------------------------------------- */
 
-/** Appends a condition on the first attribute anyone may filter on, at any
- * depth. `isFilterFieldPickable` is the picker's own rule. */
+/**
+ * Appends a condition on the first attribute anyone may filter on, at any
+ * depth. `isFilterFieldPickable` is the picker's own rule.
+ */
 function addFilterRow<V, O>(
   actions: FilterActionsContextValue<V, O>,
   parentId?: string,
@@ -1450,25 +1523,33 @@ function addFilterRow<V, O>(
 /*                                    Panel                                   */
 /* -------------------------------------------------------------------------- */
 
-/** The panel draws NO border, NO background and NO radius, and takes no
- * element to be drawn as: a surface is the page's decision. */
+/**
+ * The panel draws NO border, NO background and NO radius, and takes no element
+ * to be drawn as: a surface is the page's decision.
+ */
 export interface FiltersAdvancedPanelProps {
-  /** Which of the two boxes the panel sits in, the only thing deciding whether
-   * it pads itself: a popover's content is `p-0`, so this padding IS its
-   * inner padding, and `"inline"` is a page that owns its own. */
+  /**
+   * Which of the two boxes the panel sits in, the only thing deciding whether
+   * it pads itself: a popover's content is `p-0`, so this padding IS its inner
+   * padding, and `"inline"` is a page that owns its own.
+   */
   mode?: "popover" | "inline";
-  /** Replaces the empty state for this panel only. Wins over
-   * `Filters.renderEmpty`, the precedence a field has over the root's. */
+  /**
+   * Replaces the empty state for this panel only. Wins over
+   * `Filters.renderEmpty`, the precedence a field has over the root's.
+   */
   renderEmpty?: (context: FilterEmptyStateContext) => React.ReactNode;
   /** Whether rows can be reordered. See `FiltersProps.reorderable`. */
   reorderable?: boolean;
   className?: string;
 }
 
-/** The builder itself: nested groups over the query tree the chips read. A
- * group is a parenthesised list joined by ONE operator, so nesting is a real
- * tree: a flat model cannot represent `a AND (b OR c)` without inventing
- * precedence, and invented precedence returns the wrong rows. */
+/**
+ * The builder itself: nested groups over the query tree the chips read. A group
+ * is a parenthesised list joined by ONE operator, so nesting is a real tree: a
+ * flat model cannot represent `a AND (b OR c)` without inventing precedence,
+ * and invented precedence returns the wrong rows.
+ */
 export function FiltersAdvancedPanel<V, O>({
   mode = "popover",
   renderEmpty,
@@ -1493,8 +1574,10 @@ export function FiltersAdvancedPanel<V, O>({
 
   /* ------------------------------ validation ------------------------------ */
 
-  /** What is unfinished, computed ONCE: an empty group is a fact about a
-   * group, not about any row inside it. */
+  /**
+   * What is unfinished, computed ONCE: an empty group is a fact about a group,
+   * not about any row inside it.
+   */
   const issues = React.useMemo(
     () =>
       collectFilterIssues(
@@ -1552,8 +1635,10 @@ export function FiltersAdvancedPanel<V, O>({
     return visible;
   }, [issues, rowStateStore, rowStateVersion]);
 
-  /** Says out loud that a VISIBLE error has appeared, which would
-   * otherwise happen in silence. The DRAWN issues, on a RISE only. */
+  /**
+   * Says out loud that a VISIBLE error has appeared, which would otherwise
+   * happen in silence. The DRAWN issues, on a RISE only.
+   */
   const announcedIssues = React.useRef({
     count: visibleIssueMap.size,
     seq: announcementSeq,
@@ -1569,9 +1654,11 @@ export function FiltersAdvancedPanel<V, O>({
     actions.announce(actions.labels.issueSummary(visibleIssueMap.size));
   }, [visibleIssueMap, announcementSeq, actions]);
 
-  /** Sends focus to the first thing that needs it. Walked and not selected
-   * by id: a node id is consumer-supplied, and `CSS.escape` is not
-   * optional in a hand-built selector. */
+  /**
+   * Sends focus to the first thing that needs it. Walked and not selected by
+   * id: a node id is consumer-supplied, and `CSS.escape` is not optional in a
+   * hand-built selector.
+   */
   const focusFirstIssue = React.useCallback(() => {
     const first = issues[0];
     const body = bodyRef.current;
@@ -1590,17 +1677,21 @@ export function FiltersAdvancedPanel<V, O>({
 
   /* ---------------------------- focus recovery ---------------------------- */
 
-  /** Whether the panel, or a menu of its own, held focus a moment ago. A
-   * blur WITH a `relatedTarget` is focus arriving somewhere real; a blur
-   * with none, or none at all when the element is simply removed, is what
-   * this exists to repair. */
+  /**
+   * Whether the panel, or a menu of its own, held focus a moment ago. A blur
+   * WITH a `relatedTarget` is focus arriving somewhere real; a blur with none,
+   * or none at all when the element is simply removed, is what this exists to
+   * repair.
+   */
   const heldFocus = React.useRef(false);
   const addRowRef = React.useRef<HTMLButtonElement>(null);
 
-  /** Puts focus back after a mutation that destroyed the thing holding it:
-   * measured at 50, 200, 600 and 1200ms after Convert to group, Remove,
-   * Ungroup and Move to group, `document.activeElement` was the BODY,
-   * because a menu restores focus to a trigger the action unmounted. */
+  /**
+   * Puts focus back after a mutation that destroyed the thing holding it:
+   * measured at 50, 200, 600 and 1200ms after Convert to group, Remove, Ungroup
+   * and Move to group, `document.activeElement` was the BODY, because a menu
+   * restores focus to a trigger the action unmounted.
+   */
   const restoreFocus = React.useCallback(() => {
     // A handoff is mid-air and owns focus: between one step being answered
     // and the next opening `document.activeElement` IS the body.
@@ -1768,9 +1859,11 @@ export function FiltersAdvancedPanel<V, O>({
 
   /* --------------------------------- drag --------------------------------- */
 
-  /** Pointer drag, not HTML5 drag and drop: its drag image is a
-   * browser-owned snapshot no copy badge can be drawn on, and a nested
-   * drop would mean hit-testing on every `dragover`. */
+  /**
+   * Pointer drag, not HTML5 drag and drop: its drag image is a browser-owned
+   * snapshot no copy badge can be drawn on, and a nested drop would mean
+   * hit-testing on every `dragover`.
+   */
   const dragProps = useFilterRowDrag({
     // THE PANEL, reached through the body, because the top level's append
     // zone is in the FOOTER and the footer is the body's sibling.
@@ -1805,9 +1898,11 @@ export function FiltersAdvancedPanel<V, O>({
     },
   } as const;
 
-  /** The empty state, resolved once: the panel's own prop, else the root's.
-   * Assembled here so a replacement gets the SAME two actions the footer
-   * calls, focus handoff included. */
+  /**
+   * The empty state, resolved once: the panel's own prop, else the root's.
+   * Assembled here so a replacement gets the SAME two actions the footer calls,
+   * focus handoff included.
+   */
   const renderEmptyState = renderEmpty ?? panelRender.renderEmpty;
   const emptyState = renderEmptyState
     ? renderEmptyState({
@@ -1998,8 +2093,10 @@ export function FiltersAdvancedPanel<V, O>({
 /* -------------------------------------------------------------------------- */
 
 export interface FiltersAdvancedProps {
-  /** Where the builder lives. `"popover"` hangs it off a trigger; `"inline"`
-   * renders the same panel with no popup, for a sidebar or a settings page. */
+  /**
+   * Where the builder lives. `"popover"` hangs it off a trigger; `"inline"`
+   * renders the same panel with no popup, for a sidebar or a settings page.
+   */
   mode?: "popover" | "inline";
   /** Replaces the default trigger. Ignored inline. */
   trigger?: React.ReactNode;

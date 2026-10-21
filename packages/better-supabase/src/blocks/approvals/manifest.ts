@@ -14,9 +14,7 @@ export const approvalsBlock: BlockOf<
 > = defineBlock({
   name: "approvals",
   sql: ["approvals"],
-  options: {
-    approvals: approvalsSqlOptions,
-  },
+  options: { approvals: approvalsSqlOptions },
   events: approvalsEvents,
   create: createApprovals,
   category: "work",

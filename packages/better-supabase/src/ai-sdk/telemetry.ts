@@ -35,8 +35,9 @@ export interface MeterTelemetryOptions {
   readonly usage: Pick<Usage, "recordMany">;
   /**
    * The tenant an operation is for. Defaults to the `org:` tag `gatewayOptions`
-   * puts in `providerOptions.gateway.tags`, then `runtimeContext.organizationId`.
-   * Operations without a tenant are not metered.
+   * puts in `providerOptions.gateway.tags`, then
+   * `runtimeContext.organizationId`. Operations without a tenant are not
+   * metered.
    */
   readonly tenant?: (event: TelemetryStart) => string | undefined;
   readonly meters?: TelemetryMeters;
@@ -45,7 +46,10 @@ export interface MeterTelemetryOptions {
   readonly onError?: (error: DbError) => void;
 }
 
-/** The `org:` tag of `providerOptions.gateway.tags`, then `runtimeContext.organizationId`. */
+/**
+ * The `org:` tag of `providerOptions.gateway.tags`, then
+ * `runtimeContext.organizationId`.
+ */
 export function tenantOfEvent(event: TelemetryStart): string | undefined {
   const options = event.providerOptions;
 

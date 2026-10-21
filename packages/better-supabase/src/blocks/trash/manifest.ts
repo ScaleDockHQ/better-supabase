@@ -11,9 +11,7 @@ export const trashBlock: BlockOf<"trash", typeof createTrash, TrashEvents> =
   defineBlock({
     name: "trash",
     sql: ["trash"],
-    options: {
-      trash: trashSqlOptions,
-    },
+    options: { trash: trashSqlOptions },
     events: trashEvents,
     create: createTrash,
     category: "content",

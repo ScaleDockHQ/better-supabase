@@ -32,7 +32,10 @@ export interface QuestionnaireSnapshot {
   /** The step on screen. */
   readonly step: QuestionnaireStepView | undefined;
   readonly answers: FormAnswers;
-  /** Issues by field key: the step on screen's after `next`, every field's after a failed `submit`. */
+  /**
+   * Issues by field key: the step on screen's after `next`, every field's after
+   * a failed `submit`.
+   */
   readonly issues: Readonly<Record<string, readonly string[]>>;
   readonly isFirst: boolean;
   readonly isLast: boolean;
@@ -92,8 +95,8 @@ function viewOf(
 }
 
 /**
- * A multi-step form over a form version: the visible steps, the answers,
- * and per-field issues checked against the version's JSON Schema.
+ * A multi-step form over a form version: the visible steps, the answers, and
+ * per-field issues checked against the version's JSON Schema.
  */
 export function createQuestionnaireController(
   options: QuestionnaireOptions,

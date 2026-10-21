@@ -10,7 +10,10 @@ import {
 
 const SIGNING_KEYS_PATH = /^\s*signing_keys_path\s*=\s*"([^"]+)"/m;
 
-/** `supabase/config.toml`'s `signing_keys_path`, else `supabase/signing_keys.json`, in `from` or a parent. */
+/**
+ * `supabase/config.toml`'s `signing_keys_path`, else
+ * `supabase/signing_keys.json`, in `from` or a parent.
+ */
 async function findSigningKeys(from: string): Promise<string | undefined> {
   for (let dir = resolve(from); ; dir = dirname(dir)) {
     const supabase = join(dir, "supabase");
@@ -44,8 +47,9 @@ const isSigningKey = (value: unknown): value is SigningJwk =>
 
 /**
  * The key the local stack signs with: the first entry of the file
- * `better-supabase keys` wrote. `path` defaults to `$SUPABASE_SIGNING_KEYS_PATH`,
- * then `signing_keys_path` from the nearest `supabase/config.toml`.
+ * `better-supabase keys` wrote. `path` defaults to
+ * `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` from the nearest
+ * `supabase/config.toml`.
  */
 export async function localSigningKey(path?: string): Promise<SigningJwk> {
   const file =
@@ -69,7 +73,10 @@ export async function localSigningKey(path?: string): Promise<SigningJwk> {
   return first;
 }
 
-/** Signs a token with the local stack's ES256 key (see `localSigningKey`). Test-only. */
+/**
+ * Signs a token with the local stack's ES256 key (see `localSigningKey`).
+ * Test-only.
+ */
 export async function signLocalJwt(
   claims: TestJwtClaims,
   path?: string,

@@ -155,9 +155,7 @@ describe("ai-chat module", () => {
   it("checks the default permission keys and takes overrides", () => {
     expect(body()).toContain("'ai_chat.create'");
 
-    const sql = body({
-      "ai-chat": { permissions: { create: "chat.write" } },
-    });
+    const sql = body({ "ai-chat": { permissions: { create: "chat.write" } } });
 
     expect(sql).toContain("'chat.write'");
     expect(sql).not.toContain("'ai_chat.create'");

@@ -8,11 +8,7 @@ import { MAX_BATCH } from "../../../src/core/batch-limit.ts";
 import { dbError, DbException } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 
-const base = {
-  specversion: "1.0",
-  id: "e1",
-  source: "/crm",
-} as const;
+const base = { specversion: "1.0", id: "e1", source: "/crm" } as const;
 
 describe("auditEventOf", () => {
   it("maps type, subject, tenant, actor and data", () => {

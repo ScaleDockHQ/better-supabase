@@ -118,7 +118,10 @@ export interface QuoteInput<F extends object = Record<never, never>> {
   readonly terms?: string | null;
   readonly note?: string | null;
   readonly origin?: RecordRef;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 

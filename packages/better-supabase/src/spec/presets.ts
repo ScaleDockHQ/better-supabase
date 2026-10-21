@@ -105,9 +105,7 @@ export function permissionDeniedResponse(): ModelResponse {
             ...problem(
               "PERMISSION_DENIED",
               "Permission invoices.update is required",
-              {
-                permission: "invoices.update",
-              },
+              { permission: "invoices.update" },
             ),
           },
           insufficientScope: {
@@ -115,9 +113,7 @@ export function permissionDeniedResponse(): ModelResponse {
             ...problem(
               "INSUFFICIENT_SCOPE",
               "The token lacks a required scope",
-              {
-                scopes: ["invoices.update"],
-              },
+              { scopes: ["invoices.update"] },
             ),
           },
           approvalRequired: {
@@ -125,10 +121,7 @@ export function permissionDeniedResponse(): ModelResponse {
             ...problem(
               "APPROVAL_REQUIRED",
               "invoices.update needs an approval",
-              {
-                permission: "invoices.update",
-                approval: { id: "apr_123" },
-              },
+              { permission: "invoices.update", approval: { id: "apr_123" } },
             ),
           },
         },
@@ -153,10 +146,10 @@ export interface CustomSecurity {
 }
 
 /**
- * `bearer`: a Supabase access token (`supabaseJwt`). `oauth2`: the
- * Supabase OAuth 2.1 server (`supabaseOAuth`, needs `supabaseUrl`).
- * `apiKey`: the project's publishable key in the `apikey` header
- * (`supabaseApiKey`). Each preset is one alternative requirement.
+ * `bearer`: a Supabase access token (`supabaseJwt`). `oauth2`: the Supabase
+ * OAuth 2.1 server (`supabaseOAuth`, needs `supabaseUrl`). `apiKey`: the
+ * project's publishable key in the `apikey` header (`supabaseApiKey`). Each
+ * preset is one alternative requirement.
  */
 export type SecurityPreset = "bearer" | "oauth2" | "apiKey" | CustomSecurity;
 

@@ -193,10 +193,7 @@ describe("buildModel functions", () => {
         const both = addFunction(
           "public",
           "ping",
-        )({
-          ...generator,
-          functions: first.functions ?? [],
-        });
+        )({ ...generator, functions: first.functions ?? [] });
 
         return {
           functions: (both.functions ?? []).map((fn, index, all) =>
@@ -216,7 +213,10 @@ describe("buildModel functions", () => {
     );
   });
 
-  /** `public.area(side int4)`, `area(label text, scale int4 default)` and `area()`, shuffled. */
+  /**
+   * `public.area(side int4)`, `area(label text, scale int4 default)` and
+   * `area()`, shuffled.
+   */
   const addOverloads: Edit = (generator) => {
     const template = generator.functions[0]!;
 

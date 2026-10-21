@@ -1,13 +1,22 @@
 import { getEnv } from "@supabase/middleware";
 import { fromSupabaseUrl } from "@supabase/server/oauth-protected-resource";
 
-/** The RFC 9728 well-known prefix. The Supabase Edge Functions gateway never routes it to a function. */
+/**
+ * The RFC 9728 well-known prefix. The Supabase Edge Functions gateway never
+ * routes it to a function.
+ */
 const WELL_KNOWN = "/.well-known/oauth-protected-resource";
 
-/** The path suffix `withOAuthProtectedResource` serves, reachable through `/functions/v1/<slug>`. */
+/**
+ * The path suffix `withOAuthProtectedResource` serves, reachable through
+ * `/functions/v1/<slug>`.
+ */
 const SUFFIX = "/oauth-protected-resource";
 
-/** The prefix the Edge Functions gateway strips before the function sees the request. */
+/**
+ * The prefix the Edge Functions gateway strips before the function sees the
+ * request.
+ */
 const EDGE_PREFIX = "/functions/v1";
 
 const ALLOW_HEADERS =
@@ -26,7 +35,10 @@ function onEdgeFunctions(): boolean {
   );
 }
 
-/** The public origin: `SUPABASE_PUBLIC_URL`, else the gateway's `X-Forwarded-*` headers. */
+/**
+ * The public origin: `SUPABASE_PUBLIC_URL`, else the gateway's `X-Forwarded-*`
+ * headers.
+ */
 function edgeOrigin(request: Request): string {
   const publicUrl = getEnv("SUPABASE_PUBLIC_URL");
 
@@ -74,7 +86,10 @@ function edgePath(request: Request): string {
   return trim(`${EDGE_PREFIX}${stripMetadata(new URL(request.url).pathname)}`);
 }
 
-/** A request for the RFC 9728 metadata, at the well-known prefix or the `{resource}/oauth-protected-resource` suffix. */
+/**
+ * A request for the RFC 9728 metadata, at the well-known prefix or the
+ * `{resource}/oauth-protected-resource` suffix.
+ */
 export function isMetadataRequest(request: Request): boolean {
   const { pathname } = new URL(request.url);
 
@@ -101,9 +116,9 @@ export interface Discovery {
 }
 
 /**
- * The public URLs of an MCP endpoint. On Supabase Edge Functions they come
- * from the gateway (the request URL is internal there, without
- * `/functions/v1`), and the metadata is advertised at the suffix route.
+ * The public URLs of an MCP endpoint. On Supabase Edge Functions they come from
+ * the gateway (the request URL is internal there, without `/functions/v1`), and
+ * the metadata is advertised at the suffix route.
  */
 export function discovery(
   options: DiscoveryOptions,
@@ -189,9 +204,9 @@ export function endpointPreflight(
 }
 
 /**
- * Adds CORS headers to an endpoint response, keeping any the handler set.
- * With `allowedOrigins` a listed origin is echoed; otherwise any origin may
- * call, which is safe because the token travels in a header, not a cookie.
+ * Adds CORS headers to an endpoint response, keeping any the handler set. With
+ * `allowedOrigins` a listed origin is echoed; otherwise any origin may call,
+ * which is safe because the token travels in a header, not a cookie.
  */
 export function withCors(
   response: Response,

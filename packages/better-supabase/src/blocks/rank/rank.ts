@@ -37,9 +37,9 @@ export interface RankRebalancePayload {
 
 export interface Rank {
   /**
-   * Moves a ranked subject (a `rank` entry in `config.subjects`) as the
-   * caller, so the table's policies and any state-machine trigger on the
-   * group column apply. Resolves to the row's new key.
+   * Moves a ranked subject (a `rank` entry in `config.subjects`) as the caller,
+   * so the table's policies and any state-machine trigger on the group column
+   * apply. Resolves to the row's new key.
    */
   move(
     subjectType: string,
@@ -47,9 +47,9 @@ export interface Rank {
     target: MoveTarget,
   ): AsyncResult<string>;
   /**
-   * Rewrites a tenant's keys (in one group, or all of them) to short,
-   * evenly spaced keys in the same order. Service only. Resolves to the
-   * number of rows rewritten.
+   * Rewrites a tenant's keys (in one group, or all of them) to short, evenly
+   * spaced keys in the same order. Service only. Resolves to the number of rows
+   * rewritten.
    */
   rebalance(
     subjectType: string,

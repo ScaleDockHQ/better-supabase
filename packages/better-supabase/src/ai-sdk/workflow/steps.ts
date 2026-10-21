@@ -16,7 +16,10 @@ import { runRelease } from "../gateway.ts";
 import { AI_SDK_UI_FORMAT, toUIMessage } from "../messages.ts";
 
 export interface DurableStepOptions {
-  /** Called with the cost backfill payload when the gateway hasn't reported a cost yet. */
+  /**
+   * Called with the cost backfill payload when the gateway hasn't reported a
+   * cost yet.
+   */
   readonly enqueueCostBackfill?: (
     payload: CostBackfillPayload,
   ) => Promise<unknown>;
@@ -24,8 +27,8 @@ export interface DurableStepOptions {
 
 /**
  * Saves a turn's answer (service role) with its AI SDK form next to the
- * canonical one. The message id is the idempotency key: a retried step, or
- * the save after the next agent pass, updates the same message.
+ * canonical one. The message id is the idempotency key: a retried step, or the
+ * save after the next agent pass, updates the same message.
  */
 export async function saveMessagesStep(
   chats: AiChat,
@@ -125,9 +128,9 @@ export function durableSteps(
 }
 
 /**
- * Runs one of a durable turn's database steps. Call it from the app's one
- * `"use step"` function, so the Workflow SDK records and retries each call;
- * a database error throws, which retries the step.
+ * Runs one of a durable turn's database steps. Call it from the app's one `"use
+ * step"` function, so the Workflow SDK records and retries each call; a
+ * database error throws, which retries the step.
  */
 export function runDurableStep<K extends DurableStepName>(
   chats: AiChat,

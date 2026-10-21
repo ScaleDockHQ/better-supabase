@@ -20,11 +20,7 @@ const CENTRAKIT: AnyBlocksConfig = {
     schema: "public",
     idType: "uuid",
     columns: {
-      endpoints: {
-        failingSince: null,
-        disabledAt: null,
-        disabledReason: null,
-      },
+      endpoints: { failingSince: null, disabledAt: null, disabledReason: null },
       secrets: { expiresAt: null, vaultId: null },
       deliveries: { run: "workflow_run_id" },
     },

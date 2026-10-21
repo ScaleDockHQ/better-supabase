@@ -13,8 +13,8 @@ export type Loaded<T> =
   | { readonly kind: "error" };
 
 /**
- * One entity's field definitions in display order. Throws on a failed read,
- * so the private cache never keeps an error.
+ * One entity's field definitions in display order. Throws on a failed read, so
+ * the private cache never keeps an error.
  */
 async function loadFields(
   entity: FieldEntity,

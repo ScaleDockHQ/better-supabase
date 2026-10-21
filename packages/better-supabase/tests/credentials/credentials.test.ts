@@ -332,9 +332,7 @@ describe("subjectFor", () => {
       issuer: "https://acme.supabase.co/auth/v1",
     });
     expect(
-      subjectFor({
-        auth: { ...user, claims: { ...user.claims, iss: "" } },
-      }),
+      subjectFor({ auth: { ...user, claims: { ...user.claims, iss: "" } } }),
     ).toEqual({ type: "user", id: "u1" });
     expect(
       subjectFor({ auth: { kind: "service", keyName: "secret" } }),

@@ -58,8 +58,8 @@ interface Context {
 }
 
 /**
- * Appends the actions that turn the array `a` into `b`, or returns `false`
- * when the change needs the array replaced as a whole.
+ * Appends the actions that turn the array `a` into `b`, or returns `false` when
+ * the change needs the array replaced as a whole.
  */
 function diffArray(
   path: readonly PathSegment[],
@@ -164,15 +164,15 @@ function diffObject(
 /**
  * Writes the Overlay that turns `base` into `enriched`, so other tools can
  * reproduce what hooks and transforms changed. Targets use stable keys
- * (`$.paths['/customers'].get`); array indexes appear only inside arrays of
- * the same length.
+ * (`$.paths['/customers'].get`); array indexes appear only inside arrays of the
+ * same length.
  *
  * A deleted key becomes a `remove` action; added keys become one `update` on
- * their parent; a changed primitive becomes an `update` on it (1.1 and
- * later) or a `remove` and re-add (1.0). An array that only grew gets its new
- * items appended; any other array change replaces the array. Applying the
- * result to `base` gives a document equal to `enriched`, though replaced
- * keys move to the end of their object.
+ * their parent; a changed primitive becomes an `update` on it (1.1 and later)
+ * or a `remove` and re-add (1.0). An array that only grew gets its new items
+ * appended; any other array change replaces the array. Applying the result to
+ * `base` gives a document equal to `enriched`, though replaced keys move to the
+ * end of their object.
  *
  * Throws a `TypeError` when the roots are not both objects, or when the two
  * documents are equal (an overlay needs at least one action).

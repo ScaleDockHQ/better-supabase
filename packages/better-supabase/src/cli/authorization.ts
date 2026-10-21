@@ -25,10 +25,7 @@ export const providerLabel = (provider: AuthorizationProvider): string =>
 /** How the `entitlements` SQL module finds memberships. */
 export type EntitlementsMode =
   | { readonly kind: "tenant" }
-  | {
-      readonly kind: "provider";
-      readonly provider: ModuleEntitlementsProvider;
-    }
+  | { readonly kind: "provider"; readonly provider: ModuleEntitlementsProvider }
   | { readonly kind: "invalid"; readonly problem: string };
 
 /** How the `access` module's `provider` model reaches the provider. */
@@ -46,9 +43,8 @@ type TenantScope =
   | { readonly kind: "invalid"; readonly problem: string };
 
 /**
- * The provider's tenant scope and its id type. A scope missing from
- * `scopes`, or without an id type this release renders, is invalid rather
- * than a guess.
+ * The provider's tenant scope and its id type. A scope missing from `scopes`,
+ * or without an id type this release renders, is invalid rather than a guess.
  */
 function tenantScope(
   provider: AuthorizationProvider,
@@ -102,8 +98,8 @@ const scopeMemberships = (
   );
 
 /**
- * Provider mode when `entitlements.memberships` resolves to `"provider"`
- * (the default with `authorization`). The provider needs `memberIds` and
+ * Provider mode when `entitlements.memberships` resolves to `"provider"` (the
+ * default with `authorization`). The provider needs `memberIds` and
  * `memberIdsFor`, so the module never falls back to `tenant` on its own.
  */
 export function entitlementsMode(
@@ -226,9 +222,9 @@ export function accessProviderMode(
 export type KeyStatus = "complete" | "incomplete" | "unknown" | "missing";
 
 /**
- * `complete` when the provider marks the key `sqlComplete: true`. A key
- * without the flag is unknown, and so is every key when the provider lists
- * no permissions.
+ * `complete` when the provider marks the key `sqlComplete: true`. A key without
+ * the flag is unknown, and so is every key when the provider lists no
+ * permissions.
  */
 export function keyStatus(
   provider: AuthorizationProvider,
@@ -260,9 +256,9 @@ const UNKNOWN_FIX =
   "Have the provider set sqlComplete on every entry of authorization.permissions.";
 
 /**
- * Why the provider's SQL functions can't be trusted with `key`, or
- * `undefined` when it is marked `sqlComplete: true`. Unknown and missing
- * keys count as unsafe.
+ * Why the provider's SQL functions can't be trusted with `key`, or `undefined`
+ * when it is marked `sqlComplete: true`. Unknown and missing keys count as
+ * unsafe.
  */
 export function unsafeKey(
   provider: AuthorizationProvider,
@@ -373,7 +369,10 @@ export function moduleKeyProblems(
   });
 }
 
-/** A function a provider template calls (`schema.name`), the template and the role it runs as. */
+/**
+ * A function a provider template calls (`schema.name`), the template and the
+ * role it runs as.
+ */
 export interface ProviderRequirement {
   readonly function: string;
   readonly template: keyof AuthorizationFunctions;
@@ -409,7 +408,10 @@ export const accessRequirements = (
     ["isPlatform", "authenticated"],
   ]);
 
-/** A function the `entitlements` module calls, with the module function that calls it. */
+/**
+ * A function the `entitlements` module calls, with the module function that
+ * calls it.
+ */
 export interface EntitlementRequirement extends ProviderRequirement {
   readonly kind: "member" | "member-for";
   readonly caller: "has_entitlement" | "feature_claims";

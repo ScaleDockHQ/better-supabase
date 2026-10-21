@@ -644,10 +644,10 @@ $$;`;
 }
 
 /**
- * `options.subjects` with `cascade: true`: deleting a subject row deletes
- * its notifications (recipients and deliveries follow by foreign key) and
- * the subscriptions to it. The deletes match the subject's tenant too, so
- * they use indexes that lead with the tenant column.
+ * `options.subjects` with `cascade: true`: deleting a subject row deletes its
+ * notifications (recipients and deliveries follow by foreign key) and the
+ * subscriptions to it. The deletes match the subject's tenant too, so they use
+ * indexes that lead with the tenant column.
  */
 function subjectCleanup(ctx: ModuleContext, n: NotifyNames): string {
   const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
@@ -754,11 +754,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       ],
       returns: "jsonb",
     },
-    {
-      name: "notification_counts",
-      args: ["{id}", "text[]"],
-      returns: "jsonb",
-    },
+    { name: "notification_counts", args: ["{id}", "text[]"], returns: "jsonb" },
     {
       name: "mark_notifications_read",
       args: ["uuid[]", "{id}"],

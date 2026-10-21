@@ -33,11 +33,7 @@ const NAMES: ModuleNames = {
     },
     chunks: {
       name: "stream_chunks",
-      columns: {
-        stream: "stream_id",
-        idx: "idx",
-        data: "data",
-      },
+      columns: { stream: "stream_id", idx: "idx", data: "data" },
     },
   },
 };

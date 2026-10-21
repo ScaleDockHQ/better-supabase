@@ -20,9 +20,9 @@ export function event<T extends object>(): EventSpec<T> {
 }
 
 /**
- * A set of event types and, in its type, their data: a block's own events
- * (the manifest's `events`) or the app's (`defineEvents`). `types` lists the
- * types at runtime.
+ * A set of event types and, in its type, their data: a block's own events (the
+ * manifest's `events`) or the app's (`defineEvents`). `types` lists the types
+ * at runtime.
  */
 export interface Events<M extends EventMap = EventMap> {
   /** The event types, the keys of `M`. */
@@ -37,9 +37,9 @@ export type EventMapOf<E> = E extends Events<infer M> ? M : never;
 type DataOf<S> = S extends EventSpec<infer T> ? T : never;
 
 /**
- * Declares events by type, so blocks, `defineBlocks` and `onBlockEvent`
- * type their data:
- * `defineEvents({ "invoice.sent": event<{ invoiceId: string }>() })`.
+ * Declares events by type, so blocks, `defineBlocks` and `onBlockEvent` type
+ * their data: `defineEvents({ "invoice.sent": event<{ invoiceId: string }>()
+ * })`.
  */
 export function defineEvents<
   const S extends Readonly<Record<string, EventSpec<object>>>,

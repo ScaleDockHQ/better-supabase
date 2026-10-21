@@ -79,8 +79,8 @@ export interface FormField {
   readonly pattern?: string;
   readonly showIf?: FormCondition;
   /**
-   * A custom-fields definition id. Publishing copies its label, type,
-   * options and `required` into the field; the field's own keys win.
+   * A custom-fields definition id. Publishing copies its label, type, options
+   * and `required` into the field; the field's own keys win.
    */
   readonly customField?: string;
 }
@@ -107,12 +107,7 @@ export const FORM_MAX_LENGTH: {
   readonly textarea: number;
   readonly email: number;
   readonly url: number;
-} = {
-  text: 500,
-  textarea: 10_000,
-  email: 320,
-  url: 2000,
-};
+} = { text: 500, textarea: 10_000, email: 320, url: 2000 };
 
 const KEY = { type: "string", pattern: "^[a-z][a-zA-Z0-9_]{0,62}$" } as const;
 
@@ -133,8 +128,8 @@ const CONDITION = {
 const TEXT = (max: number) => ({ type: "string", maxLength: max }) as const;
 
 /**
- * The shape of a definition. It uses only keywords whose meaning is the same
- * in drafts 7 and 2020-12, because pg_jsonschema validates by draft 7 rules.
+ * The shape of a definition. It uses only keywords whose meaning is the same in
+ * drafts 7 and 2020-12, because pg_jsonschema validates by draft 7 rules.
  */
 export const FORM_DEFINITION_SCHEMA: FormJsonSchema = {
   $schema: FORM_SCHEMA_DIALECT,
@@ -324,10 +319,10 @@ export function fieldSchema(field: FormField): FormJsonSchema {
 }
 
 /**
- * The JSON Schema 2020-12 a version's submissions validate against. A
- * required field with a `showIf` (its own or its step's) is required only
- * while the condition holds. Like `FORM_DEFINITION_SCHEMA`, it keeps to the
- * keywords drafts 7 and 2020-12 share.
+ * The JSON Schema 2020-12 a version's submissions validate against. A required
+ * field with a `showIf` (its own or its step's) is required only while the
+ * condition holds. Like `FORM_DEFINITION_SCHEMA`, it keeps to the keywords
+ * drafts 7 and 2020-12 share.
  */
 export function formSchema(definition: FormDefinition): FormJsonSchema {
   const properties: Record<string, FormJson> = {};
@@ -370,8 +365,8 @@ export function formSchema(definition: FormDefinition): FormJsonSchema {
 }
 
 /**
- * Whether `value` has a definition's outline: steps with a key and fields
- * with a key. `FORM_DEFINITION_SCHEMA` checks the rest.
+ * Whether `value` has a definition's outline: steps with a key and fields with
+ * a key. `FORM_DEFINITION_SCHEMA` checks the rest.
  */
 export function isFormDefinition(value: unknown): value is FormDefinition {
   return (
@@ -390,10 +385,10 @@ export function isFormDefinition(value: unknown): value is FormDefinition {
 }
 
 /**
- * What the definition's shape can't say: duplicate keys, conditions on a
- * field that isn't earlier in the form, a field without a label and type
- * (and no `customField`), and a choice field without options. Empty when
- * the definition is fine.
+ * What the definition's shape can't say: duplicate keys, conditions on a field
+ * that isn't earlier in the form, a field without a label and type (and no
+ * `customField`), and a choice field without options. Empty when the definition
+ * is fine.
  */
 export function formDefinitionProblems(
   definition: FormDefinition,

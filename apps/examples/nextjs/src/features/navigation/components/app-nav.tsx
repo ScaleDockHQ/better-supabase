@@ -6,8 +6,8 @@ import { navItems } from "../nav-items";
 import { SideNav } from "./side-nav";
 
 /**
- * Render inside `<Suspense>`: picks the entries the session's permissions
- * and the organization's flags allow, then hands plain ids to the client menu.
+ * Render inside `<Suspense>`: picks the entries the session's permissions and
+ * the organization's flags allow, then hands plain ids to the client menu.
  */
 export async function AppNav() {
   const [session, flags] = await Promise.all([getSession(), getEnabledFlags()]);

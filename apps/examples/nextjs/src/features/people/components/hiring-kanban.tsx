@@ -61,7 +61,8 @@ function stageBadge(category: string) {
 
 /**
  * The stage columns of one opening. A refused move puts the card back. The
- * parent keys it by the cards' stages, so a refresh starts from the saved board.
+ * parent keys it by the cards' stages, so a refresh starts from the saved
+ * board.
  */
 export function HiringKanban({
   stages,

@@ -42,7 +42,10 @@ export interface MarketplaceInstallation {
   readonly userId: string | undefined;
   /** The app's own tenant for this installation, once the app linked one. */
   readonly tenant: string | undefined;
-  /** Whether the installation created its tenant, so removing it may delete the tenant. */
+  /**
+   * Whether the installation created its tenant, so removing it may delete the
+   * tenant.
+   */
   readonly tenantCreated: boolean;
   readonly status: "active" | "suspended" | "removed";
   readonly metadata: Readonly<Record<string, unknown>>;
@@ -60,7 +63,10 @@ export interface MarketplaceResource {
   /** The app's tenant the provision hook created or chose. */
   readonly tenant: string | undefined;
   readonly tenantCreated: boolean;
-  /** The app's handles for the secrets handed out, for the next rotation's revoke. */
+  /**
+   * The app's handles for the secrets handed out, for the next rotation's
+   * revoke.
+   */
   readonly secretRefs: readonly string[];
 }
 
@@ -108,7 +114,10 @@ export interface MarketplaceSsoClaims {
 export interface VercelMarketplaceOptions extends BlockTemporalOptions {
   /** A service-role transport: every function is granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** The integration's client secret: signs webhooks and authenticates the SSO exchange. */
+  /**
+   * The integration's client secret: signs webhooks and authenticates the SSO
+   * exchange.
+   */
   readonly clientSecret: string;
   /** The integration's client id, for the SSO exchange and the `aud` claim. */
   readonly clientId: string;
@@ -120,7 +129,10 @@ export interface VercelMarketplaceOptions extends BlockTemporalOptions {
   readonly accessToken?: (configurationId: string) => Promise<string>;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** `withBlockHooks` hooks around the client's methods, such as a check before a resource is provisioned. */
+  /**
+   * `withBlockHooks` hooks around the client's methods, such as a check before
+   * a resource is provisioned.
+   */
   readonly hooks?: BlockHooks<VercelMarketplace>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
@@ -175,11 +187,17 @@ export interface UsageRouteOptions {
 }
 
 export interface VercelMarketplace {
-  /** Whether `signature` is the HMAC-SHA1 of the raw body under the client secret. */
+  /**
+   * Whether `signature` is the HMAC-SHA1 of the raw body under the client
+   * secret.
+   */
   verifyWebhook(body: string, signature: string | null): Promise<boolean>;
   /** Verifies a webhook request and applies it: removals and invoice states. */
   handleWebhook(request: Request): AsyncResult<MarketplaceWebhookResult>;
-  /** Exchanges the SSO `code`, verifies the `id_token` and keeps the installation current. */
+  /**
+   * Exchanges the SSO `code`, verifies the `id_token` and keeps the
+   * installation current.
+   */
   exchangeSso(input: {
     readonly code: string;
     readonly state?: string;
@@ -215,19 +233,25 @@ export interface VercelMarketplace {
     input: SubmitInvoiceInput,
   ): AsyncResult<{ readonly id: string }>;
   /**
-   * Stores the period totals, then sends what Vercel has not accepted yet,
-   * one request per billing period: `periodValue` is the total and
-   * `dayValue` the part not reported before. A failed send leaves the rest
-   * stored, so the next call resends it.
+   * Stores the period totals, then sends what Vercel has not accepted yet, one
+   * request per billing period: `periodValue` is the total and `dayValue` the
+   * part not reported before. A failed send leaves the rest stored, so the next
+   * call resends it.
    */
   reportUsage(input: ReportUsageInput): AsyncResult<readonly MeterReport[]>;
-  /** Marks the installation removed and its resources deleted, and drops its sealed token. */
+  /**
+   * Marks the installation removed and its resources deleted, and drops its
+   * sealed token.
+   */
   removeInstallation(
     configurationId: string,
   ): AsyncResult<MarketplaceInstallation | undefined>;
   /** Seals the installation's access token in Vault. */
   sealAccessToken(configurationId: string, token: string): AsyncResult<void>;
-  /** Links the app's tenant to an installation; `created` lets removal delete it. */
+  /**
+   * Links the app's tenant to an installation; `created` lets removal delete
+   * it.
+   */
   linkTenant(input: {
     readonly configurationId: string;
     readonly tenant: string;
@@ -247,8 +271,8 @@ export interface VercelMarketplace {
     externalId: string,
   ): AsyncResult<MarketplaceResource | undefined>;
   /**
-   * The Partner API Vercel calls (installations, resources, secret rotation
-   * and plans) as one `Request` to `Response` handler, every request checked
+   * The Partner API Vercel calls (installations, resources, secret rotation and
+   * plans) as one `Request` to `Response` handler, every request checked
    * against Vercel's OIDC token.
    */
   partnerApi(
@@ -256,8 +280,8 @@ export interface VercelMarketplace {
   ): (request: Request) => Promise<Response>;
   /**
    * A cron route that reports the totals `usage` returns. It answers 200 with
-   * the configuration ids it reported, or 502 when one failed; the failed
-   * ones are sent again on the next run.
+   * the configuration ids it reported, or 502 when one failed; the failed ones
+   * are sent again on the next run.
    */
   usageRoute(
     options: UsageRouteOptions,
@@ -455,9 +479,7 @@ export function createVercelMarketplace(
           dbError(
             "unauthorized",
             `Vercel's token does not verify: ${errorText(cause)}`,
-            {
-              hint: "MARKETPLACE_TOKEN",
-            },
+            { hint: "MARKETPLACE_TOKEN" },
           ),
         );
       }
@@ -479,9 +501,7 @@ export function createVercelMarketplace(
         dbError(
           "unauthorized",
           `Vercel's token does not verify: ${errorText(cause)}`,
-          {
-            hint: "MARKETPLACE_TOKEN",
-          },
+          { hint: "MARKETPLACE_TOKEN" },
         ),
       );
     }
@@ -623,9 +643,7 @@ export function createVercelMarketplace(
               dbError(
                 "network",
                 `Vercel answered ${response.status} to the code`,
-                {
-                  hint: "MARKETPLACE_SSO_FAILED",
-                },
+                { hint: "MARKETPLACE_SSO_FAILED" },
               ),
             );
           }

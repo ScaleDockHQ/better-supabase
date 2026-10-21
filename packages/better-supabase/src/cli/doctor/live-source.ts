@@ -37,15 +37,18 @@ type Env = CliEnv;
 export interface OpenLive {
   readonly advisors: DoctorContext["advisors"];
   readonly database: DoctorContext["database"];
-  /** The connection the live checks use, opened on first use; introspection shares it. */
+  /**
+   * The connection the live checks use, opened on first use; introspection
+   * shares it.
+   */
   readonly open?: () => Promise<IntrospectionSource>;
   close(): Promise<void>;
 }
 
 /**
- * The database doctor reads, for advisors and live checks: the Management
- * API for hosted projects, one lazily opened connection otherwise (splinter
- * runs over it). Saved snapshots skip both.
+ * The database doctor reads, for advisors and live checks: the Management API
+ * for hosted projects, one lazily opened connection otherwise (splinter runs
+ * over it). Saved snapshots skip both.
  */
 export function openLive(
   config: ResolvedConfig,

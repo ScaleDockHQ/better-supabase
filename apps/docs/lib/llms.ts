@@ -23,7 +23,10 @@ export interface LLMIndexOptions {
   }[];
 }
 
-/** Sidebar names come from frontmatter titles and `meta.json`, so they are strings. */
+/**
+ * Sidebar names come from frontmatter titles and `meta.json`, so they are
+ * strings.
+ */
 function text(name: ReactNode): string {
   return v.is(v.string(), name) ? name : "";
 }

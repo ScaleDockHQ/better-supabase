@@ -28,7 +28,10 @@ import { callerTeamIdsSql } from "./team-ids.ts";
 /** Who sees a collection: its owner, a team, or the whole tenant. */
 const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
 
-/** The most ids one `add_collection_entries` or `remove_collection_entries` call takes. */
+/**
+ * The most ids one `add_collection_entries` or `remove_collection_entries` call
+ * takes.
+ */
 const MAX_COLLECTION_IDS = 1000;
 
 const ENTRY = [

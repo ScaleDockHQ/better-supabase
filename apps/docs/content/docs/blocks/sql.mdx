@@ -95,9 +95,7 @@ describes behavior both commands share, and the other `sql` subcommands
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    workflow: "migrations",
-  },
+  sql: { workflow: "migrations" },
   blocks: ["audit", "jobs"],
 });
 ```
@@ -415,14 +413,10 @@ export default defineConfig({
     tenant: {
       mode: "adopt",
       tables: { memberships: "public.organization_users" },
-      columns: {
-        memberships: { tenant: "organization_id", lastUsedAt: null },
-      },
+      columns: { memberships: { tenant: "organization_id", lastUsedAt: null } },
       options: { claimFormat: "map" },
     },
-    invitations: {
-      permissions: { invite: "organization.members.invite" },
-    },
+    invitations: { permissions: { invite: "organization.members.invite" } },
   },
 });
 ```
@@ -1341,9 +1335,7 @@ you add other modules. List the modules you use in the config:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: {
-    testsDir: "supabase/tests",
-  },
+  sql: { testsDir: "supabase/tests" },
   blocks: ["audit", "jobs", "invitations"],
 });
 ```

@@ -1,8 +1,8 @@
 /**
- * One production build, then two `next start` servers on it: `port` as is,
- * and `latencyPort` with `BS_FETCH_DELAY_MS`, where every Supabase request
- * from the server waits `fetchDelayMs`. Playwright waits for the second,
- * which starts after the first answers.
+ * One production build, then two `next start` servers on it: `port` as is, and
+ * `latencyPort` with `BS_FETCH_DELAY_MS`, where every Supabase request from the
+ * server waits `fetchDelayMs`. Playwright waits for the second, which starts
+ * after the first answers.
  */
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";

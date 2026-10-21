@@ -41,10 +41,7 @@ describe("createMcp", () => {
     name: "crm",
     version: "1.0.0",
     instructions: "Customer records of the caller’s organization.",
-    resources: {
-      customers: { list },
-      tags: { operations: ["list", "get"] },
-    },
+    resources: { customers: { list }, tags: { operations: ["list", "get"] } },
     tools: [
       defineTool({
         name: "echo",
@@ -882,10 +879,7 @@ describe("createMcp cursor lists", () => {
     };
 
     expect(result.tools[0]?.inputSchema).toMatchObject({
-      properties: {
-        after: { type: "string" },
-        size: { maximum: 10 },
-      },
+      properties: { after: { type: "string" }, size: { maximum: 10 } },
     });
     expect(result.tools[0]?.outputSchema).toMatchObject({
       required: ["items", "nextCursor", "hasMore"],
@@ -893,7 +887,10 @@ describe("createMcp cursor lists", () => {
   });
 });
 
-/** A request as the Edge Functions gateway forwards it: internal URL, public origin in headers. */
+/**
+ * A request as the Edge Functions gateway forwards it: internal URL, public
+ * origin in headers.
+ */
 const edgeRequest = (path: string, init: RequestInit = {}) =>
   new Request(`http://localhost:8081${path}`, {
     ...init,

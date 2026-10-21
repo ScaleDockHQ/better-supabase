@@ -7,9 +7,7 @@ import { reservedSlugsSqlOptions } from "./options.ts";
 export const reservedSlugsBlock: Block<"reserved-slugs"> = defineBlock({
   name: "reserved-slugs",
   sql: ["reserved-slugs"],
-  options: {
-    "reserved-slugs": reservedSlugsSqlOptions,
-  },
+  options: { "reserved-slugs": reservedSlugsSqlOptions },
   category: "tenancy",
   recipes: ["workspace-url-field"],
 });

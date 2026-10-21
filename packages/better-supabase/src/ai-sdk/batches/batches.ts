@@ -57,7 +57,10 @@ const DEFAULT_API: BatchApi = {
 };
 
 export interface AiBatchesOptions {
-  /** The providers block: a user transport for `start`, a service one for polling. */
+  /**
+   * The providers block: a user transport for `start`, a service one for
+   * polling.
+   */
   readonly providers: Pick<AiProviders, "batches">;
   /**
    * The batch provider, or a function that picks one for a stored reference.
@@ -97,10 +100,16 @@ export interface AiBatches {
   ): AsyncResult<readonly AiBatchItem[]>;
   /** Asks the provider for the batch's status and stores it (service role). */
   refresh(batch: AiBatch): AsyncResult<AiBatch>;
-  /** Streams a finished batch's results into the table (service role). Returns how many. */
+  /**
+   * Streams a finished batch's results into the table (service role). Returns
+   * how many.
+   */
   collect(batch: AiBatch): AsyncResult<number>;
   cancel(batch: AiBatch): AsyncResult<AiBatch>;
-  /** Claims due batches, refreshes them and collects finished ones. Returns how many it polled. */
+  /**
+   * Claims due batches, refreshes them and collects finished ones. Returns how
+   * many it polled.
+   */
   poll(options?: { readonly batch?: number }): AsyncResult<number>;
   /** A job handler that runs `poll`; schedule it every minute. */
   pollJob(options?: { readonly batch?: number }): JobHandler<unknown>;
@@ -280,9 +289,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
           }
         } catch (cause) {
           return err(
-            dbError("network", errorText(cause), {
-              hint: "AI_BATCH_PROVIDER",
-            }),
+            dbError("network", errorText(cause), { hint: "AI_BATCH_PROVIDER" }),
           );
         }
 

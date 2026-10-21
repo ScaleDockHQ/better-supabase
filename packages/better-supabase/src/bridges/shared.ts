@@ -6,10 +6,10 @@ import {
 } from "@supabase/middleware";
 
 /**
- * `unknown` when the entries compose, so a parameter typed
- * `Entries & Validated<Entries>` stays `Entries`. Otherwise the engine's
- * error string, and the intersection fails the call with the
- * `middleware-conflict` or `middleware-prereq` message.
+ * `unknown` when the entries compose, so a parameter typed `Entries &
+ * Validated<Entries>` stays `Entries`. Otherwise the engine's error string, and
+ * the intersection fails the call with the `middleware-conflict` or
+ * `middleware-prereq` message.
  */
 export type Validated<Entries extends readonly AnyEntry[]> = [
   ValidateEntries<Entries>,
@@ -17,7 +17,10 @@ export type Validated<Entries extends readonly AnyEntry[]> = [
   ? unknown
   : ValidateEntries<Entries>;
 
-/** The string keys of a pipeline context: every contribution, without the seed's symbols. */
+/**
+ * The string keys of a pipeline context: every contribution, without the seed's
+ * symbols.
+ */
 function contributionsOf(ctx: object): Record<string, unknown> {
   const contributions: Record<string, unknown> = {};
 
@@ -60,10 +63,10 @@ export function handoffOf<T>(ctx: object, key: symbol): T {
 
 /**
  * Makes the body of `request` readable more than once, in place: the first
- * reader drains the stream into a cache and later readers are served from
- * it, so an entry and the route both see the body. For frameworks that hand
- * the route the same `Request` the middleware saw (TanStack Start,
- * SvelteKit, React Router), where `bufferRequest`'s wrapped copy can't go.
+ * reader drains the stream into a cache and later readers are served from it,
+ * so an entry and the route both see the body. For frameworks that hand the
+ * route the same `Request` the middleware saw (TanStack Start, SvelteKit, React
+ * Router), where `bufferRequest`'s wrapped copy can't go.
  */
 export function bufferInPlace(request: Request): void {
   if (!request.body || request.bodyUsed) {
@@ -95,12 +98,18 @@ export function bufferInPlace(request: Request): void {
   }
 }
 
-/** Runs the rest of the framework's chain with the contributions and returns its response. */
+/**
+ * Runs the rest of the framework's chain with the contributions and returns its
+ * response.
+ */
 export type Downstream = (
   contributions: Record<string, unknown>,
 ) => Promise<Response>;
 
-/** Folds `entries` once into a function that runs them around a framework's `next`. */
+/**
+ * Folds `entries` once into a function that runs them around a framework's
+ * `next`.
+ */
 export type Around = (
   request: Request,
   platform: unknown,
@@ -111,10 +120,9 @@ const DOWNSTREAM = Symbol("bridge.downstream");
 
 /**
  * The shared shape of the upstream bridges: the pipeline folds once, each
- * request seeds the framework's `next` under a symbol, and the terminal
- * hands it the contributions, so response-phase entries see the
- * framework's response. `platform` is the host's env object, if any, which
- * `getEnv` reads first.
+ * request seeds the framework's `next` under a symbol, and the terminal hands
+ * it the contributions, so response-phase entries see the framework's response.
+ * `platform` is the host's env object, if any, which `getEnv` reads first.
  */
 export function around(entries: readonly AnyEntry[]): Around {
   const run = pipeline(entries, (_request, ctx) =>
@@ -125,7 +133,10 @@ export function around(entries: readonly AnyEntry[]): Around {
     run(request, { ...seedContext(platform), [DOWNSTREAM]: downstream });
 }
 
-/** The status and headers a framework collected for a handler that returned a plain value. */
+/**
+ * The status and headers a framework collected for a handler that returned a
+ * plain value.
+ */
 export interface HandlerResponseInit {
   readonly status?: number | undefined;
   readonly statusText?: string | undefined;
@@ -133,9 +144,9 @@ export interface HandlerResponseInit {
 }
 
 /**
- * A framework handler's value as a `Response`: responses as is, `undefined`
- * as 204, other values as JSON. `init` carries the status and headers the
- * handler set on the framework's response object.
+ * A framework handler's value as a `Response`: responses as is, `undefined` as
+ * 204, other values as JSON. `init` carries the status and headers the handler
+ * set on the framework's response object.
  */
 export function toResponse(
   value: unknown,

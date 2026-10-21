@@ -282,9 +282,7 @@ describe("defineTopic", () => {
       expect(raw.realtime.setAuth).toHaveBeenCalled();
       expect(raw.channel).toHaveBeenCalledWith(
         "organization:o1:notifications:u1",
-        {
-          config: { private: true, broadcast: { self: false } },
-        },
+        { config: { private: true, broadcast: { self: false } } },
       );
       emit("created", { title: "Hi", extra: 1 });
       emit("created", { nope: true });

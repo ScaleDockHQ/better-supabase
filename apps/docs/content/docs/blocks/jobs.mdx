@@ -460,17 +460,13 @@ import { jobs } from "@/lib/jobs";
 export const GET = jobs.drainRoute({
   secret: process.env.CRON_SECRET,
   budgetMs: 50_000,
-  handlers: {
-    send_email: (payload) => sendEmail(payload),
-  },
+  handlers: { send_email: (payload) => sendEmail(payload) },
   onError: (error, job) => console.error(error.message, job?.id),
 });
 ```
 
 ```json title="vercel.json"
-{
-  "crons": [{ "path": "/api/jobs/drain", "schedule": "* * * * *" }]
-}
+{ "crons": [{ "path": "/api/jobs/drain", "schedule": "* * * * *" }] }
 ```
 
 Vercel sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets

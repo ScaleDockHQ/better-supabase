@@ -23,7 +23,10 @@ export type {
 export interface UseOAuthConsentOptions {
   /** `authorization_id` from the page's URL; `undefined` loads nothing. */
   readonly authorizationId: string | undefined;
-  /** Leaves for the `redirect_url` Auth returned. Default: `window.location.assign`. */
+  /**
+   * Leaves for the `redirect_url` Auth returned. Default:
+   * `window.location.assign`.
+   */
   readonly redirect?: (url: string) => void;
 }
 
@@ -39,7 +42,9 @@ export interface OAuthGrantsState
  * `redirect_url` Auth returns.
  *
  * ```tsx
- * const { request, deciding, approve, deny } = useOAuthConsent({ authorizationId });
+ * const { request, deciding, approve, deny } = useOAuthConsent({
+ *   authorizationId,
+ * });
  * ```
  */
 export function useOAuthConsent(
@@ -70,8 +75,8 @@ export function useOAuthConsent(
 }
 
 /**
- * The OAuth clients the user approved, for a connected agents list:
- * `revoke` disconnects one.
+ * The OAuth clients the user approved, for a connected agents list: `revoke`
+ * disconnects one.
  *
  * ```tsx
  * const { grants, revoke } = useOAuthGrants();

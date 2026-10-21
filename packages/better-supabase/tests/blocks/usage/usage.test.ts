@@ -569,10 +569,7 @@ describe("purge", () => {
         {} as never,
         new AbortController().signal,
       ),
-    ).toEqual({
-      history: 5,
-      events: 2,
-    });
+    ).toEqual({ history: 5, events: 2 });
     expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
       ["purge_usage_history", { older_than: "90 days", batch: 10 }],
       ["purge_usage_events", {}],

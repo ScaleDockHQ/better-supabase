@@ -129,9 +129,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
     const config = (fromPolicies: boolean) => ({
       ...context(bare),
       config: resolveConfig(
-        {
-          blocks: { grants: { options: { fromPolicies } } },
-        },
+        { blocks: { grants: { options: { fromPolicies } } } },
         "/project",
       ),
     });
@@ -150,10 +148,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
       table(tables, "tags").rls = false;
     });
 
-    const rlsOff = {
-      ...context(open),
-      config: config(true).config,
-    };
+    const rlsOff = { ...context(open), config: config(true).config };
 
     expect(
       (await run(rlsOff, "BS106")).map((finding) => finding.target),

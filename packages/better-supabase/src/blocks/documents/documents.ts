@@ -19,7 +19,10 @@ import {
 
 export interface DocumentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Documents>;
@@ -84,8 +87,8 @@ export interface Documents {
   /** Appends an update and returns its sequence number. */
   push(documentId: string, update: Uint8Array): AsyncResult<number>;
   /**
-   * Updates after `afterSeq`. When compaction dropped some of them, the
-   * result carries the snapshot to start from instead.
+   * Updates after `afterSeq`. When compaction dropped some of them, the result
+   * carries the snapshot to start from instead.
    */
   pull(documentId: string, afterSeq: number): AsyncResult<DocumentState>;
   /**

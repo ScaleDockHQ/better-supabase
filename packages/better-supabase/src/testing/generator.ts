@@ -41,11 +41,17 @@ export interface TestGeneratorOptions {
   readonly introspection?: GeneratorInput["introspection"];
   readonly extras?: GeneratorInput["extras"];
   readonly config?: ResolvedConfig;
-  /** Defaults to one built from `meta`, with `unknown` for column types it can't name. */
+  /**
+   * Defaults to one built from `meta`, with `unknown` for column types it can't
+   * name.
+   */
   readonly model?: GeneratorModel;
 }
 
-/** A `GeneratorModel` from schema metadata, for generators tested without a database. */
+/**
+ * A `GeneratorModel` from schema metadata, for generators tested without a
+ * database.
+ */
 function modelFromMeta(meta: SchemaMeta): GeneratorModel {
   return {
     tables: Object.values(meta.tables).map((table) => ({
@@ -89,7 +95,10 @@ const EMPTY_INTROSPECTION: GeneratorInput["introspection"] = {
   types: [],
 };
 
-/** Proves a `Generator` writes relative, unique paths, is deterministic and doesn't mutate its input. */
+/**
+ * Proves a `Generator` writes relative, unique paths, is deterministic and
+ * doesn't mutate its input.
+ */
 export function testGenerator(
   generator: Generator,
   options: TestGeneratorOptions,

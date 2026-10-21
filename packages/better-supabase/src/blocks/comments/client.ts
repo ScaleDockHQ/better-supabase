@@ -20,8 +20,8 @@ export interface CommentsControllerOptions {
   /**
    * A private topic that hears of new comments on the subject, such as a
    * `realtime-tables` topic on the comments table. Each message loads the
-   * thread again. Default `null`: the thread loads again after its own
-   * writes only.
+   * thread again. Default `null`: the thread loads again after its own writes
+   * only.
    */
   readonly topic?: string | null;
   /** The most comments to load, default 100, at most 500. */
@@ -29,7 +29,10 @@ export interface CommentsControllerOptions {
 }
 
 export interface CommentsSnapshot {
-  /** The thread, oldest first, deleted comments as placeholders; `undefined` until the first load. */
+  /**
+   * The thread, oldest first, deleted comments as placeholders; `undefined`
+   * until the first load.
+   */
   readonly comments: readonly Comment[] | undefined;
   readonly status: SubscriptionStatus;
   readonly error: DbError | undefined;
@@ -58,8 +61,8 @@ export type CommentsController = Controller<CommentsSnapshot, CommentsActions>;
 
 /**
  * One subject's comment thread for the signed-in user: loads it, keeps it
- * current after `add`, `edit` and `remove`, and loads it again for each
- * message on `topic`.
+ * current after `add`, `edit` and `remove`, and loads it again for each message
+ * on `topic`.
  */
 export function createCommentsController(
   options: CommentsControllerOptions,

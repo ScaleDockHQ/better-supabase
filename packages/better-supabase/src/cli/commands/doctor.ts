@@ -131,9 +131,15 @@ export interface DoctorOptions {
   readonly database?: DoctorContext["database"];
   /** Peers and installed versions (tests); otherwise read from `node_modules`. */
   readonly peers?: DoctorContext["peers"];
-  /** The shell and stack variables (tests); otherwise read from `supabase status` (BS503). */
+  /**
+   * The shell and stack variables (tests); otherwise read from `supabase
+   * status` (BS503).
+   */
   readonly stackEnv?: DoctorContext["stackEnv"];
-  /** Segment use and managed stacks (tests); otherwise read with `ipcs` (BS700, BS701). */
+  /**
+   * Segment use and managed stacks (tests); otherwise read with `ipcs` (BS700,
+   * BS701).
+   */
   readonly localStacks?: DoctorContext["localStacks"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;

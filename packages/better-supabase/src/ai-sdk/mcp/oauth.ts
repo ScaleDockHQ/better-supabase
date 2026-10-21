@@ -60,8 +60,8 @@ export interface VaultOAuthProvider extends OAuthClientProvider {
 
 /**
  * An `OAuthClientProvider` that keeps the user's tokens, PKCE verifier and
- * state in one per-user Vault secret, and the dynamically registered client
- * in one secret per server.
+ * state in one per-user Vault secret, and the dynamically registered client in
+ * one secret per server.
  */
 export function vaultOAuthProvider(
   options: VaultOAuthProviderOptions,
@@ -213,11 +213,7 @@ async function recordGrant(
       scopes: options.server.scopes,
       ...(expiresIn === undefined
         ? {}
-        : {
-            expiresAt: nowInstant().add({
-              seconds: Math.floor(expiresIn),
-            }),
-          }),
+        : { expiresAt: nowInstant().add({ seconds: Math.floor(expiresIn) }) }),
     },
   );
 
@@ -230,9 +226,9 @@ const authFailed = (cause: unknown): DbError =>
   });
 
 /**
- * Starts the user's OAuth connection to a server: `{ url }` to send them
- * to, or `{ url: undefined }` when stored tokens still work and the grant
- * is recorded.
+ * Starts the user's OAuth connection to a server: `{ url }` to send them to, or
+ * `{ url: undefined }` when stored tokens still work and the grant is
+ * recorded.
  */
 export function authorizeConnector(
   options: AuthorizeConnectorOptions,
@@ -262,8 +258,8 @@ export function authorizeConnector(
 }
 
 /**
- * Finishes the connection from the OAuth callback: checks the state,
- * exchanges the code, keeps the tokens in Vault and records the grant.
+ * Finishes the connection from the OAuth callback: checks the state, exchanges
+ * the code, keeps the tokens in Vault and records the grant.
  */
 export function completeConnector(
   options: AuthorizeConnectorOptions & { readonly callback: URL | string },

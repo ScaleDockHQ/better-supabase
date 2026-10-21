@@ -149,9 +149,7 @@ describe("advisor findings (BS100, BS200)", () => {
     expect(
       await run("BS200", context(base, { advisors: failing })),
     ).toMatchObject([
-      {
-        message: "The performance advisor could not run (splinter): offline",
-      },
+      { message: "The performance advisor could not run (splinter): offline" },
     ]);
     expect(await run("BS200", context(base))).toEqual([]);
   });
@@ -226,9 +224,7 @@ describe("BS107 without the tenant plugin", () => {
   it("finds tenant tables by their policies and skips tenant roots", async () => {
     const snap = snapshot((tables) => {
       table(tables, "tags").policies = [
-        policy("tags_read", "select", null, {
-          check: "org_id = 1",
-        }),
+        policy("tags_read", "select", null, { check: "org_id = 1" }),
       ];
       table(tables, "notes").policies = [
         policy("notes_read", "select", "true", {
@@ -880,13 +876,7 @@ describe("module upgrades (BS309, BS310)", () => {
     expect(
       await run(
         "BS309",
-        context(
-          snap,
-          { sqlFiles },
-          {
-            blocks: { tenant: { mode: "adopt" } },
-          },
-        ),
+        context(snap, { sqlFiles }, { blocks: { tenant: { mode: "adopt" } } }),
       ),
     ).toEqual([]);
   });
@@ -931,9 +921,7 @@ describe("exposed module schemas (BS312)", () => {
       context(
         base,
         { configToml: api },
-        {
-          blocks: { tenant: {}, audit: { schema: "crm" } },
-        },
+        { blocks: { tenant: {}, audit: { schema: "crm" } } },
       ),
     );
 
@@ -952,10 +940,7 @@ describe("exposed module schemas (BS312)", () => {
         context(
           base,
           { configToml: toml('[api]\nschemas = ["public"]\n') },
-          {
-            blocks: ["tenant"],
-            schemas: ["public", "better_supabase"],
-          },
+          { blocks: ["tenant"], schemas: ["public", "better_supabase"] },
         ),
       ),
     ).toEqual([]);
@@ -965,10 +950,7 @@ describe("exposed module schemas (BS312)", () => {
         context(
           base,
           {},
-          {
-            blocks: ["tenant"],
-            schemas: ["public", "better_supabase"],
-          },
+          { blocks: ["tenant"], schemas: ["public", "better_supabase"] },
         ),
       ),
     ).toHaveLength(1);
@@ -1045,9 +1027,7 @@ describe("rate limits without the pre-request hook (BS313)", () => {
       context(
         base,
         { database },
-        {
-          blocks: { "rate-limit": { options: { preRequest } } },
-        },
+        { blocks: { "rate-limit": { options: { preRequest } } } },
       );
 
     expect(await run("BS313", modules(false))).toEqual([]);
@@ -1511,10 +1491,7 @@ describe("subject registry (BS331, BS332)", () => {
     });
 
     expect(await run("BS332", context(open, {}, config))).toEqual([
-      expect.objectContaining({
-        severity: "warning",
-        target: "public.notes",
-      }),
+      expect.objectContaining({ severity: "warning", target: "public.notes" }),
     ]);
   });
 });
@@ -1802,9 +1779,7 @@ describe("unpartitioned audit log (BS335)", () => {
       }
     });
 
-  const partitioned = {
-    blocks: { audit: { options: { partitioned: true } } },
-  };
+  const partitioned = { blocks: { audit: { options: { partitioned: true } } } };
 
   it("reports a log whose key is id alone", async () => {
     expect(
@@ -1907,9 +1882,7 @@ describe("unpartitioned block tables (BS335)", () => {
         context(
           withTables(["id"]),
           {},
-          {
-            blocks: { usage: { options: { partitioned: true } } },
-          },
+          { blocks: { usage: { options: { partitioned: true } } } },
         ),
       ),
     ).toEqual([]);
@@ -2022,10 +1995,7 @@ describe("migration-only module options (BS314)", () => {
         {},
         {
           blocks: {
-            invitations: {
-              mode: "adopt",
-              options: { tokenStorage: "plain" },
-            },
+            invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
             outbox: {
               mode: "adopt",
               options: {
@@ -2059,9 +2029,7 @@ describe("migration-only module options (BS314)", () => {
         context(
           base,
           {},
-          {
-            blocks: { invitations: { options: { tokenStorage: "sha256" } } },
-          },
+          { blocks: { invitations: { options: { tokenStorage: "sha256" } } } },
         ),
       ),
     ).toEqual([]);
@@ -2397,9 +2365,7 @@ describe("tables without the session policy (BS320)", () => {
         context(
           base,
           {},
-          {
-            blocks: { sessions: { options: { exclude: ["public.*"] } } },
-          },
+          { blocks: { sessions: { options: { exclude: ["public.*"] } } } },
         ),
       ),
     ).toEqual([]);
@@ -2826,9 +2792,7 @@ describe("config.toml auth settings (BS401, BS402, BS403)", () => {
 
   it("reports without a location when config.toml has no [auth] table", async () => {
     const findings = await runRules(
-      context(base, {
-        configToml: toml("[db]\nport = 1\n"),
-      }),
+      context(base, { configToml: toml("[db]\nport = 1\n") }),
       RULES.filter((rule) => rule.code === "BS403"),
     );
 
@@ -3141,10 +3105,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
     const findings = await run(
       "BS321",
-      context(base, {
-        configToml: pgdelta,
-        sqlFiles: [jobs, own, migration],
-      }),
+      context(base, { configToml: pgdelta, sqlFiles: [jobs, own, migration] }),
     );
 
     expect(

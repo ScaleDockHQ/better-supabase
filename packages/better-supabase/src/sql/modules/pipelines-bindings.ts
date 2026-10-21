@@ -8,7 +8,10 @@ import {
   registeredSubjects,
 } from "../subject-registry.ts";
 
-/** The fixed outcomes every stage category maps to. Reports read these, never stage names. */
+/**
+ * The fixed outcomes every stage category maps to. Reports read these, never
+ * stage names.
+ */
 const PIPELINE_OUTCOMES = ["open", "success", "failure"] as const;
 
 type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
@@ -198,11 +201,14 @@ function statusOf(
   return { column, values };
 }
 
-/** `options.subjects`, checked: one binding per subject type that runs on pipelines. */
 /**
- * The binding a record block brings when it is installed: the subject type,
- * its module and table, and the binding entry. An app's own entry for the
- * type in options.subjects is merged over it.
+ * `options.subjects`, checked: one binding per subject type that runs on
+ * pipelines.
+ */
+/**
+ * The binding a record block brings when it is installed: the subject type, its
+ * module and table, and the binding entry. An app's own entry for the type in
+ * options.subjects is merged over it.
  */
 interface BuiltInBinding {
   readonly module: string;
@@ -448,7 +454,10 @@ export interface Names {
   readonly c: (table: string, column: string) => string;
 }
 
-/** `case subject_type when ... then <branch> ... else <otherwise> end case;` over the bindings. */
+/**
+ * `case subject_type when ... then <branch> ... else <otherwise> end case;`
+ * over the bindings.
+ */
 export function byType(
   selector: string,
   bindings: readonly PipelineBinding[],

@@ -54,9 +54,7 @@ const alice = await asUser(
 expect(await alice.db.customers.count().orThrow()).toBe(1);
 expect(
   await alice.db.customers.findById(OTHER_ORGANIZATION_CUSTOMER),
-).toMatchObject({
-  ok: false,
-});
+).toMatchObject({ ok: false });
 ```
 
 - Check both directions: the user sees their own rows and never sees another tenant's.

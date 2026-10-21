@@ -37,7 +37,10 @@ docs don't cover the question, say so and point to the closest page. Link
 pages with their absolute URL. Keep answers short and show code in fenced
 blocks.`;
 
-/** Read-only tools over the published pages, the same ones the docs MCP server has. */
+/**
+ * Read-only tools over the published pages, the same ones the docs MCP server
+ * has.
+ */
 const tools = {
   search_docs: tool({
     description:
@@ -72,7 +75,10 @@ function lastUserText(messages: readonly UIMessage[]): string {
     .join(" ");
 }
 
-/** Candidate pages for the question, so the first step can read instead of search. */
+/**
+ * Candidate pages for the question, so the first step can read instead of
+ * search.
+ */
 function candidates(question: string): string {
   const matches = searchDocs(getPageSummaries(), question, SEED_PAGES);
 

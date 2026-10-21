@@ -3,7 +3,10 @@ import type { ExtrasTable, Snapshot } from "./types.ts";
 import { byCodePoint } from "../compare.ts";
 import { type GeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
 
-/** What the extras query set reads that a `GeneratorMetadata` document leaves out. */
+/**
+ * What the extras query set reads that a `GeneratorMetadata` document leaves
+ * out.
+ */
 const METADATA_GAPS: readonly string[] = [
   "multi-column unique keys and checks",
   "foreign key actions",
@@ -19,11 +22,12 @@ const METADATA_GAPS: readonly string[] = [
 export const METADATA_GAPS_TEXT: string = `${METADATA_GAPS.slice(0, -1).join(", ")} or ${METADATA_GAPS.at(-1) ?? ""}`;
 
 /**
- * Builds a snapshot from a `GeneratorMetadata` document alone, for
- * `gen --metadata`. Relations come from `relationships`, single-column unique
- * keys from `is_unique` and single-column checks from `check`, named as
- * Postgres names them by default (`<table>_<column>_key`, `<table>_<column>_check`).
- * Everything else the extras carry is empty, and `extras.fromMetadata` says so.
+ * Builds a snapshot from a `GeneratorMetadata` document alone, for `gen
+ * --metadata`. Relations come from `relationships`, single-column unique keys
+ * from `is_unique` and single-column checks from `check`, named as Postgres
+ * names them by default (`<table>_<column>_key`, `<table>_<column>_check`).
+ * Everything else the extras carry is empty, and `extras.fromMetadata` says
+ * so.
  */
 export function fromMetadata(document: GeneratorMetadata): Snapshot {
   const { metadata } = stabilizeMetadata(document);

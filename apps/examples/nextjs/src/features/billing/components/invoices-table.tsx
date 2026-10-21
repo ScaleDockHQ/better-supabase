@@ -56,8 +56,8 @@ async function retry() {
 
 /**
  * Render inside `<Suspense>`: the organization's invoices with their status,
- * total and what's still owed. Renders nothing without `invoices.read`, so
- * the billing page still shows the plan.
+ * total and what's still owed. Renders nothing without `invoices.read`, so the
+ * billing page still shows the plan.
  */
 export async function InvoicesTable() {
   const session = await getSession();

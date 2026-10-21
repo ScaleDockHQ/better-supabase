@@ -101,10 +101,10 @@ function assignments(
 }
 
 /**
- * The columns each table gets a computed value in: an `insert`, an
- * `update ... set` or an `on conflict do update` that writes anything but
- * a string literal, `null`, `default` or the same column of `excluded`,
- * `old` or `new`. The keys are `schema.table`, unquoted.
+ * The columns each table gets a computed value in: an `insert`, an `update ...
+ * set` or an `on conflict do update` that writes anything but a string literal,
+ * `null`, `default` or the same column of `excluded`, `old` or `new`. The keys
+ * are `schema.table`, unquoted.
  */
 export function computedWrites(
   sql: string,

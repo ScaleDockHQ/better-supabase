@@ -56,8 +56,8 @@ async function applyChanges(
 }
 
 /**
- * Creates a work item. Without a pipeline the work-items module puts it on
- * the organization's default one, which it seeds on first use.
+ * Creates a work item. Without a pipeline the work-items module puts it on the
+ * organization's default one, which it seeds on first use.
  */
 export const createWorkItem = bs.action(
   {
@@ -96,9 +96,9 @@ export const createWorkItem = bs.action(
 
 /**
  * A drag on the board. A change of column sets the item's stage, which the
- * pipelines trigger checks against the allowed transitions; the position
- * then goes through the rank block, between the cards it landed between.
- * `ordered: false` means the stage changed but the position wasn't saved.
+ * pipelines trigger checks against the allowed transitions; the position then
+ * goes through the rank block, between the cards it landed between. `ordered:
+ * false` means the stage changed but the position wasn't saved.
  */
 export const moveWorkItem = bs.action(
   {
@@ -268,8 +268,8 @@ export const deleteWorkView = bs.action(
 );
 
 /**
- * Runs one bulk action on the selected items, each row on its own, and
- * returns the per-row results so the bar can report the failures.
+ * Runs one bulk action on the selected items, each row on its own, and returns
+ * the per-row results so the bar can report the failures.
  */
 export const runWorkBulkAction = bs.action(
   {

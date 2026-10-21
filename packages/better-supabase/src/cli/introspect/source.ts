@@ -11,8 +11,8 @@ export interface IntrospectionSource {
   readonly queryable: Queryable;
   readonly describe: string;
   /**
-   * Set when the schema was replayed into a throwaway database rather than
-   * read from the one the app runs on, saying why live checks are skipped.
+   * Set when the schema was replayed into a throwaway database rather than read
+   * from the one the app runs on, saying why live checks are skipped.
    */
   readonly replay?: string;
   close(): Promise<void>;
@@ -22,9 +22,9 @@ const POOL_SIZE = 4;
 const STATEMENT_TIMEOUT_MS = 120_000;
 
 /**
- * Leads every introspection query. `pg_stat_statements` keeps a leading
- * comment in its text, so doctor (BS208) can tell the CLI's catalog reads
- * from the app's statements.
+ * Leads every introspection query. `pg_stat_statements` keeps a leading comment
+ * in its text, so doctor (BS208) can tell the CLI's catalog reads from the
+ * app's statements.
  */
 export const CLI_QUERY_TAG = "/* better-supabase */";
 
@@ -79,8 +79,8 @@ export interface ManagementSourceOptions {
 }
 
 /**
- * Runs introspection SQL through the Supabase Management API as the
- * read-only database user, so hosted projects need no database password.
+ * Runs introspection SQL through the Supabase Management API as the read-only
+ * database user, so hosted projects need no database password.
  */
 export function managementSource(
   options: ManagementSourceOptions,

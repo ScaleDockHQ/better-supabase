@@ -123,11 +123,7 @@ describe("useAvailableSlots", () => {
 
     const view = renderHook(
       useAvailableSlots,
-      {
-        serviceId: "s1",
-        range,
-        token: "share",
-      },
+      { serviceId: "s1", range, token: "share" },
       provide,
     );
 

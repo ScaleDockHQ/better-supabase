@@ -5,15 +5,18 @@ import { type ModuleTableSpec, SQL_MODULES } from "../sql/index.ts";
 
 const AUTH_USERS = "auth.users";
 
-/** The tenant name the module defaults use, which a preset's tenant name replaces. */
+/**
+ * The tenant name the module defaults use, which a preset's tenant name
+ * replaces.
+ */
 const DEFAULT_TENANT = "organization";
 
 type TableLookup = (module: string, name: string) => SchemaTable | undefined;
 
 /**
- * Finds the parsed table for a module's logical table by its default name,
- * or by that name with the tenant renamed (`organizations` is `workspaces`
- * for the `workspace` tenant).
+ * Finds the parsed table for a module's logical table by its default name, or
+ * by that name with the tenant renamed (`organizations` is `workspaces` for the
+ * `workspace` tenant).
  */
 function indexTables(
   tables: readonly SchemaTable[],
@@ -68,9 +71,9 @@ function tenantTable(tables: readonly SchemaTable[]): string | null {
 }
 
 /**
- * The physical column a logical lifecycle column maps to. A tenant name
- * renames `organization_id`, so a default name the table lacks falls back to
- * the table's tenant column.
+ * The physical column a logical lifecycle column maps to. A tenant name renames
+ * `organization_id`, so a default name the table lacks falls back to the
+ * table's tenant column.
  */
 function physicalColumn(
   table: SchemaTable,
@@ -95,8 +98,8 @@ function hasForeignKey(table: SchemaTable, column: string): boolean {
 }
 
 /**
- * The soft references in the tables: lifecycle tenant and user columns
- * without a foreign key, and `regclass` columns, which name any table.
+ * The soft references in the tables: lifecycle tenant and user columns without
+ * a foreign key, and `regclass` columns, which name any table.
  */
 function softReferences(
   tables: readonly SchemaTable[],
@@ -212,7 +215,10 @@ function extraColumnTables(
   });
 }
 
-/** The tables plus the soft references, manifests and extra-column tables the canvas draws. */
+/**
+ * The tables plus the soft references, manifests and extra-column tables the
+ * canvas draws.
+ */
 export function schemaData(
   tables: readonly SchemaTable[],
   tenantName: string = DEFAULT_TENANT,

@@ -21,7 +21,10 @@ export interface RuleEditorOptions {
 }
 
 export interface RuleEditor extends RuleBuilderState {
-  /** The active organization; `undefined` until the session has a tenant claim, so keep Save disabled. */
+  /**
+   * The active organization; `undefined` until the session has a tenant claim,
+   * so keep Save disabled.
+   */
   readonly organizationId: string | undefined;
 }
 

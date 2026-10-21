@@ -3,10 +3,7 @@ import type { MetricSeries } from "./metrics.ts";
 /** One row of chart data: the bucket, its value and one key per group. */
 export type MetricChartRow = Readonly<
   Record<string, string | number | null>
-> & {
-  readonly date: string;
-  readonly value: number | null;
-};
+> & { readonly date: string; readonly value: number | null };
 
 export interface MetricChartOptions {
   /** The label of each bucket. Default: its ISO 8601 instant. */
@@ -14,9 +11,9 @@ export interface MetricChartOptions {
 }
 
 /**
- * Rows in the shape Recharts (and chart components built on it) read:
- * `{ date, value, previous?, ...groups }`, one per bucket. `previous` is
- * the bucket at the same position of the compared range.
+ * Rows in the shape Recharts (and chart components built on it) read: `{ date,
+ * value, previous?, ...groups }`, one per bucket. `previous` is the bucket at
+ * the same position of the compared range.
  */
 export function toChartData(
   series: MetricSeries,

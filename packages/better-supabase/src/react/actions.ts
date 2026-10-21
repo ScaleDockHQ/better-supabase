@@ -47,8 +47,13 @@ const IDLE = { data: undefined, error: undefined } as const;
  * last result, and calls `onSuccess` or `onError`.
  *
  * ```tsx
- * const remove = useAction(removeMember, { onError: (e) => toast.error(message(e)) });
- * <Button disabled={remove.pendingInputs.some((p) => p.userId === id)} onClick={() => remove.run({ userId: id })} />
+ * const remove = useAction(removeMember, {
+ *   onError: (e) => toast.error(message(e)),
+ * });
+ * <Button
+ *   disabled={remove.pendingInputs.some((p) => p.userId === id)}
+ *   onClick={() => remove.run({ userId: id })}
+ * />;
  * ```
  */
 export function useAction<I, T>(
@@ -159,15 +164,20 @@ export interface ActionForm<T> {
 }
 
 /**
- * A `<form>` that submits `FormData` to a Server Action. Fields keep what
- * the user typed when the action fails (a `<form action>` resets them) and
- * clear only on success.
+ * A `<form>` that submits `FormData` to a Server Action. Fields keep what the
+ * user typed when the action fails (a `<form action>` resets them) and clear
+ * only on success.
  *
  * ```tsx
- * const form = useActionForm(createCustomer, { onSuccess: () => toast.success('Saved') });
+ * const form = useActionForm(createCustomer, {
+ *   onSuccess: () => toast.success("Saved"),
+ * });
  * <form {...form.formProps}>
- *   <Input name="name" aria-invalid={form.fieldErrors.name !== undefined} />
- * </form>
+ *   <Input
+ *     name="name"
+ *     aria-invalid={form.fieldErrors.name !== undefined}
+ *   />
+ * </form>;
  * ```
  */
 export function useActionForm<T>(

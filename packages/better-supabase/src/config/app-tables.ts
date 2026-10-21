@@ -369,16 +369,19 @@ function optionalBoolean(where: string, value: unknown): boolean | undefined {
 }
 
 /**
- * The columns every app table gets, which `columns` may not name:
- * `id`, `created_at`, `updated_at`, `user_id` and the tenant column
- * (`organization_id`, or `<sql.naming.tenant>_id`), whatever the table's
- * scope, so changing the scope never collides with a column.
+ * The columns every app table gets, which `columns` may not name: `id`,
+ * `created_at`, `updated_at`, `user_id` and the tenant column
+ * (`organization_id`, or `<sql.naming.tenant>_id`), whatever the table's scope,
+ * so changing the scope never collides with a column.
  */
 export function appReservedColumns(tenant = "organization"): readonly string[] {
   return ["id", "created_at", "updated_at", "user_id", `${tenant}_id`];
 }
 
-/** Postgres truncates identifiers past 63 bytes, so longer generated names collide. */
+/**
+ * Postgres truncates identifiers past 63 bytes, so longer generated names
+ * collide.
+ */
 const MAX_IDENTIFIER = 63;
 
 /** The longest app table or column name: `<table>_view` still fits in 63 bytes. */
@@ -410,9 +413,9 @@ export function appIdentifierError(name: string): string | undefined {
 }
 
 /**
- * The first constraint or index name the SQL derives for `table` that is
- * longer than 63 bytes, which Postgres would truncate into a collision, as
- * a message; `undefined` when every name fits.
+ * The first constraint or index name the SQL derives for `table` that is longer
+ * than 63 bytes, which Postgres would truncate into a collision, as a message;
+ * `undefined` when every name fits.
  */
 export function appNameLengthError(
   table: string,
@@ -454,9 +457,9 @@ const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
 };
 
 /**
- * Why `value` can't be the default of `column`, or `undefined` when it can:
- * it must be on the `isAppDefault` allowlist, one of the column's
- * `options`, and inside its bounds (`min`, `max`, or those of its format).
+ * Why `value` can't be the default of `column`, or `undefined` when it can: it
+ * must be on the `isAppDefault` allowlist, one of the column's `options`, and
+ * inside its bounds (`min`, `max`, or those of its format).
  */
 export function appDefaultError(
   column: Pick<AppColumnConfig, "type" | "options" | "min" | "max" | "format">,
@@ -827,9 +830,9 @@ function rankOf(
 }
 
 /**
- * `subject.versions` checked: `true`, or `columns` from the table's own
- * columns (not its id, scope or timestamps, which a restore must not
- * write) and `auto`.
+ * `subject.versions` checked: `true`, or `columns` from the table's own columns
+ * (not its id, scope or timestamps, which a restore must not write) and
+ * `auto`.
  */
 function versionsOf(
   where: string,
@@ -866,7 +869,10 @@ function versionsOf(
   };
 }
 
-/** The columns and snapshot mode `subject.versions` registers with the versions block. */
+/**
+ * The columns and snapshot mode `subject.versions` registers with the versions
+ * block.
+ */
 export function appTableVersions(
   table: AppTableConfig,
 ): { readonly columns: readonly string[]; readonly auto: boolean } | undefined {
@@ -885,9 +891,9 @@ export function appTableVersions(
 }
 
 /**
- * `subject` checked against the table's columns. `columns` holds every
- * column the table has, the ones `rank` and `softDelete` add included;
- * `editable` holds the table's own columns.
+ * `subject` checked against the table's columns. `columns` holds every column
+ * the table has, the ones `rank` and `softDelete` add included; `editable`
+ * holds the table's own columns.
  */
 function subjectOf(
   where: string,
@@ -993,7 +999,10 @@ function isEventKind(value: unknown): value is AppTableEventKind {
   return APP_TABLE_EVENT_KINDS.some((kind) => kind === value);
 }
 
-/** `events` checked: `true`, or `on` from the event kinds and `include` from the table's columns. */
+/**
+ * `events` checked: `true`, or `on` from the event kinds and `include` from the
+ * table's columns.
+ */
 function eventsOf(
   where: string,
   value: unknown,
@@ -1120,12 +1129,12 @@ function tableOf(
 }
 
 /**
- * `appTables` checked: lower snake table and column names, column types
- * from `APP_COLUMN_TYPES`, defaults from the allowlist, no reserved
- * columns, and references to another app table, `auth.users` or a block's
- * logical table. Whether a referenced block is installed, and whether a
- * name clashes with a block table, is checked when the SQL renders, where
- * the block registry is known. Throws a `TypeError` naming the key.
+ * `appTables` checked: lower snake table and column names, column types from
+ * `APP_COLUMN_TYPES`, defaults from the allowlist, no reserved columns, and
+ * references to another app table, `auth.users` or a block's logical table.
+ * Whether a referenced block is installed, and whether a name clashes with a
+ * block table, is checked when the SQL renders, where the block registry is
+ * known. Throws a `TypeError` naming the key.
  */
 export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
   if (value === undefined) {
@@ -1203,10 +1212,10 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
 }
 
 /**
- * `subjects` with the subject of every app table that sets one (ADR 0043):
- * the table in `public`, its id type, and its tenant column, or `false`
- * for a table kept per user or shared. `scope` is `sql.scope` and `tenant`
- * is `sql.naming.tenant`. Throws when a type is taken twice.
+ * `subjects` with the subject of every app table that sets one (ADR 0043): the
+ * table in `public`, its id type, and its tenant column, or `false` for a table
+ * kept per user or shared. `scope` is `sql.scope` and `tenant` is
+ * `sql.naming.tenant`. Throws when a type is taken twice.
  */
 export function withAppTableSubjects(
   subjects: SubjectsConfig,

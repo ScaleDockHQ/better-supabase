@@ -8,9 +8,9 @@ const MAX_ENTRIES = 1000;
 
 /**
  * `revert_audit_entries(entries)`: writes the old values of row changes back,
- * newest entry first, as the caller, so the target table's policies decide.
- * It refuses with `ROW_CHANGED_SINCE` when a row no longer holds what the
- * entry wrote. Needs the row snapshots (`old` and `new`, on the log or in the
+ * newest entry first, as the caller, so the target table's policies decide. It
+ * refuses with `ROW_CHANGED_SINCE` when a row no longer holds what the entry
+ * wrote. Needs the row snapshots (`old` and `new`, on the log or in the
  * restricted table) and the access module. With the restricted table, the
  * caller also needs the reveal permission, since the snapshots live there.
  */

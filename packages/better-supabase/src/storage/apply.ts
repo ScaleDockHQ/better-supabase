@@ -23,8 +23,8 @@ export interface AppliedBucket {
 }
 
 /**
- * Creates or updates a bucket through the Storage API, then sets or removes
- * its lifecycle policy. Versioning and lifecycle live behind the API, so
+ * Creates or updates a bucket through the Storage API, then sets or removes its
+ * lifecycle policy. Versioning and lifecycle live behind the API, so
  * `bucket.sql()` can't write them.
  */
 export function applyBucket(

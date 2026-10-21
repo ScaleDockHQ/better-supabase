@@ -34,9 +34,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
       const watchers = await watching(s);
 
       const { customFields, reminders, stateMachine } = createBlocks(
-        {
-          transport: sqlTransport(s.sql),
-        },
+        { transport: sqlTransport(s.sql) },
         {
           notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),

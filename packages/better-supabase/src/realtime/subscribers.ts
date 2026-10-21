@@ -11,9 +11,8 @@ export type AllowedSubscribers<S extends Subscriber> =
 
 /**
  * Runs `policy` and keeps the subscribers passed in whose `kind` and
- * `principal` it returned, so a policy can narrow a fan-out but never widen
- * it. Without a policy
- * every subscriber stays. A throw or rejection allows no one.
+ * `principal` it returned, so a policy can narrow a fan-out but never widen it.
+ * Without a policy every subscriber stays. A throw or rejection allows no one.
  */
 export async function allowedSubscribers<S extends Subscriber>(
   policy: SubscriberPolicy | undefined,

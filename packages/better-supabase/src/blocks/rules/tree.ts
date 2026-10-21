@@ -118,8 +118,8 @@ export function removeNode(tree: FilterQuery, id: string): FilterQuery {
 }
 
 /**
- * Adds `node` to the group `parent` at `index` (the end by default).
- * Unchanged when `parent` isn't a group in the tree.
+ * Adds `node` to the group `parent` at `index` (the end by default). Unchanged
+ * when `parent` isn't a group in the tree.
  */
 export function insertNode(
   tree: FilterQuery,
@@ -146,9 +146,9 @@ export function insertNode(
 }
 
 /**
- * Moves the node with `id` into the group `parent`, where it ends up at
- * `index` (as `arrayMove` counts it). Unchanged for the root, an unknown
- * node or group, or a move into the node itself.
+ * Moves the node with `id` into the group `parent`, where it ends up at `index`
+ * (as `arrayMove` counts it). Unchanged for the root, an unknown node or group,
+ * or a move into the node itself.
  */
 export function moveNode(
   tree: FilterQuery,
@@ -198,9 +198,9 @@ function withoutValue(rule: FilterRule): FilterRule {
 }
 
 /**
- * Points a rule at another field. A field of the same type keeps the
- * operator it allows, and its value; another type starts at the field's
- * first operator without a value.
+ * Points a rule at another field. A field of the same type keeps the operator
+ * it allows, and its value; another type starts at the field's first operator
+ * without a value.
  */
 export function setRuleField(
   rule: FilterRule,
@@ -221,8 +221,8 @@ export function setRuleField(
 }
 
 /**
- * Changes a rule's operator. The value stays when the new operator takes
- * the same kind of value (one, many or a range), and is dropped otherwise.
+ * Changes a rule's operator. The value stays when the new operator takes the
+ * same kind of value (one, many or a range), and is dropped otherwise.
  */
 export function setRuleOperator(
   rule: FilterRule,

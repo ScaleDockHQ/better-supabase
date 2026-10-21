@@ -33,15 +33,15 @@ export interface OrganizationLogoBucketOptions<
   Id extends string,
 > extends ImageBucketOptions<P, Id> {
   /**
-   * The permission that may upload, replace and delete a logo, checked
-   * through the access contract. Defaults to `organization.update`, the
-   * `organizations` module's update permission.
+   * The permission that may upload, replace and delete a logo, checked through
+   * the access contract. Defaults to `organization.update`, the `organizations`
+   * module's update permission.
    */
   readonly permission?: string;
   /**
-   * The tenant segment connected clients are held to. `false` lets one
-   * client upload for any organization the policy allows. Defaults to
-   * `{ param: 'organizationId' }`.
+   * The tenant segment connected clients are held to. `false` lets one client
+   * upload for any organization the policy allows. Defaults to `{ param:
+   * 'organizationId' }`.
    */
   readonly tenant?: BucketConfig["tenant"] | false;
 }
@@ -50,8 +50,8 @@ const AVATAR_PATH = "{userId}/avatar-{version}.{ext}";
 const LOGO_PATH = "{organizationId}/logo-{version}.{ext}";
 
 /**
- * A bucket for profile pictures: `{userId}/avatar-{version}.{ext}`, public,
- * 2 MiB of images, written only by their owner (the `owner` policy).
+ * A bucket for profile pictures: `{userId}/avatar-{version}.{ext}`, public, 2
+ * MiB of images, written only by their owner (the `owner` policy).
  */
 export function avatarBucket<
   const P extends string = typeof AVATAR_PATH,
@@ -70,9 +70,10 @@ export function avatarBucket<
 }
 
 /**
- * A bucket for organization logos: `{organizationId}/logo-{version}.{ext}`, public,
- * 2 MiB of images, written by members with the update permission through
- * the access contract (`tenant_ids_with`), so it follows the app's roles.
+ * A bucket for organization logos: `{organizationId}/logo-{version}.{ext}`,
+ * public, 2 MiB of images, written by members with the update permission
+ * through the access contract (`tenant_ids_with`), so it follows the app's
+ * roles.
  */
 export function organizationLogoBucket<
   const P extends string = typeof LOGO_PATH,

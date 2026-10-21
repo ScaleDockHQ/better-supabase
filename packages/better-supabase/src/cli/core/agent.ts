@@ -1,8 +1,8 @@
 /**
- * Agent mode: who runs the CLI, and what an agent gets back when a person
- * has to act. Detection reads only the environment `run()` is given and the
- * probe, never `process`, so tests and embedders stay pure. The signals
- * follow `@vercel/detect-agent`, which `tests/cli/core/agent.test.ts` checks.
+ * Agent mode: who runs the CLI, and what an agent gets back when a person has
+ * to act. Detection reads only the environment `run()` is given and the probe,
+ * never `process`, so tests and embedders stay pure. The signals follow
+ * `@vercel/detect-agent`, which `tests/cli/core/agent.test.ts` checks.
  */
 
 import { createHash } from "node:crypto";
@@ -21,7 +21,10 @@ export interface AgentProbe {
   readonly exists: (path: string) => boolean;
 }
 
-/** `--agent` and `$BETTER_SUPABASE_AGENT`: detect (`auto`), or force agent mode on or off. */
+/**
+ * `--agent` and `$BETTER_SUPABASE_AGENT`: detect (`auto`), or force agent mode
+ * on or off.
+ */
 export type AgentSetting = "auto" | "yes" | "no";
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -36,8 +39,8 @@ const set = (value: string | undefined): boolean =>
 
 /**
  * The coding agent running the CLI, or `undefined` for a person. Cursor sets
- * `CURSOR_TRACE_ID` in a person's terminal too, so it counts only when
- * stdout is not a terminal.
+ * `CURSOR_TRACE_ID` in a person's terminal too, so it counts only when stdout
+ * is not a terminal.
  */
 export function detectAgent(env: Env, probe: AgentProbe): string | undefined {
   const named = env["AI_AGENT"]?.trim();
@@ -111,7 +114,10 @@ function settingOf(value: string, source: string): AgentSetting {
   return setting;
 }
 
-/** The agent in agent mode, or `undefined`: `--agent`, then `$BETTER_SUPABASE_AGENT`, then detection. */
+/**
+ * The agent in agent mode, or `undefined`: `--agent`, then
+ * `$BETTER_SUPABASE_AGENT`, then detection.
+ */
 export function resolveAgent(
   flag: string | undefined,
   env: Env,
@@ -147,7 +153,10 @@ export function resolveAgent(
   }
 }
 
-/** The bin `next` commands start with: the package name, since `npx bsb` fetches an unrelated package. */
+/**
+ * The bin `next` commands start with: the package name, since `npx bsb` fetches
+ * an unrelated package.
+ */
 const NEXT_BIN = "better-supabase";
 
 /** `argv` without `--name value` and `--name=value`, before any `--`. */
@@ -173,8 +182,8 @@ function withoutOption(argv: readonly string[], name: string): string[] {
 }
 
 /**
- * `argv` safe to print: a secret-looking flag becomes its `--*-stdin`
- * form, and a URL loses its password.
+ * `argv` safe to print: a secret-looking flag becomes its `--*-stdin` form, and
+ * a URL loses its password.
  */
 function shareable(argv: readonly string[]): string[] {
   const out: string[] = [];
@@ -213,8 +222,8 @@ export function nextCommand(
 }
 
 /**
- * The step that answers an `input_required` error: the run again with the
- * first choice of each missing flag or `<positional>` (or a placeholder) and
+ * The step that answers an `input_required` error: the run again with the first
+ * choice of each missing flag or `<positional>` (or a placeholder) and
  * `--yes`.
  */
 export function missingInputNext(
@@ -247,7 +256,10 @@ export interface ConsentRequest {
   readonly detail: string;
 }
 
-/** The token for one request on one command line, so a consent covers only that run. */
+/**
+ * The token for one request on one command line, so a consent covers only that
+ * run.
+ */
 export function consentToken(
   argv: readonly string[],
   request: ConsentRequest,

@@ -240,9 +240,7 @@ export interface DealForecast {
   readonly owners: readonly (Omit<
     DealForecast,
     "owners" | "currency" | "target" | "attainment" | "gap"
-  > & {
-    readonly ownerId?: string;
-  })[];
+  > & { readonly ownerId?: string })[];
 }
 
 /** The checks a forecast review runs on an open deal. */
@@ -310,8 +308,8 @@ export interface DealsOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the deals' extra columns
-   * (`blocks.deals.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on writes.
+   * (`blocks.deals.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Deals<FieldsOf<S>>>>;
@@ -557,9 +555,9 @@ function forecastOf(value: unknown): DealForecast {
 }
 
 /**
- * The deals block: deals on pipelines, with batched cell edits that reject
- * per change, won and lost through the pipeline's stages, contacts, a team,
- * line items, the forecast call and the review checks.
+ * The deals block: deals on pipelines, with batched cell edits that reject per
+ * change, won and lost through the pipeline's stages, contacts, a team, line
+ * items, the forecast call and the review checks.
  */
 export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
   options: DealsOptions<S>,

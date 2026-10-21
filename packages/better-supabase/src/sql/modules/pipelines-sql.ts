@@ -18,7 +18,10 @@ import {
   type PipelineBinding,
 } from "./pipelines-bindings.ts";
 
-/** ` || jsonb_build_object('fields', ...)` for pipeline row `alias`; empty without extra columns. */
+/**
+ * ` || jsonb_build_object('fields', ...)` for pipeline row `alias`; empty
+ * without extra columns.
+ */
 const pipelineFields = (names: Names, alias: string): string =>
   names.extras.length === 0
     ? ""
@@ -28,8 +31,8 @@ const pipelineFields = (names: Names, alias: string): string =>
       )})`;
 
 /**
- * The first pipeline of a subject type and scope, created from the
- * binding's stage template the first time a record needs one.
+ * The first pipeline of a subject type and scope, created from the binding's
+ * stage template the first time a record needs one.
  */
 export function defaultPipeline(
   ctx: ModuleContext,
@@ -105,7 +108,10 @@ grant execute on function ${self}(${ctx.idType}, text, text) to service_role;
 `;
 }
 
-/** The before trigger on one bound table: checks the stage, stamps entry, writes history. */
+/**
+ * The before trigger on one bound table: checks the stage, stamps entry, writes
+ * history.
+ */
 export function stageTrigger(
   ctx: ModuleContext,
   names: Names,

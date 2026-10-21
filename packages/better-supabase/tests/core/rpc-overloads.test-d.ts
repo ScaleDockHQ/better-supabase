@@ -16,10 +16,7 @@ import {
 /** The shape `better-supabase gen` emits for overloaded functions. */
 type Functions = FixtureFunctions & {
   area:
-    | {
-        Args: Record<PropertyKey, never>;
-        Returns: boolean | null;
-      }
+    | { Args: Record<PropertyKey, never>; Returns: boolean | null }
     | {
         Args: { label: string | null; scale?: number | null };
         Returns: string | null;

@@ -148,9 +148,7 @@ describe("defineApi", () => {
 
     const result = api.openapi({
       transform: (rendered) => {
-        Object.assign(rendered.document, {
-          security: [{ missingScheme: [] }],
-        });
+        Object.assign(rendered.document, { security: [{ missingScheme: [] }] });
       },
     });
 
@@ -202,11 +200,7 @@ describe("defineApi", () => {
 });
 
 describe("defineDocumentFormat", () => {
-  const base = {
-    id: "x",
-    lower: () => ({}),
-    fileName: () => "x.json",
-  };
+  const base = { id: "x", lower: () => ({}), fileName: () => "x.json" };
 
   it("checks the default version", () => {
     expect(() =>

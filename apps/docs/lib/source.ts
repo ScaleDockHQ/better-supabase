@@ -31,7 +31,10 @@ export const source = loader({
 
 export type DocsPage = (typeof source)["$inferPage"];
 
-/** The internal route that serves a page's Markdown; `/docs/x.md` rewrites to it. */
+/**
+ * The internal route that serves a page's Markdown; `/docs/x.md` rewrites to
+ * it.
+ */
 export function getPageMarkdownUrl(page: DocsPage) {
   const segments = [...page.slugs, "content.md"];
 
@@ -50,12 +53,14 @@ export function getPagePublicMarkdownUrl(page: DocsPage): string {
 
 /** The page catalog Ask AI searches. */
 export function getPageSummaries(): readonly DocsPageSummary[] {
-  return source.getPages().map((page) => ({
-    title: page.data.title,
-    description: page.data.description ?? "",
-    url: page.url,
-    slugs: page.slugs,
-  }));
+  return source
+    .getPages()
+    .map((page) => ({
+      title: page.data.title,
+      description: page.data.description ?? "",
+      url: page.url,
+      slugs: page.slugs,
+    }));
 }
 
 /** OG image route for a page, served by `app/docs/og/[...slug]/route.tsx`. */
@@ -65,7 +70,10 @@ export function getPageImage(page: DocsPage) {
   return { segments, url: `${docsRoute}/og/${segments.join("/")}` };
 }
 
-/** Each page as Markdown: `llms-full.txt`, the `.md` routes, Ask AI and the docs MCP server. */
+/**
+ * Each page as Markdown: `llms-full.txt`, the `.md` routes, Ask AI and the docs
+ * MCP server.
+ */
 const docsLlms = llms(source, {
   async renderPage(page) {
     const description = page.data.description?.trim();

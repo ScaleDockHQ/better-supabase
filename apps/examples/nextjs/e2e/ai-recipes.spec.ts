@@ -2,7 +2,10 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import { users } from "./users";
 
-/** Waits for the recipe to show its rows or its empty state, and returns its card. */
+/**
+ * Waits for the recipe to show its rows or its empty state, and returns its
+ * card.
+ */
 async function loadedRecipe(
   page: Page,
   recipe: string,

@@ -63,9 +63,15 @@ export interface ChecklistProgress<Id extends string> {
 export type ChecklistSubject<Scope extends ChecklistScope> =
   Scope extends "organization" ? [organizationId: string] : [];
 
-/** The onboarding block: progress through any checklist `defineChecklist` declared. */
+/**
+ * The onboarding block: progress through any checklist `defineChecklist`
+ * declared.
+ */
 export interface Onboarding {
-  /** The subject's progress: the caller's for a user checklist, the organization's otherwise. */
+  /**
+   * The subject's progress: the caller's for a user checklist, the
+   * organization's otherwise.
+   */
   progress<Id extends string, Scope extends ChecklistScope>(
     checklist: Checklist<Id, Scope>,
     ...subject: ChecklistSubject<Scope>
@@ -84,7 +90,10 @@ export interface Onboarding {
   ): AsyncResult<boolean>;
 }
 
-/** A checklist `defineChecklist` checked; pass it to the onboarding client's methods. */
+/**
+ * A checklist `defineChecklist` checked; pass it to the onboarding client's
+ * methods.
+ */
 export type Checklist<
   Id extends string,
   Scope extends ChecklistScope,
@@ -94,8 +103,8 @@ const ID = /^[a-z][a-z0-9_.-]{0,63}$/;
 
 /**
  * Declares an onboarding checklist. Pass the result to
- * `blocks.onboarding.options.checklists` so the database knows its
- * steps, and to the methods of `createOnboarding` to read and complete them.
+ * `blocks.onboarding.options.checklists` so the database knows its steps, and
+ * to the methods of `createOnboarding` to read and complete them.
  */
 export function defineChecklist<
   const Id extends string,

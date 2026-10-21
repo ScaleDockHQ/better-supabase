@@ -112,8 +112,8 @@ import { workflowSdkWorldBlock } from "./workflow-sdk-world/manifest.ts";
 import { workflowsBlock } from "./workflows/manifest.ts";
 
 /**
- * Every block manifest, for the conformance test, the catalog and presets.
- * Not exported from a subpath: it imports every creator.
+ * Every block manifest, for the conformance test, the catalog and presets. Not
+ * exported from a subpath: it imports every creator.
  */
 export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   accessBlock,

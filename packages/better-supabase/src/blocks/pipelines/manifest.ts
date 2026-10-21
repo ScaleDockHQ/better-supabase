@@ -14,9 +14,7 @@ export const pipelinesBlock: BlockOf<
 > = defineBlock({
   name: "pipelines",
   sql: ["pipelines"],
-  options: {
-    pipelines: pipelinesSqlOptions,
-  },
+  options: { pipelines: pipelinesSqlOptions },
   events: pipelinesEvents,
   create: createPipelines,
   category: "work",

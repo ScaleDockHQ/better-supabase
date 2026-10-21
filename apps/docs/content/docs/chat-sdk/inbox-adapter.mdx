@@ -14,11 +14,7 @@ import { inboxAdapter } from "better-supabase/chat-sdk";
 
 const inbox = createInbox({ transport: sqlTransport(postgres.asService()) });
 
-export const inboxBot = inboxAdapter({
-  inbox,
-  userName: "Acme bot",
-  streams,
-});
+export const inboxBot = inboxAdapter({ inbox, userName: "Acme bot", streams });
 ```
 
 | Option       | Default  | Meaning                                                                          |
@@ -71,10 +67,7 @@ and runs its lookups through `forContext`:
 ```ts title="lib/bot.ts"
 export const inboxBot = inboxAdapter({
   inbox,
-  identities: {
-    server: bs,
-    ticketFor: (userId) => tickets.issue(userId),
-  },
+  identities: { server: bs, ticketFor: (userId) => tickets.issue(userId) },
 });
 
 bot.onSubscribedMessage(async (thread, message) => {

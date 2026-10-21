@@ -14,15 +14,18 @@ export type ExpoParams = Record<string, string | string[]>;
 const PARAMS = Symbol("toExpo.params");
 
 export interface ToExpoOptions {
-  /** The host's env object for `getEnv`, read per request (EAS Hosting runs on Workers). */
+  /**
+   * The host's env object for `getEnv`, read per request (EAS Hosting runs on
+   * Workers).
+   */
   readonly env?: (request: Request) => unknown;
 }
 
 /**
- * Runs an entry array around an Expo Router API route handler
- * (`export const GET = toExpo([...], handler)`). Short-circuit responses
- * (a 401 from the guard, a CORS preflight) answer before the handler runs,
- * and the handler's response passes back through the entries.
+ * Runs an entry array around an Expo Router API route handler (`export const
+ * GET = toExpo([...], handler)`). Short-circuit responses (a 401 from the
+ * guard, a CORS preflight) answer before the handler runs, and the handler's
+ * response passes back through the entries.
  */
 export function toExpo<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,

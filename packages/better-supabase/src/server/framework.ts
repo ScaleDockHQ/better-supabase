@@ -13,7 +13,10 @@ import type { BetterServer, ServerOptions } from "./server-types.ts";
 import { toSession } from "../auth/view.ts";
 import { withBetterSupabase } from "./composite.ts";
 
-/** Every caller: the framework factories guard per loader, action or route instead. */
+/**
+ * Every caller: the framework factories guard per loader, action or route
+ * instead.
+ */
 export const EVERY_CALLER: readonly AllowedCaller[] = [
   "user",
   "anonymous",
@@ -22,7 +25,10 @@ export const EVERY_CALLER: readonly AllowedCaller[] = [
   "apiKey",
 ];
 
-/** What the framework factories (`createSvelteKit`, `createReactRouter`, `createTanStackStart`) take. */
+/**
+ * What the framework factories (`createSvelteKit`, `createReactRouter`,
+ * `createTanStackStart`) take.
+ */
 export interface FrameworkOptions
   extends
     ServerOptions,
@@ -33,9 +39,15 @@ export interface FrameworkOptions
    * `'navigation'`: page loads, client navigations and form posts.
    */
   readonly refresh?: SessionEntryConfig["refresh"];
-  /** Include internal error messages in Problem Details. Defaults to development only. */
+  /**
+   * Include internal error messages in Problem Details. Defaults to development
+   * only.
+   */
   readonly exposeErrors?: boolean;
-  /** Keeps the invocation alive for event sink sends, e.g. the Workers `ctx.waitUntil`. */
+  /**
+   * Keeps the invocation alive for event sink sends, e.g. the Workers
+   * `ctx.waitUntil`.
+   */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
@@ -52,7 +64,10 @@ export type FrameworkLocals<
   readonly session: AuthSession<C, P>;
 };
 
-/** What a `resource` loader gets in a framework adapter: the locals, with the checked tenant. */
+/**
+ * What a `resource` loader gets in a framework adapter: the locals, with the
+ * checked tenant.
+ */
 export type LocalsResource<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -62,7 +77,10 @@ export type LocalsResource<
   B = unknown,
 > = FrameworkLocals<M, F, E, C, P, B> & ResourceLoaderContext<C, P>;
 
-/** The `withBetterSupabase` entry the framework factories run, admitting every caller. */
+/**
+ * The `withBetterSupabase` entry the framework factories run, admitting every
+ * caller.
+ */
 export function frameworkEntry<
   M extends AnyModels,
   F extends AnyFunctions,

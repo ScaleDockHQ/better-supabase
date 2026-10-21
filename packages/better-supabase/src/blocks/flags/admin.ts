@@ -23,13 +23,16 @@ export interface FlagsOptions<
    * platform staff over the Data API, or a service-role transport.
    */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
    * A Standard Schema for the flag's extra columns
-   * (`blocks.flags.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `list` and `save`, and validates them on `save`.
+   * (`blocks.flags.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on `list` and `save`, and validates them on `save`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the methods, such as a review rule on `save`. */
@@ -93,7 +96,10 @@ export interface Flags<F extends object = Record<never, never>> {
   ): AsyncResult<FlagRecord<F> | undefined>;
   /** `false` when there was no such flag. */
   remove(key: string): AsyncResult<boolean>;
-  /** Sets the variant of a tenant, a user or a context value; `null` removes the override. */
+  /**
+   * Sets the variant of a tenant, a user or a context value; `null` removes the
+   * override.
+   */
   override(
     key: string,
     target: FlagOverrideTarget,
@@ -138,8 +144,8 @@ const recordOf = async <F extends object>(
 
 /**
  * Manages feature flags for platform staff (`flags.manage`) or the service
- * role, through the `flags` module's `list_flags`, `save_flag`,
- * `delete_flag` and `set_flag_override`.
+ * role, through the `flags` module's `list_flags`, `save_flag`, `delete_flag`
+ * and `set_flag_override`.
  */
 export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
   options: FlagsOptions<S>,

@@ -120,10 +120,10 @@ export interface AiTasksOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the task columns the app adds
-   * (`blocks.ai-tasks.options.extraColumns`), keyed by column name. It
-   * types and parses them on `create`, `update`, `pause`, `resume` and
-   * `list`, and validates them on `create` and `update`, which return a
-   * `validation` error for a bad value.
+   * (`blocks.ai-tasks.options.extraColumns`), keyed by column name. It types
+   * and parses them on `create`, `update`, `pause`, `resume` and `list`, and
+   * validates them on `create` and `update`, which return a `validation` error
+   * for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -134,17 +134,23 @@ export interface AiTasksOptions<
   readonly transport: BlockTransport;
   /** Calls as the service role, for `tick`, `execute` and `runJob`. */
   readonly service?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   readonly run?: AiTaskRunner;
-  /** Called after each run finishes, to notify the task's user. Defaults to `notification` through `notifier`. */
+  /**
+   * Called after each run finishes, to notify the task's user. Defaults to
+   * `notification` through `notifier`.
+   */
   readonly notify?: (outcome: AiTaskOutcome) => unknown;
   /** The `notifier` port: the `notifications` block, from `createBlocks`. */
   readonly notifier?: Notifier;
   /**
-   * The notification type `notifier` sends the task's user after each run.
-   * Its data is `{ taskId, runId, ok, error?, chatId? }`.
+   * The notification type `notifier` sends the task's user after each run. Its
+   * data is `{ taskId, runId, ok, error?, chatId? }`.
    */
   readonly notification?: string;
   /** The clock, for tests. */
@@ -178,13 +184,16 @@ export interface AiTasks<F extends object = Record<never, never>> {
   ): AsyncResult<readonly AiTaskRun[]>;
   /**
    * Claims due tasks (service role): queues a run for each, which the
-   * `ai_task_run` queue picks up when jobs is installed, and computes the
-   * next occurrence of every task that needs one. Returns the queued runs.
+   * `ai_task_run` queue picks up when jobs is installed, and computes the next
+   * occurrence of every task that needs one. Returns the queued runs.
    */
   tick(options?: {
     readonly batch?: number;
   }): AsyncResult<readonly AiTaskRun[]>;
-  /** Starts, runs and finishes a queued run (service role). `false` when another worker has it. */
+  /**
+   * Starts, runs and finishes a queued run (service role). `false` when another
+   * worker has it.
+   */
   execute(
     runId: string,
     options?: { readonly signal?: AbortSignal },
@@ -193,8 +202,8 @@ export interface AiTasks<F extends object = Record<never, never>> {
   runJob(): JobHandler<{ readonly run_id: string }>;
   /**
    * `tick` then `execute` each run in turn, without a queue. Returns how many
-   * ran. A failed run does not stop the others; when any failed, the result
-   * is the first error, with every failed run listed in `details`.
+   * ran. A failed run does not stop the others; when any failed, the result is
+   * the first error, with every failed run listed in `details`.
    */
   drain(options?: {
     readonly batch?: number;

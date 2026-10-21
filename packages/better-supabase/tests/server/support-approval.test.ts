@@ -42,7 +42,10 @@ const admin = user(ADMIN);
 const second = user(SECOND);
 const anon: AuthState = { kind: "anon", reason: "none" };
 
-/** `memorySupportStore` with requests that refuse self-approval, as the SQL store does. */
+/**
+ * `memorySupportStore` with requests that refuse self-approval, as the SQL
+ * store does.
+ */
 function approvingStore() {
   const base = memorySupportStore();
   const requests = new Map<string, SupportRequest>();
@@ -291,10 +294,7 @@ describe("support sessions need a second admin", () => {
       hooks({
         approverOf: (approver, request) => {
           refs.push(request);
-          expect(approver).toEqual({
-            userId: SECOND,
-            claims: second.claims,
-          });
+          expect(approver).toEqual({ userId: SECOND, claims: second.claims });
 
           return answer();
         },

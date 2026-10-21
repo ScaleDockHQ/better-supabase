@@ -285,9 +285,7 @@ const bs = createMcp(betterSupabase, {
   allowedOrigins: ["https://claude.ai"],
   allowedHosts: ["crm.example.com", "localhost"],
   resourceDocumentation: "https://crm.example.com/docs/mcp",
-  resources: {
-    customers: { select: ["id", "name"], pagination: "cursor" },
-  },
+  resources: { customers: { select: ["id", "name"], pagination: "cursor" } },
   authorize: (ctx) => {
     const session = toSession(ctx.auth);
     const granted =

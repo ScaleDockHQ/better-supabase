@@ -10,7 +10,10 @@ const blocksDocs = join(repo, "apps/docs/content/docs/blocks");
 
 const KEY = String.raw`(?:blocks\.([a-z][a-z0-9-]*)\.)?(tables|columns)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?`;
 
-/** The SQL modules a page's bare `tables.<key>` and `columns.<table>.<key>` refer to. */
+/**
+ * The SQL modules a page's bare `tables.<key>` and `columns.<table>.<key>`
+ * refer to.
+ */
 function modulesOf(page: string): readonly string[] {
   const manifest = BLOCK_MANIFESTS.find((block) => block.name === page);
 

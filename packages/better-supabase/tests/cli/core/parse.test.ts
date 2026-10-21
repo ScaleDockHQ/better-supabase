@@ -81,9 +81,7 @@ describe("resolveCommand", () => {
       name: "b",
       candidates: ["a"],
     });
-    expect(resolveCommand(tree, ["--", "grp"])).toMatchObject({
-      kind: "root",
-    });
+    expect(resolveCommand(tree, ["--", "grp"])).toMatchObject({ kind: "root" });
   });
 });
 
@@ -144,11 +142,7 @@ describe("strict parsing", () => {
     const result = await run(["gen", "--chek", "--json", "--cwd", dir]);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      error: {
-        code: "unknown_flag",
-        flag: "--chek",
-        suggestion: "--check",
-      },
+      error: { code: "unknown_flag", flag: "--chek", suggestion: "--check" },
     });
   });
 
@@ -174,10 +168,7 @@ describe("strict parsing", () => {
 
     const gen = await run(["gen", "help", "--cwd", dir, "--json"]);
     expect(JSON.parse(gen.stdout)).toMatchObject({
-      error: {
-        code: "usage",
-        suggestion: "better-supabase gen --help",
-      },
+      error: { code: "usage", suggestion: "better-supabase gen --help" },
     });
   });
 

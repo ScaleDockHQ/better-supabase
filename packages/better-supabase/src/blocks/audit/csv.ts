@@ -10,13 +10,13 @@ export type AuditCsvColumn =
 /** How `export({ format: "csv" })` writes its rows. */
 export interface AuditCsvOptions<Columns extends AuditColumns = AuditColumns> {
   /**
-   * The columns, in order: a key of the record (`eventType`),
-   * `columns.<name>` for a column `metadataColumns` fills, or
-   * `restricted.<field>` (`ip`, `userAgent`, `sessionId`, `metadata`, `old`,
-   * `new` or `changes`) for a caller who may reveal the entries. A restricted
-   * column reads each page through `reveal_audit_entries`, which records
-   * `audit.revealed`, and is empty for entries the caller may not reveal.
-   * Defaults to the built-in columns.
+   * The columns, in order: a key of the record (`eventType`), `columns.<name>`
+   * for a column `metadataColumns` fills, or `restricted.<field>` (`ip`,
+   * `userAgent`, `sessionId`, `metadata`, `old`, `new` or `changes`) for a
+   * caller who may reveal the entries. A restricted column reads each page
+   * through `reveal_audit_entries`, which records `audit.revealed`, and is
+   * empty for entries the caller may not reveal. Defaults to the built-in
+   * columns.
    */
   readonly columns?: readonly AuditCsvColumn[];
   /** Lines written before the header row, one cell each, such as a title. */

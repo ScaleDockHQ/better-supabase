@@ -22,7 +22,10 @@ export interface WatcherRule<
 > {
   /** The notification type to send. */
   readonly type: N;
-  /** `all` (the default) reaches only `all` watchers; `participating` reaches both levels. */
+  /**
+   * `all` (the default) reaches only `all` watchers; `participating` reaches
+   * both levels.
+   */
   readonly activity?: "participating" | "all";
   /** Users to notify besides the watchers, such as a reminder's owner. */
   readonly recipients?: (data: WatchedEventData) => readonly string[];
@@ -36,9 +39,9 @@ export interface WatcherRule<
 
 export interface WatcherSinkOptions<K extends NotificationTypes> {
   /**
-   * Event type (without `typePrefix`) to the notification type, or a rule.
-   * Only subject-bound events (`SubjectEventType`) reach watchers; others
-   * are skipped.
+   * Event type (without `typePrefix`) to the notification type, or a rule. Only
+   * subject-bound events (`SubjectEventType`) reach watchers; others are
+   * skipped.
    */
   readonly types: Readonly<
     Record<string, TypeName<K> | WatcherRule<K> | undefined>
@@ -72,12 +75,12 @@ function subjectData(event: CloudEvent): WatchedEventData | undefined {
 }
 
 /**
- * An outbox sink that notifies the watchers of the subject an event is
- * about: `outbox.relay('watchers', watcherSink(notifications, { types }))`.
- * It reads `SubjectEventData` (tenant, subject type and id) from any block's
- * event, leaves out the actor (`actorId` or `authorId`), and keys each
- * notification by the event id, so a replayed event sends nothing new.
- * Build `notifications` with a service transport.
+ * An outbox sink that notifies the watchers of the subject an event is about:
+ * `outbox.relay('watchers', watcherSink(notifications, { types }))`. It reads
+ * `SubjectEventData` (tenant, subject type and id) from any block's event,
+ * leaves out the actor (`actorId` or `authorId`), and keys each notification by
+ * the event id, so a replayed event sends nothing new. Build `notifications`
+ * with a service transport.
  */
 export function watcherSink<K extends NotificationTypes>(
   notifications: Pick<Notifications<K>, "sink">,
@@ -135,11 +138,11 @@ export interface WatchedOutboxEvent {
 }
 
 /**
- * `watcherSink` as an outbox handler:
- * `outbox.consume('watchers', watcherHandler(notifications, { types }))`.
- * CloudEvents leave the actor out, so a sink can only skip the author a
- * payload names. The outbox row carries the actor of every event, so with
- * this handler whoever tags, moves or shares a subject is not notified of it.
+ * `watcherSink` as an outbox handler: `outbox.consume('watchers',
+ * watcherHandler(notifications, { types }))`. CloudEvents leave the actor out,
+ * so a sink can only skip the author a payload names. The outbox row carries
+ * the actor of every event, so with this handler whoever tags, moves or shares
+ * a subject is not notified of it.
  */
 export function watcherHandler<K extends NotificationTypes>(
   notifications: Pick<Notifications<K>, "sink">,

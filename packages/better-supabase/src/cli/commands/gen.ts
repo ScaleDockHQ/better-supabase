@@ -75,8 +75,8 @@ const ARGS = {
 
 /**
  * Reads the schema when it may have changed. Returns the new change marker (the
- * catalog fingerprint, or the snapshot itself when the source has none) and
- * the snapshot, or no snapshot when the fingerprint still matches `last`.
+ * catalog fingerprint, or the snapshot itself when the source has none) and the
+ * snapshot, or no snapshot when the fingerprint still matches `last`.
  */
 async function poll(
   options: GenOptions,
@@ -137,14 +137,14 @@ async function runTasks(
 }
 
 /**
- * Runs the tasks again whenever the schema, the config file or a task's
- * input (the spec entry and its overlays, the seed entry) changes. A
- * database source keeps one connection open and polls the catalog
- * fingerprint, so an unchanged schema costs one small query per interval; a
- * source without a fingerprint is introspected each time and compared. The
- * schema is read only when `types` runs. A changed config file is loaded
- * again and forces a run; a changed input reruns the steps after `types`. A
- * failed run is retried every interval until it succeeds.
+ * Runs the tasks again whenever the schema, the config file or a task's input
+ * (the spec entry and its overlays, the seed entry) changes. A database source
+ * keeps one connection open and polls the catalog fingerprint, so an unchanged
+ * schema costs one small query per interval; a source without a fingerprint is
+ * introspected each time and compared. The schema is read only when `types`
+ * runs. A changed config file is loaded again and forces a run; a changed input
+ * reruns the steps after `types`. A failed run is retried every interval until
+ * it succeeds.
  */
 async function watch(
   initial: GenOptions,

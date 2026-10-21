@@ -20,12 +20,18 @@ export const VERCEL_ENVIRONMENTS: readonly VercelEnvironment[] = [
   "development",
 ];
 
-/** A secret Vercel turns into an environment variable of the projects that use the resource. */
+/**
+ * A secret Vercel turns into an environment variable of the projects that use
+ * the resource.
+ */
 export interface MarketplaceSecret {
   readonly name: string;
   readonly value: string;
   readonly prefix?: string;
-  /** A different value per Vercel environment, such as a tenant environment each. */
+  /**
+   * A different value per Vercel environment, such as a tenant environment
+   * each.
+   */
   readonly environmentOverrides?: Readonly<
     Partial<Record<VercelEnvironment, string>>
   >;
@@ -67,14 +73,20 @@ export interface MarketplaceProvisionInput {
   readonly installation: MarketplaceInstallation;
   readonly resource: MarketplaceResourceRequest;
   readonly plan: MarketplacePlan | undefined;
-  /** Every Vercel environment, for an app that keeps one tenant environment per Vercel environment. */
+  /**
+   * Every Vercel environment, for an app that keeps one tenant environment per
+   * Vercel environment.
+   */
   readonly environments: readonly VercelEnvironment[];
 }
 
 export interface MarketplaceProvisionResult {
   /** The app's tenant for the resource. */
   readonly tenant?: string;
-  /** Whether the hook created the tenant, so deleting the resource may delete it. */
+  /**
+   * Whether the hook created the tenant, so deleting the resource may delete
+   * it.
+   */
   readonly tenantCreated?: boolean;
   readonly secrets: readonly MarketplaceSecret[];
 }
@@ -105,7 +117,10 @@ export interface MarketplaceResourceHooks {
     readonly resource: MarketplaceResource;
     readonly reason: string | undefined;
   }): Promise<{ readonly secrets: readonly MarketplaceSecret[] }>;
-  /** Revokes the secrets a rotation replaced, by the `ref` they were handed out with. */
+  /**
+   * Revokes the secrets a rotation replaced, by the `ref` they were handed out
+   * with.
+   */
   revoke?(input: {
     readonly installation: MarketplaceInstallation;
     readonly resource: MarketplaceResource;
@@ -130,7 +145,10 @@ export interface MarketplaceOrganizations {
 
 export interface PartnerApiOptions extends BlockProblemOptions {
   readonly resources: MarketplaceResourceHooks;
-  /** Runs after `PUT /v1/installations/{id}` stored the installation; may link a tenant. */
+  /**
+   * Runs after `PUT /v1/installations/{id}` stored the installation; may link a
+   * tenant.
+   */
   readonly install?: (input: {
     readonly installation: MarketplaceInstallation;
     readonly account: Readonly<Record<string, unknown>>;
@@ -142,12 +160,15 @@ export interface PartnerApiOptions extends BlockProblemOptions {
   >;
   /**
    * Removes a tenant when its resource or installation goes away. Default:
-   * deletes it through `organizations` when the installation created it and
-   * it has no members, and does nothing without `organizations`.
+   * deletes it through `organizations` when the installation created it and it
+   * has no members, and does nothing without `organizations`.
    */
   readonly removeTenant?: (input: MarketplaceTenantRemoval) => Promise<void>;
   readonly organizations?: MarketplaceOrganizations;
-  /** The plans the integration sells, or a function of the product and installation. */
+  /**
+   * The plans the integration sells, or a function of the product and
+   * installation.
+   */
   readonly plans?:
     | readonly MarketplacePlan[]
     | ((input: {

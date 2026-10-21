@@ -1,11 +1,10 @@
 /**
- * Adds block names to `blocks` in `better-supabase.config.ts`. The
- * edit reads the object literal passed to `defineConfig(...)` (or the
- * default export) with the codemod scanner, so strings and comments never
- * count as code, and inserts the names in the form the config already uses:
- * `name: {}` in an object, `"name"` in a list. Anything that isn't a literal
- * object it can follow is refused with a reason, and `sql add` prints the
- * snippet instead.
+ * Adds block names to `blocks` in `better-supabase.config.ts`. The edit reads
+ * the object literal passed to `defineConfig(...)` (or the default export) with
+ * the codemod scanner, so strings and comments never count as code, and inserts
+ * the names in the form the config already uses: `name: {}` in an object,
+ * `"name"` in a list. Anything that isn't a literal object it can follow is
+ * refused with a reason, and `sql add` prints the snippet instead.
  */
 
 import { codeRanges } from "../code-ranges.ts";
@@ -104,7 +103,10 @@ export const skipSpace = (code: string, from: number): number => {
   return index;
 };
 
-/** The end of the expression starting at `index`: the next `,` or closer at depth 0. */
+/**
+ * The end of the expression starting at `index`: the next `,` or closer at
+ * depth 0.
+ */
 function valueEnd(code: string, index: number): number {
   let depth = 0;
   let end = index;
@@ -202,7 +204,10 @@ export function properties(
   return found;
 }
 
-/** The `{` of the config object: `defineConfig({...})` or `export default {...}`. */
+/**
+ * The `{` of the config object: `defineConfig({...})` or `export default
+ * {...}`.
+ */
 export function configObject(code: string): number | undefined {
   const call = /\bdefineConfig\s*(?:<[^>]*>)?\s*\(\s*\{/.exec(code);
 
@@ -455,8 +460,8 @@ export function addBlocksToJson(
 }
 
 /**
- * The JSON config with `next` written, or `source` as it is when `next`
- * holds the same values, so a formatted file isn't rewritten for nothing.
+ * The JSON config with `next` written, or `source` as it is when `next` holds
+ * the same values, so a formatted file isn't rewritten for nothing.
  */
 const jsonEdit = (
   source: string,
@@ -548,10 +553,9 @@ export interface WiredBlock {
 }
 
 /**
- * `lib/blocks.ts` with `blocks` imported and added to the blocks object
- * passed to `defineBlocks(blockConfig, { ... })` or `createBlocks(options,
- * { ... })`. A block whose export the file
- * already names is left out.
+ * `lib/blocks.ts` with `blocks` imported and added to the blocks object passed
+ * to `defineBlocks(blockConfig, { ... })` or `createBlocks(options, { ... })`.
+ * A block whose export the file already names is left out.
  */
 export function addBlocksToWiring(
   source: string,
@@ -653,8 +657,8 @@ function literal(value: unknown, indent: string, quote: string): string {
 }
 
 /**
- * `source` with `blocks.<name>` set to `value`, replacing the entry it has.
- * A `blocks` list becomes an object, each listed block mapped to `{}`.
+ * `source` with `blocks.<name>` set to `value`, replacing the entry it has. A
+ * `blocks` list becomes an object, each listed block mapped to `{}`.
  */
 export function setBlockInConfig(
   source: string,
@@ -786,7 +790,10 @@ export function setBlockInJson(
   );
 }
 
-/** `value` under `path`, as nested objects: `["a", "b"]` and 1 give `{ a: { b: 1 } }`. */
+/**
+ * `value` under `path`, as nested objects: `["a", "b"]` and 1 give `{ a: { b: 1
+ * } }`.
+ */
 const nested = (path: readonly string[], value: unknown): unknown =>
   path.reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
 

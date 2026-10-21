@@ -35,7 +35,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
-/** The worker in `public/` that shows the pushes; it must be served from the site root. */
+/**
+ * The worker in `public/` that shows the pushes; it must be served from the
+ * site root.
+ */
 const WORKER_URL = "/push-sw.js";
 const PUSH_GUIDE = "https://bettersupabase.com/docs/blocks/push";
 
@@ -83,10 +86,10 @@ async function currentState(): Promise<PushState> {
 }
 
 /**
- * Asks for web push permission and stores this browser's push subscription
- * as one of the caller's devices in the push module (`register_push_device`),
- * or removes it again. The device row belongs to the signed-in user, so a
- * sender can reach every browser they turned on.
+ * Asks for web push permission and stores this browser's push subscription as
+ * one of the caller's devices in the push module (`register_push_device`), or
+ * removes it again. The device row belongs to the signed-in user, so a sender
+ * can reach every browser they turned on.
  */
 export function PushOptIn() {
   const t = useExtracted("push");

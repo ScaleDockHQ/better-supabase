@@ -111,7 +111,10 @@ const NAMES: ModuleNames = {
   hooks: ["before_support_start", "after_support_start", "after_support_end"],
 };
 
-/** The session as the jsonb every function returns, with fixed keys whatever the column names. */
+/**
+ * The session as the jsonb every function returns, with fixed keys whatever the
+ * column names.
+ */
 function sessionJson(ctx: ModuleContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("sessions", logical)}`;
 
@@ -179,8 +182,8 @@ grant select on ${sessions} to authenticated;
 }
 
 /**
- * Whether the module creates the requests table: when it manages its
- * tables, or in `adopt` mode while `tables.requests` keeps its default name.
+ * Whether the module creates the requests table: when it manages its tables, or
+ * in `adopt` mode while `tables.requests` keeps its default name.
  */
 function ownsRequests(ctx: ModuleContext): boolean {
   if (!ctx.hasTable("requests")) {
@@ -264,8 +267,8 @@ grant select on ${requests} to authenticated;
 /**
  * Whether the caller may approve the request in `row`: the provider's
  * `isApprover` with kind `support-session`, else platform staff holding the
- * approve permission (the start permission unless renamed). The requester
- * is refused before this runs.
+ * approve permission (the start permission unless renamed). The requester is
+ * refused before this runs.
  */
 function approverOf(
   ctx: ModuleContext,
@@ -291,9 +294,9 @@ function approverOf(
 }
 
 /**
- * The approved, unused, unexpired request of `admin` for `target` in
- * `tenant` that allows `read_only`, newest first: what a start consumes.
- * The approver is never the admin, whatever the table holds.
+ * The approved, unused, unexpired request of `admin` for `target` in `tenant`
+ * that allows `read_only`, newest first: what a start consumes. The approver is
+ * never the admin, whatever the table holds.
  */
 function usableRequest(
   ctx: ModuleContext,
@@ -560,10 +563,10 @@ $$;`;
 
 /**
  * Whether `target` holds platform permissions: the platform claim in
- * `app_metadata`, a row in the provider model's platform role table (only
- * roles that match `platformRoles.through.where`, when it is set), or a
- * platform role under the catalog model. Claims your access token hook adds
- * from elsewhere are not seen here.
+ * `app_metadata`, a row in the provider model's platform role table (only roles
+ * that match `platformRoles.through.where`, when it is set), or a platform role
+ * under the catalog model. Claims your access token hook adds from elsewhere
+ * are not seen here.
  */
 function platformTarget(ctx: ModuleContext): string {
   const claim = sqlString(
@@ -606,7 +609,10 @@ function platformTarget(ctx: ModuleContext): string {
   ))`;
 }
 
-/** `start_support_session`: the admin is the caller, or `admin_id` for the service role. */
+/**
+ * `start_support_session`: the admin is the caller, or `admin_id` for the
+ * service role.
+ */
 function start(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
@@ -934,8 +940,8 @@ $$;`;
 /**
  * `support_target_claims(target)`: the claims the target would get. With
  * `blocks.support.options.claimsHook`, the app's custom access token hook
- * builds them from a synthetic event, so the session sees exactly what the
- * user sees and none of the admin's claims.
+ * builds them from a synthetic event, so the session sees exactly what the user
+ * sees and none of the admin's claims.
  */
 function claims(ctx: ModuleContext): string {
   const hook = ctx.text("claimsHook", "");

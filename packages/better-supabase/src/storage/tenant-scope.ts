@@ -10,10 +10,16 @@ export interface TenantScopeOptions {
 
 /** The checks a tenant bucket's client runs before any Storage call. */
 export interface TenantGuard {
-  /** Returns `path`, or throws a `forbidden` `DbException` when it isn't the caller's. */
+  /**
+   * Returns `path`, or throws a `forbidden` `DbException` when it isn't the
+   * caller's.
+   */
   path<T extends string>(path: T): T;
   readonly param: string;
-  /** The tenant a listing under `within` fills in, refusing another tenant's value. */
+  /**
+   * The tenant a listing under `within` fills in, refusing another tenant's
+   * value.
+   */
   within(within: Readonly<Record<string, unknown>> | undefined): string;
 }
 
@@ -32,8 +38,8 @@ function resolveTenant(
 }
 
 /**
- * The guard for a client of bucket `bucket` whose template holds the tenant
- * in `param`, or `undefined` when nothing is checked (no tenant config,
+ * The guard for a client of bucket `bucket` whose template holds the tenant in
+ * `param`, or `undefined` when nothing is checked (no tenant config,
  * `allTenants`, or an all-tenants context).
  */
 export function tenantGuard(

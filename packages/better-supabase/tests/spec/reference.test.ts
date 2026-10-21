@@ -178,8 +178,6 @@ describe("scalarPreset", () => {
         { components: { securitySchemes: { a: { type: "oauth2" } } } },
         { pkce: "no" },
       ),
-    ).toEqual({
-      components: { securitySchemes: { a: { type: "oauth2" } } },
-    });
+    ).toEqual({ components: { securitySchemes: { a: { type: "oauth2" } } } });
   });
 });

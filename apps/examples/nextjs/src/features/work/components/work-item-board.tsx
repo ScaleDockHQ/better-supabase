@@ -95,12 +95,12 @@ function WorkItemCard({ item }: { item: WorkItemRow }) {
 
 // #region recipe:work-item-board
 /**
- * Work items in the columns of the workflow's stages, each column labelled
- * with the state its stage stands for. Dragging to another column changes
- * the stage, which the pipelines trigger checks against the allowed
- * transitions; dragging within a column saves the order through the rank
- * block. A refused move puts the card back. The parent keys it by the
- * items' positions, so a server refresh starts it from the saved board.
+ * Work items in the columns of the workflow's stages, each column labelled with
+ * the state its stage stands for. Dragging to another column changes the stage,
+ * which the pipelines trigger checks against the allowed transitions; dragging
+ * within a column saves the order through the rank block. A refused move puts
+ * the card back. The parent keys it by the items' positions, so a server
+ * refresh starts it from the saved board.
  */
 export function WorkItemBoard({
   stages,

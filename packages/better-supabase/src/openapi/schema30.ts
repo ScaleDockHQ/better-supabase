@@ -48,10 +48,10 @@ const isNullSchema = (value: unknown): boolean =>
  * Rewrites a JSON Schema 2020-12 schema into the OpenAPI 3.0 Schema Object:
  * `null` in `type` or in an `anyOf`/`oneOf` becomes `nullable`, a type list
  * becomes `anyOf`, `const` becomes a one-value `enum`, `examples` becomes
- * `example`, numeric `exclusiveMinimum`/`exclusiveMaximum` become the
- * boolean form, `contentEncoding: base64` becomes `format: byte`, and a
- * `$ref` with siblings is wrapped in `allOf`. Keywords 3.0 does not have
- * are left out. The input is not changed.
+ * `example`, numeric `exclusiveMinimum`/`exclusiveMaximum` become the boolean
+ * form, `contentEncoding: base64` becomes `format: byte`, and a `$ref` with
+ * siblings is wrapped in `allOf`. Keywords 3.0 does not have are left out. The
+ * input is not changed.
  */
 export function toOpenApi30Schema(schema: Readonly<Json>): Json {
   const out: Json = {};
@@ -246,7 +246,10 @@ const lowerPathItem = (item: Json): Json => {
   return out;
 };
 
-/** Lowers every Schema Object position of an OpenAPI document to the 3.0 dialect. */
+/**
+ * Lowers every Schema Object position of an OpenAPI document to the 3.0
+ * dialect.
+ */
 export function lowerDocumentSchemas30(document: Json): Json {
   const out: Json = { ...document };
 

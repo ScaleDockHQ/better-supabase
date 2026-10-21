@@ -33,14 +33,20 @@ export type { RefusalRedirects } from "../server/refusal.ts";
 
 export type { ActionResult } from "../server/kit.ts";
 
-/** The part of Astro's `APIContext` (middleware, pages, endpoints, actions) the integration uses. */
+/**
+ * The part of Astro's `APIContext` (middleware, pages, endpoints, actions) the
+ * integration uses.
+ */
 export interface AstroContextLike {
   readonly request: Request;
   readonly locals: object;
 }
 
 export interface AstroOptions extends FrameworkOptions {
-  /** The host's env object for `getEnv`; defaults to `locals.runtime.env` (Cloudflare). */
+  /**
+   * The host's env object for `getEnv`; defaults to `locals.runtime.env`
+   * (Cloudflare).
+   */
   readonly platformEnv?: (context: AstroContextLike) => unknown;
 }
 
@@ -57,8 +63,9 @@ export interface BetterAstro<
    * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and
    * `session` on `locals`. Response-phase entries see the page's response.
    *
-   * ```ts title="src/middleware.ts"
-   * export const onRequest = bs.onRequest
+   * ```ts
+   * // src/middleware.ts
+   * export const onRequest = bs.onRequest;
    * ```
    */
   readonly onRequest: (
@@ -106,10 +113,16 @@ export interface BetterAstro<
   /**
    * The `handler` of `defineAction`, returning an `ActionResult`:
    *
-   * ```ts title="src/actions/index.ts"
+   * ```ts
+   * // src/actions/index.ts
    * export const server = {
-   *   addNote: defineAction({ accept: 'form', handler: bs.action({ input: NoteInput }, (input, { db }) => db.notes.create(input)) }),
-   * }
+   *   addNote: defineAction({
+   *     accept: "form",
+   *     handler: bs.action({ input: NoteInput }, (input, { db }) =>
+   *       db.notes.create(input),
+   *     ),
+   *   }),
+   * };
    * ```
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
@@ -263,7 +276,10 @@ export interface AstroImageTransform {
   readonly src: string | { readonly src: string };
   readonly width?: number | undefined;
   readonly height?: number | undefined;
-  /** A number, or a preset: `low`, `mid`, `high` or `max`. Other strings use the default quality. */
+  /**
+   * A number, or a preset: `low`, `mid`, `high` or `max`. Other strings use the
+   * default quality.
+   */
   readonly quality?: number | string | undefined;
 }
 
@@ -284,8 +300,11 @@ function isQualityPreset(
  * An external image service that renders public Storage objects through
  * Supabase image transformations; other sources pass through.
  *
- * ```ts title="src/image-service.ts"
- * export default createImageService({ url: import.meta.env.PUBLIC_SUPABASE_URL })
+ * ```ts
+ * // src/image-service.ts
+ * export default createImageService({
+ *   url: import.meta.env.PUBLIC_SUPABASE_URL,
+ * });
  * ```
  */
 export function createImageService(

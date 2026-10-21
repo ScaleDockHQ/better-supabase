@@ -4,7 +4,10 @@ import { unauthorized } from "next/dist/client/components/unauthorized.js";
 
 import { DbException, type DbError } from "../core/errors.ts";
 
-/** Whether `cause` is one of Next's own control-flow errors (they carry a `digest`). */
+/**
+ * Whether `cause` is one of Next's own control-flow errors (they carry a
+ * `digest`).
+ */
 function isNextInterrupt(cause: unknown): boolean {
   return (
     cause instanceof Error &&

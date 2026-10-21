@@ -113,7 +113,7 @@ function optionRows(
   );
 }
 
-/** citty requires a positional unless it is `required: false` or has a default. */
+/** Citty requires a positional unless it is `required: false` or has a default. */
 const isRequired = (definition: ArgDef): boolean =>
   definition.required !== false && definition.default === undefined;
 
@@ -247,7 +247,10 @@ export function rootHelp(
   return `${lines.join("\n")}\n`;
 }
 
-/** One command's usage: its arguments, options, the global options, examples and the docs link. */
+/**
+ * One command's usage: its arguments, options, the global options, examples and
+ * the docs link.
+ */
 export async function commandHelp(
   node: CommandNode,
   options: HelpOptions,
@@ -385,7 +388,10 @@ function optionsJson(args: ArgsDef, lists: ReadonlySet<string>): OptionJson[] {
   });
 }
 
-/** One command and its subcommands as `cli-commands-v1.json` describes them. Loads every leaf. */
+/**
+ * One command and its subcommands as `cli-commands-v1.json` describes them.
+ * Loads every leaf.
+ */
 async function commandJson(node: CommandNode): Promise<CommandJson> {
   const command = node.load ? await node.load() : undefined;
   const args = command ? ownArgs(await commandArgs(command)) : {};

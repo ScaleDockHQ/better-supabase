@@ -540,9 +540,7 @@ describe("partnerApi", () => {
       const patched = await send(
         "PATCH",
         "/installations/icfg_1/resources/res_1",
-        {
-          name: "renamed",
-        },
+        { name: "renamed" },
       );
 
       expect(await patched.json()).toMatchObject({ name: "renamed" });

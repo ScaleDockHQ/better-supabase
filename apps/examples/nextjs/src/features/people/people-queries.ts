@@ -52,8 +52,8 @@ export interface DirectoryEmployee {
 }
 
 /**
- * Every employee who isn't offboarded, ordered as the org chart: each
- * manager before their reports, with the depth below the top.
+ * Every employee who isn't offboarded, ordered as the org chart: each manager
+ * before their reports, with the depth below the top.
  */
 export async function loadDirectory(): Promise<
   readonly DirectoryEmployee[] | null
@@ -108,8 +108,8 @@ export interface TimesheetWeek {
 }
 
 /**
- * The caller's week starting on the Monday of `week`: one row per project
- * (the entry's note) and whether it bills, and the running timer.
+ * The caller's week starting on the Monday of `week`: one row per project (the
+ * entry's note) and whether it bills, and the running timer.
  */
 export async function loadTimesheet(
   week: string,
@@ -142,10 +142,7 @@ export async function loadTimesheet(
   return {
     week: sheet.week.toString(),
     status: sheet.status,
-    days: grid.days.map((day) => ({
-      date: day.id,
-      seconds: day.seconds,
-    })),
+    days: grid.days.map((day) => ({ date: day.id, seconds: day.seconds })),
     rows: grid.rows.map((row) => ({
       id: row.id,
       label: labels.get(row.entryIds[0] ?? "") ?? "",
@@ -156,10 +153,7 @@ export async function loadTimesheet(
     seconds: grid.seconds,
     billableSeconds: grid.billableSeconds,
     running: running
-      ? {
-          note: running.note ?? null,
-          startedAt: running.startedAt.toString(),
-        }
+      ? { note: running.note ?? null, startedAt: running.startedAt.toString() }
       : null,
   };
 }
@@ -190,10 +184,7 @@ const StageRow = v.object({
   archived_at: v.nullish(v.string()),
 });
 
-const PipelineRow = v.object({
-  id: Id,
-  stages: v.array(StageRow),
-});
+const PipelineRow = v.object({ id: Id, stages: v.array(StageRow) });
 
 export interface HiringJob {
   readonly id: string;
@@ -228,11 +219,11 @@ export interface HiringBoardData {
 }
 
 /**
- * The openings, the stages of the application pipeline and the candidates
- * in them. The hiring block has no list function yet, so this reads
- * `api.list_jobs` and `api.list_applications`; until they exist the read
- * fails and the board shows Retry. Candidates are customers, the one
- * subject type the app registers.
+ * The openings, the stages of the application pipeline and the candidates in
+ * them. The hiring block has no list function yet, so this reads
+ * `api.list_jobs` and `api.list_applications`; until they exist the read fails
+ * and the board shows Retry. Candidates are customers, the one subject type the
+ * app registers.
  */
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
@@ -261,12 +252,14 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   const pipeline = v.parse(v.array(PipelineRow), pipelines)[0];
 
   return {
-    jobs: v.parse(v.array(JobRow), jobs).map((job) => ({
-      id: job.id,
-      title: job.title,
-      status: job.status,
-      location: job.location ?? null,
-    })),
+    jobs: v
+      .parse(v.array(JobRow), jobs)
+      .map((job) => ({
+        id: job.id,
+        title: job.title,
+        status: job.status,
+        location: job.location ?? null,
+      })),
     stages: (pipeline?.stages ?? [])
       .filter((stage) => !stage.archived_at)
       .map((stage) => ({

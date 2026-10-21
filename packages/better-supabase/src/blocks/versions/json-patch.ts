@@ -199,8 +199,8 @@ function remove(root: Root, tokens: readonly string[], index: number): Mutable {
 
 /**
  * Applies an RFC 6902 patch to a copy of `document` and returns the copy.
- * Throws a `JsonPatchError` for an operation the RFC calls an error; the
- * input is never changed.
+ * Throws a `JsonPatchError` for an operation the RFC calls an error; the input
+ * is never changed.
  */
 export function applyPatch(
   document: JsonValue,
@@ -332,9 +332,9 @@ function diff(
 }
 
 /**
- * The RFC 6902 patch that turns `from` into `to`: `add`, `remove` and
- * `replace` operations, with array elements compared by position.
- * `applyPatch(from, createPatch(from, to))` equals `to`.
+ * The RFC 6902 patch that turns `from` into `to`: `add`, `remove` and `replace`
+ * operations, with array elements compared by position. `applyPatch(from,
+ * createPatch(from, to))` equals `to`.
  */
 export function createPatch(
   from: JsonValue,

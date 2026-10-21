@@ -19,7 +19,10 @@ export const supabaseClientEnv = envSchema();
 
 export type Channel = "web" | "mobile" | "cron" | "worker";
 
-/** Headers the app stamps on every outbound Supabase request, for logs and rate limits. */
+/**
+ * Headers the app stamps on every outbound Supabase request, for logs and rate
+ * limits.
+ */
 export function appRequestHeaders(
   request: Request,
   channel: Channel,
@@ -48,7 +51,10 @@ export type AppContext = ServerContext<Models, Functions, unknown>;
 
 type AppHandler = Parameters<AppServer["handler"]>[0];
 
-/** Signed-in users only; refreshes an expiring cookie session and sends the new cookies. */
+/**
+ * Signed-in users only; refreshes an expiring cookie session and sends the new
+ * cookies.
+ */
 export function withUserAuth(
   server: AppServer,
   handler: AppHandler,

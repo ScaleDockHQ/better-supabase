@@ -116,11 +116,7 @@ describe.skipIf(!live)("billing", () => {
         insert into stripe.subscription_items (id, subscription, price, quantity, created) values ('si_1', 'sub_1', 'price_seat', 1, 1)`);
       expect(
         await billing.syncSeats(organization, { key: "evt" }).orThrow(),
-      ).toEqual({
-        quantity: 2,
-        previousQuantity: 1,
-        changed: true,
-      });
+      ).toEqual({ quantity: 2, previousQuantity: 1, changed: true });
       expect(calls.at(-1)).toEqual([
         "items.update",
         {

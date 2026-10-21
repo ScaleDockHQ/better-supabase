@@ -455,12 +455,7 @@ describe("orders block", () => {
             "junk",
           ],
           weightGrams: null,
-          lines: [
-            {
-              ...cartRow().lines[0],
-              previousUnitAmount: "2000",
-            },
-          ],
+          lines: [{ ...cartRow().lines[0], previousUnitAmount: "2000" }],
         }),
     });
 
@@ -807,12 +802,7 @@ describe("orders block", () => {
     let row = orderRow({
       payments: [
         { ...PAY1, status: "authorized", captured: "0" },
-        {
-          ...PAY1,
-          id: "pay2",
-          provider: "other",
-          status: "authorized",
-        },
+        { ...PAY1, id: "pay2", provider: "other", status: "authorized" },
       ],
     });
 
@@ -992,10 +982,7 @@ describe("orders block", () => {
 
     const untaxed = orders(
       { ...full, get_order: () => paid({ taxTransaction: null }) },
-      {
-        payments: fakePayments(),
-        tax: TAX,
-      },
+      { payments: fakePayments(), tax: TAX },
     );
 
     expect(
@@ -1187,10 +1174,7 @@ describe("orders block", () => {
     expect(calls.at(-2)?.args["status"]).toBe("failed");
     expect(
       await o.handlePaymentEvent(event("refund.failed")).orThrow(),
-    ).toMatchObject({
-      kind: "ignored",
-      reason: "no refund id",
-    });
+    ).toMatchObject({ kind: "ignored", reason: "no refund id" });
 
     const unknown = orders({
       record_payment: raise("ORDERS_ORDER_NOT_FOUND"),
@@ -1199,10 +1183,7 @@ describe("orders block", () => {
 
     expect(
       await unknown.handlePaymentEvent(event("payment.succeeded")).orThrow(),
-    ).toMatchObject({
-      kind: "ignored",
-      reason: "unknown order",
-    });
+    ).toMatchObject({ kind: "ignored", reason: "unknown order" });
     expect(
       await unknown
         .handlePaymentEvent(event("refund.succeeded", { refundId: "re_x" }))
@@ -1324,12 +1305,7 @@ describe("orders block", () => {
     const pending = orderRow({
       payments: [
         { ...PAY1, status: "authorized", captured: "0" },
-        {
-          ...PAY1,
-          id: "pay2",
-          reference: "pi_2",
-          status: "failed",
-        },
+        { ...PAY1, id: "pay2", reference: "pi_2", status: "failed" },
         {
           ...PAY1,
           id: "pay3",
@@ -1454,10 +1430,7 @@ describe("orders block", () => {
       await o
         .requestReturn("o1", [{ lineId: "l1", quantity: 1 }], "too small")
         .orThrow(),
-    ).toEqual({
-      id: "ret1",
-      quantity: 1,
-    });
+    ).toEqual({ id: "ret1", quantity: 1 });
     await o.requestReturn("o1", [{ lineId: "l1", quantity: 1 }]).orThrow();
     await o.receiveReturn("ret1").orThrow();
     expect(calls.at(-1)?.args).toEqual({

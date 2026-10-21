@@ -37,8 +37,8 @@ function refusal(cause: unknown, hints: UploadClaimHints): DbError {
 
 /**
  * Claims an object a browser uploaded to a signed upload URL, so a support
- * session records it. Succeeds without a request when the storage has no
- * claim step.
+ * session records it. Succeeds without a request when the storage has no claim
+ * step.
  */
 export function claimUpload(
   storage: UploadClaimStorage,

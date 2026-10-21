@@ -145,8 +145,8 @@ export interface Collections<F extends object = Record<never, never>> {
     options?: CollectionListOptions,
   ): AsyncResult<(Collection & F)[]>;
   /**
-   * Adds records to the end of a collection, in the given order (at most
-   * 1000). Ids already in it are skipped; resolves to the ids added.
+   * Adds records to the end of a collection, in the given order (at most 1000).
+   * Ids already in it are skipped; resolves to the ids added.
    */
   add(
     id: string,
@@ -165,7 +165,10 @@ export interface Collections<F extends object = Record<never, never>> {
     id: string,
     options?: CursorPageOptions<CollectionEntryCursor>,
   ): AsyncResult<CollectionEntryPage>;
-  /** The ids of the records in a collection, in rank order (default 500, at most 1000). */
+  /**
+   * The ids of the records in a collection, in rank order (default 500, at most
+   * 1000).
+   */
   subjectIds(
     id: string,
     options?: { readonly max?: number },
@@ -200,14 +203,16 @@ export interface CollectionsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the collection columns the app adds
-   * (`blocks.collections.options.extraColumns`), keyed by column name. It
-   * types and parses them on `create`, `rename` and `list`, and validates
-   * them on `create` and `rename`, which return a `validation` error for a
-   * bad value.
+   * (`blocks.collections.options.extraColumns`), keyed by column name. It types
+   * and parses them on `create`, `rename` and `list`, and validates them on
+   * `create` and `rename`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -302,9 +307,9 @@ function entryPage(
 }
 
 /**
- * The collections block: favorites (a member's starred records, ranked for
- * a sidebar) and lists (named, static collections of one subject type owned
- * by a user, a team or the organization) on any record in `config.subjects`.
+ * The collections block: favorites (a member's starred records, ranked for a
+ * sidebar) and lists (named, static collections of one subject type owned by a
+ * user, a team or the organization) on any record in `config.subjects`.
  */
 export function createCollections<
   S extends StandardSchemaV1 | undefined = undefined,

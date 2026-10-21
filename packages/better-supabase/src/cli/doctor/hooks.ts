@@ -36,9 +36,9 @@ interface ClaimsLimits {
 }
 
 /**
- * The BS405 limits. With a provider hook budget, `doctor.claimsLimit` (else
- * the budget's bytes) limits its claims and the whole token keeps 2048;
- * without one, `doctor.claimsLimit` limits the whole token.
+ * The BS405 limits. With a provider hook budget, `doctor.claimsLimit` (else the
+ * budget's bytes) limits its claims and the whole token keeps 2048; without
+ * one, `doctor.claimsLimit` limits the whole token.
  */
 function claimsLimits(context: DoctorContext): ClaimsLimits {
   const configured = context.config.doctor.claimsLimit;
@@ -78,8 +78,8 @@ const escapeRegExp = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * The claims the provider's hook writes that a second writer would
- * contradict, with the tenant claim it writes to.
+ * The claims the provider's hook writes that a second writer would contradict,
+ * with the tenant claim it writes to.
  */
 function ownedClaims(hook: AuthorizationTokenHook): readonly string[] {
   return [
@@ -147,7 +147,10 @@ function wrapsProviderHook(
   return new RegExp(`${quotedName(schema, name)}\\s*\\(`, "i").test(source);
 }
 
-/** Which of `claims` the hook body writes through `jsonb_set` or `jsonb_build_object`. */
+/**
+ * Which of `claims` the hook body writes through `jsonb_set` or
+ * `jsonb_build_object`.
+ */
 function writtenClaims(source: string, claims: readonly string[]): string[] {
   return claims.filter((claim) => {
     const name = escapeRegExp(claim);
@@ -246,9 +249,8 @@ function grantProblems(fn: ExtrasHookFunction): {
 }
 
 /**
- * What fixes a hook function's grants: SQL to add, the provider's own
- * command (it is the provider's hook), or applying the file that already
- * grants it.
+ * What fixes a hook function's grants: SQL to add, the provider's own command
+ * (it is the provider's hook), or applying the file that already grants it.
  */
 type HookGrantFix =
   | { readonly kind: "sql"; readonly sql: readonly string[] }
@@ -272,8 +274,8 @@ const MIGRATIONS = /(?:^|\/)supabase\/migrations\//;
  * The file that grants `fn` to `supabase_auth_admin`: a migration with the
  * provider's grants marker; under pg-delta, which carries grants, the
  * declarative schema file that defines `fn`; and without declarative schemas,
- * the migration that defines it. `supabase db diff` drops grants, so migra
- * only counts the marked migration.
+ * the migration that defines it. `supabase db diff` drops grants, so migra only
+ * counts the marked migration.
  */
 function grantsSourceFor(
   context: DoctorContext,
@@ -301,7 +303,10 @@ function grantsSourceFor(
   )?.path;
 }
 
-/** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
+/**
+ * Configured hook functions whose grants are wrong (BS404, `doctor
+ * --fix-grants`).
+ */
 export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
   const workflow = workflowOf(context);
 
@@ -387,7 +392,10 @@ function grantFixPlace(workflow: SqlWorkflow): string {
   }
 }
 
-/** `doctor --fix-grants`: the SQL block for every BS404 problem, as one migration snippet. */
+/**
+ * `doctor --fix-grants`: the SQL block for every BS404 problem, as one
+ * migration snippet.
+ */
 export function hookGrantBlock(
   problems: readonly HookGrantProblem[],
   workflow: SqlWorkflow = "pg-delta",
@@ -455,7 +463,10 @@ interface ClaimsSize {
   readonly truncated: boolean;
 }
 
-/** Auth's issuer shape (`{url}/auth/v1`); doctor has no project URL to put in it. */
+/**
+ * Auth's issuer shape (`{url}/auth/v1`); doctor has no project URL to put in
+ * it.
+ */
 const DOCTOR_ISSUER = "https://doctor.invalid/auth/v1";
 
 /**

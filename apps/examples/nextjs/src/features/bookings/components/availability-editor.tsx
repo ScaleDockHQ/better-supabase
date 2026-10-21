@@ -52,9 +52,7 @@ export async function AvailabilityEditor() {
           {page
             ? t(
                 "Visitors can book 30 minute slots inside these hours, in {tz}.",
-                {
-                  tz: page.tz,
-                },
+                { tz: page.tz },
               )
             : t("The hours visitors can book you in.")}
         </CardDescription>
@@ -63,9 +61,7 @@ export async function AvailabilityEditor() {
             <Badge variant={page.liveLinks > 0 ? "success-light" : "secondary"}>
               {t(
                 "{count, plural, =0 {No live links} one {# live link} other {# live links}}",
-                {
-                  count: page.liveLinks,
-                },
+                { count: page.liveLinks },
               )}
             </Badge>
             {can(session, "share_links.create") ? <BookingLinkButton /> : null}

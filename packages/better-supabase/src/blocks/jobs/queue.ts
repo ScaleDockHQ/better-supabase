@@ -70,7 +70,10 @@ import {
 import { nextCronRun } from "./cron.ts";
 import { unwrap, wrapPayload } from "./envelope.ts";
 
-/** Transient claim errors in a row a lane retries, with backoff, before the loop throws. */
+/**
+ * Transient claim errors in a row a lane retries, with backoff, before the loop
+ * throws.
+ */
 const CLAIM_RETRIES = 3;
 
 /** The abort reason of a job whose lease couldn't be extended. */
@@ -245,10 +248,9 @@ export function createJobs<const Q extends QueueSchemas>(
     });
 
   /**
-   * Extends the lease of every job in `held` at half the lease, so jobs
-   * waiting their turn in a claimed batch don't expire before they run.
-   * A job whose lease can't be extended is aborted: another worker may
-   * already hold it.
+   * Extends the lease of every job in `held` at half the lease, so jobs waiting
+   * their turn in a claimed batch don't expire before they run. A job whose
+   * lease can't be extended is aborted: another worker may already hold it.
    */
   const heartbeat = (
     held: ReadonlyMap<Job, AbortController>,
@@ -618,7 +620,10 @@ export function createJobs<const Q extends QueueSchemas>(
     );
   };
 
-  /** The validated payload in its envelope, and the delay, for `enqueue` and `enqueueOnce`. */
+  /**
+   * The validated payload in its envelope, and the delay, for `enqueue` and
+   * `enqueueOnce`.
+   */
   const prepareSend = async (
     queue: string,
     payload: unknown,

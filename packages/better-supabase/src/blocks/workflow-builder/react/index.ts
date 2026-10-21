@@ -77,8 +77,8 @@ export interface WorkflowCanvasRunState
   extends WorkflowCanvasRunSnapshot, WorkflowCanvasRunActions {}
 
 /**
- * A run and the status of each of its nodes, loaded again on each message
- * on `workflow-run:<id>` (run status changes and node records).
+ * A run and the status of each of its nodes, loaded again on each message on
+ * `workflow-run:<id>` (run status changes and node records).
  */
 export function useWorkflowCanvasRun(
   run: string | null,

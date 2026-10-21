@@ -33,8 +33,8 @@ export function useContext(): Context {
 }
 
 /**
- * Runs `start` on mount in a component, at once elsewhere (an effect
- * scope), and never during server rendering.
+ * Runs `start` on mount in a component, at once elsewhere (an effect scope),
+ * and never during server rendering.
  */
 export function onClient(start: () => void): void {
   if (getCurrentInstance()) {

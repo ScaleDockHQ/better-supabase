@@ -21,9 +21,7 @@ const WORK_STATES = [
 ];
 
 export default defineConfig({
-  source: {
-    snapshot: "../../../supabase/snapshot.json",
-  },
+  source: { snapshot: "../../../supabase/snapshot.json" },
   casing: "camel",
   codecs: { int8: "bigint" },
   seed: { perTenant: "src/features/onboarding/tenant-seed.ts" },

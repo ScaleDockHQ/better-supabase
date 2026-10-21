@@ -121,7 +121,10 @@ export async function syncModules(
   });
 }
 
-/** `sql sync --check` under the migrations workflow: the newest module migration against what `sql sync` would write. */
+/**
+ * `sql sync --check` under the migrations workflow: the newest module migration
+ * against what `sql sync` would write.
+ */
 async function checkModuleMigration(
   config: ResolvedConfig,
   sqlLayout: ModuleLayout,

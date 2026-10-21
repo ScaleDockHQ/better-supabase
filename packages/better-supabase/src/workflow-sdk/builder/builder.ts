@@ -43,9 +43,15 @@ export interface CompiledGraph {
   readonly format: 1;
   /** The workflow function's name in `source`. */
   readonly exportName: string;
-  /** `async function workflow(input, meta)`, bound to `steps`, `sleep` and `createHook`. */
+  /**
+   * `async function workflow(input, meta)`, bound to `steps`, `sleep` and
+   * `createHook`.
+   */
   readonly source: string;
-  /** The step each `steps.<alias>` call runs, by alias (one alias per step node). */
+  /**
+   * The step each `steps.<alias>` call runs, by alias (one alias per step
+   * node).
+   */
   readonly aliases: Readonly<Record<string, string>>;
 }
 
@@ -57,7 +63,10 @@ export interface GraphRunMeta {
   readonly version: number;
   /** The version's id, for `builder.versions.runAs` inside each step. */
   readonly versionId: string;
-  /** The run's tenant, for `builder.versions.runAs` (a system definition's runs need it). */
+  /**
+   * The run's tenant, for `builder.versions.runAs` (a system definition's runs
+   * need it).
+   */
   readonly tenant?: string;
   /** The record the run belongs to; conditions read it as `subject`. */
   readonly subject?: GraphSubject;
@@ -71,7 +80,10 @@ export interface GraphRunMeta {
 
 const EXPORT_NAME = "workflow";
 
-/** The `steps` key the compiled source calls to file an approval request; never a step alias. */
+/**
+ * The `steps` key the compiled source calls to file an approval request; never
+ * a step alias.
+ */
 const APPROVAL_ALIAS = "bs_approval";
 
 const literal = (value: unknown): string => JSON.stringify(value ?? null);
@@ -173,13 +185,13 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
     .join(" || ");
 
 /**
- * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that
- * starts at `meta.triggerNode` (or the only trigger), calls each step node
- * through its own alias, sleeps with `sleep` and waits on approvals with
- * `createHook`: the token is the id `steps.bs_approval` returns
- * (graphStarter's `approval`), else `<runKey>:<node>`. A `meta.mode` of
- * `test` returns `meta.stubs` instead. It runs the same way `executeGraph` does. Throws when the graph is invalid or the
- * source is over 128 KiB. Pass it as `compile` to `createWorkflowBuilder`.
+ * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that starts
+ * at `meta.triggerNode` (or the only trigger), calls each step node through its
+ * own alias, sleeps with `sleep` and waits on approvals with `createHook`: the
+ * token is the id `steps.bs_approval` returns (graphStarter's `approval`), else
+ * `<runKey>:<node>`. A `meta.mode` of `test` returns `meta.stubs` instead. It
+ * runs the same way `executeGraph` does. Throws when the graph is invalid or
+ * the source is over 128 KiB. Pass it as `compile` to `createWorkflowBuilder`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   const errors = validateGraph(graph);
@@ -293,27 +305,29 @@ export interface GraphStarterOptions {
   readonly steps: Readonly<Record<string, GraphStep>>;
   /**
    * The static executor: a `"use workflow"` function that calls
-   * `executeGraph(graph, input, { ...graphRunFields(meta), step, sleep, approval })`.
-   * Runs start with it when dynamic workflows are off.
+   * `executeGraph(graph, input, { ...graphRunFields(meta), step, sleep,
+   * approval })`. Runs start with it when dynamic workflows are off.
    */
   readonly executor?: WorkflowFn<[WorkflowGraph, unknown, GraphRunMeta]>;
   /**
-   * Set once `executor` spreads `graphRunFields(meta)` into its runtime: a
-   * test run through an executor that doesn't would run real steps, so
-   * test runs on the static executor are refused without it.
+   * Set once `executor` spreads `graphRunFields(meta)` into its runtime: a test
+   * run through an executor that doesn't would run real steps, so test runs on
+   * the static executor are refused without it.
    */
   readonly executorRunsTests?: boolean;
-  /** Whether to start dynamic source; defaults to `WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS`. */
+  /**
+   * Whether to start dynamic source; defaults to
+   * `WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS`.
+   */
   readonly dynamic?: boolean;
   /** The World to look idempotency keys up in. Defaults to the configured one. */
   readonly world?: World;
   /**
-   * A `"use step"` function that files the approval request for an
-   * approval node (a `GraphApprovalCall`) and returns its id, the hook
-   * token. Resume runs with `wakeOnApproval` from your outbox consumer.
-   * Without it the token is `<runKey>:<node>`, which anyone who knows the
-   * run key can guess. The static executor passes it as
-   * `runtime.requestApproval` itself.
+   * A `"use step"` function that files the approval request for an approval
+   * node (a `GraphApprovalCall`) and returns its id, the hook token. Resume
+   * runs with `wakeOnApproval` from your outbox consumer. Without it the token
+   * is `<runKey>:<node>`, which anyone who knows the run key can guess. The
+   * static executor passes it as `runtime.requestApproval` itself.
    */
   readonly approval?: GraphStep;
 }
@@ -329,7 +343,10 @@ const dynamicEnabled = (): boolean => {
   return raw === "1" || raw?.toLowerCase() === "true";
 };
 
-/** Who a live run's steps run as: the version's publisher, or the app's service principal. */
+/**
+ * Who a live run's steps run as: the version's publisher, or the app's service
+ * principal.
+ */
 function principalAttributes(call: BuilderStartCall): Record<string, string> {
   switch (call.version.owner) {
     case "user": {
@@ -367,14 +384,14 @@ function contextOf(call: BuilderStartCall): RequestContext {
 }
 
 /**
- * The `start` for `createWorkflowBuilder`: starts the published version as dynamic
- * source when dynamic workflows are on, and through `executor` otherwise.
- * The source is always compiled from the version's graph; a stored
+ * The `start` for `createWorkflowBuilder`: starts the published version as
+ * dynamic source when dynamic workflows are on, and through `executor`
+ * otherwise. The source is always compiled from the version's graph; a stored
  * compiled form is never run. Runs carry `bs.tenant`, `bs.actor`,
- * `bs.definition`, `bs.version` and `bs.key`, plus `bs.subject`,
- * `bs.mode` and `bs.trigger_node` when set. A live run also records its
- * principal: the publisher (`user`), or the app's service principal for an
- * organization-owned version. A repeated key returns the first run.
+ * `bs.definition`, `bs.version` and `bs.key`, plus `bs.subject`, `bs.mode` and
+ * `bs.trigger_node` when set. A live run also records its principal: the
+ * publisher (`user`), or the app's service principal for an organization-owned
+ * version. A repeated key returns the first run.
  */
 export function graphStarter(options: GraphStarterOptions): BuilderStarter {
   return async (call) => {
@@ -467,16 +484,19 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
   };
 }
 
-/** Where `nodeRunReporter` writes: `builder.nodeRuns` from `createWorkflowBuilder`. */
+/**
+ * Where `nodeRunReporter` writes: `builder.nodeRuns` from
+ * `createWorkflowBuilder`.
+ */
 export interface NodeRunSink {
   record(input: NodeRunRecord): PromiseLike<unknown>;
 }
 
 /**
- * Wraps a step so it records its node in `workflow_node_runs`: `running`
- * with the attempt when it starts, then `completed` with its output or
- * `failed` with the error. Call the result inside a `"use step"` function;
- * a failed record never fails the step.
+ * Wraps a step so it records its node in `workflow_node_runs`: `running` with
+ * the attempt when it starts, then `completed` with its output or `failed` with
+ * the error. Call the result inside a `"use step"` function; a failed record
+ * never fails the step.
  *
  * ```ts
  * const report = nodeRunReporter(serviceBuilder.nodeRuns);

@@ -187,10 +187,7 @@ function fakeStripe() {
               }
             }
 
-            return {
-              id: `tax_${++next}`,
-              reference: params.reference,
-            };
+            return { id: `tax_${++next}`, reference: params.reference };
           }),
         listLineItems: async (id, params) =>
           page(transactions.get(id) ?? [], params),

@@ -27,7 +27,9 @@ export const SIGNED_OUT: AuthSnapshot = {
 };
 
 /** An auth port whose session a test switches with `set`. */
-export function fakeAuth(initial: AuthSnapshot = signedIn()): AuthPort & {
+export function fakeAuth(
+  initial: AuthSnapshot = signedIn(),
+): AuthPort & {
   readonly set: (next: AuthSnapshot) => void;
   readonly listeners: () => number;
 } {
@@ -136,7 +138,10 @@ export function fakeKeyboard(): {
   };
 }
 
-/** Subscribes like a binding and returns the snapshot reader and the unsubscribe. */
+/**
+ * Subscribes like a binding and returns the snapshot reader and the
+ * unsubscribe.
+ */
 export function mount<S, A>(
   controller: Controller<S, A>,
 ): {

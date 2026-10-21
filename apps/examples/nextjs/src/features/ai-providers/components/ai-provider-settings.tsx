@@ -346,9 +346,9 @@ function ProviderRows({ keys }: { keys: readonly ProviderKeyRow[] }) {
 }
 
 /**
- * The organization's own model provider keys (bring your own key), read on
- * the server through `aiProviders.keys.list`, with the model each one
- * calls. Saving a key stores it in Vault first; the row only names it.
+ * The organization's own model provider keys (bring your own key), read on the
+ * server through `aiProviders.keys.list`, with the model each one calls. Saving
+ * a key stores it in Vault first; the row only names it.
  */
 export function AiProviderSettings({ read }: { read: ProviderKeysRead }) {
   const t = useExtracted("aiProviders");

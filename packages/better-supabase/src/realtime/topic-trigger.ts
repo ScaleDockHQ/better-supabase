@@ -46,10 +46,16 @@ export const LOOKUP_WARNING: string =
 const LOOKUP_HINT =
   "The parent row was deleted in the same statement, such as a cascade, so the topic that reads it is skipped. Keep the topic value on the row itself, or add a topic trigger on the parent.";
 
-/** Marks a generated function that sends whole rows on purpose (doctor reads it). */
+/**
+ * Marks a generated function that sends whole rows on purpose (doctor reads
+ * it).
+ */
 const ROW_PAYLOAD_MARKER: string = "better-supabase: payload row";
 
-/** The primary key as `jsonb`, read from the catalog when the table's key isn't known. */
+/**
+ * The primary key as `jsonb`, read from the catalog when the table's key isn't
+ * known.
+ */
 export const CATALOG_ID_SQL: string =
   "(select case when count(*) = 1 then (array_agg(r.j -> a.attname::text))[1] else jsonb_object_agg(a.attname, r.j -> a.attname::text) end" +
   " from pg_catalog.pg_index i" +
@@ -108,9 +114,9 @@ function payloadSql(payload: TriggerPayloadSql): string {
 }
 
 /**
- * A function and row trigger that send one row change to each topic. A
- * topic with a null value is skipped; one with a value topics don't allow
- * is skipped with a warning, so the write still commits.
+ * A function and row trigger that send one row change to each topic. A topic
+ * with a null value is skipped; one with a value topics don't allow is skipped
+ * with a warning, so the write still commits.
  */
 export function triggerFunctionSql(input: TriggerFunctionSql): string {
   const fn = `${sqlIdent(input.functionSchema)}.${sqlIdent(input.functionName)}`;

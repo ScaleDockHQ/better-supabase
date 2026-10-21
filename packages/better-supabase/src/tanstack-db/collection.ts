@@ -8,7 +8,10 @@ import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
 import { DbException } from "../core/db-exception.ts";
 
-/** The query a collection loads: `queries.<table>.findMany(args)` from `better-supabase/query`. */
+/**
+ * The query a collection loads: `queries.<table>.findMany(args)` from
+ * `better-supabase/query`.
+ */
 export interface CollectionQuery<Row> {
   readonly queryKey: readonly unknown[];
   readonly queryFn:
@@ -24,7 +27,10 @@ export interface PendingMutationLike<Row> {
   readonly changes: Partial<Row>;
 }
 
-/** The handler argument TanStack DB passes to `onInsert`, `onUpdate` and `onDelete`. */
+/**
+ * The handler argument TanStack DB passes to `onInsert`, `onUpdate` and
+ * `onDelete`.
+ */
 export interface MutationParamsLike<Row> {
   readonly transaction: {
     readonly mutations: readonly PendingMutationLike<Row>[];
@@ -71,12 +77,12 @@ function field(row: unknown, name: string): unknown {
 }
 
 /**
- * A TanStack DB query collection for one table: it loads the rows with
- * `query`, keys them by the table's primary key, and sends inserts, updates
- * and deletes through the table's repository, so RLS, hooks, events and
- * plugins apply. After a write the collection refetches its query; with
- * `invalidateOnMutation(betterSupabase, queryClient)`, every other query
- * that read the table refetches too.
+ * A TanStack DB query collection for one table: it loads the rows with `query`,
+ * keys them by the table's primary key, and sends inserts, updates and deletes
+ * through the table's repository, so RLS, hooks, events and plugins apply.
+ * After a write the collection refetches its query; with
+ * `invalidateOnMutation(betterSupabase, queryClient)`, every other query that
+ * read the table refetches too.
  *
  * ```ts
  * const customers = createCollection(

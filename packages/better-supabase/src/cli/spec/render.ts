@@ -86,7 +86,10 @@ async function loadOverlays(
 
 let jsonpath: Promise<JsonPathEngine> | undefined;
 
-/** The JSONPath engine, inlined into the CLI build and loaded only when an output has overlays. */
+/**
+ * The JSONPath engine, inlined into the CLI build and loaded only when an
+ * output has overlays.
+ */
 function jsonPathEngine(): Promise<JsonPathEngine> {
   jsonpath ??= loadJsonPath(() => import("jsonpath-rfc9535"));
 
@@ -98,7 +101,10 @@ const overlayEngine =
   (document, overlays) =>
     applyOverlays(document, overlays.filter(isOverlay), { jsonpath: engine });
 
-/** The model (or document) as canonical JSON, or undefined when it can't be serialized. */
+/**
+ * The model (or document) as canonical JSON, or undefined when it can't be
+ * serialized.
+ */
 function sourceFingerprint(
   target: SpecTarget,
   entry: SpecEntry,
@@ -168,8 +174,8 @@ function renderDocument(
 }
 
 /**
- * Renders one target, or reads it from the cache when the model, the
- * overlays, the format version and the CLI version all match.
+ * Renders one target, or reads it from the cache when the model, the overlays,
+ * the format version and the CLI version all match.
  */
 export async function renderTarget(
   target: SpecTarget,

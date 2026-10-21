@@ -1,4 +1,7 @@
-/** The attributes the Supabase World's status trigger copies into `workflow_runs`. */
+/**
+ * The attributes the Supabase World's status trigger copies into
+ * `workflow_runs`.
+ */
 export const WORKFLOW_ATTRIBUTES = {
   tenant: "bs.tenant",
   actor: "bs.actor",
@@ -15,7 +18,10 @@ export const WORKFLOW_ATTRIBUTES = {
   trigger: "bs.trigger",
   /** The record a run belongs to, as `<type>/<id>`. */
   subject: "bs.subject",
-  /** What a `runAs` run's steps run as: `user`, `service_principal`, `system` or `external`. */
+  /**
+   * What a `runAs` run's steps run as: `user`, `service_principal`, `system` or
+   * `external`.
+   */
   principalKind: "bs.principal_kind",
   /** The id of that principal, when it has one. */
   principal: "bs.principal",
@@ -26,9 +32,9 @@ export const WORKFLOW_ATTRIBUTES = {
 } as const;
 
 /**
- * The `bs.subject` value for a record: `<type>/<id>`. Throws a `TypeError`
- * for a type with a slash or an empty type or id, which the mirror can't
- * split back.
+ * The `bs.subject` value for a record: `<type>/<id>`. Throws a `TypeError` for
+ * a type with a slash or an empty type or id, which the mirror can't split
+ * back.
  */
 export function subjectAttribute(subject: {
   readonly type: string;

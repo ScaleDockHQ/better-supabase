@@ -14,8 +14,8 @@ const devices = createPush({
 });
 
 /**
- * Registers this device's Expo push token for the signed-in user. Call it
- * once inside the signed-in part of the app.
+ * Registers this device's Expo push token for the signed-in user. Call it once
+ * inside the signed-in part of the app.
  */
 export function usePushRegistration(): void {
   useEffect(() => {

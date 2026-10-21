@@ -160,10 +160,7 @@ describe("verified token memo", () => {
       issuer: ["https://issuer.test"],
     };
 
-    const token = await signer.sign({
-      sub: USER,
-      iss: "https://issuer.test",
-    });
+    const token = await signer.sign({ sub: USER, iss: "https://issuer.test" });
 
     expect((await resolveAuth(bearer(token), options)).auth).toMatchObject({
       kind: "user",

@@ -14,9 +14,7 @@ export const dataLifecycleBlock: BlockOf<
 > = defineBlock({
   name: "data-lifecycle",
   sql: ["data-lifecycle"],
-  options: {
-    "data-lifecycle": dataLifecycleSqlOptions,
-  },
+  options: { "data-lifecycle": dataLifecycleSqlOptions },
   events: dataLifecycleEvents,
   create: createDataLifecycle,
   category: "admin",

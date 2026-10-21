@@ -17,9 +17,9 @@ import { openapiFormat } from "../openapi/format.ts";
 import { buildApiModel } from "./build.ts";
 
 /**
- * Applies Overlay documents in order to a rendered document and reports
- * what it found. `better-supabase/overlay` provides one:
- * `(doc, overlays) => applyOverlays(doc, overlays, { jsonpath })`.
+ * Applies Overlay documents in order to a rendered document and reports what it
+ * found. `better-supabase/overlay` provides one: `(doc, overlays) =>
+ * applyOverlays(doc, overlays, { jsonpath })`.
  */
 export type OverlayEngine = (
   document: unknown,
@@ -33,8 +33,8 @@ export interface RenderOptions<F extends AnyDocumentFormat> {
   /** Defaults to the format's default version. */
   readonly version?: VersionOf<F>;
   /**
-   * Last change to the lowered document, before overlays. It receives a
-   * copy, typed per version; return a replacement or change it in place.
+   * Last change to the lowered document, before overlays. It receives a copy,
+   * typed per version; return a replacement or change it in place.
    */
   readonly transform?: (rendered: RenderedOf<F>) => DocumentOf<F> | undefined;
   readonly overlays?: readonly unknown[];
@@ -77,7 +77,10 @@ export interface Api {
   readonly model: ApiModel;
   /** Findings while building the model. */
   readonly diagnostics: readonly SpecDiagnostic[];
-  /** Lowers the model to a version of any `DocumentFormat`, then runs `transform`, overlays and the format's lint. */
+  /**
+   * Lowers the model to a version of any `DocumentFormat`, then runs
+   * `transform`, overlays and the format's lint.
+   */
   render<F extends AnyDocumentFormat>(
     format: F,
     options?: RenderOptions<F>,
@@ -110,9 +113,9 @@ interface Lowered {
 }
 
 /**
- * The API model for a `defineSupabase()` result, and the documents it
- * renders. The model is built once per options object; each format and
- * version is lowered once and copied for every render.
+ * The API model for a `defineSupabase()` result, and the documents it renders.
+ * The model is built once per options object; each format and version is
+ * lowered once and copied for every render.
  *
  * ```ts
  * const api = defineApi(betterSupabase, {

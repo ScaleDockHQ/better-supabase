@@ -37,8 +37,8 @@ export function defineImport<T>(
 }
 
 /**
- * Pairs CSV headers with import fields. A header matches a field when they
- * are equal after lowercasing and dropping spaces and underscores.
+ * Pairs CSV headers with import fields. A header matches a field when they are
+ * equal after lowercasing and dropping spaces and underscores.
  */
 export function suggestMapping(
   headers: readonly string[],
@@ -55,8 +55,8 @@ export function suggestMapping(
 }
 
 /**
- * Parses CSV, applies `mapping` (CSV header to field name) and validates
- * every row. Nothing is written.
+ * Parses CSV, applies `mapping` (CSV header to field name) and validates every
+ * row. Nothing is written.
  */
 export async function dryRun<T>(
   definition: ImportDefinition<T>,
@@ -112,9 +112,9 @@ export interface RunImportResult<T> {
 
 /**
  * Validates the file, skips rows whose key was already imported, inserts the
- * rest in batches and finishes the run as `import.completed` or `import.failed`.
- * A batch that throws finishes the run as failed with the rows inserted so
- * far, and the result says so instead of the error escaping.
+ * rest in batches and finishes the run as `import.completed` or
+ * `import.failed`. A batch that throws finishes the run as failed with the rows
+ * inserted so far, and the result says so instead of the error escaping.
  */
 export async function runImport<T>(
   definition: ImportDefinition<T>,
@@ -174,9 +174,7 @@ export async function runImport<T>(
     const batch = fresh.slice(index, index + BATCH);
 
     try {
-      await definition.insert(batch, {
-        organizationId: hooks.organizationId,
-      });
+      await definition.insert(batch, { organizationId: hooks.organizationId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const first = index + 1;

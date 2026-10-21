@@ -38,17 +38,19 @@ describe("createOrpc().rateLimit", () => {
 
   const bs = createOrpc(defineSupabase(schema), { env });
 
-  const base = os.$context<OrpcRequestContext>().use(
-    bs.rateLimit({
-      limiter,
-      scope: "rpc",
-      rule: { max: 2, period: "1 minute" },
-      key: ({ context, path }) =>
-        context.request.headers.get("x-client") === null
-          ? undefined
-          : `${context.request.headers.get("x-client")}:${path.join(".")}`,
-    }),
-  );
+  const base = os
+    .$context<OrpcRequestContext>()
+    .use(
+      bs.rateLimit({
+        limiter,
+        scope: "rpc",
+        rule: { max: 2, period: "1 minute" },
+        key: ({ context, path }) =>
+          context.request.headers.get("x-client") === null
+            ? undefined
+            : `${context.request.headers.get("x-client")}:${path.join(".")}`,
+      }),
+    );
 
   const fetch = bs.fetchHandler(
     new RPCHandler({ ping: base.handler(() => ({ pong: true })) }),

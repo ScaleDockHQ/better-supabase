@@ -28,8 +28,8 @@ const BAR = {
 
 /**
  * One row per task under its project, with a bar from `startsOn` to `dueOn`.
- * Tasks without dates stay in the list with an empty track, so the plan
- * shows what still needs scheduling.
+ * Tasks without dates stay in the list with an empty track, so the plan shows
+ * what still needs scheduling.
  */
 export async function TaskGantt({
   rows,

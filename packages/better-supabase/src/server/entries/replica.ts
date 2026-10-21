@@ -7,8 +7,8 @@ import type { ServerCore } from "./core.ts";
 import { type ReplicaState, withPrimaryPin } from "../replicas.ts";
 
 /**
- * Entry contributing `ctx.replica`, where `ctx.db` reads go when a read URL
- * is configured (`undefined` without one). On the way out it sets the
+ * Entry contributing `ctx.replica`, where `ctx.db` reads go when a read URL is
+ * configured (`undefined` without one). On the way out it sets the
  * `bs-primary-until` cookie after a write, so the caller's next reads see it.
  */
 export function withReplica<

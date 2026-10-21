@@ -51,7 +51,10 @@ const DROP =
 const RENAME =
   /\brename\s+(?!constraint\b)(?:column\s+)?(?:(?:"[^"]+"|[\w$]+)\s+)?to\b/iu;
 
-/** `name` without quotes and with `public.` for an unqualified name, lower-cased. */
+/**
+ * `name` without quotes and with `public.` for an unqualified name,
+ * lower-cased.
+ */
 function tableKey(name: string): string {
   const parts = name
     .split(".")
@@ -201,7 +204,10 @@ function perStatement(check: Check) {
     });
 }
 
-/** The table an `alter table` statement changes, unless the same file created it. */
+/**
+ * The table an `alter table` statement changes, unless the same file created
+ * it.
+ */
 function alteredTable(
   parsed: Statements,
   statement: SqlStatement,
@@ -388,8 +394,8 @@ function parenthesized(text: string, open: number): string | undefined {
 }
 
 /**
- * How many input arguments a function argument list has: the top-level
- * commas, without `out` arguments, which are not part of the signature.
+ * How many input arguments a function argument list has: the top-level commas,
+ * without `out` arguments, which are not part of the signature.
  */
 function inputArity(args: string): number {
   const parts: string[] = [];
@@ -428,7 +434,10 @@ function inputArity(args: string): number {
 const functionName = (name: string): string =>
   name.replaceAll('"', "").toLowerCase();
 
-/** Each `better_supabase` function a `drop function` statement names, with its arity. */
+/**
+ * Each `better_supabase` function a `drop function` statement names, with its
+ * arity.
+ */
 function droppedFunctions(
   text: string,
 ): readonly { readonly name: string; readonly arity: number }[] {

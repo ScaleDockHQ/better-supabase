@@ -9,16 +9,20 @@ export interface BucketConfig {
   readonly id?: string;
   readonly public?: boolean;
   /**
-   * Path template with `{placeholders}`, e.g. `{organizationId}/{customerId}/logo.webp`,
-   * or several when the bucket stores objects in more than one layout. A last
-   * segment `{...rest}` matches one or more segments.
+   * Path template with `{placeholders}`, e.g.
+   * `{organizationId}/{customerId}/logo.webp`, or several when the bucket
+   * stores objects in more than one layout. A last segment `{...rest}` matches
+   * one or more segments.
    */
   readonly path: string | readonly [string, ...string[]];
   /** Generated storage policy, or an access contract policy (`{ access }`). */
   readonly policy?: BucketPolicyName | AccessBucketPolicy;
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
-  /** Keep earlier object versions. `bucket.apply()` sets it; doctor (BS302) compares it. */
+  /**
+   * Keep earlier object versions. `bucket.apply()` sets it; doctor (BS302)
+   * compares it.
+   */
   readonly versioning?: boolean;
   /** When noncurrent versions expire. Needs `versioning: true`. */
   readonly lifecycle?: BucketLifecycle;
@@ -27,16 +31,16 @@ export interface BucketConfig {
 /**
  * How the SQL modules reach the database: `pg-delta` (Supabase Declarative
  * Schemas 2.0, `supabase db schema declarative sync`), `migra` (declarative
- * schemas 1.0, `supabase db diff`) or `migrations` (no declarative schemas:
- * the `sql` commands write the modules into a migration).
+ * schemas 1.0, `supabase db diff`) or `migrations` (no declarative schemas: the
+ * `sql` commands write the modules into a migration).
  */
 export type SqlWorkflow = "pg-delta" | "migra" | "migrations";
 
 export interface SqlConfig {
   /**
-   * The workflow. Unset, better-supabase reads `supabase/config.toml`:
-   * pg-delta when it enables it or nothing says otherwise, migra when it
-   * turns pg-delta off or the project keeps migra's declarative schemas.
+   * The workflow. Unset, better-supabase reads `supabase/config.toml`: pg-delta
+   * when it enables it or nothing says otherwise, migra when it turns pg-delta
+   * off or the project keeps migra's declarative schemas.
    */
   readonly workflow?: SqlWorkflow;
   /** Directory declarative schema files are written to. */
@@ -46,21 +50,20 @@ export interface SqlConfig {
   /** Directory pgTAP files (the `pgtap` module) are written to. */
   readonly testsDir?: string;
   /**
-   * The schema every module writes its functions and managed tables to,
-   * unless `blocks.<name>.schema` sets its own. Defaults to `better_supabase`.
+   * The schema every module writes its functions and managed tables to, unless
+   * `blocks.<name>.schema` sets its own. Defaults to `better_supabase`.
    */
   readonly schema?: string;
   /**
    * The Data API schema, such as `api`, every module writes its `security
-   * invoker` wrappers to, unless `blocks.<name>.api` sets its own or
-   * `false`.
+   * invoker` wrappers to, unless `blocks.<name>.api` sets its own or `false`.
    */
   readonly api?: string;
   /**
-   * Who a block's rows belong to, unless `blocks.<name>.scope` sets its
-   * own: `tenant` (a tenant, checked through the access contract; the
-   * default), `user` (the signed-in user, with no tenants) or `none` (one
-   * shared space every signed-in user reads and writes).
+   * Who a block's rows belong to, unless `blocks.<name>.scope` sets its own:
+   * `tenant` (a tenant, checked through the access contract; the default),
+   * `user` (the signed-in user, with no tenants) or `none` (one shared space
+   * every signed-in user reads and writes).
    */
   readonly scope?: BlockScope;
   /** Names for the tenant concept in tables, functions and columns. */
@@ -94,36 +97,35 @@ export interface SeedConfig {
 export interface RealtimeConfig {
   /**
    * Tables that broadcast a change signal for live queries (`table` or
-   * `schema.table`). Tenant tables broadcast per tenant. Install the
-   * triggers with `better-supabase add realtime-tables`.
+   * `schema.table`). Tenant tables broadcast per tenant. Install the triggers
+   * with `better-supabase add realtime-tables`.
    */
   readonly tables?: readonly string[];
   /**
    * Tables in `tables` without a tenant column. They broadcast on one topic
-   * every signed-in user receives. With the `tenant` plugin, a table that
-   * lacks the tenant column and is not listed here fails to install.
+   * every signed-in user receives. With the `tenant` plugin, a table that lacks
+   * the tenant column and is not listed here fails to install.
    */
   readonly global?: readonly string[];
   /**
-   * Tables in `tables` whose rows belong to one user: table to its user
-   * column (`{ notifications: "user_id" }`). They broadcast on a topic per
-   * user, `bs:t:<schema>.<table>:u:<user id>`, which only that user
-   * receives, instead of the tenant's topic.
+   * Tables in `tables` whose rows belong to one user: table to its user column
+   * (`{ notifications: "user_id" }`). They broadcast on a topic per user,
+   * `bs:t:<schema>.<table>:u:<user id>`, which only that user receives, instead
+   * of the tenant's topic.
    */
   readonly users?: Readonly<Record<string, string>>;
   /**
-   * Writes the `realtime.messages` policies of the topics that `from`
-   * exports (`defineTopic`) to `output`, a file in `supabase/schemas`, on
+   * Writes the `realtime.messages` policies of the topics that `from` exports
+   * (`defineTopic`) to `output`, a file in `supabase/schemas`, on
    * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
    */
   readonly policies?: TopicPoliciesConfig;
   /**
-   * Broadcast triggers that `sql sync` writes to `policies.output` next to
-   * the policies, through the topic's `trigger()`, for topics that
-   * `policies.from` exports. A trigger with column values, one topic, a
-   * `keys` or `row` payload and one event name calls
-   * `better_supabase.broadcast_topic()` (the `realtime-tables` module);
-   * any other gets a generated function.
+   * Broadcast triggers that `sql sync` writes to `policies.output` next to the
+   * policies, through the topic's `trigger()`, for topics that `policies.from`
+   * exports. A trigger with column values, one topic, a `keys` or `row` payload
+   * and one event name calls `better_supabase.broadcast_topic()` (the
+   * `realtime-tables` module); any other gets a generated function.
    */
   readonly triggers?: readonly TopicTriggerConfig[];
 }
@@ -160,8 +162,8 @@ export interface TopicTriggerConfig {
   /** Defaults to all three. */
   readonly events?: readonly ("insert" | "update" | "delete")[];
   /**
-   * The broadcast event name, or one per operation
-   * (`{ insert: "created", delete: "deleted" }`). Defaults to the operation.
+   * The broadcast event name, or one per operation (`{ insert: "created",
+   * delete: "deleted" }`). Defaults to the operation.
    */
   readonly event?:
     | string
@@ -172,9 +174,9 @@ export interface TopicTriggerConfig {
       };
   /**
    * `"keys"` (default) sends the primary key and the placeholder values.
-   * `"row"` sends the whole row, which bypasses column grants. An object
-   * is the payload itself: each key is a column, a lookup, or `{ sql }`,
-   * an expression on the row `{row}` (`tg_op` is the operation).
+   * `"row"` sends the whole row, which bypasses column grants. An object is the
+   * payload itself: each key is a column, a lookup, or `{ sql }`, an expression
+   * on the row `{row}` (`tg_op` is the operation).
    */
   readonly payload?:
     | "keys"
@@ -183,8 +185,8 @@ export interface TopicTriggerConfig {
   readonly topics?: readonly TopicTriggerTopicConfig[];
   readonly functionSchema?: string;
   /**
-   * `{ changed: ["status"] }` sends an UPDATE only when one of these
-   * columns changed. Inserts and deletes always send.
+   * `{ changed: ["status"] }` sends an UPDATE only when one of these columns
+   * changed. Inserts and deletes always send.
    */
   readonly when?: { readonly changed: readonly string[] };
 }
@@ -197,7 +199,10 @@ export interface TopicPoliciesConfig {
   readonly output: string;
 }
 
-/** pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner product). */
+/**
+ * Pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner
+ * product).
+ */
 export type VectorDistance = "cosine" | "l2" | "inner_product";
 
 /** The embedding column, or the column and its distance (default `cosine`). */
@@ -208,7 +213,10 @@ export type VectorSearchConfig =
       readonly distance?: VectorDistance;
       /** The column's pgvector type. Defaults to `vector`. */
       readonly type?: "vector" | "halfvec";
-      /** The primary key column `db.$search({ score: true })` merges by. Defaults to `id`. */
+      /**
+       * The primary key column `db.$search({ score: true })` merges by.
+       * Defaults to `id`.
+       */
       readonly key?: string;
       /**
        * Fuses a full-text ranking over a `tsvector` column with the vector
@@ -221,18 +229,25 @@ export type VectorSearchConfig =
         /** The RRF constant. Defaults to 60. */
         readonly k?: number;
       };
-      /** A SQL expression over the row `t` the score is multiplied by, such as `t.priority`. */
+      /**
+       * A SQL expression over the row `t` the score is multiplied by, such as
+       * `t.priority`.
+       */
       readonly boost?: string;
       /** Columns `db.$search({ filter })` narrows before ranking. */
       readonly prefilter?: readonly string[];
       /**
        * A SQL condition over the row `t` every candidate must meet, applied
-       * before ranking: ranges, a parent row, such as
-       * `t.expires_at > now() and exists (select 1 from public.folders f where f.id = t.folder_id and not f.disabled)`.
+       * before ranking: ranges, a parent row, such as `t.expires_at > now() and
+       * exists (select 1 from public.folders f where f.id = t.folder_id and not
+       * f.disabled)`.
        */
       readonly predicate?: string;
       /** How `boost` combines with the score: `multiply` (default) or `add`. */
       readonly boostMode?: "multiply" | "add";
-      /** A SQL `order by` list over the row `t` that breaks score ties, such as `t.created_at desc`. */
+      /**
+       * A SQL `order by` list over the row `t` that breaks score ties, such as
+       * `t.created_at desc`.
+       */
       readonly order?: string;
     };

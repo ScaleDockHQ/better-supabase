@@ -68,10 +68,7 @@ describe("createOrganizations", () => {
 
     expect(
       await organizations.create({ name: "Acme", slug: "acme" }),
-    ).toMatchObject({
-      ok: true,
-      data: { id: "org-1" },
-    });
+    ).toMatchObject({ ok: true, data: { id: "org-1" } });
     await organizations.invite({
       organizationId: "org-1",
       email: "ada@example.com",
@@ -503,9 +500,7 @@ describe("sqlTransport", () => {
   });
 
   it("returns null without a row", async () => {
-    const transport = sqlTransport({
-      queryRaw: () => Promise.resolve([]),
-    });
+    const transport = sqlTransport({ queryRaw: () => Promise.resolve([]) });
 
     expect(await transport.call("s", "f", {})).toBeNull();
   });

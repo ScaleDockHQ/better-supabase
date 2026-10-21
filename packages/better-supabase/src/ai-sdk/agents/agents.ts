@@ -50,8 +50,8 @@ import {
 
 /**
  * The tools an agent may call: the ones it lists (every tool when it lists
- * none), without the tenant's `deny` tools and, when the session's `actor`
- * is an agent that lists tools, without the ones it wasn't delegated.
+ * none), without the tenant's `deny` tools and, when the session's `actor` is
+ * an agent that lists tools, without the ones it wasn't delegated.
  */
 export function agentTools(
   agent: Pick<Agent, "tools">,
@@ -83,7 +83,10 @@ export function agentTools(
   return tools;
 }
 
-/** The `toolApproval` setting that makes the tenant's `ask` tools wait for the user. */
+/**
+ * The `toolApproval` setting that makes the tenant's `ask` tools wait for the
+ * user.
+ */
 export function agentToolApproval(
   tools: ToolSet,
   policies: Readonly<Record<string, AiToolPolicy>> = {},
@@ -132,11 +135,10 @@ interface ApprovalChecks {
 }
 
 /**
- * The delegation check, the permission check, then the app's
- * `toolApproval`, then the `ask` tools: a tool the session's agent wasn't
- * delegated or a refused permission denies, and otherwise the stricter
- * answer wins (`denied`, then `user-approval`). A function that throws
- * denies the call.
+ * The delegation check, the permission check, then the app's `toolApproval`,
+ * then the `ask` tools: a tool the session's agent wasn't delegated or a
+ * refused permission denies, and otherwise the stricter answer wins (`denied`,
+ * then `user-approval`). A function that throws denies the call.
  */
 function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
   return async (options) => {
@@ -219,23 +221,22 @@ export interface AgentRuntimeOptions {
   /** Default 20 steps. */
   readonly stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /**
-   * The app's approval check for each tool call. It runs after the
-   * permission check and before the tenant's `policies`, and the stricter
-   * answer wins: `denied` over `user-approval` over `approved`. A throw
-   * denies.
+   * The app's approval check for each tool call. It runs after the permission
+   * check and before the tenant's `policies`, and the stricter answer wins:
+   * `denied` over `user-approval` over `approved`. A throw denies.
    */
   readonly toolApproval?: AgentToolApprovalFunction;
   /**
-   * The user the agent runs for, from the verified session. It is the
-   * principal of every check and the AI Gateway's `user`; the agent is only
-   * the actor. For a run nobody invoked, pass the publishing user.
+   * The user the agent runs for, from the verified session. It is the principal
+   * of every check and the AI Gateway's `user`; the agent is only the actor.
+   * For a run nobody invoked, pass the publishing user.
    */
   readonly caller?: AgentCaller;
   /**
    * The session's actor, from `actorOf(claims)`. When it is an agent whose
-   * `act.tools` lists tools, the run gets only those, and a call to any
-   * other is denied (`AGENT_TOOL_NOT_DELEGATED`). A read-only agent makes
-   * the run's `act` read-only.
+   * `act.tools` lists tools, the run gets only those, and a call to any other
+   * is denied (`AGENT_TOOL_NOT_DELEGATED`). A read-only agent makes the run's
+   * `act` read-only.
    */
   readonly actor?: SessionActor;
   /**
@@ -250,9 +251,9 @@ export interface AgentRuntimeOptions {
    */
   readonly results?: ResultsFilter<KnowledgeHit, AgentResultsContext>;
   /**
-   * The provider's operations (`authorization.operations`). An
-   * `ai.tool.<name>` entry sets the tool's permission over `permissions`,
-   * and a `high` risk makes the tool wait for the user's approval.
+   * The provider's operations (`authorization.operations`). An `ai.tool.<name>`
+   * entry sets the tool's permission over `permissions`, and a `high` risk
+   * makes the tool wait for the user's approval.
    */
   readonly operations?: OperationTable;
   /** Each tool's own permission; `false` marks a tool that needs none. */
@@ -260,16 +261,15 @@ export interface AgentRuntimeOptions {
   /** The provider operation each tool checks, in place of `ai.tool.<name>`. */
   readonly toolOperations?: AgentToolOperations;
   /**
-   * Checks the caller's permission for each tool call. With it, a tool
-   * without a permission (from `operations` or `permissions`) is denied,
-   * and so is a check that returns `false` or throws.
+   * Checks the caller's permission for each tool call. With it, a tool without
+   * a permission (from `operations` or `permissions`) is denied, and so is a
+   * check that returns `false` or throws.
    */
   readonly authorizeTool?: AgentToolAuthorizer;
   /**
-   * AI Gateway attribution for every model call: the caller's id as
-   * `user`, and the tenant, `feature` (default `agent`), `agent:<id>` and
-   * `tags` as tags. `options` adds gateway options; a `user` in it is
-   * dropped.
+   * AI Gateway attribution for every model call: the caller's id as `user`, and
+   * the tenant, `feature` (default `agent`), `agent:<id>` and `tags` as tags.
+   * `options` adds gateway options; a `user` in it is dropped.
    */
   readonly gateway?: {
     readonly feature?: string;
@@ -452,11 +452,11 @@ function lastUserText(prompt: Prompt): string {
 }
 
 /**
- * A language model middleware that checks the user's message before the
- * model runs and the answer after it, records every verdict but `allow` in
- * the ai-chat moderation log, and throws `ModerationBlockedError` on
- * `block`. A streamed answer has reached the client when its check runs, so
- * a blocked stream ends with an error part instead of the text vanishing.
+ * A language model middleware that checks the user's message before the model
+ * runs and the answer after it, records every verdict but `allow` in the
+ * ai-chat moderation log, and throws `ModerationBlockedError` on `block`. A
+ * streamed answer has reached the client when its check runs, so a blocked
+ * stream ends with an error part instead of the text vanishing.
  */
 export function moderationMiddleware(
   options: ModerationMiddlewareOptions,

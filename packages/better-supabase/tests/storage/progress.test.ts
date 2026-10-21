@@ -99,9 +99,9 @@ describe("upload progress", () => {
     const { client } = fakeStorage();
     const progress: number[] = [];
 
-    const result = await docs.connect(client).upload(A, "hello", {
-      onProgress: (value) => progress.push(value),
-    });
+    const result = await docs
+      .connect(client)
+      .upload(A, "hello", { onProgress: (value) => progress.push(value) });
 
     expect(result).toEqual(ok({ path: "o1/a.txt" }));
     expect(progress).toEqual([1]);
@@ -113,11 +113,13 @@ describe("upload progress", () => {
     const progress: number[] = [];
     const body = new Blob(["hello"], { type: "text/plain" });
 
-    const result = await docs.connect(client).upload(A, body, {
-      upsert: true,
-      cacheControl: "60",
-      onProgress: (value) => progress.push(value),
-    });
+    const result = await docs
+      .connect(client)
+      .upload(A, body, {
+        upsert: true,
+        cacheControl: "60",
+        onProgress: (value) => progress.push(value),
+      });
 
     expect(result).toEqual(ok({ path: "o1/a.txt" }));
     expect(progress).toEqual([0.5, 1]);
@@ -158,10 +160,7 @@ describe("upload progress", () => {
     outcome = "error";
     expect(
       await bucket.upload(A, "x", { onProgress: () => undefined }),
-    ).toMatchObject({
-      ok: false,
-      error: { kind: "network" },
-    });
+    ).toMatchObject({ ok: false, error: { kind: "network" } });
     await bucket.upload(A, "x", {
       metadata: { a: 1 },
       onProgress: () => undefined,

@@ -21,12 +21,7 @@ describe("repositories typed from the runtime's db", () => {
     >();
     expectTypeOf<Awaited<ReturnType<typeof shippingAddresses>>>().toEqualTypeOf<
       Result<
-        {
-          id: string;
-          label: string;
-          city: string | null;
-          isPrimary: boolean;
-        }[]
+        { id: string; label: string; city: string | null; isPrimary: boolean }[]
       >
     >();
   });
