@@ -245,10 +245,9 @@ lists the segments in use.
 Stop the stacks you aren't using. [`stack ls`](/docs/cli/stack) shows every
 stack on the machine with its branch and whether its worktree still exists,
 and `stack prune` destroys the stacks of deleted worktrees and merged
-branches (`--stop-idle` also stops the idle ones). `supabase stop --stack-id
-
-<id>` stops one stack without deleting its data. `doctor` reports the segment
-use as BS700 before it runs out.
+branches (`--stop-idle` also stops the idle ones). `supabase stop --stack-id`
+with a stack's id stops that stack without deleting its data. `doctor`
+reports the segment use as BS700 before it runs out.
 
 Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
 
