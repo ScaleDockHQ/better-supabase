@@ -1,5 +1,89 @@
 # better-supabase
 
+## 0.13.0
+
+### Minor Changes
+
+- [#276](https://github.com/ScaleDockHQ/better-supabase/pull/276) [`71beef2`](https://github.com/ScaleDockHQ/better-supabase/commit/71beef2ba6af519cadf66c601ce8881f0c7e1ce0) Thanks [@martijn00](https://github.com/martijn00)! - Structured, non-throwing design APIs, a provider-neutral OAuth subpath, deploy records and a doctor rule for dropped library functions. See [From 0.11 to 0.12](https://bettersupabase.com/docs/migration/0.11-to-0.12).
+  
+  - `parseDesign`, `decodeDesign`, `designFileSource` and `readDesignFile` in `better-supabase/preset` throw a `DesignParseError` with a stable `code` and a JSON Pointer `path`. `safeParseDesign` and `safeDesignFileSource` return `{ ok: false, issues }` instead of throwing. `DesignTooLongError` is a `DesignParseError` with the code `too_long`.
+  - `DesignIssue` from `checkDesign` gains `code` and `path`, and a successful `DesignCheck` gains `fitsUrl`.
+  - `designSchema` is `parseDesign` as a Standard Schema, and `schemas/design-v1.json` publishes the design as JSON Schema.
+  - `DEFAULT_PRESET_NAME`, `defaultPreset()` and `defaultPresetCode()` name the preset Create and `init` start from.
+  - `better-supabase/create/oauth` holds PKCE, sealed cookies and an `OAuthSession` shape for any OAuth provider. `seal` and `unseal` take an optional HKDF `info`. `better-supabase/create/supabase` re-exports them, and `SupabaseSession` and `isSession` stay as aliases.
+  - `newDeployId()`, `deployQuery(files, { id })` and `DeployRecord` in `better-supabase/create` let a host app match a project to the preset it deployed. `DeployResponse` gains `id`, `preset` and `design`.
+  - Doctor's BS235 warns when an unapplied migration drops a `better_supabase` function without creating it again with the same number of arguments, as a schema diff did for `audit()` in 0.11.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`cc52660`](https://github.com/ScaleDockHQ/better-supabase/commit/cc5266011f0c044e6afb134732ccc97ef66cbb98) Thanks [@martijn00](https://github.com/martijn00)! - `codemod 0.9` now pins `defaultFormat: "standard"` on an adopted
+  `webhooks-out` block that maps no `columns.endpoints.format` and sets no
+  `defaultFormat`, which keeps the 0.8 body, and lists `sql add` calls in
+  scripts and workflows for review (`add` also wires clients). A new
+  `codemod 0.11` pins `defaultFormat: "cloudevents"` under the same conditions,
+  since adopt mode requires the key from 0.11. Both list the edit for review.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`f8a8c9d`](https://github.com/ScaleDockHQ/better-supabase/commit/f8a8c9d6567df966ce20b7827d6fe5c7e2cbfca0) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase db diff`, which turns the declarative schema into a migration with the Supabase CLI's command for the workflow and, when the shadow database can't start because no System V shared memory segment is left, diffs inside the running stack instead. `--in-stack` skips the shadow database, `-f <name>` writes the migration, and `$BSB_PG_BIN` names the directory with `pg_dump` and `psql` when the CLI can't find them next to the postmaster.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`3b8e5b2`](https://github.com/ScaleDockHQ/better-supabase/commit/3b8e5b20b9da584ec0e9e3542c458a5fdbace869) Thanks [@martijn00](https://github.com/martijn00)! - Add doctor checks for the machine's System V shared memory, which every local stack and shadow database needs.
+  
+  - BS700 warns when 80% of the segment limit is in use (32 on macOS) and names the stacks that hold segments, so `supabase db diff` failing with `could not create shared memory segment` points at `stack prune`.
+  - BS701 warns when a stack holds more than its one interlock segment, which means its Postgres sets `shared_memory_type` or `dynamic_shared_memory_type` to `sysv`.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`593f896`](https://github.com/ScaleDockHQ/better-supabase/commit/593f896ad68b3f2b6de7db28674a8268d139f815) Thanks [@martijn00](https://github.com/martijn00)! - `doctor`, `gen`, `db query` and `seed --apply` no longer guess port 54322 for the local stack. When `supabase/config.toml` sets no `[db] port` and `supabase status` fails, they stop with `not_found` and name both sources, so a per-worktree stack (`supabase start --runtime native`) can't reach another project's database on 54322. `--stack <name>` (or `$BSB_STACK`) reads `supabase status --stack <name>` when `supabase/stacks/<name>/config.toml` sets no port.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`5a42b24`](https://github.com/ScaleDockHQ/better-supabase/commit/5a42b24bd0ac56a60ce6d050f039b706d3b5885e) Thanks [@martijn00](https://github.com/martijn00)! - A `permission` on an action, route, loader or oRPC middleware can now be checked against the row it acts on. Pass `resource: (input, ctx) => AuthorizationResource` next to `permission`: it runs after the session and `requireTenant` checks, gets the validated input and the request's context (`db`, `session`, `tenant`), and its return value replaces the default `{ type: "action" }` or `{ type: "route" }` resource. A loader that throws refuses the caller: a `DbException` keeps its error (such as `not_found`), and any other throw refuses with `forbidden` and `code: "RESOURCE_UNAVAILABLE"`. Every adapter supports it, and `bs.middleware()` in `better-supabase/orpc` now passes the procedure's input to the checks. The loader's context type is exported as `ResourceLoaderContext`.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`c8c207c`](https://github.com/ScaleDockHQ/better-supabase/commit/c8c207c27950a4f78dd98689a2889b1ba2daae11) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase stack ls` and `stack prune` for the Supabase CLI's managed stacks.
+  
+  - `stack ls` lists every stack with its branch, project root and running state, marks stacks whose worktree or branch is gone, and counts the System V shared memory segments each one holds against the system limit.
+  - `stack prune` destroys the stacks whose worktree or branch is gone, never the one for this checkout. `--stop-idle` also stops the running stacks of other branches, and `--dry-run` prints the plan. Destroying a stack needs consent in agent mode.
+  - The command manifest has a new effect kind, `stacks`, with `read` or `write` access, in `schemas/cli-commands-v1.json`.
+
+- [#281](https://github.com/ScaleDockHQ/better-supabase/pull/281) [`78afab8`](https://github.com/ScaleDockHQ/better-supabase/commit/78afab8782a52bfedd8fbea23926814a398b6b52) Thanks [@martijn00](https://github.com/martijn00)! - Crop, show and download stored images through Storage image transformations. See [Image transformations](https://bettersupabase.com/docs/platform/storage#image-transformations).
+  
+  - `defineBucket` takes `variants`, named transforms such as `thumb: { width: 160, height: 160, resize: "cover" }`. `renderUrl`, `signedUrl` and `publicUrl` accept a variant name wherever they took a transform, and the names are typed. `defineBucket` refuses a side outside 1 to 2500 or a quality outside 20 to 100.
+  - `avatarBucket()` and `organizationLogoBucket()` come with `sm`, `md` and `lg` variants: center-cropped squares of 48, 96 and 256 for avatars, and squares of 64, 128 and 256 that fit the whole logo. Pass `variants` to replace them.
+  - `useImage(bucket, target, variant)` in `better-supabase/react` returns `src`, a `srcSet` at 1x and 2x, `width` and `height`. Public buckets build the URLs while rendering; private buckets sign them and sign again before they expire.
+  - `storageImageSrcSet({ url })` in `better-supabase/storage` builds a `srcset` for a public Storage URL.
+  - New types: `ImageTransform`, `ImageVariant`, `ImageSource`, `StorageImage` and `UseImageOptions`.
+  - Fix: the `better-supabase/next/image` loader and `storageImageUrl` keep a crop's shape. When `src` carries a `width` and `height`, the height scales with each requested width, so a square crop stays square. A size over 2500 now shrinks both sides by the same factor instead of clamping the width alone.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`1dda8d1`](https://github.com/ScaleDockHQ/better-supabase/commit/1dda8d107cc51d555196fcbedfe0960513a215c2) Thanks [@martijn00](https://github.com/martijn00)! - Add `authorization.functions.teamIdsOf`, a template that returns the team ids
+  a user belongs to. Under the `provider` access model, `team_ids_of()` in the
+  `teams` block returns its set instead of reading `team_members`, and
+  `saved-views` and `collections` share with those teams even without the
+  `teams` block. Doctor BS417 warns when the provider declares a `team` scope,
+  one of those blocks is installed, and the template is unset.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`985c36f`](https://github.com/ScaleDockHQ/better-supabase/commit/985c36f3c5baf3b778442bd69767c962a60e8aa5) Thanks [@martijn00](https://github.com/martijn00)! - Seed each tenant with the same demo rows. `defineTenantSeed(betterSupabase, (tenant) => fixtures)` in `better-supabase/testing` builds typed fixtures from a tenant id, and `better-supabase seed --tenant <slug>` (or `--tenant '*'`) inserts them for organizations from the organizations block, all in one transaction. The file comes from the new `seed.perTenant` config key (`supabase/seed.tenant.ts` by default). `seedTenantOnCreate(betterSupabase, seed, { sql })` applies the seed to each organization created in development; it runs after the create call and never changes its result.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`9e21e4e`](https://github.com/ScaleDockHQ/better-supabase/commit/9e21e4eb1638ba03b207d2d14eb2a8f5490a07ca) Thanks [@martijn00](https://github.com/martijn00)! - Add `codecs: { timestamptz: "utc" }`. `timestamptz` columns stay `string`,
+  but every value is rewritten in UTC as ISO 8601 with a `Z` and keeps all its
+  fraction digits (`2026-10-21 07:10:00.123456+02` reads as
+  `2026-10-21T05:10:00.123456Z`). `infinity` passes through. The default stays
+  `"string"`.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`cbaef82`](https://github.com/ScaleDockHQ/better-supabase/commit/cbaef8216a8ed5ca6cec4d17ac16fb0ae5a2cde7) Thanks [@martijn00](https://github.com/martijn00)! - The Vercel Marketplace block serves the Partner API. `marketplace.partnerApi({ resources, plans })` returns one handler for the installation, resource, secret rotation and plan routes. It verifies Vercel's OIDC token (signature against `/.well-known/jwks`, issuer, audience and expiry) and requires its `installation_id` to match the path, answering 401 or 403 as Problem Details. The installation's access token is sealed in Vault, so `accessToken` is now optional. Tenants are tracked per installation and resource, and an empty tenant the integration created is removed with it. A rotation revokes the previous secrets only after the new ones are issued.
+  
+  `reportUsage` now sends one request per billing period, with the period total as `periodValue` and the part not reported before as `dayValue`, and no longer sends `planValue`. It moves the reported amount only after Vercel answers 2xx. `marketplace.usageRoute({ secret, usage })` runs it from a cron caller. The SSO exchange reads keys from `https://marketplace.vercel.com/.well-known/jwks`, the path Vercel's discovery document names. Run `better-supabase gen` to apply the module's version 2 upgrade.
+
+- [#274](https://github.com/ScaleDockHQ/better-supabase/pull/274) [`c517ee0`](https://github.com/ScaleDockHQ/better-supabase/commit/c517ee071300bfb37c026a12a1e755392804bc7d) Thanks [@martijn00](https://github.com/martijn00)! - Add `withClaims(postgres, claims, fn)` to `better-supabase/testing`. It runs
+  raw SQL as the user the claims describe (`role` and `request.jwt.claims` are
+  set, so `auth.uid()`, `auth.jwt()` and RLS apply) inside one transaction that
+  always rolls back.
+
+### Patch Changes
+
+- [#276](https://github.com/ScaleDockHQ/better-supabase/pull/276) [`71beef2`](https://github.com/ScaleDockHQ/better-supabase/commit/71beef2ba6af519cadf66c601ce8881f0c7e1ce0) Thanks [@martijn00](https://github.com/martijn00)! - Two SQL fixes. See [From 0.11 to 0.12](https://bettersupabase.com/docs/migration/0.11-to-0.12) for what to check.
+  
+  - `better_supabase.acting_member()` is granted to `service_role` only; `anon` and `authenticated` get `permission denied` instead of an RPC that returned null. `better_supabase.set_actor()` is `security definer`, so the trigger still records the actor for every writer. Run `sql sync` to get the new grant in a migration. If your own SQL calls `acting_member()`, run it as `service_role` or from a `security definer` function.
+  - Module file headers no longer carry the package version, so a release doesn't rewrite every module file. The `@bs-module` marker keeps the module version, and a header written by an older release still counts as current. `ModuleLayout.version` is deprecated.
+
+- [#277](https://github.com/ScaleDockHQ/better-supabase/pull/277) [`f5ee613`](https://github.com/ScaleDockHQ/better-supabase/commit/f5ee613d80ed269f5b14066af16d253145bccb7b) Thanks [@martijn00](https://github.com/martijn00)! - The Record grid recipe, on the UI recipes page and in the skill reference, now notes that a copy of `@reui/data-grid` installed from ReUI 2.8.0 or earlier doesn't repaint after an edit that keeps the row count. Reinstall it with `npx shadcn add @reui/data-grid --overwrite`, or add `table.options.data` to the dependency list of the `value` memo in `DataGridProvider`.
+
+- [#273](https://github.com/ScaleDockHQ/better-supabase/pull/273) [`f1e8d8a`](https://github.com/ScaleDockHQ/better-supabase/commit/f1e8d8a344fd687713f7241b07994d45adb7fc18) Thanks [@mick340](https://github.com/mick340)! - Security fix for support session upload claims. In 0.12.0, `claimSignedUpload`, `claimReserved` and the blocks' `confirm` and `commit` claimed any object without an owner on a path the target may insert into. That could include a file the service role stored earlier, such as an export or an import, which the claim then handed to the target and stamped with the session. A claim now only takes an object without an owner whose `updated_at` is at or after the session's `startedAt`, and in a versioned bucket only the current version. Older objects are refused with `403` `AccessDenied`. An upsert reservation that replaces such an object during the session can still be claimed.
+  
+  Required change for direct callers: `SupportStorageOptions.session` now needs `startedAt`. The server already passes the whole `SupportSession`; pass it too when you call `supportStorage` yourself. `uploadToSignedUrl` on the server removes what it stored when the claim fails or is refused. A refused claim after a browser upload, including `upload` with `onProgress`, removes nothing, because the claim can't tell that upload from another object without an owner; `sweep` removes what is never claimed. A claim of an object the target already owns now succeeds even when it is older than the session. The impersonation page documents the limits of the claim's insert rehearsal and how to sweep uploads that are never claimed.
+
 ## 0.12.0
 
 ### Minor Changes
