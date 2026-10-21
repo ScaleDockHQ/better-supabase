@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -19,12 +18,10 @@ import { useErrorMessage } from "@/lib/use-error-message";
  * any type in `config.subjects`, such as a customer or a project.
  */
 export function CommentThread({
-  organizationId,
   subject,
   authors,
   canComment,
 }: {
-  organizationId: string;
   subject: { readonly type: string; readonly id: string };
   /** Display names by user id. */
   authors: Readonly<Record<string, string>>;
@@ -37,12 +34,7 @@ export function CommentThread({
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
 
-  const { comments, error, add } = useComments({
-    organizationId,
-    subjectType: subject.type,
-    subjectId: subject.id,
-    schema: blockConfig.comments.api,
-  });
+  const { comments, error, add } = useComments({ subject });
 
   const visible = comments?.filter((comment) => !comment.deletedAt);
 

@@ -428,8 +428,8 @@ describe("createRuleDispatcher", () => {
     const requests: unknown[] = [];
 
     const handler = approvalsAction({
-      request: (input) => {
-        requests.push(input);
+      request: (subject, input) => {
+        requests.push({ subject, ...input });
 
         return AsyncResult.ok({ id: "a1" });
       },
@@ -463,9 +463,7 @@ describe("createRuleDispatcher", () => {
 
     expect(requests).toEqual([
       {
-        organizationId: "org-1",
-        subjectType: "expense",
-        subjectId: "e1",
+        subject: { type: "expense", id: "e1" },
         action: "finance",
         reason: "Rule: Large expenses",
         payload: { amount: 900 },

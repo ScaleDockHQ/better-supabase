@@ -12,11 +12,7 @@ describe("comments react-server build", () => {
 
   it("throws from useComments", () => {
     expect(() =>
-      server.useComments({
-        organizationId: "org-1",
-        subjectType: "customer",
-        subjectId: "cu1",
-      }),
+      server.useComments({ subject: { type: "customer", id: "cu1" } }),
     ).toThrow("useComments() runs in Client Components only");
   });
 });

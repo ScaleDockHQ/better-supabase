@@ -3,9 +3,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { BlockTemporalOptions } from "../shared.ts";
+import type { SubjectRef } from "../../schema/types.ts";
+import type { BlockTemporalOptions, BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { bySubjectType } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -16,7 +19,8 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface ReactionsOptions extends BlockTemporalOptions {
+export interface ReactionsOptions
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -65,28 +69,26 @@ export interface ReactOptions {
   readonly actor?: string;
 }
 
+/** Every method but `deleteCustomEmoji` acts in the block's `tenant`. */
 export interface Reactions {
   /** Adds or removes the caller's reaction; returns the subject's reactions. */
   react(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     emoji: string,
     options?: ReactOptions,
   ): AsyncResult<readonly ReactionCount[]>;
-  /** The reactions of up to 200 subjects of one type, by subject id. */
+  /**
+   * The reactions of `subjects` (up to 200 of each type), keyed by
+   * `subjectKey(subject)` (`type:id`). Subjects without reactions may be left
+   * out.
+   */
   summary(
-    organizationId: string,
-    subjectType: string,
-    subjectIds: readonly string[],
+    subjects: readonly SubjectRef[],
   ): AsyncResult<Readonly<Record<string, readonly ReactionCount[]>>>;
-  /** The organization's custom emoji, by shortcode. */
-  customEmoji(organizationId: string): AsyncResult<readonly CustomEmoji[]>;
+  /** The tenant's custom emoji, by shortcode. */
+  customEmoji(): AsyncResult<readonly CustomEmoji[]>;
   /** Adds a custom emoji, or replaces the image of an existing shortcode. */
-  saveCustomEmoji(
-    organizationId: string,
-    input: CustomEmojiInput,
-  ): AsyncResult<CustomEmoji>;
+  saveCustomEmoji(input: CustomEmojiInput): AsyncResult<CustomEmoji>;
   /** Deletes a custom emoji and the reactions that used it. */
   deleteCustomEmoji(id: string): AsyncResult<boolean>;
 }
@@ -129,51 +131,63 @@ export function createReactions(options: ReactionsOptions): Reactions {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const client: Reactions = {
-    react: (organizationId, subjectType, subjectId, emoji, react = {}) =>
-      call(
-        "react",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          emoji,
-          present: react.present ?? true,
-          actor: react.actor ?? null,
-        },
-        (value) => countsOf(value, "react"),
-      ),
-    summary: (organizationId, subjectType, subjectIds) =>
-      call(
-        "reaction_summary",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_ids: [...subjectIds],
-        },
-        (value) =>
-          Object.fromEntries(
-            Object.entries(recordOf(value, "reaction_summary")).map(
-              ([id, counts]) => [id, countsOf(counts, "reaction_summary")],
-            ),
-          ),
-      ),
-    customEmoji: (organizationId) =>
-      call("list_custom_emoji", { tenant: organizationId }, (value) =>
-        recordsOf(value, "list_custom_emoji").map((row) =>
-          emojiOf(row, "list_custom_emoji"),
+    react: (subject, emoji, react = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "react",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            emoji,
+            present: react.present ?? true,
+            actor: react.actor ?? null,
+          },
+          (value) => countsOf(value, "react"),
         ),
       ),
-    saveCustomEmoji: (organizationId, input) =>
-      call(
-        "save_custom_emoji",
-        {
-          tenant: organizationId,
-          shortcode: input.shortcode,
-          attachment_id: input.attachmentId ?? null,
-          url: input.url ?? null,
-        },
-        (value) => emojiOf(value, "save_custom_emoji"),
+    summary: (subjects) =>
+      tenant().andThen((organizationId) =>
+        bySubjectType(subjects, (type, ids) =>
+          call(
+            "reaction_summary",
+            {
+              tenant: organizationId,
+              subject_type: type,
+              subject_ids: [...ids],
+            },
+            (value) =>
+              Object.fromEntries(
+                Object.entries(recordOf(value, "reaction_summary")).map(
+                  ([id, counts]) => [id, countsOf(counts, "reaction_summary")],
+                ),
+              ),
+          ),
+        ),
+      ),
+    customEmoji: () =>
+      tenant().andThen((organizationId) =>
+        call("list_custom_emoji", { tenant: organizationId }, (value) =>
+          recordsOf(value, "list_custom_emoji").map((row) =>
+            emojiOf(row, "list_custom_emoji"),
+          ),
+        ),
+      ),
+    saveCustomEmoji: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "save_custom_emoji",
+          {
+            tenant: organizationId,
+            shortcode: input.shortcode,
+            attachment_id: input.attachmentId ?? null,
+            url: input.url ?? null,
+          },
+          (value) => emojiOf(value, "save_custom_emoji"),
+        ),
       ),
     deleteCustomEmoji: (id) =>
       call("delete_custom_emoji", { emoji_id: id }, (value) => value === true),

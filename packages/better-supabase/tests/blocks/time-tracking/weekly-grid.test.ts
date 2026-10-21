@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { SubjectRef } from "../../../src/blocks/shared.ts";
+
 import { toWeeklyGrid } from "../../../src/blocks/time-tracking/index.ts";
 
 const at = (text: string): Temporal.Instant => Temporal.Instant.from(text);
@@ -8,23 +10,19 @@ const entry = (
   id: string,
   start: string,
   end: string | undefined,
-  extra: { subjectType?: string; subjectId?: string; billable?: boolean } = {},
+  extra: { subject?: SubjectRef; billable?: boolean } = {},
 ) => ({
   id,
   startedAt: at(start),
   billable: extra.billable ?? false,
   ...(end === undefined ? {} : { endedAt: at(end) }),
-  ...(extra.subjectType === undefined
-    ? {}
-    : { subjectType: extra.subjectType }),
-  ...(extra.subjectId === undefined ? {} : { subjectId: extra.subjectId }),
+  ...(extra.subject === undefined ? {} : { subject: extra.subject }),
 });
 
 describe("toWeeklyGrid", () => {
   it("adds entries up per record and day, Monday first", () => {
     const apollo = {
-      subjectType: "project",
-      subjectId: "apollo",
+      subject: { type: "project", id: "apollo" },
       billable: true,
     };
 
@@ -50,8 +48,7 @@ describe("toWeeklyGrid", () => {
     expect(grid.rows).toEqual([
       {
         id: "project:apollo:true",
-        subjectType: "project",
-        subjectId: "apollo",
+        subject: { type: "project", id: "apollo" },
         billable: true,
         days: [0, 7200, 0, 1800, 0, 0, 0],
         seconds: 9000,
@@ -59,6 +56,7 @@ describe("toWeeklyGrid", () => {
       },
       {
         id: "::false",
+        subject: undefined,
         billable: false,
         days: [0, 0, 3600, 3600, 0, 0, 0],
         seconds: 7200,

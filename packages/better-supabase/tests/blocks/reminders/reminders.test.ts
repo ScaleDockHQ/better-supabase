@@ -11,8 +11,7 @@ const DELIVERY = {
   occurrenceAt: "2026-10-14T09:00:00Z",
   organizationId: "org-1",
   userId: ALICE,
-  subjectType: "invoice",
-  subjectId: "7",
+  subject: { type: "invoice", id: "7" },
 };
 
 function fake(
@@ -109,10 +108,10 @@ describe("createReminders: list and remove", () => {
       ],
     });
 
-    const reminders = createReminders({ transport });
+    const reminders = createReminders({ transport, tenant: "org-1" });
 
     expect(
-      await reminders.list("org-1", "calendar_event", "e-1").orThrow(),
+      await reminders.list({ type: "calendar_event", id: "e-1" }).orThrow(),
     ).toEqual([{ id: "r-1", method: "notification", offsetMinutes: 60 }]);
     expect(calls).toEqual([
       {
@@ -124,6 +123,64 @@ describe("createReminders: list and remove", () => {
         },
       },
     ]);
+  });
+
+  it("fails without a tenant", async () => {
+    const { transport, calls } = fake({ save_reminder: () => ({ id: "r-1" }) });
+    const session: { tenant?: string } = {};
+
+    const reminders = createReminders({
+      transport,
+      tenant: () => session.tenant,
+    });
+
+    const subject = { type: "invoice", id: "7" };
+
+    for (const result of [
+      await reminders.save(subject, 15),
+      await reminders.list(subject),
+    ]) {
+      expect(result).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+      });
+    }
+
+    expect(calls).toEqual([]);
+    session.tenant = "org-2";
+    await reminders.save(subject, 15).orThrow();
+    expect(calls).toEqual([
+      {
+        fn: "save_reminder",
+        args: {
+          tenant: "org-2",
+          subject_type: "invoice",
+          subject_id: "7",
+          offset_minutes: 15,
+          fields: undefined,
+        },
+      },
+    ]);
+  });
+
+  it("reads the subject of a queued delivery, nested or flat", async () => {
+    const { transport } = fake({});
+    const notified: unknown[] = [];
+
+    const reminders = createReminders({
+      transport,
+      notifyDelivery: (delivery) => notified.push(delivery),
+    });
+
+    const signal = new AbortController().signal;
+    await reminders.job(DELIVERY, undefined as never, signal);
+    const { subject: _, ...flat } = DELIVERY;
+    await reminders.job(
+      { ...flat, subjectType: "invoice", subjectId: "7" },
+      undefined as never,
+      signal,
+    );
+    expect(notified).toEqual([DELIVERY, DELIVERY]);
   });
 
   it("removes a reminder and reports whether it existed", async () => {

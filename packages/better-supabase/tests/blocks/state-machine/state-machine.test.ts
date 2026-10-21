@@ -29,14 +29,20 @@ describe("state machine block", () => {
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
     expect(
       await machine
-        .pause("quote", "q1", { until, reason: "waiting" })
+        .pause({ type: "quote", id: "q1" }, { until, reason: "waiting" })
         .orThrow(),
     ).toBe(true);
-    expect(await machine.pause("quote", "q2").orThrow()).toBe(true);
-    expect(await machine.resume("quote", "q1").orThrow()).toBe(false);
-    expect(await machine.setFlag("quote", "q1", "urgent", true).orThrow()).toBe(
+    expect(await machine.pause({ type: "quote", id: "q2" }).orThrow()).toBe(
       true,
     );
+    expect(await machine.resume({ type: "quote", id: "q1" }).orThrow()).toBe(
+      false,
+    );
+    expect(
+      await machine
+        .setFlag({ type: "quote", id: "q1" }, "urgent", true)
+        .orThrow(),
+    ).toBe(true);
     expect(calls).toEqual([
       {
         fn: "pause_lifecycle",
@@ -93,10 +99,12 @@ describe("state machine block", () => {
     });
 
     const state = await createStateMachine({ transport })
-      .state("quote", "q1")
+      .state({ type: "quote", id: "q1" })
       .orThrow();
 
     expect(state).toMatchObject({
+      organizationId: "org",
+      subject: { type: "quote", id: "q1" },
       status: "sent",
       order: ["draft", "sent", "accepted"],
       step: 2,
@@ -129,7 +137,7 @@ describe("state machine block", () => {
     });
 
     const state = await createStateMachine({ transport })
-      .state("quote", "q1")
+      .state({ type: "quote", id: "q1" })
       .orThrow();
 
     expect(state.step).toBeUndefined();
@@ -155,10 +163,10 @@ describe("state machine block", () => {
     const machine = createStateMachine({ transport });
 
     const history = await machine
-      .history("quote", "q1", {
-        cursor: Temporal.Instant.from("2026-10-03T00:00:00Z"),
-        limit: 10,
-      })
+      .history(
+        { type: "quote", id: "q1" },
+        { cursor: Temporal.Instant.from("2026-10-03T00:00:00Z"), limit: 10 },
+      )
       .orThrow();
 
     expect(history).toHaveLength(1);
@@ -201,7 +209,7 @@ describe("state machine block", () => {
     });
 
     const stages = await createStateMachine({ transport })
-      .stages("quote", "q1")
+      .stages({ type: "quote", id: "q1" })
       .orThrow();
 
     expect(stages.map((stage) => stage.label)).toEqual(["draft", "sent"]);
@@ -211,7 +219,12 @@ describe("state machine block", () => {
 
   it("fails on a malformed reply", async () => {
     const { transport } = recording({ status_state: "nope" });
-    const result = await createStateMachine({ transport }).state("quote", "q1");
+
+    const result = await createStateMachine({ transport }).state({
+      type: "quote",
+      id: "q1",
+    });
+
     expect(result.ok).toBe(false);
   });
 });

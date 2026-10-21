@@ -1,9 +1,11 @@
 import type { DbError } from "../../core/errors.ts";
 import type { SubscriptionStatus } from "../../realtime/index.ts";
 import type { TopicPort } from "../../realtime/watch-topic.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { ReactionCount, Reactions } from "./reactions.ts";
 
+import { subjectKey } from "../../core/block-subjects.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 import { reactionsTopic } from "./reactions.ts";
 
@@ -11,10 +13,16 @@ export interface ReactionsControllerOptions {
   readonly client: Pick<Reactions, "summary" | "react">;
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
-  readonly organizationId: string;
-  readonly subjectType: string;
-  /** The subjects on screen, at most 200; `setSubjects` changes them. */
-  readonly subjectIds: readonly string[];
+  /**
+   * The tenant whose reaction broadcasts to hear, the client's own; the
+   * controller waits without one.
+   */
+  readonly tenant: string | null;
+  /**
+   * The subjects on screen, at most 200 of each type; `setSubjects` changes
+   * them.
+   */
+  readonly subjects: readonly SubjectRef[];
   /**
    * `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null`
    * loads without listening.
@@ -23,7 +31,10 @@ export interface ReactionsControllerOptions {
 }
 
 export interface ReactionsSnapshot {
-  /** Reactions by subject id; `undefined` until the first load. */
+  /**
+   * Reactions keyed by `subjectKey(subject)` (`type:id`); `undefined` until the
+   * first load.
+   */
   readonly reactions:
     | Readonly<Record<string, readonly ReactionCount[]>>
     | undefined;
@@ -33,13 +44,13 @@ export interface ReactionsSnapshot {
 
 export interface ReactionsActions {
   /** Adds the emoji, or removes it when the user already reacted with it. */
-  readonly toggle: (subjectId: string, emoji: string) => Promise<void>;
+  readonly toggle: (subject: SubjectRef, emoji: string) => Promise<void>;
   readonly refresh: () => Promise<void>;
   /**
    * Watches other subjects, such as the rows on screen after a scroll, and
    * loads them.
    */
-  readonly setSubjects: (subjectIds: readonly string[]) => void;
+  readonly setSubjects: (subjects: readonly SubjectRef[]) => void;
 }
 
 export type ReactionsController = Controller<
@@ -47,19 +58,31 @@ export type ReactionsController = Controller<
   ReactionsActions
 >;
 
-const sameIds = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
+const sameSubjects = (
+  a: readonly SubjectRef[],
+  b: readonly SubjectRef[],
+): boolean =>
+  a.length === b.length &&
+  a.every((subject, index) => {
+    const other = b[index];
+
+    return (
+      other !== undefined &&
+      subject.type === other.type &&
+      subject.id === other.id
+    );
+  });
 
 /**
  * The reactions of the subjects on screen, loaded again when anyone in the
- * organization reacts to one of them. `toggle` feeds an emoji picker.
+ * tenant reacts to one of them. `toggle` feeds an emoji picker.
  */
 export function createReactionsController(
   options: ReactionsControllerOptions,
 ): ReactionsController {
-  const { client, organizationId, subjectType } = options;
+  const { client, tenant } = options;
   const topic = options.topic === undefined ? "reactions" : options.topic;
-  let subjects = [...options.subjectIds];
+  let subjects = [...options.subjects];
   let watching = false;
 
   return defineController<ReactionsSnapshot, ReactionsActions>(
@@ -68,14 +91,14 @@ export function createReactionsController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
+        if (tenant === null) {
+          return;
+        }
+
         ticket += 1;
         const request = ticket;
 
-        const result = await client.summary(
-          organizationId,
-          subjectType,
-          subjects,
-        );
+        const result = await client.summary(subjects);
 
         if (request !== ticket) {
           return;
@@ -93,38 +116,36 @@ export function createReactionsController(
         payload === null ||
         !("subjectId" in payload) ||
         !("subjectType" in payload) ||
-        (payload.subjectType === subjectType &&
-          typeof payload.subjectId === "string" &&
-          subjects.includes(payload.subjectId));
+        subjects.some(
+          (subject) =>
+            subject.type === payload.subjectType &&
+            subject.id === payload.subjectId,
+        );
 
       return {
         actions: {
           refresh,
-          setSubjects: (subjectIds) => {
-            if (sameIds(subjects, subjectIds)) {
+          setSubjects: (next) => {
+            if (sameSubjects(subjects, next)) {
               return;
             }
 
-            subjects = [...subjectIds];
+            subjects = [...next];
 
             if (watching) {
               void refresh();
             }
           },
-          toggle: async (subjectId, emoji) => {
+          toggle: async (subject, emoji) => {
+            const key = subjectKey(subject);
+
             const present = !state
               .get()
-              .reactions?.[subjectId]?.some(
+              .reactions?.[key]?.some(
                 (reaction) => reaction.emoji === emoji && reaction.reacted,
               );
 
-            const result = await client.react(
-              organizationId,
-              subjectType,
-              subjectId,
-              emoji,
-              { present },
-            );
+            const result = await client.react(subject, emoji, { present });
 
             if (!result.ok) {
               state.set({ error: result.error });
@@ -134,34 +155,36 @@ export function createReactionsController(
 
             state.set((current) => ({
               error: undefined,
-              reactions: { ...current.reactions, [subjectId]: result.data },
+              reactions: { ...current.reactions, [key]: result.data },
             }));
           },
         },
         start: () =>
-          whileSignedIn(options.auth, () => {
-            watching = true;
-            void refresh();
+          tenant === null
+            ? undefined
+            : whileSignedIn(options.auth, () => {
+                watching = true;
+                void refresh();
 
-            const leave = topic
-              ? options.ports.topic(reactionsTopic(organizationId, topic), {
-                  onMessage: (_event, payload) => {
-                    if (watched(payload)) {
-                      void refresh();
-                    }
-                  },
-                  onRejoin: () => void refresh(),
-                  onStatus: (status) => {
-                    state.set({ status });
-                  },
-                }).leave
-              : undefined;
+                const leave = topic
+                  ? options.ports.topic(reactionsTopic(tenant, topic), {
+                      onMessage: (_event, payload) => {
+                        if (watched(payload)) {
+                          void refresh();
+                        }
+                      },
+                      onRejoin: () => void refresh(),
+                      onStatus: (status) => {
+                        state.set({ status });
+                      },
+                    }).leave
+                  : undefined;
 
-            return () => {
-              watching = false;
-              leave?.();
-            };
-          }),
+                return () => {
+                  watching = false;
+                  leave?.();
+                };
+              }),
       };
     },
   );

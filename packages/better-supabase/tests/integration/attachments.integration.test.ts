@@ -75,12 +75,12 @@ describe.skipIf(!live)("attachments", () => {
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
+        tenant: organization,
       });
 
       await s.asRole(viewer);
 
-      const denied = await attachments.upload({
-        organizationId: organization,
+      const denied = await attachments.upload(null, {
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 10,
@@ -91,14 +91,10 @@ describe.skipIf(!live)("attachments", () => {
       await s.asRole(member);
 
       const upload = await attachments
-        .upload({
-          organizationId: organization,
-          name: "plan.pdf",
-          mimeType: "application/pdf",
-          size: 10,
-          subjectType: "project",
-          subjectId: "p-1",
-        })
+        .upload(
+          { type: "project", id: "p-1" },
+          { name: "plan.pdf", mimeType: "application/pdf", size: 10 },
+        )
         .orThrow();
 
       const { attachment } = upload;
@@ -175,7 +171,7 @@ describe.skipIf(!live)("attachments", () => {
         await s.asRole(stranger);
         expect(await visible()).toBe(0);
         expect((await attachments.get(attachment.id)).ok).toBe(false);
-        expect(await attachments.list(organization).orThrow()).toEqual([]);
+        expect(await attachments.list().orThrow()).toEqual([]);
       }
 
       await s.asRole(member);
@@ -206,16 +202,12 @@ describe.skipIf(!live)("attachments", () => {
       const download = await attachments.download(attachment.id).orThrow();
       expect(download.signedUrl).toContain(attachment.path);
       expect(
-        (
-          await attachments
-            .list(organization, { type: "project", id: "p-1" })
-            .orThrow()
-        ).map((row) => row.id),
+        (await attachments.list({ type: "project", id: "p-1" }).orThrow()).map(
+          (row) => row.id,
+        ),
       ).toEqual([attachment.id]);
       expect(
-        await attachments
-          .list(organization, { type: "project", id: "p-2" })
-          .orThrow(),
+        await attachments.list({ type: "project", id: "p-2" }).orThrow(),
       ).toEqual([]);
       expect(await attachments.remove(attachment.id).orThrow()).toBe(false);
 
@@ -244,13 +236,13 @@ describe.skipIf(!live)("attachments", () => {
         transport: sqlTransport(s.sql),
         storage: storage(),
         requireScan: false,
+        tenant: organization,
       });
 
       await s.asRole(member);
 
       const { attachment } = await attachments
-        .upload({
-          organizationId: organization,
+        .upload(null, {
           name: "a.txt",
           mimeType: "text/plain",
           size: 3,
@@ -272,12 +264,7 @@ describe.skipIf(!live)("attachments", () => {
 
       const second = (
         await attachments
-          .upload({
-            organizationId: organization,
-            name: "b.txt",
-            mimeType: "text/plain",
-            size: 3,
-          })
+          .upload(null, { name: "b.txt", mimeType: "text/plain", size: 3 })
           .orThrow()
       ).attachment;
 
@@ -399,19 +386,16 @@ describe.skipIf(!live)("attachments", () => {
         transport: sqlTransport(s.sql),
         storage: storage(),
         requireScan: false,
+        tenant: organization,
       });
 
       await s.asRole(member);
 
       const { attachment } = await attachments
-        .upload({
-          organizationId: organization,
-          name: "case.txt",
-          mimeType: "text/plain",
-          size: 3,
-          subjectType: "case",
-          subjectId: entry!.id,
-        })
+        .upload(
+          { type: "case", id: entry!.id },
+          { name: "case.txt", mimeType: "text/plain", size: 3 },
+        )
         .orThrow();
 
       await s.rows(
@@ -481,19 +465,16 @@ describe.skipIf(!live)("attachments", () => {
         transport: sqlTransport(s.sql),
         storage: storage(),
         requireScan: false,
+        tenantless: ["note"],
       });
 
       await s.asRole(ada);
 
       const { attachment } = await attachments
-        .upload({
-          organizationId: null,
-          name: "scan.txt",
-          mimeType: "text/plain",
-          size: 3,
-          subjectType: "note",
-          subjectId: note!.id,
-        })
+        .upload(
+          { type: "note", id: note!.id },
+          { name: "scan.txt", mimeType: "text/plain", size: 3 },
+        )
         .orThrow();
 
       expect(attachment.organizationId).toBeUndefined();
@@ -504,11 +485,11 @@ describe.skipIf(!live)("attachments", () => {
       );
       await attachments.confirm(attachment.id).orThrow();
       expect(
-        await attachments.list(null, { type: "note", id: note!.id }).orThrow(),
+        await attachments.list({ type: "note", id: note!.id }).orThrow(),
       ).toHaveLength(1);
       await s.asRole(bob);
       expect(
-        await attachments.list(null, { type: "note", id: note!.id }).orThrow(),
+        await attachments.list({ type: "note", id: note!.id }).orThrow(),
       ).toEqual([]);
       expect(
         await s.value<number>(
@@ -518,14 +499,10 @@ describe.skipIf(!live)("attachments", () => {
       ).toBe(0);
       expect(
         (
-          await attachments.upload({
-            organizationId: null,
-            name: "x.txt",
-            mimeType: "text/plain",
-            size: 1,
-            subjectType: "note",
-            subjectId: note!.id,
-          })
+          await attachments.upload(
+            { type: "note", id: note!.id },
+            { name: "x.txt", mimeType: "text/plain", size: 1 },
+          )
         ).ok,
       ).toBe(false);
       await s.service();
@@ -589,19 +566,16 @@ describe.skipIf(!live)("attachments", () => {
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
+        tenant: organization,
       });
 
       await s.asRole(member);
 
       const upload = await attachments
-        .upload({
-          organizationId: organization,
-          name: "spec.pdf",
-          mimeType: "application/pdf",
-          size: 10,
-          subjectType: "ticket",
-          subjectId: open!.id,
-        })
+        .upload(
+          { type: "ticket", id: open!.id },
+          { name: "spec.pdf", mimeType: "application/pdf", size: 10 },
+        )
         .orThrow();
 
       expect(upload.attachment).toMatchObject({
@@ -615,12 +589,10 @@ describe.skipIf(!live)("attachments", () => {
         mimeType: string;
       }) =>
         (
-          await attachments.upload({
-            organizationId: organization,
-            name: "x",
-            size: 1,
-            ...input,
-          })
+          await attachments.upload(
+            { type: input.subjectType, id: input.subjectId },
+            { name: "x", size: 1, mimeType: input.mimeType },
+          )
         ).ok;
 
       expect(

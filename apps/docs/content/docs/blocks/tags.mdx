@@ -21,7 +21,18 @@ import { createTags } from "better-supabase/blocks/tags";
 
 In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). In adopt mode each subject can name its own link table.
 
-`list(organizationId, kind?)` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `forSubject(organizationId, subjectType, subjectId)` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record is a `SubjectRef`, `{ type, id }`.
+
+```ts
+const tags = createTags({ transport, tenant: organizationId });
+const customer = { type: "customer", id: customerId };
+
+const vip = await tags.create("customer", "VIP", "amber").orThrow();
+await tags.tag(customer, vip.id).orThrow();
+const onCustomer = await tags.forSubject(customer).orThrow();
+```
+
+`create(kind, name, color?, description?, fields?)` creates a tag of a kind. `tag(subject, tagId)` and `untag(subject, tagId)` put a tag on a record and take it off. `list(kind?)` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `forSubject(subject)` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
 
 ## In the browser
 
@@ -31,15 +42,14 @@ In managed mode every application lives in `taggings` (`subject_type`, `subject_
 import { useTagInput } from "better-supabase/blocks/tags/react";
 
 const { tags, available, add, remove, create } = useTagInput({
-  organizationId,
-  subjectType: "customer",
-  subjectId: customer.id,
+  subject: { type: "customer", id: customer.id },
   kind: "customer",
-  schema: "api",
 });
 ```
 
-`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it. The [tag input recipe](/docs/registry/ui-recipes) shows it in the Next.js and Expo examples.
+The hook calls the schema and function names in the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so it takes no `schema`, and acts in the client's tenant: the client's `tenant` option, then the session's tenant claim. It waits while there is no tenant or `subject` is `null`.
+
+`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it, taking the controller's options: a client built with its `tenant`, and `subject`. The [tag input recipe](/docs/registry/ui-recipes) shows it in the Next.js and Expo examples.
 
 ```vue title="CustomerTags.vue"
 <script setup lang="ts">
@@ -51,10 +61,12 @@ import { createTags } from "better-supabase/blocks/tags";
 const props = defineProps<{ organizationId: string; customerId: string }>();
 const supabase = useSupabase();
 const { state, actions } = useTagInput({
-  client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
-  organizationId: props.organizationId,
-  subjectType: "customer",
-  subjectId: props.customerId,
+  client: createTags({
+    transport: rpcTransport(supabase),
+    schema: "api",
+    tenant: props.organizationId,
+  }),
+  subject: { type: "customer", id: props.customerId },
   kind: "customer",
 });
 </script>
@@ -80,10 +92,12 @@ const { state, actions } = useTagInput({
   let { organizationId, customerId }: { organizationId: string; customerId: string } = $props();
   const { supabase } = getBetterSupabase();
   const tags = useTagInput({
-    client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
-    organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
+    client: createTags({
+      transport: rpcTransport(supabase),
+      schema: "api",
+      tenant: organizationId,
+    }),
+    subject: { type: "customer", id: customerId },
     kind: "customer",
   });
 </script>
@@ -103,10 +117,12 @@ export function CustomerTags(props: {
 }) {
   const supabase = useSupabase();
   const { state } = useTagInput({
-    client: createTags({ transport: rpcTransport(supabase), schema: "api" }),
-    organizationId: props.organizationId,
-    subjectType: "customer",
-    subjectId: props.customerId,
+    client: createTags({
+      transport: rpcTransport(supabase),
+      schema: "api",
+      tenant: props.organizationId,
+    }),
+    subject: { type: "customer", id: props.customerId },
     kind: "customer",
   });
   return (

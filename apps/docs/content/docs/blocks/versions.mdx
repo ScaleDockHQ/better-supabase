@@ -12,14 +12,9 @@ better-supabase add versions
 ```ts
 import { createVersions } from "better-supabase/blocks/versions";
 
-const versions = createVersions({ transport });
+const versions = createVersions({ transport, tenant: organizationId });
 const v = await versions
-  .snapshot({
-    organizationId,
-    subjectType: "quote",
-    subjectId,
-    label: "Sent to customer",
-  })
+  .snapshot({ type: "quote", id: quoteId }, { label: "Sent to customer" })
   .orThrow();
 const patch = await versions.diff(previousId, v.id).orThrow();
 await versions.restore(previousId).orThrow();
@@ -86,7 +81,7 @@ Install [share links](/docs/blocks/share-links) next to versions to send one ver
 
 ```ts
 const link = await shareLinks
-  .create(organizationId, "quote", quoteId, { versionId: sent.id })
+  .create({ type: "quote", id: quoteId }, { versionId: sent.id })
   .orThrow();
 
 // On the public page, with the anon key:
@@ -102,7 +97,7 @@ The module records `version.created`, `version.restored` and `version.deleted`, 
 The client has no UI dependency. A history panel lists `list()`, shows `diff()` between two rows, and calls `restore()` from a ReUI timeline or table:
 
 ```tsx
-const rows = await versions.list(organizationId, "quote", quoteId).orThrow();
+const rows = await versions.list({ type: "quote", id: quoteId }).orThrow();
 // <Timeline> from ReUI: one item per row, labeled with row.label ?? `Version ${row.number}`
 ```
 

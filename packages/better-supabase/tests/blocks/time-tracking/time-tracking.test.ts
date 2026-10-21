@@ -77,29 +77,28 @@ describe("time-tracking client", () => {
       running_timer: () => null,
     });
 
-    const time = createTimeTracking({ transport: fake });
-    const started = await time.start("o").orThrow();
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    const started = await time.start().orThrow();
     expect(started).toMatchObject({ id: "e2", billable: false });
     expect(started.endedAt).toBeUndefined();
     expect(started.seconds).toBeUndefined();
-    expect(started.subjectType).toBeUndefined();
+    expect(started.subject).toBeUndefined();
     await time
-      .start("o", {
-        subjectType: "project",
-        subjectId: "apollo",
+      .start({
+        subject: { type: "project", id: "apollo" },
         billable: true,
         rate: money(8000n, "EUR"),
         note: "x",
       })
       .orThrow();
-    const stopped = await time.stop("o").orThrow();
+    const stopped = await time.stop().orThrow();
     expect(stopped).toMatchObject({
       seconds: 7200,
       rate: money(10_000n, "EUR"),
       note: "Design",
     });
     expect(stopped.endedAt?.toString()).toBe("2026-10-06T11:00:00Z");
-    expect(await time.running("o").orThrow()).toBeUndefined();
+    expect(await time.running().orThrow()).toBeUndefined();
     expect(fake.calls).toEqual([
       [
         "start_timer",
@@ -139,17 +138,16 @@ describe("time-tracking client", () => {
       list_time_entries: () => [ENTRY, RUNNING],
     });
 
-    const time = createTimeTracking({ transport: fake });
-    expect((await time.running("o").orThrow())?.id).toBe("e2");
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    expect((await time.running().orThrow())?.id).toBe("e2");
     const start = Temporal.Instant.from(AT);
     const end = Temporal.Instant.from("2026-10-06T11:00:00Z");
-    await time.log("o", { startedAt: start, endedAt: end }).orThrow();
+    await time.log({ startedAt: start, endedAt: end }).orThrow();
     await time
-      .log("o", {
+      .log({
         startedAt: start,
         endedAt: end,
-        subjectType: "project",
-        subjectId: "apollo",
+        subject: { type: "project", id: "apollo" },
         billable: true,
         rate: money(10_000n, "EUR"),
         note: "Design",
@@ -160,7 +158,7 @@ describe("time-tracking client", () => {
       .update("e1", {
         startedAt: start,
         endedAt: end,
-        subject: { subjectType: "project", subjectId: "zeus" },
+        subject: { type: "project", id: "zeus" },
         billable: false,
         rate: null,
         note: null,
@@ -169,16 +167,19 @@ describe("time-tracking client", () => {
     await time.update("e1", { subject: null }).orThrow();
     await time.update("e1", {}).orThrow();
     await time.remove("e1").orThrow();
-    const listed = await time.list("o").orThrow();
+    const listed = await time.list().orThrow();
     expect(listed.map((entry) => entry.id)).toEqual(["e1", "e2"]);
+    expect(listed.map((entry) => entry.subject)).toEqual([
+      { type: "project", id: "apollo" },
+      undefined,
+    ]);
     await time
-      .list("o", {
+      .list({
         userId: "u2",
         everyone: true,
         from: start,
         to: end,
-        subjectType: "project",
-        subjectId: "apollo",
+        subject: { type: "project", id: "apollo" },
         pageSize: 10,
       })
       .orThrow();
@@ -288,8 +289,8 @@ describe("time-tracking client", () => {
       list_timesheets: () => [{ ...SHEET, status: "approved", approvedAt: AT }],
     });
 
-    const time = createTimeTracking({ transport: fake });
-    const sheet = await time.timesheet("o", WEEK).orThrow();
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    const sheet = await time.timesheet(WEEK).orThrow();
     expect(sheet.week.toString()).toBe("2026-10-05");
     expect(sheet.status).toBe("submitted");
     expect(sheet.entries.map((entry) => entry.id)).toEqual(["e1"]);
@@ -298,19 +299,19 @@ describe("time-tracking client", () => {
       billableSeconds: 7200,
       amounts: [money(20_000n, "EUR"), money(5000n, "USD")],
     });
-    await time.timesheet("o", WEEK, "u2").orThrow();
-    expect(await time.submit("o", WEEK).orThrow()).toMatchObject({
+    await time.timesheet(WEEK, "u2").orThrow();
+    expect(await time.submit(WEEK).orThrow()).toMatchObject({
       id: "t1",
       approvalId: "a1",
     });
-    await time.submit("o", WEEK, "Week 41").orThrow();
+    await time.submit(WEEK, "Week 41").orThrow();
     const reopened = await time.reopen("t1").orThrow();
     expect(reopened.status).toBe("open");
     expect(reopened.approvalId).toBeUndefined();
-    const [approved] = await time.timesheets("o").orThrow();
+    const [approved] = await time.timesheets().orThrow();
     expect(approved?.approvedAt?.toString()).toBe(AT);
     await time
-      .timesheets("o", {
+      .timesheets({
         userId: "u2",
         status: "approved",
         pageSize: 5,
@@ -353,8 +354,8 @@ describe("time-tracking client", () => {
       }),
     });
 
-    const time = createTimeTracking({ transport: fake });
-    const sheet = await time.timesheet("o", WEEK).orThrow();
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    const sheet = await time.timesheet(WEEK).orThrow();
     expect(sheet.id).toBeUndefined();
     expect(sheet.totals).toEqual({
       seconds: 0,
@@ -366,7 +367,7 @@ describe("time-tracking client", () => {
   it("sends a rate change as minor units and currency, and refuses an unknown code", async () => {
     const fake = transport({ update_time_entry: () => ENTRY });
 
-    const time = createTimeTracking({ transport: fake });
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
     await time.update("e1", { rate: money(12_550n, "USD") }).orThrow();
     expect(fake.calls).toEqual([
       [
@@ -376,7 +377,7 @@ describe("time-tracking client", () => {
     ]);
 
     for (const result of [
-      await time.start("o", { rate: { amount: 100n, currency: "XYZ" } }),
+      await time.start({ rate: { amount: 100n, currency: "XYZ" } }),
       await time.update("e1", { rate: { amount: 100n, currency: "XYZ" } }),
     ]) {
       expect(result.ok ? undefined : result.error).toMatchObject({
@@ -391,8 +392,8 @@ describe("time-tracking client", () => {
   it("refuses a rate sent as a JSON number", async () => {
     const fake = transport({ stop_timer: () => ({ ...ENTRY, rate: 100 }) });
 
-    const time = createTimeTracking({ transport: fake });
-    expect((await time.stop("o")).ok).toBe(false);
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    expect((await time.stop()).ok).toBe(false);
   });
 
   it("rejects an unknown timesheet status", async () => {
@@ -400,8 +401,35 @@ describe("time-tracking client", () => {
       submit_timesheet: () => ({ ...SHEET, status: "lost" }),
     });
 
-    const time = createTimeTracking({ transport: fake });
-    expect((await time.submit("o", WEEK)).ok).toBe(false);
+    const time = createTimeTracking({ transport: fake, tenant: "o" });
+    expect((await time.submit(WEEK)).ok).toBe(false);
+  });
+
+  it("fails without a tenant", async () => {
+    const fake = transport({ stop_timer: () => ENTRY });
+    const session: { tenant?: string } = {};
+
+    const time = createTimeTracking({
+      transport: fake,
+      tenant: () => session.tenant,
+    });
+
+    for (const result of [
+      await time.start(),
+      await time.stop(),
+      await time.list(),
+      await time.submit(WEEK),
+    ]) {
+      expect(result).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+      });
+    }
+
+    expect(fake.calls).toEqual([]);
+    session.tenant = "o2";
+    await time.stop().orThrow();
+    expect(fake.calls).toEqual([["stop_timer", { tenant: "o2" }]]);
   });
 
   it("wraps its methods with hooks", async () => {
@@ -411,6 +439,7 @@ describe("time-tracking client", () => {
     const time = createTimeTracking({
       transport: fake,
       schema: "better_supabase",
+      tenant: "o",
       hooks: {
         stop: {
           before: () => {
@@ -421,7 +450,7 @@ describe("time-tracking client", () => {
       logger: console,
     });
 
-    await time.stop("o").orThrow();
+    await time.stop().orThrow();
     expect(seen).toEqual(["before"]);
   });
 });

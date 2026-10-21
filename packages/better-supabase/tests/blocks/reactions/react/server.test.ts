@@ -11,12 +11,8 @@ describe("reactions react-server build", () => {
   });
 
   it("throws from useReactions", () => {
-    expect(() =>
-      server.useReactions({
-        organizationId: "org-1",
-        subjectType: "comment",
-        subjectIds: [],
-      }),
-    ).toThrow("useReactions() runs in Client Components only");
+    expect(() => server.useReactions({ subjects: [] })).toThrow(
+      "useReactions() runs in Client Components only",
+    );
   });
 });

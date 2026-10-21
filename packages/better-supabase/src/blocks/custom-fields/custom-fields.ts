@@ -4,8 +4,11 @@ import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { SubjectRef } from "../../schema/types.ts";
+import type { BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -16,7 +19,7 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface CustomFieldsOptions {
+export interface CustomFieldsOptions extends BlockTenantOptions {
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<CustomFields>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -45,14 +48,15 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   readonly rank?: string;
 }
 
+/** Every method that takes no definition id acts in the block's `tenant`. */
 export interface CustomFields {
-  /** One entity's definitions in display order. Needs `custom_fields.read`. */
-  listDefinitions(
-    organizationId: string,
-    entity: string,
-  ): AsyncResult<FieldDefinitionDetail[]>;
+  /**
+   * One entity's definitions in the tenant, in display order. Needs
+   * `custom_fields.read`.
+   */
+  listDefinitions(entity: string): AsyncResult<FieldDefinitionDetail[]>;
+  /** Adds or updates the definition of `key` on `entity`. */
   saveDefinition(
-    organizationId: string,
     entity: string,
     key: string,
     label: string,
@@ -65,15 +69,11 @@ export interface CustomFields {
    * `next`. Resolves to its new key.
    */
   reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
-  readValues(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
-  ): AsyncResult<unknown>;
+  /** The custom field values set on `subject`. */
+  readValues(subject: SubjectRef): AsyncResult<unknown>;
+  /** Sets one custom field value of `subject`. */
   setValue(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     definitionId: string,
     value: string,
   ): AsyncResult<FieldDefinition>;
@@ -86,39 +86,45 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     id: textOf(recordOf(value, label)["id"]),
   });
 
-  const client: CustomFields = {
-    listDefinitions: (organizationId, entity) =>
-      call(
-        "list_field_definitions",
-        { tenant: organizationId, entity },
-        (value) =>
-          recordsOf(value, "list_field_definitions").map((row) => {
-            const rank = optionalText(row["rank"]);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
-            return {
-              id: textOf(row["id"]),
-              entity: textOf(row["entity"]),
-              key: textOf(row["key"]),
-              label: textOf(row["label"]),
-              type: textOf(row["type"]),
-              required: row["required"] === true,
-              sensitive: row["sensitive"] === true,
-              ...(rank === undefined ? {} : { rank }),
-            };
-          }),
+  const client: CustomFields = {
+    listDefinitions: (entity) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_field_definitions",
+          { tenant: organizationId, entity },
+          (value) =>
+            recordsOf(value, "list_field_definitions").map((row) => {
+              const rank = optionalText(row["rank"]);
+
+              return {
+                id: textOf(row["id"]),
+                entity: textOf(row["entity"]),
+                key: textOf(row["key"]),
+                label: textOf(row["label"]),
+                type: textOf(row["type"]),
+                required: row["required"] === true,
+                sensitive: row["sensitive"] === true,
+                ...(rank === undefined ? {} : { rank }),
+              };
+            }),
+        ),
       ),
-    saveDefinition: (organizationId, entity, key, label, type, sensitive) =>
-      call(
-        "save_field_definition",
-        {
-          tenant: organizationId,
-          entity,
-          key,
-          label,
-          type,
-          sensitive: sensitive ?? false,
-        },
-        idOf("save_field_definition"),
+    saveDefinition: (entity, key, label, type, sensitive) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "save_field_definition",
+          {
+            tenant: organizationId,
+            entity,
+            key,
+            label,
+            type,
+            sensitive: sensitive ?? false,
+          },
+          idOf("save_field_definition"),
+        ),
       ),
     reorderDefinition: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
@@ -139,27 +145,31 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         { definition: id },
         (value) => value === true,
       ),
-    readValues: (organizationId, subjectType, subjectId) =>
-      call(
-        "read_field_values",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-        },
-        (value) => value,
+    readValues: (subject) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "read_field_values",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+          },
+          (value) => value,
+        ),
       ),
-    setValue: (organizationId, subjectType, subjectId, definitionId, value) =>
-      call(
-        "set_field_value",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          definition: definitionId,
-          value,
-        },
-        idOf("set_field_value"),
+    setValue: (subject, definitionId, value) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "set_field_value",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            definition: definitionId,
+            value,
+          },
+          idOf("set_field_value"),
+        ),
       ),
   };
 

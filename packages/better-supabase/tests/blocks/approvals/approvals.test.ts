@@ -41,6 +41,8 @@ const REQUEST = {
   createdAt: "2026-10-01T00:00:00Z",
 };
 
+const INVOICE = { type: "invoice", id: "i1" };
+
 describe("approvals client", () => {
   it("asks approverOf before deciding, with kind <subject type>.<action>", async () => {
     const fake = transport({
@@ -130,13 +132,14 @@ describe("approvals client", () => {
       cancel_approval: () => ({ ...REQUEST, status: "cancelled" }),
     });
 
-    const approvals = createApprovals({ transport: fake, schema: "app" });
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
 
     const request = await approvals
-      .request({
-        organizationId: "o",
-        subjectType: "invoice",
-        subjectId: "i1",
+      .request(INVOICE, {
         action: "send",
         reason: "Q3 invoice",
         payload: { total: 100 },
@@ -145,6 +148,7 @@ describe("approvals client", () => {
 
     expect(request).toMatchObject({
       id: "r1",
+      subject: INVOICE,
       status: "pending",
       steps: [
         { approvers: { permission: "invoices.approve" }, required: 2 },
@@ -209,7 +213,12 @@ describe("approvals client", () => {
       is_approved: () => true,
     });
 
-    const approvals = createApprovals({ transport: fake, schema: "app" });
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: () => "o",
+    });
+
     const detail = await approvals.get("r1").orThrow();
     expect(detail.canDecide).toBe(true);
     expect(detail.decisions).toEqual([
@@ -222,20 +231,17 @@ describe("approvals client", () => {
         createdAt: Temporal.Instant.from("2026-10-01T01:00:00Z"),
       },
     ]);
-    await approvals.list("o").orThrow();
+    await approvals.list().orThrow();
     await approvals
-      .list("o", {
+      .list({
         status: null,
         assigned: true,
-        subjectType: "invoice",
-        subjectId: "i1",
+        subject: INVOICE,
         pageSize: 10,
         before: Temporal.Instant.from("2026-10-02T00:00:00Z"),
       })
       .orThrow();
-    expect(await approvals.isApproved("invoice", "i1", "send").orThrow()).toBe(
-      true,
-    );
+    expect(await approvals.isApproved(INVOICE, "send").orThrow()).toBe(true);
     expect(fake.calls.slice(1, 3)).toEqual([
       [
         "list_approvals",
@@ -262,6 +268,19 @@ describe("approvals client", () => {
         },
       ],
     ]);
+  });
+
+  it("fails without a tenant", async () => {
+    const fake = transport({ is_approved: () => false });
+    const approvals = createApprovals({ transport: fake, schema: "app" });
+
+    expect(await approvals.request(INVOICE, { action: "send" })).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+    });
+    expect((await approvals.list()).ok).toBe(false);
+    expect(fake.calls).toHaveLength(0);
+    expect(await approvals.isApproved(INVOICE, "send").orThrow()).toBe(false);
   });
 
   it("refuses a status it doesn't know", async () => {

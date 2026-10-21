@@ -65,7 +65,7 @@ const { accepted, rejected } = await items
 
 `list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.
 
-Dependencies between items are [relations](/docs/blocks/relations): `link({ kind: "blocks", source: design, target: build })` is a finish-to-start dependency, and `edges(organizationId, "blocks")` reads them for the chart.
+Dependencies between items are [relations](/docs/blocks/relations): `link(design, build, { kind: "blocks" })` is a finish-to-start dependency, and `edges("blocks")` reads them for the chart.
 
 `saveProject(organizationId, { key, name, status, startOn, targetOn })` keeps a project (`PAY`) with the share of its items that are completed. `saveIteration(organizationId, { name, teamId, startsOn, endsOn })` keeps a cycle or a sprint. Turn either table off with `tables: { projects: null }` or `tables: { iterations: null }`.
 

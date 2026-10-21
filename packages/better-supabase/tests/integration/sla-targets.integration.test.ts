@@ -85,7 +85,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       await s.install(MODULES, layout);
       const org = await s.organization(owner, { member: agent });
       const transport = sqlTransport(s.sql);
-      const sla = createSla({ transport });
+      const sla = createSla({ transport, tenant: org });
 
       await s.as(owner);
 
@@ -104,7 +104,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       ).toBe("2026-10-16T16:00:00Z");
 
       await sla
-        .savePolicy(org, {
+        .savePolicy({
           subjectType: "ticket",
           name: "Normal",
           firstResponseMinutes: 240,
@@ -113,7 +113,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         })
         .orThrow();
       await sla
-        .savePolicy(org, {
+        .savePolicy({
           subjectType: "ticket",
           name: "Urgent",
           priority: "urgent",
@@ -124,7 +124,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         .orThrow();
       expect(
         hint(
-          await sla.savePolicy(org, {
+          await sla.savePolicy({
             subjectType: "ticket",
             name: "Dup",
             priority: "urgent",
@@ -212,7 +212,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       await s.as(agent);
       expect(
         hint(
-          await sla.savePolicy(org, {
+          await sla.savePolicy({
             subjectType: "ticket",
             name: "X",
             firstResponseMinutes: 1,

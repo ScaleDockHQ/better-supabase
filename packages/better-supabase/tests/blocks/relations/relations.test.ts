@@ -48,11 +48,9 @@ const stored = (extra: Record<string, unknown>) => ({
 describe("relations client", () => {
   it("links and returns an undo token that unlinks the stored edge", async () => {
     const fake = transport({ link: stored({}) });
-    const relations = createRelations({ transport: fake });
+    const relations = createRelations({ transport: fake, tenant: ORG });
 
-    const made = await relations
-      .link({ organizationId: ORG, kind: "blocked_by", source: a, target: b })
-      .orThrow();
+    const made = await relations.link(a, b, { kind: "blocked_by" }).orThrow();
 
     expect(fake.calls[0]).toEqual({
       fn: "link",
@@ -95,8 +93,8 @@ describe("relations client", () => {
       }),
     });
 
-    const made = await createRelations({ transport: fake })
-      .link({ organizationId: ORG, kind: "parent", source: a, target: c })
+    const made = await createRelations({ transport: fake, tenant: ORG })
+      .link(a, c, { kind: "parent" })
       .orThrow();
 
     expect(made.replaced).toEqual({ target: b, data: { x: 1 } });
@@ -112,16 +110,10 @@ describe("relations client", () => {
       link: stored({ created: false, previousData: { lag: 1 } }),
     });
 
-    const relations = createRelations({ transport: fake });
+    const relations = createRelations({ transport: fake, tenant: ORG });
 
     const changed = await relations
-      .link({
-        organizationId: ORG,
-        kind: "blocks",
-        source: b,
-        target: a,
-        data: { lag: 2 },
-      })
+      .link(b, a, { kind: "blocks", data: { lag: 2 } })
       .orThrow();
 
     expect(changed.undo?.calls).toEqual([
@@ -132,8 +124,8 @@ describe("relations client", () => {
     ]);
     const fakeSame = transport({ link: stored({ created: false }) });
 
-    const same = await createRelations({ transport: fakeSame })
-      .link({ organizationId: ORG, kind: "blocks", source: b, target: a })
+    const same = await createRelations({ transport: fakeSame, tenant: ORG })
+      .link(b, a, { kind: "blocks" })
       .orThrow();
 
     expect(same.undo).toBeNull();
@@ -141,11 +133,14 @@ describe("relations client", () => {
 
   it("unlinks with an undo that links again with the old data", async () => {
     const fake = transport({ unlink: { removed: true, data: { lag: 3 } } });
-    const relations = createRelations({ transport: fake, schema: "app" });
 
-    const gone = await relations
-      .unlink({ organizationId: ORG, kind: "relates", source: a, target: b })
-      .orThrow();
+    const relations = createRelations({
+      transport: fake,
+      tenant: ORG,
+      schema: "app",
+    });
+
+    const gone = await relations.unlink(a, b, { kind: "relates" }).orThrow();
 
     expect(gone.undo?.calls[0]).toMatchObject({
       fn: "link",
@@ -153,8 +148,8 @@ describe("relations client", () => {
     });
     const fakeNone = transport({ unlink: { removed: false, data: null } });
 
-    const none = await createRelations({ transport: fakeNone })
-      .unlink({ organizationId: ORG, kind: "relates", source: a, target: b })
+    const none = await createRelations({ transport: fakeNone, tenant: ORG })
+      .unlink(a, b, { kind: "relates" })
       .orThrow();
 
     expect(none).toEqual({ removed: false, undo: null });
@@ -179,8 +174,8 @@ describe("relations client", () => {
       relation_rollup: 12,
     });
 
-    const relations = createRelations({ transport: fake });
-    expect(await relations.of(ORG, a).orThrow()).toEqual([
+    const relations = createRelations({ transport: fake, tenant: ORG });
+    expect(await relations.of(a).orThrow()).toEqual([
       {
         id: "r1",
         kind: "blocked_by",
@@ -192,19 +187,17 @@ describe("relations client", () => {
       },
     ]);
     expect(fake.calls[0]?.args).toMatchObject({ kind: null });
-    expect(await relations.edges(ORG, "blocks").orThrow()).toEqual([
+    expect(await relations.edges("blocks").orThrow()).toEqual([
       { id: "r1", kind: "blocks", source: b, target: a, data: {}, fields: {} },
     ]);
-    expect(await relations.ancestors(ORG, "parent", a).orThrow()).toEqual([
+    expect(await relations.ancestors(a, "parent").orThrow()).toEqual([
       { type: "task", id: "b", depth: 1 },
     ]);
-    expect(await relations.descendants(ORG, "parent", a).orThrow()).toEqual([]);
+    expect(await relations.descendants(a, "parent").orThrow()).toEqual([]);
     expect(
       await relations
-        .rollup({
-          organizationId: ORG,
+        .rollup(a, {
           kind: "parent",
-          subject: a,
           of: "task",
           agg: "sum",
           column: "estimate",
@@ -215,6 +208,28 @@ describe("relations client", () => {
       of_type: "task",
       column_name: "estimate",
       agg: "sum",
+    });
+  });
+
+  it("fails without a tenant", async () => {
+    const fake = transport({ relations_of: [] });
+    const session: { tenant?: string } = {};
+
+    const relations = createRelations({
+      transport: fake,
+      tenant: () => session.tenant,
+    });
+
+    expect(await relations.of(a)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+    });
+    expect(fake.calls).toHaveLength(0);
+    session.tenant = "org-2";
+    await relations.of(a, "blocks").orThrow();
+    expect(fake.calls[0]?.args).toMatchObject({
+      tenant: "org-2",
+      kind: "blocks",
     });
   });
 });
@@ -339,14 +354,14 @@ describe("relations conversions", () => {
       descendants: [{ type: "invoice", id: "i1", depth: 1 }],
     });
 
-    const relations = createRelations({ transport: t });
+    const relations = createRelations({ transport: t, tenant: ORG });
     expect(
       await relations
-        .convertedInto(ORG, { type: "deal", id: "d1" }, "quote")
+        .convertedInto({ type: "deal", id: "d1" }, "quote")
         .orThrow(),
     ).toBe("q1");
     expect(
-      await relations.lineage(ORG, { type: "quote", id: "q1" }).orThrow(),
+      await relations.lineage({ type: "quote", id: "q1" }).orThrow(),
     ).toEqual({
       origins: [{ type: "deal", id: "d1", depth: 1 }],
       conversions: [{ type: "invoice", id: "i1", depth: 1 }],
@@ -361,12 +376,14 @@ describe("relations conversions", () => {
   it("reads no conversion as undefined and stops the lineage on an error", async () => {
     const none = createRelations({
       transport: transport({ converted_into: null }),
+      tenant: ORG,
     });
 
-    expect(await none.convertedInto(ORG, a, "quote").orThrow()).toBeUndefined();
+    expect(await none.convertedInto(a, "quote").orThrow()).toBeUndefined();
     const failing = transport({ ancestors: new Error("down") });
     expect(
-      (await createRelations({ transport: failing }).lineage(ORG, a)).ok,
+      (await createRelations({ transport: failing, tenant: ORG }).lineage(a))
+        .ok,
     ).toBe(false);
     expect(failing.calls.map((call) => call.fn)).toEqual(["ancestors"]);
   });

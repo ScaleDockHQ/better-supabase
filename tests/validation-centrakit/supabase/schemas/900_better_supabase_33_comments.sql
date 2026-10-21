@@ -1,5 +1,5 @@
--- better-supabase module: comments (0.8.0)
--- @bs-module comments@6 managed
+-- better-supabase module: comments
+-- @bs-module comments@7 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -316,6 +316,24 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+-- The name and avatar of each comment's author, keyed by comment id,
+-- for the comments of ids the caller may read.
+create or replace function "better_supabase"."comment_authors"(ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(y."id"::text, jsonb_build_object('id', pr."user_id", 'name', coalesce(nullif(trim(concat_ws(' ', pr."first_name", pr."last_name")), ''), pr."username"), 'avatarUrl', pr."avatar_path")), '{}'::jsonb)
+  from "better_supabase"."comments" y
+  join "centrakit"."profiles" pr on pr."user_id" = y."author_id"
+  where y."id" = any ($1)
+    and ((y."subject_type" = 'project' and (y."organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or y."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)))) or (not coalesce(y."subject_type" in ('project'), false) and y."organization_id" in (select better_supabase.tenant_ids_with('comments.read'))))
+$$;
+revoke execute on function "better_supabase"."comment_authors"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."comment_authors"(uuid[]) to authenticated, service_role;
+
 -- A subject's thread, oldest first; deleted comments stay as placeholders
 -- so replies keep their parent. Page with after and after_id (the last
 -- comment's created_at and id, so comments created in the same instant
@@ -337,8 +355,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at", x."id"), '[]'::jsonb)
-  from (
+  with page as (
     select * from "better_supabase"."comments" y
     where y."organization_id" = list_comments.tenant
       and y."subject_type" = list_comments.subject_type
@@ -348,7 +365,10 @@ as $$
     order by y."created_at", y."id"
     limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
     offset greatest(coalesce(list_comments.skip, 0), 0)
-  ) x
+  ),
+  m as (select "better_supabase"."comment_authors"(array(select p."id" from page p)) as authors)
+  select coalesce(jsonb_agg(to_jsonb(x.*) || jsonb_build_object('author', m.authors -> x."id"::text) order by x."created_at", x."id"), '[]'::jsonb)
+  from page x, m
 $$;
 
 -- Comments per subject the caller can read, for counters in a list:

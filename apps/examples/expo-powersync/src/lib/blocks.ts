@@ -1,4 +1,4 @@
-import type { RpcClient } from "better-supabase/blocks";
+import type { GeneratedBlocks, RpcClient } from "better-supabase/blocks";
 
 import { createBlocks, rpcTransport } from "better-supabase/blocks";
 import {
@@ -12,6 +12,15 @@ import * as v from "valibot";
  * database.
  */
 export const API_SCHEMA = "api";
+
+/**
+ * The entries of the Next.js example's `blocks.generated.ts` for the blocks
+ * whose hooks read the client's `blocks` config. This app runs no `gen`.
+ */
+export const blockConfig = {
+  comments: { schema: "better_supabase", api: API_SCHEMA, options: {} },
+  tags: { schema: "better_supabase", api: API_SCHEMA, options: {} },
+} as const satisfies GeneratedBlocks;
 
 const Titled = v.object({ title: v.string() });
 

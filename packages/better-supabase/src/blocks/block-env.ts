@@ -3,18 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientLike } from "../bindings/client.ts";
 import type { ClientPorts } from "../client/ports.ts";
 import type { TopicPort } from "../realtime/watch-topic.ts";
+import type { GeneratedBlocks } from "./block-config.ts";
 import type { AuthPort } from "./controller.ts";
 
+import { currentTenant } from "../core/tenant-source.ts";
 import { topicPort } from "../realtime/watch-topic.ts";
 
 /**
  * What the block bindings hand their controllers: the provider's client,
- * session and ports.
+ * session, ports, generated block config and tenant.
  */
 export interface BlockEnv {
   readonly supabase: SupabaseClient;
   readonly auth: AuthPort;
   readonly ports: ClientPorts & { readonly topic: TopicPort };
+  /** `blockConfig` from `blocks.generated.ts`, when the client has it. */
+  readonly config: GeneratedBlocks | undefined;
+  /**
+   * The tenant the hooks act in now: the client's `tenant`, which
+   * `createClient` defaults to the session's tenant claim.
+   */
+  readonly tenant: () => string | undefined;
 }
 
 /**
@@ -22,7 +31,8 @@ export interface BlockEnv {
  * client.
  */
 export function blockEnv(
-  client: Pick<ClientLike, "supabase" | "auth" | "ports">,
+  client: Pick<ClientLike, "supabase" | "auth" | "ports"> &
+    Partial<Pick<ClientLike, "blocks" | "tenant">>,
 ): BlockEnv {
   return {
     supabase: client.supabase,
@@ -31,6 +41,8 @@ export function blockEnv(
       ...client.ports,
       topic: client.ports?.topic ?? topicPort(client.supabase),
     },
+    config: client.blocks,
+    tenant: () => currentTenant(client.tenant),
   };
 }
 

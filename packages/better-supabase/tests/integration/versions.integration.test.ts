@@ -61,8 +61,8 @@ describe.skipIf(!live)("versions", () => {
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       const transport = sqlTransport(s.sql);
-      const versions = createVersions({ transport });
-      const links = createShareLinks({ transport });
+      const versions = createVersions({ transport, tenant });
+      const links = createShareLinks({ transport, tenant });
 
       const [doc, other] = await s.rows<{ id: string }>(
         `insert into versions_it.docs (organization_id, title) values ($1, 'Quote'), ($1, 'Other') returning id`,
@@ -70,41 +70,30 @@ describe.skipIf(!live)("versions", () => {
       );
 
       await s.as(owner);
+      const subject = { type: "doc", id: doc!.id };
 
       const sent = await versions
-        .snapshot({
-          organizationId: tenant,
-          subjectType: "doc",
-          subjectId: doc!.id,
-          content: { total: 100 },
-        })
+        .snapshot(subject, { content: { total: 100 } })
         .orThrow();
 
-      await versions
-        .snapshot({
-          organizationId: tenant,
-          subjectType: "doc",
-          subjectId: doc!.id,
-          content: { total: 120 },
-        })
-        .orThrow();
+      await versions.snapshot(subject, { content: { total: 120 } }).orThrow();
 
       const link = await links
-        .create(tenant, "doc", doc!.id, { versionId: sent.id })
+        .create(subject, { versionId: sent.id })
         .orThrow();
 
-      const plain = await links.create(tenant, "doc", doc!.id).orThrow();
+      const plain = await links.create(subject).orThrow();
 
-      const wrong = await links.create(tenant, "doc", other!.id, {
-        versionId: sent.id,
-      });
+      const wrong = await links.create(
+        { type: "doc", id: other!.id },
+        { versionId: sent.id },
+      );
 
       expect(wrong.ok).toBe(false);
 
       await s.asRole("anon");
       expect(await links.resolve(link.token).orThrow()).toMatchObject({
-        subjectType: "doc",
-        subjectId: doc!.id,
+        subject,
         versionId: sent.id,
       });
       const shared = await versions.getShared(link.token).orThrow();
@@ -133,7 +122,11 @@ describe.skipIf(!live)("versions", () => {
       const stranger = await s.user("stranger");
       const tenant = await s.organization(owner, { member });
       await s.organization(stranger);
-      const versions = createVersions({ transport: sqlTransport(s.sql) });
+
+      const versions = createVersions({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       const docRows = await s.rows<{ id: string }>(
         `insert into versions_it.docs (organization_id, title, body) values ($1, 'Plan', '{"steps": ["a"]}') returning id`,
@@ -142,11 +135,7 @@ describe.skipIf(!live)("versions", () => {
 
       const doc = docRows[0]!.id;
 
-      const input = {
-        organizationId: tenant,
-        subjectType: "doc",
-        subjectId: doc,
-      };
+      const input = { type: "doc", id: doc };
 
       await s.as(member);
       const first = await versions.snapshot(input).orThrow();
@@ -164,11 +153,11 @@ describe.skipIf(!live)("versions", () => {
       await s.as(member);
 
       const second = await versions
-        .snapshot({ ...input, label: "Second" })
+        .snapshot(input, { label: "Second" })
         .orThrow();
 
       expect(second.number).toBe(2);
-      const listed = await versions.list(tenant, "doc", doc).orThrow();
+      const listed = await versions.list(input).orThrow();
       expect(listed.map((version) => [version.number, version.label])).toEqual([
         [2, "Second"],
         [1, undefined],
@@ -196,7 +185,7 @@ describe.skipIf(!live)("versions", () => {
         [doc],
       );
       await s.as(owner);
-      const frozen = (await versions.list(tenant, "doc", doc).orThrow())[0]!;
+      const frozen = (await versions.list(input).orThrow())[0]!;
       expect(frozen).toMatchObject({ number: 4, label: "sent", frozen: true });
       expect(
         await versions.delete(frozen.id).then((r) => !r.ok && r.error.hint),
@@ -214,10 +203,10 @@ describe.skipIf(!live)("versions", () => {
       await s.as(member);
 
       for (const title of ["C", "D", "E"]) {
-        await versions.snapshot({ ...input, content: { title } }).orThrow();
+        await versions.snapshot(input, { content: { title } }).orThrow();
       }
 
-      const kept = await versions.list(tenant, "doc", doc).orThrow();
+      const kept = await versions.list(input).orThrow();
       expect(kept.map((version) => version.number)).toEqual([7, 6, 5, 4, 2]);
 
       await s.service();
@@ -236,7 +225,7 @@ describe.skipIf(!live)("versions", () => {
         "update versions_it.notes set text = 'three' where id = $1",
         [note],
       );
-      const auto = await versions.list(tenant, "note", note).orThrow();
+      const auto = await versions.list({ type: "note", id: note }).orThrow();
       expect(auto.map((version) => version.source)).toEqual(["auto"]);
       expect((await versions.get(auto[0]!.id).orThrow()).content).toEqual({
         text: "three",

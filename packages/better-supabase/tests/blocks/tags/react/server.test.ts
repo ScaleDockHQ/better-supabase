@@ -13,9 +13,7 @@ describe("tags react-server build", () => {
   it("throws from useTagInput", () => {
     expect(() =>
       server.useTagInput({
-        organizationId: "org-1",
-        subjectType: "customer",
-        subjectId: "cu1",
+        subject: { type: "customer", id: "cu1" },
         kind: "customer",
       }),
     ).toThrow("useTagInput() runs in Client Components only");

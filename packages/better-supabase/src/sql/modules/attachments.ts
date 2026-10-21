@@ -27,6 +27,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
+import { authorLookup } from "./authors.ts";
 
 const EVENTS: ModuleEvents<AttachmentsEvents> = {
   "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
@@ -320,6 +321,31 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 
   const json = (row: string): string =>
     withExtraFields(`to_jsonb(${row})`, row, extras);
+
+  const authors = authorLookup(ctx, {
+    name: "attachment_authors",
+    table: t,
+    id: c("id"),
+    user: c("uploadedBy"),
+    visible: orTenantless(
+      at("y", "tenant"),
+      access.memberOn(
+        at("y", "tenant"),
+        at("y", "subjectType"),
+        at("y", "subjectId"),
+        "read",
+      ),
+    ),
+    what: "The name and avatar of each attachment's uploader, keyed by\n-- attachment id, for the attachments of ids the caller may read.",
+  });
+
+  const listJson = (row: string): string => {
+    const base = withExtraFields(`to_jsonb(${row}.*)`, row, extras);
+
+    return authors === undefined
+      ? base
+      : authors.attach(base, "m.authors", row);
+  };
 
   const bucketFor = perSubject.some((entry) => entry.bucket !== bucket)
     ? `case create_attachment.subject_type ${perSubject
@@ -698,7 +724,7 @@ begin
   ${scanned}
   return ${json("v_row")};
 end;
-$$;
+$$;${authors?.sql ?? ""}
 
 create or replace function ${fn("list_attachments")}(tenant ${id}, subject_type text default null, subject_id text default null)
 returns jsonb
@@ -707,11 +733,19 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${withExtraFields("to_jsonb(a.*)", "a", extras)} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
-  from ${t} a
-  where a.${c("tenant")} is not distinct from list_attachments.tenant
-    and (list_attachments.subject_type is null or a.${c("subjectType")} = list_attachments.subject_type)
-    and (list_attachments.subject_id is null or a.${c("subjectId")} = list_attachments.subject_id)
+  with page as (
+    select * from ${t} y
+    where y.${c("tenant")} is not distinct from list_attachments.tenant
+      and (list_attachments.subject_type is null or y.${c("subjectType")} = list_attachments.subject_type)
+      and (list_attachments.subject_id is null or y.${c("subjectId")} = list_attachments.subject_id)
+  )${
+    authors === undefined
+      ? ""
+      : `,
+  m as (select ${authors.call(`array(select p.${c("id")} from page p)`)} as authors)`
+  }
+  select coalesce(jsonb_agg(${listJson("a")} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
+  from page a${authors === undefined ? "" : ", m"}
 $$;
 
 create or replace function ${fn("get_attachment")}(id uuid)
@@ -964,11 +998,15 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "get_attachment", args: ["uuid"], returns: "jsonb" },
     { name: "delete_attachment", args: ["uuid"], returns: "boolean" },
+    ...(ctx.installed("profiles")
+      ? [{ name: "attachment_authors", args: ["uuid[]"], returns: "jsonb" }]
+      : []),
   ];
 }
 
 export const ATTACHMENTS: ModuleDefinition = {
   internal: [
+    "attachment_authors",
     "attachment_subject_readable",
     "attachment_object_allowed",
     "attachment_object_visible",
@@ -980,9 +1018,10 @@ export const ATTACHMENTS: ModuleDefinition = {
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",
   requires: ["tenant", "access"],
+  integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -990,6 +1029,12 @@ export const ATTACHMENTS: ModuleDefinition = {
         "Attachments keep metadata; create_attachment takes it as a seventh argument.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("create_attachment")}(${ctx.idType}, text, text, bigint, text, text);`,
+    },
+    {
+      from: 2,
+      description:
+        "With profiles, list_attachments returns each file's uploader with a name and avatar.",
+      sql: () => "",
     },
   ],
   names: NAMES,

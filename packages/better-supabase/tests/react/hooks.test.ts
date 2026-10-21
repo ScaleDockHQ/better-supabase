@@ -25,6 +25,7 @@ import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
 import { fieldErrorsOf } from "../../src/bindings/field-errors.ts";
+import { claimedTenant } from "../../src/bindings/keys.ts";
 import {
   useAiChats,
   useAiChatTree,
@@ -438,6 +439,7 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
         return () => void listeners.delete(listener);
       },
     },
+    tenant: () => claimedTenant(snapshot, betterSupabase.meta),
     db: run ?? { name: "db" },
     queries: { name: "queries" },
   } as unknown as ClientLike;
@@ -1472,7 +1474,15 @@ describe("useAnnouncements", () => {
 
 describe("useReactions", () => {
   it("loads, toggles and reloads when a watched subject changes", async () => {
-    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    const { browser, client, emit } = fakeBrowser(
+      signedIn(USER, { tenant_id: "org-1" }),
+    );
+
+    Object.assign(browser, {
+      blocks: {
+        reactions: { schema: "better_supabase", options: { topic: "emoji" } },
+      },
+    });
     let counts = [{ emoji: "👍", count: 1, reacted: false, actors: ["u2"] }];
 
     const rpc = withRpc(client, (fn, args) => {
@@ -1493,9 +1503,10 @@ describe("useReactions", () => {
     const view = renderHook(
       () =>
         useReactions({
-          organizationId: "org-1",
-          subjectType: "comment",
-          subjectIds: ["c1", "c2"],
+          subjects: [
+            { type: "comment", id: "c1" },
+            { type: "comment", id: "c2" },
+          ],
         }),
       undefined,
       { client: browser },
@@ -1503,14 +1514,17 @@ describe("useReactions", () => {
 
     await flush();
     await flush();
-    expect(view.result.reactions?.["c1"]?.[0]?.count).toBe(1);
+    expect(view.result.reactions?.["comment:c1"]?.[0]?.count).toBe(1);
+    expect(client.channel.mock.calls.map(([topic]) => topic)).toContain(
+      "emoji:org-1",
+    );
     expect(rpc).toHaveBeenCalledWith("reaction_summary", {
       tenant: "org-1",
       subject_type: "comment",
       subject_ids: ["c1", "c2"],
     });
 
-    await view.result.toggle("c1", "👍");
+    await view.result.toggle({ type: "comment", id: "c1" }, "👍");
     expect(rpc).toHaveBeenLastCalledWith("react", {
       tenant: "org-1",
       subject_type: "comment",
@@ -1519,30 +1533,27 @@ describe("useReactions", () => {
       present: true,
       actor: null,
     });
-    expect(view.result.reactions?.["c1"]?.[0]).toMatchObject({
+    expect(view.result.reactions?.["comment:c1"]?.[0]).toMatchObject({
       count: 2,
       reacted: true,
     });
-    await view.result.toggle("c1", "👍");
+    await view.result.toggle({ type: "comment", id: "c1" }, "👍");
     expect(rpc).toHaveBeenLastCalledWith(
       "react",
       expect.objectContaining({ present: false }),
     );
 
     const calls = rpc.mock.calls.length;
-    emit("reactions:org-1", "changed", {
+    emit("emoji:org-1", "changed", {
       subjectType: "comment",
       subjectId: "other",
     });
     await flush();
     expect(rpc).toHaveBeenCalledTimes(calls);
     counts = [{ emoji: "🎉", count: 1, reacted: false, actors: ["u3"] }];
-    emit("reactions:org-1", "changed", {
-      subjectType: "comment",
-      subjectId: "c2",
-    });
+    emit("emoji:org-1", "changed", { subjectType: "comment", subjectId: "c2" });
     await flush();
-    expect(view.result.reactions?.["c1"]?.[0]?.emoji).toBe("🎉");
+    expect(view.result.reactions?.["comment:c1"]?.[0]?.emoji).toBe("🎉");
     view.unmount();
   });
 });
@@ -1561,7 +1572,15 @@ describe("useComments", () => {
   });
 
   it("loads the thread, adds and removes, and reloads for the topic", async () => {
-    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    const { browser, client, emit } = fakeBrowser(
+      signedIn(USER, { tenant_id: "org-1" }),
+    );
+
+    Object.assign(browser, {
+      blocks: {
+        comments: { schema: "better_supabase", api: "api", options: {} },
+      },
+    });
     let thread = [row("c1", "First")];
 
     const rpc = withRpc(client, (fn, args) => {
@@ -1581,11 +1600,8 @@ describe("useComments", () => {
     const view = renderHook(
       () =>
         useComments({
-          organizationId: "org-1",
-          subjectType: "customer",
-          subjectId: "cu1",
+          subject: { type: "customer", id: "cu1" },
           topic: "comments:cu1",
-          schema: "api",
         }),
       undefined,
       { client: browser },
@@ -1632,12 +1648,7 @@ describe("useComments", () => {
     const rpc = withRpc(client, () => []);
 
     const view = renderHook(
-      () =>
-        useComments({
-          organizationId: null,
-          subjectType: "customer",
-          subjectId: "cu1",
-        }),
+      () => useComments({ subject: { type: "customer", id: "cu1" } }),
       undefined,
       { client: browser },
     );
@@ -2187,7 +2198,13 @@ describe("useApiKeys", () => {
 
 describe("useTagInput", () => {
   it("loads the subject's tags and adds, creates and removes one", async () => {
-    const { browser, client } = fakeBrowser(signedIn(USER));
+    const { browser, client } = fakeBrowser(
+      signedIn(USER, { tenant_id: "org-1" }),
+    );
+
+    Object.assign(browser, {
+      blocks: { tags: { schema: "better_supabase", api: "api", options: {} } },
+    });
 
     const rpc = withRpc(client, (fn) => {
       if (fn === "subject_tags") {
@@ -2213,11 +2230,8 @@ describe("useTagInput", () => {
     const view = renderHook(
       () =>
         useTagInput({
-          organizationId: "org-1",
-          subjectType: "customer",
-          subjectId: "cu1",
+          subject: { type: "customer", id: "cu1" },
           kind: "customer",
-          schema: "api",
           onChanged,
         }),
       undefined,

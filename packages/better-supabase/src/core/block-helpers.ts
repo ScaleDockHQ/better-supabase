@@ -1,4 +1,5 @@
 import type { CredentialRef } from "../credentials/provider.ts";
+import type { BlockTenantOptions } from "./block-tenant.ts";
 import type { BlockTransport } from "./block-transport.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
 import type { Result } from "./result.ts";
@@ -23,7 +24,7 @@ export interface BlockTemporalOptions {
 }
 
 /** The options every block creator shares. */
-export interface BlockOptions extends BlockTemporalOptions {
+export interface BlockOptions extends BlockTemporalOptions, BlockTenantOptions {
   /**
    * `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API
    * schema.

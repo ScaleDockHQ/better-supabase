@@ -1,4 +1,5 @@
 import type { AsyncResult, Result } from "../../core/result.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { ApprovalRequestInput } from "../approvals/approvals.ts";
 import type { NotifierInput } from "../ports.ts";
 import type { Rule, RuleActionHandler } from "./rules.ts";
@@ -20,9 +21,15 @@ export interface RuleSubjectContext {
   readonly eventId?: string;
 }
 
-/** The part of the approvals client the handler calls. */
+/**
+ * The part of the approvals client the handler calls. Its tenant must be the
+ * context's `organizationId`.
+ */
 export interface RuleApprovals {
-  request(input: ApprovalRequestInput): AsyncResult<unknown>;
+  request(
+    subject: SubjectRef,
+    input: ApprovalRequestInput,
+  ): AsyncResult<unknown>;
 }
 
 function invalid(rule: Rule, kind: string, problem: string): Result<never> {
@@ -76,14 +83,14 @@ export function approvalsAction(
 
     const reason = action.config?.["reason"];
 
-    return approvals.request({
-      organizationId: context.organizationId,
-      subjectType: context.subjectType,
-      subjectId: context.subjectId,
-      action: name,
-      reason: typeof reason === "string" ? reason : `Rule: ${rule.name}`,
-      ...(context.payload === undefined ? {} : { payload: context.payload }),
-    });
+    return approvals.request(
+      { type: context.subjectType, id: context.subjectId },
+      {
+        action: name,
+        reason: typeof reason === "string" ? reason : `Rule: ${rule.name}`,
+        ...(context.payload === undefined ? {} : { payload: context.payload }),
+      },
+    );
   };
 }
 

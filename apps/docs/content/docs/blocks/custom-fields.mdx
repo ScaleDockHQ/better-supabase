@@ -14,7 +14,24 @@ import {
   CUSTOM_FIELD_TYPES,
   createCustomFields,
 } from "better-supabase/blocks/custom-fields";
+
+const fields = createCustomFields({ transport, tenant: organizationId });
+const customer = { type: "customer", id: customerId };
+
+const tier = await fields
+  .saveDefinition("customer", "tier", "Tier", "option")
+  .orThrow();
+await fields.setValue(customer, tier.id, "gold").orThrow();
+const values = await fields.readValues(customer).orThrow();
 ```
+
+Definitions belong to an entity (`listDefinitions(entity)`,
+`saveDefinition(entity, key, label, type, sensitive?)`), and values to a
+subject, a `SubjectRef` (`{ type, id }`): `readValues(subject)` and
+`setValue(subject, definitionId, value)`. Every call acts in the block's
+`tenant`, which `createBlocks` and `createBlockClient` pass from the request;
+a call without one fails with `invalid_request` and the hint
+`TENANT_REQUIRED`.
 
 ## Types
 
@@ -42,4 +59,4 @@ Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to 
 
 ## Order
 
-Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. `listDefinitions(organizationId, entity)` returns an entity's definitions in that order, each with its `rank` key, for callers with `custom_fields.read`. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.
+Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. `listDefinitions(entity)` returns an entity's definitions in that order, each with its `rank` key, for callers with `custom_fields.read`. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.

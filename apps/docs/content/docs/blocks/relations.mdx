@@ -61,25 +61,27 @@ deletes its links when its row is deleted.
 ## Link and unlink
 
 ```ts
-const relations = createRelations({ transport });
+const relations = createRelations({ transport, tenant: organizationId });
 
 const result = await relations
-  .link({
-    organizationId,
-    kind: "blocks",
-    source: { type: "task", id: designId },
-    target: { type: "task", id: buildId },
-    data: { type: "FS", lag: 2 },
-  })
+  .link(
+    { type: "task", id: designId },
+    { type: "task", id: buildId },
+    { kind: "blocks", data: { type: "FS", lag: 2 } },
+  )
   .orThrow();
 
-await relations.unlink({
-  organizationId,
-  kind: "blocked_by",
-  source: { type: "task", id: buildId },
-  target: { type: "task", id: designId },
-});
+await relations.unlink(
+  { type: "task", id: buildId },
+  { type: "task", id: designId },
+  { kind: "blocked_by" },
+);
 ```
+
+The ends are `SubjectRef`s, `{ type, id }`, and every call acts in the
+block's `tenant`, an organization id or a function that returns the current
+one. `createBlocks` and `createBlockClient` pass the request's tenant; a call
+without one fails with `invalid_request` and the hint `TENANT_REQUIRED`.
 
 `link` resolves to the stored link, `created: false` when it already existed
 (its data is updated when you pass `data`), and `replaced` with the old
@@ -98,13 +100,13 @@ that reverses the change, including putting a replaced parent back. See
 
 ## Read links
 
-| Method                                     | Returns                                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------------------- |
-| `of(organizationId, subject, kind?)`       | A record's links in both directions, each named from its side (`blocked_by`)     |
-| `edges(organizationId, kind)`              | Every link of a kind, up to 10,000, for a chart or a tree                        |
-| `ancestors(organizationId, kind, subject)` | The records above a subject (its parent's parents), with their depth             |
-| `descendants(...)`                         | The records below it                                                             |
-| `rollup(input)`                            | `count`, `sum`, `avg`, `min` or `max` of a column over the descendants of a type |
+| Method                       | Returns                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `of(subject, kind?)`         | A record's links in both directions, each named from its side (`blocked_by`)     |
+| `edges(kind)`                | Every link of a kind, up to 10,000, for a chart or a tree                        |
+| `ancestors(subject, kind)`   | The records above a subject (its parent's parents), with their depth             |
+| `descendants(subject, kind)` | The records below it                                                             |
+| `rollup(subject, input)`     | `count`, `sum`, `avg`, `min` or `max` of a column over the descendants of a type |
 
 Reads run as the caller and need `relations.read`, which the default member
 role has. `rollup` also reads the subject table as the caller, so its
@@ -112,14 +114,10 @@ policies decide which rows count:
 
 ```ts
 const points = await relations
-  .rollup({
-    organizationId,
-    kind: "parent",
-    subject: { type: "issue", id: epicId },
-    of: "issue",
-    agg: "sum",
-    column: "estimate",
-  })
+  .rollup(
+    { type: "issue", id: epicId },
+    { kind: "parent", of: "issue", agg: "sum", column: "estimate" },
+  )
   .orThrow();
 ```
 
@@ -137,22 +135,21 @@ so converting the same deal twice returns the first quote:
 
 ```ts
 const existing = await relations
-  .convertedInto(organizationId, { type: "deal", id: dealId }, "quote")
+  .convertedInto({ type: "deal", id: dealId }, "quote")
   .orThrow();
 const quoteId = existing ?? (await createQuoteFrom(dealId));
 if (existing === undefined) {
   await relations
-    .link({
-      organizationId,
-      kind: "created_from",
-      source: { type: "quote", id: quoteId },
-      target: { type: "deal", id: dealId },
-    })
+    .link(
+      { type: "quote", id: quoteId },
+      { type: "deal", id: dealId },
+      { kind: "created_from" },
+    )
     .orThrow();
 }
 
 const { origins, conversions } = await relations
-  .lineage(organizationId, { type: "quote", id: quoteId })
+  .lineage({ type: "quote", id: quoteId })
   .orThrow();
 // origins: the deal; conversions: the orders and invoices made from the quote
 ```
@@ -180,13 +177,11 @@ const client = createRelations({
   transport,
   fields: v.object({ weight: v.optional(v.number()) }),
 });
-await client.link({
-  organizationId,
-  kind: "blocks",
-  source: { type: "task", id: a },
-  target: { type: "task", id: b },
-  fields: { weight: 2 },
-});
+await client.link(
+  { type: "task", id: a },
+  { type: "task", id: b },
+  { kind: "blocks", fields: { weight: 2 } },
+);
 ```
 
 ## Events
@@ -203,12 +198,12 @@ reporting-line table, are not adopt targets yet.
 
 ## With ReUI
 
-- Gantt: `toGanttTasks(tasks, await relations.edges(org, "blocks"))` adds
+- Gantt: `toGanttTasks(tasks, await relations.edges("blocks"))` adds
   each task's `dependencies` with the type and lag from the link's `data`.
-- Tree: `toTreeItems(items, await relations.edges(org, "parent"))` returns
+- Tree: `toTreeItems(items, await relations.edges("parent"))` returns
   the flat `{ [id]: { name, children } }` map a tree view takes, for
   sub-issues or a reporting line.
-- Data Grid: a "Blocked by" column from `of(org, task, "blocked_by")`, and
+- Data Grid: a "Blocked by" column from `of(task, "blocked_by")`, and
   an undo toast from the `undo` token.
 
 The free `c-gantt-*` and `c-tree-*` examples show both views. ReUI's Tempo

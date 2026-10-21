@@ -31,21 +31,15 @@ describe.skipIf(!live)("CRM recipe", () => {
       const watchers = await watching(s);
 
       const { comments, tags, rank } = createBlocks(
-        { transport: sqlTransport(s.sql) },
+        { transport: sqlTransport(s.sql), tenant: organizationId },
         { comments: commentsBlock, tags: tagsBlock, rank: rankBlock },
       );
 
       await s.as(owner);
-      await comments
-        .create({
-          organizationId,
-          subjectType: "deal",
-          subjectId,
-          body: "Sent the renewal quote",
-        })
-        .orThrow();
-      const hot = await tags.create(organizationId, "deal", "Hot").orThrow();
-      await tags.tag(organizationId, "deal", subjectId, hot.id).orThrow();
+      const deal = { type: "deal", id: subjectId };
+      await comments.create(deal, { body: "Sent the renewal quote" }).orThrow();
+      const hot = await tags.create("deal", "Hot").orThrow();
+      await tags.tag(deal, hot.id).orThrow();
       await rank.move("deal", subjectId, { group: "qualified" }).orThrow();
 
       expect(await watchers.relay()).toBeGreaterThanOrEqual(3);

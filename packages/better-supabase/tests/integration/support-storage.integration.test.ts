@@ -685,15 +685,12 @@ create policy bs_it_revocable_insert on storage.objects for insert to authentica
         },
       },
       storage: writer,
+      tenant: ACME,
     });
 
     const put = await attachments.put(
-      {
-        organizationId: ACME,
-        name: "attachment.txt",
-        mimeType: "text/plain",
-        size: 2,
-      },
+      null,
+      { name: "attachment.txt", mimeType: "text/plain", size: 2 },
       text("hi"),
     );
 
@@ -738,6 +735,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
         session: { ...SESSION, targetUserId: OWNER },
         readOnly,
       }),
+      tenant: ACME,
     });
   };
 
@@ -776,12 +774,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
     const attachments = attachmentsAs(false);
 
     const upload = await attachments
-      .upload({
-        organizationId: ACME,
-        name: "plan.pdf",
-        mimeType: "application/pdf",
-        size: 3,
-      })
+      .upload(null, { name: "plan.pdf", mimeType: "application/pdf", size: 3 })
       .orThrow();
 
     created.push(upload.attachment.id);
@@ -821,8 +814,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
       [ACME],
     );
 
-    const upload = await attachmentsAs(true).upload({
-      organizationId: ACME,
+    const upload = await attachmentsAs(true).upload(null, {
       name: "plan.pdf",
       mimeType: "application/pdf",
       size: 3,

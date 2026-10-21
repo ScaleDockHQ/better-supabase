@@ -26,13 +26,10 @@ export const requestApproval = bs.action(
     authorize: (session) => can(session, "approvals.request"),
   },
   async ({ subjectId, action, reason }, { tenant, supabase, auth }) => {
-    const requested = await blocks(supabase).approvals.request({
-      organizationId: tenant,
-      subjectType: APPROVAL_SUBJECT,
-      subjectId,
-      action,
-      reason,
-    });
+    const requested = await blocks(supabase, tenant).approvals.request(
+      { type: APPROVAL_SUBJECT, id: subjectId },
+      { action, reason },
+    );
 
     if (!requested.ok) {
       return requested;

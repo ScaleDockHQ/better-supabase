@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_33_comments.sql
 -- better-supabase module: comments
--- @bs-module comments@6 managed
+-- @bs-module comments@7 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -265,8 +265,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at", x."id"), '[]'::jsonb)
-  from (
+  with page as (
     select * from "better_supabase"."comments" y
     where y."workspace_id" = list_comments.tenant
       and y."subject_type" = list_comments.subject_type
@@ -276,7 +275,9 @@ as $$
     order by y."created_at", y."id"
     limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
     offset greatest(coalesce(list_comments.skip, 0), 0)
-  ) x
+  )
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at", x."id"), '[]'::jsonb)
+  from page x
 $$;
 
 -- Comments per subject the caller can read, for counters in a list:
@@ -440,6 +441,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('comments', 6, 'managed')
+values ('comments', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

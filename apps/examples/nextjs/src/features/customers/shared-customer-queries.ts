@@ -26,7 +26,7 @@ export async function getSharedCustomer(
 
   const link = await blocks(supabase).shareLinks.resolve(token).orThrow();
 
-  if (link?.subjectType !== "customer") {
+  if (link?.subject.type !== "customer") {
     return null;
   }
 
@@ -34,7 +34,7 @@ export async function getSharedCustomer(
     .admin()
     .$client.from("customers")
     .select("name, status")
-    .eq("id", link.subjectId)
+    .eq("id", link.subject.id)
     .eq("organization_id", link.organizationId)
     .maybeSingle();
 

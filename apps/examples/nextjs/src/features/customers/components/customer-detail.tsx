@@ -207,7 +207,6 @@ export async function CustomerDetail({
 
         {can(session, "reactions.read") ? (
           <ReactionsBar
-            organizationId={organizationId}
             customerId={customerId}
             canReact={can(session, "reactions.create")}
           />
@@ -222,7 +221,6 @@ export async function CustomerDetail({
           </CardHeader>
           <CardContent>
             <CommentThread
-              organizationId={organizationId}
               subject={{ type: "customer", id: customer.id }}
               authors={authors}
               canComment={can(session, "comments.create")}
@@ -283,10 +281,7 @@ export async function CustomerDetail({
             <CardTitle>{t("Tags")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <TagInput
-              organizationId={organizationId}
-              subject={{ type: "customer", id: customer.id }}
-            />
+            <TagInput subject={{ type: "customer", id: customer.id }} />
           </CardContent>
         </Card>
         <Card size="sm">

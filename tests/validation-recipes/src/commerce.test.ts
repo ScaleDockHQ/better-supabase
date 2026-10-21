@@ -329,7 +329,7 @@ describe.skipIf(!live)("commerce recipe", () => {
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
         [organizationId, finance.id],
       );
-      const approvals = createApprovals({ transport });
+      const approvals = createApprovals({ transport, tenant: organizationId });
       await s.as(owner);
 
       const small = await orders
@@ -343,13 +343,10 @@ describe.skipIf(!live)("commerce recipe", () => {
       );
 
       const request = await approvals
-        .request({
-          organizationId,
-          subjectType: "order",
-          subjectId: order.id,
-          action: "refund",
-          reason: "Damaged in transit",
-        })
+        .request(
+          { type: "order", id: order.id },
+          { action: "refund", reason: "Damaged in transit" },
+        )
         .orThrow();
 
       await s.as(finance);
@@ -372,7 +369,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       );
       const transport = sqlTransport(s.sql);
       const promotions = createPromotions({ transport });
-      const approvals = createApprovals({ transport });
+      const approvals = createApprovals({ transport, tenant: organizationId });
 
       await s.as(owner);
 
@@ -406,13 +403,10 @@ describe.skipIf(!live)("commerce recipe", () => {
       );
 
       const request = await approvals
-        .request({
-          organizationId,
-          subjectType: "promotion",
-          subjectId: draft.id,
-          action: "activate",
-          reason: "End of season",
-        })
+        .request(
+          { type: "promotion", id: draft.id },
+          { action: "activate", reason: "End of season" },
+        )
         .orThrow();
 
       await s.as(finance);

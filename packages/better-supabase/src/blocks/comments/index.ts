@@ -28,6 +28,8 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export type { Author } from "../../core/block-authors.ts";
+
 export { commentsBlock } from "./manifest.ts";
 
 export { commentsEvents } from "./events.ts";

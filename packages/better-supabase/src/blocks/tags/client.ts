@@ -1,5 +1,6 @@
 import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Tag, Tags } from "./tags.ts";
 
@@ -18,10 +19,8 @@ export interface TagInputControllerOptions {
     "list" | "forSubject" | "tag" | "untag" | "create"
   >;
   readonly auth: AuthPort;
-  /** The organization; the input waits without one. */
-  readonly organizationId: string | null;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  /** The subject whose tags to show; the input waits without one. */
+  readonly subject: SubjectRef | null;
   /** The kind of tags the input offers and creates, such as `customer`. */
   readonly kind: string;
   /** Runs after a tag was added or removed. A throw is kept in `error`. */
@@ -56,8 +55,8 @@ export type TagInputController = Controller<TagInputSnapshot, TagInputActions>;
 const without = (list: readonly string[], id: string): readonly string[] =>
   list.filter((each) => each !== id);
 
-const noOrganization = (): Result<never> =>
-  err(dbError("invalid_input", "No organization is active"));
+const noSubject = (): Result<never> =>
+  err(dbError("invalid_input", "No subject is open"));
 
 /**
  * One subject's tags for a tag input: the tags on it, every tag of the kind for
@@ -67,7 +66,7 @@ const noOrganization = (): Result<never> =>
 export function createTagInputController(
   options: TagInputControllerOptions,
 ): TagInputController {
-  const { client, organizationId, subjectType, subjectId, kind } = options;
+  const { client, subject, kind } = options;
 
   return defineController<TagInputSnapshot, TagInputActions>(
     { tags: undefined, available: undefined, pending: [], error: undefined },
@@ -75,7 +74,7 @@ export function createTagInputController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) {
+        if (subject === null) {
           return;
         }
 
@@ -83,8 +82,8 @@ export function createTagInputController(
         const request = ticket;
 
         const [tags, available] = await Promise.all([
-          client.forSubject(organizationId, subjectType, subjectId),
-          client.list(organizationId, kind),
+          client.forSubject(subject),
+          client.list(kind),
         ]);
 
         if (request !== ticket) {
@@ -114,8 +113,8 @@ export function createTagInputController(
         tag: Tag,
         created: boolean,
       ): Promise<Result<Tag>> => {
-        if (organizationId === null) {
-          return noOrganization();
+        if (subject === null) {
+          return noSubject();
         }
 
         // A load that started before the change would answer without it.
@@ -128,12 +127,7 @@ export function createTagInputController(
           error: undefined,
         }));
 
-        const result = await client.tag(
-          organizationId,
-          subjectType,
-          subjectId,
-          tag.id,
-        );
+        const result = await client.tag(subject, tag.id);
 
         state.set((current) => ({
           pending: without(current.pending, tag.id),
@@ -169,8 +163,8 @@ export function createTagInputController(
             return apply(tag, false);
           },
           remove: async (tagId) => {
-            if (organizationId === null) {
-              return noOrganization();
+            if (subject === null) {
+              return noSubject();
             }
 
             const tag = state.get().tags?.find((each) => each.id === tagId);
@@ -186,12 +180,7 @@ export function createTagInputController(
               error: undefined,
             }));
 
-            const result = await client.untag(
-              organizationId,
-              subjectType,
-              subjectId,
-              tagId,
-            );
+            const result = await client.untag(subject, tagId);
 
             state.set((current) => ({
               pending: without(current.pending, tagId),
@@ -210,8 +199,8 @@ export function createTagInputController(
             return result;
           },
           create: async (name) => {
-            if (organizationId === null) {
-              return noOrganization();
+            if (subject === null) {
+              return noSubject();
             }
 
             const label = name.trim();
@@ -234,7 +223,7 @@ export function createTagInputController(
               pending: [...current.pending, label],
               error: undefined,
             }));
-            const made = await client.create(organizationId, kind, label);
+            const made = await client.create(kind, label);
             state.set((current) => ({
               pending: without(current.pending, label),
               ...(made.ok
@@ -255,7 +244,7 @@ export function createTagInputController(
           },
         },
         start: () =>
-          organizationId === null
+          subject === null
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();

@@ -33,8 +33,7 @@ export const saveField = bs.action(
     { entity, key, label, type, sensitive },
     { tenant, supabase, auth },
   ) => {
-    const saved = await blocks(supabase).customFields.saveDefinition(
-      tenant,
+    const saved = await blocks(supabase, tenant).customFields.saveDefinition(
       entity,
       key,
       label,
@@ -86,8 +85,8 @@ export const moveField = bs.action(
     authorize: (session) => can(session, "custom_fields.manage"),
   },
   async ({ entity, id, direction }, { tenant, supabase, auth }) => {
-    const { customFields } = blocks(supabase);
-    const listed = await customFields.listDefinitions(tenant, entity);
+    const { customFields } = blocks(supabase, tenant);
+    const listed = await customFields.listDefinitions(entity);
 
     if (!listed.ok) {
       return listed;

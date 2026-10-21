@@ -1,5 +1,6 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   Approver,
@@ -8,6 +9,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
@@ -17,6 +19,8 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err } from "../../core/result.ts";
 import {
@@ -31,7 +35,8 @@ import {
 
 export interface ApprovalsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -83,8 +88,7 @@ export interface ApprovalStep {
 export interface ApprovalRequest {
   readonly id: string;
   readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   readonly action: string;
   readonly status: ApprovalStatus;
   /** The current step, from 0. */
@@ -117,9 +121,6 @@ export interface ApprovalRequestDetail extends ApprovalRequest {
 }
 
 export interface ApprovalRequestInput {
-  readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
   /** An action `options.policies` names for the subject type. */
   readonly action: string;
   readonly reason?: string;
@@ -132,18 +133,24 @@ export interface ApprovalListOptions {
   readonly status?: ApprovalStatus | null;
   /** Only requests whose current step the caller can decide. */
   readonly assigned?: boolean;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  /** Only requests on this subject. */
+  readonly subject?: SubjectRef;
   readonly pageSize?: number;
   /** Requests made before this time, for the next page. */
   readonly before?: Temporal.Instant;
 }
 
-/** `F` is the extra request fields `options.fields` describes. */
+/**
+ * `F` is the extra request fields `options.fields` describes. `request` and
+ * `list` act in the block's `tenant`.
+ */
 export interface Approvals<F extends object = Record<never, never>> {
-  /** Files a request under the subject type's policy for the action. */
-  /** Keys besides the input's own are the request's extra columns. */
+  /**
+   * Files a request on `subject` under its type's policy for the action. Keys
+   * besides the input's own are the request's extra columns.
+   */
   request(
+    subject: SubjectRef,
     input: ApprovalRequestInput & Partial<F>,
   ): AsyncResult<ApprovalRequest & F>;
   /** Approves the current step; the last step runs the policy's action. */
@@ -161,15 +168,10 @@ export interface Approvals<F extends object = Record<never, never>> {
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
   /** Newest first. */
   list(
-    organizationId: string,
     options?: ApprovalListOptions,
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
-  isApproved(
-    subjectType: string,
-    subjectId: string,
-    action: string,
-  ): AsyncResult<boolean>;
+  isApproved(subject: SubjectRef, action: string): AsyncResult<boolean>;
 }
 
 const STATUSES: readonly ApprovalStatus[] = [
@@ -239,8 +241,7 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    subjectType: textOf(row["subjectType"]),
-    subjectId: textOf(row["subjectId"]),
+    subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     action: textOf(row["action"]),
     status: statusOf(row["status"]),
     step: Number(row["step"]),
@@ -292,6 +293,8 @@ export function createApprovals<
     "approval request fields",
   );
 
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+
   const one = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -335,8 +338,8 @@ export function createApprovals<
 
       try {
         allowed = await approverOf(approver, {
-          kind: `${request.subjectType}.${request.action}`,
-          subject: request.subjectId,
+          kind: `${request.subject.type}.${request.action}`,
+          subject: request.subject.id,
           tenant: request.organizationId,
           ...(request.requestedBy === undefined
             ? {}
@@ -375,25 +378,19 @@ export function createApprovals<
     );
 
   const client: Approvals<F> = {
-    request: ({
-      organizationId,
-      subjectType,
-      subjectId,
-      action,
-      reason,
-      payload,
-      ...extra
-    }) =>
-      AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
-        one("request_approval", {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          action,
-          reason: reason ?? null,
-          payload: payload ?? {},
-          ...more,
-        }),
+    request: (subject, { action, reason, payload, ...extra }) =>
+      tenant().andThen((organizationId) =>
+        AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
+          one("request_approval", {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            action,
+            reason: reason ?? null,
+            payload: payload ?? {},
+            ...more,
+          }),
+        ),
       ),
     approve: (id, comment) => decide(id, "approved", comment),
     reject: (id, comment) => decide(id, "rejected", comment),
@@ -407,27 +404,29 @@ export function createApprovals<
       ),
     cancel: (id) => one("cancel_approval", { request_id: id }),
     get: getRequest,
-    list: (organizationId, list = {}) =>
-      call(
-        "list_approvals",
-        {
-          tenant: organizationId,
-          status: list.status === undefined ? "pending" : list.status,
-          assigned: list.assigned ?? false,
-          subject_type: list.subjectType ?? null,
-          subject_id: list.subjectId ?? null,
-          page_size: list.pageSize ?? null,
-          before: list.before?.toString() ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_approvals").map(
-            (row) => [row, requestOf(row, "list_approvals")] as const,
-          ),
-      ).andThen((rows) => allWithFields(fields, rows)),
-    isApproved: (subjectType, subjectId, action) =>
+    list: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_approvals",
+          {
+            tenant: organizationId,
+            status: list.status === undefined ? "pending" : list.status,
+            assigned: list.assigned ?? false,
+            subject_type: list.subject?.type ?? null,
+            subject_id: list.subject?.id ?? null,
+            page_size: list.pageSize ?? null,
+            before: list.before?.toString() ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_approvals").map(
+              (row) => [row, requestOf(row, "list_approvals")] as const,
+            ),
+        ).andThen((rows) => allWithFields(fields, rows)),
+      ),
+    isApproved: (subject, action) =>
       call(
         "is_approved",
-        { subject_type: subjectType, subject_id: subjectId, action },
+        { subject_type: subject.type, subject_id: subject.id, action },
         (value) => value === true,
       ),
   };

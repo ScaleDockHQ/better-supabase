@@ -17,10 +17,11 @@ export {
   type Relations,
   type RelationsOptions,
   type RollupInput,
-  type SubjectRef,
   type UnlinkInput,
   type UnlinkResult,
 } from "./relations.ts";
+
+export type { SubjectRef } from "../../schema/types.ts";
 
 export { relationsBlock } from "./manifest.ts";
 

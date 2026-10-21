@@ -179,7 +179,7 @@ export const logTime = bs.action(
         })
         .toInstant();
 
-    const logged = await blocks(supabase).timeTracking.log(tenant, {
+    const logged = await blocks(supabase, tenant).timeTracking.log({
       startedAt: at(input.start),
       endedAt: at(input.end),
       note: input.project,
@@ -206,7 +206,7 @@ export const startTimer = bs.action(
     authorize: (session) => can(session, "time_tracking.track"),
   },
   async ({ project }, { tenant, supabase, auth }) => {
-    const started = await blocks(supabase).timeTracking.start(tenant, {
+    const started = await blocks(supabase, tenant).timeTracking.start({
       note: project,
     });
 
@@ -227,7 +227,7 @@ export const stopTimer = bs.action(
     authorize: (session) => can(session, "time_tracking.track"),
   },
   async (_input, { tenant, supabase, auth }) => {
-    const stopped = await blocks(supabase).timeTracking.stop(tenant);
+    const stopped = await blocks(supabase, tenant).timeTracking.stop();
 
     if (!stopped.ok) {
       return stopped;
@@ -247,8 +247,7 @@ export const submitTimesheet = bs.action(
     authorize: (session) => can(session, "time_tracking.track"),
   },
   async ({ week }, { tenant, supabase, auth }) => {
-    const submitted = await blocks(supabase).timeTracking.submit(
-      tenant,
+    const submitted = await blocks(supabase, tenant).timeTracking.submit(
       Temporal.PlainDate.from(week),
     );
 

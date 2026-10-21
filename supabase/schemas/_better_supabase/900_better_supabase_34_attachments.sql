@@ -1,5 +1,5 @@
 -- better-supabase module: attachments
--- @bs-module attachments@2 managed
+-- @bs-module attachments@3 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -330,6 +330,24 @@ begin
 end;
 $$;
 
+-- The name and avatar of each attachment's uploader, keyed by
+-- attachment id, for the attachments of ids the caller may read.
+create or replace function "better_supabase"."attachment_authors"(ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(y."id"::text, jsonb_build_object('id', pr."id", 'name', coalesce(nullif(pr."full_name", ''), nullif(trim(concat_ws(' ', pr."first_name", pr."last_name")), ''), pr."username"), 'avatarUrl', pr."avatar_url")), '{}'::jsonb)
+  from "better_supabase"."attachments" y
+  join "better_supabase"."profiles" pr on pr."id" = y."uploaded_by"
+  where y."id" = any ($1)
+    and y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read'))
+$$;
+revoke execute on function "better_supabase"."attachment_authors"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."attachment_authors"(uuid[]) to authenticated, service_role;
+
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
@@ -337,11 +355,15 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(a.*) order by a."created_at", a."id"), '[]'::jsonb)
-  from "better_supabase"."attachments" a
-  where a."organization_id" is not distinct from list_attachments.tenant
-    and (list_attachments.subject_type is null or a."subject_type" = list_attachments.subject_type)
-    and (list_attachments.subject_id is null or a."subject_id" = list_attachments.subject_id)
+  with page as (
+    select * from "better_supabase"."attachments" y
+    where y."organization_id" is not distinct from list_attachments.tenant
+      and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
+      and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
+  ),
+  m as (select "better_supabase"."attachment_authors"(array(select p."id" from page p)) as authors)
+  select coalesce(jsonb_agg(to_jsonb(a.*) || jsonb_build_object('author', m.authors -> a."id"::text) order by a."created_at", a."id"), '[]'::jsonb)
+  from page a, m
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -497,6 +519,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 drop function if exists "api"."attachment_subject_readable"(text, text, uuid);
 drop function if exists "api"."attachment_object_allowed"(text, text, text);
 drop function if exists "api"."attachment_object_visible"(text, text);
+drop function if exists "api"."attachment_authors"(uuid[]);
 drop function if exists "api"."object_clean"(text, text);
 
 drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text);

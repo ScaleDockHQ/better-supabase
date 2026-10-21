@@ -325,20 +325,27 @@ resumes it once an eligible approver decides. Without it the token is
 `<runKey>:<node>`, which anyone who knows the run key can guess.
 
 ```ts title="workflows/approval.ts"
+import { createApprovals } from "better-supabase/blocks/approvals";
 import type { GraphApprovalCall } from "better-supabase/blocks/workflow-builder";
 
 export async function requestApproval(call: GraphApprovalCall) {
   "use step";
   const claims = await serviceBuilder.versions.runAs(call.version).orThrow();
-  const request = await serviceApprovals
-    .request({
-      organizationId: String(claims.tenant_id),
-      subjectType: "workflow_run",
-      subjectId: call.runKey,
-      action:
-        typeof call.config.action === "string" ? call.config.action : "approve",
-      payload: { node: call.node },
-    })
+  const approvals = createApprovals({
+    transport: serviceTransport,
+    tenant: String(claims.tenant_id),
+  });
+  const request = await approvals
+    .request(
+      { type: "workflow_run", id: call.runKey },
+      {
+        action:
+          typeof call.config.action === "string"
+            ? call.config.action
+            : "approve",
+        payload: { node: call.node },
+      },
+    )
     .orThrow();
   return request.id;
 }

@@ -1,6 +1,5 @@
 // #region recipe:comment-thread
 import { useComments } from "better-supabase/blocks/comments/react";
-import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -11,19 +10,13 @@ import {
   View,
 } from "react-native";
 
-import { API_SCHEMA } from "../lib/blocks";
-
 /** A customer's comments, oldest first, with a box to add one. */
 export function CommentThread({ customerId }: { readonly customerId: string }) {
-  const organizationId = tenantOf(useAuth());
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
 
   const { comments, error, add } = useComments({
-    organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
-    schema: API_SCHEMA,
+    subject: { type: "customer", id: customerId },
   });
 
   const submit = async () => {

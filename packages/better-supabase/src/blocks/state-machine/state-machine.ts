@@ -1,9 +1,11 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
 import {
   applyTemporal,
   blockCall,
@@ -30,8 +32,7 @@ export interface StateMachineOptions<
 /** Where a record is in its machine, from `state()`. */
 export interface StatusState {
   readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   readonly status: string;
   /** The machine's `order`, empty when it sets none. */
   readonly order: readonly string[];
@@ -83,8 +84,7 @@ export interface StateMachine<S extends string = string> {
    * allow. `not_found` for a record they can't see.
    */
   transition(
-    subjectType: S,
-    subjectId: string,
+    subject: SubjectRef<S>,
     to: string,
     reason?: string,
   ): AsyncResult<boolean>;
@@ -93,41 +93,35 @@ export interface StateMachine<S extends string = string> {
    * until `until` passes, or until `resume()` without one.
    */
   pause(
-    subjectType: S,
-    subjectId: string,
+    subject: SubjectRef<S>,
     options?: { readonly until?: Temporal.Instant; readonly reason?: string },
   ): AsyncResult<boolean>;
   /** Ends a pause; `false` when the record wasn't paused. */
-  resume(subjectType: S, subjectId: string): AsyncResult<boolean>;
+  resume(subject: SubjectRef<S>): AsyncResult<boolean>;
   /**
    * Turns a flag the machine lists in `flags` on or off; `false` when it
    * already was.
    */
   setFlag(
-    subjectType: S,
-    subjectId: string,
+    subject: SubjectRef<S>,
     flag: string,
     enabled: boolean,
   ): AsyncResult<boolean>;
   /** The record's status, progress, flags, pause and pinned version. */
-  state(subjectType: S, subjectId: string): AsyncResult<StatusState>;
+  state(subject: SubjectRef<S>): AsyncResult<StatusState>;
   /**
    * Status changes, newest first; page with the last `createdAt` as `cursor`.
    * Default 50, at most 500.
    */
   history(
-    subjectType: S,
-    subjectId: string,
+    subject: SubjectRef<S>,
     page?: CursorPageOptions<Temporal.Instant>,
   ): AsyncResult<readonly StatusChange[]>;
   /**
    * The stages timeline in display order; empty for a machine without `stages:
    * true`.
    */
-  stages(
-    subjectType: S,
-    subjectId: string,
-  ): AsyncResult<readonly StatusStage[]>;
+  stages(subject: SubjectRef<S>): AsyncResult<readonly StatusStage[]>;
 }
 
 const optionalNumber = (value: unknown): number | undefined =>
@@ -138,8 +132,7 @@ function stateOf(value: unknown): StatusState {
 
   return {
     organizationId: textOf(row["organizationId"]),
-    subjectType: textOf(row["subjectType"]),
-    subjectId: textOf(row["subjectId"]),
+    subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     status: textOf(row["status"]),
     order: stringsOf(row["order"]),
     step: optionalNumber(row["step"]),
@@ -185,61 +178,61 @@ export function createStateMachine<S extends string = string>(
   const isTrue = (value: unknown): boolean => value === true;
 
   const client: StateMachine<S> = {
-    transition: (subjectType, subjectId, to, reason) =>
+    transition: (subject, to, reason) =>
       call(
         "transition",
         {
-          subject_type: subjectType,
-          subject_id: subjectId,
+          subject_type: subject.type,
+          subject_id: subject.id,
           to_status: to,
           reason: reason ?? null,
         },
         isTrue,
       ),
-    pause: (subjectType, subjectId, pause = {}) =>
+    pause: (subject, pause = {}) =>
       call(
         "pause_lifecycle",
         {
-          subject_type: subjectType,
-          subject_id: subjectId,
+          subject_type: subject.type,
+          subject_id: subject.id,
           until: instantArg(pause.until) ?? null,
           reason: pause.reason ?? null,
         },
         isTrue,
       ),
-    resume: (subjectType, subjectId) =>
+    resume: (subject) =>
       call(
         "resume_lifecycle",
-        { subject_type: subjectType, subject_id: subjectId },
+        { subject_type: subject.type, subject_id: subject.id },
         isTrue,
       ),
-    setFlag: (subjectType, subjectId, flag, enabled) =>
+    setFlag: (subject, flag, enabled) =>
       call(
         "set_lifecycle_flag",
-        { subject_type: subjectType, subject_id: subjectId, flag, enabled },
+        { subject_type: subject.type, subject_id: subject.id, flag, enabled },
         isTrue,
       ),
-    state: (subjectType, subjectId) =>
+    state: (subject) =>
       call(
         "status_state",
-        { subject_type: subjectType, subject_id: subjectId },
+        { subject_type: subject.type, subject_id: subject.id },
         stateOf,
       ),
-    history: (subjectType, subjectId, page) =>
+    history: (subject, page) =>
       call(
         "list_status_history",
         {
-          subject_type: subjectType,
-          subject_id: subjectId,
+          subject_type: subject.type,
+          subject_id: subject.id,
           before: instantArg(pageOf(page).cursor),
           max_rows: page?.limit,
         },
         (value) => recordsOf(value, "list_status_history").map(changeOf),
       ),
-    stages: (subjectType, subjectId) =>
+    stages: (subject) =>
       call(
         "list_status_stages",
-        { subject_type: subjectType, subject_id: subjectId },
+        { subject_type: subject.type, subject_id: subject.id },
         (value) => recordsOf(value, "list_status_stages").map(stageOf),
       ),
   };

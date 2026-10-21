@@ -153,11 +153,17 @@ const blockSet = defineBlocks(blockConfig, {
 
 /**
  * The blocks as typed clients over the Data API, acting as the caller of
- * `supabase` (its token, so RLS and each function's checks apply).
+ * `supabase` (its token, so RLS and each function's checks apply). The blocks
+ * that work in one organization act in `tenant`.
  */
-export function blocks(supabase: RpcClient) {
+export function blocks(supabase: RpcClient, tenant?: string | null) {
   const transport = rpcTransport(supabase);
-  const built = blockSet.create({ transport, events: betterSupabase.events });
+
+  const built = blockSet.create({
+    transport,
+    events: betterSupabase.events,
+    tenant: () => tenant,
+  });
 
   return {
     ...built,

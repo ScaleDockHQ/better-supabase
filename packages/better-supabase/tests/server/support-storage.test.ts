@@ -1712,15 +1712,12 @@ describe("clients over supportStorage", () => {
         },
       },
       storage,
+      tenant: "org-1",
     });
 
     const put = await attachments.put(
-      {
-        organizationId: "org-1",
-        name: "note.txt",
-        mimeType: "text/plain",
-        size: 2,
-      },
+      null,
+      { name: "note.txt", mimeType: "text/plain", size: 2 },
       new Blob(["hi"]),
     );
 

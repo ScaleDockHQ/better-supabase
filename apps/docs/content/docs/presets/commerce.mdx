@@ -270,13 +270,7 @@ order:
 const refund = await orders.refund(order.id);
 if (!refund.ok && refund.error.hint === "REFUND_APPROVAL_REQUIRED") {
   await approvals
-    .request({
-      organizationId,
-      subjectType: "order",
-      subjectId: order.id,
-      action: "refund",
-      reason,
-    })
+    .request({ type: "order", id: order.id }, { action: "refund", reason })
     .orThrow();
 }
 ```
@@ -298,13 +292,7 @@ const draft = await promotions
   })
   .orThrow();
 await approvals
-  .request({
-    organizationId,
-    subjectType: "promotion",
-    subjectId: draft.id,
-    action: "activate",
-    reason,
-  })
+  .request({ type: "promotion", id: draft.id }, { action: "activate", reason })
   .orThrow();
 // After approvals.approve(requestId):
 await promotions.setPromotionActive(draft.id, true).orThrow();

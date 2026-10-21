@@ -10,7 +10,7 @@ import type { SessionEncoding } from "../auth/session.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { PublicEnv } from "../env/index.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { BetterClient } from "./bind.ts";
+import type { BetterClient, BindClientOptions } from "./bind.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { EnvValidationError, parseEnv } from "../env/index.ts";
@@ -113,6 +113,13 @@ export interface ClientOptions {
    * and an upload port over Supabase Storage).
    */
   readonly ports?: ClientPorts;
+  /**
+   * `blockConfig` from `blocks.generated.ts`: the block hooks call the schema,
+   * function names and topics `gen` wrote.
+   */
+  readonly blocks?: BindClientOptions["blocks"];
+  /** The tenant the block hooks act in; default the session's tenant claim. */
+  readonly tenant?: BindClientOptions["tenant"];
 }
 
 type UserStorage = NonNullable<
@@ -188,5 +195,7 @@ export function createClient<
       ? {}
       : { staleTime: options.staleTime }),
     ports: { ...webPorts(), upload: storageUpload(supabase), ...options.ports },
+    ...(options.blocks === undefined ? {} : { blocks: options.blocks }),
+    ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
   });
 }

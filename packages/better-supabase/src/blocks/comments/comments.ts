@@ -1,9 +1,11 @@
+import type { Author } from "../../core/block-authors.ts";
 import type {
   BlockFields,
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -14,13 +16,21 @@ import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type {
   AnyFunctions,
   AnyModels,
+  SubjectRef,
   TableKey,
   TableMeta,
 } from "../../schema/types.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
+import { authorOf } from "../../core/block-authors.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  bySubjectType,
+  optionalSubjectRefOf,
+  subjectRefOf,
+} from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
@@ -42,7 +52,8 @@ import {
 
 export interface CommentsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   /**
    * A Standard Schema for the comment's extra columns
    * (`blocks.comments.options.extraColumns`), keyed by database name. It types
@@ -74,10 +85,14 @@ export interface CommentsOptions<
 export interface Comment<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   /** `undefined` once the author's account is deleted. */
   readonly authorId: string | undefined;
+  /**
+   * The author's name and avatar from `profiles`; `undefined` without the
+   * `profiles` module or once the account is deleted.
+   */
+  readonly author: Author | undefined;
   /** Empty for a deleted comment. */
   readonly body: string;
   /** The rich-text document an editor wrote, next to `body` as its plain text. */
@@ -92,9 +107,6 @@ export interface Comment<F extends object = Record<never, never>> {
 }
 
 export interface NewComment<F extends object = Record<never, never>> {
-  readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
   readonly body: string;
   /** A rich-text document (any JSON); keep `body` as its plain text. */
   readonly document?: unknown;
@@ -146,8 +158,7 @@ export interface ActivityEntry {
   readonly organizationId: string;
   readonly type: string;
   readonly actorId: string | undefined;
-  readonly subjectType: string | undefined;
-  readonly subjectId: string | undefined;
+  readonly subject: SubjectRef | undefined;
   readonly summary: string | undefined;
   readonly data: Readonly<Record<string, unknown>>;
   readonly occurredAt: Temporal.Instant;
@@ -176,40 +187,36 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
   readonly offset?: number;
 }
 
-/** `F` is the extra fields `options.fields` describes. */
+/**
+ * `F` is the extra fields `options.fields` describes. Every method acts in the
+ * block's `tenant`.
+ */
 export interface Comments<F extends object = Record<never, never>> {
-  create(comment: NewComment<F>): AsyncResult<Comment<F>>;
+  /** Posts a comment on `subject`. */
+  create(subject: SubjectRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
   /** Only the author edits; `not_found` when the caller can't see it. */
   edit(id: string, edit: CommentEdit<F>): AsyncResult<Comment<F>>;
   /** Soft-deletes (the author, or a member with `comments.moderate`). */
   remove(id: string): AsyncResult<boolean>;
   /** A subject's thread, oldest first, deleted comments as placeholders. */
   list(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     options?: ListCommentsOptions,
   ): AsyncResult<readonly Comment<F>[]>;
   /**
    * How many comments each subject has that the caller can read, deleted ones
-   * left out, such as for a counter on each row of a list. Subjects without
-   * comments are 0.
+   * left out, such as for a counter on each row of a list, keyed by
+   * `subjectKey(subject)` (`type:id`). Subjects without comments are 0.
    */
   counts(
-    organizationId: string,
-    subjectType: string,
-    subjectIds: readonly string[],
+    subjects: readonly SubjectRef[],
   ): AsyncResult<Readonly<Record<string, number>>>;
   /**
    * Copies a subject's thread to another subject in the tenant, keeping
    * authors, times and replies; returns how many comments it copied. Needs a
    * service-role transport.
    */
-  copy(
-    organizationId: string,
-    from: { readonly type: string; readonly id: string },
-    to: { readonly type: string; readonly id: string },
-  ): AsyncResult<number>;
+  copy(from: SubjectRef, to: SubjectRef): AsyncResult<number>;
   /**
    * The activity feed of a tenant, newest first, or one subject's timeline with
    * `subject`. Members with `activity.read` see it. With the `subjects` module,
@@ -221,8 +228,7 @@ export interface Comments<F extends object = Record<never, never>> {
    * read policy allows).
    */
   history(
-    organizationId: string,
-    subject?: { readonly type: string; readonly id: string },
+    subject?: SubjectRef | null,
     options?: ActivityHistoryOptions,
   ): AsyncResult<readonly ActivityEntry[]>;
 }
@@ -250,9 +256,9 @@ function commentOf(value: unknown): Comment {
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
-    subjectType: textOf(row["subject_type"]),
-    subjectId: textOf(row["subject_id"]),
+    subject: subjectRefOf(row["subject_type"], row["subject_id"]),
     authorId: optionalText(row["author_id"]),
+    author: authorOf(row["author"]),
     body: textOf(row["body"] ?? ""),
     document: row["document"] ?? null,
     mentions: stringsOf(row["mentions"]),
@@ -273,8 +279,7 @@ function activityOf(value: unknown): ActivityEntry {
     organizationId: textOf(row["organization_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
-    subjectType: optionalText(row["subject_type"]),
-    subjectId: optionalText(row["subject_id"]),
+    subject: optionalSubjectRefOf(row["subject_type"], row["subject_id"]),
     summary: optionalText(row["summary"]),
     data: isRecord(row["data"]) ? row["data"] : {},
     occurredAt: toInstant(textOf(row["occurred_at"])),
@@ -290,6 +295,7 @@ export function createComments<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "comment fields");
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const mentionsOf = (body: string, rich: unknown): readonly string[] =>
     options.mentionsOf
@@ -297,26 +303,29 @@ export function createComments<
       : mentionsIn(body);
 
   const client: Comments<F> = {
-    create: (comment) =>
-      fields
-        .args(comment.fields)
-        .andThen((checked) =>
-          call(
-            "create_comment",
-            {
-              tenant: comment.organizationId,
-              subject_type: comment.subjectType,
-              subject_id: comment.subjectId,
-              body: comment.body,
-              mentions:
-                comment.mentions ?? mentionsOf(comment.body, comment.document),
-              parent: comment.parentId,
-              document: comment.document,
-              fields: checked,
-            },
-            commentOf,
-          ).andThen(fields.row),
-        ),
+    create: (subject, comment) =>
+      tenant().andThen((organizationId) =>
+        fields
+          .args(comment.fields)
+          .andThen((checked) =>
+            call(
+              "create_comment",
+              {
+                tenant: organizationId,
+                subject_type: subject.type,
+                subject_id: subject.id,
+                body: comment.body,
+                mentions:
+                  comment.mentions ??
+                  mentionsOf(comment.body, comment.document),
+                parent: comment.parentId,
+                document: comment.document,
+                fields: checked,
+              },
+              commentOf,
+            ).andThen(fields.row),
+          ),
+      ),
     edit: (id, edit) =>
       fields
         .args(edit.fields)
@@ -343,60 +352,66 @@ export function createComments<
           ),
         ),
     remove: (id) => call("delete_comment", { id }, (value) => value === true),
-    list: (organizationId, subjectType, subjectId, list = {}) =>
-      call(
-        "list_comments",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          after: instantArg(pageOf(list).cursor),
-          max_rows: list.limit,
-          skip: list.offset,
-          after_id: list.cursorId,
-        },
-        (value) => recordsOf(value, "list_comments").map(commentOf),
-      ).andThen(fields.rows),
-    counts: (organizationId, subjectType, subjectIds) =>
-      call(
-        "comment_counts",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_ids: [...subjectIds],
-        },
-        (value) => {
-          const found = isRecord(value) ? value : {};
+    list: (subject, list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_comments",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            after: instantArg(pageOf(list).cursor),
+            max_rows: list.limit,
+            skip: list.offset,
+            after_id: list.cursorId,
+          },
+          (value) => recordsOf(value, "list_comments").map(commentOf),
+        ).andThen(fields.rows),
+      ),
+    counts: (subjects) =>
+      tenant().andThen((organizationId) =>
+        bySubjectType(subjects, (type, ids) =>
+          call(
+            "comment_counts",
+            { tenant: organizationId, subject_type: type, subject_ids: ids },
+            (value) => {
+              const found = isRecord(value) ? value : {};
 
-          return Object.fromEntries(
-            subjectIds.map((id) => [id, Number(found[id] ?? 0)]),
-          );
-        },
+              return Object.fromEntries(
+                ids.map((id) => [id, Number(found[id] ?? 0)]),
+              );
+            },
+          ),
+        ),
       ),
-    copy: (organizationId, from, to) =>
-      call(
-        "copy_comments",
-        {
-          tenant: organizationId,
-          from_type: from.type,
-          from_id: from.id,
-          to_type: to.type,
-          to_id: to.id,
-        },
-        (value) => Number(value ?? 0),
+    copy: (from, to) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "copy_comments",
+          {
+            tenant: organizationId,
+            from_type: from.type,
+            from_id: from.id,
+            to_type: to.type,
+            to_id: to.id,
+          },
+          (value) => Number(value ?? 0),
+        ),
       ),
-    history: (organizationId, subject, history = {}) =>
-      call(
-        "list_activity",
-        {
-          tenant: organizationId,
-          subject_type: subject?.type,
-          subject_id: subject?.id,
-          before: instantArg(pageOf(history).cursor),
-          max_rows: history.limit,
-          sources: history.sources ? [...history.sources] : undefined,
-        },
-        (value) => recordsOf(value, "list_activity").map(activityOf),
+    history: (subject, history = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_activity",
+          {
+            tenant: organizationId,
+            subject_type: subject?.type,
+            subject_id: subject?.id,
+            before: instantArg(pageOf(history).cursor),
+            max_rows: history.limit,
+            sources: history.sources ? [...history.sources] : undefined,
+          },
+          (value) => recordsOf(value, "list_activity").map(activityOf),
+        ),
       ),
   };
 

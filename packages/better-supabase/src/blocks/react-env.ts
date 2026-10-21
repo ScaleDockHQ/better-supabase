@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useSyncExternalStore } from "react";
 
 import type { BlockEnv } from "./block-env.ts";
 
@@ -23,4 +23,11 @@ export function useBlockEnv(): BlockEnv {
   const { client } = value;
 
   return useMemo(() => blockEnv(client), [client]);
+}
+
+/** The env's tenant, rendered again when the session changes. */
+export function useBlockTenant(env: BlockEnv): string | undefined {
+  return useSyncExternalStore(env.auth.subscribe, env.tenant, () =>
+    env.tenant(),
+  );
 }

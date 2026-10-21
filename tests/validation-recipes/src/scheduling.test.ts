@@ -35,7 +35,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
       const watchers = await watching(s);
 
       const { customFields, reminders, stateMachine } = createBlocks(
-        { transport: sqlTransport(s.sql) },
+        { transport: sqlTransport(s.sql), tenant: organizationId },
         {
           notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),
@@ -48,19 +48,19 @@ describe.skipIf(!live)("scheduling recipe", () => {
 
       await s.as(owner);
       await stateMachine
-        .transition("booking", subjectId, "confirmed")
+        .transition({ type: "booking", id: subjectId }, "confirmed")
         .orThrow();
 
       const room = await customFields
-        .saveDefinition(organizationId, "booking", "room", "Room", "text")
+        .saveDefinition("booking", "room", "Room", "text")
         .orThrow();
 
       await customFields
-        .setValue(organizationId, "booking", subjectId, room.id, "Atlas")
+        .setValue({ type: "booking", id: subjectId }, room.id, "Atlas")
         .orThrow();
 
       const reminder = await reminders
-        .save(organizationId, "booking", subjectId, 15)
+        .save({ type: "booking", id: subjectId }, 15)
         .orThrow();
 
       await watchers.relay();
@@ -71,8 +71,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
         occurrenceAt: "2026-10-20T09:00:00Z",
         organizationId,
         userId: owner.id,
-        subjectType: "booking",
-        subjectId,
+        subject: { type: "booking", id: subjectId },
       };
 
       expect(await reminders.deliver(delivery).orThrow()).toBe(true);
@@ -86,7 +85,10 @@ describe.skipIf(!live)("scheduling recipe", () => {
       expect(await received(s, owner, subjectId)).toEqual(["reminder.due"]);
       await s.as(owner);
       expect(
-        await stateMachine.transition("booking", subjectId, "requested"),
+        await stateMachine.transition(
+          { type: "booking", id: subjectId },
+          "requested",
+        ),
       ).toMatchObject({ ok: false });
     });
   });

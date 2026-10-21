@@ -1,5 +1,6 @@
 "use client";
 
+import { subjectKey } from "better-supabase/blocks";
 import { useReactions } from "better-supabase/blocks/reactions/react";
 import { TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -14,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 // #region recipe:reactions-bar
 
@@ -25,27 +25,23 @@ const EMOJIS = ["👍", "🎉", "❤️", "👀", "🚀"] as const;
  * when anyone in the organization reacts (the `reactions` topic).
  */
 export function ReactionsBar({
-  organizationId,
   customerId,
   canReact,
 }: {
-  organizationId: string;
   customerId: string;
   canReact: boolean;
 }) {
   const t = useExtracted("customers");
   const [busy, setBusy] = useState<string | null>(null);
 
+  const subject = { type: "customer", id: customerId };
+
   const { reactions, error, toggle, refresh } = useReactions({
-    organizationId,
-    subjectType: "customer",
-    subjectIds: [customerId],
-    topic: blockConfig.reactions.options.topic,
-    schema: blockConfig.reactions.api,
+    subjects: [subject],
   });
 
   const counts = new Map(
-    (reactions?.[customerId] ?? []).map((each) => [each.emoji, each]),
+    (reactions?.[subjectKey(subject)] ?? []).map((each) => [each.emoji, each]),
   );
 
   const total = [...counts.values()].reduce((sum, each) => sum + each.count, 0);
@@ -98,7 +94,7 @@ export function ReactionsBar({
                     disabled={!canReact || busy !== null}
                     onClick={() => {
                       setBusy(emoji);
-                      void toggle(customerId, emoji).finally(() => {
+                      void toggle(subject, emoji).finally(() => {
                         setBusy(null);
                       });
                     }}

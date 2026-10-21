@@ -71,10 +71,14 @@ describe("block fields", () => {
       },
     });
 
-    const tags = createTags({ transport: fake.transport, fields: Fields });
+    const tags = createTags({
+      transport: fake.transport,
+      fields: Fields,
+      tenant: "o",
+    });
 
     const tag = await tags
-      .create("o", "label", "Urgent", undefined, undefined, {
+      .create("label", "Urgent", undefined, undefined, {
         priority: "high",
         points: 3,
       })
@@ -178,9 +182,10 @@ describe("block fields", () => {
 
     const policy = await createSla({
       transport: fake.transport,
+      tenant: "o",
       fields: Fields,
     })
-      .savePolicy("o", {
+      .savePolicy({
         subjectType: "ticket",
         name: "Urgent",
         fields: { priority: "high", points: 1 },
@@ -286,8 +291,9 @@ describe("block fields", () => {
     const link = await createShareLinks({
       transport: fake.transport,
       fields: Fields,
+      tenant: "o",
     })
-      .create("o", "deal", "d1", { fields: value })
+      .create({ type: "deal", id: "d1" }, { fields: value })
       .orThrow();
 
     expect(link.fields).toEqual(value);
@@ -295,17 +301,17 @@ describe("block fields", () => {
     const time = createTimeTracking({
       transport: fake.transport,
       fields: Fields,
+      tenant: "o",
     });
 
-    await time.start("o", { fields: value }).orThrow();
+    await time.start({ fields: value }).orThrow();
     await time.update("e1", { note: "n", fields: value }).orThrow();
-    await createVersions({ transport: fake.transport, fields: Fields })
-      .snapshot({
-        organizationId: "o",
-        subjectType: "deal",
-        subjectId: "d1",
-        fields: value,
-      })
+    await createVersions({
+      transport: fake.transport,
+      fields: Fields,
+      tenant: "o",
+    })
+      .snapshot({ type: "deal", id: "d1" }, { fields: value })
       .orThrow();
     await createWaitlist({ transport: fake.transport, fields: Fields })
       .join("a@b.c", { fields: value })
@@ -440,7 +446,7 @@ describe("block hooks", () => {
       createStateMachine({
         transport: fake.transport,
         hooks: { resume: { before: () => refusal } },
-      }).resume("deal", "d1"),
+      }).resume({ type: "deal", id: "d1" }),
       createUndo({
         transport: fake.transport,
         hooks: { apply: { before: () => refusal } },

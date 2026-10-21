@@ -122,11 +122,11 @@ export async function loadTimesheet(
     return null;
   }
 
-  const { timeTracking } = blocks(supabase);
+  const { timeTracking } = blocks(supabase, tenant);
 
   const [sheet, running] = await Promise.all([
-    timeTracking.timesheet(tenant, Temporal.PlainDate.from(week)).orThrow(),
-    timeTracking.running(tenant).orThrow(),
+    timeTracking.timesheet(Temporal.PlainDate.from(week)).orThrow(),
+    timeTracking.running().orThrow(),
   ]);
 
   const labels = new Map(

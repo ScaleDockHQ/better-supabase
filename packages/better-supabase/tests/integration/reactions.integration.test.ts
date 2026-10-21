@@ -51,8 +51,16 @@ describe.skipIf(!live)("reactions", () => {
       const stranger = await s.user("stranger");
       const tenant = await s.organization(owner, { member });
       await s.organization(stranger);
-      const reactions = createReactions({ transport: sqlTransport(s.sql) });
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      const reactions = createReactions({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       await s.service();
 
@@ -64,34 +72,40 @@ describe.skipIf(!live)("reactions", () => {
       )[0]!.id;
 
       await s.asRole(member);
-      expect(await reactions.react(tenant, "doc", doc, "👍").orThrow()).toEqual(
-        [{ emoji: "👍", count: 1, reacted: true, actors: [member.id] }],
-      );
+      expect(
+        await reactions.react({ type: "doc", id: doc }, "👍").orThrow(),
+      ).toEqual([
+        { emoji: "👍", count: 1, reacted: true, actors: [member.id] },
+      ]);
       await s.asRole(owner);
-      await reactions.react(tenant, "doc", doc, "👍").orThrow();
-      await reactions.react(tenant, "doc", doc, "👍").orThrow();
-      const after = await reactions.react(tenant, "doc", doc, "🎉").orThrow();
+      await reactions.react({ type: "doc", id: doc }, "👍").orThrow();
+      await reactions.react({ type: "doc", id: doc }, "👍").orThrow();
+
+      const after = await reactions
+        .react({ type: "doc", id: doc }, "🎉")
+        .orThrow();
+
       expect(after.map((row) => [row.emoji, row.count])).toEqual([
         ["👍", 2],
         ["🎉", 1],
       ]);
       expect(
         await reactions
-          .react(tenant, "doc", doc, ":ship-it:")
+          .react({ type: "doc", id: doc }, ":ship-it:")
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_INVALID");
       await reactions
-        .saveCustomEmoji(tenant, {
+        .saveCustomEmoji({
           shortcode: "ship-it",
           url: "https://cdn.test/ship.png",
         })
         .orThrow();
-      await reactions.react(tenant, "doc", doc, ":ship-it:").orThrow();
+      await reactions.react({ type: "doc", id: doc }, ":ship-it:").orThrow();
 
       await s.asRole(member);
       expect(
         await reactions
-          .saveCustomEmoji(tenant, {
+          .saveCustomEmoji({
             shortcode: "nope",
             url: "https://cdn.test/nope.png",
           })
@@ -99,7 +113,7 @@ describe.skipIf(!live)("reactions", () => {
       ).toBe("REACTION_FORBIDDEN");
 
       const removed = await reactions
-        .react(tenant, "doc", doc, "👍", { present: false })
+        .react({ type: "doc", id: doc }, "👍", { present: false })
         .orThrow();
 
       expect(removed.find((row) => row.emoji === "👍")).toMatchObject({
@@ -108,46 +122,50 @@ describe.skipIf(!live)("reactions", () => {
       });
       expect(
         await reactions
-          .react(tenant, "missing", doc, "👍")
+          .react({ type: "missing", id: doc }, "👍")
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
 
       const comment = await comments
-        .create({
-          organizationId: tenant,
-          subjectType: "doc",
-          subjectId: doc,
-          body: "Looks good",
-        })
+        .create({ type: "doc", id: doc }, { body: "Looks good" })
         .orThrow();
 
-      await reactions.react(tenant, "comment", comment.id, "👀").orThrow();
+      await reactions
+        .react({ type: "comment", id: comment.id }, "👀")
+        .orThrow();
 
       const summary = await reactions
-        .summary(tenant, "comment", [comment.id, "nope"])
+        .summary([
+          { type: "comment", id: comment.id },
+          { type: "comment", id: "nope" },
+        ])
         .orThrow();
 
-      expect(summary[comment.id]).toEqual([
+      expect(summary[`comment:${comment.id}`]).toEqual([
         { emoji: "👀", count: 1, reacted: true, actors: [member.id] },
       ]);
-      expect(summary["nope"]).toEqual([]);
+      expect(summary["comment:nope"]).toEqual([]);
 
       await s.asRole(stranger);
       expect(
         await reactions
-          .react(tenant, "doc", doc, "👍")
+          .react({ type: "doc", id: doc }, "👍")
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
       expect(
-        (await reactions.summary(tenant, "doc", [doc]).orThrow())[doc],
+        (await reactions.summary([{ type: "doc", id: doc }]).orThrow())[
+          `doc:${doc}`
+        ],
       ).toEqual([]);
 
       await s.asRole(owner);
-      const [emoji] = await reactions.customEmoji(tenant).orThrow();
+      const [emoji] = await reactions.customEmoji().orThrow();
       expect(emoji).toMatchObject({ shortcode: "ship-it" });
       expect(await reactions.deleteCustomEmoji(emoji!.id).orThrow()).toBe(true);
       expect(
-        (await reactions.summary(tenant, "doc", [doc]).orThrow())[doc]
+        (await reactions.summary([{ type: "doc", id: doc }]).orThrow())[
+          `doc:${doc}`
+        ]
           ?.map((row) => row.emoji)
           .toSorted(),
       ).toEqual(["🎉", "👍"]);
@@ -177,7 +195,11 @@ describe.skipIf(!live)("reactions", () => {
       const visitor = await s.user("visitor");
       const tenant = await s.organization(owner);
       const inbox = createInbox({ transport: sqlTransport(s.sql) });
-      const reactions = createReactions({ transport: sqlTransport(s.sql) });
+
+      const reactions = createReactions({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       await s.asRole(owner);
 
@@ -215,7 +237,7 @@ describe.skipIf(!live)("reactions", () => {
       await s.asRole(owner);
 
       const counts = await reactions
-        .react(tenant, "inbox_message", reply.id, "🎉")
+        .react({ type: "inbox_message", id: reply.id }, "🎉")
         .orThrow();
 
       expect(counts.map((row) => row.emoji).toSorted()).toEqual(["🎉", "👍"]);

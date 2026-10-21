@@ -20,7 +20,7 @@ import {
 
 `options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
 
-`reminders.save(organizationId, subjectType, subjectId, offsetMinutes)` sets a reminder for the caller, `reminders.list(organizationId, subjectType, subjectId)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+`reminders.save(subject, offsetMinutes)` sets a reminder for the caller, `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `SubjectRef`, such as `{ type: "task", id: taskId }`, and `save` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
 
 `expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
 
@@ -81,9 +81,10 @@ export default defineConfig({
 ```ts
 const client = createReminders({
   transport,
+  tenant: organizationId,
   fields: v.object({ channel: v.optional(v.picklist(["email", "push"])) }),
 });
-await client.save(organizationId, "task", taskId, 30, { channel: "push" });
+await client.save({ type: "task", id: taskId }, 30, { channel: "push" });
 ```
 
 ## Adopt mode

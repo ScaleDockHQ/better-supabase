@@ -1,3 +1,4 @@
+import type { SubjectRef } from "../../schema/types.ts";
 import type { ExpandInput } from "./rrule.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
@@ -29,8 +30,7 @@ export interface DeliveryPayload {
    * The reminded subject, from `list_reminder_schedule`; its watchers are
    * notified too.
    */
-  readonly subjectType?: string;
-  readonly subjectId?: string;
+  readonly subject?: SubjectRef;
 }
 
 /**

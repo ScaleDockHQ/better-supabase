@@ -418,6 +418,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "jsonb-schemas",
         "notifications",
+        "profiles",
         "subjects",
         "audit",
         "workflows"
@@ -481,7 +482,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "access"
       ],
-      "integrates": [],
+      "integrates": [
+        "profiles"
+      ],
       "manifest": "attachments",
       "scopes": [
         "tenant"
@@ -2832,11 +2835,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "input": {
             "title": "NewAttachment",
             "fields": {
-              "organizationId": {
-                "kind": "uuid",
-                "nullable": true,
-                "description": "`null` for a subject type with `tenant: false`."
-              },
               "name": {
                 "kind": "string",
                 "minLength": 1,
@@ -2850,17 +2848,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "integer",
                 "minimum": 0
               },
-              "subjectType": {
-                "kind": "string",
-                "optional": true,
-                "minLength": 1
-              },
-              "subjectId": {
-                "kind": "string",
-                "optional": true,
-                "minLength": 1,
-                "maxLength": 200
-              },
               "metadata": {
                 "kind": "json",
                 "optional": true
@@ -2871,14 +2858,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "NewAttachment",
               "type": "object",
               "properties": {
-                "organizationId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid",
-                  "description": "`null` for a subject type with `tenant: false`."
-                },
                 "name": {
                   "type": "string",
                   "minLength": 1,
@@ -2892,19 +2871,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "integer",
                   "minimum": 0
                 },
-                "subjectType": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "subjectId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
                 "metadata": {}
               },
               "required": [
-                "organizationId",
                 "name",
                 "mimeType",
                 "size"
@@ -3601,18 +3570,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "input": {
             "title": "NewComment",
             "fields": {
-              "organizationId": {
-                "kind": "uuid"
-              },
-              "subjectType": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "subjectId": {
-                "kind": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
               "body": {
                 "kind": "string",
                 "minLength": 1
@@ -3642,19 +3599,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "NewComment",
               "type": "object",
               "properties": {
-                "organizationId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "subjectType": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "subjectId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
                 "body": {
                   "type": "string",
                   "minLength": 1
@@ -3678,9 +3622,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 }
               },
               "required": [
-                "organizationId",
-                "subjectType",
-                "subjectId",
                 "body"
               ],
               "additionalProperties": false

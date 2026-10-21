@@ -7,11 +7,14 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { JsonPatchOperation, JsonValue } from "./json-patch.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { subjectRefOf } from "../../core/block-subjects.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -49,8 +52,7 @@ const SOURCES: readonly VersionSource[] = ["manual", "auto", "restore"];
 export interface Version<F extends object = Record<never, never>> {
   readonly id: string;
   readonly number: number;
-  readonly subjectType: string;
-  readonly subjectId: string;
+  readonly subject: SubjectRef;
   /** A named version is kept out of retention. */
   readonly label?: string;
   readonly source: VersionSource;
@@ -67,9 +69,6 @@ export interface Version<F extends object = Record<never, never>> {
 }
 
 export interface SnapshotInput<F extends object = Record<never, never>> {
-  readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
   /**
    * The content to keep. Leave it out to copy the subject's `columns`
    * (`blocks.versions.options.subjects.<type>.columns`).
@@ -104,13 +103,19 @@ export interface VersionListOptions {
   readonly before?: number;
 }
 
+/**
+ * `F` is the extra fields `options.fields` describes. `snapshot` and `list` act
+ * in the block's `tenant`.
+ */
 export interface Versions<F extends object = Record<never, never>> {
-  snapshot(input: SnapshotInput<F>): AsyncResult<SnapshotResult>;
-  /** Newest first, without content. */
+  /** Records a version of `subject`. */
+  snapshot(
+    subject: SubjectRef,
+    input?: SnapshotInput<F>,
+  ): AsyncResult<SnapshotResult>;
+  /** A subject's versions, newest first, without content. */
   list(
-    organizationId: string,
-    subjectType: string,
-    subjectId: string,
+    subject: SubjectRef,
     options?: VersionListOptions,
   ): AsyncResult<readonly Version<F>[]>;
   get(id: string): AsyncResult<Version<F>>;
@@ -146,8 +151,7 @@ function versionOf(value: unknown, fn: string): Version {
   return {
     id: textOf(row["id"]),
     number: Number(row["number"]),
-    subjectType: textOf(row["subjectType"]),
-    subjectId: textOf(row["subjectId"]),
+    subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     source: enumOrThrow(row["source"], SOURCES, "version source"),
     frozen: row["frozen"] === true,
     contentHash: textOf(row["contentHash"]),
@@ -194,6 +198,7 @@ export function createVersions<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "version fields");
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const get = (id: string): AsyncResult<Version<F>> =>
     call("get_version", { version_id: id }, (value) =>
@@ -207,39 +212,43 @@ export function createVersions<
           ? null
           : versionOf(value, "get_shared_version"),
       ),
-    snapshot: (input) =>
-      fields
-        .args(input.fields)
-        .andThen((checked) =>
-          call(
-            "snapshot_version",
-            {
-              tenant: input.organizationId,
-              subject_type: input.subjectType,
-              subject_id: input.subjectId,
-              content: input.content ?? null,
-              label: input.label ?? null,
-              storage_path: input.storagePath ?? null,
-              fields: checked,
-            },
-            (value) => snapshotOf(value, "snapshot_version"),
+    snapshot: (subject, input = {}) =>
+      tenant().andThen((organizationId) =>
+        fields
+          .args(input.fields)
+          .andThen((checked) =>
+            call(
+              "snapshot_version",
+              {
+                tenant: organizationId,
+                subject_type: subject.type,
+                subject_id: subject.id,
+                content: input.content ?? null,
+                label: input.label ?? null,
+                storage_path: input.storagePath ?? null,
+                fields: checked,
+              },
+              (value) => snapshotOf(value, "snapshot_version"),
+            ),
           ),
-        ),
-    list: (organizationId, subjectType, subjectId, page = {}) =>
-      call(
-        "list_versions",
-        {
-          tenant: organizationId,
-          subject_type: subjectType,
-          subject_id: subjectId,
-          page_size: page.pageSize ?? null,
-          before: page.before ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_versions").map((row) =>
-            versionOf(row, "list_versions"),
-          ),
-      ).andThen(fields.rows),
+      ),
+    list: (subject, page = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_versions",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            page_size: page.pageSize ?? null,
+            before: page.before ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_versions").map((row) =>
+              versionOf(row, "list_versions"),
+            ),
+        ).andThen(fields.rows),
+      ),
     get,
     restore: (id) => call("restore_version", { version_id: id }, restoreOf),
     restoreFields: (id, fields) =>

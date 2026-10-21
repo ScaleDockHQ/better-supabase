@@ -76,17 +76,15 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
         viewer: reviewer,
       });
 
-      const approvals = createApprovals({ transport: sqlTransport(s.sql) });
+      const approvals = createApprovals({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
 
       await s.service();
 
       const request = await approvals
-        .request({
-          organizationId: tenant,
-          subjectType: "refund",
-          subjectId: "r-1",
-          action: "approve",
-        })
+        .request({ type: "refund", id: "r-1" }, { action: "approve" })
         .orThrow();
 
       const canDecide = async () =>

@@ -91,22 +91,26 @@ describe.skipIf(!live)("comments", () => {
       );
 
       const subject = project!.id;
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
 
       await s.asRole(member);
 
       const first = await comments
-        .create({
-          organizationId: organization,
-          subjectType: "project",
-          subjectId: subject,
-          body: `Ready for review @[Owner](${owner.id}) @[Me](${member.id}) @[Out](${outsider.id})`,
-        })
+        .create(
+          { type: "project", id: subject },
+          {
+            body: `Ready for review @[Owner](${owner.id}) @[Me](${member.id}) @[Out](${outsider.id})`,
+          },
+        )
         .orThrow();
 
       expect(first).toMatchObject({
         organizationId: organization,
-        subjectType: "project",
+        subject: { type: "project", id: subject },
         authorId: member.id,
         parentId: undefined,
         editedAt: undefined,
@@ -117,37 +121,30 @@ describe.skipIf(!live)("comments", () => {
       expect(await s.value("auth.uid()")).toBe(member.id);
       expect(await s.value("auth.role()")).toBe("authenticated");
 
-      const missing = await comments.create({
-        organizationId: organization,
-        subjectType: "project",
-        subjectId: crypto.randomUUID(),
-        body: "No such project",
-      });
+      const missing = await comments.create(
+        { type: "project", id: crypto.randomUUID() },
+        { body: "No such project" },
+      );
 
       expect(missing).toMatchObject({
         ok: false,
         error: { kind: "forbidden" },
       });
 
-      const unknown = await comments.create({
-        organizationId: organization,
-        subjectType: "invoice",
-        subjectId: subject,
-        body: "Not a subject type",
-      });
+      const unknown = await comments.create(
+        { type: "invoice", id: subject },
+        { body: "Not a subject type" },
+      );
 
       expect(unknown).toMatchObject({ ok: false });
 
       await s.asRole(owner);
 
       const reply = await comments
-        .create({
-          organizationId: organization,
-          subjectType: "project",
-          subjectId: subject,
-          body: "Looks good",
-          parentId: first.id,
-        })
+        .create(
+          { type: "project", id: subject },
+          { body: "Looks good", parentId: first.id },
+        )
         .orThrow();
 
       expect(reply.parentId).toBe(first.id);
@@ -181,7 +178,7 @@ describe.skipIf(!live)("comments", () => {
       ).toMatchObject({ ok: false, error: { kind: "not_found" } });
 
       const thread = await comments
-        .list(organization, "project", subject)
+        .list({ type: "project", id: subject })
         .orThrow();
 
       expect(thread.map((comment) => comment.id)).toEqual([first.id, reply.id]);
@@ -189,7 +186,7 @@ describe.skipIf(!live)("comments", () => {
       await s.asRole(viewer);
       // Viewers can read neither comments (no comments.read) nor create.
       expect(
-        await comments.list(organization, "project", subject).orThrow(),
+        await comments.list({ type: "project", id: subject }).orThrow(),
       ).toEqual([]);
 
       await s.asRole(owner);
@@ -197,7 +194,7 @@ describe.skipIf(!live)("comments", () => {
       expect(await comments.remove(first.id).orThrow()).toBe(false);
 
       const after = await comments
-        .list(organization, "project", subject)
+        .list({ type: "project", id: subject })
         .orThrow();
 
       expect(after[0]).toMatchObject({ body: "", mentions: [] });
@@ -205,7 +202,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.asRole(outsider);
       expect(
-        await comments.list(organization, "project", subject).orThrow(),
+        await comments.list({ type: "project", id: subject }).orThrow(),
       ).toEqual([]);
 
       await s.service();
@@ -338,15 +335,17 @@ describe.skipIf(!live)("comments", () => {
         [organization, owner.id],
       );
 
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
+
       await s.asRole(author);
       await comments
-        .create({
-          organizationId: organization,
-          subjectType: "task",
-          subjectId: task!.id,
-          body: `@[Owner](${owner.id}) @[Member](${member.id})`,
-        })
+        .create(
+          { type: "task", id: task!.id },
+          { body: `@[Owner](${owner.id}) @[Member](${member.id})` },
+        )
         .orThrow();
       await s.service();
 
@@ -371,12 +370,10 @@ describe.skipIf(!live)("comments", () => {
       );
       await s.asRole(author);
       await comments
-        .create({
-          organizationId: organization,
-          subjectType: "task",
-          subjectId: task!.id,
-          body: `Again @[Owner](${owner.id})`,
-        })
+        .create(
+          { type: "task", id: task!.id },
+          { body: `Again @[Owner](${owner.id})` },
+        )
         .orThrow();
       await s.service();
       expect(
@@ -440,17 +437,16 @@ describe.skipIf(!live)("comments", () => {
         [organization, owner.id],
       );
 
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
+
       await s.asRole(owner);
 
       for (const task of tasks) {
         await comments
-          .create({
-            organizationId: organization,
-            subjectType: "task",
-            subjectId: task.id,
-            body: "Checked",
-          })
+          .create({ type: "task", id: task.id }, { body: "Checked" })
           .orThrow();
       }
 
@@ -512,7 +508,11 @@ describe.skipIf(!live)("comments", () => {
           crypto.randomUUID(),
         ],
       );
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
 
       const recipients = async () => {
         await s.service();
@@ -531,12 +531,10 @@ describe.skipIf(!live)("comments", () => {
       await s.asRole(owner);
 
       const comment = await comments
-        .create({
-          organizationId: organization,
-          subjectType: "project",
-          subjectId: "p1",
-          body: `Team @[Team](${team}) and @[Elsewhere](${elsewhere})`,
-        })
+        .create(
+          { type: "project", id: "p1" },
+          { body: `Team @[Team](${team}) and @[Elsewhere](${elsewhere})` },
+        )
         .orThrow();
 
       expect(comment.mentions).toEqual([team, elsewhere].toSorted());
@@ -595,19 +593,20 @@ describe.skipIf(!live)("comments", () => {
         [organization],
       );
 
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
 
-      const input = {
-        organizationId: organization,
-        subjectType: "deal",
-        subjectId: deal!.id,
-        body: "Pricing looks right",
-      };
+      const subject = { type: "deal", id: deal!.id };
+      const input = { body: "Pricing looks right" };
 
       await s.asRole(member);
-      expect(await comments.create(input)).toMatchObject({ ok: false });
+      expect(await comments.create(subject, input)).toMatchObject({
+        ok: false,
+      });
       await s.asRole(owner);
-      const created = await comments.create(input).orThrow();
+      const created = await comments.create(subject, input).orThrow();
       await s.asRole(member);
       expect(
         await s.value<number>(
@@ -622,24 +621,24 @@ describe.skipIf(!live)("comments", () => {
           [created.id],
         ),
       ).toBe(1);
-      await comments.create({ ...input, body: "Second" }).orThrow();
-      await comments.create({ ...input, body: "Third" }).orThrow();
+      await comments.create(subject, { body: "Second" }).orThrow();
+      await comments.create(subject, { body: "Third" }).orThrow();
       expect(
         (
           await comments
-            .list(organization, "deal", deal!.id, { offset: 1, limit: 1 })
+            .list({ type: "deal", id: deal!.id }, { offset: 1, limit: 1 })
             .orThrow()
         ).map((comment) => comment.body),
       ).toEqual(["Second"]);
       expect(
         await comments
-          .counts(organization, "deal", [deal!.id, "missing"])
+          .counts([subject, { type: "deal", id: "missing" }])
           .orThrow(),
-      ).toEqual({ [deal!.id]: 3, missing: 0 });
+      ).toEqual({ [`deal:${deal!.id}`]: 3, "deal:missing": 0 });
       await s.asRole(member);
-      expect(
-        await comments.counts(organization, "deal", [deal!.id]).orThrow(),
-      ).toEqual({ [deal!.id]: 0 });
+      expect(await comments.counts([subject]).orThrow()).toEqual({
+        [`deal:${deal!.id}`]: 0,
+      });
     } finally {
       await s.close();
     }
@@ -679,6 +678,7 @@ describe.skipIf(!live)("comments", () => {
 
       const comments = createComments({
         transport: sqlTransport(s.sql),
+        tenant: organization,
         mentionsOf: ({ document }) =>
           JSON.stringify(document ?? {}).includes(owner.id) ? [owner.id] : [],
       });
@@ -691,25 +691,19 @@ describe.skipIf(!live)("comments", () => {
       await s.asRole(member);
 
       const root = await comments
-        .create({
-          organizationId: organization,
-          subjectType: "quote",
-          subjectId: from!.id,
-          body: "Check this",
-          document,
-        })
+        .create(
+          { type: "quote", id: from!.id },
+          { body: "Check this", document },
+        )
         .orThrow();
 
       expect(root.document).toEqual(document);
       expect(root.mentions).toEqual([owner.id]);
       await comments
-        .create({
-          organizationId: organization,
-          subjectType: "quote",
-          subjectId: from!.id,
-          body: "Done",
-          parentId: root.id,
-        })
+        .create(
+          { type: "quote", id: from!.id },
+          { body: "Done", parentId: root.id },
+        )
         .orThrow();
       const edited = await comments.edit(root.id, { body: "Plain" }).orThrow();
       expect(edited.document).toEqual(document);
@@ -722,7 +716,6 @@ describe.skipIf(!live)("comments", () => {
       expect(
         (
           await comments.copy(
-            organization,
             { type: "quote", id: from!.id },
             { type: "quote", id: to!.id },
           )
@@ -732,17 +725,13 @@ describe.skipIf(!live)("comments", () => {
       await s.service();
       expect(
         await comments
-          .copy(
-            organization,
-            { type: "quote", id: from!.id },
-            { type: "quote", id: to!.id },
-          )
+          .copy({ type: "quote", id: from!.id }, { type: "quote", id: to!.id })
           .orThrow(),
       ).toBe(2);
       await s.asRole(member);
 
       const copied = await comments
-        .list(organization, "quote", to!.id)
+        .list({ type: "quote", id: to!.id })
         .orThrow();
 
       expect(copied.map((comment) => comment.body)).toEqual(["Plain", "Done"]);
@@ -773,7 +762,7 @@ describe.skipIf(!live)("comments", () => {
       await s.asRole(owner);
 
       const timeline = await comments
-        .history(organization, { type: "quote", id: to!.id })
+        .history({ type: "quote", id: to!.id })
         .orThrow();
 
       expect(timeline.map((entry) => entry.type)).toEqual([
@@ -782,7 +771,7 @@ describe.skipIf(!live)("comments", () => {
       ]);
 
       const page = await comments
-        .history(organization, undefined, {
+        .history(undefined, {
           cursor: Temporal.Instant.from("2026-10-06T10:30:00Z"),
           limit: 1,
         })
@@ -849,12 +838,16 @@ describe.skipIf(!live)("comments", () => {
           ],
         },
       ]);
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
 
       await s.asRole(admin);
 
       const timeline = await comments
-        .history(organization, { type: "quote", id: open!.id })
+        .history({ type: "quote", id: open!.id })
         .orThrow();
 
       expect(
@@ -865,23 +858,20 @@ describe.skipIf(!live)("comments", () => {
       const audited = timeline.find((item) => item.source === "audit");
       expect(audited).toMatchObject({
         organizationId: organization,
-        subjectType: "quote",
-        subjectId: open!.id,
+        subject: { type: "quote", id: open!.id },
         data: { op: "insert", table: "public.bs_test_activity_quotes" },
       });
       expect(
-        await comments
-          .history(organization, { type: "quote", id: mine!.id })
-          .orThrow(),
+        await comments.history({ type: "quote", id: mine!.id }).orThrow(),
       ).toEqual([]);
-      const feed = await comments.history(organization).orThrow();
+      const feed = await comments.history().orThrow();
 
       const byText = (
         a: string | null | undefined,
         b: string | null | undefined,
       ): number => (a ?? "").localeCompare(b ?? "");
 
-      expect(feed.map((item) => item.subjectId).toSorted(byText)).toEqual(
+      expect(feed.map((item) => item.subject?.id).toSorted(byText)).toEqual(
         [open!.id, "t1"].toSorted(byText),
       );
       expect(feed.every((item) => item.source === "event")).toBe(true);
@@ -893,11 +883,9 @@ describe.skipIf(!live)("comments", () => {
 
       await s.asRole(member);
       expect(
-        (
-          await comments
-            .history(organization, { type: "quote", id: open!.id })
-            .orThrow()
-        ).map((item) => item.source),
+        (await comments.history({ type: "quote", id: open!.id }).orThrow()).map(
+          (item) => item.source,
+        ),
       ).toEqual(["event"]);
 
       await s.service();
@@ -908,12 +896,10 @@ describe.skipIf(!live)("comments", () => {
       );
       await s.asRole(member);
       await comments
-        .create({
-          organizationId: organization,
-          subjectType: "quote",
-          subjectId: open!.id,
-          body: `@[Owner](${owner.id}) @[Admin](${admin.id})`,
-        })
+        .create(
+          { type: "quote", id: open!.id },
+          { body: `@[Owner](${owner.id}) @[Admin](${admin.id})` },
+        )
         .orThrow();
       await s.service();
 
@@ -999,12 +985,15 @@ describe.skipIf(!live)("comments", () => {
         );
       }
 
-      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
 
       await s.asRole(owner);
 
       const timeline = await comments
-        .history(organization, { type: "deal", id: open!.id })
+        .history({ type: "deal", id: open!.id })
         .orThrow();
 
       expect(timeline.map((item) => `${item.source} ${item.type}`)).toEqual([
@@ -1014,8 +1003,7 @@ describe.skipIf(!live)("comments", () => {
       ]);
       expect(timeline[0]).toMatchObject({
         organizationId: organization,
-        subjectType: "deal",
-        subjectId: open!.id,
+        subject: { type: "deal", id: open!.id },
         data: { definition: "close-deal", status: "completed" },
       });
       expect(timeline[1]).toMatchObject({
@@ -1032,7 +1020,6 @@ describe.skipIf(!live)("comments", () => {
         (
           await comments
             .history(
-              organization,
               { type: "deal", id: open!.id },
               { sources: ["delivery", "event"] },
             )
@@ -1040,23 +1027,17 @@ describe.skipIf(!live)("comments", () => {
         ).map((item) => item.source),
       ).toEqual(["delivery", "event"]);
       expect(
-        await comments
-          .history(organization, { type: "deal", id: mine!.id })
-          .orThrow(),
+        await comments.history({ type: "deal", id: mine!.id }).orThrow(),
       ).toEqual([]);
       expect(
-        (await comments.history(organization).orThrow()).map(
-          (item) => item.source,
-        ),
+        (await comments.history().orThrow()).map((item) => item.source),
       ).toEqual(["event"]);
 
       await s.asRole(admin);
       expect(
-        (
-          await comments
-            .history(organization, { type: "deal", id: open!.id })
-            .orThrow()
-        ).map((item) => item.source),
+        (await comments.history({ type: "deal", id: open!.id }).orThrow()).map(
+          (item) => item.source,
+        ),
       ).toEqual(["delivery", "event"]);
 
       await s.asRole(stranger);

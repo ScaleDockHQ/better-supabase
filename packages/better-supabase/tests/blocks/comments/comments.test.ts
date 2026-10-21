@@ -14,6 +14,8 @@ import { defineSchema } from "../../../src/schema/define.ts";
 const ADA = "8c5a3d3e-0000-4000-8000-000000000001";
 const BOB = "8c5a3d3e-0000-4000-8000-000000000002";
 
+const PROJECT = { type: "project", id: "p1" };
+
 const row = {
   id: "c1",
   organization_id: "org-1",
@@ -67,34 +69,25 @@ describe("createComments", () => {
     const comments = createComments({
       transport: fake.transport,
       schema: "app",
+      tenant: () => "org-1",
     });
 
     const comment = await comments
-      .create({
-        organizationId: "org-1",
-        subjectType: "project",
-        subjectId: "p1",
-        body: `Hello @[Bob](${BOB})`,
-      })
+      .create(PROJECT, { body: `Hello @[Bob](${BOB})` })
       .orThrow();
 
     expect(comment).toMatchObject({
       id: "c1",
+      subject: PROJECT,
       authorId: ADA,
+      author: undefined,
       mentions: [BOB],
       parentId: undefined,
       editedAt: undefined,
     });
     expect(comment.createdAt.toString()).toBe("2026-10-06T12:00:00Z");
     await comments
-      .create({
-        organizationId: "org-1",
-        subjectType: "project",
-        subjectId: "p1",
-        body: "Reply",
-        mentions: [],
-        parentId: "c0",
-      })
+      .create(PROJECT, { body: "Reply", mentions: [], parentId: "c0" })
       .orThrow();
     expect(fake.calls).toEqual([
       [
@@ -197,17 +190,12 @@ describe("createComments", () => {
 
     const comments = createComments({
       transport: fake.transport,
+      tenant: "org-1",
       mentionsOf: ({ document }) => (document ? [ADA] : []),
     });
 
     const created = await comments
-      .create({
-        organizationId: "org-1",
-        subjectType: "project",
-        subjectId: "p1",
-        body: "Hi",
-        document: { type: "doc" },
-      })
+      .create(PROJECT, { body: "Hi", document: { type: "doc" } })
       .orThrow();
 
     expect(created.document).toEqual({ type: "doc" });
@@ -222,11 +210,7 @@ describe("createComments", () => {
     });
     expect(
       await comments
-        .copy(
-          "org-1",
-          { type: "quote", id: "q1" },
-          { type: "invoice", id: "i1" },
-        )
+        .copy({ type: "quote", id: "q1" }, { type: "invoice", id: "i1" })
         .orThrow(),
     ).toBe(3);
     expect(fake.calls[2]![2]).toEqual({
@@ -239,7 +223,6 @@ describe("createComments", () => {
 
     const history = await comments
       .history(
-        "org-1",
         { type: "quote", id: "q1" },
         { cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"), limit: 2 },
       )
@@ -249,10 +232,14 @@ describe("createComments", () => {
       source: "event",
       type: "quote.sent",
       actorId: ADA,
-      subjectId: "q1",
+      subject: { type: "quote", id: "q1" },
       data: { total: 10 },
     });
-    expect(history[1]).toMatchObject({ actorId: undefined, data: {} });
+    expect(history[1]).toMatchObject({
+      actorId: undefined,
+      subject: undefined,
+      data: {},
+    });
     expect(history[2]).toMatchObject({
       id: "42",
       source: "audit",
@@ -275,11 +262,15 @@ describe("createComments", () => {
       ],
     });
 
-    const comments = createComments({ transport: fake.transport });
+    const comments = createComments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
     expect(await comments.remove("c1").orThrow()).toBe(true);
 
     const thread = await comments
-      .list("org-1", "project", "p1", {
+      .list(PROJECT, {
         cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
         limit: 20,
       })
@@ -308,8 +299,12 @@ describe("createComments", () => {
   it("passes the last comment's id with the cursor", async () => {
     const fake = fakeTransport({ list_comments: [] });
 
-    const comments = createComments({ transport: fake.transport });
-    await comments.list("org-1", "project", "p1", {
+    const comments = createComments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await comments.list(PROJECT, {
       cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
       cursorId: "c1",
     });
@@ -325,12 +320,18 @@ describe("createComments", () => {
       comment_counts: { p1: 3, p9: "2" },
     });
 
-    const comments = createComments({ transport: fake.transport });
-    await comments.list("org-1", "project", "p1", { offset: 40, limit: 20 });
+    const comments = createComments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await comments.list(PROJECT, { offset: 40, limit: 20 });
     expect(fake.calls[0]![2]).toMatchObject({ skip: 40, max_rows: 20 });
     expect(
-      await comments.counts("org-1", "project", ["p1", "p2", "p9"]).orThrow(),
-    ).toEqual({ p1: 3, p2: 0, p9: 2 });
+      await comments
+        .counts(["p1", "p2", "p9", "p1"].map((id) => ({ type: "project", id })))
+        .orThrow(),
+    ).toEqual({ "project:p1": 3, "project:p2": 0, "project:p9": 2 });
     expect(fake.calls[1]).toEqual([
       "better_supabase",
       "comment_counts",
@@ -340,6 +341,35 @@ describe("createComments", () => {
         subject_ids: ["p1", "p2", "p9"],
       },
     ]);
+  });
+
+  it("fails without a tenant and reads the author from the row", async () => {
+    const fake = fakeTransport({
+      list_comments: [
+        { ...row, author: { id: ADA, name: "Ada", avatarUrl: null } },
+      ],
+    });
+
+    const session: { tenant?: string } = {};
+
+    const comments = createComments({
+      transport: fake.transport,
+      tenant: () => session.tenant,
+    });
+
+    expect(await comments.list(PROJECT)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
+    });
+    expect(fake.calls).toHaveLength(0);
+    session.tenant = "org-2";
+    const [comment] = await comments.list(PROJECT).orThrow();
+    expect(comment?.author).toEqual({
+      id: ADA,
+      name: "Ada",
+      avatarUrl: undefined,
+    });
+    expect(fake.calls[0]![2]).toMatchObject({ tenant: "org-2" });
   });
 
   it("maps database errors to DbError", async () => {
