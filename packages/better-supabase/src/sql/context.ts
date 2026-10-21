@@ -7,15 +7,17 @@ import type {
 } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
-import type { TenantNames } from "../core/tenant-naming.ts";
+import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
+import type { ResolvedNames } from "./resolved-names.ts";
 import type { ModuleScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveModule } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { tenantNames } from "../core/tenant-naming.ts";
+import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 
@@ -86,8 +88,43 @@ export interface ModuleTableLifecycle {
   readonly credentialSubject?: "app" | "user";
 }
 
+/**
+ * What makes an entity a `config.subjects` entry when the block is installed.
+ * Columns are the table's logical columns; permissions are module actions.
+ */
+export interface ModuleEntitySubject {
+  readonly title: string;
+  readonly deletedAt?: string;
+  readonly permissions: { readonly read: string; readonly write: string };
+  readonly rank?: { readonly column: string; readonly group: string };
+  readonly search?: {
+    readonly title: string;
+    readonly body: readonly string[];
+  };
+  readonly url?: string;
+  readonly cascade?: boolean;
+}
+
+/**
+ * A noun the module names its tables, functions, events, permissions and hooks
+ * after (`work_item`), renamed through `blocks.<name>.entities`.
+ */
+export interface ModuleEntitySpec {
+  /** The logical table that holds the entity; global entities may have none. */
+  readonly table?: string;
+  readonly singular: string;
+  /** Defaults to the English plural of `singular`. */
+  readonly plural?: string;
+  /** The entity `entities: "<noun>"` renames. */
+  readonly primary?: boolean;
+  /** Renamed in every module, not only this one (the tenant). */
+  readonly global?: boolean;
+  readonly subject?: ModuleEntitySubject;
+}
+
 export interface ModuleNames {
   readonly tables: Readonly<Record<string, ModuleTableSpec>>;
+  readonly entities?: Readonly<Record<string, ModuleEntitySpec>>;
   /**
    * The `before_*` and `after_*` hooks the module calls, so
    * `blocks.<name>.hooks.functions` is checked.
@@ -269,11 +306,21 @@ export interface ModuleContext {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: ModuleScope;
-  /** The tenant concept's names (`sql.naming.tenant`). */
-  readonly naming: TenantNames;
+  /**
+   * The module's final names: its entities as `blocks.<name>.entities` and
+   * `blocks.tenant.entities.organization` rename them.
+   */
+  readonly resolved: ResolvedNames;
+  /** The renamer every default name goes through (`resolved.naming`). */
+  readonly naming: EntityNames;
+  /**
+   * Every configured block's entity renames as one, for names that span blocks,
+   * such as the permission keys in the default roles.
+   */
+  blockNaming(): EntityNames;
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
-   * `sql.naming` and `blocks.<name>.functions` rename it.
+   * `blocks.<name>.entities` and `blocks.<name>.functions` rename it.
    */
   fn(name: string): string;
   /** The unquoted name a module function is written under (see `fn`). */
@@ -455,8 +502,6 @@ export interface ModuleContextSource {
   readonly providerIdType?: ModuleIdType;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
-  /** `sql.naming.tenant`. */
-  readonly tenantName?: string;
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -619,7 +664,8 @@ export function createModuleContext(
     );
   }
 
-  const naming = tenantNames(source.tenantName);
+  const resolved = resolveNames(module, names, modules);
+  const { naming, entityNaming } = resolved;
   // blocks.access.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
   const renames = module === "access" ? {} : config.functions;
@@ -736,7 +782,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ?? name,
+      config.hooks.functions[name] ?? entityNaming.rename(name),
       config.hooks.schema,
     );
 
@@ -802,8 +848,38 @@ export function createModuleContext(
     }
   };
 
-  const outbox = (event: ModuleEmit): string => {
-    checkEvent(event);
+  // The written event: its type, subject collection and payload keys follow
+  // the module's entity renames.
+  const renamed = <E extends ModuleEmit>(event: E): E => {
+    if (!entityNaming.renamed) {
+      return event;
+    }
+
+    const spec = names.events?.[event.type];
+    const prefix = spec === undefined ? undefined : `'${spec.subject}/`;
+
+    const payload = (spec?.payload ?? []).reduce(
+      (expression, key) =>
+        expression.replaceAll(`'${key}'`, `'${entityNaming.rename(key)}'`),
+      event.payload,
+    );
+
+    const subject =
+      prefix !== undefined && event.subject?.startsWith(prefix) === true
+        ? `'${entityNaming.rename(spec?.subject ?? "")}/${event.subject.slice(prefix.length)}`
+        : event.subject;
+
+    return {
+      ...event,
+      type: entityNaming.rename(event.type),
+      payload,
+      ...(subject === undefined ? {} : { subject }),
+    };
+  };
+
+  const outbox = (checked: ModuleEmit): string => {
+    checkEvent(checked);
+    const event = renamed(checked);
 
     if (!config.events || !installed.has("outbox")) {
       return "";
@@ -828,7 +904,8 @@ export function createModuleContext(
     ].join(", ")});`;
   };
 
-  const auditEntry = (action: ModuleAction): string => {
+  const auditEntry = (checked: ModuleAction): string => {
+    const action = renamed(checked);
     const audit = action.audit;
 
     if (!audit || !config.audit || !installed.has("audit")) {
@@ -853,7 +930,10 @@ export function createModuleContext(
     const args: [string, string | undefined][] = [
       ["event_type", sqlString(action.type)],
       ["category", sqlString(legacy ?? audit.category)],
-      ["target_type", audit.targetType && sqlString(audit.targetType)],
+      [
+        "target_type",
+        audit.targetType && sqlString(entityNaming.rename(audit.targetType)),
+      ],
       ["record_id", audit.recordId],
       ["target_label", audit.targetLabel],
       ["summary", audit.summary],
@@ -932,7 +1012,19 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     appTables: new Set(source.appTables),
     scope,
+    resolved,
     naming,
+    blockNaming: () =>
+      composeNames(
+        ...Object.entries(modules).flatMap(([name, block]) => {
+          const known =
+            block?.entities === undefined ? undefined : namesOf(name);
+
+          return known === undefined
+            ? []
+            : [resolveNames(name, known, modules).entityNaming];
+        }),
+      ),
     modules,
     manages: config.mode === "managed",
     names,
@@ -979,9 +1071,10 @@ export function createModuleContext(
 
       return config.tables[table] !== null;
     },
-    permissionKey: (action, fallback) => config.permissions[action] ?? fallback,
+    permissionKey: (action, fallback) =>
+      config.permissions[action] ?? entityNaming.rename(fallback),
     permission: (action, fallback) =>
-      sqlString(config.permissions[action] ?? fallback),
+      sqlString(config.permissions[action] ?? entityNaming.rename(fallback)),
     trigger: (name) => sqlIdent(`bs_${naming.rename(name)}`),
     installed(name) {
       declares(name);

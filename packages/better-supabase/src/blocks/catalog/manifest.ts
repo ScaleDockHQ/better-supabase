@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { createCatalog } from "./catalog.ts";
 import { catalogEvents } from "./events.ts";
 import { catalogSqlOptions } from "./options.ts";
+import { productInputSchema } from "./schemas.ts";
 
 /** The `catalog` block's manifest (ADR 0029). */
 export const catalogBlock: BlockOf<
@@ -19,4 +20,5 @@ export const catalogBlock: BlockOf<
   create: createCatalog,
   category: "commerce",
   recipes: ["product-catalog-grid"],
+  schemas: { product: { input: productInputSchema } },
 });

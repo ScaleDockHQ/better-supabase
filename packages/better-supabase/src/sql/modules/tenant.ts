@@ -556,6 +556,7 @@ export const TENANT: ModuleDefinition = {
   modes: ["managed", "adopt", "custom"],
   names: {
     options: ["claimFormat", "roleThrough", "sameTenant"],
+    entities: { organization: { singular: "organization", global: true } },
     tables: {
       memberships: {
         name: "memberships",

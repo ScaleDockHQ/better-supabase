@@ -1,5 +1,6 @@
 import type { EventMap, Events } from "../core/block-events.ts";
 import type { BlockContext } from "./create-blocks.ts";
+import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
@@ -62,6 +63,9 @@ export type BlockOptionSchemas = Readonly<Record<string, BlockOptionsSchema>>;
 
 type Nothing = Record<never, never>;
 
+/** Event pattern to the read methods it makes stale. */
+export type BlockInvalidates = Readonly<Record<string, readonly string[]>>;
+
 /** What `defineBlock` takes. */
 export interface BlockDefinition<
   Name extends string,
@@ -87,6 +91,17 @@ export interface BlockDefinition<
   readonly category: BlockCategory;
   /** UI recipe slugs on `/recipes`. */
   readonly recipes?: readonly string[];
+  /**
+   * Standard Schemas for what the client takes, by entity key: the create
+   * input, update change and list filter (`entitySchema`).
+   */
+  readonly schemas?: BlockSchemas;
+  /**
+   * The read methods each event pattern (`"work_item.*"`) makes stale, for
+   * `invalidateOnBlockEvents`. An event no pattern matches makes every read
+   * method of the block stale.
+   */
+  readonly invalidates?: BlockInvalidates;
 }
 
 /**
@@ -120,6 +135,14 @@ export interface Block<
   readonly client: string | undefined;
   readonly category: BlockCategory;
   readonly recipes: readonly string[];
+  /** Standard Schemas for what the client takes, by entity key. */
+  readonly schemas: BlockSchemas;
+  /**
+   * The read methods each event pattern (`"work_item.*"`) makes stale, for
+   * `invalidateOnBlockEvents`. An event no pattern matches makes every read
+   * method of the block stale.
+   */
+  readonly invalidates: BlockInvalidates;
   /**
    * The options `with` set, passed to `create` and the providers over the
    * shared ones.
@@ -156,6 +179,8 @@ export interface AnyBlock {
   readonly client: string | undefined;
   readonly category: BlockCategory;
   readonly recipes: readonly string[];
+  readonly schemas?: BlockSchemas;
+  readonly invalidates?: BlockInvalidates;
   readonly settings: object;
   with(settings: never): AnyBlock;
   using(create: never): AnyBlock;
@@ -246,6 +271,8 @@ function blockOf<
     client: parts.client,
     category: parts.category,
     recipes: parts.recipes ?? [],
+    schemas: parts.schemas ?? {},
+    invalidates: parts.invalidates ?? {},
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),

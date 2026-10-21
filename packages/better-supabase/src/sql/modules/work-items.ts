@@ -8,6 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./work-items-functions.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   fail,
@@ -44,6 +45,22 @@ const EVENTS: ModuleEvents<WorkItemsEvents> = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
+  entities: {
+    work_item: {
+      table: "items",
+      singular: "work_item",
+      primary: true,
+      subject: {
+        title: "title",
+        deletedAt: "archivedAt",
+        permissions: { read: "read", write: "write" },
+        rank: { column: "rank", group: "stage" },
+        search: { title: "title", body: ["identifier", "body"] },
+      },
+    },
+    project: { table: "projects", singular: "project" },
+    iteration: { table: "iterations", singular: "iteration" },
+  },
   hooks: [
     "before_work_item_create",
     "after_work_item_create",
@@ -183,7 +200,7 @@ create table if not exists ${t("iterations")} (
   ${i("createdAt")} timestamptz not null default now(),
   check (${i("endsOn")} >= ${i("startsOn")})
 );
-create index if not exists iterations_tenant_idx on ${t("iterations")} (${i("tenant")}, ${i("team")}, ${i("startsOn")});
+create index if not exists ${ctx.naming.rename("iterations_tenant_idx")} on ${t("iterations")} (${i("tenant")}, ${i("team")}, ${i("startsOn")});
 ${lockTable(t("iterations"), { read: true })}
 ${read("iterations")}
 `
@@ -222,11 +239,11 @@ create table if not exists ${t("items")} (
   unique (${w("tenant")}, ${w("number")}),
   check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})
 );
-create index if not exists work_items_board_idx on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
-create index if not exists work_items_parent_idx on ${t("items")} (${w("parent")});
-create index if not exists work_items_project_idx on ${t("items")} (${w("project")});
-create index if not exists work_items_iteration_idx on ${t("items")} (${w("iteration")});
-create index if not exists work_items_due_idx on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
+create index if not exists ${ctx.naming.rename("work_items_board_idx")} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
+create index if not exists ${ctx.naming.rename("work_items_parent_idx")} on ${t("items")} (${w("parent")});
+create index if not exists ${ctx.naming.rename("work_items_project_idx")} on ${t("items")} (${w("project")});
+create index if not exists ${ctx.naming.rename("work_items_iteration_idx")} on ${t("items")} (${w("iteration")});
+create index if not exists ${ctx.naming.rename("work_items_due_idx")} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
 ${lockTable(t("items"), { read: true })}
 ${read("items")}
 
@@ -237,7 +254,7 @@ create table if not exists ${t("assignees")} (
   ${a("createdAt")} timestamptz not null default now(),
   primary key (${a("item")}, ${a("user")})
 );
-create index if not exists work_item_assignees_user_idx on ${t("assignees")} (${a("user")});
+create index if not exists ${ctx.naming.rename("work_item_assignees_user_idx")} on ${t("assignees")} (${a("user")});
 ${lockTable(t("assignees"), { read: true })}
 ${read("assignees")}
 `;
@@ -251,9 +268,10 @@ ${read("assignees")}
 function guard(ctx: ModuleContext, n: WorkItemNames): string {
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
+  const guardName = ctx.naming.rename("bs_work_item_guard");
 
   const payload = (extra: string): string =>
-    `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', 'work_item', 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
+    `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.e("work_item"))}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
 
   const subject = `'work-items/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
@@ -264,7 +282,7 @@ function guard(ctx: ModuleContext, n: WorkItemNames): string {
     .join(" or ");
 
   return `
-create or replace function better_supabase.bs_work_item_guard()
+create or replace function better_supabase.${guardName}()
 returns trigger
 language plpgsql
 security definer
@@ -315,10 +333,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bs_work_item_guard()")}
-drop trigger if exists bs_work_item_guard on ${t("items")};
-create trigger bs_work_item_guard before insert or update on ${t("items")}
-for each row execute function better_supabase.bs_work_item_guard();
+${triggerGrant(`better_supabase.${guardName}()`)}
+drop trigger if exists ${guardName} on ${t("items")};
+create trigger ${guardName} before insert or update on ${t("items")}
+for each row execute function better_supabase.${guardName}();
 `;
 }
 
@@ -347,6 +365,7 @@ function build(ctx: ModuleContext): string {
     maxAssignees,
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("items", ["fields"]),
+    e: (name) => ctx.resolved.entityNaming.rename(name),
   };
 
   return `${schemaPreamble(ctx)}

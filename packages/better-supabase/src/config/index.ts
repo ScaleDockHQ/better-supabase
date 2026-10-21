@@ -13,15 +13,35 @@ export { resolveJsonSchema } from "./json.ts";
 export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
 
 export type {
+  AppTableNames,
+  BlockTableReference,
+  BucketName,
+  ConfigReferences,
+  RoleNames,
+  TypedReference,
+} from "./references.ts";
+
+export type { ExpandedConfig } from "../preset/config.ts";
+
+export type {
   ActorConfig,
   Casing,
   ClaimsConfig,
   CodecsConfig,
   GeneratedFile,
   Generator,
+  GeneratorBlock,
+  GeneratorBlockEntity,
   GeneratorColumn,
+  GeneratorEntitySchemas,
+  GeneratorField,
+  GeneratorFunction,
+  GeneratorFunctionArg,
   GeneratorInput,
+  GeneratorInputSchema,
+  GeneratorJsonSchema,
   GeneratorModel,
+  GeneratorNoun,
   GeneratorTable,
   JsonSchemaSource,
   JsonTypeConfig,
@@ -141,10 +161,15 @@ export type {
   AnyBlocksConfig,
   BlockScope,
   BlocksConfig,
-  SqlNaming,
+  EntitiesConfig,
+  EntityConfig,
 } from "./blocks.ts";
 
-export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+export { blockEntities, blockEntityRenames } from "./block-subjects.ts";
+
+export type { BlockEntity } from "./block-subjects.ts";
+
+export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
 
 export type * from "./snapshot.ts";
 
@@ -161,6 +186,13 @@ export {
   type JsonSchemaGeneratorOptions,
   type JsonSchemaTarget,
 } from "../generators/json-schema.ts";
+
+export {
+  factories,
+  type FactoriesGeneratorOptions,
+} from "../generators/factories.ts";
+
+export { nuqs, type NuqsGeneratorOptions } from "../generators/nuqs.ts";
 
 export {
   standardSchema,

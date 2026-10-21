@@ -1,5 +1,4 @@
 import type { Money } from "../../commerce/money.ts";
-import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -10,7 +9,6 @@ import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -585,25 +583,4 @@ export function createEmployees<
     block: "employees",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-/**
- * The `config.subjects` entry for employees, so comments, files, tags and
- * search attach to them. Pass `schema` when the module isn't in
- * `better_supabase`.
- */
-export function employeesSubjects(
-  options: { readonly schema?: string; readonly url?: string } = {},
-): { readonly employee: SubjectConfig } {
-  return {
-    employee: {
-      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.employees`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "name",
-      permissions: { read: "employees.read", write: "employees.write" },
-      search: { title: "name", body: ["email", "job_title"] },
-      ...(options.url === undefined ? {} : { url: options.url }),
-    },
-  };
 }

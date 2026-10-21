@@ -12,6 +12,7 @@ export type ScalarKind =
   | { readonly kind: "datetime" }
   | { readonly kind: "date" }
   | { readonly kind: "instant" }
+  | { readonly kind: "plainDate" }
   | { readonly kind: "plainDateTime" }
   | { readonly kind: "bigint" }
   | { readonly kind: "json" }
@@ -87,6 +88,10 @@ function scalarJsonSchema(
 
     case "instant": {
       return { type: "string", format: "date-time" };
+    }
+
+    case "plainDate": {
+      return { type: "string", format: "date" };
     }
 
     case "plainDateTime": {
@@ -173,6 +178,11 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   };
 
   return field.readOnly ? { ...schema, readOnly: true } : schema;
+}
+
+/** The JSON Schema for one field, with its array, null, bounds and docs. */
+export function fieldJsonSchema(field: FieldSpec): JsonSchema {
+  return propertySchema(field, scalarJsonSchema(field));
 }
 
 /**

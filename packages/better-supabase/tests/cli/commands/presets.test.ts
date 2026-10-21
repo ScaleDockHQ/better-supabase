@@ -752,11 +752,9 @@ describe("init --preset", () => {
 
     expect(config).toContain("  casing: 'snake',");
     expect(config).not.toContain("preset:");
+    expect(config).toContain("  sql: { workflow: 'migra' },");
     expect(config).toContain(
-      "  sql: { workflow: 'migra', naming: { tenant: 'club' } },",
-    );
-    expect(config).toContain(
-      "  blocks: { access: { model: 'catalog', idType: 'bigint' } },",
+      "  blocks: { access: { model: 'catalog', idType: 'bigint' }, tenant: { entities: { organization: 'club' } } },",
     );
     expect(
       (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,

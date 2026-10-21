@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Catalog } from "../../../src/blocks/catalog/index.ts";
 
-import {
-  catalogSubjects,
-  createCatalog,
-} from "../../../src/blocks/catalog/index.ts";
+import { createCatalog } from "../../../src/blocks/catalog/index.ts";
 import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
@@ -257,16 +254,6 @@ describe("catalog block", () => {
 
     await catalog.deleteProduct("p1").orThrow();
     expect(seen).toEqual(["before p1", "after catalog true"]);
-  });
-
-  it("describes products and variants as subjects with search columns", () => {
-    const subjects = catalogSubjects({ schema: "shop" });
-    expect(subjects["product"]).toMatchObject({
-      table: "shop.products",
-      tenant: "tenant_id",
-      search: { title: "title", body: ["description", "slug"] },
-    });
-    expect(subjects["product_variant"]?.title).toBe("sku");
   });
 
   it("calls one function per method", async () => {

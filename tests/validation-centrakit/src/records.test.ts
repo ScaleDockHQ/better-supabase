@@ -1,9 +1,6 @@
-import { createDeals, dealsSubjects } from "better-supabase/blocks/deals";
+import { createDeals } from "better-supabase/blocks/deals";
 import { sqlTransport } from "better-supabase/blocks/pipelines";
-import {
-  createWorkItems,
-  workItemsSubjects,
-} from "better-supabase/blocks/work-items";
+import { createWorkItems } from "better-supabase/blocks/work-items";
 import { money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -40,8 +37,27 @@ const EXTRA: Extra = {
       idType: "bigint",
       title: "name",
     },
-    ...dealsSubjects(),
-    ...workItemsSubjects(),
+    // What `blocks: ["deals", "work-items"]` registers in config.subjects.
+    deal: {
+      table: "better_supabase.deals",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "name",
+      deletedAt: "archived_at",
+      permissions: { read: "deals.read", write: "deals.write" },
+      rank: { column: "rank", group: "stage_id" },
+      search: { title: "name", body: ["identifier", "note"] },
+    },
+    work_item: {
+      table: "better_supabase.work_items",
+      idType: "uuid",
+      tenant: "tenant_id",
+      title: "title",
+      deletedAt: "archived_at",
+      permissions: { read: "work_items.read", write: "work_items.write" },
+      rank: { column: "rank", group: "stage_id" },
+      search: { title: "title", body: ["identifier", "body"] },
+    },
   },
 };
 

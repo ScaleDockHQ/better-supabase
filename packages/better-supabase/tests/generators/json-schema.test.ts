@@ -107,6 +107,7 @@ describe("jsonSchema()", () => {
     const [file] = await jsonSchema({ target: "draft-07" }).generate({
       ...input,
       config: { ...input.config, output: "src/generated.ts" },
+      model: { tables: [], enums: [], functions: [], blocks: [] },
     } as never);
 
     expect(file!.path).toBe("src/generated.schema.json");

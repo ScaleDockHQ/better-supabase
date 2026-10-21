@@ -46,11 +46,11 @@ describe("blocks.generated.ts", () => {
     });
   });
 
-  it("writes the function names sql.naming and blocks.<name>.functions give", () => {
+  it("writes the function names the tenant name and blocks.<name>.functions give", () => {
     const config = resolveConfig(
       {
-        sql: { naming: { tenant: "workspace" } },
         blocks: {
+          tenant: { entities: { organization: "workspace" } },
           organizations: {},
           tags: { functions: { create_tag: "make_tag" } },
           access: {
@@ -63,18 +63,127 @@ describe("blocks.generated.ts", () => {
     );
 
     const entries = blockConfigEntries(config);
-    expect(entries["organizations"]?.naming).toEqual({ tenant: "workspace" });
-    expect(entries["tags"]?.naming).toEqual({
+    expect(entries["organizations"]?.names).toEqual({ tenant: "workspace" });
+    expect(entries["tags"]?.names).toEqual({
       tenant: "workspace",
       functions: { create_tag: "make_tag" },
     });
-    expect(entries["access"]?.naming).toEqual({ tenant: "workspace" });
+    expect(entries["access"]?.names).toEqual({ tenant: "workspace" });
 
     const plain = blockConfigEntries(
       resolveConfig({ blocks: ["tags"] }, "/project"),
     );
 
-    expect(plain["tags"]).not.toHaveProperty("naming");
+    expect(plain["tags"]).not.toHaveProperty("names");
+  });
+
+  it("writes the entities blocks.<name>.entities renames", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: {},
+          "work-items": {
+            entities: { work_item: "task", project: "initiative" },
+          },
+        },
+      },
+      "/project",
+    );
+
+    expect(blockConfigEntries(config)["work-items"]?.names).toEqual({
+      entities: [
+        {
+          from: { singular: "work_item", plural: "work_items" },
+          to: { singular: "task", plural: "tasks" },
+        },
+        {
+          from: { singular: "project", plural: "projects" },
+          to: { singular: "initiative", plural: "initiatives" },
+        },
+      ],
+    });
+  });
+
+  it("writes the renamed block and its renamed types", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: {},
+          "work-items": { entities: { work_item: "task" } },
+        },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain(
+      `import {
+  type Events,
+  type GeneratedBlocks,
+  renameBlock,
+  type RenamedEvents,
+  type RenamedType,
+} from "better-supabase/blocks";`,
+    );
+    expect(contents).toContain(
+      '  workItemsBlock,\n} from "better-supabase/blocks/work-items";',
+    );
+    expect(contents).toContain(
+      'export const tasksBlock = renameBlock(workItemsBlock, blockConfig["work-items"].names);',
+    );
+    expect(contents).toContain(
+      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, WorkItemsRenames>;",
+    );
+    expect(contents).toContain(
+      "export type TasksEvents = RenamedEvents<WorkItemsEvents, WorkItemsRenames>;",
+    );
+    expect(contents).toContain("  type Project as DefaultProject,");
+    expect(contents).toContain(
+      "export type Project = RenamedType<DefaultProject, WorkItemsRenames>;",
+    );
+    expect(contents).not.toContain("TasksOptions");
+  });
+
+  it("writes typed name constants for permissions, roles, events and keys", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: { roles: { owner: ["*"], editor: ["tasks.write"] } },
+          notifications: {},
+          "work-items": { entities: { work_item: "task" } },
+          settings: {
+            options: { schemas: { user: { theme: { type: "string" } } } },
+          },
+          usage: { options: { meters: { seats: { aggregate: "count" } } } },
+        },
+        buckets: { avatars: { path: "{userId}/{name}" } },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain("export const permissions = {");
+    expect(contents).toContain('    write: "tasks.write",');
+    expect(contents).toMatch(
+      /export type PermissionKey = [^;]*"tasks\.write"/u,
+    );
+    expect(contents).toContain('export type RoleName = "editor" | "owner";');
+    expect(contents).toContain(
+      "export const blockEvents: Events<BlockEvents> = {",
+    );
+    expect(contents).toContain('    "task.created",');
+    expect(contents).not.toContain('"work_item.created"');
+    expect(contents).toMatch(/export type BlockEvents = [^;]*TasksEvents/u);
+    expect(contents).toContain("export const topics = {");
+    expect(contents).toMatch(/notifications:\$\{String\(v\.userId\)\}/u);
+    expect(contents).toContain("export const paths = {");
+    expect(contents).toContain('export type SettingKey = "theme";');
+    expect(contents).toContain('export type MeterName = "seats";');
   });
 
   it("leaves out tenant and access in user scope", () => {
@@ -96,7 +205,7 @@ describe("blocks.generated.ts", () => {
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");
     expect(file?.contents).toContain(
-      'import type { GeneratedBlocks } from "better-supabase/blocks";',
+      'import {\n  type Events,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
     );
     expect(file?.contents).toContain(
       `  attachments: {
@@ -132,6 +241,20 @@ describe("blocks.generated.ts", () => {
       'export const appTableEvents = defineEvents({\n  "task.created": event<AppTableEventData>(),\n  "task.updated": event<AppTableEventData>(),\n  "task.deleted": event<AppTableEventData>(),\n  "notes.deleted": event<AppTableEventData>(),\n});',
     );
     expect(contents).toContain('  "notes.deleted": true,\n} as const;');
+  });
+
+  it("lists an event two blocks emit once", () => {
+    const contents =
+      emitBlockConfig(
+        resolveConfig(
+          { blocks: { tenant: {}, organizations: {}, waitlist: {} } },
+          "/project",
+        ),
+      )?.contents ?? "";
+
+    expect(contents.match(/"organization\.member_added": true/g)).toHaveLength(
+      1,
+    );
   });
 
   it("writes nothing when the config installs no blocks", () => {

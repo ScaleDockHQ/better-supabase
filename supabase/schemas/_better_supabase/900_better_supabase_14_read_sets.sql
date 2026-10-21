@@ -1,4 +1,4 @@
--- better-supabase module: read-sets (0.9.0)
+-- better-supabase module: read-sets
 -- @bs-module read-sets@1 managed
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase add`; re-running it overwrites this file.

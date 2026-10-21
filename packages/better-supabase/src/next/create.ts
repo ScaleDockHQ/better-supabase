@@ -7,6 +7,7 @@ import type { AuthResolution } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -24,6 +25,7 @@ import type { BetterNext, NextOptions, ScopeOptions } from "./types.ts";
 
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
+import { methodOf } from "../blocks/block-method.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
@@ -328,521 +330,532 @@ export function createNext<
       })) satisfies BetterServer<M, F, E, C, P, B>["suspendAccount"],
   });
 
-  return extendServer<BetterNext<M, F, E, C, P, PermissionRef<A>, B>>(
-    withAccounts,
-    {
-      session,
-      contextForSession,
+  const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B> = extendServer<
+    BetterNext<M, F, E, C, P, PermissionRef<A>, B>
+  >(withAccounts, {
+    session,
+    contextForSession,
 
-      async cached(cachedOptions = {}) {
-        const [view, ctx] = await Promise.all([
-          session(),
-          current(cachedOptions.tenant),
-        ]);
+    async cached(cachedOptions = {}) {
+      const [view, ctx] = await Promise.all([
+        session(),
+        current(cachedOptions.tenant),
+      ]);
 
-        const life = cachedOptions.life;
-        const stale = sessionStale(view, life);
-        cacheLife({
-          stale:
-            life?.stale === undefined ? stale : Math.min(stale, life.stale),
-          ...(life?.revalidate === undefined
-            ? {}
-            : { revalidate: life.revalidate }),
-          ...(life?.expire === undefined ? {} : { expire: life.expire }),
-        });
-        const tables = cachedOptions.tables ?? [];
-        const tenant = tables.length > 0 ? tenantFor(ctx, view) : undefined;
-        const first = tables[0];
+      const life = cachedOptions.life;
+      const stale = sessionStale(view, life);
+      cacheLife({
+        stale: life?.stale === undefined ? stale : Math.min(stale, life.stale),
+        ...(life?.revalidate === undefined
+          ? {}
+          : { revalidate: life.revalidate }),
+        ...(life?.expire === undefined ? {} : { expire: life.expire }),
+      });
+      const tables = cachedOptions.tables ?? [];
+      const tenant = tables.length > 0 ? tenantFor(ctx, view) : undefined;
+      const first = tables[0];
 
-        const tags = [
-          ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
-          ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
-          ...(cachedOptions.tags ?? []),
-          ...tables.flatMap((table) =>
-            tableTags(table, tenant === undefined ? {} : { tenant }),
-          ),
-          ...(first !== undefined && cachedOptions.id !== undefined
-            ? [tagFor(first, cachedOptions.id)]
-            : []),
-        ];
+      const tags = [
+        ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+        ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
+        ...(cachedOptions.tags ?? []),
+        ...tables.flatMap((table) =>
+          tableTags(table, tenant === undefined ? {} : { tenant }),
+        ),
+        ...(first !== undefined && cachedOptions.id !== undefined
+          ? [tagFor(first, cachedOptions.id)]
+          : []),
+      ];
 
-        if (tags.length > 0) {
-          cacheTag(...tags);
-        }
+      if (tags.length > 0) {
+        cacheTag(...tags);
+      }
 
-        return withExtra(ctx, { session: view });
-      },
+      return withExtra(ctx, { session: view });
+    },
 
-      invalidateSession(userId, invalidateOptions = {}) {
-        invalidateAll([sessionTag(userId), ...(invalidateOptions.tags ?? [])]);
-      },
+    invalidateSession(userId, invalidateOptions = {}) {
+      invalidateAll([sessionTag(userId), ...(invalidateOptions.tags ?? [])]);
+    },
 
-      async liveCount(spec, db) {
-        const runner = db ?? (await current()).db;
-        const result = await runner.$run(spec);
+    async liveCount(spec, db) {
+      const runner = db ?? (await current()).db;
+      const result = await runner.$run(spec);
 
-        return {
-          spec,
-          count:
-            result.ok && typeof result.data === "number" ? result.data : null,
-          at: Date.now(),
-        };
-      },
+      return {
+        spec,
+        count:
+          result.ok && typeof result.data === "number" ? result.data : null,
+        at: Date.now(),
+      };
+    },
 
-      async proxy(request, proxyOptions = {}) {
-        const started = performance.now();
-        const id = collector ? crypto.randomUUID() : undefined;
-        let verifyMs = 0;
+    async proxy(request, proxyOptions = {}) {
+      const started = performance.now();
+      const id = collector ? crypto.randomUUID() : undefined;
+      let verifyMs = 0;
 
-        // `before` (i18n rewrites, redirects) and auth run on the original request.
-        const sessionCheck =
-          proxyOptions.endedSession === true ? {} : proxyOptions.endedSession;
+      // `before` (i18n rewrites, redirects) and auth run on the original request.
+      const sessionCheck =
+        proxyOptions.endedSession === true ? {} : proxyOptions.endedSession;
 
-        const checkSession =
-          sessionCheck !== undefined &&
-          shouldCheckSession(request, sessionCheck);
+      const checkSession =
+        sessionCheck !== undefined && shouldCheckSession(request, sessionCheck);
 
-        const [early, resolution] = await Promise.all([
-          proxyOptions.before?.(request),
-          base
-            .resolve(request, {
-              refresh: shouldRefresh(request),
-              ...(checkSession ? { checkSession } : {}),
-            })
-            .then((resolved) => {
-              verifyMs = performance.now() - started;
+      const [early, resolution] = await Promise.all([
+        proxyOptions.before?.(request),
+        base
+          .resolve(request, {
+            refresh: shouldRefresh(request),
+            ...(checkSession ? { checkSession } : {}),
+          })
+          .then((resolved) => {
+            verifyMs = performance.now() - started;
 
-              return resolved;
-            }),
-        ]);
+            return resolved;
+          }),
+      ]);
 
-        const rendersSignedOut =
-          proxyOptions.expiredPrefetch === "render" &&
-          resolution.auth.kind === "anon" &&
-          resolution.auth.reason === "expired" &&
-          isPrefetch(request);
+      const rendersSignedOut =
+        proxyOptions.expiredPrefetch === "render" &&
+        resolution.auth.kind === "anon" &&
+        resolution.auth.reason === "expired" &&
+        isPrefetch(request);
 
-        const protectMethods = proxyOptions.protectMethods;
+      const protectMethods = proxyOptions.protectMethods;
 
-        const runsProtect =
-          protectMethods === true
-            ? true
-            : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
+      const runsProtect =
+        protectMethods === true
+          ? true
+          : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
 
-        const ended =
-          resolution.sessionEnded === true &&
-          sessionCheck?.redirect !== undefined &&
-          request.nextUrl.pathname !== sessionCheck.redirect
-            ? endedRedirect(
-                request,
-                sessionCheck.redirect,
-                resolution.sessionEndedReason === "banned"
-                  ? (sessionCheck.reasons?.banned ?? "account_banned")
-                  : (sessionCheck.reasons?.ended ?? "session_ended"),
-              )
-            : undefined;
+      const ended =
+        resolution.sessionEnded === true &&
+        sessionCheck?.redirect !== undefined &&
+        request.nextUrl.pathname !== sessionCheck.redirect
+          ? endedRedirect(
+              request,
+              sessionCheck.redirect,
+              resolution.sessionEndedReason === "banned"
+                ? (sessionCheck.reasons?.banned ?? "account_banned")
+                : (sessionCheck.reasons?.ended ?? "session_ended"),
+            )
+          : undefined;
 
-        const custom =
-          ended ??
-          (await outageResponse(
-            proxyOptions.onAuthOutage,
-            resolution,
-            request,
-            betterSupabase.events.logger,
-          )) ??
-          (rendersSignedOut || !runsProtect
-            ? undefined
-            : await proxyOptions.protect?.(resolution.auth, request));
+      const custom =
+        ended ??
+        (await outageResponse(
+          proxyOptions.onAuthOutage,
+          resolution,
+          request,
+          betterSupabase.events.logger,
+        )) ??
+        (rendersSignedOut || !runsProtect
+          ? undefined
+          : await proxyOptions.protect?.(resolution.auth, request));
 
-        const initial = custom ?? early;
+      const initial = custom ?? early;
 
-        if (
-          !initial &&
-          resolution.cookies.length === 0 &&
-          !id &&
-          !proxyOptions.after &&
-          !proxyOptions.serverTiming
-        ) {
-          flushAfter();
+      if (
+        !initial &&
+        resolution.cookies.length === 0 &&
+        !id &&
+        !proxyOptions.after &&
+        !proxyOptions.serverTiming
+      ) {
+        flushAfter();
 
-          return NextResponse.next();
-        }
+        return NextResponse.next();
+      }
 
-        let response = resolution.apply(
-          mutableResponse(initial ?? NextResponse.next()),
-        );
+      let response = resolution.apply(
+        mutableResponse(initial ?? NextResponse.next()),
+      );
 
-        if (!custom && !isRedirect(response)) {
-          const forwarded: Record<string, string> = {};
+      if (!custom && !isRedirect(response)) {
+        const forwarded: Record<string, string> = {};
 
-          if (resolution.cookies.length > 0) {
-            forwarded["cookie"] = resolution.requestCookies
-              .map(
-                (cookie) =>
-                  `${cookie.name}=${encodeURIComponent(cookie.value)}`,
-              )
-              .join("; ");
-          }
-
-          if (id) {
-            forwarded[REQUEST_ID_HEADER] = id;
-          }
-
-          if (Object.keys(forwarded).length > 0 || early) {
-            overrideRequestHeaders(response, request, forwarded);
-          }
+        if (resolution.cookies.length > 0) {
+          forwarded["cookie"] = resolution.requestCookies
+            .map(
+              (cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`,
+            )
+            .join("; ");
         }
 
         if (id) {
-          response.headers.set(REQUEST_ID_HEADER, id);
-          response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+          forwarded[REQUEST_ID_HEADER] = id;
         }
 
-        if (proxyOptions.after) {
-          const replaced = await proxyOptions.after(response, resolution.auth);
-
-          if (replaced) {
-            response = mutableResponse(replaced);
-          }
+        if (Object.keys(forwarded).length > 0 || early) {
+          overrideRequestHeaders(response, request, forwarded);
         }
+      }
 
-        if (proxyOptions.serverTiming) {
-          response.headers.append(
-            "server-timing",
-            serverTimingValue({
-              "bs-proxy": performance.now() - started,
-              "bs-verify": verifyMs,
-            }),
-          );
+      if (id) {
+        response.headers.set(REQUEST_ID_HEADER, id);
+        response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+      }
+
+      if (proxyOptions.after) {
+        const replaced = await proxyOptions.after(response, resolution.auth);
+
+        if (replaced) {
+          response = mutableResponse(replaced);
         }
+      }
 
-        // A refresh or sign-out in `resolve`, or `protect`, can start sink sends.
-        flushAfter();
+      if (proxyOptions.serverTiming) {
+        response.headers.append(
+          "server-timing",
+          serverTimingValue({
+            "bs-proxy": performance.now() - started,
+            "bs-verify": verifyMs,
+          }),
+        );
+      }
 
-        return response;
-      },
+      // A refresh or sign-out in `resolve`, or `protect`, can start sink sends.
+      flushAfter();
 
-      route(handler, guardOptions = {}) {
-        return async (request, segment) => {
-          let stats: (() => DbStats) | undefined;
-          let current: ServerContext<M, F, E, C, P, B> | undefined;
-          let response: Response;
+      return response;
+    },
 
-          try {
-            response = await handle(
-              base,
-              request,
-              async (ctx) => {
-                current = ctx;
-                stats = () => ctx.stats();
+    route(handler, guardOptions = {}) {
+      return async (request, segment) => {
+        let stats: (() => DbStats) | undefined;
+        let current: ServerContext<M, F, E, C, P, B> | undefined;
+        let response: Response;
 
-                const [params, caller] = await Promise.all([
-                  segment.params,
-                  authorizeCaller(ctx, guardOptions, request),
-                ]);
-
-                if ("kind" in caller) {
-                  return err(caller);
-                }
-
-                // SAFETY: requireTenant refused a missing tenant.
-                return handler(
-                  request,
-                  withExtra(ctx, { ...caller, params }) as never,
-                );
-              },
-              {
-                ...guardOptions,
-                expose,
-                instance: request.nextUrl.pathname,
-                context: statsFor(request),
-                waitUntil,
-                // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
-                rethrow: rethrowNextControlFlow,
-              },
-            );
-          } catch (cause) {
-            // Next builds the redirect response itself and adds the jar's cookies to it.
-            if (current) {
-              await writeCookies(current);
-            }
-
-            throw cause;
-          }
-
-          if (collector && stats) {
-            try {
-              response.headers.set(statsHeader, formatStats(stats()));
-            } catch {
-              // A handler returned a Response with immutable headers.
-            }
-          }
-
-          return response;
-        };
-      },
-
-      resources(map, resourcesOptions = {}) {
-        const { basePath, ...guardOptions } = resourcesOptions;
-
-        const router = resourceRouter(betterSupabase, map, {
-          ...(basePath === undefined ? {} : { basePath }),
-          ...(options.authorizer === undefined
-            ? {}
-            : { authorizer: options.authorizer }),
-        });
-
-        return resourceRoutes(async (request) => {
-          const route = router.match(request);
-
-          if (route instanceof Response) {
-            return route;
-          }
-
-          return handle(
+        try {
+          response = await handle(
             base,
             request,
-            (ctx) =>
-              route.handler.serve(request, ctx.db, route.segments, {
-                instance: route.instance,
-                expose,
-              }),
+            async (ctx) => {
+              current = ctx;
+              stats = () => ctx.stats();
+
+              const [params, caller] = await Promise.all([
+                segment.params,
+                authorizeCaller(ctx, guardOptions, request),
+              ]);
+
+              if ("kind" in caller) {
+                return err(caller);
+              }
+
+              // SAFETY: requireTenant refused a missing tenant.
+              return handler(
+                request,
+                withExtra(ctx, { ...caller, params }) as never,
+              );
+            },
             {
               ...guardOptions,
               expose,
-              instance: route.instance,
+              instance: request.nextUrl.pathname,
               context: statsFor(request),
               waitUntil,
+              // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
               rethrow: rethrowNextControlFlow,
             },
           );
-        });
-      },
-
-      debugRoute() {
-        return (request) => {
-          const id = new URL(request.url).searchParams.get("id");
-
-          if (!collector || !id) {
-            return Promise.resolve(
-              Response.json(
-                { error: collector ? "missing ?id=" : "debug is off" },
-                { status: 404, headers: { "cache-control": "no-store" } },
-              ),
-            );
+        } catch (cause) {
+          // Next builds the redirect response itself and adds the jar's cookies to it.
+          if (current) {
+            await writeCookies(current);
           }
 
-          // A render served from private caches never records: it made no calls.
-          const stats = collector.get(id) ?? EMPTY_STATS;
+          throw cause;
+        }
 
-          return Promise.resolve(
-            Response.json(stats, {
-              headers: {
-                [statsHeader]: formatStats(stats),
-                "cache-control": "no-store",
-              },
-            }),
-          );
-        };
-      },
-
-      action(actionOptions, fn) {
-        type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
-
-        return async (input) => {
-          // With a per-input tenant the context waits for the input, so the
-          // guard reads the verified caller instead of building a context for
-          // `NextOptions.tenant` it would throw away. Support sessions swap the
-          // caller in the context, so they keep the context's view.
-          const early =
-            actionOptions.tenant && !options.support
-              ? undefined
-              : await current();
-
-          const denied = guard(
-            early?.auth ?? (await incoming()).resolution.auth,
-            actionOptions.allow,
-            actionOptions.aal,
-            actionOptions.scopes,
-          );
-
-          if (denied) {
-            return { ok: false, data: null, error: denied };
-          }
-
-          let parsed: unknown =
-            input instanceof FormData ? formDataObject(input) : input;
-
-          if (actionOptions.input) {
-            const checked = await validate(
-              actionOptions.input,
-              parsed,
-              "input",
-            );
-
-            if (!checked.ok) {
-              return { ok: false, data: null, error: checked.error };
-            }
-
-            parsed = checked.data;
-          }
-
-          // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema.
-          const tenant = actionOptions.tenant?.(parsed as never);
-
-          const ctx =
-            tenant === undefined
-              ? (early ?? (await current()))
-              : await current(tenant);
-
-          // SAFETY: as above, parsed is the action's input.
-          const caller = await authorizeCaller(
-            ctx,
-            actionOptions,
-            parsed as never,
-          );
-
-          if ("kind" in caller) {
-            return { ok: false, data: null, error: caller };
-          }
-
-          const scope = ctx;
-          let settled: Settled;
-
+        if (collector && stats) {
           try {
-            // SAFETY: parsed is the validated input, or the raw input when the
-            // action has no schema; requireTenant refused a missing tenant.
-            settled = await settle(() =>
-              fn(parsed as never, withExtra(scope, caller) as never),
-            );
-          } finally {
-            // Also when redirect() or notFound() follows a write.
-            flushAfter();
-            await writeCookies(ctx);
+            response.headers.set(statsHeader, formatStats(stats()));
+          } catch {
+            // A handler returned a Response with immutable headers.
+          }
+        }
+
+        return response;
+      };
+    },
+
+    resources(map, resourcesOptions = {}) {
+      const { basePath, ...guardOptions } = resourcesOptions;
+
+      const router = resourceRouter(betterSupabase, map, {
+        ...(basePath === undefined ? {} : { basePath }),
+        ...(options.authorizer === undefined
+          ? {}
+          : { authorizer: options.authorizer }),
+      });
+
+      return resourceRoutes(async (request) => {
+        const route = router.match(request);
+
+        if (route instanceof Response) {
+          return route;
+        }
+
+        return handle(
+          base,
+          request,
+          (ctx) =>
+            route.handler.serve(request, ctx.db, route.segments, {
+              instance: route.instance,
+              expose,
+            }),
+          {
+            ...guardOptions,
+            expose,
+            instance: route.instance,
+            context: statsFor(request),
+            waitUntil,
+            rethrow: rethrowNextControlFlow,
+          },
+        );
+      });
+    },
+
+    debugRoute() {
+      return (request) => {
+        const id = new URL(request.url).searchParams.get("id");
+
+        if (!collector || !id) {
+          return Promise.resolve(
+            Response.json(
+              { error: collector ? "missing ?id=" : "debug is off" },
+              { status: 404, headers: { "cache-control": "no-store" } },
+            ),
+          );
+        }
+
+        // A render served from private caches never records: it made no calls.
+        const stats = collector.get(id) ?? EMPTY_STATS;
+
+        return Promise.resolve(
+          Response.json(stats, {
+            headers: {
+              [statsHeader]: formatStats(stats),
+              "cache-control": "no-store",
+            },
+          }),
+        );
+      };
+    },
+
+    action(actionOptions, fn) {
+      type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
+
+      return async (input) => {
+        // With a per-input tenant the context waits for the input, so the
+        // guard reads the verified caller instead of building a context for
+        // `NextOptions.tenant` it would throw away. Support sessions swap the
+        // caller in the context, so they keep the context's view.
+        const early =
+          actionOptions.tenant && !options.support
+            ? undefined
+            : await current();
+
+        const denied = guard(
+          early?.auth ?? (await incoming()).resolution.auth,
+          actionOptions.allow,
+          actionOptions.aal,
+          actionOptions.scopes,
+        );
+
+        if (denied) {
+          return { ok: false, data: null, error: denied };
+        }
+
+        let parsed: unknown =
+          input instanceof FormData ? formDataObject(input) : input;
+
+        if (actionOptions.input) {
+          const checked = await validate(actionOptions.input, parsed, "input");
+
+          if (!checked.ok) {
+            return { ok: false, data: null, error: checked.error };
           }
 
-          // SAFETY: Out is the Result of the action's return type, which both branches build.
-          return (
-            settled.ok
-              ? { ok: true, data: settled.data, error: null }
-              : { ok: false, data: null, error: settled.error }
-          ) as Out;
-        };
-      },
+          parsed = checked.data;
+        }
 
-      require: async (requireOptions = {}) => {
-        const ctx = await current(requireOptions.tenant);
+        // SAFETY: parsed is the validated input, or the raw input when the
+        // action has no schema.
+        const tenant = actionOptions.tenant?.(parsed as never);
 
-        const caller = await requireCaller(
-          ctx.auth,
-          requireOptions,
-          tenantFor(ctx, toSession(ctx.auth)),
-          options.authorizer,
+        const ctx =
+          tenant === undefined
+            ? (early ?? (await current()))
+            : await current(tenant);
+
+        // SAFETY: as above, parsed is the action's input.
+        const caller = await authorizeCaller(
           ctx,
+          actionOptions,
+          parsed as never,
         );
 
         if ("kind" in caller) {
-          interrupt(caller);
+          return { ok: false, data: null, error: caller };
         }
 
-        // SAFETY: requireTenant refused a missing tenant.
-        return withExtra(ctx, caller) as never;
-      },
+        const scope = ctx;
+        let settled: Settled;
 
-      async startSupport(request) {
-        const { resolution } = await incoming();
-        const started = await base.support.start(resolution.auth, request);
-        flushAfter();
-
-        if (!started.ok) {
-          return { ok: false, data: null, error: started.error };
+        try {
+          // SAFETY: parsed is the validated input, or the raw input when the
+          // action has no schema; requireTenant refused a missing tenant.
+          settled = await settle(() =>
+            fn(parsed as never, withExtra(scope, caller) as never),
+          );
+        } finally {
+          // Also when redirect() or notFound() follows a write.
+          flushAfter();
+          await writeCookies(ctx);
         }
 
-        const { session: support } = started.data;
-        (await cookies()).set(supportCookieName, support.id, {
-          ...supportCookieOptions,
-          maxAge: supportCookieMaxAge(support),
-        });
-
-        if (resolution.auth.kind === "user") {
-          invalidateAll([sessionTag(resolution.auth.user.id)]);
-        }
-
-        return {
-          ok: true,
-          data: {
-            sessionId: support.id,
-            targetUserId: support.targetUserId,
-            readOnly: support.readOnly,
-            expiresAt: support.expiresAt.toString(),
-          },
-          error: null,
-        };
-      },
-
-      async stopSupport() {
-        const { request, resolution } = await incoming();
-        const jar = await cookies();
-        const id = base.support.sessionIdOf(request);
-        jar.delete({
-          name: supportCookieName,
-          path: supportCookieOptions.path,
-        });
-
-        if (!id) {
-          return { ok: true, data: { ended: false }, error: null };
-        }
-
-        const stopped = await base.support.stop(resolution.auth, id);
-        flushAfter();
-        invalidateAll([
-          supportTag(id),
-          ...(resolution.auth.kind === "user"
-            ? [sessionTag(resolution.auth.user.id)]
-            : []),
-        ]);
-
-        return stopped.ok
-          ? { ok: true, data: { ended: stopped.data.ended }, error: null }
-          : { ok: false, data: null, error: stopped.error };
-      },
-
-      cacheTag(table, id, tagOptions = {}) {
-        cacheTag(
-          ...tableTags(table, tagOptions),
-          ...(id === undefined ? [] : [tagFor(table, id)]),
-        );
-      },
-
-      cacheTags(target, tagOptions = {}) {
-        const specs = isReadSet(target)
-          ? Object.values(target.specs)
-          : isList(target)
-            ? target
-            : [target];
-
-        const tags = new Set<string>();
-
-        for (const spec of specs) {
-          for (const table of betterSupabase.tablesOf(spec)) {
-            for (const tag of tableTags(table, tagOptions)) {
-              tags.add(tag);
-            }
-          }
-
-          const [id] = spec.args;
-
-          if (
-            spec.method === "findById" &&
-            (typeof id === "string" || typeof id === "number")
-          ) {
-            tags.add(tagFor(spec.table, id));
-          }
-        }
-
-        cacheTag(...tags);
-      },
+        // SAFETY: Out is the Result of the action's return type, which both branches build.
+        return (
+          settled.ok
+            ? { ok: true, data: settled.data, error: null }
+            : { ok: false, data: null, error: settled.error }
+        ) as Out;
+      };
     },
-  );
+
+    require: async (requireOptions = {}) => {
+      const ctx = await current(requireOptions.tenant);
+
+      const caller = await requireCaller(
+        ctx.auth,
+        requireOptions,
+        tenantFor(ctx, toSession(ctx.auth)),
+        options.authorizer,
+        ctx,
+      );
+
+      if ("kind" in caller) {
+        interrupt(caller);
+      }
+
+      // SAFETY: requireTenant refused a missing tenant.
+      return withExtra(ctx, caller) as never;
+    },
+
+    async startSupport(request) {
+      const { resolution } = await incoming();
+      const started = await base.support.start(resolution.auth, request);
+      flushAfter();
+
+      if (!started.ok) {
+        return { ok: false, data: null, error: started.error };
+      }
+
+      const { session: support } = started.data;
+      (await cookies()).set(supportCookieName, support.id, {
+        ...supportCookieOptions,
+        maxAge: supportCookieMaxAge(support),
+      });
+
+      if (resolution.auth.kind === "user") {
+        invalidateAll([sessionTag(resolution.auth.user.id)]);
+      }
+
+      return {
+        ok: true,
+        data: {
+          sessionId: support.id,
+          targetUserId: support.targetUserId,
+          readOnly: support.readOnly,
+          expiresAt: support.expiresAt.toString(),
+        },
+        error: null,
+      };
+    },
+
+    async stopSupport() {
+      const { request, resolution } = await incoming();
+      const jar = await cookies();
+      const id = base.support.sessionIdOf(request);
+      jar.delete({ name: supportCookieName, path: supportCookieOptions.path });
+
+      if (!id) {
+        return { ok: true, data: { ended: false }, error: null };
+      }
+
+      const stopped = await base.support.stop(resolution.auth, id);
+      flushAfter();
+      invalidateAll([
+        supportTag(id),
+        ...(resolution.auth.kind === "user"
+          ? [sessionTag(resolution.auth.user.id)]
+          : []),
+      ]);
+
+      return stopped.ok
+        ? { ok: true, data: { ended: stopped.data.ended }, error: null }
+        : { ok: false, data: null, error: stopped.error };
+    },
+
+    cacheTag(table, id, tagOptions = {}) {
+      cacheTag(
+        ...tableTags(table, tagOptions),
+        ...(id === undefined ? [] : [tagFor(table, id)]),
+      );
+    },
+
+    cacheTags(target, tagOptions = {}) {
+      const specs = isReadSet(target)
+        ? Object.values(target.specs)
+        : isList(target)
+          ? target
+          : [target];
+
+      const tags = new Set<string>();
+
+      for (const spec of specs) {
+        for (const table of betterSupabase.tablesOf(spec)) {
+          for (const tag of tableTags(table, tagOptions)) {
+            tags.add(tag);
+          }
+        }
+
+        const [id] = spec.args;
+
+        if (
+          spec.method === "findById" &&
+          (typeof id === "string" || typeof id === "number")
+        ) {
+          tags.add(tagFor(spec.table, id));
+        }
+      }
+
+      cacheTag(...tags);
+    },
+
+    blockAction: (client, method, blockOptions) => {
+      const run = next.action(
+        blockOptions,
+        async (input, ctx): Promise<Result<unknown>> => {
+          const call = methodOf(client(ctx), method);
+
+          // SAFETY: BlockActionArgs makes `args` required unless the method
+          // takes the validated input as its only argument.
+          const args = (blockOptions.args?.(input, ctx) ?? [
+            input,
+          ]) as readonly unknown[];
+
+          return call(...args);
+        },
+      );
+
+      // SAFETY: the method's `Result` carries `BlockDataOf<Cl, K>`.
+      return run as never;
+    },
+  });
+
+  return next;
 }

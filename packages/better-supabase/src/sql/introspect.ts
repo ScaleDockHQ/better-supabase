@@ -1,12 +1,12 @@
 import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
-import type { OperationModule } from "./modules/access-model.ts";
 
 import { sqlIdent } from "../core/template.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleContext } from "./module-context.ts";
 import {
   hasPlatformRoles,
+  isOperationModule,
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
@@ -42,9 +42,6 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   "data-lifecycle": { deletePlatform: "platform" },
 };
 
-const isPermissionModule = (name: string): name is OperationModule =>
-  Object.hasOwn(MODULE_PERMISSION_SCOPES, name);
-
 /**
  * Every permission key the modules `names` install (with what they pull in)
  * check, after `blocks.<module>.permissions` overrides. Modules in custom mode
@@ -62,7 +59,7 @@ export function modulePermissionKeys(
   return modules.flatMap((module): ModulePermissionKey[] => {
     const name = module.name;
 
-    if (!isPermissionModule(name)) {
+    if (!isOperationModule(name)) {
       return [];
     }
 

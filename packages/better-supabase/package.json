@@ -2764,6 +2764,7 @@
     "jsonpath-rfc9535": "catalog:",
     "koa": "catalog:",
     "next": "catalog:",
+    "nuqs": "catalog:",
     "nuxt": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
@@ -2834,6 +2835,7 @@
     "jsonpath-rfc9535": "catalog:peers",
     "koa": "catalog:peers",
     "next": "catalog:peers",
+    "nuqs": "catalog:peers",
     "nuxt": "catalog:peers",
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
@@ -2967,6 +2969,9 @@
       "optional": true
     },
     "next": {
+      "optional": true
+    },
+    "nuqs": {
       "optional": true
     },
     "nuxt": {

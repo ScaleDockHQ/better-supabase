@@ -6,6 +6,7 @@ import type {
 } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
+import { entityMarkers } from "./markers.ts";
 import { providerIdType, withProviderDefaults } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { SQL_MODULES, checkModules } from "./registry.ts";
@@ -112,4 +113,29 @@ export function moduleDeprecations(
       module: module.name,
     })),
   );
+}
+
+/**
+ * One message per installed module whose `blocks.<name>.entities` changed:
+ * `installed` is the text of the installed module files or migration,
+ * `expected` what this config renders. Upgrades don't rename existing tables.
+ */
+export function entityRenameChanges(
+  modules: readonly string[],
+  installed: string,
+  expected: string,
+): string[] {
+  const before = entityMarkers(installed);
+  const after = entityMarkers(expected);
+
+  return modules.flatMap((module) => {
+    const was = before.get(module) ?? "";
+    const now = after.get(module) ?? "";
+
+    return was === now
+      ? []
+      : [
+          `blocks.${module}.entities changed on an installed block (${was || "default names"} to ${now || "default names"}). sql upgrade doesn't rename existing tables: rename them in a migration, or keep the names the block was installed with.`,
+        ];
+  });
 }

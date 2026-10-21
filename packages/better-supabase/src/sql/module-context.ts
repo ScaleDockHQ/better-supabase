@@ -51,7 +51,6 @@ export function moduleContext(
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(installed ? { installed } : {}),
       ...(layout.scope ? { scope: layout.scope } : {}),
-      ...(layout.naming?.tenant ? { tenantName: layout.naming.tenant } : {}),
       ...providerIdType(layout),
       integrations(module) {
         const definition = registry().modules[module];

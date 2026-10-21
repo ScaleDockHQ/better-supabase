@@ -221,9 +221,8 @@ describe.skipIf(!live)("a workspace-named app", () => {
   // access contract are written to better_supabase under their new names
   // until the rollback.
   const layout: ModuleLayout = {
-    naming: { tenant: "workspace" },
     modules: {
-      tenant: { schema: "ws_it" },
+      tenant: { schema: "ws_it", entities: { organization: "workspace" } },
       access: { schema: "ws_it" },
       organizations: { schema: "ws_it" },
       tags: { schema: "ws_it" },

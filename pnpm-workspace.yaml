@@ -140,6 +140,7 @@ catalog:
   next: 16.4.2
   next-intl: 4.14.9
   next-themes: 0.4.6
+  nuqs: 2.10.2
   nuxt: 4.6.2
   oxfmt: 0.74.0
   "@shadcn/lint": 0.2.1
@@ -281,6 +282,8 @@ catalogs:
     koa: ">=3 <4"
     # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
     next: ">=16.3 <17"
+    # 2.3.0 added createLoader, which the nuqs() generator writes.
+    nuqs: ">=2.3 <3"
     # Nuxt 3 is checked in tests/types/frameworks-previous.
     nuxt: ">=3 <5"
     # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run

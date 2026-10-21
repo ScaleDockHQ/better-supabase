@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
+import { resolveConfig } from "../../src/config/resolve.ts";
+
+describe("withBlockSubjects", () => {
+  it("registers a work item as a ranked, searchable subject", () => {
+    expect(withBlockSubjects({}, ["work-items"], {})).toEqual({
+      work_item: {
+        table: "better_supabase.work_items",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "title",
+        deletedAt: "archived_at",
+        permissions: { read: "work_items.read", write: "work_items.write" },
+        rank: { column: "rank", group: "stage_id" },
+        search: { title: "title", body: ["identifier", "body"] },
+      },
+    });
+  });
+
+  it("registers products with their default page and the manage key", () => {
+    const subjects = withBlockSubjects({}, ["catalog"], {});
+
+    expect(subjects["product"]).toMatchObject({
+      url: "/products/{slug}",
+      permissions: { read: "catalog.read", write: "catalog.manage" },
+      cascade: true,
+    });
+    expect(subjects["product_variant"]?.title).toBe("sku");
+  });
+
+  it("registers the entities of the blocks a block requires", () => {
+    expect(
+      Object.keys(withBlockSubjects({}, ["inventory"], {})).toSorted(),
+    ).toEqual(["product", "product_variant"]);
+  });
+
+  it("names a renamed entity's subject, table and permission keys", () => {
+    const subjects = withBlockSubjects({}, ["work-items"], {
+      "work-items": {
+        schema: "app",
+        entities: { work_item: { name: "task", url: "/tasks/{identifier}" } },
+      },
+    });
+
+    expect(subjects).toMatchObject({
+      task: {
+        table: "app.tasks",
+        permissions: { read: "tasks.read", write: "tasks.write" },
+        url: "/tasks/{identifier}",
+      },
+    });
+  });
+
+  it("reads table, column and permission overrides", () => {
+    const subjects = withBlockSubjects({}, ["employees"], {
+      employees: {
+        tables: { employees: "hr.staff" },
+        columns: { employees: { name: "full_name" } },
+        permissions: { read: "staff.view" },
+      },
+    });
+
+    expect(subjects["employee"]).toMatchObject({
+      table: "hr.staff",
+      title: "full_name",
+      permissions: { read: "staff.view", write: "employees.write" },
+      search: { title: "full_name" },
+    });
+  });
+
+  it("sets a url without renaming the entity", () => {
+    expect(
+      withBlockSubjects({}, ["deals"], {
+        deals: { entities: { deal: { url: "/crm/deals" } } },
+      })["deal"]?.url,
+    ).toBe("/crm/deals");
+  });
+
+  it("leaves out an entity with subject: false and a block in custom mode", () => {
+    expect(
+      withBlockSubjects({}, ["work-items", "employees"], {
+        "work-items": {
+          entities: { work_item: { name: "task", subject: false } },
+        },
+        employees: { mode: "custom" },
+      }),
+    ).toEqual({});
+  });
+
+  it("rejects a subjects entry with a type a block registers", () => {
+    expect(() =>
+      withBlockSubjects({ deal: { table: "public.deals" } }, ["deals"], {}),
+    ).toThrow(/the deals block registers "deal" itself/);
+  });
+});
+
+describe("resolveConfig subjects", () => {
+  it("adds block subjects next to the app's own", () => {
+    const resolved = resolveConfig(
+      {
+        blocks: ["work-items"],
+        subjects: { invoice: { table: "public.invoices" } },
+      },
+      "/app",
+    );
+
+    expect(Object.keys(resolved.subjects).toSorted()).toEqual([
+      "invoice",
+      "work_item",
+    ]);
+  });
+});

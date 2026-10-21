@@ -2057,6 +2057,160 @@
         "projectName"
       ],
       "additionalProperties": false
+    },
+    "appTableSetArgs": {
+      "title": "app_table_set arguments",
+      "type": "object",
+      "properties": {
+        "args": {},
+        "subject_id": {
+          "type": "string"
+        },
+        "subject_type": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "args",
+        "subject_id",
+        "subject_type",
+        "tenant"
+      ],
+      "additionalProperties": false
+    },
+    "customerNoteCountsArgs": {
+      "title": "customer_note_counts arguments",
+      "type": "object",
+      "properties": {
+        "p_customer_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "customersByStatusArgs": {
+      "title": "customers_by_status arguments",
+      "type": "object",
+      "properties": {
+        "p_limit": {
+          "type": "integer"
+        },
+        "p_status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "p_status"
+      ],
+      "additionalProperties": false
+    },
+    "organizationInvitationsArgs": {
+      "title": "organization_invitations arguments",
+      "type": "object",
+      "properties": {
+        "organization": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "organization"
+      ],
+      "additionalProperties": false
+    },
+    "organizationMembersArgs": {
+      "title": "organization_members arguments",
+      "type": "object",
+      "properties": {
+        "organization": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "organization"
+      ],
+      "additionalProperties": false
+    },
+    "rsWorkspaceSummaryArgs": {
+      "title": "rs_workspace_summary arguments",
+      "type": "object",
+      "properties": {
+        "p": {}
+      },
+      "required": [
+        "p"
+      ],
+      "additionalProperties": false
+    },
+    "searchNotesArgs": {
+      "title": "search_notes arguments",
+      "type": "object",
+      "properties": {
+        "k": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "searchNotesScoresArgs": {
+      "title": "search_notes_scores arguments",
+      "type": "object",
+      "properties": {
+        "k": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "setMyAvatarPathArgs": {
+      "title": "set_my_avatar_path arguments",
+      "type": "object",
+      "properties": {
+        "avatar_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "avatar_path"
+      ],
+      "additionalProperties": false
+    },
+    "updateMyProfileArgs": {
+      "title": "update_my_profile arguments",
+      "type": "object",
+      "properties": {
+        "full_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "full_name"
+      ],
+      "additionalProperties": false
+    },
+    "rsWorkspaceSummaryResult": {
+      "title": "rs_workspace_summary result"
     }
   }
 }

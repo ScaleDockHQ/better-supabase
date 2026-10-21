@@ -4,15 +4,13 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
-import { createDeals, dealsSubjects } from "../../src/blocks/deals/index.ts";
+import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
-import {
-  createParties,
-  partiesSubjects,
-} from "../../src/blocks/parties/index.ts";
+import { createParties } from "../../src/blocks/parties/index.ts";
 import { createQuotes } from "../../src/blocks/quotes/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
 import { money } from "../../src/commerce/money.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -33,8 +31,7 @@ const MODULES = [
 
 const layout: ModuleLayout = {
   subjects: {
-    ...partiesSubjects(),
-    ...dealsSubjects(),
+    ...withBlockSubjects({}, ["parties", "deals"], {}),
     quote: {
       table: "better_supabase.quotes",
       idType: "uuid",

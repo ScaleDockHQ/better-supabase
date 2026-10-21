@@ -4,10 +4,11 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
-import { createDeals, dealsSubjects } from "../../src/blocks/deals/index.ts";
+import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
 import { createTargets } from "../../src/blocks/targets/index.ts";
 import { money } from "../../src/commerce/money.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -31,7 +32,7 @@ grant select, insert, update on sla_it.tickets to authenticated;`;
 const layout: ModuleLayout = {
   subjects: {
     ticket: { table: "sla_it.tickets", idType: "uuid" },
-    ...dealsSubjects(),
+    ...withBlockSubjects({}, ["deals"], {}),
   },
   modules: {
     sla: {

@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -54,6 +55,7 @@ export interface BetterAstro<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
@@ -90,7 +92,7 @@ export interface BetterAstro<
       C,
       P,
       boolean,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<Response | undefined>;
@@ -104,7 +106,7 @@ export interface BetterAstro<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
@@ -129,7 +131,7 @@ export interface BetterAstro<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -158,11 +160,12 @@ export function createAstro<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: AstroOptions = {},
-): BetterAstro<M, F, E, C, P, B> {
+  options: AstroOptions & { readonly authorizer?: A } = {},
+): BetterAstro<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
@@ -186,7 +189,7 @@ export function createAstro<
       C,
       P,
       boolean,
-      unknown,
+      PermissionRef<A>,
       LocalsResource<M, F, E, C, P, B>
     >,
   ) => {
@@ -203,7 +206,7 @@ export function createAstro<
     return { scope, caller };
   };
 
-  return extendServer<BetterAstro<M, F, E, C, P, B>>(server, {
+  return extendServer<BetterAstro<M, F, E, C, P, PermissionRef<A>, B>>(server, {
     onRequest: async (context, next) => {
       const env = options.platformEnv
         ? options.platformEnv(context)

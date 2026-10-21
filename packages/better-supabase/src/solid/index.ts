@@ -90,6 +90,22 @@ export type { SupportView } from "../auth/support-view.ts";
 
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
+export {
+  useBlockEvent,
+  useBlockMutation,
+  useBlockQuery,
+} from "./block-hooks.ts";
+
+export type {
+  BlockEventSource,
+  BlockMutationActions,
+  BlockMutationState,
+  BlockQueryActions,
+  BlockQueryOptions,
+  BlockQueryState,
+  BlockRefetchOn,
+} from "../blocks/block-controller.ts";
+
 /** A value, or an accessor Solid tracks. */
 export type MaybeAccessor<T> = T | Accessor<T>;
 

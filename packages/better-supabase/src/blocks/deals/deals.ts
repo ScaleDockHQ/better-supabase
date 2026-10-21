@@ -1,5 +1,4 @@
 import type { Money } from "../../commerce/money.ts";
-import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -10,7 +9,6 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -760,26 +758,4 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     block: "deals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-/**
- * The `config.subjects` entry for deals, so comments, tags, files, rank and
- * search attach to them. The board moves a deal by its stage id.
- */
-export function dealsSubjects(
-  options: { readonly schema?: string; readonly url?: string } = {},
-): { readonly deal: SubjectConfig } {
-  return {
-    deal: {
-      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.deals`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "name",
-      deletedAt: "archived_at",
-      permissions: { read: "deals.read", write: "deals.write" },
-      rank: { column: "rank", group: "stage_id" },
-      search: { title: "name", body: ["identifier", "note"] },
-      ...(options.url === undefined ? {} : { url: options.url }),
-    },
-  };
 }

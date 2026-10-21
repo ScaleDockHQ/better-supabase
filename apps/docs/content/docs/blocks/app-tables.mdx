@@ -71,7 +71,7 @@ take them. Columns keep the order you write them in. The `id` is a random
 | `none`              | none                                                                    | every signed-in user reads; only the service role writes              |
 
 A tenant-scoped table needs the `tenant` block. The tenant column follows
-`sql.naming.tenant`, and the client sends its value on insert; the insert
+`blocks.tenant.entities.organization`, and the client sends its value on insert; the insert
 policy rejects a tenant the user isn't a member of.
 
 ## Columns

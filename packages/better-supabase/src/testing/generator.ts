@@ -37,8 +37,8 @@ export interface TestGeneratorOptions {
   readonly extras?: GeneratorInput["extras"];
   readonly config?: ResolvedConfig;
   /**
-   * Defaults to one built from `meta`, with `unknown` for column types it can't
-   * name.
+   * Defaults to one built from `meta`, with `unknown` for column and function
+   * types it can't name, and no blocks.
    */
   readonly model?: GeneratorModel;
 }
@@ -73,6 +73,29 @@ function modelFromMeta(meta: SchemaMeta): GeneratorModel {
       name,
       values,
     })),
+    functions: Object.entries(meta.functions).flatMap(([key, fn]) =>
+      (fn.overloads ?? [fn]).map((signature) => ({
+        key,
+        schema: fn.schema,
+        args: signature.args.map((arg) => {
+          const values = meta.enums[arg.type];
+
+          return {
+            name: arg.name,
+            tsType:
+              values === undefined
+                ? "unknown"
+                : values.map((value) => JSON.stringify(value)).join(" | "),
+            optional: arg.optional === true,
+            values,
+          };
+        }),
+        returns: "unknown",
+        returnsSet: signature.returnsSet,
+        volatility: signature.volatility,
+      })),
+    ),
+    blocks: [],
   };
 }
 

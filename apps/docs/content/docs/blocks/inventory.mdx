@@ -222,8 +222,8 @@ such as a CRM company; the module stores the pair and doesn't check it.
 
 `stock.reorder_point_reached` is a subject event on the `product_variant`
 subject, so the [watcher sink](/docs/blocks/notifications#watchers) notifies
-the variant's watchers when
-[`catalogSubjects()`](/docs/blocks/catalog#subjects) is in `config.subjects`.
+the variant's watchers. The [catalog block](/docs/blocks/catalog#subjects)
+registers the subject.
 
 ## Hooks
 

@@ -24,6 +24,22 @@ export type {
 
 export { useAction, useActionForm } from "./actions.ts";
 
+export {
+  useBlockEvent,
+  useBlockMutation,
+  useBlockQuery,
+} from "./block-hooks.ts";
+
+export type {
+  BlockEventSource,
+  BlockMutationActions,
+  BlockMutationState,
+  BlockQueryActions,
+  BlockQueryOptions,
+  BlockQueryState,
+  BlockRefetchOn,
+} from "../blocks/block-controller.ts";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 export { tenantOf } from "../auth/tenant.ts";

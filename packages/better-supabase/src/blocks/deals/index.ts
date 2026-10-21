@@ -12,7 +12,6 @@ export {
   type DealOutcome,
   type DealParty,
   type Deals,
-  dealsSubjects,
   type DealsOptions,
   type DealTotals,
   type ForecastCategory,
@@ -39,3 +38,5 @@ export { dealsBlock } from "./manifest.ts";
 export { dealsEvents } from "./events.ts";
 
 export type { DealsEvents } from "./events.ts";
+
+export { dealChangeSchema, dealInputSchema } from "./schemas.ts";

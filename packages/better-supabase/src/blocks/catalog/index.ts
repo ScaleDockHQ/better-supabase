@@ -1,11 +1,9 @@
 export {
-  catalogSubjects,
   createCatalog,
   PRODUCT_KINDS,
   PRODUCT_STATUSES,
   type Catalog,
   type CatalogOptions,
-  type CatalogSubjectsOptions,
   type CategoryInput,
   type CollectionInput,
   type OptionInput,
@@ -48,3 +46,5 @@ export { catalogBlock } from "./manifest.ts";
 export { catalogEvents } from "./events.ts";
 
 export type { CatalogEvents } from "./events.ts";
+
+export { productInputSchema } from "./schemas.ts";

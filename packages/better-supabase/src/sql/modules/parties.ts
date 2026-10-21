@@ -44,6 +44,28 @@ const EVENTS: ModuleEvents<PartiesEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    company: {
+      table: "companies",
+      singular: "company",
+      plural: "companies",
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["domain"] },
+      },
+    },
+    person: {
+      table: "people",
+      singular: "person",
+      plural: "people",
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["email", "title"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_company_save",
@@ -174,11 +196,11 @@ create table if not exists ${t("companies")} (
   ${co("createdAt")} timestamptz not null default now(),
   ${co("updatedAt")} timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
-create unique index if not exists companies_domain_idx on ${t("companies")} (${co("tenant")}, ${co("domain")})
+create index if not exists ${ctx.naming.rename("companies_tenant_name_idx")} on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
+create unique index if not exists ${ctx.naming.rename("companies_domain_idx")} on ${t("companies")} (${co("tenant")}, ${co("domain")})
   where ${co("domain")} is not null and ${co("archivedAt")} is null;
-create index if not exists companies_owner_idx on ${t("companies")} (${co("owner")});
-create index if not exists companies_merged_into_idx on ${t("companies")} (${co("mergedInto")});${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}
+create index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});
+create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}
 ${lockTable(t("companies"), { read: true })}
 ${read("companies")}
 
@@ -198,12 +220,12 @@ create table if not exists ${t("people")} (
   ${pe("createdAt")} timestamptz not null default now(),
   ${pe("updatedAt")} timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on ${t("people")} (${pe("tenant")}, lower(${pe("name")}), ${pe("id")});
-create unique index if not exists people_email_idx on ${t("people")} (${pe("tenant")}, ${pe("email")})
+create index if not exists ${ctx.naming.rename("people_tenant_name_idx")} on ${t("people")} (${pe("tenant")}, lower(${pe("name")}), ${pe("id")});
+create unique index if not exists ${ctx.naming.rename("people_email_idx")} on ${t("people")} (${pe("tenant")}, ${pe("email")})
   where ${pe("email")} is not null and ${pe("archivedAt")} is null;
-create index if not exists people_owner_idx on ${t("people")} (${pe("owner")});
-create index if not exists people_user_idx on ${t("people")} (${pe("user")});
-create index if not exists people_merged_into_idx on ${t("people")} (${pe("mergedInto")});
+create index if not exists ${ctx.naming.rename("people_owner_idx")} on ${t("people")} (${pe("owner")});
+create index if not exists ${ctx.naming.rename("people_user_idx")} on ${t("people")} (${pe("user")});
+create index if not exists ${ctx.naming.rename("people_merged_into_idx")} on ${t("people")} (${pe("mergedInto")});
 ${lockTable(t("people"), { read: true })}
 ${read("people")}
 
@@ -216,8 +238,8 @@ create table if not exists ${t("links")} (
   ${li("createdAt")} timestamptz not null default now(),
   primary key (${li("company")}, ${li("person")})
 );
-create index if not exists company_people_person_idx on ${t("links")} (${li("person")});
-create unique index if not exists company_people_primary_idx on ${t("links")} (${li("company")}) where ${li("isPrimary")};
+create index if not exists ${ctx.naming.rename("company_people_person_idx")} on ${t("links")} (${li("person")});
+create unique index if not exists ${ctx.naming.rename("company_people_primary_idx")} on ${t("links")} (${li("company")}) where ${li("isPrimary")};
 ${lockTable(t("links"), { read: true })}
 ${read("links")}
 `;

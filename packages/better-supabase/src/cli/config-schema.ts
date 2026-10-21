@@ -2,6 +2,7 @@ import * as v from "valibot";
 
 import type {
   BetterSupabaseConfig,
+  BlocksConfig,
   EnvironmentConfig,
   ExposePrivilege,
   Generator,
@@ -73,6 +74,14 @@ const generator = v.custom<Generator>(
  * checks the leaves a typo or an old value breaks; nested objects the library
  * reads loosely stay loose.
  */
+const entityName = v.pipe(
+  v.string(),
+  v.regex(
+    /^[a-z][a-z0-9_]{0,40}$/,
+    "an entity name is lowercase letters, digits and underscores",
+  ),
+);
+
 const blockEntries = {
   mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
@@ -84,6 +93,23 @@ const blockEntries = {
   scope: v.optional(v.picklist(["tenant", "user", "none"])),
   functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
+  entities: v.optional(
+    v.union([
+      entityName,
+      v.record(
+        v.string(),
+        v.union([
+          entityName,
+          v.strictObject({
+            name: v.optional(entityName),
+            plural: v.optional(entityName),
+            url: v.optional(v.string()),
+            subject: v.optional(v.literal(false)),
+          }),
+        ]),
+      ),
+    ]),
+  ),
   options: v.optional(v.record(v.string(), v.unknown())),
   hooks: v.optional(
     v.strictObject({
@@ -144,6 +170,21 @@ const accessBlock = v.strictObject({
     ]),
   ),
 });
+
+/**
+ * `blocks`: a list of names, or each block's config. The schema checks the keys
+ * every block shares; `resolveConfig` checks the tables, columns, functions,
+ * actions, hooks and entities each module declares.
+ */
+// SAFETY: resolveConfig checks the names `BlocksConfig` narrows per module.
+const blocksSchema = v.lazy((input) =>
+  Array.isArray(input)
+    ? strings
+    : v.objectWithRest(
+        { access: v.optional(accessBlock) },
+        v.strictObject(blockEntries),
+      ),
+) as v.GenericSchema<unknown, readonly string[] | BlocksConfig>;
 
 const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
 
@@ -722,16 +763,7 @@ const ENTRIES = {
     ),
   ),
   appTables: v.optional(appTables),
-  blocks: v.optional(
-    v.lazy((input) =>
-      Array.isArray(input)
-        ? strings
-        : v.objectWithRest(
-            { access: v.optional(accessBlock) },
-            v.strictObject(blockEntries),
-          ),
-    ),
-  ),
+  blocks: v.optional(blocksSchema),
   sql: v.optional(
     v.strictObject({
       workflow: v.optional(v.picklist(["pg-delta", "migra", "migrations"])),
@@ -741,19 +773,6 @@ const ENTRIES = {
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
       scope: v.optional(v.picklist(["tenant", "user", "none"])),
-      naming: v.optional(
-        v.strictObject({
-          tenant: v.optional(
-            v.pipe(
-              v.string(),
-              v.regex(
-                /^[a-z][a-z0-9_]{0,40}$/,
-                "a tenant name is lowercase letters, digits and underscores",
-              ),
-            ),
-          ),
-        }),
-      ),
     }),
   ),
   seed: v.optional(
@@ -865,20 +884,31 @@ const ConfigSchema = v.strictObject({
   $ci: v.optional(EnvironmentSchema),
 } satisfies { [K in keyof Required<BetterSupabaseConfig>]: v.GenericSchema });
 
-/** Each issue as `path: message`, the path in config keys. */
-const hasSqlModules = (value: unknown): boolean =>
+const hasSqlKey = (value: unknown, key: string): boolean =>
   typeof value === "object" &&
   value !== null &&
   "sql" in value &&
   typeof value.sql === "object" &&
   value.sql !== null &&
-  "modules" in value.sql;
+  key in value.sql;
+
+/** `sql` keys that moved, with where they went. */
+const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
+  [
+    "modules",
+    "moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+  ],
+  [
+    "naming",
+    "`sql.naming.tenant` moved to `blocks.tenant.entities.organization`",
+  ],
+];
 
 /**
- * `sql.modules` in the config or one of its environment blocks. The key moved
- * to `blocks` in 0.9, and the codemod moves it.
+ * Moved `sql` keys in the config or one of its environment blocks, each as
+ * `path: message`.
  */
-function sqlModulesIssues(value: unknown): string[] {
+function movedKeyIssues(value: unknown): string[] {
   if (typeof value !== "object" || value === null) {
     return [];
   }
@@ -900,16 +930,16 @@ function sqlModulesIssues(value: unknown): string[] {
     }
   }
 
-  return blocks
-    .filter(([, block]) => hasSqlModules(block))
-    .map(
-      ([prefix]) =>
-        `${prefix}sql.modules: moved to the top-level \`blocks\` key in 0.9; run \`better-supabase codemod 0.9\``,
-    );
+  return blocks.flatMap(([prefix, block]) =>
+    MOVED_SQL_KEYS.filter(([key]) => hasSqlKey(block, key)).map(
+      ([key, message]) => `${prefix}sql.${key}: ${message}`,
+    ),
+  );
 }
 
+/** Each issue as `path: message`, the path in config keys. */
 export function configIssues(value: unknown): string[] {
-  const moved = sqlModulesIssues(value);
+  const moved = movedKeyIssues(value);
 
   if (moved.length > 0) {
     return moved;

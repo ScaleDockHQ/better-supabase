@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_DEFAULTS } from "../../src/config/defaults.ts";
 import { GEN_TASKS, INTEGRATION_NAMES } from "../../src/config/names.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
-import { tenantNames } from "../../src/core/tenant-naming.ts";
+import { tenantNames } from "../../src/core/entity-naming.ts";
 import { registeredSubjects } from "../../src/sql/subject-registry.ts";
 
 describe("CONFIG_DEFAULTS", () => {
@@ -30,7 +30,7 @@ describe("CONFIG_DEFAULTS", () => {
     ).toBe(500);
   });
 
-  it("names the tenant column after sql.naming.tenant", () => {
+  it("names the tenant column after the tenant's name", () => {
     expect(
       resolveConfig({ plugins: { tenant: true } }, "/app").plugins,
     ).toEqual(
@@ -38,7 +38,10 @@ describe("CONFIG_DEFAULTS", () => {
     );
     expect(
       resolveConfig(
-        { plugins: { tenant: true }, sql: { naming: { tenant: "workspace" } } },
+        {
+          plugins: { tenant: true },
+          blocks: { tenant: { entities: { organization: "workspace" } } },
+        },
         "/app",
       ).plugins.tenant,
     ).toEqual({ column: "workspace_id" });

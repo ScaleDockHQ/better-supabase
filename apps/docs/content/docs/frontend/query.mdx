@@ -173,6 +173,39 @@ const archive = useMutation(q.$rpcMutation("archive_customer"));
 it. `$rpcMutation` invalidates the tables declared with
 `betterSupabase.defineRpc(name, { invalidates })`.
 
+## Block queries
+
+`blockQueries(clients)` gives the block clients the same option factories,
+under their own method names. A read method (`get*`, `list*`, `find*`,
+`search*`, `tree` and the other `BLOCK_READ_PREFIXES`) becomes query options
+keyed `["bs-block", block, method, ...args]`; every other method becomes
+mutation options that make the block's queries stale when they succeed.
+
+```ts title="lib/block-queries.ts"
+import { blockQueries, invalidateOnBlockEvents } from "better-supabase/query";
+
+import { blockSet, blocks } from "@/lib/blocks";
+
+const clients = blocks(supabase);
+export const bq = blockQueries(clients);
+
+invalidateOnBlockEvents(queryClient, betterSupabase, blockSet.blocks);
+```
+
+```ts
+useQuery(bq.tasks.list(workspaceId, { open: true }));
+const rename = useMutation(bq.tasks.update());
+rename.mutate([{ taskId, field: "title", value: "Shipped" }]);
+```
+
+A mutation whose method takes more than one argument takes them as a tuple.
+Renamed blocks keep their renamed method names, and a failed call throws a
+`DbException`, as the table queries do. `invalidateOnBlockEvents` makes the
+queries of a block stale when one of its events arrives, such as a
+`task.created` another tab caused: the read methods the block lists for the
+event in its `invalidates`, or all of its read methods. It returns the
+function that stops listening.
+
 ## Errors
 
 Failed queries reject with `DbException` (its `error` is the plain

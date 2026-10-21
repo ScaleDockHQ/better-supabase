@@ -3,6 +3,11 @@ import type { NextRequest } from "next/server.js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type {
+  BlockArgsOf,
+  BlockDataOf,
+  BlockMethodName,
+} from "../blocks/block-method.ts";
 import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
@@ -143,6 +148,15 @@ export interface ActionOptions<
    */
   readonly tenant?: (input: ActionParsed<S>) => string | undefined;
 }
+
+/**
+ * How `blockAction` calls the method: without `args` it passes the validated
+ * input as the only argument, so `args` is required when the method takes
+ * anything else.
+ */
+export type BlockActionArgs<S, A, Ctx> = [ActionParsed<S>] extends A
+  ? { readonly args?: (input: ActionParsed<S>, ctx: Ctx) => A }
+  : { readonly args: (input: ActionParsed<S>, ctx: Ctx) => A };
 
 export interface RouteOptions<
   C = unknown,
@@ -291,6 +305,41 @@ export interface BetterNext<
       ctx: ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+  /**
+   * A server action that calls one block method as the caller, with the same
+   * guard, validation and authorize checks as `action`.
+   *
+   * ```ts
+   * export const issueInvoice = bs.blockAction(
+   *   ({ supabase }) => blocks(supabase).invoices,
+   *   "issue",
+   *   {
+   *     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
+   *     permission: permissions.invoices.write,
+   *     args: ({ invoiceId }) => [invoiceId],
+   *   },
+   * );
+   * ```
+   */
+  // `K` stays unconstrained by `Cl`: checking a constraint that names `Cl`
+  // fixes `Cl` before a destructuring `client` callback is inferred.
+  blockAction<
+    Cl extends object,
+    const K extends string,
+    S extends StandardSchemaV1 | undefined = undefined,
+    R extends boolean = false,
+  >(
+    client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
+    method: K & BlockMethodName<Cl>,
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
+      BlockActionArgs<
+        S,
+        BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
+        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
+      >,
+  ): (
+    input: ActionInput<S>,
+  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
   /**
    * For Server Components: the caller's context, or the Next.js interrupt for a
    * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls

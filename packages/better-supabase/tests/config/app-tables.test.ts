@@ -601,7 +601,7 @@ describe("isAppDefault", () => {
   it("merges a table's subject into subjects", () => {
     const config = resolveConfig(
       {
-        sql: { naming: { tenant: "workspace" } },
+        blocks: { tenant: { entities: { organization: "workspace" } } },
         subjects: { customer: { table: "public.customers" } },
         appTables: {
           projects: {

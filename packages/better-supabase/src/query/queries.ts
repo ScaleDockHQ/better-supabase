@@ -63,7 +63,7 @@ const asException = (error: DbError) => new DbException(error);
  * `bigint`, so each becomes `{ $bigint: "<digits>" }`, which no string or
  * number argument can collide with. Values without one are returned as is.
  */
-function keyPart(value: unknown): unknown {
+export function keyPart(value: unknown): unknown {
   if (typeof value === "bigint") {
     return { $bigint: value.toString() };
   }

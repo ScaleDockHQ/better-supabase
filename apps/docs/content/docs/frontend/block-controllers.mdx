@@ -80,6 +80,49 @@ Controllers with a moving input take it as an action instead of starting
 over: `setRange` on the calendar and bookings controllers and `setSubjects`
 on the reactions controller keep the shown data until the new data arrives.
 
+## Any block method
+
+Blocks without a controller of their own, and renamed blocks, use three
+generic hooks. They take any block client and a method name, and type the
+arguments and data from the method. Each framework entry has them:
+`better-supabase/react`, `better-supabase/vue`, `better-supabase/svelte` and
+`better-supabase/solid`.
+
+| Hook                                              | What it does                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `useBlockQuery(client, method, args, options)`    | Calls a read method on mount and when `args` change; `refetch` calls it again  |
+| `useBlockMutation(client, method)`                | `mutate(...args)` calls a write method and tracks `status`, `data` and `error` |
+| `useBlockEvent(source, events, pattern, handler)` | Calls `handler` for each block event matching `pattern`, such as `"task.*"`    |
+
+```tsx title="components/task-list.tsx"
+import {
+  useBlockEvent,
+  useBlockMutation,
+  useBlockQuery,
+} from "better-supabase/react";
+
+import { blockEvents } from "@/lib/supabase/blocks.generated";
+
+export function TaskList({ tasks, workspaceId }: Props) {
+  const list = useBlockQuery(tasks, "list", [workspaceId, { open: true }], {
+    refetchOn: { source: bs, types: ["task.created", "task.updated"] },
+  });
+  const rename = useBlockMutation(tasks, "update");
+
+  useBlockEvent(bs, blockEvents, "task.*", (event) => {
+    console.log(event.type, event.data.taskId);
+  });
+
+  if (list.status === "loading") return <TaskSkeleton />;
+  if (list.status === "error") return <TaskError onRetry={list.refetch} />;
+  // ...
+}
+```
+
+`refetchOn` takes the client's `betterSupabase` (or anything with `events`)
+and the event types that make the read stale. `useBlockEvent` types each
+event's data from `blockEvents` in `blocks.generated.ts`.
+
 ## Ports
 
 A controller reaches the platform only through ports, small interfaces the

@@ -1,5 +1,4 @@
 import type { Money } from "../../commerce/money.ts";
-import type { SubjectsConfig } from "../../config/types/subjects.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -14,7 +13,6 @@ import {
   extraFieldsArg,
   withFields,
 } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
@@ -626,48 +624,4 @@ export function createCatalog<
     block: "catalog",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-export interface CatalogSubjectsOptions {
-  /** The catalog module's schema. Default `better_supabase`. */
-  readonly schema?: string;
-  /**
-   * The product page path, with `{column}` placeholders. Default
-   * `/products/{slug}`.
-   */
-  readonly productUrl?: string;
-}
-
-/**
- * `config.subjects` entries for products and variants, so comments, tags,
- * watchers and the search index attach to them: `subjects: {
- * ...catalogSubjects(), task: { ... } }`.
- */
-export function catalogSubjects(
-  subjectOptions: CatalogSubjectsOptions = {},
-): SubjectsConfig {
-  const schema = subjectOptions.schema ?? DEFAULT_BLOCK_SCHEMA;
-  const permissions = { read: "catalog.read", write: "catalog.manage" };
-
-  return {
-    product: {
-      table: `${schema}.products`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "title",
-      url: subjectOptions.productUrl ?? "/products/{slug}",
-      permissions,
-      cascade: true,
-      search: { title: "title", body: ["description", "slug"] },
-    },
-    product_variant: {
-      table: `${schema}.product_variants`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "sku",
-      permissions,
-      cascade: true,
-      search: { title: "sku", body: ["title", "barcode"] },
-    },
-  };
 }

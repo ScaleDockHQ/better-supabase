@@ -2,11 +2,14 @@ import type {
   AccessBlockConfig,
   BlockConfig,
   AnyBlocksConfig,
+  BlocksConfig,
 } from "../config/blocks.ts";
 import type { BetterSupabaseConfig } from "../config/types/config.ts";
 import type { Preset } from "./fields.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
+import { asBlocksConfig } from "../config/blocks.ts";
+import { DEFAULT_TENANT } from "../core/entity-naming.ts";
 import { decodePreset, isPresetCode } from "./code.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
 import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
@@ -40,7 +43,7 @@ export function presetOf(input: PresetInput): Preset {
 
 /**
  * The conventions that map onto config keys; `tenantName` takes any name
- * `sql.naming.tenant` allows.
+ * `blocks.tenant.entities.organization` allows.
  */
 export type ConfigConventions = Pick<
   Preset,
@@ -58,12 +61,26 @@ function accessEntry(conventions: ConfigConventions): AccessBlockConfig {
   };
 }
 
+/**
+ * `blocks.tenant` for the conventions: the tenant's name when it isn't
+ * `organization`.
+ */
+function tenantEntry(conventions: ConfigConventions): BlockConfig {
+  return conventions.tenantName === DEFAULT_TENANT.singular
+    ? {}
+    : { entities: { organization: conventions.tenantName } };
+}
+
 /** The `blocks` entry each block gets from the preset's conventions. */
 function conventionEntry(
   name: string,
   preset: Preset,
 ): BlockConfig | AccessBlockConfig {
-  return name === "access" ? accessEntry(preset) : {};
+  if (name === "access") {
+    return accessEntry(preset);
+  }
+
+  return name === "tenant" ? tenantEntry(preset) : {};
 }
 
 /** `sql` for the conventions, or undefined when they are the defaults. */
@@ -71,30 +88,37 @@ function sqlOf(conventions: ConfigConventions): BetterSupabaseConfig["sql"] {
   const sql = {
     ...(conventions.api === "none" ? {} : { api: conventions.api }),
     ...(conventions.scope === "tenant" ? {} : { scope: conventions.scope }),
-    ...(conventions.tenantName === "organization"
-      ? {}
-      : { naming: { tenant: conventions.tenantName } }),
   };
 
   return Object.keys(sql).length === 0 ? undefined : sql;
 }
 
 /**
- * The config keys conventions set without a preset: `casing`, `sql`, and
- * `blocks.access` when the access model or id type differ from the defaults.
+ * The config keys conventions set without a preset: `casing`, `sql`,
+ * `blocks.access` when the access model or id type differ from the defaults,
+ * and `blocks.tenant` when the tenant has another name.
  */
 export function conventionConfig(
   conventions: ConfigConventions,
 ): Pick<BetterSupabaseConfig, "casing" | "sql"> & {
-  readonly blocks?: { readonly access: AccessBlockConfig };
+  readonly blocks?: {
+    readonly access?: AccessBlockConfig;
+    readonly tenant?: BlockConfig;
+  };
 } {
   const sql = sqlOf(conventions);
   const access = accessEntry(conventions);
+  const tenant = tenantEntry(conventions);
+
+  const blocks = {
+    ...(Object.keys(access).length === 0 ? {} : { access }),
+    ...(Object.keys(tenant).length === 0 ? {} : { tenant }),
+  };
 
   return {
     casing: conventions.casing,
     ...(sql === undefined ? {} : { sql }),
-    ...(Object.keys(access).length === 0 ? {} : { blocks: { access } }),
+    ...(Object.keys(blocks).length === 0 ? {} : { blocks }),
   };
 }
 
@@ -105,7 +129,7 @@ export function conventionConfig(
 export function presetConfig(
   resolved: ResolvedPreset,
 ): Pick<BetterSupabaseConfig, "casing" | "sql" | "integrations"> & {
-  readonly blocks: AnyBlocksConfig;
+  readonly blocks: BlocksConfig;
 } {
   const { preset } = resolved;
   const sql = sqlOf(preset);
@@ -116,11 +140,13 @@ export function presetConfig(
     ...(preset.integrations.length === 0
       ? {}
       : { integrations: preset.integrations }),
-    blocks: Object.fromEntries(
-      resolved.blocks.map((block) => [
-        block.name,
-        conventionEntry(block.name, preset),
-      ]),
+    blocks: asBlocksConfig(
+      Object.fromEntries(
+        resolved.blocks.map((block) => [
+          block.name,
+          conventionEntry(block.name, preset),
+        ]),
+      ),
     ),
   };
 }
@@ -144,11 +170,25 @@ function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
 }
 
 /**
+ * A literal config after `expandPreset`: the same type without a preset, and
+ * with one, every key but `blocks` and `sql` as written, those two merged with
+ * the preset's.
+ */
+export type ExpandedConfig<C extends BetterSupabaseConfig> = C extends {
+  readonly preset: NonNullable<BetterSupabaseConfig["preset"]>;
+}
+  ? Omit<C, "blocks" | "sql"> & Pick<BetterSupabaseConfig, "blocks" | "sql">
+  : C;
+
+/**
  * `config` with its `preset` expanded: the preset's blocks (and what they
  * require) and conventions first, then the config's own keys over them, so
  * explicit config wins. A block in both keeps the preset's settings that the
  * config's entry leaves unset. Expanding twice gives the same config.
  */
+export function expandPreset<const C extends BetterSupabaseConfig>(
+  config: C,
+): ExpandedConfig<C>;
 export function expandPreset(
   config: BetterSupabaseConfig,
 ): BetterSupabaseConfig {

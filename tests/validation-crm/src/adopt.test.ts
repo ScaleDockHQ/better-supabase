@@ -121,7 +121,7 @@ describe("apply --adopt on the CRM schema", () => {
     expect(decodePreset(proposed.preset).preset.tenantName).toBe("workspace");
 
     // The CRM's tables keep their names: adopted tables are named in the
-    // config, and only the managed blocks' default names follow sql.naming.
+    // config, and only the managed blocks' default names follow blocks.tenant.entities.
     const { blocks } = (await committed()) as { blocks: BlocksConfig };
 
     expect(data.adopted).toEqual({

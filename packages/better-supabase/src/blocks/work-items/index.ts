@@ -11,7 +11,6 @@ export {
   type WorkItemListOptions,
   type WorkItemNode,
   type WorkItems,
-  workItemsSubjects,
   type WorkItemsOptions,
   type WorkItemState,
 } from "./work-items.ts";
@@ -33,6 +32,12 @@ export {
 } from "../../core/block-transport.ts";
 
 export { workItemsBlock } from "./manifest.ts";
+
+export {
+  workItemChangeSchema,
+  workItemInputSchema,
+  workItemListFilterSchema,
+} from "./schemas.ts";
 
 export { workItemsEvents } from "./events.ts";
 

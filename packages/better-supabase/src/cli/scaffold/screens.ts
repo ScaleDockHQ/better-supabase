@@ -7,7 +7,7 @@ import type {
 } from "../../config/index.ts";
 import type { ScaffoldFile } from "./api.ts";
 
-import { FIELD_FORMATS } from "../../config/index.ts";
+import { FIELD_FORMATS, tenantNameOf } from "../../config/index.ts";
 import { applyCasing } from "../gen/model-types.ts";
 
 export interface ScreensContext {
@@ -295,7 +295,7 @@ function namesOf(context: ScreensContext, table: AppTableConfig): Names {
     tenant:
       scope === "tenant"
         ? applyCasing(
-            `${config.sql.naming?.tenant ?? "organization"}_id`,
+            `${tenantNameOf(config.blocks) ?? "organization"}_id`,
             config.casing,
           )
         : undefined,

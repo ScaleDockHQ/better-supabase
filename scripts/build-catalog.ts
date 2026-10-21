@@ -7,7 +7,13 @@
  * renderers. That file is committed, and `pnpm catalog:check` (`--check`, part
  * of `pnpm verify`) fails when it is stale.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { argv, exit } from "node:process";
 import * as v from "valibot";
@@ -22,6 +28,8 @@ import type { PortName } from "../packages/better-supabase/src/blocks/ports.ts";
 import type {
   PresetCatalog,
   PresetCatalogBlock,
+  PresetCatalogEntitySchemas,
+  PresetCatalogEntityType,
   PresetCatalogManifest,
   PresetGlueItem,
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
@@ -30,18 +38,29 @@ import type { ModuleContext } from "../packages/better-supabase/src/sql/context.
 import type { SqlModule } from "../packages/better-supabase/src/sql/index.ts";
 import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
+import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
+import {
+  entityNames,
+  entityNoun,
+} from "../packages/better-supabase/src/core/entity-naming.ts";
 import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
+import { tenantNameClashes } from "../packages/better-supabase/src/sql/entity-clashes.ts";
 import {
   renderModules,
   SQL_MODULES,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
+import {
+  isOperationModule,
+  moduleOperations,
+} from "../packages/better-supabase/src/sql/modules/access-model.ts";
+import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
-import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-clashes.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
+const EXPORTS_JSON = join(ROOT, "packages/better-supabase/api/exports.json");
 const DOCS_BLOCKS = join(ROOT, "apps/docs/content/docs/blocks");
 
 export const CATALOG_FILE: string = join(
@@ -52,6 +71,11 @@ export const CATALOG_FILE: string = join(
 export const PRESET_CATALOG_FILE: string = join(
   ROOT,
   "packages/better-supabase/src/preset/catalog.generated.ts",
+);
+
+export const NAME_REGISTRY_FILE: string = join(
+  ROOT,
+  "packages/better-supabase/src/blocks/name-registry.generated.ts",
 );
 
 const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
@@ -324,10 +348,125 @@ function manifestExports(): ReadonlyMap<
   );
 }
 
+const exportsJsonSchema = v.record(
+  v.string(),
+  v.object({ types: v.optional(v.array(v.string()), []) }),
+);
+
+/** The types each subpath exports, from `api/exports.json`. */
+function exportedTypes(): ReadonlyMap<string, readonly string[]> {
+  const parsed = v.parse(
+    exportsJsonSchema,
+    JSON.parse(readFileSync(EXPORTS_JSON, "utf-8")),
+  );
+
+  return new Map(
+    Object.entries(parsed).map(([subpath, entry]) => [subpath, entry.types]),
+  );
+}
+
+/**
+ * The types a block's subpath exports whose names carry one of its own
+ * entities, such as `WorkItem` and `Project`, and whether each takes the extra
+ * fields as `F`. `gen` writes a renamed alias for each.
+ */
+function entityTypesOf(
+  block: AnyBlock,
+  folder: string,
+  types: readonly string[],
+): readonly PresetCatalogEntityType[] {
+  const renames = block.sql.flatMap((name) =>
+    Object.values(SQL_MODULES[name]?.names?.entities ?? {})
+      .filter((entity) => entity.global !== true)
+      .map((entity) => ({
+        from: entityNoun(entity.singular, entity.plural),
+        to: entityNoun("bs_sentinel"),
+        cases: ["pascal" as const],
+      })),
+  );
+
+  if (renames.length === 0) {
+    return [];
+  }
+
+  const names = entityNames(renames);
+  const dir = join(BLOCKS_SRC, folder);
+
+  const sources = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((file) => file.endsWith(".ts"))
+        .map((file) => readFileSync(join(dir, file), "utf-8"))
+        .join("\n")
+    : "";
+
+  return types
+    .filter((type) => names.rename(type) !== type)
+    .map((type) =>
+      new RegExp(`export (?:interface|type) ${type}<\\s*F\\b`).test(sources)
+        ? { name: type, fields: true }
+        : { name: type },
+    );
+}
+
+/**
+ * The JSON Schemas of a block's input schemas, by entity key. Fails on a key
+ * that names none of the block's entities.
+ */
+function entitySchemasOf(
+  block: AnyBlock,
+): Readonly<Record<string, PresetCatalogEntitySchemas>> {
+  const known = new Set(
+    block.sql.flatMap((name) =>
+      Object.keys(SQL_MODULES[name]?.names?.entities ?? {}),
+    ),
+  );
+
+  return Object.fromEntries(
+    Object.entries(block.schemas ?? {}).map(([entity, schemas]) => {
+      if (!known.has(entity)) {
+        throw new Error(
+          `${block.name}: schemas.${entity} names none of its entities (${[...known].join(", ") || "none"})`,
+        );
+      }
+
+      const converted: {
+        -readonly [
+          K in keyof PresetCatalogEntitySchemas
+        ]: PresetCatalogEntitySchemas[K];
+      } = {};
+
+      for (const kind of ENTITY_SCHEMA_KINDS) {
+        const schema = schemas[kind];
+
+        if (schema !== undefined) {
+          converted[kind] = {
+            title: schema.spec.title ?? `${block.name}.${entity}.${kind}`,
+            fields: Object.fromEntries(
+              Object.entries(schema.spec.fields).map(([name, field]) => {
+                const { schema: _, ...plain } = field;
+
+                return [name, plain];
+              }),
+            ),
+            jsonSchema: schema["~standard"].jsonSchema.input({
+              target: "draft-2020-12",
+            }),
+          };
+        }
+      }
+
+      const entry: PresetCatalogEntitySchemas = converted;
+
+      return [entity, entry];
+    }),
+  );
+}
+
 function presetManifest(
   block: AnyBlock,
   exported: { name: string; folder: string } | undefined,
   exports: ReadonlyMap<string, string>,
+  types: ReadonlyMap<string, readonly string[]>,
 ): PresetCatalogManifest {
   const subpath = `./blocks/${exported?.folder ?? block.name}`;
   const source = exports.get(subpath);
@@ -340,7 +479,12 @@ function presetManifest(
   const reexported =
     exported !== undefined && new RegExp(`\\b${exported.name}\\b`).test(index);
 
-  return {
+  const entityTypes =
+    exported === undefined || !reexported
+      ? []
+      : entityTypesOf(block, exported.folder, types.get(subpath) ?? []);
+
+  const manifest: PresetCatalogManifest = {
     name: block.name,
     sql: block.sql,
     category: block.category,
@@ -354,6 +498,30 @@ function presetManifest(
     consumes: block.consumes,
     provides: Object.keys(block.provides).filter(isPortName),
   };
+
+  const entitySchemas = entitySchemasOf(block);
+
+  const typed =
+    entityTypes.length === 0 ? manifest : { ...manifest, entityTypes };
+
+  const withSchemas =
+    Object.keys(entitySchemas).length === 0
+      ? typed
+      : { ...typed, entitySchemas };
+
+  const eventsType = `${block.name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("")}Events`;
+
+  return manifest.client !== null &&
+    block.events.types.length > 0 &&
+    (types.get(subpath) ?? []).includes(eventsType)
+    ? {
+        ...withSchemas,
+        events: { type: eventsType, types: [...block.events.types] },
+      }
+    : withSchemas;
 }
 
 const PORT_NAMES: readonly PortName[] = [
@@ -462,6 +630,32 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     block = { ...block, extraColumns };
   }
 
+  const entities = Object.entries(module.names?.entities ?? {});
+
+  if (entities.length > 0) {
+    block = {
+      ...block,
+      entities: {
+        specs: Object.fromEntries(entities),
+        tables: Object.fromEntries(
+          entities.flatMap(([, entity]) => {
+            const table =
+              entity.table === undefined
+                ? undefined
+                : module.names?.tables[entity.table];
+
+            return entity.table === undefined || table === undefined
+              ? []
+              : [[entity.table, { name: table.name, columns: table.columns }]];
+          }),
+        ),
+        keys: isOperationModule(module.name)
+          ? { ...moduleOperations(module.name) }
+          : {},
+      },
+    };
+  }
+
   return Object.keys(byAccess).length === 0
     ? block
     : { ...block, requiresByAccess: byAccess };
@@ -524,11 +718,12 @@ function glueItems(): PresetGlueItem[] {
 export function buildPresetCatalog(): PresetCatalog {
   const exports = exportsOf();
   const found = manifestExports();
+  const types = exportedTypes();
 
   return {
     blocks: Object.values(SQL_MODULES).map(presetBlock),
     manifests: BLOCK_MANIFESTS.map((block) =>
-      presetManifest(block, found.get(block), exports),
+      presetManifest(block, found.get(block), exports, types),
     ),
     glue: glueItems(),
   };
@@ -548,6 +743,7 @@ export function formatPresetCatalog(catalog: PresetCatalog): string {
 if (import.meta.main) {
   try {
     const preset = formatPresetCatalog(buildPresetCatalog());
+    const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
 
     if (argv.includes("--check")) {
       if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
@@ -556,8 +752,16 @@ if (import.meta.main) {
         );
         exit(1);
       }
+
+      if (readFileSync(NAME_REGISTRY_FILE, "utf-8") !== nameSets) {
+        console.error(
+          "build-catalog: src/blocks/name-registry.generated.ts is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
+      writeFileSync(NAME_REGISTRY_FILE, nameSets);
       mkdirSync(dirname(CATALOG_FILE), { recursive: true });
       writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
     }

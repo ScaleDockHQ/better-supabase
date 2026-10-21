@@ -58,6 +58,18 @@ const EMPLOYEE_STATUSES = [
 const EMPLOYMENT_TYPES = ["employee", "contractor", "intern", "temporary"];
 
 const NAMES: ModuleNames = {
+  entities: {
+    employee: {
+      table: "employees",
+      singular: "employee",
+      primary: true,
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: ["email", "jobTitle"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_employee_create",
@@ -202,14 +214,14 @@ create table if not exists ${t("employees")} (
   check (${e("endDate")} is null or ${e("startDate")} is null or ${e("endDate")} >= ${e("startDate")}),
   check ((${e("originType")} is null) = (${e("originId")} is null))
 );
-create unique index if not exists employees_user_idx on ${t("employees")} (${e("tenant")}, ${e("user")}) where ${e("user")} is not null;
-create index if not exists employees_account_idx on ${t("employees")} (${e("user")}) where ${e("user")} is not null;
-create unique index if not exists employees_origin_idx on ${t("employees")} (${e("tenant")}, ${e("originType")}, ${e("originId")}) where ${e("originId")} is not null;
-create index if not exists employees_tenant_status_idx on ${t("employees")} (${e("tenant")}, ${e("status")});
-create index if not exists employees_manager_idx on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
+create unique index if not exists ${ctx.naming.rename("employees_user_idx")} on ${t("employees")} (${e("tenant")}, ${e("user")}) where ${e("user")} is not null;
+create index if not exists ${ctx.naming.rename("employees_account_idx")} on ${t("employees")} (${e("user")}) where ${e("user")} is not null;
+create unique index if not exists ${ctx.naming.rename("employees_origin_idx")} on ${t("employees")} (${e("tenant")}, ${e("originType")}, ${e("originId")}) where ${e("originId")} is not null;
+create index if not exists ${ctx.naming.rename("employees_tenant_status_idx")} on ${t("employees")} (${e("tenant")}, ${e("status")});
+create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
 ${lockTable(t("employees"), { read: true })}
-drop policy if exists employees_read on ${t("employees")};
-create policy employees_read on ${t("employees")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("employees_read")} on ${t("employees")};
+create policy ${ctx.naming.rename("employees_read")} on ${t("employees")} for select to authenticated
 using (${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid()));
 
 -- Private details stay out of the directory: readable with
@@ -230,10 +242,10 @@ create table if not exists ${t("privateDetails")} (
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
 );
-create index if not exists employee_private_details_user_idx on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;
+create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;
 ${lockTable(t("privateDetails"), { read: true })}
-drop policy if exists employee_private_details_read on ${t("privateDetails")};
-create policy employee_private_details_read on ${t("privateDetails")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")};
+create policy ${ctx.naming.rename("employee_private_details_read")} on ${t("privateDetails")} for select to authenticated
 using (${ctx.scope.check(p("tenant"), n.sensitive)} or ${p("user")} = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
@@ -254,10 +266,10 @@ create table if not exists ${t("contracts")} (
   check (${k("endsOn")} is null or ${k("endsOn")} >= ${k("startsOn")}),
   check ((${k("salary")} is null) = (${k("currency")} is null))
 );
-create index if not exists employee_contracts_employee_idx on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
+create index if not exists ${ctx.naming.rename("employee_contracts_employee_idx")} on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
 ${lockTable(t("contracts"), { read: true })}
-drop policy if exists employee_contracts_read on ${t("contracts")};
-create policy employee_contracts_read on ${t("contracts")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("employee_contracts_read")} on ${t("contracts")};
+create policy ${ctx.naming.rename("employee_contracts_read")} on ${t("contracts")} for select to authenticated
 using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid())));
 `;
@@ -267,12 +279,14 @@ using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
 function triggersSql(ctx: ModuleContext, n: EmployeeNames): string {
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
+  const mirrorName = ctx.naming.rename("bs_employee_user_mirror");
+  const guardName = ctx.naming.rename("bs_employee_manager_guard");
 
   const mirror =
     ctx.hasTable("privateDetails") && ctx.has("privateDetails", "user")
       ? `
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.${mirrorName}()
 returns trigger
 language plpgsql
 security definer
@@ -285,17 +299,17 @@ begin
   return null;
 end;
 $$;
-${triggerGrant("better_supabase.bs_employee_user_mirror()")}
-drop trigger if exists bs_employee_user_mirror on ${t("employees")};
-create trigger bs_employee_user_mirror after update of ${e("user")} on ${t("employees")}
-for each row execute function better_supabase.bs_employee_user_mirror();
+${triggerGrant(`better_supabase.${mirrorName}()`)}
+drop trigger if exists ${mirrorName} on ${t("employees")};
+create trigger ${mirrorName} after update of ${e("user")} on ${t("employees")}
+for each row execute function better_supabase.${mirrorName}();
 `
       : "";
 
   return `
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.${guardName}()
 returns trigger
 language plpgsql
 security definer
@@ -324,10 +338,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bs_employee_manager_guard()")}
-drop trigger if exists bs_employee_manager_guard on ${t("employees")};
-create trigger bs_employee_manager_guard before insert or update of ${e("manager")} on ${t("employees")}
-for each row execute function better_supabase.bs_employee_manager_guard();
+${triggerGrant(`better_supabase.${guardName}()`)}
+drop trigger if exists ${guardName} on ${t("employees")};
+create trigger ${guardName} before insert or update of ${e("manager")} on ${t("employees")}
+for each row execute function better_supabase.${guardName}();
 ${mirror}`;
 }
 

@@ -54,6 +54,44 @@ On runtimes that stop the invocation after the response, pass `waitUntil` to
 [event sink sends](/docs/standards/events#sends-after-the-response) a
 procedure started.
 
+## Block routers
+
+`bs.blockRouter(client, options)` exposes block methods as procedures behind
+`middleware()`, one per name in `methods`. The client is built per request
+from the caller's context, so the block runs as the caller. A method that
+takes more than one argument takes them as a tuple, and each procedure's
+input and output are typed from the method.
+
+```ts title="src/router.ts"
+import { openapi } from "@orpc/openapi";
+
+import { blocks } from "./lib/blocks";
+
+const tasks = bs.blockRouter(({ supabase }) => blocks(supabase).tasks, {
+  name: "tasks",
+  methods: ["list", "create", "update"],
+  guard: { requireTenant: true },
+  tags: ["Tasks"],
+  meta: (route) => openapi({ method: route.method, path: route.path }),
+});
+
+export const router = { tasks: tasks.procedures, health };
+```
+
+| Option    | What it does                                                                          |
+| --------- | ------------------------------------------------------------------------------------- |
+| `name`    | The path segment and operation id prefix: `POST /tasks/create`, `tasks.create`        |
+| `methods` | The block methods to expose                                                           |
+| `schemas` | Input schemas by method, such as the generated `taskInput`, validated before the call |
+| `guard`   | The `middleware()` options every procedure runs behind, `permission` included         |
+| `tags`    | Tags for the documented routes                                                        |
+| `meta`    | Route metadata per procedure, such as `openapi` from `@orpc/openapi`                  |
+
+`tasks.routes` lists the same routes for
+[`routes`](/docs/specs/customize#routes) of `defineApi`, so the OpenAPI document
+describes them. A failed call becomes an `ORPCError` with the `DbError` as
+Problem Details, as `bs.unwrap` does.
+
 ## Entry arrays with `toOrpc`
 
 `toOrpc(entries, handler, { prefix })` runs an `@supabase/middleware` entry

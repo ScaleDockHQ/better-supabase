@@ -1325,7 +1325,7 @@
                 "const": false
               }
             ],
-            "description": "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant is renamed."
+            "description": "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.tenant.entities.organization>_id` when the tenant is renamed."
           },
           "title": {
             "type": "string",
@@ -2244,19 +2244,6 @@
           "type": "string",
           "description": "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
           "default": "tenant"
-        },
-        "naming": {
-          "type": "object",
-          "properties": {
-            "tenant": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]{0,40}$",
-              "description": "The tenant concept's singular name in table, function and column names, such as workspace or team.",
-              "default": "organization"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Names for the tenant concept in SQL."
         }
       },
       "additionalProperties": false
@@ -2718,6 +2705,45 @@
             "type": "string"
           }
         },
+        "entities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "plural": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "const": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          ]
+        },
         "options": {
           "type": "object",
           "additionalProperties": {}
@@ -2853,6 +2879,45 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "entities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "plural": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,40}$"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "const": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          ]
         },
         "options": {
           "type": "object",

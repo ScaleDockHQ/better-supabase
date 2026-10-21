@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createWorkItems,
-  workItemsSubjects,
-} from "../../../src/blocks/work-items/index.ts";
+import { createWorkItems } from "../../../src/blocks/work-items/index.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -234,15 +231,6 @@ describe("work-items block", () => {
       iteration: "i1",
       attrs: { name: "Sprint 1" },
     });
-  });
-
-  it("registers work items as a ranked subject", () => {
-    expect(workItemsSubjects({ url: "/t/{id}" }).work_item).toMatchObject({
-      table: "better_supabase.work_items",
-      rank: { group: "stage_id" },
-      url: "/t/{id}",
-    });
-    expect(workItemsSubjects().work_item.url).toBeUndefined();
   });
 });
 

@@ -184,8 +184,10 @@ function code(sql: string): string {
   return sql.replaceAll(/--[^\n]*/g, "").replaceAll(/'(?:[^']|'')*'/g, "''");
 }
 
-describe("sql.naming.tenant", () => {
-  const layout = { naming: { tenant: "workspace" } } as const;
+describe("blocks.tenant.entities.organization", () => {
+  const layout = {
+    modules: { tenant: { entities: { organization: "workspace" } } },
+  } as const;
 
   it("leaves no organization identifier but parameter names", () => {
     const names = Object.keys(SQL_MODULES).filter((name) => name !== "pgtap");
@@ -222,12 +224,16 @@ describe("sql.naming.tenant", () => {
 describe("tenant name clashes", () => {
   it("refuses a tenant name that renames onto a name a module already uses", () => {
     expect(() =>
-      renderModules(["teams"], { naming: { tenant: "team" } }),
+      renderModules(["teams"], {
+        modules: { tenant: { entities: { organization: "team" } } },
+      }),
     ).toThrow(
-      'sql.naming.tenant: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
+      'blocks.tenant.entities.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
     );
     expect(() =>
-      renderModules(["teams"], { naming: { tenant: "workspace" } }),
+      renderModules(["teams"], {
+        modules: { tenant: { entities: { organization: "workspace" } } },
+      }),
     ).not.toThrow();
   });
 });
@@ -244,11 +250,11 @@ describe("blocks.<name>.functions", () => {
     expect(sql).not.toMatch(/\bcreate_tag\b/);
   });
 
-  it("takes the renamed name as a key under sql.naming", () => {
+  it("takes the renamed name as a key under a renamed tenant", () => {
     const sql =
       moduleBody("organizations", {
-        naming: { tenant: "workspace" },
         modules: {
+          tenant: { entities: { organization: "workspace" } },
           organizations: { functions: { create_workspace: "open_workspace" } },
         },
       }) ?? "";

@@ -7,6 +7,21 @@ export {
 
 export { clearOnUserChange } from "./user-change.ts";
 
+export {
+  BLOCK_READ_PREFIXES,
+  blockQueries,
+  invalidateOnBlockEvents,
+} from "./blocks.ts";
+
+export type {
+  BlockClientQueries,
+  BlockClients,
+  BlockInvalidation,
+  BlockMethodQuery,
+  BlockQueries,
+  BlockVariablesOf,
+} from "./blocks.ts";
+
 export { optimistic } from "./optimistic.ts";
 
 export type {

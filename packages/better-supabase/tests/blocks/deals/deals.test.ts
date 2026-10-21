@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDeals, dealsSubjects } from "../../../src/blocks/deals/index.ts";
+import { createDeals } from "../../../src/blocks/deals/index.ts";
 import { money } from "../../../src/commerce/money.ts";
 
 const eur = (amount: bigint) => money(amount, "EUR");
@@ -418,15 +418,6 @@ describe("deals block", () => {
       ),
     ).toEqual(["CURRENCY_INVALID", "CURRENCY_INVALID"]);
     expect(t.calls).toEqual([]);
-  });
-
-  it("registers deals as a ranked subject grouped by stage", () => {
-    expect(dealsSubjects({ url: "/deals/{id}" }).deal).toMatchObject({
-      table: "better_supabase.deals",
-      rank: { column: "rank", group: "stage_id" },
-      url: "/deals/{id}",
-    });
-    expect(dealsSubjects({ schema: "crm" }).deal.url).toBeUndefined();
   });
 });
 

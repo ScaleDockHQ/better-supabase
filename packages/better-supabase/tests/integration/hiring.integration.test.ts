@@ -5,11 +5,9 @@ import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createHiring } from "../../src/blocks/hiring/index.ts";
-import {
-  createParties,
-  partiesSubjects,
-} from "../../src/blocks/parties/index.ts";
+import { createParties } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -26,7 +24,7 @@ const MODULES = [
 
 const layout: ModuleLayout = {
   subjects: {
-    ...partiesSubjects(),
+    ...withBlockSubjects({}, ["parties"], {}),
     application: {
       table: "better_supabase.applications",
       idType: "uuid",

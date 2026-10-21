@@ -494,7 +494,7 @@ describe("defineBlocks", () => {
         organizations: {
           schema: "better_supabase",
           options: {},
-          naming: { tenant: "workspace" },
+          names: { tenant: "workspace" },
         },
       },
       { organizations: organizationsBlock },

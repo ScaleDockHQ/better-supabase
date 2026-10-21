@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -55,6 +56,7 @@ export interface BetterReactRouter<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
@@ -83,7 +85,7 @@ export interface BetterReactRouter<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -103,7 +105,7 @@ export interface BetterReactRouter<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -122,11 +124,12 @@ export function createReactRouter<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: ReactRouterOptions,
-): BetterReactRouter<M, F, E, C, P, B> {
+  options: ReactRouterOptions & { readonly authorizer?: A },
+): BetterReactRouter<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
@@ -154,80 +157,83 @@ export function createReactRouter<
     return value as Locals;
   };
 
-  return extendServer<BetterReactRouter<M, F, E, C, P, B>>(server, {
-    contextKey: key,
+  return extendServer<BetterReactRouter<M, F, E, C, P, PermissionRef<A>, B>>(
+    server,
+    {
+      contextKey: key,
 
-    middleware(args, next) {
-      bufferInPlace(args.request);
+      middleware(args, next) {
+        bufferInPlace(args.request);
 
-      return run(
-        args.request,
-        options.platformEnv?.(args),
-        async (contributions) => {
-          // SAFETY: the key is the one this factory created, for Locals.
-          args.context.set(key as never, localsOf(contributions) as never);
+        return run(
+          args.request,
+          options.platformEnv?.(args),
+          async (contributions) => {
+            // SAFETY: the key is the one this factory created, for Locals.
+            args.context.set(key as never, localsOf(contributions) as never);
 
-          return withFlush(server, options.waitUntil, next);
-        },
-      );
-    },
-
-    locals,
-
-    loader(loaderOptions, fn) {
-      return async (args) => {
-        const scope = locals(args);
-
-        const caller = await requireCaller(
-          scope.bs.auth,
-          loaderOptions,
-          scope.tenant,
-          options.authorizer,
-          scope,
+            return withFlush(server, options.waitUntil, next);
+          },
         );
+      },
 
-        if ("kind" in caller) {
-          // oxlint-disable-next-line typescript/only-throw-error -- React Router sends a thrown Response as the answer.
-          throw refusalResponse(caller, args.request, options, expose);
-        }
+      locals,
 
-        // SAFETY: requireTenant refused a missing tenant.
-        const ctx = { ...scope, ...caller } as never;
-        const settled = await settle(() => fn(args, ctx));
+      loader(loaderOptions, fn) {
+        return async (args) => {
+          const scope = locals(args);
 
-        if (!settled.ok) {
-          // oxlint-disable-next-line typescript/only-throw-error -- React Router renders a thrown Response in the ErrorBoundary.
-          throw problemResponse(settled.error, {
-            instance: new URL(args.request.url).pathname,
-            expose,
-          });
-        }
+          const caller = await requireCaller(
+            scope.bs.auth,
+            loaderOptions,
+            scope.tenant,
+            options.authorizer,
+            scope,
+          );
 
-        // SAFETY: the settled data is what fn returned, unwrapped.
-        return settled.data as never;
-      };
+          if ("kind" in caller) {
+            // oxlint-disable-next-line typescript/only-throw-error -- React Router sends a thrown Response as the answer.
+            throw refusalResponse(caller, args.request, options, expose);
+          }
+
+          // SAFETY: requireTenant refused a missing tenant.
+          const ctx = { ...scope, ...caller } as never;
+          const settled = await settle(() => fn(args, ctx));
+
+          if (!settled.ok) {
+            // oxlint-disable-next-line typescript/only-throw-error -- React Router renders a thrown Response in the ErrorBoundary.
+            throw problemResponse(settled.error, {
+              instance: new URL(args.request.url).pathname,
+              expose,
+            });
+          }
+
+          // SAFETY: the settled data is what fn returned, unwrapped.
+          return settled.data as never;
+        };
+      },
+
+      action(actionOptions, fn) {
+        return async (args) => {
+          const scope = locals(args);
+
+          const result = await runAction(
+            scope.bs.auth,
+            actionOptions,
+            await actionInput(args.request),
+            scope.tenant,
+            // SAFETY: parsed is the validated input, or the raw input when the
+            // action has no schema; requireTenant refused a missing tenant.
+            (parsed, caller) =>
+              fn(parsed as never, { ...scope, ...caller } as never, args),
+            options.authorizer,
+            scope,
+          );
+
+          // SAFETY: the settled data is what fn returned, unwrapped.
+          return result as never;
+        };
+      },
     },
-
-    action(actionOptions, fn) {
-      return async (args) => {
-        const scope = locals(args);
-
-        const result = await runAction(
-          scope.bs.auth,
-          actionOptions,
-          await actionInput(args.request),
-          scope.tenant,
-          // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema; requireTenant refused a missing tenant.
-          (parsed, caller) =>
-            fn(parsed as never, { ...scope, ...caller } as never, args),
-          options.authorizer,
-          scope,
-        );
-
-        // SAFETY: the settled data is what fn returned, unwrapped.
-        return result as never;
-      };
-    },
-  });
+  );
 }

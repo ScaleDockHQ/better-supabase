@@ -1,3 +1,4 @@
+import type { FieldSpec } from "../../core/table-json-schema.ts";
 import type { Casing, SchemaMeta } from "../../schema/types.ts";
 import type { GeneratorMetadata, SnapshotExtras } from ".././snapshot.ts";
 import type { ResolvedConfig } from "./config.ts";
@@ -97,8 +98,8 @@ export interface SoftDeleteConfig {
 
 export interface TenantConfig {
   /**
-   * Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant
-   * is renamed.
+   * Defaults to `organization_id`, or
+   * `<blocks.tenant.entities.organization>_id` when the tenant is renamed.
    */
   readonly column?: string;
 }
@@ -218,6 +219,95 @@ export interface GeneratorTable {
   readonly columns: readonly GeneratorColumn[];
 }
 
+export interface GeneratorFunctionArg {
+  readonly name: string;
+  /** TypeScript type, as `$rpc` takes it. */
+  readonly tsType: string;
+  /** Has a default, so callers may leave it out. */
+  readonly optional: boolean;
+  /** Enum values, when the argument is an enum (or an array of one). */
+  readonly values: readonly string[] | undefined;
+}
+
+/** A function `$rpc` calls, with the types `gen` wrote for it. */
+export interface GeneratorFunction {
+  /** Name on `$rpc`. */
+  readonly key: string;
+  readonly schema: string;
+  readonly args: readonly GeneratorFunctionArg[];
+  /** TypeScript type of the result, as `$rpc` returns it. */
+  readonly returns: string;
+  readonly returnsSet: boolean;
+  readonly volatility: "immutable" | "stable" | "volatile";
+}
+
+/** JSON Schema (draft 2020-12) for one value. */
+export type GeneratorJsonSchema = Readonly<Record<string, unknown>>;
+
+/**
+ * One field of a block input schema: its scalar kind with the flags and bounds
+ * `entitySchema` takes. It never carries a nested `schema`.
+ */
+export type GeneratorField = FieldSpec;
+
+/** One of a block's input schemas, in the block's default names. */
+export interface GeneratorInputSchema {
+  /** The type it validates (`WorkItemInput`). */
+  readonly title: string;
+  readonly fields: Readonly<Record<string, GeneratorField>>;
+  /** The same schema as JSON Schema (draft 2020-12), in its wire form. */
+  readonly jsonSchema: GeneratorJsonSchema;
+}
+
+/**
+ * The inputs a block's client takes for one entity. Each is absent when the
+ * block declares none.
+ */
+export interface GeneratorEntitySchemas {
+  /** What creating one takes (`WorkItemInput`). */
+  readonly input?: GeneratorInputSchema;
+  /** What updating one takes (`WorkItemChange`). */
+  readonly change?: GeneratorInputSchema;
+  /** What listing them takes (`WorkItemListOptions`). */
+  readonly listFilter?: GeneratorInputSchema;
+}
+
+export interface GeneratorNoun {
+  readonly singular: string;
+  readonly plural: string;
+}
+
+/** One of an installed block's entities, under the name the config gives it. */
+export interface GeneratorBlockEntity {
+  /** The entity's key in the block's manifest: its default singular noun. */
+  readonly key: string;
+  /** The block's own noun (`work_item`). */
+  readonly from: GeneratorNoun;
+  /** The noun `blocks.<name>.entities` gives it (`task`). */
+  readonly to: GeneratorNoun;
+  readonly primary: boolean;
+  /** The table that holds it, as the SQL names it; undefined when none. */
+  readonly table: string | undefined;
+  /** `blocks.<name>.entities.<entity>.url`, with column placeholders. */
+  readonly url: string | undefined;
+  readonly schemas: GeneratorEntitySchemas;
+}
+
+/** An installed block, with its final names. */
+export interface GeneratorBlock {
+  readonly name: string;
+  /** The schema its tables and functions live in. */
+  readonly schema: string;
+  /**
+   * The block's client in `blocks.generated.ts` (`tasksBlock`) and the subpath
+   * its default export comes from, or undefined for blocks with only SQL.
+   */
+  readonly client:
+    | { readonly export: string; readonly subpath: string }
+    | undefined;
+  readonly entities: readonly GeneratorBlockEntity[];
+}
+
 export interface GeneratorModel {
   readonly tables: readonly GeneratorTable[];
   readonly enums: readonly {
@@ -225,6 +315,10 @@ export interface GeneratorModel {
     readonly name: string;
     readonly values: readonly string[];
   }[];
+  /** The functions `$rpc` calls, one entry per overload. */
+  readonly functions: readonly GeneratorFunction[];
+  /** The installed blocks, in config order. */
+  readonly blocks: readonly GeneratorBlock[];
 }
 
 /**

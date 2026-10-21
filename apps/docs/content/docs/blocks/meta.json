@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "create-blocks",
+    "typed-blocks",
     "sql",
     "app-tables",
     "access",

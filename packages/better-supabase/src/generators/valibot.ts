@@ -3,8 +3,17 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { FieldSpec } from "../core/table-json-schema.ts";
+import type { ExtraSchemas, ResultSchema } from "./extras.ts";
 import type { FieldDocs, FieldPlan, ScalarKind } from "./shared.ts";
 
+import {
+  extraKinds,
+  extraSchemas,
+  fieldMetaLines,
+  objectType,
+  resultType,
+} from "./extras.ts";
 import {
   fieldDocs,
   fieldsFor,
@@ -33,6 +42,11 @@ export interface ValibotGeneratorOptions {
    * './schemas.ts#metadata' }`.
    */
   readonly json?: Readonly<Record<string, string>>;
+  /**
+   * Also export `fieldMeta`: a label, a required flag, enum options and bounds
+   * for each writable field, for building forms.
+   */
+  readonly fieldMeta?: boolean;
 }
 
 function scalar(kind: ScalarKind): string {
@@ -67,6 +81,10 @@ function scalar(kind: ScalarKind): string {
 
     case "instant": {
       return "v.custom<Temporal.Instant>(isInstant)";
+    }
+
+    case "plainDate": {
+      return "v.custom<Temporal.PlainDate>(isPlainDate)";
     }
 
     case "plainDateTime": {
@@ -167,6 +185,77 @@ function field(
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
+function specExpr(spec: FieldSpec): string {
+  let expr =
+    spec.kind === "custom"
+      ? "v.unknown()"
+      : piped(scalar(spec), boundActions(spec));
+
+  if (spec.array) {
+    expr = `v.array(${expr})`;
+  }
+
+  if (spec.nullable) {
+    expr = `v.nullable(${expr})`;
+  }
+
+  expr = piped(expr, docActions(spec));
+
+  return spec.optional ? `v.exactOptional(${expr})` : expr;
+}
+
+function resultExpr(
+  result: ResultSchema,
+  rows: ReadonlySet<string>,
+): string | undefined {
+  if (result.of.kind === "row") {
+    if (!rows.has(result.of.table)) {
+      return undefined;
+    }
+
+    const row = schemaName(result.of.table, "Row");
+
+    return result.set ? `v.array(${row})` : `v.nullable(${row})`;
+  }
+
+  const item = scalar(result.of.scalar);
+  const element = result.nullable ? `v.nullable(${item})` : item;
+
+  return result.set ? `v.array(${element})` : element;
+}
+
+function extraLines(input: GeneratorInput, extras: ExtraSchemas): string[] {
+  const lines: string[] = [];
+
+  for (const schema of extras.inputs) {
+    lines.push(
+      "",
+      `export const ${schema.name}: v.GenericSchema<${objectType(schema)}> = v.pipe(v.object({`,
+    );
+
+    for (const [name, spec] of Object.entries(schema.fields)) {
+      lines.push(`  ${propertyKey(name)}: ${specExpr(spec)},`);
+    }
+
+    lines.push(`}), v.title(${JSON.stringify(schema.title)}));`);
+  }
+
+  const rows = new Set(Object.keys(input.meta.tables));
+
+  for (const result of extras.results) {
+    const expr = resultExpr(result, rows);
+
+    if (expr !== undefined) {
+      lines.push(
+        "",
+        `export const ${result.name}: v.GenericSchema<${resultType(result)}> = ${expr};`,
+      );
+    }
+  }
+
+  return lines;
+}
+
 /** Valibot schemas for every table's Row, Insert and Update shape. */
 export function valibot(options: ValibotGeneratorOptions = {}): Generator {
   return {
@@ -198,10 +287,12 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         );
       }
 
+      const extras = extraSchemas(input);
+
       const lines = [
         HEADER,
         'import * as v from "valibot";',
-        ...optionalLine(temporalGuardImport(input)),
+        ...optionalLine(temporalGuardImport(input, extraKinds(extras))),
         "",
         `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];
@@ -274,6 +365,8 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         "} = {",
         ...validators,
         "};",
+        ...extraLines(input, extras),
+        ...(options.fieldMeta ? fieldMetaLines(input, extras) : []),
         "",
       );
 

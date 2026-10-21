@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -64,6 +65,7 @@ export interface BetterSolidStart<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
@@ -97,7 +99,7 @@ export interface BetterSolidStart<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
@@ -111,7 +113,7 @@ export interface BetterSolidStart<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -129,11 +131,12 @@ export function createSolidStart<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: SolidStartOptions,
-): BetterSolidStart<M, F, E, C, P, B> {
+  options: SolidStartOptions & { readonly authorizer?: A },
+): BetterSolidStart<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = beforeRoute([frameworkEntry(server, options, expose)]);
@@ -159,84 +162,87 @@ export function createSolidStart<
     return locals as Locals;
   };
 
-  return extendServer<BetterSolidStart<M, F, E, C, P, B>>(server, {
-    middleware: {
-      onRequest: async (event) => {
-        const env = options.platformEnv
-          ? options.platformEnv(event)
-          : event.nativeEvent && nitroCloudflareEnv(event.nativeEvent.req);
+  return extendServer<BetterSolidStart<M, F, E, C, P, PermissionRef<A>, B>>(
+    server,
+    {
+      middleware: {
+        onRequest: async (event) => {
+          const env = options.platformEnv
+            ? options.platformEnv(event)
+            : event.nativeEvent && nitroCloudflareEnv(event.nativeEvent.req);
 
-        const outcome = await run(event.request, env);
+          const outcome = await run(event.request, env);
 
-        if (!outcome.reached) {
-          return outcome.response;
-        }
-
-        for (const cookie of outcome.headers.getSetCookie()) {
-          event.response.headers.append("set-cookie", cookie);
-        }
-
-        for (const [name, value] of outcome.headers) {
-          if (name !== "set-cookie") {
-            event.response.headers.set(name, value);
+          if (!outcome.reached) {
+            return outcome.response;
           }
-        }
 
-        Object.assign(
-          event.locals,
-          localsOf<M, F, E, C, P, B>(outcome.contributions),
-        );
+          for (const cookie of outcome.headers.getSetCookie()) {
+            event.response.headers.append("set-cookie", cookie);
+          }
 
-        return;
+          for (const [name, value] of outcome.headers) {
+            if (name !== "set-cookie") {
+              event.response.headers.set(name, value);
+            }
+          }
+
+          Object.assign(
+            event.locals,
+            localsOf<M, F, E, C, P, B>(outcome.contributions),
+          );
+
+          return;
+        },
+        onBeforeResponse: () => {
+          flushEvents(server, options.waitUntil);
+        },
       },
-      onBeforeResponse: () => {
-        flushEvents(server, options.waitUntil);
-      },
-    },
 
-    locals: () => scopeOf(eventOf()),
+      locals: () => scopeOf(eventOf()),
 
-    require: async (requireOptions = {}) => {
-      const event = eventOf();
-      const scope = scopeOf(event);
+      require: async (requireOptions = {}) => {
+        const event = eventOf();
+        const scope = scopeOf(event);
 
-      const caller = await requireCaller(
-        scope.bs.auth,
-        requireOptions,
-        scope.tenant,
-        options.authorizer,
-        scope,
-      );
-
-      if ("kind" in caller) {
-        // oxlint-disable-next-line typescript/only-throw-error -- SolidStart sends a thrown Response from a server function as the answer.
-        throw refusalResponse(caller, event.request, options, expose);
-      }
-
-      // SAFETY: requireTenant refused a missing tenant.
-      return { ...scope, ...caller } as never;
-    },
-
-    action(actionOptions, fn) {
-      return async (input) => {
-        const scope = scopeOf(eventOf());
-
-        const result = await runAction(
+        const caller = await requireCaller(
           scope.bs.auth,
-          actionOptions,
-          input,
+          requireOptions,
           scope.tenant,
-          // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema; requireTenant refused a missing tenant.
-          (parsed, caller) =>
-            fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
           scope,
         );
 
-        // SAFETY: the settled data is what fn returned, unwrapped.
-        return result as never;
-      };
+        if ("kind" in caller) {
+          // oxlint-disable-next-line typescript/only-throw-error -- SolidStart sends a thrown Response from a server function as the answer.
+          throw refusalResponse(caller, event.request, options, expose);
+        }
+
+        // SAFETY: requireTenant refused a missing tenant.
+        return { ...scope, ...caller } as never;
+      },
+
+      action(actionOptions, fn) {
+        return async (input) => {
+          const scope = scopeOf(eventOf());
+
+          const result = await runAction(
+            scope.bs.auth,
+            actionOptions,
+            input,
+            scope.tenant,
+            // SAFETY: parsed is the validated input, or the raw input when the
+            // action has no schema; requireTenant refused a missing tenant.
+            (parsed, caller) =>
+              fn(parsed as never, { ...scope, ...caller } as never),
+            options.authorizer,
+            scope,
+          );
+
+          // SAFETY: the settled data is what fn returned, unwrapped.
+          return result as never;
+        };
+      },
     },
-  });
+  );
 }

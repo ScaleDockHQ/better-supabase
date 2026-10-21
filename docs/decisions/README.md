@@ -65,3 +65,5 @@ add one, and link it from the code or config it explains.
 | [0057](0057-create-runs-in-the-cloud-app.md)              | Create runs in the cloud app at app.bettersupabase.com, public without login; marketing redirects /create there                |
 | [0058](0058-design-files-for-large-designs.md)            | A design too large for a URL reaches init and apply as a JSON design file; checkDesign shares one validation path              |
 | [0059](0059-diff-inside-the-running-stack.md)             | db diff falls back to a diff inside the running stack when the shadow database cannot start; stack ls and prune free segments  |
+| [0060](0060-typed-block-config-and-entity-names.md)       | Blocks rename their entities per block, with typed config keys and automatic subjects                                          |
+| [0061](0061-generated-block-helpers.md)                   | gen writes typed block helpers; zod, valibot, nuqs, TanStack Query and oRPC stay optional peers                                |

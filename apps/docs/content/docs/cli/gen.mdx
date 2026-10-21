@@ -378,6 +378,108 @@ above, and it keeps separate `Row`, `Insert` and `Update` schemas per table.
 Replace the `supabase-to-zod` script with `generators: [zod()]` and import
 `<table>Row` from `generated.zod.ts`.
 
+## Schemas for functions and blocks
+
+The `zod()`, `valibot()`, `jsonSchema()` and `standardSchema()` generators
+also write a schema for each database function's arguments and result, and
+for the inputs of every installed entity block, next to the table schemas:
+
+| Export                               | From                                                   |
+| ------------------------------------ | ------------------------------------------------------ |
+| `<function>Args`, `<function>Result` | each function: `listTasksArgs`, `customerStatsResult`  |
+| `<entity>Input`, `<entity>Change`    | a block entity's create and update inputs: `taskInput` |
+| `<entity>ListFilter`                 | a block entity's list options: `taskListFilter`        |
+
+Block schemas carry the names the config gives the entities, so with
+`work_item: "task"` the file has `taskInput` with a `taskId` field. An
+overloaded function gets no schema, because one schema can't pick a
+signature. Use them as action inputs, as the `schemas` of
+[`blockRouter`](/docs/frameworks/orpc#block-routers), or in forms.
+
+### Form metadata
+
+`fieldMeta: true` adds a `fieldMeta` export: for each writable table and
+each input schema, a label, a `required` flag, the enum `options` and the
+bounds of every field.
+
+```ts title="better-supabase.config.ts"
+generators: [zod({ fieldMeta: true })],
+```
+
+```ts title="src/lib/supabase/generated.zod.ts"
+export const fieldMeta = {
+  customers: {
+    name: {
+      label: "Trading name",
+      required: true,
+      minLength: 1,
+      maxLength: 200,
+    },
+    status: {
+      label: "Status",
+      required: false,
+      options: ["active", "churned"],
+    },
+  },
+} as const;
+```
+
+The label is the column's comment when it is short, one line of at most 60
+characters; otherwise it comes from the column name.
+
+## Search params for nuqs
+
+`nuqs()` from `better-supabase/config` writes `<output>.nuqs.ts`, with
+search-param parsers for a list of each table: a filter for every column
+with a closed set of values, `orderBy` over the sortable columns,
+`direction`, `cursor` and `limit`. Each set comes with a cache for Server
+Components, a loader and a serializer for links. The file imports
+`nuqs/server`, an optional peer the app installs.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, nuqs } from "better-supabase/config";
+
+export default defineConfig({
+  generators: [nuqs({ tables: ["tasks", "customers"], limit: 50 })],
+});
+```
+
+A Server Component reads the params through the cache, and a Client
+Component writes them with nuqs' own hooks:
+
+```tsx title="app/tasks/page.tsx"
+import { tasksSearchParamsCache } from "@/lib/supabase/generated.nuqs";
+
+export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
+  const { state, orderBy, direction, limit } =
+    await tasksSearchParamsCache.parse(searchParams);
+  // ...
+}
+```
+
+```tsx title="app/tasks/task-filters.tsx"
+"use client";
+
+import { useQueryStates } from "nuqs";
+
+import { tasksSearchParams } from "@/lib/supabase/generated.nuqs";
+
+export function TaskFilters() {
+  const [params, setParams] = useQueryStates(tasksSearchParams);
+  // ...
+}
+```
+
+| Option   | What it does                                                                        |
+| -------- | ----------------------------------------------------------------------------------- |
+| `tables` | The table keys to write parsers for; defaults to every table, block tables included |
+| `limit`  | The default page size; defaults to 25                                               |
+| `output` | The file path; defaults to `<output>.nuqs.ts`                                       |
+
+Block tables appear under their final names, such as `tasksSearchParams`.
+`load<Name>` parses a URL, a `Request` or `searchParams`, and
+`serialize<Name>` writes the params into a link.
+
 ## Standard Schema without a validation library
 
 `standardSchema()` writes `<output>.standard.ts`: a schema per table for its

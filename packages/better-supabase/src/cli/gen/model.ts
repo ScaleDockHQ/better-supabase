@@ -1,4 +1,8 @@
-import type { GeneratorModel, ResolvedConfig } from "../../config/index.ts";
+import type {
+  GeneratorBlock,
+  GeneratorModel,
+  ResolvedConfig,
+} from "../../config/index.ts";
 import type {
   Casing,
   ClaimsMeta,
@@ -893,8 +897,14 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** The public, frozen view of the model that generators receive. */
-export function generatorModel(model: Model): GeneratorModel {
+/**
+ * The public, frozen view of the model that generators receive, with the
+ * installed blocks `generatorBlocks` lists.
+ */
+export function generatorModel(
+  model: Model,
+  blocks: readonly GeneratorBlock[] = [],
+): GeneratorModel {
   return deepFreeze({
     tables: model.tables.map((table) => ({
       key: table.key,
@@ -917,6 +927,20 @@ export function generatorModel(model: Model): GeneratorModel {
       name: entry.name,
       values: [...entry.values],
     })),
+    functions: model.functions.map((fn) => ({
+      key: fn.key,
+      schema: fn.meta.schema,
+      args: fn.args.map((arg) => ({
+        name: arg.name,
+        tsType: arg.tsType,
+        optional: arg.optional,
+        values: arg.values === undefined ? undefined : [...arg.values],
+      })),
+      returns: fn.returns,
+      returnsSet: fn.meta.returnsSet,
+      volatility: fn.meta.volatility,
+    })),
+    blocks,
   });
 }
 

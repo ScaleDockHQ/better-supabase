@@ -1,8 +1,21 @@
-import type { BuilderWithMiddlewares, DecoratedMiddleware } from "@orpc/server";
+import type {
+  AnySchema,
+  BuilderWithMiddlewares,
+  DecoratedMiddleware,
+  DecoratedProcedure,
+  MetaPlugin,
+  Schema,
+} from "@orpc/server";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { COMMON_ERROR_STATUS_MAP, ORPCError, os } from "@orpc/server";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type {
+  BlockDataOf,
+  BlockInputOf,
+  BlockMethodName,
+} from "../blocks/block-method.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { ProblemDetails } from "../core/problem.ts";
@@ -16,8 +29,10 @@ import type {
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { RouteSpec } from "../spec/options.ts";
 
 import { tenantOf, toSession } from "../auth/view.ts";
+import { callWithInput } from "../blocks/block-method.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbErrorOf } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
@@ -154,6 +169,88 @@ export interface OrpcExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
 
+/** The HTTP route `blockRouter` gives one block method. */
+export interface BlockRoute {
+  readonly method: "POST";
+  readonly path: `/${string}`;
+  readonly operationId: string;
+}
+
+/** Options of `blockRouter()`. */
+export interface BlockRouterOptions<
+  Cl,
+  K extends BlockMethodName<Cl>,
+  G = OrpcGuardOptions,
+> {
+  /** The path segment and operation id prefix, such as `invoices`. */
+  readonly name: string;
+  /** The methods to expose; the client is only built per request. */
+  readonly methods: readonly K[];
+  /**
+   * Input schemas by method, such as the generated block input schemas. They
+   * aren't typed against the method: a type that names the client fixes it
+   * before a `client` callback that destructures its context is inferred.
+   */
+  readonly schemas?: { readonly [Name in K]?: StandardSchemaV1 };
+  /** Guard and authorize options every procedure runs behind. */
+  readonly guard?: G;
+  /** Tags for the documented routes. */
+  readonly tags?: readonly string[];
+  /**
+   * Route metadata per procedure, such as `openapi` from `@orpc/openapi`, so
+   * `OpenAPIHandler` serves each method at its documented route.
+   */
+  readonly meta?: (
+    route: BlockRoute,
+  ) => MetaPlugin<AnySchema, AnySchema, Record<never, never>>;
+}
+
+/** One block method as an oRPC procedure, typed by its input and data. */
+export type BlockProcedure<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  I,
+  O,
+> = DecoratedProcedure<
+  OrpcRequestContext,
+  OrpcContext<M, F, E, C, P, B>,
+  Schema<I, I>,
+  Schema<O, O>,
+  Record<never, never>
+>;
+
+/** What `blockRouter()` returns: the procedures and their documented routes. */
+export interface BlockRouter<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  Cl,
+  K extends BlockMethodName<Cl>,
+> {
+  /** One procedure per method, to mount in `os.router()`. */
+  readonly procedures: {
+    readonly [Name in K]: BlockProcedure<
+      M,
+      F,
+      E,
+      C,
+      P,
+      B,
+      BlockInputOf<Cl, Name>,
+      BlockDataOf<Cl, Name>
+    >;
+  };
+  /** The routes for `buildApiModel({ routes })`, one `POST` per method. */
+  readonly routes: readonly RouteSpec[];
+}
+
 export interface BetterOrpc<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -225,6 +322,37 @@ export interface BetterOrpc<
   // oxlint-disable-next-line typescript/unified-signatures -- the first overload infers the value inside a Result
   unwrap<T>(value: T | PromiseLike<T>): Promise<T>;
   toOrpcError(error: DbError): ORPCError<string, ProblemDetails>;
+  /**
+   * Exposes a block's client methods as procedures behind `middleware()`. A
+   * method that takes more than one argument takes them as a tuple:
+   *
+   * ```ts
+   * const invoices = bs.blockRouter(
+   *   ({ supabase }) => blocks(supabase).invoices,
+   *   {
+   *     name: "invoices",
+   *     methods: ["create", "issue"],
+   *     schemas: invoiceInputSchemas,
+   *     meta: openapi,
+   *   },
+   * );
+   * export const router = os.router({ invoices: invoices.procedures });
+   * ```
+   */
+  // `K` stays unconstrained by `Cl`: checking a constraint that names `Cl`
+  // fixes `Cl` before a destructuring `client` callback is inferred.
+  blockRouter<Cl extends object, const K extends string>(
+    client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
+    options: BlockRouterOptions<
+      Cl,
+      K & BlockMethodName<Cl>,
+      OrpcGuardOptions<
+        C,
+        P,
+        ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+      >
+    >,
+  ): BlockRouter<M, F, E, C, P, B, Cl, K & BlockMethodName<Cl>>;
 }
 
 const CODES = /* @__PURE__ */ new Map<number, string>(
@@ -437,6 +565,64 @@ export function createOrpc<
       // SAFETY: unwrap returns the settled data, and callers type it through
       // the procedure output.
       return settled.data as never;
+    },
+
+    blockRouter(client, routerOptions) {
+      const procedures: Record<string, unknown> = {};
+      const routes: RouteSpec[] = [];
+
+      const schemas: Readonly<Record<string, StandardSchemaV1 | undefined>> =
+        routerOptions.schemas ?? {};
+
+      for (const name of routerOptions.methods) {
+        const route: BlockRoute = {
+          method: "POST",
+          path: `/${routerOptions.name}/${name}`,
+          operationId: `${routerOptions.name}.${name}`,
+        };
+
+        const schema = schemas[name];
+
+        const base = os
+          .$context<OrpcRequestContext>()
+          .use(middleware(routerOptions.guard));
+
+        const routed = routerOptions.meta
+          ? base.meta(routerOptions.meta(route))
+          : base;
+
+        const call = async ({
+          input,
+          context,
+        }: {
+          readonly input: unknown;
+          readonly context: OrpcContext<M, F, E, C, P, B>;
+        }): Promise<unknown> => {
+          const settled = await settle(() =>
+            callWithInput(client(context.bs), name, input),
+          );
+
+          if (!settled.ok) {
+            throw toOrpcError(settled.error);
+          }
+
+          return settled.data;
+        };
+
+        procedures[name] = schema
+          ? routed.input(schema).handler(call)
+          : routed.handler(call);
+
+        routes.push({
+          ...route,
+          ...(schema ? { input: schema } : {}),
+          ...(routerOptions.tags ? { tags: routerOptions.tags } : {}),
+        });
+      }
+
+      // SAFETY: each procedure runs the named method with the input its
+      // schema (or BlockInputOf) types and returns that method's data.
+      return { procedures, routes } as never;
     },
   });
 }

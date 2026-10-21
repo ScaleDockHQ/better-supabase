@@ -81,6 +81,30 @@ const EVENTS: ModuleEvents<CatalogEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: ModuleNames = {
+  entities: {
+    product: {
+      table: "products",
+      singular: "product",
+      primary: true,
+      subject: {
+        title: "title",
+        url: "/products/{slug}",
+        permissions: { read: "read", write: "manage" },
+        cascade: true,
+        search: { title: "title", body: ["description", "slug"] },
+      },
+    },
+    product_variant: {
+      table: "variants",
+      singular: "product_variant",
+      subject: {
+        title: "sku",
+        permissions: { read: "read", write: "manage" },
+        cascade: true,
+        search: { title: "sku", body: ["title", "barcode"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_product_save",
@@ -279,7 +303,7 @@ create table if not exists ${t("products")} (
   ${c("products", "updatedAt")} timestamptz not null default now(),
   unique (${c("products", "tenant")}, ${c("products", "slug")})
 );
-create index if not exists products_status_idx on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});${addExtraColumns(t("products"), productExtras(ctx))}
+create index if not exists ${ctx.naming.rename("products_status_idx")} on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});${addExtraColumns(t("products"), productExtras(ctx))}
 ${lockTable(t("products"), { read: true })}
 ${read("products")}
 
@@ -320,7 +344,7 @@ create table if not exists ${t("variants")} (
   ${c("variants", "updatedAt")} timestamptz not null default now(),
   unique (${c("variants", "tenant")}, ${c("variants", "sku")})
 );
-create index if not exists product_variants_product_idx on ${t("variants")} (${c("variants", "product")});
+create index if not exists ${ctx.naming.rename("product_variants_product_idx")} on ${t("variants")} (${c("variants", "product")});
 ${lockTable(t("variants"), { read: true })}
 ${read("variants")}
 
@@ -330,7 +354,7 @@ create table if not exists ${t("variantValues")} (
   ${c("variantValues", "value")} uuid not null references ${t("optionValues")} (${c("optionValues", "id")}),
   primary key (${c("variantValues", "variant")}, ${c("variantValues", "value")})
 );
-create index if not exists product_variant_values_value_idx on ${t("variantValues")} (${c("variantValues", "value")});
+create index if not exists ${ctx.naming.rename("product_variant_values_value_idx")} on ${t("variantValues")} (${c("variantValues", "value")});
 ${lockTable(t("variantValues"), { read: true })}
 ${read("variantValues")}
 
@@ -358,8 +382,8 @@ create table if not exists ${t("prices")} (
   ${c("prices", "createdAt")} timestamptz not null default now(),
   ${c("prices", "updatedAt")} timestamptz not null default now()
 );
-create index if not exists product_prices_variant_idx on ${t("prices")} (${c("prices", "variant")}, ${c("prices", "currency")});
-create index if not exists product_prices_price_list_idx on ${t("prices")} (${c("prices", "priceList")});
+create index if not exists ${ctx.naming.rename("product_prices_variant_idx")} on ${t("prices")} (${c("prices", "variant")}, ${c("prices", "currency")});
+create index if not exists ${ctx.naming.rename("product_prices_price_list_idx")} on ${t("prices")} (${c("prices", "priceList")});
 ${lockTable(t("prices"), { read: true })}
 ${read("prices")}
 
@@ -375,7 +399,7 @@ create table if not exists ${t("categories")} (
   ${c("categories", "updatedAt")} timestamptz not null default now(),
   unique (${c("categories", "tenant")}, ${c("categories", "slug")})
 );
-create index if not exists categories_parent_idx on ${t("categories")} (${c("categories", "parent")});
+create index if not exists ${ctx.naming.rename("categories_parent_idx")} on ${t("categories")} (${c("categories", "parent")});
 ${lockTable(t("categories"), { read: true })}
 ${read("categories")}
 
@@ -385,7 +409,7 @@ create table if not exists ${t("productCategories")} (
   ${c("productCategories", "category")} uuid not null references ${t("categories")} (${c("categories", "id")}) on delete cascade,
   primary key (${c("productCategories", "product")}, ${c("productCategories", "category")})
 );
-create index if not exists product_categories_category_idx on ${t("productCategories")} (${c("productCategories", "category")});
+create index if not exists ${ctx.naming.rename("product_categories_category_idx")} on ${t("productCategories")} (${c("productCategories", "category")});
 ${lockTable(t("productCategories"), { read: true })}
 ${read("productCategories")}
 
@@ -411,7 +435,7 @@ create table if not exists ${t("collectionProducts")} (
   ${c("collectionProducts", "rank")} text collate "C" not null default 'V',
   primary key (${c("collectionProducts", "collection")}, ${c("collectionProducts", "product")})
 );
-create index if not exists collection_products_product_idx on ${t("collectionProducts")} (${c("collectionProducts", "product")});
+create index if not exists ${ctx.naming.rename("collection_products_product_idx")} on ${t("collectionProducts")} (${c("collectionProducts", "product")});
 ${lockTable(t("collectionProducts"), { read: true })}
 ${read("collectionProducts")}
 

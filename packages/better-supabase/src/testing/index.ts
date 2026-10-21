@@ -38,6 +38,15 @@ export type {
   ScopedTenant,
 } from "./scope.ts";
 
+export { defineFactory, factoryPath, factoryTime } from "./factory.ts";
+
+export type {
+  Factory,
+  FactoryInput,
+  FactoryRef,
+  FactoryTarget,
+} from "./factory.ts";
+
 export { expectTenantIsolation } from "./isolation.ts";
 
 export type {

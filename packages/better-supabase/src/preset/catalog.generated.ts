@@ -44,7 +44,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "invitations",
         "organizations"
       ],
-      "manifest": "tenant"
+      "manifest": "tenant",
+      "entities": {
+        "specs": {
+          "organization": {
+            "singular": "organization",
+            "global": true
+          }
+        },
+        "tables": {},
+        "keys": {}
+      }
     },
     {
       "name": "invitations",
@@ -1230,7 +1240,88 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "products"
+      "extraColumns": "products",
+      "entities": {
+        "specs": {
+          "product": {
+            "table": "products",
+            "singular": "product",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "url": "/products/{slug}",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "cascade": true,
+              "search": {
+                "title": "title",
+                "body": [
+                  "description",
+                  "slug"
+                ]
+              }
+            }
+          },
+          "product_variant": {
+            "table": "variants",
+            "singular": "product_variant",
+            "subject": {
+              "title": "sku",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "cascade": true,
+              "search": {
+                "title": "sku",
+                "body": [
+                  "title",
+                  "barcode"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "products": {
+            "name": "products",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "slug": "slug",
+              "title": "title",
+              "description": "description",
+              "kind": "kind",
+              "status": "status",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "variants": {
+            "name": "product_variants",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "product": "product_id",
+              "sku": "sku",
+              "title": "title",
+              "barcode": "barcode",
+              "weight": "weight_grams",
+              "trackInventory": "track_inventory",
+              "allowBackorder": "allow_backorder",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "catalog.manage",
+          "read": "catalog.read"
+        }
+      }
     },
     {
       "name": "inventory",
@@ -1491,7 +1582,93 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "companies"
+      "extraColumns": "companies",
+      "entities": {
+        "specs": {
+          "company": {
+            "table": "companies",
+            "singular": "company",
+            "plural": "companies",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "domain"
+                ]
+              }
+            }
+          },
+          "person": {
+            "table": "people",
+            "singular": "person",
+            "plural": "people",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "email",
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "companies": {
+            "name": "companies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "domain": "domain",
+              "website": "website",
+              "vatId": "vat_id",
+              "lifecycle": "lifecycle",
+              "owner": "owner_user_id",
+              "address": "address",
+              "mergedInto": "merged_into",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "people": {
+            "name": "people",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "email": "email",
+              "phone": "phone",
+              "title": "title",
+              "lifecycle": "lifecycle",
+              "owner": "owner_user_id",
+              "user": "user_id",
+              "mergedInto": "merged_into",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "parties.read",
+          "write": "parties.write",
+          "manage": "parties.manage"
+        }
+      }
     },
     {
       "name": "engagements",
@@ -1532,7 +1709,93 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "deals"
+      "extraColumns": "deals",
+      "entities": {
+        "specs": {
+          "deal": {
+            "table": "deals",
+            "singular": "deal",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "rank": {
+                "column": "rank",
+                "group": "stage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "identifier",
+                  "note"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "deals": {
+            "name": "deals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "identifier": "identifier",
+              "name": "name",
+              "companyType": "company_type",
+              "companyId": "company_id",
+              "motion": "motion",
+              "priority": "priority",
+              "owner": "owner_user_id",
+              "product": "product",
+              "seats": "seats",
+              "amount": "amount",
+              "existingAmount": "existing_amount",
+              "currency": "currency",
+              "valuePeriod": "value_period",
+              "amountSource": "amount_source",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "outcome": "outcome",
+              "probability": "probability",
+              "forecast": "forecast_category",
+              "openedOn": "opened_on",
+              "closeOn": "expected_close_on",
+              "slippedFrom": "slipped_from",
+              "pushCount": "push_count",
+              "closedAt": "closed_at",
+              "nextStep": "next_step",
+              "nextAt": "next_at",
+              "nextKind": "next_kind",
+              "flags": "flags",
+              "source": "source",
+              "note": "note",
+              "lostReason": "lost_reason",
+              "locked": "locked",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "listTotal": "list_total",
+              "discountTotal": "discount_total",
+              "subtotal": "subtotal",
+              "taxTotal": "tax_total",
+              "total": "total"
+            }
+          }
+        },
+        "keys": {
+          "read": "deals.read",
+          "write": "deals.write",
+          "manage": "deals.manage"
+        }
+      }
     },
     {
       "name": "work-items",
@@ -1556,7 +1819,111 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "items"
+      "extraColumns": "items",
+      "entities": {
+        "specs": {
+          "work_item": {
+            "table": "items",
+            "singular": "work_item",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "rank": {
+                "column": "rank",
+                "group": "stage"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "identifier",
+                  "body"
+                ]
+              }
+            }
+          },
+          "project": {
+            "table": "projects",
+            "singular": "project"
+          },
+          "iteration": {
+            "table": "iterations",
+            "singular": "iteration"
+          }
+        },
+        "tables": {
+          "items": {
+            "name": "work_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "identifier": "identifier",
+              "title": "title",
+              "body": "body",
+              "parent": "parent_id",
+              "team": "team_id",
+              "project": "project_id",
+              "iteration": "iteration_id",
+              "priority": "priority",
+              "estimate": "estimate",
+              "progress": "progress",
+              "startAt": "start_at",
+              "endAt": "end_at",
+              "dueAt": "due_at",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "state": "state",
+              "closeReason": "close_reason",
+              "closedAt": "closed_at",
+              "locked": "locked",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "projects": {
+            "name": "projects",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "owner": "owner_user_id",
+              "status": "status",
+              "startOn": "start_on",
+              "targetOn": "target_on",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "iterations": {
+            "name": "iterations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "team": "team_id",
+              "name": "name",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "work_items.read",
+          "write": "work_items.write",
+          "manage": "work_items.manage"
+        }
+      }
     },
     {
       "name": "quotes",
@@ -1686,7 +2053,60 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "employees"
+      "extraColumns": "employees",
+      "entities": {
+        "specs": {
+          "employee": {
+            "table": "employees",
+            "singular": "employee",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "email",
+                  "jobTitle"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "employees": {
+            "name": "employees",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "name": "name",
+              "email": "email",
+              "jobTitle": "job_title",
+              "team": "team_id",
+              "manager": "manager_id",
+              "employmentType": "employment_type",
+              "status": "status",
+              "startDate": "start_date",
+              "endDate": "end_date",
+              "offboardReason": "offboard_reason",
+              "originType": "origin_type",
+              "originId": "origin_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "employees.read",
+          "write": "employees.write",
+          "viewSensitive": "employees.view_sensitive"
+        }
+      }
     },
     {
       "name": "collections",
@@ -1860,7 +2280,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/access-requests"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AccessRequestsEvents",
+        "types": [
+          "access.requested",
+          "access.request_approved",
+          "access.ended"
+        ]
+      }
     },
     {
       "name": "actor",
@@ -1883,7 +2311,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/agents"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AgentsEvents",
+        "types": [
+          "agent.saved",
+          "agent.published",
+          "agent.deleted",
+          "agent.installed",
+          "agent.uninstalled"
+        ]
+      }
     },
     {
       "name": "ai-cache",
@@ -1909,7 +2347,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-chat"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AiChatEvents",
+        "types": [
+          "ai_tool_policy.set",
+          "ai_tool_approval.decided",
+          "ai_chat_message.completed",
+          "ai_chat.shared",
+          "ai_chat.share_revoked"
+        ]
+      }
     },
     {
       "name": "ai-files",
@@ -1937,7 +2385,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-providers"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AiProvidersEvents",
+        "types": [
+          "ai_provider_key.saved",
+          "ai_provider_key.deleted"
+        ]
+      }
     },
     {
       "name": "ai-tasks",
@@ -1965,7 +2420,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/announcements"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AnnouncementsEvents",
+        "types": [
+          "announcement.saved",
+          "announcement.deleted"
+        ]
+      }
     },
     {
       "name": "api-keys",
@@ -1978,7 +2440,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/api-keys"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ApiKeysEvents",
+        "types": [
+          "api_key.created",
+          "api_key.revoked",
+          "api_key.rotated"
+        ]
+      }
     },
     {
       "name": "approvals",
@@ -1991,7 +2461,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/approvals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ApprovalsEvents",
+        "types": [
+          "approval.requested",
+          "approval.approved",
+          "approval.rejected",
+          "approval.cancelled",
+          "approval.expired",
+          "approval.delegated"
+        ]
+      }
     },
     {
       "name": "attachments",
@@ -2006,7 +2487,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "attachments"
-      ]
+      ],
+      "events": {
+        "type": "AttachmentsEvents",
+        "types": [
+          "object.uploaded",
+          "attachment.uploaded",
+          "attachment.scanned"
+        ]
+      }
     },
     {
       "name": "audit",
@@ -2019,7 +2508,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/audit"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AuditEvents",
+        "types": [
+          "audit.revealed"
+        ]
+      }
     },
     {
       "name": "billing",
@@ -2032,7 +2527,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/billing"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BillingEvents",
+        "types": [
+          "billing.customer_linked",
+          "billing.checkout_completed",
+          "billing.subscription_created",
+          "billing.subscription_updated",
+          "billing.subscription_deleted",
+          "billing.seats_synced"
+        ]
+      }
     },
     {
       "name": "bookings",
@@ -2045,7 +2551,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/bookings"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BookingsEvents",
+        "types": [
+          "booking.reserved",
+          "booking.confirmed",
+          "booking.cancelled",
+          "booking.expired"
+        ]
+      }
     },
     {
       "name": "bulk",
@@ -2058,7 +2573,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/bulk"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BulkEvents",
+        "types": [
+          "bulk_run.completed"
+        ]
+      }
     },
     {
       "name": "calendar",
@@ -2071,7 +2592,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/calendar"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CalendarEvents",
+        "types": [
+          "calendar.created",
+          "calendar_event.created",
+          "calendar_event.updated",
+          "calendar_event.deleted"
+        ]
+      }
     },
     {
       "name": "catalog",
@@ -2084,7 +2614,101 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/catalog"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ProductInput"
+        },
+        {
+          "name": "ProductKind"
+        },
+        {
+          "name": "ProductStatus"
+        },
+        {
+          "name": "SavedProduct"
+        }
+      ],
+      "entitySchemas": {
+        "product": {
+          "input": {
+            "title": "ProductInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "slug": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "description": "Lower-case letters, digits and hyphens."
+              },
+              "description": {
+                "kind": "string",
+                "optional": true
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "physical",
+                  "digital",
+                  "service"
+                ],
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ProductInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "slug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Lower-case letters, digits and hyphens."
+                },
+                "description": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "physical",
+                    "digital",
+                    "service"
+                  ]
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CatalogEvents",
+        "types": [
+          "product.created",
+          "product.updated",
+          "product.status_changed",
+          "product.deleted",
+          "variant.created",
+          "variant.updated",
+          "variant.deleted",
+          "catalog.price_changed",
+          "storefront.published",
+          "storefront.unpublished"
+        ]
+      }
     },
     {
       "name": "collections",
@@ -2097,7 +2721,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/collections"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CollectionsEvents",
+        "types": [
+          "collection.created",
+          "collection.archived",
+          "collection.entry_added",
+          "collection.entry_removed"
+        ]
+      }
     },
     {
       "name": "comments",
@@ -2110,7 +2743,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/comments"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CommentsEvents",
+        "types": [
+          "comment.created",
+          "comment.mentioned",
+          "comment.deleted"
+        ]
+      }
     },
     {
       "name": "connectors",
@@ -2123,7 +2764,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/connectors"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ConnectorsEvents",
+        "types": [
+          "connector.saved",
+          "connector.deleted",
+          "connector.fingerprint_decided",
+          "connector_grant.created",
+          "connector_grant.revoked"
+        ]
+      }
     },
     {
       "name": "credentials",
@@ -2146,7 +2797,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/custom-fields"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CustomFieldsEvents",
+        "types": [
+          "custom_field.saved",
+          "custom_field.deleted",
+          "field_value.set"
+        ]
+      }
     },
     {
       "name": "data-lifecycle",
@@ -2159,7 +2818,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/data-lifecycle"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DataLifecycleEvents",
+        "types": [
+          "data_export.requested",
+          "data_export.completed",
+          "data_export.failed",
+          "organization.deletion_requested",
+          "organization.deletion_cancelled",
+          "organization.purged",
+          "legal_hold.placed",
+          "legal_hold.released"
+        ]
+      }
     },
     {
       "name": "deals",
@@ -2172,7 +2844,371 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/deals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Deal",
+          "fields": true
+        },
+        {
+          "name": "DealChange"
+        },
+        {
+          "name": "DealChangeResult"
+        },
+        {
+          "name": "DealContact"
+        },
+        {
+          "name": "DealField"
+        },
+        {
+          "name": "DealForecast"
+        },
+        {
+          "name": "DealHealth"
+        },
+        {
+          "name": "DealInput",
+          "fields": true
+        },
+        {
+          "name": "DealLineInput"
+        },
+        {
+          "name": "DealOutcome"
+        },
+        {
+          "name": "DealParty"
+        },
+        {
+          "name": "Deals",
+          "fields": true
+        },
+        {
+          "name": "DealsEvents"
+        },
+        {
+          "name": "DealsOptions"
+        },
+        {
+          "name": "DealTotals"
+        }
+      ],
+      "entitySchemas": {
+        "deal": {
+          "input": {
+            "title": "DealInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "closeOn": {
+                "kind": "plainDate"
+              },
+              "amount": {
+                "kind": "custom",
+                "optional": true
+              },
+              "currency": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "company": {
+                "kind": "json",
+                "description": "A `{ type, id }` reference.",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "motion": {
+                "kind": "string",
+                "optional": true
+              },
+              "priority": {
+                "kind": "string",
+                "optional": true
+              },
+              "product": {
+                "kind": "string",
+                "optional": true
+              },
+              "seats": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0
+              },
+              "existingAmount": {
+                "kind": "custom",
+                "optional": true
+              },
+              "valuePeriod": {
+                "kind": "enum",
+                "values": [
+                  "one_time",
+                  "monthly",
+                  "annual"
+                ],
+                "optional": true
+              },
+              "pipelineId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "stageId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "probability": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 100
+              },
+              "forecast": {
+                "kind": "enum",
+                "values": [
+                  "commit",
+                  "best_case",
+                  "pipeline",
+                  "omit"
+                ],
+                "optional": true
+              },
+              "nextStep": {
+                "kind": "string",
+                "optional": true
+              },
+              "nextAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "nextKind": {
+                "kind": "string",
+                "optional": true
+              },
+              "flags": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "source": {
+                "kind": "string",
+                "optional": true
+              },
+              "note": {
+                "kind": "string",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DealInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "closeOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "company": {
+                  "description": "A `{ type, id }` reference."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "motion": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string"
+                },
+                "product": {
+                  "type": "string"
+                },
+                "seats": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "existingAmount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "valuePeriod": {
+                  "type": "string",
+                  "enum": [
+                    "one_time",
+                    "monthly",
+                    "annual"
+                  ]
+                },
+                "pipelineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "probability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "forecast": {
+                  "type": "string",
+                  "enum": [
+                    "commit",
+                    "best_case",
+                    "pipeline",
+                    "omit"
+                  ]
+                },
+                "nextStep": {
+                  "type": "string"
+                },
+                "nextAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "nextKind": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "source": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "name",
+                "closeOn"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "DealChange",
+            "fields": {
+              "dealId": {
+                "kind": "uuid"
+              },
+              "field": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "`null` clears the field."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DealChange",
+              "type": "object",
+              "properties": {
+                "dealId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
+                }
+              },
+              "required": [
+                "dealId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "DealsEvents",
+        "types": [
+          "deal.created",
+          "deal.updated",
+          "deal.closed",
+          "deal.reopened",
+          "deal.archived",
+          "deal.deleted"
+        ]
+      }
     },
     {
       "name": "documents",
@@ -2185,7 +3221,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/documents"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DocumentsEvents",
+        "types": [
+          "document.created"
+        ]
+      }
     },
     {
       "name": "domains",
@@ -2198,7 +3240,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/domains"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DomainsEvents",
+        "types": [
+          "hostname.added",
+          "hostname.verified",
+          "hostname.primary_set",
+          "hostname.removed"
+        ]
+      }
     },
     {
       "name": "reviews",
@@ -2211,7 +3262,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/reviews"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ReviewsEvents",
+        "types": [
+          "review.submitted",
+          "review.published",
+          "review.rejected",
+          "review.replied",
+          "review.deleted"
+        ]
+      }
     },
     {
       "name": "leave",
@@ -2224,7 +3285,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/leave"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "LeaveEvents",
+        "types": [
+          "leave.requested",
+          "leave.approved",
+          "leave.cancelled",
+          "leave.adjusted"
+        ]
+      }
     },
     {
       "name": "drive",
@@ -2240,7 +3310,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "attachments": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DriveEvents",
+        "types": [
+          "drive.node_created",
+          "drive.node_renamed",
+          "drive.node_moved",
+          "drive.node_shared",
+          "drive.node_unshared",
+          "drive.node_purged"
+        ]
+      }
     },
     {
       "name": "employees",
@@ -2253,7 +3334,216 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/employees"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Employee",
+          "fields": true
+        },
+        {
+          "name": "EmployeeChange"
+        },
+        {
+          "name": "EmployeeChangeResult"
+        },
+        {
+          "name": "EmployeeField"
+        },
+        {
+          "name": "EmployeeInput",
+          "fields": true
+        },
+        {
+          "name": "Employees",
+          "fields": true
+        },
+        {
+          "name": "EmployeesEvents"
+        },
+        {
+          "name": "EmployeesOptions"
+        },
+        {
+          "name": "EmployeeStatus"
+        }
+      ],
+      "entitySchemas": {
+        "employee": {
+          "input": {
+            "title": "EmployeeInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "email": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 320
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "jobTitle": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "teamId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "managerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "employmentType": {
+                "kind": "string",
+                "optional": true
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "preboarding",
+                  "active",
+                  "on_leave"
+                ],
+                "optional": true
+              },
+              "startDate": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endDate": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "origin": {
+                "kind": "json",
+                "optional": true,
+                "description": "A `{ type, id }` reference."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EmployeeInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "email": {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "jobTitle": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "managerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "employmentType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "preboarding",
+                    "active",
+                    "on_leave"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "origin": {
+                  "description": "A `{ type, id }` reference."
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "EmployeeChange",
+            "fields": {
+              "employeeId": {
+                "kind": "uuid"
+              },
+              "field": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "`null` clears the field."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EmployeeChange",
+              "type": "object",
+              "properties": {
+                "employeeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
+                }
+              },
+              "required": [
+                "employeeId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "EmployeesEvents",
+        "types": [
+          "employee.created",
+          "employee.updated",
+          "employee.offboarded",
+          "employee.manager_changed"
+        ]
+      }
     },
     {
       "name": "engagements",
@@ -2266,7 +3556,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/engagements"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "EngagementsEvents",
+        "types": [
+          "engagement.logged",
+          "engagement.updated",
+          "engagement.completed",
+          "engagement.deleted"
+        ]
+      }
     },
     {
       "name": "ensure-rls",
@@ -2302,7 +3601,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/flags"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "FlagsEvents",
+        "types": [
+          "flag.saved",
+          "flag.deleted",
+          "flag.override_set"
+        ]
+      }
     },
     {
       "name": "forms",
@@ -2315,7 +3622,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/forms"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "FormsEvents",
+        "types": [
+          "form.created",
+          "form_version.published",
+          "form_submission.submitted",
+          "form_submission.reviewed",
+          "form_submission.deleted"
+        ]
+      }
     },
     {
       "name": "signatures",
@@ -2328,7 +3645,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/forms"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SignaturesEvents",
+        "types": [
+          "signature.requested",
+          "signature.signed",
+          "signature.completed",
+          "signature.declined",
+          "signature.cancelled"
+        ]
+      }
     },
     {
       "name": "grants",
@@ -2351,7 +3678,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/hiring"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "HiringEvents",
+        "types": [
+          "job.opened",
+          "job.closed",
+          "application.created",
+          "application.hired",
+          "application.rejected",
+          "application.retracted",
+          "scorecard.submitted",
+          "interview.scheduled"
+        ]
+      }
     },
     {
       "name": "identities",
@@ -2377,7 +3717,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/imports"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ImportsEvents",
+        "types": [
+          "import.completed",
+          "import.failed"
+        ]
+      }
     },
     {
       "name": "inbox",
@@ -2391,7 +3738,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/inbox"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InboxEvents",
+        "types": [
+          "inbox_conversation.opened",
+          "inbox_conversation.assigned",
+          "inbox_conversation.resolved",
+          "inbox_conversation.reopened",
+          "inbox_message.received"
+        ]
+      }
     },
     {
       "name": "inventory",
@@ -2404,7 +3761,23 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/inventory"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InventoryEvents",
+        "types": [
+          "stock.adjusted",
+          "stock.reorder_point_reached",
+          "reservation.created",
+          "reservation.committed",
+          "reservation.released",
+          "transfer.shipped",
+          "transfer.received",
+          "transfer.cancelled",
+          "purchase_order.placed",
+          "purchase_order.received",
+          "purchase_order.cancelled"
+        ]
+      }
     },
     {
       "name": "invoices",
@@ -2417,7 +3790,19 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/invoices"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InvoicesEvents",
+        "types": [
+          "invoice.created",
+          "invoice.issued",
+          "invoice.payment_recorded",
+          "invoice.paid",
+          "invoice.credited",
+          "invoice.voided",
+          "invoice.uncollected"
+        ]
+      }
     },
     {
       "name": "idempotency",
@@ -2547,7 +3932,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "notifier"
-      ]
+      ],
+      "events": {
+        "type": "NotificationsEvents",
+        "types": [
+          "notification.created",
+          "notification.delivered",
+          "notification.failed",
+          "notification.opened",
+          "notification.clicked",
+          "notification.bounced",
+          "notification.complained",
+          "notification.delayed"
+        ]
+      }
     },
     {
       "name": "number-sequences",
@@ -2560,7 +3958,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/number-sequences"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "NumberSequencesEvents",
+        "types": [
+          "number.assigned"
+        ]
+      }
     },
     {
       "name": "oauth-server",
@@ -2599,7 +4003,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/orders"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OrdersEvents",
+        "types": [
+          "order.placed",
+          "order.paid",
+          "order.cancelled",
+          "order.fulfilled",
+          "order.completed",
+          "order.refunded",
+          "fulfillment.shipped",
+          "fulfillment.delivered",
+          "return.requested",
+          "return.received"
+        ]
+      }
     },
     {
       "name": "organizations",
@@ -2613,7 +4032,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/organizations"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OrganizationsEvents",
+        "types": [
+          "organization.created",
+          "organization.updated",
+          "organization.deleted",
+          "organization.member_added",
+          "organization.member_removed",
+          "organization.member_left",
+          "organization.member_suspended",
+          "organization.member_resumed",
+          "organization.role_changed",
+          "organization.ownership_transferred",
+          "organization.switched",
+          "invitation.created",
+          "invitation.resent",
+          "invitation.updated",
+          "invitation.accepted",
+          "invitation.declined",
+          "invitation.revoked"
+        ]
+      }
     },
     {
       "name": "outbox",
@@ -2639,7 +4080,357 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/parties"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Company",
+          "fields": true
+        },
+        {
+          "name": "CompanyInput",
+          "fields": true
+        },
+        {
+          "name": "CompanyPerson"
+        },
+        {
+          "name": "Person"
+        },
+        {
+          "name": "PersonInput"
+        }
+      ],
+      "entitySchemas": {
+        "company": {
+          "input": {
+            "title": "CompanyInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Required when `id` is left out."
+              },
+              "domain": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "website": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "vatId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "address": {
+                "kind": "json",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CompanyInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Required when `id` is left out."
+                },
+                "domain": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "website": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "vatId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "address": {},
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "PartyListOptions",
+            "fields": {
+              "search": {
+                "kind": "string",
+                "optional": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "limit": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              },
+              "cursor": {
+                "kind": "json",
+                "optional": true,
+                "description": "The last row's `{ name, id }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PartyListOptions",
+              "type": "object",
+              "properties": {
+                "search": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cursor": {
+                  "description": "The last row's `{ name, id }`."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "person": {
+          "input": {
+            "title": "PersonInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Required when `id` is left out."
+              },
+              "email": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "phone": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PersonInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Required when `id` is left out."
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "userId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "PartyListOptions",
+            "fields": {
+              "search": {
+                "kind": "string",
+                "optional": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "limit": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              },
+              "cursor": {
+                "kind": "json",
+                "optional": true,
+                "description": "The last row's `{ name, id }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PartyListOptions",
+              "type": "object",
+              "properties": {
+                "search": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cursor": {
+                  "description": "The last row's `{ name, id }`."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "PartiesEvents",
+        "types": [
+          "company.created",
+          "company.updated",
+          "company.archived",
+          "company.merged",
+          "company.person_linked",
+          "company.person_unlinked",
+          "person.created",
+          "person.updated",
+          "person.archived",
+          "person.merged"
+        ]
+      }
     },
     {
       "name": "pgtap",
@@ -2662,7 +4453,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/pipelines"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PipelinesEvents",
+        "types": [
+          "pipeline.created",
+          "pipeline.updated",
+          "pipeline.archived",
+          "pipeline_stage.saved",
+          "pipeline_stage.archived",
+          "pipeline.stage_changed"
+        ]
+      }
     },
     {
       "name": "profiles",
@@ -2688,7 +4490,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/promotions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PromotionsEvents",
+        "types": [
+          "promotion.redeemed"
+        ]
+      }
     },
     {
       "name": "push",
@@ -2701,7 +4509,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/push"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PushEvents",
+        "types": [
+          "push.device_registered",
+          "push.device_unregistered"
+        ]
+      }
     },
     {
       "name": "quotes",
@@ -2714,7 +4529,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/quotes"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "QuotesEvents",
+        "types": [
+          "quote.created",
+          "quote.updated",
+          "quote.sent",
+          "quote.viewed",
+          "quote.accepted",
+          "quote.rejected",
+          "quote.changes_requested",
+          "quote.expired",
+          "quote.revised"
+        ]
+      }
     },
     {
       "name": "rank",
@@ -2740,7 +4569,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/reactions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ReactionsEvents",
+        "types": [
+          "reaction.added",
+          "reaction.removed"
+        ]
+      }
     },
     {
       "name": "read-sets",
@@ -2773,7 +4609,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/relations"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RelationsEvents",
+        "types": [
+          "subject.linked",
+          "subject.unlinked"
+        ]
+      }
     },
     {
       "name": "reminders",
@@ -2788,7 +4631,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "notifier": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RemindersEvents",
+        "types": [
+          "reminder.sent"
+        ]
+      }
     },
     {
       "name": "reserved-slugs",
@@ -2811,7 +4660,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/rules"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RulesEvents",
+        "types": [
+          "rule.saved",
+          "rule.enabled",
+          "rule.disabled",
+          "rule.removed",
+          "rule.matched"
+        ]
+      }
     },
     {
       "name": "vercel-marketplace",
@@ -2824,7 +4683,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/vercel-marketplace"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "VercelMarketplaceEvents",
+        "types": [
+          "marketplace_installation.upserted",
+          "marketplace_installation.removed",
+          "marketplace_invoice.state_changed"
+        ]
+      }
     },
     {
       "name": "saved-views",
@@ -2837,7 +4704,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/saved-views"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SavedViewsEvents",
+        "types": [
+          "saved_view.saved",
+          "saved_view.deleted"
+        ]
+      }
     },
     {
       "name": "search",
@@ -2865,7 +4739,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/service-principals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ServicePrincipalsEvents",
+        "types": [
+          "service_principal.created",
+          "service_principal.role_changed",
+          "service_principal.disabled"
+        ]
+      }
     },
     {
       "name": "sessions",
@@ -2888,7 +4770,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/settings"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SettingsEvents",
+        "types": [
+          "organization_setting.updated",
+          "organization_setting.reset",
+          "platform_setting.updated",
+          "platform_setting.reset"
+        ]
+      }
     },
     {
       "name": "share-links",
@@ -2901,7 +4792,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/share-links"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ShareLinksEvents",
+        "types": [
+          "share_link.created",
+          "share_link.revoked",
+          "subject.viewed"
+        ]
+      }
     },
     {
       "name": "shared-signals",
@@ -2914,7 +4813,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/shared-signals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SharedSignalsEvents",
+        "types": [
+          "ssf_stream.created",
+          "ssf_stream.status_changed",
+          "ssf_stream.deleted"
+        ]
+      }
     },
     {
       "name": "signing-keys",
@@ -2927,7 +4834,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/signing-keys"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SigningKeysEvents",
+        "types": [
+          "signing_key.created",
+          "signing_key.retired"
+        ]
+      }
     },
     {
       "name": "sla",
@@ -2940,7 +4854,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/sla"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SlaEvents",
+        "types": [
+          "sla.warned",
+          "sla.breached",
+          "sla.completed"
+        ]
+      }
     },
     {
       "name": "sso",
@@ -2953,7 +4875,25 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/sso"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SsoEvents",
+        "types": [
+          "organization.member_added",
+          "organization.member_removed",
+          "organization.role_changed",
+          "organization.domain_added",
+          "organization.domain_updated",
+          "organization.domain_verified",
+          "organization.domain_removed",
+          "sso_provider.registered",
+          "sso_provider.unregistered",
+          "scim_user.saved",
+          "scim_user.deleted",
+          "scim_group.saved",
+          "scim_group.deleted"
+        ]
+      }
     },
     {
       "name": "state-machine",
@@ -2966,7 +4906,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/state-machine"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "StateMachineEvents",
+        "types": [
+          "status.changed",
+          "status.paused",
+          "status.resumed",
+          "status.flagged"
+        ]
+      }
     },
     {
       "name": "streams",
@@ -3009,7 +4958,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/tags"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TagsEvents",
+        "types": [
+          "tag.created",
+          "tag.updated",
+          "tag.deleted",
+          "subject.tagged",
+          "subject.untagged"
+        ]
+      }
     },
     {
       "name": "targets",
@@ -3035,7 +4994,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/teams"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TeamsEvents",
+        "types": [
+          "team.created",
+          "team.updated",
+          "team.archived",
+          "team.deleted",
+          "team_member.added",
+          "team_member.removed"
+        ]
+      }
     },
     {
       "name": "templates",
@@ -3048,7 +5018,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/templates"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TemplatesEvents",
+        "types": [
+          "template.published",
+          "template.applied"
+        ]
+      }
     },
     {
       "name": "tenant",
@@ -3071,7 +5048,19 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/time-tracking"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TimeTrackingEvents",
+        "types": [
+          "time_entry.started",
+          "time_entry.recorded",
+          "time_entry.updated",
+          "time_entry.deleted",
+          "timesheet.submitted",
+          "timesheet.approved",
+          "timesheet.reopened"
+        ]
+      }
     },
     {
       "name": "trash",
@@ -3084,7 +5073,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/trash"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TrashEvents",
+        "types": [
+          "subject.trashed",
+          "subject.restored",
+          "subject.purged"
+        ]
+      }
     },
     {
       "name": "undo",
@@ -3141,7 +5138,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/versions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "VersionsEvents",
+        "types": [
+          "version.created",
+          "version.restored",
+          "version.deleted"
+        ]
+      }
     },
     {
       "name": "waitlist",
@@ -3154,7 +5159,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/waitlist"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WaitlistEvents",
+        "types": [
+          "organization.member_added",
+          "waitlist.approved",
+          "waitlist.rejected",
+          "invite_code.created",
+          "invite_code.revoked"
+        ]
+      }
     },
     {
       "name": "incoming-webhooks",
@@ -3167,7 +5182,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/webhooks"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "IncomingWebhooksEvents",
+        "types": [
+          "incoming_webhook.created",
+          "incoming_webhook.updated",
+          "incoming_webhook.enabled_set",
+          "incoming_webhook.token_rotated",
+          "incoming_webhook.secret_rotated",
+          "incoming_webhook.deleted"
+        ]
+      }
     },
     {
       "name": "webhooks",
@@ -3180,7 +5206,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/webhooks"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WebhooksEvents",
+        "types": [
+          "webhook.delivered",
+          "webhook.failed",
+          "webhook.disabled",
+          "webhook.secret_rotated"
+        ]
+      }
     },
     {
       "name": "work-items",
@@ -3193,7 +5228,363 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/work-items"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Iteration"
+        },
+        {
+          "name": "Project"
+        },
+        {
+          "name": "WorkItem",
+          "fields": true
+        },
+        {
+          "name": "WorkItemChange",
+          "fields": true
+        },
+        {
+          "name": "WorkItemChangeResult"
+        },
+        {
+          "name": "WorkItemField"
+        },
+        {
+          "name": "WorkItemInput",
+          "fields": true
+        },
+        {
+          "name": "WorkItemListOptions"
+        },
+        {
+          "name": "WorkItemNode"
+        },
+        {
+          "name": "WorkItems",
+          "fields": true
+        },
+        {
+          "name": "WorkItemsEvents"
+        },
+        {
+          "name": "WorkItemsOptions"
+        },
+        {
+          "name": "WorkItemState"
+        }
+      ],
+      "entitySchemas": {
+        "work_item": {
+          "input": {
+            "title": "WorkItemInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "body": {
+                "kind": "string",
+                "optional": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "teamId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "projectId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "iterationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "priority": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 4
+              },
+              "estimate": {
+                "kind": "number",
+                "optional": true,
+                "minimum": 0
+              },
+              "progress": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 100
+              },
+              "startAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "dueAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "pipelineId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "stageId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "body": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "iterationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "priority": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "estimate": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "progress": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "startAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "pipelineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "WorkItemChange",
+            "fields": {
+              "workItemId": {
+                "kind": "uuid"
+              },
+              "field": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "`null` clears the field."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemChange",
+              "type": "object",
+              "properties": {
+                "workItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
+                }
+              },
+              "required": [
+                "workItemId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "WorkItemListOptions",
+            "fields": {
+              "teamId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "projectId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "iterationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "states": {
+                "kind": "enum",
+                "values": [
+                  "triage",
+                  "backlog",
+                  "unstarted",
+                  "started",
+                  "completed",
+                  "canceled"
+                ],
+                "optional": true,
+                "array": true
+              },
+              "open": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "search": {
+                "kind": "string",
+                "optional": true
+              },
+              "after": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "limit": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemListOptions",
+              "type": "object",
+              "properties": {
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "iterationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "states": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "triage",
+                      "backlog",
+                      "unstarted",
+                      "started",
+                      "completed",
+                      "canceled"
+                    ]
+                  }
+                },
+                "open": {
+                  "type": "boolean"
+                },
+                "search": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "WorkItemsEvents",
+        "types": [
+          "work_item.created",
+          "work_item.updated",
+          "work_item.assigned",
+          "work_item.closed",
+          "work_item.reopened",
+          "work_item.archived",
+          "work_item.deleted"
+        ]
+      }
     },
     {
       "name": "workflow-builder",
@@ -3208,7 +5599,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "workflows": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WorkflowBuilderEvents",
+        "types": [
+          "workflow.published",
+          "workflow_alert.triggered"
+        ]
+      }
     },
     {
       "name": "workflow-sdk-world",
@@ -3233,7 +5631,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "workflows"
-      ]
+      ],
+      "events": {
+        "type": "WorkflowsEvents",
+        "types": [
+          "workflow_run.completed",
+          "workflow_run.failed",
+          "workflow_run.cancelled"
+        ]
+      }
     }
   ],
   "glue": [

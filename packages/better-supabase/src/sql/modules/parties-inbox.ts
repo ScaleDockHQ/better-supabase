@@ -36,8 +36,8 @@ create table if not exists ${t("personContacts")} (
   primary key (${pc("person")}, ${pc("contact")})
 );
 ${lockTable(t("personContacts"), { read: true })}
-drop policy if exists person_inbox_contacts_read on ${t("personContacts")};
-create policy person_inbox_contacts_read on ${t("personContacts")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")};
+create policy ${ctx.naming.rename("person_inbox_contacts_read")} on ${t("personContacts")} for select to authenticated
 using (${ctx.scope.check(pc("tenant"), names.read)});
 `
     : "";

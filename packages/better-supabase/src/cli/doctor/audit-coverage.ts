@@ -65,7 +65,7 @@ export function moduleOwned(context: DoctorContext): {
     }
 
     for (const table of Object.values(module?.tables ?? {})) {
-      if (table === null) {
+      if (table === null || table === undefined) {
         continue;
       }
 

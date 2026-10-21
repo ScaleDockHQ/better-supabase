@@ -9,7 +9,6 @@ export {
   type EmployeeField,
   type EmployeeInput,
   type Employees,
-  employeesSubjects,
   type EmployeesOptions,
   type EmployeeStatus,
   type OrgChartEntry,
@@ -39,3 +38,5 @@ export { employeesBlock } from "./manifest.ts";
 export { employeesEvents } from "./events.ts";
 
 export type { EmployeesEvents } from "./events.ts";
+
+export { employeeChangeSchema, employeeInputSchema } from "./schemas.ts";

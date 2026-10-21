@@ -75,6 +75,22 @@ export type { AuthSession } from "../auth/view.ts";
 
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
+export {
+  useBlockEvent,
+  useBlockMutation,
+  useBlockQuery,
+} from "./block-hooks.ts";
+
+export type {
+  BlockEventSource,
+  BlockMutationActions,
+  BlockMutationState,
+  BlockQueryActions,
+  BlockQueryOptions,
+  BlockQueryState,
+  BlockRefetchOn,
+} from "../blocks/block-controller.ts";
+
 /**
  * A value read through `.current`, reactive in templates, `$derived` and
  * `$effect`.

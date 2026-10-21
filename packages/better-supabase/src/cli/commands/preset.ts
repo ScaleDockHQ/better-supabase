@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { AnyBlocksConfig, ResolvedConfig } from "../../config/index.ts";
 import type {
   Preset,
   PresetFieldKey,
@@ -143,7 +143,8 @@ function drift(
   resolved: ResolvedPreset,
 ): { readonly added: string[]; readonly changed: string[] } {
   const base = presetConfig(resolved);
-  const fromPreset = new Set(Object.keys(base.blocks));
+  const baseBlocks: AnyBlocksConfig = base.blocks;
+  const fromPreset = new Set(Object.keys(baseBlocks));
   const added = config.blockNames.filter((name) => !fromPreset.has(name));
   const changed: string[] = [];
 
@@ -155,7 +156,7 @@ function drift(
 
   for (const name of fromPreset) {
     const own = config.blocks[name];
-    const preset = base.blocks[name] ?? {};
+    const preset = baseBlocks[name] ?? {};
 
     const keys = Object.keys(own ?? {}).filter(
       (key) => key !== "schema" && key !== "api" && !(key in preset),

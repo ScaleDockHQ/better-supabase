@@ -50,8 +50,14 @@ const FRAMEWORKS = [
   "react-router",
 ] as const;
 
+/**
+ * Libraries only generated code imports (`nuqs()` writes `nuqs/server`). The
+ * app installs them; the tests import the generated fixtures.
+ */
+const GENERATED = ["nuqs"] as const;
+
 describe("optional peers", () => {
-  it.each([...INTEGRATIONS, ...FRAMEWORKS])(
+  it.each([...INTEGRATIONS, ...FRAMEWORKS, ...GENERATED])(
     "%s is an optional peer and a devDependency",
     (name) => {
       expect(manifest.peerDependencies[name]).toBe("catalog:peers");

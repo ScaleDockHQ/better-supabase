@@ -1,8 +1,18 @@
 import { posix } from "node:path";
 
 import type { BlockNaming, GeneratedBlock } from "../../blocks/index.ts";
-import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type {
+  GeneratedFile,
+  GeneratorBlock,
+  ResolvedConfig,
+} from "../../config/index.ts";
 
+import { entityNames } from "../../blocks/index.ts";
+import {
+  blockEntities,
+  blockEntityRenames,
+  tenantNameOf,
+} from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -10,6 +20,7 @@ import {
   resolveModule,
   resolveModules,
 } from "../../sql/index.ts";
+import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { prop, q } from "./shared.ts";
 
@@ -27,9 +38,10 @@ function hasSchema(
 }
 
 /**
- * How `sql.naming` and the modules' `blocks.<module>.functions` rename the
- * block's functions, or undefined when nothing does. `blocks.access.functions`
- * is the custom model's templates, not renames.
+ * How the tenant rename, the modules' renamed entities and their
+ * `blocks.<module>.functions` rename the block's functions and payload keys, or
+ * undefined when nothing does. `blocks.access.functions` is the custom model's
+ * templates, not renames.
  */
 function namingOf(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
@@ -43,16 +55,21 @@ function namingOf(
     ),
   );
 
-  const tenant = config.sql.naming?.tenant;
+  const entities = modules.flatMap((module) =>
+    blockEntityRenames(module, config.blocks),
+  );
+
+  const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
 
-  if (tenant === undefined && !renames) {
+  if (tenant === undefined && !renames && entities.length === 0) {
     return undefined;
   }
 
   return {
     ...(tenant === undefined ? {} : { tenant }),
     ...(renames ? { functions } : {}),
+    ...(entities.length === 0 ? {} : { entities }),
   };
 }
 
@@ -107,14 +124,14 @@ export function blockConfigEntries(
       }
     }
 
-    const naming = namingOf(config, modules);
+    const names = namingOf(config, modules);
     entries.push([
       manifest.name,
       {
         schema: resolved.schema,
         ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
         options,
-        ...(naming === undefined ? {} : { naming }),
+        ...(names === undefined ? {} : { names }),
       },
     ]);
   }
@@ -182,6 +199,159 @@ function appTableEventLines(types: readonly string[]): string[] {
   ];
 }
 
+interface RenamedLines {
+  /** Specifiers the module imports from `better-supabase/blocks`. */
+  readonly specifiers: readonly string[];
+  readonly imports: readonly string[];
+  readonly lines: readonly string[];
+}
+
+const CATALOG_BLOCKS = new Map(
+  PRESET_CATALOG.blocks.map((block) => [block.name, block]),
+);
+
+const MANIFESTS = new Map(
+  PRESET_CATALOG.manifests.map((manifest) => [manifest.name, manifest]),
+);
+
+/** The installed blocks with their final names, for `GeneratorModel.blocks`. */
+export function generatorBlocks(
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
+): GeneratorBlock[] {
+  return Object.entries(blockConfigEntries(config)).map(([name, entry]) => {
+    const manifest = MANIFESTS.get(CATALOG_BLOCKS.get(name)?.manifest ?? "");
+    const owned = manifest?.name === name ? manifest : undefined;
+    const client = owned?.client ?? undefined;
+    const renames = entityNames(entry.names?.entities ?? []);
+
+    return {
+      name,
+      schema: entry.schema,
+      client:
+        client === undefined
+          ? undefined
+          : { export: renames.rename(client.export), subpath: client.subpath },
+      entities: blockEntities(name, config.blocks).map((entity) => ({
+        key: entity.key,
+        from: { ...entity.from },
+        to: { ...entity.to },
+        primary: entity.primary,
+        table: entity.table,
+        url: entity.url,
+        schemas: owned?.entitySchemas?.[entity.key] ?? {},
+      })),
+    };
+  });
+}
+
+/**
+ * For each installed block whose entities `blocks.<name>.entities` renames: the
+ * block under its renamed constant (`tasksBlock`) and an alias for each type
+ * named after one of its entities (`Task<F>`, `TasksEvents`).
+ */
+function renamedBlockLines(
+  entries: Readonly<Record<string, GeneratedBlock>>,
+): RenamedLines {
+  const imports: string[] = [];
+  const lines: string[] = [];
+
+  for (const manifest of PRESET_CATALOG.manifests) {
+    const renames = entries[manifest.name]?.names?.entities ?? [];
+
+    if (manifest.client === null || renames.length === 0) {
+      continue;
+    }
+
+    const names = entityNames(renames);
+    const block = manifest.client.export;
+    const renamed = names.rename(block);
+    const local = renamed === block ? `default${pascal(block)}` : block;
+
+    const types = (manifest.entityTypes ?? []).filter(
+      (type) =>
+        !(
+          type.name.endsWith("Options") &&
+          manifest.entityTypes?.some(
+            (other) => `${other.name}Options` === type.name,
+          )
+        ),
+    );
+
+    const alias = `${pascal(camelOf(manifest.name))}Renames`;
+    const key = q(manifest.name);
+
+    const localOf = (name: string): string =>
+      names.rename(name) === name ? `Default${name}` : name;
+
+    const specifiers = [
+      ...types.map((type) =>
+        localOf(type.name) === type.name
+          ? `  type ${type.name},`
+          : `  type ${type.name} as ${localOf(type.name)},`,
+      ),
+      `  ${local === block ? block : `${block} as ${local}`},`,
+    ];
+
+    imports.push(
+      ["import {", ...specifiers, `} from ${q(manifest.client.subpath)};`].join(
+        "\n",
+      ),
+    );
+
+    lines.push(
+      "",
+      `type ${alias} = (typeof blockConfig)[${key}]["names"]["entities"];`,
+      "",
+      "/**",
+      ` * The \`${manifest.name}\` block under the names \`blocks.${manifest.name}.entities\` gives it.`,
+      " * @public",
+      " */",
+      `export const ${renamed} = renameBlock(${local}, blockConfig[${key}].names);`,
+      ...types.flatMap((type) => {
+        const name = names.rename(type.name);
+        const source = localOf(type.name);
+
+        if (type.name.endsWith("Events")) {
+          return [
+            "",
+            "/** @public */",
+            `export type ${name} = RenamedEvents<${source}, ${alias}>;`,
+          ];
+        }
+
+        return type.fields === true
+          ? [
+              "",
+              "/** @public */",
+              `export type ${name}<F extends object = Record<never, never>> = RenamedType<${source}<F>, ${alias}>;`,
+            ]
+          : [
+              "",
+              "/** @public */",
+              `export type ${name} = RenamedType<${source}, ${alias}>;`,
+            ];
+      }),
+    );
+  }
+
+  return {
+    specifiers:
+      imports.length === 0
+        ? []
+        : ["renameBlock", "type RenamedEvents", "type RenamedType"],
+    imports,
+    lines,
+  };
+}
+
+function camelOf(name: string): string {
+  return name.replaceAll(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+function pascal(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 /**
  * `blocks.generated.ts`: each installed block's schema, API schema and the
  * options its TypeScript side reads, for `defineBlocks(blockConfig, ...)`, and
@@ -190,7 +360,14 @@ function appTableEventLines(types: readonly string[]): string[] {
 export function emitBlockConfig(
   config: Pick<
     ResolvedConfig,
-    "appTables" | "blocks" | "blockNames" | "output" | "sql"
+    | "appTables"
+    | "blocks"
+    | "blockNames"
+    | "buckets"
+    | "casing"
+    | "output"
+    | "sql"
+    | "subjects"
   >,
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
@@ -201,15 +378,33 @@ export function emitBlockConfig(
   const entries = blockConfigEntries(config);
   const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
+  const renamed = renamedBlockLines(entries);
+  const constants = nameConstantLines(config, entries);
+
+  const specifiers = [
+    ...(events.length === 0
+      ? []
+      : ["type AppTableEventData", "defineEvents", "event"]),
+    "type GeneratedBlocks",
+    ...renamed.specifiers,
+    ...constants.specifiers,
+  ].toSorted((a, b) =>
+    a.replace("type ", "").localeCompare(b.replace("type ", "")),
+  );
+
+  const blocksImport =
+    specifiers.length === 1
+      ? `import type { GeneratedBlocks } from ${q(`${runtime}/blocks`)};`
+      : `import {\n${specifiers.map((name) => `  ${name},`).join("\n")}\n} from ${q(`${runtime}/blocks`)};`;
 
   return {
     path: blockConfigPath(config),
     contents: [
       GENERATED_HEADER,
       "",
-      events.length === 0
-        ? `import type { GeneratedBlocks } from ${q(`${runtime}/blocks`)};`
-        : `import {\n  type AppTableEventData,\n  defineEvents,\n  event,\n  type GeneratedBlocks,\n} from ${q(`${runtime}/blocks`)};`,
+      blocksImport,
+      ...renamed.imports,
+      ...constants.imports,
       "",
       "/**",
       " * The installed blocks' settings from the `blocks` config, for",
@@ -217,7 +412,9 @@ export function emitBlockConfig(
       " * and the options its SQL and TypeScript halves share.",
       " */",
       `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
+      ...renamed.lines,
       ...appTableEventLines(events),
+      ...constants.lines,
       "",
     ].join("\n"),
   };

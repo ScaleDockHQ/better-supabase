@@ -35,6 +35,38 @@ export type {
 
 export { fillTopic, generatedOptions } from "./block-config.ts";
 
+export { entityNames } from "../core/entity-naming.ts";
+
+export type {
+  EntityNames,
+  EntityNoun,
+  EntityRename,
+} from "../core/entity-naming.ts";
+
+export { renameBlock } from "./rename-block.ts";
+
+export { entitySchema } from "./entity-schema.ts";
+
+export type {
+  BlockSchemas,
+  EntityFieldSpecs,
+  EntitySchema,
+  EntitySchemas,
+  EntitySchemaSpec,
+} from "./entity-schema.ts";
+
+export type {
+  NounRename,
+  NounRenames,
+  RenamedBlock,
+  RenamedClient,
+  RenamedEvents,
+  RenamedOptions,
+  RenamedType,
+  RenameKey,
+  RenamesOf,
+} from "./rename-block.ts";
+
 export type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 
 export type {
@@ -42,6 +74,7 @@ export type {
   Block,
   BlockCategory,
   BlockConsumes,
+  BlockInvalidates,
   BlockDefinition,
   BlockOf,
   BlockOptionSchemas,
