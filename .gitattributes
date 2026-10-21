@@ -15,6 +15,12 @@ pnpm-lock.yaml linguist-generated=true
 apps/examples/**/lib/supabase/generated.ts linguist-generated=true
 tests/validation-*/src/generated.ts linguist-generated=true
 packages/better-supabase/api/** linguist-generated=true
+supabase/schemas/_better_supabase/** linguist-generated=true
+tests/validation-*/supabase/** linguist-generated=true
+
+# Generated SQL that reviewers still read in diffs; kept out of the language stats only.
+packages/better-supabase/tests/sql/__golden__/** linguist-detectable=false
+supabase/migrations/** linguist-detectable=false
 
 # Vendored upstream bytes; ISO 4217 List One ships with CRLF line endings.
 packages/better-supabase/tests/standards/schemas/*.xml -text
