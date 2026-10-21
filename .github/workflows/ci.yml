@@ -61,6 +61,25 @@ jobs:
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
+  # Vercel is the other place the docs build runs, and a failing preview there doesn't block a
+  # merge. MDX parse errors only surface when Fumadocs compiles the pages.
+  docs:
+    name: Docs build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Build the docs
+        run: pnpm exec turbo run build --filter=docs
+
   # A pull request that touches neither the library, the suites that run on the stack, nor the
   # stack itself skips Integration and Realtime. Pushes to main always run them.
   affected:
