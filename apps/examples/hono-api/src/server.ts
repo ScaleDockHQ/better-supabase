@@ -2,6 +2,8 @@ import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
 
 import { betterSupabase } from "./lib/supabase";
+import { partnerApi } from "./marketplace";
+import { authorize, jwks, token } from "./oauth";
 
 const bs = createHono(betterSupabase);
 
@@ -20,8 +22,27 @@ const admins = bs.require({
   requireTenant: true,
 });
 
+/**
+ * `bs.app()` installs `bs.onError`: a thrown `DbException`, such as an
+ * `.orThrow()` in a block call, answers as RFC 9457 Problem Details.
+ */
 const app = bs
   .app()
+  // Registered before the `/api/*` middleware: Vercel sends its own OIDC
+  // token as the bearer, which the handler verifies and Supabase Auth can't.
+  .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
+  .post("/oauth/token", (c) => token(c.req.raw))
+  .get("/.well-known/jwks.json", () => jwks())
+  .post("/oauth/authorize", bs.middleware({ allow: ["user"] }), async (c) => {
+    if (c.var.auth.kind !== "user") {
+      return c.json({ error: "login_required" }, 401);
+    }
+
+    const params = new URLSearchParams(await c.req.text());
+    const redirect = await authorize({ userId: c.var.auth.user.id, params });
+
+    return c.json({ redirect: redirect.href });
+  })
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
   .route(

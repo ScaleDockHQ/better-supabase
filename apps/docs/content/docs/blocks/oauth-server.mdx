@@ -162,6 +162,52 @@ support session can't revoke ([support sessions](/docs/blocks/sql#support-sessio
 `purge()` deletes expired codes, device codes and revocation entries; run it
 from a daily job.
 
+## Hono
+
+The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api)
+serves an authorization server on these calls. `POST /oauth/authorize` runs
+behind `bs.middleware({ allow: ["user"] })`, stores a code for the signed-in
+user and returns the redirect. `POST /oauth/token` verifies the client
+(`client_secret_basic`, `client_secret_post` or a public client), redeems the
+code and signs an RFC 9068 access token (`typ: at+jwt`) with
+[signing keys](/docs/blocks/signing-keys), carrying `grant_id` for
+revocation. `GET /.well-known/jwks.json` publishes the keys.
+
+```ts title="src/server.ts"
+const app = bs
+  .app()
+  .post("/oauth/token", (c) => token(c.req.raw))
+  .get("/.well-known/jwks.json", () => jwks())
+  .post("/oauth/authorize", bs.middleware({ allow: ["user"] }), async (c) => {
+    if (c.var.auth.kind !== "user") {
+      return c.json({ error: "login_required" }, 401);
+    }
+
+    const params = new URLSearchParams(await c.req.text());
+    const redirect = await authorize({ userId: c.var.auth.user.id, params });
+
+    return c.json({ redirect: redirect.href });
+  });
+```
+
+The token endpoint answers a refused request in the RFC 6749 format
+(`{ "error": "invalid_grant" }`), which OAuth clients expect. Anything else,
+such as a database error from an `.orThrow()`, reaches `bs.onError`, which
+`bs.app()` installs, and answers as [Problem Details](/docs/auth/problems).
+The [oRPC example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/orpc-api)
+serves its router on Hono the same way, so both can share one app.
+
+## One tenant shared by Hono and Next
+
+The authorization server and your dashboard can run as two apps on one
+database. Hono serves the token and authorize endpoints; Next.js serves the
+consent page and the connected-apps page with `listGrants`. Both read the
+same users, organizations and grants, so a grant the user revokes in the
+dashboard ends the tokens Hono issued. Resource servers verify those tokens
+with `accessTokenResolver` against the JWKS Hono publishes.
+[Hono and Next.js](/docs/frameworks/hono-and-next) covers serving both from
+one deployment.
+
 ## Events
 
 | Event                                             | Data                            |

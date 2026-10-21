@@ -19,7 +19,8 @@
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "better-supabase": "workspace:*",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",

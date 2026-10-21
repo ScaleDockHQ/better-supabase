@@ -1178,6 +1178,9 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.13
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
     devDependencies:
       '@better-supabase/typescript-config':
         specifier: workspace:*

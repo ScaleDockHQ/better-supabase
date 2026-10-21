@@ -83,6 +83,23 @@ When a resource or installation goes away, `removeTenant` runs with the tenant a
 
 Errors answer as Problem Details. Internal messages stay hidden unless you pass `expose: true`, and `problem` rewrites the body like it does for the other block routes.
 
+## Hono
+
+On [Hono](/docs/frameworks/hono), pass the raw request to the handler. Register the route before `bs.middleware()` on the same prefix: Vercel sends its OIDC token as the bearer, which `partnerApi` verifies and Supabase Auth would refuse.
+
+```ts title="src/server.ts"
+const app = bs
+  .app()
+  .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
+  .use("/api/*", bs.middleware());
+```
+
+`bs.app()` installs `bs.onError`, so a `.orThrow()` that fails inside one of your hooks answers as Problem Details too. The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api) provisions an organization per resource, hands out a tenant API key from the [API keys block](/docs/blocks/api-keys) as the secret, and revokes the previous key after a rotation.
+
+## One tenant shared by Hono and Next
+
+The Partner API and your dashboard can run as two apps on one database. Hono serves the routes Vercel calls; Next.js serves the dashboard users open from Vercel through [single sign-on](#single-sign-on). Both read the same organizations, so a resource the Partner API provisions is the tenant the dashboard shows, with no copy to keep in sync. Give both apps the same `VERCEL_MARKETPLACE_CLIENT_ID` and `VERCEL_MARKETPLACE_CLIENT_SECRET`. [Hono and Next.js](/docs/frameworks/hono-and-next) covers serving both from one deployment.
+
 ## Installations and resources
 
 `upsertInstallation` records an installation by its configuration id, and a reinstall after a removal makes it active again. `linkTenant` links the installation to your own organization row. `upsertResource` provisions or updates a resource (the id Vercel uses is `externalId`), and `upsertPlan` keeps the plans your product offers. The Partner API calls these for you; call them yourself for an installation you create outside it.
