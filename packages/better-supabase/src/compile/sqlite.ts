@@ -1,14 +1,16 @@
 import type {
   Condition,
   DeleteOp,
+  Include,
   InsertOp,
+  Measure,
   Operation,
   OrderTerm,
   SelectOp,
   Selection,
   UpdateOp,
 } from "../ir/types.ts";
-import type { ColumnMeta, TableMeta } from "../schema/types.ts";
+import type { ColumnMeta, RelationMeta, TableMeta } from "../schema/types.ts";
 
 import { DbException, dbError } from "../core/errors.ts";
 import { invalidRequest } from "../ir/build.ts";
@@ -31,6 +33,17 @@ export interface SqliteColumn {
   /** Key in the returned row. */
   readonly alias: string;
   readonly decode: SqliteDecode;
+  /**
+   * An include, read as JSON (`decode: "json"`): the rows or the one row it
+   * holds decode by these columns.
+   */
+  readonly nested?: SqliteNested;
+}
+
+export interface SqliteNested {
+  /** A JSON array of rows, or one row (or `null`). */
+  readonly many: boolean;
+  readonly columns: readonly SqliteColumn[];
 }
 
 /** Primary key values of the rows a write touches, in key column order. */
@@ -96,8 +109,8 @@ export interface SqliteCompilerOptions {
 }
 
 /**
- * The operation needs something the SQLite dialect can't express: an include
- * (embedding), full-text search, a function source. Thrown while compiling,
+ * The operation needs something the SQLite dialect can't express: full-text
+ * search, a regular expression, a function source. Thrown while compiling,
  * before anything runs; executors return it as a `DbError` of kind
  * `unsupported`, with the feature in `details`.
  */
@@ -300,7 +313,7 @@ class SqliteCompiler {
   }
 
   private join(
-    condition: Extract<Condition, { kind: "relation" }>,
+    condition: { readonly relation: RelationMeta; readonly target: TableMeta },
     source: TableMeta,
     sourceAlias: string,
     targetAlias: string,
@@ -545,62 +558,208 @@ class SqliteCompiler {
     table: TableMeta,
     alias: string,
   ): { readonly list: string; readonly columns: SqliteColumn[] } {
-    if (selection.includes.length > 0) {
-      const include = selection.includes[0]!;
-      unsupported(
-        include.count === undefined && include.aggregate === undefined
-          ? `the include "${include.alias}" (embedding a related table)`
-          : `the related ${include.count === undefined ? "aggregate" : "count"} "${include.alias}"`,
-        table,
-      );
-    }
+    const { entries, columns } = this.entries(selection, table, alias, false);
 
-    const items: string[] = [];
-    const columns: SqliteColumn[] = [];
-
-    for (const entry of selection.columns) {
-      const meta = columnMeta(table, entry.column);
-      const column = this.column(alias, entry.column);
-      const decode = decodeOf(meta, entry.cast);
-      items.push(
-        `${entry.cast === "text" && decode !== "timestamptz" ? `cast(${column} as text)` : column} as ${quoteSqliteIdent(entry.alias)}`,
-      );
-      columns.push({ alias: entry.alias, decode });
-    }
-
-    if (selection.aggregate) {
-      if (selection.aggregate.count) {
-        items.push(`count(*) as "_count"`);
-        columns.push({ alias: "_count", decode: "raw" });
-      }
-
-      for (const measure of selection.aggregate.measures) {
-        const meta = columnMeta(table, measure.column);
-        const inner = `${measure.fn}(${this.comparable(table, alias, measure.column)})`;
-
-        const timestamp =
-          TIMESTAMPS.has(meta?.type ?? "") && measure.fn !== "avg";
-
-        const expression = timestamp
-          ? `${measure.fn}(${this.column(alias, measure.column)})`
-          : measure.cast === "text"
-            ? `cast(${inner} as text)`
-            : inner;
-
-        items.push(`${expression} as ${quoteSqliteIdent(measure.key)}`);
-        columns.push({
-          alias: measure.key,
-          decode:
-            timestamp && meta?.type === "timestamptz" ? "timestamptz" : "raw",
-        });
-      }
-    }
+    const items = entries.map(
+      ([key, expression]) => `${expression} as ${quoteSqliteIdent(key)}`,
+    );
 
     if (items.length === 0) {
       items.push('1 as "_"');
     }
 
     return { list: items.join(", "), columns };
+  }
+
+  /**
+   * `exists` filters for the includes with `required: true` (PostgREST
+   * `!inner`), which drop rows without a match.
+   */
+  required(selection: Selection, table: TableMeta, alias: string): string[] {
+    return selection.includes
+      .filter((include) => include.required)
+      .map((include) => {
+        const target = this.alias();
+
+        return `exists (select 1 from ${this.table(include.target)} as ${target} where ${this.includeFilter(include, table, alias, target)})`;
+      });
+  }
+
+  /**
+   * The selected values as `[key, expression]` pairs, in the order their
+   * parameters bind. `nested` reads an include inside a JSON object, where an
+   * embedded value has to stay JSON instead of text.
+   */
+  private entries(
+    selection: Selection,
+    table: TableMeta,
+    alias: string,
+    nested: boolean,
+  ): { entries: [string, string][]; columns: SqliteColumn[] } {
+    const entries: [string, string][] = [];
+    const columns: SqliteColumn[] = [];
+
+    for (const entry of selection.columns) {
+      const meta = columnMeta(table, entry.column);
+      const column = this.column(alias, entry.column);
+      const decode = decodeOf(meta, entry.cast);
+      entries.push([
+        entry.alias,
+        entry.cast === "text" && decode !== "timestamptz"
+          ? `cast(${column} as text)`
+          : column,
+      ]);
+      columns.push({ alias: entry.alias, decode });
+    }
+
+    if (selection.aggregate) {
+      if (selection.aggregate.count) {
+        entries.push(["_count", "count(*)"]);
+        columns.push({ alias: "_count", decode: "raw" });
+      }
+
+      for (const measure of selection.aggregate.measures) {
+        const { expression, column } = this.measure(measure, table, alias);
+        entries.push([measure.key, expression]);
+        columns.push(column);
+      }
+    }
+
+    for (const include of selection.includes) {
+      const { expression, column } = this.include(include, table, alias);
+      entries.push([
+        include.alias,
+        nested && column.decode === "json" ? `json(${expression})` : expression,
+      ]);
+      columns.push(column);
+    }
+
+    return { entries, columns };
+  }
+
+  private measure(
+    measure: Measure,
+    table: TableMeta,
+    alias: string,
+  ): { expression: string; column: SqliteColumn } {
+    const meta = columnMeta(table, measure.column);
+    const inner = `${measure.fn}(${this.comparable(table, alias, measure.column)})`;
+    const timestamp = TIMESTAMPS.has(meta?.type ?? "") && measure.fn !== "avg";
+
+    return {
+      expression: timestamp
+        ? `${measure.fn}(${this.column(alias, measure.column)})`
+        : measure.cast === "text"
+          ? `cast(${inner} as text)`
+          : inner,
+      column: {
+        alias: measure.key,
+        decode:
+          timestamp && meta?.type === "timestamptz" ? "timestamptz" : "raw",
+      },
+    };
+  }
+
+  /** `json_object('a', t1."a", ...)` for one row of a selection. */
+  private jsonObject(
+    selection: Selection,
+    table: TableMeta,
+    alias: string,
+  ): { text: string; columns: SqliteColumn[] } {
+    const { entries, columns } = this.entries(selection, table, alias, true);
+
+    const pairs = entries.map(
+      ([key, expression]) => `'${key.replaceAll("'", "''")}', ${expression}`,
+    );
+
+    return { text: `json_object(${pairs.join(", ")})`, columns };
+  }
+
+  /**
+   * The join to the parent row, the include's `where` and its own required
+   * includes.
+   */
+  private includeFilter(
+    include: Include,
+    table: TableMeta,
+    alias: string,
+    target: string,
+  ): string {
+    const filters = [this.join(include, table, alias, target)];
+    const simple = simplifyOrFalse(include.where);
+
+    if (simple.never) {
+      filters.push("0");
+    } else if (simple.condition) {
+      filters.push(this.condition(simple.condition, include.target, target));
+    }
+
+    filters.push(...this.required(include.selection, include.target, target));
+
+    return filters.join(" and ");
+  }
+
+  /**
+   * A correlated subquery for an include: the related rows as a JSON array
+   * (`json_group_array`), the one related row as a JSON object, a related
+   * `count(*)`, or the related measures as a JSON object.
+   */
+  private include(
+    include: Include,
+    table: TableMeta,
+    alias: string,
+  ): { expression: string; column: SqliteColumn } {
+    const target = this.alias();
+    const from = `${this.table(include.target)} as ${target}`;
+
+    if (include.count !== undefined) {
+      return {
+        expression: `(select count(*) from ${from} where ${this.includeFilter(include, table, alias, target)})`,
+        column: { alias: include.alias, decode: "raw" },
+      };
+    }
+
+    const row = this.jsonObject(include.selection, include.target, target);
+    const filter = this.includeFilter(include, table, alias, target);
+
+    if (include.aggregate !== undefined) {
+      return {
+        expression: `(select ${row.text} from ${from} where ${filter})`,
+        column: {
+          alias: include.alias,
+          decode: "json",
+          nested: { many: false, columns: row.columns },
+        },
+      };
+    }
+
+    if (include.relation.kind === "one") {
+      return {
+        expression: `(select ${row.text} from ${from} where ${filter} limit 1)`,
+        column: {
+          alias: include.alias,
+          decode: "json",
+          nested: { many: false, columns: row.columns },
+        },
+      };
+    }
+
+    const order =
+      include.orderBy.length > 0
+        ? ` order by ${this.orderBy(include.orderBy, include.target, target)}`
+        : "";
+
+    const limit =
+      include.limit === undefined ? "" : ` limit ${integer(include.limit)}`;
+
+    return {
+      expression: `(select json_group_array(json(j)) from (select ${row.text} as j from ${from} where ${filter}${order}${limit}))`,
+      column: {
+        alias: include.alias,
+        decode: "json",
+        nested: { many: true, columns: row.columns },
+      },
+    };
   }
 }
 
@@ -667,7 +826,7 @@ export function compileSqlite(
 
   switch (op.kind) {
     case "select": {
-      return selectPlan(make(), op);
+      return selectPlan(make, op);
     }
 
     case "insert": {
@@ -687,35 +846,45 @@ export function compileSqlite(
   }
 }
 
-function selectPlan(compiler: SqliteCompiler, op: SelectOp): SqlitePlan {
+function selectPlan(make: () => SqliteCompiler, op: SelectOp): SqlitePlan {
   const simple = simplifyOrFalse(op.where);
 
   if (simple.never) {
     return { kind: "never" };
   }
 
-  const alias = compiler.alias();
-  const { list, columns } = compiler.selection(op.selection, op.table, alias);
+  // Parameters bind in the order they appear in the text, so the select list
+  // compiles before the filter it precedes.
+  const filterOf = (compiler: SqliteCompiler, alias: string): string =>
+    whereClause([
+      simple.condition
+        ? compiler.condition(simple.condition, op.table, alias)
+        : undefined,
+      ...compiler.required(op.selection, op.table, alias),
+    ]);
 
-  const where = simple.condition
-    ? compiler.condition(simple.condition, op.table, alias)
-    : undefined;
+  let count: SqliteQuery | undefined;
 
-  const filter = whereClause([where]);
-  const from = `${compiler.table(op.table)} as ${alias}`;
-  const filterParams = [...compiler.params];
+  if (op.count || op.head) {
+    const compiler = make();
+    const alias = compiler.alias();
+    const filter = filterOf(compiler, alias);
 
-  const count =
-    op.count || op.head
-      ? {
-          text: `select count(*) as count from ${from}${filter}`,
-          params: filterParams,
-        }
-      : undefined;
+    count = {
+      text: `select count(*) as count from ${compiler.table(op.table)} as ${alias}${filter}`,
+      params: compiler.params,
+    };
+  }
 
   if (op.head) {
     return { kind: "select", rows: undefined, count, columns: [] };
   }
+
+  const compiler = make();
+  const alias = compiler.alias();
+  const { list, columns } = compiler.selection(op.selection, op.table, alias);
+  const filter = filterOf(compiler, alias);
+  const from = `${compiler.table(op.table)} as ${alias}`;
 
   const group =
     op.selection.aggregate && op.selection.columns.length > 0

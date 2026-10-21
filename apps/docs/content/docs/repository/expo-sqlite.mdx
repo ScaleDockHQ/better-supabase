@@ -38,9 +38,10 @@ no `crypto`.
 ## What runs
 
 Everything the PowerSync page lists runs the same way, and the same features
-return a `DbError` of kind `unsupported`: embedding, full-text search and
-function sources. `checkSqlite` from `better-supabase/expo-sqlite` checks a
-list definition in a test.
+return a `DbError` of kind `unsupported`: full-text search and function
+sources. Includes and related counts run locally. `checkSqlite` from
+`better-supabase/expo-sqlite` checks a list definition or a query spec in a
+test.
 
 ## Live queries
 

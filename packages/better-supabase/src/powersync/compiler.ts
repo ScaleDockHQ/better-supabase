@@ -4,11 +4,13 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { ExecuteResult, Executor } from "../core/executor.ts";
 import type { Result } from "../core/result.ts";
+import type { QuerySpec } from "../core/spec.ts";
 import type { ListDefinition, ListQuery } from "../list/list-query.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
 import { compileSqlite } from "../compile/sqlite.ts";
 import { err, ok, toDbError } from "../core/result.ts";
+import { isQuerySpec } from "../core/spec.ts";
 
 export const sqliteCompiler: Compiler<SqlitePlan> = {
   target: "sqlite",
@@ -25,8 +27,9 @@ export interface CheckSqliteOptions extends SqliteCompilerOptions {
 
 /**
  * Compiles every operation a list definition runs (the page, its count and the
- * facet counts) for SQLite, without a database. Returns the first `unsupported`
- * or `invalid_request` error, so a test or a dev build fails before a native
+ * facet counts), or the one read a `QuerySpec` from `betterSupabase.spec`
+ * describes, for SQLite, without a database. Returns the first `unsupported` or
+ * `invalid_request` error, so a test or a dev build fails before a native
  * screen does. With `all: true`, returns every error, an empty array when the
  * whole list runs on SQLite.
  *
@@ -52,7 +55,7 @@ export async function checkSqlite<
   P extends "offset" | "cursor",
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
-  list: ListDefinition<M, T, E, S, Fa, C, P>,
+  list: ListDefinition<M, T, E, S, Fa, C, P> | QuerySpec<TableKey<M>>,
   options: CheckSqliteOptions & { readonly all: true },
 ): Promise<readonly DbError[]>;
 export async function checkSqlite<
@@ -67,7 +70,7 @@ export async function checkSqlite<
   P extends "offset" | "cursor",
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
-  list: ListDefinition<M, T, E, S, Fa, C, P>,
+  list: ListDefinition<M, T, E, S, Fa, C, P> | QuerySpec<TableKey<M>>,
   options?: CheckSqliteOptions & { readonly all?: false },
 ): Promise<Result<undefined>>;
 export async function checkSqlite<
@@ -82,7 +85,7 @@ export async function checkSqlite<
   P extends "offset" | "cursor",
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
-  list: ListDefinition<M, T, E, S, Fa, C, P>,
+  list: ListDefinition<M, T, E, S, Fa, C, P> | QuerySpec<TableKey<M>>,
   options: CheckSqliteOptions = {},
 ): Promise<Result<undefined> | readonly DbError[]> {
   const failures = new Map<string, DbError>();
@@ -106,22 +109,12 @@ export async function checkSqlite<
     },
   };
 
-  const facets: Record<string, readonly string[]> = {};
-
-  for (const facet of list.facets) {
-    facets[facet.key] = [facet.values?.[0] ?? "x"];
-  }
-
-  // SAFETY: the keys come from list.facets, which is keyed by the facet keys Fa.
-  const query = { ...list.defaults, q: "x", facets } as ListQuery<S, Fa>;
-
   const db = betterSupabase.connect(probe);
-  await list.run(db, query);
 
-  // An operation stops compiling at its first unsupported feature, so a
-  // search term would hide the features the rest of the list needs.
-  if (options.all) {
-    await list.run(db, list.defaults);
+  if (isQuerySpec(list)) {
+    await db.$run(list);
+  } else {
+    await runList(db, list, options.all === true);
   }
 
   const found = [...failures.values()];
@@ -133,4 +126,35 @@ export async function checkSqlite<
   const [first] = found;
 
   return first ? err(first) : ok(undefined);
+}
+
+async function runList<
+  M extends AnyModels,
+  T extends TableKey<M>,
+  E,
+  S extends string,
+  Fa extends string,
+  C extends boolean,
+  P extends "offset" | "cursor",
+>(
+  db: Parameters<ListDefinition<M, T, E, S, Fa, C, P>["run"]>[0],
+  list: ListDefinition<M, T, E, S, Fa, C, P>,
+  all: boolean,
+): Promise<void> {
+  const facets: Record<string, readonly string[]> = {};
+
+  for (const facet of list.facets) {
+    facets[facet.key] = [facet.values?.[0] ?? "x"];
+  }
+
+  // SAFETY: the keys come from list.facets, which is keyed by the facet keys Fa.
+  const query = { ...list.defaults, q: "x", facets } as ListQuery<S, Fa>;
+
+  await list.run(db, query);
+
+  // An operation stops compiling at its first unsupported feature, so a
+  // search term would hide the features the rest of the list needs.
+  if (all) {
+    await list.run(db, list.defaults);
+  }
 }

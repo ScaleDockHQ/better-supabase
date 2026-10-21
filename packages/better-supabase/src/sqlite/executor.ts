@@ -1,5 +1,6 @@
 import type {
   SqliteColumn,
+  SqliteNested,
   SqliteCompilerOptions,
   SqliteInsertPlan,
   SqliteKeyedPlan,
@@ -147,17 +148,17 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
     }
 
     case "json": {
-      if (typeof value !== "string") {
-        return value;
+      let parsed: unknown = value;
+
+      if (typeof value === "string") {
+        try {
+          parsed = JSON.parse(value);
+        } catch {
+          return value;
+        }
       }
 
-      try {
-        const parsed: unknown = JSON.parse(value);
-
-        return parsed;
-      } catch {
-        return value;
-      }
+      return column.nested ? decodeNested(column.nested, parsed) : parsed;
     }
 
     case "timestamptz": {
@@ -184,19 +185,41 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
   }
 }
 
+function decodeRow(
+  row: Readonly<Record<string, unknown>>,
+  columns: readonly SqliteColumn[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  for (const column of columns) {
+    out[column.alias] = decodeValue(column, row[column.alias]);
+  }
+
+  return out;
+}
+
+function isRow(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** An include's JSON: an array of rows, or one row or `null`. */
+function decodeNested(nested: SqliteNested, value: unknown): unknown {
+  if (nested.many) {
+    return Array.isArray(value)
+      ? value.map((item: unknown) =>
+          isRow(item) ? decodeRow(item, nested.columns) : item,
+        )
+      : [];
+  }
+
+  return isRow(value) ? decodeRow(value, nested.columns) : null;
+}
+
 function decode(
   rows: readonly Record<string, unknown>[],
   columns: readonly SqliteColumn[],
 ): Record<string, unknown>[] {
-  return rows.map((row) => {
-    const out: Record<string, unknown> = {};
-
-    for (const column of columns) {
-      out[column.alias] = decodeValue(column, row[column.alias]);
-    }
-
-    return out;
-  });
+  return rows.map((row) => decodeRow(row, columns));
 }
 
 async function all(

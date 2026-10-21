@@ -313,14 +313,119 @@ describe("powersyncExecutor", () => {
     const { client, statements } = setup();
 
     const result = await client.customers.findMany({
+      where: { name: { search: "acme" } },
       include: { locations: true },
     });
 
     expect(result.error).toMatchObject({
       kind: "unsupported",
       table: "customers",
+      details: "full-text search",
     });
     expect(statements).toEqual([]);
+  });
+
+  it("reads includes, related counts and aggregates in one statement", async () => {
+    const { client, sqlite, statements } = setup();
+
+    const acme = await client.customers
+      .create({ organizationId: ORG, name: "Acme", metadata: { tier: "pro" } })
+      .orThrow();
+
+    await client.customers
+      .create({ organizationId: ORG, name: "Bolt" })
+      .orThrow();
+    await client.locations
+      .createMany([
+        {
+          organizationId: ORG,
+          customerId: acme.id,
+          label: "HQ",
+          isPrimary: true,
+        },
+        {
+          organizationId: ORG,
+          customerId: acme.id,
+          label: "Depot",
+          isPrimary: false,
+        },
+      ])
+      .orThrow();
+    // Note ids are generated on the server, so the sync writes them.
+    sqlite
+      .prepare(
+        `insert into notes (id, organization_id, customer_id, kind, body, attachments)
+         values (1, ?, ?, 'call', 'a', null), (2, ?, ?, 'email', 'b', '["x"]')`,
+      )
+      .run(ORG, acme.id, ORG, acme.id);
+
+    const before = statements.length;
+
+    const rows = await client.customers
+      .findMany({
+        select: ["name", "metadata"],
+        orderBy: { name: "asc" },
+        include: {
+          locations: {
+            select: ["label", "isPrimary"],
+            where: { isPrimary: true },
+          },
+          notes: {
+            select: ["body", "attachments", "createdAt"],
+            orderBy: { body: "desc" },
+            limit: 1,
+            include: { customer: { select: ["name"] } },
+          },
+          _count: { notes: true, locations: { where: { isPrimary: false } } },
+          _max: { notes: { body: true, createdAt: true } },
+        },
+      })
+      .orThrow();
+
+    expect(statements.length - before).toBe(1);
+    expect(rows).toEqual([
+      {
+        name: "Acme",
+        metadata: { tier: "pro" },
+        locations: [{ label: "HQ", isPrimary: true }],
+        notes: [
+          {
+            body: "b",
+            attachments: ["x"],
+            createdAt: expect.stringMatching(/\+00:00$/u),
+            customer: { name: "Acme" },
+          },
+        ],
+        _count: { notes: 2, locations: 1 },
+        _max: {
+          notes: { body: "b", createdAt: expect.stringMatching(/\+00:00$/u) },
+        },
+      },
+      {
+        name: "Bolt",
+        metadata: {},
+        locations: [],
+        notes: [],
+        _count: { notes: 0, locations: 0 },
+        _max: { notes: { body: null, createdAt: null } },
+      },
+    ]);
+
+    const withNotes = await client.customers
+      .findMany({
+        select: ["name"],
+        include: {
+          notes: { select: ["body"], required: true, where: { kind: "call" } },
+        },
+      })
+      .orThrow();
+
+    expect(withNotes).toEqual([{ name: "Acme", notes: [{ body: "a" }] }]);
+    expect(
+      await client.customers
+        .count({ where: { notes: { some: {} } } })
+        .orThrow(),
+    ).toBe(1);
   });
 
   it("checks single-row reads", async () => {
@@ -521,6 +626,43 @@ describe("lists on SQLite", () => {
     expect(await checkSqlite(betterSupabase, list, { all: true })).toEqual([]);
   });
 
+  it("checks a query spec, includes and related counts included", async () => {
+    const { spec } = betterSupabase;
+
+    expect(
+      await checkSqlite(
+        betterSupabase,
+        spec.customers.findMany({
+          include: {
+            notes: { include: { customer: true } },
+            _count: { locations: true },
+          },
+        }),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      await checkSqlite(
+        betterSupabase,
+        spec.customers.paginate({
+          size: 10,
+          after: null,
+          include: { organization: true },
+        }),
+        { all: true },
+      ),
+    ).toEqual([]);
+
+    const search = await checkSqlite(
+      betterSupabase,
+      spec.customers.findMany({ where: { name: { search: "acme" } } }),
+    );
+
+    expect(search.error).toMatchObject({
+      kind: "unsupported",
+      details: "full-text search",
+    });
+  });
+
   it("reports every unsupported feature with all: true", async () => {
     const serverOnly = defineListQuery(betterSupabase, "customers", {
       search: { fts: "name" },
@@ -598,6 +740,7 @@ describe("powersyncExecutor with a fallback", () => {
 
     const result = await client.customers.findMany({
       select: ["id", "name"],
+      where: { name: { search: "acme" } },
       include: { locations: true },
     });
 
@@ -612,12 +755,12 @@ describe("powersyncExecutor with a fallback", () => {
   it("never sends writes to the fallback", async () => {
     const { client, server } = withFallback();
 
-    const created = await client.customers.create(
-      { organizationId: ORG, name: "Acme" },
-      { include: { locations: true } },
-    );
+    const updated = await client.customers.updateMany({
+      where: { name: { search: "acme" } },
+      data: { name: "Bolt" },
+    });
 
-    expect(created.error?.kind).toBe("unsupported");
+    expect(updated.error?.kind).toBe("unsupported");
     expect(server.ops).toEqual([]);
   });
 
@@ -650,7 +793,7 @@ describe("powersyncExecutor with a fallback", () => {
     server.goOffline();
 
     const result = await client.customers.findMany({
-      include: { locations: true },
+      where: { name: { search: "acme" } },
     });
 
     expect(result.error).toMatchObject({ kind: "network" });
@@ -661,7 +804,11 @@ describe("powersyncExecutor with a fallback", () => {
 
     const stop = watch(
       db,
-      () => client.customers.findMany({ include: { locations: true } }),
+      () =>
+        client.customers.findMany({
+          where: { name: { search: "acme" } },
+          include: { locations: true },
+        }),
       {
         tables: sqliteTables(betterSupabase, ["customers"]),
         onResult: () => undefined,
