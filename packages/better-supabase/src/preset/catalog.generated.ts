@@ -440,7 +440,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "deletedAt": "deletedAt",
               "permissions": {
                 "read": "read",
-                "write": "create"
+                "write": "create",
+                "upload": "create"
               }
             }
           }

@@ -124,6 +124,7 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
           else true
         end)
       );
@@ -299,6 +300,7 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
           else false
         end
       );

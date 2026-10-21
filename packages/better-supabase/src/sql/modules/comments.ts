@@ -81,7 +81,7 @@ const NAMES: ModuleNames = {
       subject: {
         title: "body",
         deletedAt: "deletedAt",
-        permissions: { read: "read", write: "create" },
+        permissions: { read: "read", write: "create", upload: "create" },
       },
     },
   },

@@ -95,7 +95,16 @@ export interface ModuleTableLifecycle {
 export interface ModuleEntitySubject {
   readonly title: string;
   readonly deletedAt?: string;
-  readonly permissions: { readonly read: string; readonly write: string };
+  readonly permissions: {
+    readonly read: string;
+    readonly write: string;
+    /**
+     * The action whose key `attachments` checks for files on the entity, in
+     * place of `attachments.upload`. Set it when the table's own write policies
+     * check more than tenant membership (doctor BS345).
+     */
+    readonly upload?: string;
+  };
   readonly rank?: { readonly column: string; readonly group: string };
   readonly search?: {
     readonly title: string;

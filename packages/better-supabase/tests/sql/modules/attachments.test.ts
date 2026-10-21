@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -176,6 +177,21 @@ describe("attachments module", () => {
       `case "subject_type" when 'contract' then 'contracts.upload' else 'attachments.upload' end`,
     );
     expect(overridden).toContain("'contracts.admin'");
+  });
+
+  it("checks the comments key for files on a comment", () => {
+    const modules = ["comments", "attachments"];
+
+    const sql = renderModules(modules, {
+      subjects: withBlockSubjects({}, modules, {}),
+    })
+      .filter((file) => file.module === "attachments")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `case "subject_type" when 'comment' then 'comments.create' else 'attachments.upload' end`,
+    );
   });
 
   it("accepts any valid bucket id, short ones included", () => {

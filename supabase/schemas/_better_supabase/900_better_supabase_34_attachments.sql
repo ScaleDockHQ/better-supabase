@@ -158,7 +158,7 @@ drop policy if exists "attachments_insert" on "better_supabase"."attachments";
 create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
   with check ((
     "uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
+    and coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'comment' then 'comments.create' else 'attachments.upload' end), false)
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "attachments_delete" on "better_supabase"."attachments";

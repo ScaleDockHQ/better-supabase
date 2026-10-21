@@ -182,6 +182,9 @@ function subjectsOf(
         permissions: {
           read: key(subject.permissions.read),
           write: key(subject.permissions.write),
+          ...(subject.permissions.upload === undefined
+            ? {}
+            : { upload: key(subject.permissions.upload) }),
         },
         ...(subject.deletedAt === undefined
           ? {}

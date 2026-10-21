@@ -162,6 +162,7 @@ export const permissions = {
   comment: {
     read: "comments.read",
     write: "comments.create",
+    upload: "comments.create",
   },
   comments: {
     read: "comments.read",
