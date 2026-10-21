@@ -155,6 +155,21 @@ describe("section writes", () => {
     ]);
   });
 
+  it("creates a share link with only the defaults", async () => {
+    const section = shareLinksBlock.sections.shareLinks;
+
+    expect(await run(section, "create", {})).toEqual([["create", subject, {}]]);
+  });
+
+  it("links without data", async () => {
+    const section = relationsBlock.sections.relations;
+    const target = { type: "project", id: "p1" };
+
+    expect(await run(section, "link", { target, kind: "relates" })).toEqual([
+      ["link", subject, target, { kind: "relates" }],
+    ]);
+  });
+
   it("starts SLA clocks", async () => {
     const section = slaBlock.sections.sla;
 
@@ -164,5 +179,44 @@ describe("section writes", () => {
     expect(await run(section, "start", {})).toEqual([
       ["start", subject, undefined],
     ]);
+  });
+});
+
+describe("section loads", () => {
+  const cases: readonly [string, AnySection, string][] = [
+    ["comments", commentsBlock.sections.comments, "list"],
+    ["attachments", attachmentsBlock.sections.attachments, "list"],
+    ["tags", tagsBlock.sections.tags, "forSubject"],
+    ["shareLinks", shareLinksBlock.sections.shareLinks, "list"],
+    ["relations", relationsBlock.sections.relations, "of"],
+    ["versions", versionsBlock.sections.versions, "list"],
+    ["sla", slaBlock.sections.sla, "clocks"],
+  ];
+
+  it.each(cases)(
+    "loads %s through the block client",
+    async (_name, section, method) => {
+      const { client, calls } = recorder();
+
+      const result = await section.load(
+        client as never,
+        subject,
+        undefined as never,
+      );
+
+      expect(result.ok).toBe(true);
+      expect(calls[0]?.[0]).toBe(method);
+      expect(calls[0]?.[1]).toEqual(subject);
+    },
+  );
+
+  it("counts comments for many records", async () => {
+    const { client, calls } = recorder();
+    const count = commentsBlock.sections.comments.count;
+
+    expect(count).toBeDefined();
+    await count?.(client as never, [subject]);
+
+    expect(calls).toEqual([["counts", [subject]]]);
   });
 });

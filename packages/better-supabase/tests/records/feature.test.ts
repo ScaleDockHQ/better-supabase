@@ -1,3 +1,5 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
 import { Temporal } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
@@ -6,9 +8,11 @@ import type { SubjectRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
+import { featureWrites, runSectionWrite } from "../../src/records/feature.ts";
 import {
   defineRecordFeature,
   defineSection,
+  findSectionWrite,
   plainData,
   recordCan,
   recordPermissionKeys,
@@ -170,5 +174,72 @@ describe("plainData", () => {
       rows: [{ id: "1", at: "2026-10-21T10:00:00Z", count: 2n, when: null }],
     });
     expectTypeOf(plain.rows[0]?.at).toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("feature edges", () => {
+  const plainBlock = defineBlock({
+    name: "plain",
+    sql: ["plain"],
+    category: "collaboration",
+  });
+
+  const bare = defineRecordFeature({
+    type: "customer",
+    blocks: { plain: plainBlock, notes: notesBlock },
+  });
+
+  it("skips blocks without sections and keys without a permissions map", () => {
+    expect(bare.sections).toEqual(["notes"]);
+    expect(recordPermissionKeys(bare)).toEqual([]);
+    expect(featureWrites(bare)).toEqual([["notes", ["add", "remove"]]]);
+  });
+
+  it("finds a write only on a known section", () => {
+    expect(findSectionWrite(bare, "notes", "add")).toMatchObject({
+      key: "notes",
+      permission: "create",
+    });
+    expect(findSectionWrite(bare, "notes", "rename")).toBeUndefined();
+    expect(findSectionWrite(bare, "files", "add")).toBeUndefined();
+  });
+
+  it("fails a write without a client for its block", async () => {
+    const result = await runSectionWrite(
+      bare,
+      {},
+      "notes",
+      "add",
+      { type: "customer", id: "7" },
+      { body: "Hi" },
+    );
+
+    expect(result).toMatchObject({ ok: false });
+  });
+});
+
+describe("recordWriteInput edges", () => {
+  const asyncSchema: StandardSchemaV1<unknown, { readonly n: number }> = {
+    "~standard": {
+      version: 1,
+      vendor: "test",
+      validate: (value) =>
+        Promise.resolve(
+          typeof value === "object" && value !== null && "n" in value
+            ? { value: { n: Number(value.n) } }
+            : { issues: [{ message: "Needs n" }] },
+        ),
+    },
+  };
+
+  const schema = recordWriteInput(asyncSchema);
+
+  it("awaits an async input schema and defaults a missing input", async () => {
+    expect(
+      await schema["~standard"].validate({ id: "7", input: { n: 2 } }),
+    ).toEqual({ value: { id: "7", input: { n: 2 } } });
+    expect(await schema["~standard"].validate({ id: "7" })).toEqual({
+      issues: [{ message: "Needs n", path: ["input"] }],
+    });
   });
 });

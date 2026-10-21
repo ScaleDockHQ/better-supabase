@@ -149,6 +149,47 @@ describe("recordQueries", () => {
   });
 });
 
+describe("recordQueries options", () => {
+  it("scopes the keys, passes load options and sets the stale time", async () => {
+    const queries = recordQueries(
+      feature,
+      { notes: notesClient() },
+      { scope: "org", staleTime: 1000 },
+    );
+
+    const options = queries.sections.notes("c1", { pageSize: 5 } as never);
+    expect(options.queryKey).toEqual([
+      "bs-record",
+      "customer",
+      "c1",
+      "notes",
+      { pageSize: 5 },
+      { scope: "org" },
+    ]);
+    expect(options.staleTime).toBe(1000);
+    await expect(new QueryClient().query(options)).resolves.toHaveLength(1);
+    expect(queries.key("c1")).toEqual(["bs-record", "customer", "c1"]);
+    expect(queries.can().queryKey).toEqual([
+      "bs-record",
+      "customer",
+      expect.anything(),
+      { scope: "org" },
+    ]);
+  });
+
+  it("throws a DbException when the flags fail to load", async () => {
+    const queries = recordQueries(
+      feature,
+      { notes: notesClient() },
+      { access: { permissions: () => failed("No access") } },
+    );
+
+    await expect(new QueryClient().query(queries.can())).rejects.toMatchObject({
+      error: { message: "No access" },
+    });
+  });
+});
+
 describe("invalidateOnRecordEvents", () => {
   it("makes the matching section of every record stale", async () => {
     const queries = recordQueries(feature, { notes: notesClient() });
@@ -165,5 +206,17 @@ describe("invalidateOnRecordEvents", () => {
         queryClient.getQueryState(queries.key("c1", "notes"))?.isInvalidated,
       ).toBe(true);
     });
+  });
+
+  it("ignores events no section lists", () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const events = new EventHub();
+
+    const stop = invalidateOnRecordEvents(queryClient, { events }, feature);
+    emitBlockEvent(events, "task.added", {});
+    stop();
+
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

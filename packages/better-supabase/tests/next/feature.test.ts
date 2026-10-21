@@ -246,3 +246,55 @@ describe("recordServer", () => {
     expectTypeOf<ReturnType<typeof createNext>>().toExtend<RecordServerHost>();
   });
 });
+
+describe("recordServer without access or storage", () => {
+  const bare: RecordServerHost = {
+    ...host,
+    context: () => Promise.resolve({ db }),
+  };
+
+  it("allows every section and builds the clients without storage", async () => {
+    createNotes.mockClear();
+
+    const open = recordServer(
+      bare,
+      defineRecordFeature({
+        type: "customer",
+        blocks: { notes: notesBlock },
+        config: { notes: { schema: "notes", options: {} } },
+      }),
+    );
+
+    const view = await open.load("7", { options: {} });
+
+    expect(view.can).toEqual({
+      notes: { read: true, add: true, remove: true },
+    });
+    expect(view).not.toHaveProperty("permissionsError");
+    expect(createNotes.mock.calls[0]?.[0]).not.toHaveProperty("storage");
+  });
+
+  it("reports a failed permission load and hides every section", async () => {
+    const refused = defineBlock({
+      name: "access",
+      category: "identity",
+      create: (): Keys => ({ permissions: () => failed("No access") }),
+    });
+
+    const closed = recordServer(
+      bare,
+      defineRecordFeature({
+        type: "customer",
+        blocks: { notes: notesBlock },
+        permissions: { notes: { read: "notes.read" } },
+        access: refused,
+        config: { notes: { schema: "notes", options: {} } },
+      }),
+    );
+
+    const view = await closed.load("7");
+
+    expect(view.permissionsError).toMatchObject({ message: "No access" });
+    expect(view.can.notes.read).toBe(false);
+  });
+});
