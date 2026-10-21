@@ -12,7 +12,7 @@
   "files": [
     {
       "path": "items/lib/outbox.ts",
-      "content": "import { createOutbox, sqlTransport } from \"better-supabase/blocks/outbox\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * The outbox on the server connection. Register each consumer once, for\n * example in a migration script or at the top of the relay route:\n * `await outbox.register(\"search\", { types: [\"customer.*\"] })`.\n */\nexport const outbox = createOutbox({\n  transport: sqlTransport(postgres.admin),\n  source: process.env.APP_URL ?? \"http://localhost:3000\",\n  typePrefix: \"com.example.app\",\n});\n",
+      "content": "import { createOutbox, sqlTransport } from \"better-supabase/blocks/outbox\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * The outbox on the server connection. Register each consumer once, for example\n * in a migration script or at the top of the relay route: `await\n * outbox.register(\"search\", { types: [\"customer.*\"] })`.\n */\nexport const outbox = createOutbox({\n  transport: sqlTransport(postgres.admin),\n  source: process.env.APP_URL ?? \"http://localhost:3000\",\n  typePrefix: \"com.example.app\",\n});\n",
       "type": "registry:lib",
       "target": "@lib/outbox.ts"
     }

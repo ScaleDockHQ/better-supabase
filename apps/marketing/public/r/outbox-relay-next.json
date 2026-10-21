@@ -13,7 +13,7 @@
   "files": [
     {
       "path": "items/app/api/outbox/route.ts",
-      "content": "import \"server-only\";\nimport { outbox } from \"@/lib/outbox\";\n\n/**\n * Relays each registered consumer's events. Call it from a cron, such as\n * `{ \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }` in `vercel.json`,\n * which sends `Authorization: Bearer <CRON_SECRET>`.\n */\nexport const GET = outbox.relayRoute({\n  secret: process.env.CRON_SECRET,\n  consumers: {\n    log: (events) => {\n      for (const event of events) {\n        console.info(event.type, event.id);\n      }\n    },\n  },\n  onError: (error, consumer) => {\n    console.error(consumer, error.message);\n  },\n});\n",
+      "content": "import \"server-only\";\nimport { outbox } from \"@/lib/outbox\";\n\n/**\n * Relays each registered consumer's events. Call it from a cron, such as `{\n * \"path\": \"/api/outbox\", \"schedule\": \"* * * * *\" }` in `vercel.json`, which\n * sends `Authorization: Bearer <CRON_SECRET>`.\n */\nexport const GET = outbox.relayRoute({\n  secret: process.env.CRON_SECRET,\n  consumers: {\n    log: (events) => {\n      for (const event of events) {\n        console.info(event.type, event.id);\n      }\n    },\n  },\n  onError: (error, consumer) => {\n    console.error(consumer, error.message);\n  },\n});\n",
       "type": "registry:file",
       "target": "~/app/api/outbox/route.ts"
     }
