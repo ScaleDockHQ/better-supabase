@@ -2,6 +2,7 @@ import type { Permission } from "@/features/user/user-permissions";
 
 export type NavId =
   | "dashboard"
+  | "myWork"
   | "customers"
   | "people"
   | "hiring"
@@ -55,6 +56,7 @@ export interface NavItem {
 
 export const navItems: readonly NavItem[] = [
   { id: "dashboard", href: "/", group: "workspace" },
+  { id: "myWork", href: "/my-work", group: "workspace" },
   {
     id: "customers",
     href: "/customers",

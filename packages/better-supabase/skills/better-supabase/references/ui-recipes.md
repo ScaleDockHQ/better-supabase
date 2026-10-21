@@ -11268,6 +11268,242 @@ export async function ApprovalsQueue() {
 }
 ```
 
+## My work
+
+What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record. It loads its data on the server through the block's client; the [subjects](https://bettersupabase.com/blocks/subjects), [work-items](https://bettersupabase.com/blocks/work-items), [approvals](https://bettersupabase.com/blocks/approvals), [reminders](https://bettersupabase.com/blocks/reminders), [comments](https://bettersupabase.com/blocks/comments) blocks must be installed (`npx better-supabase add subjects work-items approvals reminders comments`). Page: https://bettersupabase.com/recipes/my-work.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/my-work/components/my-work-list.tsx"
+/**
+ * Render inside `<Suspense>`: everything that waits on the caller, from
+ * `loadMyWork`, newest first.
+ */
+export async function MyWorkList() {
+  const [work, t, format] = await Promise.all([
+    getMyWork(),
+    getExtracted("myWork"),
+    getFormatter(),
+  ]);
+
+  if (work.kind === "no-organization") {
+    return null;
+  }
+
+  const kindLabel = (kind: MyWorkKind): string => {
+    switch (kind) {
+      case "assigned": {
+        return t("Assigned");
+      }
+
+      case "approval": {
+        return t("Approval");
+      }
+
+      case "reminder": {
+        return t("Reminder");
+      }
+
+      case "mention": {
+        return t("Mention");
+      }
+
+      case "sla": {
+        return t("SLA warning");
+      }
+
+      default: {
+        const never: never = kind;
+
+        return never;
+      }
+    }
+  };
+
+  return (
+    <Card data-recipe="my-work">
+      <CardHeader>
+        <CardTitle>{t("Waiting on you")}</CardTitle>
+        <CardDescription>
+          {t(
+            "Assigned work, approvals, due reminders, mentions and SLA warnings.",
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {work.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>{t("My work didn't load")}</AlertTitle>
+            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+            <AlertAction>
+              <form action={retryMyWork}>
+                <Button size="sm" variant="outline" type="submit">
+                  {t("Retry")}
+                </Button>
+              </form>
+            </AlertAction>
+          </Alert>
+        ) : work.data.rows.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <InboxIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("Nothing waiting on you")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Work assigned to you and requests for you show up here.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Link
+                href="/work"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                {t("Open the work board")}
+              </Link>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {work.data.rows.map((row) => (
+              <li key={row.key} className="flex items-center gap-2 text-sm">
+                <Badge variant={BADGES[row.kind]}>{kindLabel(row.kind)}</Badge>
+                {row.url === null ? (
+                  <span className="truncate">{row.title}</span>
+                ) : (
+                  <Link
+                    href={row.url}
+                    className="truncate font-medium underline-offset-4 transition-colors hover:underline"
+                  >
+                    {row.title}
+                  </Link>
+                )}
+                {row.at === null ? null : (
+                  <time
+                    dateTime={new Date(row.at).toISOString()}
+                    className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                  >
+                    {format.relativeTime(row.at)}
+                  </time>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Subject timeline
+
+One record's comments, files and versions merged newest first, from `recordServer(...).timeline`, skipping the sections the caller can't read. It loads its data on the server through the block's client; the [comments](https://bettersupabase.com/blocks/comments), [attachments](https://bettersupabase.com/blocks/attachments), [versions](https://bettersupabase.com/blocks/versions) blocks must be installed (`npx better-supabase add comments attachments versions`). Page: https://bettersupabase.com/recipes/subject-timeline.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button card empty
+```
+
+```tsx title="apps/examples/nextjs/src/features/customers/components/customer-timeline.tsx"
+/**
+ * The customer's history from `customerRecord.timeline`: comments, files and
+ * versions in one list, newest first.
+ */
+export async function CustomerTimeline({
+  timeline,
+  authors,
+}: {
+  timeline: Loaded<readonly TimelineRow[]>;
+  authors: Readonly<Record<string, string>>;
+}) {
+  const [t, format] = await Promise.all([
+    getExtracted("customers"),
+    getFormatter(),
+  ]);
+
+  const kindLabel = (kind: string): string => {
+    switch (kind) {
+      case "comment": {
+        return t("Comment");
+      }
+
+      case "attachment": {
+        return t("File");
+      }
+
+      case "version": {
+        return t("Version");
+      }
+
+      default: {
+        return kind;
+      }
+    }
+  };
+
+  return (
+    <Card size="sm" data-recipe="record-timeline">
+      <CardHeader>
+        <CardTitle>{t("Timeline")}</CardTitle>
+        <CardDescription>
+          {t("Comments, files and versions, newest first.")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {timeline.kind === "error" ? (
+          <RecordLoadError title={t("The timeline didn't load")} />
+        ) : timeline.data.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HistoryIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("Nothing happened yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Comments, files and versions show up here.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <a
+                href="#comments"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                {t("Write a comment")}
+              </a>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ol className="flex flex-col gap-3">
+            {timeline.data.map((entry) => (
+              <li key={entry.id} className="flex items-center gap-2 text-sm">
+                <Badge variant="outline">{kindLabel(entry.kind)}</Badge>
+                <span className="truncate">
+                  {(entry.actor === null ? undefined : authors[entry.actor]) ??
+                    t("Someone")}
+                </span>
+                <time
+                  dateTime={new Date(entry.at).toISOString()}
+                  className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                >
+                  {format.relativeTime(entry.at)}
+                </time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
 ## SLA badges
 
 A badge on a record with the time left before its SLA is breached. It loads its data on the server through the block's client; the [sla block](https://bettersupabase.com/blocks/sla) must be installed (`npx better-supabase add sla`). Page: https://bettersupabase.com/recipes/sla-badges.

@@ -216,3 +216,43 @@ export async function getSlaClocks(
     })),
   );
 }
+
+export interface TimelineRow {
+  readonly id: string;
+  readonly kind: "comment" | "attachment" | "version" | (string & {});
+  /** Epoch milliseconds. */
+  readonly at: number;
+  readonly actor: string | null;
+}
+
+const TIMELINE_LIMIT = 20;
+
+/**
+ * The customer's latest comments, files and versions in one list, newest first.
+ * A failed section fails the card only when nothing else loaded.
+ */
+export async function getTimeline(
+  customerId: string,
+): Promise<Loaded<readonly TimelineRow[]>> {
+  const timeline = await customerRecord.timeline(customerId, {
+    limit: TIMELINE_LIMIT,
+  });
+
+  const failed = Object.values(timeline.skipped).find(
+    (result) => result.kind === "error",
+  );
+
+  if (failed?.kind === "error" && timeline.entries.length === 0) {
+    return failed;
+  }
+
+  return {
+    kind: "ok",
+    data: timeline.entries.map((entry) => ({
+      id: `${entry.section}:${entry.id}`,
+      kind: entry.kind,
+      at: epoch(entry.at),
+      actor: entry.actor ?? null,
+    })),
+  };
+}

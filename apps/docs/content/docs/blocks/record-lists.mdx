@@ -1,0 +1,163 @@
+---
+title: Record lists and My work
+description: Show section columns on a list page, keep its state in the URL, merge a record's sections into one timeline, and list what waits on the caller across blocks.
+---
+
+[Record sections](/docs/blocks/records) load the parts of one record page.
+The same sections also fill list columns, feed a record's timeline and,
+through the subjects block, a "My work" page across every installed block.
+All of it lives in `better-supabase/records`, with Server Component helpers in
+`better-supabase/next` and a URL state hook in `better-supabase/react`.
+
+## A list with section columns
+
+`defineRecordList` pairs a [list query](/docs/platform/list) with a record
+feature and names the sections shown as columns. Each column is filled for
+the whole page in one wave, never one query per row:
+
+| Column  | Cell                                                                     |
+| ------- | ------------------------------------------------------------------------ |
+| `count` | how many rows the section has, from its `count` (one query for the page) |
+| `data`  | the section's rows, from its `column`, or one `load` per row in one wave |
+
+```ts title="src/features/customers/customer-record-list.ts"
+import "server-only";
+import { recordListServer } from "better-supabase/next";
+import { defineRecordList } from "better-supabase/records";
+
+import { customerList } from "@/lib/lists";
+import { customerFeature } from "@/lib/supabase/features/customer/customer-feature";
+import { bs } from "@/lib/supabase/server";
+
+export const customerRecordList = defineRecordList(
+  customerFeature,
+  customerList,
+  { columns: { comments: "count" } },
+);
+
+export const customerRecords = recordListServer(bs, customerRecordList);
+```
+
+`load(searchParams)` parses the URL state, runs the list query and fills the
+columns. It returns `{ query, page, rows, filterFields, can }`: each row holds
+its `subject`, its `row` and its `cells`, and every cell settles on its own
+like a section (`ok`, `error` or `hidden`). A column the caller can't read is
+`hidden` on every row and runs no query. Bad URL state fails with a
+`validation` error that names the parameter:
+
+```ts title="src/app/api/customers/records/route.ts"
+import { customerRecords } from "@/features/customers/customer-record-list";
+
+export async function GET(request: Request): Promise<Response> {
+  const result = await customerRecords.load(new URL(request.url).searchParams);
+
+  if (!result.ok) {
+    return Response.json(result.error, {
+      status: result.error.kind === "validation" ? 400 : 500,
+    });
+  }
+
+  return Response.json(result.data);
+}
+```
+
+`recordListServer` returns plain data (Temporal values become ISO strings), so
+the page passes straight to a Client Component. Outside Next.js, call
+`customerRecordList.load({ db, clients, permissions }, searchParams)` with the
+repositories, the feature's block clients and the caller's permission set.
+
+## Keep the list state in the URL
+
+`useRecordListState` keeps a list's sort, facets, filter and page in the URL
+through [nuqs](https://nuqs.dev). Pass it the list definition and the
+`useQueryStates` result for the list's parsers:
+
+```tsx title="src/features/customers/use-customer-list-state.ts"
+"use client";
+
+import { useRecordListState } from "better-supabase/react";
+import { createParser, useQueryStates } from "nuqs";
+
+import { customerList } from "@/lib/lists";
+
+const parsers = customerList.nuqs(createParser);
+
+export function useCustomerListState() {
+  return useRecordListState(customerList, useQueryStates(parsers));
+}
+```
+
+It returns `query` (the typed, parsed state, or the list's defaults when the
+URL holds something the list rejects), `searchParams` for the fetch, `set` to
+change keys (which goes back to page 1), `setPage` and `reset`. Wrap the app
+in nuqs's `NuqsAdapter` once.
+
+## A record's timeline
+
+`loadTimeline(source, subject)` loads every section that maps its rows to
+timeline entries and merges them, newest first. The comments, versions and
+attachments sections do this; a block's own section adds a `timeline` hook
+that turns a row into `{ id, kind, at, actor?, row }`. A section that fails or
+that the caller can't read adds nothing and is listed in `skipped`:
+
+```ts title="src/features/customers/customer-record-queries.ts"
+const timeline = await customerRecord.timeline(customerId, { limit: 20 });
+timeline.entries; // [{ section: "comments", kind: "comment", at, actor, row }]
+timeline.skipped; // { versions: { kind: "hidden" } }
+```
+
+`recordServer(...).timeline` checks the caller's permissions first, so it never
+queries a section they can't read. Pass `sections` to merge only some of them.
+
+## My work
+
+The subjects block installs `my_work(tenant, page_size)`: what waits on the
+caller across the installed blocks, newest first. It runs as the caller, so
+every row is one they can read.
+
+| Kind       | From         | Rows                                              |
+| ---------- | ------------ | ------------------------------------------------- |
+| `assigned` | `work-items` | open work items assigned to the caller            |
+| `approval` | `approvals`  | pending approval requests the caller can decide   |
+| `reminder` | `reminders`  | the caller's reminders sent in the last 7 days    |
+| `mention`  | `comments`   | comments that mention the caller, last 30 days    |
+| `sla`      | `sla`        | SLA clocks that warned on the caller's work items |
+
+A kind whose block isn't installed returns nothing. `loadMyWork` groups the
+items by kind and counts them for tab badges, in one round trip:
+
+```ts title="src/features/my-work/my-work-queries.ts"
+import { loadMyWork } from "better-supabase/records";
+
+const work = await loadMyWork(blocks(supabase, tenant).subjects, {
+  tenant,
+}).orThrow();
+
+work.groups.approval; // approvals the caller can decide
+work.counts.assigned; // 3
+```
+
+Each item has a `kind`, the `subject` it is about, the `ref` of the row that
+put it there, and its `title`, `url` and `at` when the record has them.
+
+## Navigation and commands
+
+With record features on, `gen` writes two files next to the main module from
+`config.subjects`: `navigation.generated.ts` with one sidebar item per subject
+that has a list route, and `commands.generated.ts` with one "Go to" command
+per item for a command palette. A subject's list route is its `url` without
+the trailing id placeholder (`/customers/{id}` lists at `/customers`); a
+subject whose list route still holds a placeholder gets no item. Each entry
+carries the permission key `subjects.<type>.permissions.read` names, so the
+app can hide what the caller can't read:
+
+```ts title="src/components/side-nav.tsx"
+import { navigation } from "@/lib/supabase/navigation.generated";
+
+const items = navigation.filter(
+  (item) => item.permission === undefined || can(item.permission),
+);
+```
+
+The example app's customer list, customer timeline and `/my-work` page show
+all four parts together.

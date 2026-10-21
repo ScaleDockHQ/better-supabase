@@ -36,6 +36,7 @@ import {
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
+  ListTodoIcon,
   ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
@@ -63,6 +64,7 @@ import { activeNavId, navItems } from "../nav-items";
 
 const ICONS = {
   dashboard: LayoutDashboardIcon,
+  myWork: ListTodoIcon,
   customers: UsersIcon,
   people: IdCardIcon,
   hiring: BriefcaseIcon,
@@ -111,6 +113,10 @@ function useNavLabel() {
     switch (id) {
       case "dashboard": {
         return t("Dashboard");
+      }
+
+      case "myWork": {
+        return t("My work");
       }
 
       case "customers": {

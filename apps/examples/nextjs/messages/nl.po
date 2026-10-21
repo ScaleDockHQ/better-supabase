@@ -281,6 +281,16 @@ msgctxt "metrics.VSqjtd"
 msgid "Your organization's numbers over the last 30 days."
 msgstr "De cijfers van je organisatie over de afgelopen 30 dagen."
 
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.h-qaH6"
+msgid "My work"
+msgstr "Mijn werk"
+
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.RpSk5k"
+msgid "What waits on you in this organization."
+msgstr "Wat in deze organisatie op je wacht."
+
 #: src/app/[locale]/(app)/notifications/page.tsx
 msgctxt "notifications.NAidKb"
 msgid "Notifications"
@@ -3545,16 +3555,19 @@ msgid "No comments yet."
 msgstr "Nog geen reacties."
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.XDWEZM"
 msgid "Someone"
 msgstr "Iemand"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.LgbKvU"
 msgid "Comment"
 msgstr "Reageren"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.Y8zV4A"
 msgid "Write a comment"
 msgstr "Schrijf een reactie"
@@ -3690,6 +3703,41 @@ msgstr "Notities"
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Laatste notitie"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.gyrIEl"
+msgid "File"
+msgstr "Bestand"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.n9pcfi"
+msgid "Comments, files and versions, newest first."
+msgstr "Reacties, bestanden en versies, nieuwste eerst."
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.0ABUGx"
+msgid "The timeline didn't load"
+msgstr "De tijdlijn is niet geladen"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.jx4Zxs"
+msgid "Nothing happened yet"
+msgstr "Er is nog niets gebeurd"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.WGEKkb"
+msgid "Comments, files and versions show up here."
+msgstr "Reacties, bestanden en versies verschijnen hier."
 
 #: src/features/customers/components/reactions-bar.tsx
 msgctxt "customers.XgWvGA"
@@ -5628,10 +5676,80 @@ msgctxt "metrics.8O8AYG"
 msgid "{previous} in the 30 days before"
 msgstr "{previous} in de 30 dagen daarvoor"
 
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.iZDRGO"
+msgid "Assigned"
+msgstr "Toegewezen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.Kl6x-n"
+msgid "Approval"
+msgstr "Goedkeuring"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.QOAy_W"
+msgid "Reminder"
+msgstr "Herinnering"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.fxmNTh"
+msgid "Mention"
+msgstr "Vermelding"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.XVpKQC"
+msgid "SLA warning"
+msgstr "SLA-waarschuwing"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.9-ZvGz"
+msgid "Waiting on you"
+msgstr "Wacht op jou"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.tBjNEd"
+msgid "Assigned work, approvals, due reminders, mentions and SLA warnings."
+msgstr "Toegewezen werk, goedkeuringen, herinneringen, vermeldingen en SLA-waarschuwingen."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.6A7ifa"
+msgid "My work didn't load"
+msgstr "Mijn werk is niet geladen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.otPGOJ"
+msgid "Nothing waiting on you"
+msgstr "Er wacht niets op je"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.kjeh0s"
+msgid "Work assigned to you and requests for you show up here."
+msgstr "Werk dat aan jou is toegewezen en verzoeken voor jou verschijnen hier."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.do5cUm"
+msgid "Open the work board"
+msgstr "Open het werkbord"
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
 msgstr "Dashboard"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.h-qaH6"
+msgid "My work"
+msgstr "Mijn werk"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.TkYZBT"

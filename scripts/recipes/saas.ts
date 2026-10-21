@@ -247,6 +247,32 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "my-work",
+    title: "My work",
+    blocks: ["subjects", "work-items", "approvals", "reminders", "comments"],
+    kind: "screen",
+    description:
+      "What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record.",
+    web: {
+      file: `${WEB_APP}/src/features/my-work/components/my-work-list.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "subject-timeline",
+    title: "Subject timeline",
+    blocks: ["comments", "attachments", "versions"],
+    kind: "component",
+    description:
+      "One record's comments, files and versions merged newest first, from `recordServer(...).timeline`, skipping the sections the caller can't read.",
+    web: {
+      file: `${WEB_APP}/src/features/customers/components/customer-timeline.tsx`,
+      components: ["badge", "button", "card", "empty"],
+      glue: [],
+    },
+  },
+  {
     slug: "sla-badges",
     title: "SLA badges",
     blocks: ["sla"],

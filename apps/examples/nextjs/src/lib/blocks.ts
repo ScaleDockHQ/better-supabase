@@ -51,6 +51,7 @@ import { signingKeysBlock } from "better-supabase/blocks/signing-keys";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
+import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { targetsBlock } from "better-supabase/blocks/targets";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { templatesBlock } from "better-supabase/blocks/templates";
@@ -148,6 +149,7 @@ const blockSet = defineBlocks(blockConfig, {
   signingKeys: signingKeysBlock,
   dataLifecycle: dataLifecycleBlock,
   teams: teamsBlock,
+  subjects: subjectsBlock,
   outbox: outboxBlock.with({ source: "https://example.bettersupabase.com" }),
 });
 
