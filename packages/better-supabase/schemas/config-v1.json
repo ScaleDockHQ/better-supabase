@@ -11,7 +11,7 @@
     "preset": {
       "type": "string",
       "minLength": 1,
-      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
+      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
     },
     "source": {
       "type": "object",
@@ -1770,6 +1770,7 @@
               "bulk",
               "calendar",
               "catalog",
+              "channels",
               "chat-sdk-state",
               "collections",
               "comments",
@@ -1927,6 +1928,9 @@
             },
             "catalog": {
               "$ref": "#/$defs/blocks/catalog"
+            },
+            "channels": {
+              "$ref": "#/$defs/blocks/channels"
             },
             "chat-sdk-state": {
               "$ref": "#/$defs/blocks/chat-sdk-state"
@@ -3590,6 +3594,17 @@
               },
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "channels": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

@@ -4780,9 +4780,39 @@
       "RecalledMessage"
     ]
   },
+  "./blocks/channels": {
+    "values": [
+      "channelChangeSchema",
+      "channelInputSchema",
+      "channelsBlock",
+      "channelsEvents",
+      "createChannels",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Channel",
+      "ChannelChange",
+      "Channels",
+      "ChannelsEvents",
+      "ChannelsOptions",
+      "ChannelVisibility",
+      "NewChannel",
+      "RpcClient"
+    ]
+  },
   "./blocks/messaging": {
     "values": [
       "conversationTopic",
+      "createConversationsController",
+      "createMessagesController",
       "createMessaging",
       "dbTransport",
       "extendBlock",
@@ -4802,15 +4832,24 @@
       "Conversation",
       "ConversationAccess",
       "ConversationKind",
+      "ConversationsActions",
+      "ConversationsController",
+      "ConversationsControllerOptions",
+      "ConversationsSnapshot",
       "ConversationSummary",
       "FollowTarget",
       "Message",
       "MessageCursor",
+      "MessageDraft",
       "MessageEdit",
       "MessageEdition",
       "MessageFile",
       "MessageListOptions",
       "MessageReaction",
+      "MessagesActions",
+      "MessagesController",
+      "MessagesControllerOptions",
+      "MessagesSnapshot",
       "Messaging",
       "MessagingEvents",
       "MessagingOptions",
@@ -7211,6 +7250,67 @@
       "ReactionsActions",
       "ReactionsControllerOptions",
       "ReactionsSnapshot",
+      "SolidController"
+    ]
+  },
+  "./blocks/messaging/react": {
+    "values": [
+      "useConversations",
+      "useMessages"
+    ],
+    "types": [
+      "ConversationsState",
+      "MessageDraft",
+      "MessagesState",
+      "UseConversationsOptions",
+      "UseMessagesOptions"
+    ]
+  },
+  "./blocks/messaging/vue": {
+    "values": [
+      "useConversations",
+      "useMessages"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationsActions",
+      "ConversationsControllerOptions",
+      "ConversationsSnapshot",
+      "MessagesActions",
+      "MessagesControllerOptions",
+      "MessagesSnapshot",
+      "VueController"
+    ]
+  },
+  "./blocks/messaging/svelte": {
+    "values": [
+      "useConversations",
+      "useMessages"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationsActions",
+      "ConversationsControllerOptions",
+      "ConversationsSnapshot",
+      "MessagesActions",
+      "MessagesControllerOptions",
+      "MessagesSnapshot",
+      "SvelteController"
+    ]
+  },
+  "./blocks/messaging/solid": {
+    "values": [
+      "useConversations",
+      "useMessages"
+    ],
+    "types": [
+      "BlockOptions",
+      "ConversationsActions",
+      "ConversationsControllerOptions",
+      "ConversationsSnapshot",
+      "MessagesActions",
+      "MessagesControllerOptions",
+      "MessagesSnapshot",
       "SolidController"
     ]
   },

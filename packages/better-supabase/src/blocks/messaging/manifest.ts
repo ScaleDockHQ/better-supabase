@@ -21,5 +21,12 @@ export const messagingBlock: BlockOf<
     message: { input: messageInputSchema, change: messageChangeSchema },
   },
   create: createMessaging,
+  client: "messaging",
   category: "collaboration",
+  recipes: [
+    "channel-sidebar",
+    "message-composer",
+    "message-list",
+    "thread-panel",
+  ],
 });

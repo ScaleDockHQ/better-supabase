@@ -51,6 +51,7 @@ import { webhookInboxBlock } from "better-supabase/blocks/jobs";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { messagingBlock } from "better-supabase/blocks/messaging";
+import { channelsBlock } from "better-supabase/blocks/channels";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -149,6 +150,7 @@ export const blockSet = defineBlocks(blockConfig, {
   knowledge: knowledgeBlock,
   memory: memoryBlock,
   messaging: messagingBlock,
+  channels: channelsBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,

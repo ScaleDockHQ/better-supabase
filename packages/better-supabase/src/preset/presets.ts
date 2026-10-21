@@ -56,6 +56,7 @@ export type PresetName =
   | "crm"
   | "projects"
   | "helpdesk"
+  | "chat"
   | "commerce"
   | "marketplace"
   | "scheduling"
@@ -159,6 +160,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "knowledge",
       "search",
     ],
+  },
+  chat: {
+    name: "chat",
+    title: "Team chat",
+    description:
+      "SaaS plus channels, direct messages, threads, mentions, reactions and files, kept live over Realtime.",
+    group: "products",
+    blocks: [...SAAS, "messaging", "channels", "reactions", "attachments"],
   },
   commerce: {
     name: "commerce",
@@ -377,6 +386,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "crm",
   "projects",
   "helpdesk",
+  "chat",
   "commerce",
   "marketplace",
   "scheduling",

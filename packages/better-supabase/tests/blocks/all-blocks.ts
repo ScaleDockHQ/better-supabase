@@ -17,6 +17,7 @@ import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
 import type { bulkBlock } from "../../src/blocks/bulk/manifest.ts";
 import type { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
 import type { catalogBlock } from "../../src/blocks/catalog/manifest.ts";
+import type { channelsBlock } from "../../src/blocks/channels/manifest.ts";
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
@@ -139,6 +140,7 @@ export type AllBlocks = {
   readonly calendar: typeof calendarBlock;
   readonly catalog: typeof catalogBlock;
   readonly collections: typeof collectionsBlock;
+  readonly channels: typeof channelsBlock;
   readonly comments: typeof commentsBlock;
   readonly connectors: typeof connectorsBlock;
   readonly credentials: typeof credentialsBlock;

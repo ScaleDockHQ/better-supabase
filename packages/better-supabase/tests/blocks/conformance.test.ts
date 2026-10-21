@@ -54,6 +54,8 @@ const NO_FIELDS: readonly string[] = [
   "billing",
   // Run records of the block's own bulk jobs.
   "bulk",
+  // A channel names a conversation; app data goes on its linked record or on messages.
+  "channels",
   // The block is itself the app's extra fields.
   "custom-fields",
   // Export and deletion requests are the module's bookkeeping, not app records.

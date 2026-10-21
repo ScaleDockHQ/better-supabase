@@ -864,6 +864,7 @@ export { onBlockEvent } from "./block-event-listener.ts";
 
 export type {
   ApplicationEventData,
+  ChannelEventData,
   CollectionEntryEventData,
   CollectionEventData,
   ConversationEventData,

@@ -2662,6 +2662,72 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "channels",
+      "title": "Channels",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "messaging"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "channels",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "channel": {
+            "table": "channels",
+            "singular": "channel",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "topic",
+                  "purpose"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "channels": {
+            "name": "channels",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "visibility": "visibility",
+              "topic": "topic",
+              "purpose": "purpose",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "create": "channels.create",
+          "manage": "channels.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5281,6 +5347,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ConversationKind"
         },
         {
+          "name": "ConversationsActions"
+        },
+        {
+          "name": "ConversationsController"
+        },
+        {
+          "name": "ConversationsControllerOptions"
+        },
+        {
+          "name": "ConversationsSnapshot"
+        },
+        {
           "name": "ConversationSummary"
         },
         {
@@ -5289,6 +5367,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "MessageCursor"
+        },
+        {
+          "name": "MessageDraft"
         },
         {
           "name": "MessageEdit"
@@ -5305,6 +5386,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "MessageReaction"
+        },
+        {
+          "name": "MessagesActions"
+        },
+        {
+          "name": "MessagesController"
+        },
+        {
+          "name": "MessagesControllerOptions"
+        },
+        {
+          "name": "MessagesSnapshot"
         },
         {
           "name": "NewMessage",
@@ -5467,6 +5560,197 @@ export const PRESET_CATALOG: PresetCatalog = {
           "message.deleted",
           "message.pinned",
           "message.resolved"
+        ]
+      }
+    },
+    {
+      "name": "channels",
+      "sql": [
+        "channels"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "channelsBlock",
+        "subpath": "better-supabase/blocks/channels"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Channel"
+        },
+        {
+          "name": "ChannelChange"
+        },
+        {
+          "name": "Channels"
+        },
+        {
+          "name": "ChannelsEvents"
+        },
+        {
+          "name": "ChannelsOptions"
+        },
+        {
+          "name": "ChannelVisibility"
+        },
+        {
+          "name": "NewChannel"
+        }
+      ],
+      "entitySchemas": {
+        "channel": {
+          "input": {
+            "title": "NewChannel",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record to link: { type, id }."
+              },
+              "memberIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewChannel",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "subject": {
+                  "description": "The record to link: { type, id }."
+                },
+                "memberIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "ChannelChange",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "optional": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ChannelChange",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ChannelsEvents",
+        "types": [
+          "channel.created",
+          "channel.updated"
         ]
       }
     },

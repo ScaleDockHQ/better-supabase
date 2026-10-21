@@ -37,6 +37,20 @@ export {
   type RpcClient,
 } from "../../core/block-transport.ts";
 
+export {
+  type MessagesActions,
+  type MessagesController,
+  type MessagesControllerOptions,
+  type MessagesSnapshot,
+  type ConversationsActions,
+  type ConversationsController,
+  type ConversationsControllerOptions,
+  type ConversationsSnapshot,
+  createMessagesController,
+  createConversationsController,
+  type MessageDraft,
+} from "./client.ts";
+
 export { messagingBlock } from "./manifest.ts";
 
 export { messageChangeSchema, messageInputSchema } from "./schemas.ts";

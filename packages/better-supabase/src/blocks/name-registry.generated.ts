@@ -249,6 +249,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "product";
   };
+  readonly "channels": {
+    readonly tables: {
+      readonly "channels": "id" | "tenant" | "name" | "visibility" | "topic" | "purpose" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_channel" | "channels_for_record" | "create_channel" | "find_channel" | "get_channel" | "invite_to_channel" | "join_channel" | "leave_channel" | "list_channels" | "update_channel";
+    readonly actions: "read" | "create" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "channel": "id" | "tenant_id" | "name" | "visibility" | "topic" | "purpose" | "subject_type" | "subject_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "channel";
+  };
   readonly "chat-sdk-state": {
     readonly tables: {
       readonly "subscriptions": "prefix" | "thread" | "createdAt";

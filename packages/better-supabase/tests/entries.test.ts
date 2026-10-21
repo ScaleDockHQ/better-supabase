@@ -129,6 +129,8 @@ const PURE_BARRELS = [
   "blocks/workflow-builder",
   "workflow-sdk/builder",
   "blocks/inbox",
+  "blocks/messaging",
+  "blocks/channels",
   "chat-sdk",
   "eve",
   "flags-sdk",

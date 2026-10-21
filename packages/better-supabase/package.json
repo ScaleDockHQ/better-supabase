@@ -757,6 +757,11 @@
       "types": "./dist/blocks/memory/index.d.ts",
       "default": "./dist/blocks/memory/index.js"
     },
+    "./blocks/channels": {
+      "@better-supabase/source": "./src/blocks/channels/index.ts",
+      "types": "./dist/blocks/channels/index.d.ts",
+      "default": "./dist/blocks/channels/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -1271,6 +1276,27 @@
       "@better-supabase/source": "./src/blocks/reactions/solid/index.ts",
       "types": "./dist/blocks/reactions/solid/index.d.ts",
       "default": "./dist/blocks/reactions/solid/index.js"
+    },
+    "./blocks/messaging/react": {
+      "@better-supabase/source": "./src/blocks/messaging/react/index.ts",
+      "types": "./dist/blocks/messaging/react/index.d.ts",
+      "react-server": "./dist/blocks/messaging/react/server.js",
+      "default": "./dist/blocks/messaging/react/index.js"
+    },
+    "./blocks/messaging/vue": {
+      "@better-supabase/source": "./src/blocks/messaging/vue/index.ts",
+      "types": "./dist/blocks/messaging/vue/index.d.ts",
+      "default": "./dist/blocks/messaging/vue/index.js"
+    },
+    "./blocks/messaging/svelte": {
+      "@better-supabase/source": "./src/blocks/messaging/svelte/index.ts",
+      "types": "./dist/blocks/messaging/svelte/index.d.ts",
+      "default": "./dist/blocks/messaging/svelte/index.js"
+    },
+    "./blocks/messaging/solid": {
+      "@better-supabase/source": "./src/blocks/messaging/solid/index.ts",
+      "types": "./dist/blocks/messaging/solid/index.d.ts",
+      "default": "./dist/blocks/messaging/solid/index.js"
     },
     "./blocks/comments/react": {
       "@better-supabase/source": "./src/blocks/comments/react/index.ts",
@@ -2135,6 +2161,10 @@
         "types": "./dist/blocks/memory/index.d.ts",
         "default": "./dist/blocks/memory/index.js"
       },
+      "./blocks/channels": {
+        "types": "./dist/blocks/channels/index.d.ts",
+        "default": "./dist/blocks/channels/index.js"
+      },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",
         "default": "./dist/blocks/messaging/index.js"
@@ -2548,6 +2578,23 @@
       "./blocks/reactions/solid": {
         "types": "./dist/blocks/reactions/solid/index.d.ts",
         "default": "./dist/blocks/reactions/solid/index.js"
+      },
+      "./blocks/messaging/react": {
+        "types": "./dist/blocks/messaging/react/index.d.ts",
+        "react-server": "./dist/blocks/messaging/react/server.js",
+        "default": "./dist/blocks/messaging/react/index.js"
+      },
+      "./blocks/messaging/vue": {
+        "types": "./dist/blocks/messaging/vue/index.d.ts",
+        "default": "./dist/blocks/messaging/vue/index.js"
+      },
+      "./blocks/messaging/svelte": {
+        "types": "./dist/blocks/messaging/svelte/index.d.ts",
+        "default": "./dist/blocks/messaging/svelte/index.js"
+      },
+      "./blocks/messaging/solid": {
+        "types": "./dist/blocks/messaging/solid/index.d.ts",
+        "default": "./dist/blocks/messaging/solid/index.js"
       },
       "./blocks/comments/react": {
         "types": "./dist/blocks/comments/react/index.d.ts",
