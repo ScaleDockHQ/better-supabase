@@ -204,6 +204,20 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "entity-form",
+    title: "Entity form",
+    blocks: ["work-items", "custom-fields"],
+    kind: "component",
+    description:
+      "A create dialog whose inputs come from `entityForm`: the entity's own fields and the organization's custom fields, validated together by `useEntityForm` before the Server Action runs.",
+    hook: { name: "useEntityForm", entry: "better-supabase/react" },
+    web: {
+      file: `${WEB_APP}/src/features/work/components/create-work-item-dialog.tsx`,
+      components: ["button", "checkbox", "dialog", "field", "input", "select"],
+      glue: [],
+    },
+  },
+  {
     slug: "work-item-grid",
     title: "Work item grid",
     blocks: ["work-items", "saved-views"],

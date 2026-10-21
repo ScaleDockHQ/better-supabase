@@ -1,0 +1,120 @@
+---
+title: Entity forms
+description: Build a create or edit form from a block's entity schema and the organization's custom fields, and validate both together.
+---
+
+`entityForm(schema, options)` from `better-supabase/records` turns a block's
+entity schema, such as `workItemInputSchema`, into a list of form fields and
+adds the organization's [custom fields](/docs/blocks/custom-fields) after
+them. Its `validate` turns the text from the inputs into typed values,
+validates the entity part with the schema and checks the required custom
+fields, then returns the entity input and the custom values apart. The
+`useEntityForm` hook from `better-supabase/react` holds the values and the
+errors in a component. Neither ships markup: the
+[entity form recipe](/docs/registry/ui-recipes#entity-form) renders them
+with your shadcn components.
+
+## Build the fields
+
+```ts
+import { workItemInputSchema } from "better-supabase/blocks/work-items";
+import { entityForm } from "better-supabase/records";
+
+const fields = await blocks(supabase, tenant)
+  .customFields.listDefinitions("work_item")
+  .orThrow();
+
+const form = entityForm(workItemInputSchema, {
+  fields: ["title", "priority", "dueAt"],
+  labels: { dueAt: "Due" },
+  customFields: fields.map((field) => ({
+    key: field.key,
+    label: field.label,
+    type: field.type,
+    required: false,
+    sensitive: field.sensitive,
+  })),
+  timeZone: "Europe/Amsterdam",
+});
+```
+
+Each entry of `form.fields` has a `key`, a `label` (from `labels`, or the key
+in words: `dueAt` becomes `Due at`), an `input`, `required`, a `source` of
+`entity` or `custom`, and the bounds the schema sets (`minimum`, `maximum`,
+`minLength`, `maxLength`) and its enum `options`. Without `fields`, the form
+shows every field that isn't read-only, in schema order.
+
+| Schema kind                            | `input`                           |
+| -------------------------------------- | --------------------------------- |
+| `string`, `uuid`                       | `text`                            |
+| `integer`, `bigint`                    | `integer`                         |
+| `number`                               | `number`                          |
+| `boolean`                              | `bool`                            |
+| `date`, `plainDate`                    | `date`                            |
+| `datetime`, `instant`, `plainDateTime` | `datetime`                        |
+| `enum`                                 | `option`, or `multi` for an array |
+| `json`, `custom`, `unknown`            | `json`                            |
+
+A custom field's `input` follows its type, the same way the
+[forms block](/docs/blocks/forms) maps it; an unknown type is `text`.
+
+## Validate
+
+`validate(values)` takes one flat record keyed by field key, as the inputs
+hold it. Blank values are left out. Text becomes the value the schema
+expects: a number for `integer` and `number`, a `bigint`, `true` or `false`
+for `on`, `true` and `false`, a `Temporal.Instant` for an instant (text
+without an offset is read in `timeZone`, UTC by default), a
+`Temporal.PlainDate` or `PlainDateTime`, and parsed JSON. Text that doesn't
+parse stays text, so the schema reports it.
+
+```ts
+const result = await form.validate({
+  title: "Ship it",
+  priority: "2",
+  dueAt: "2026-10-22T10:00",
+  region: "eu",
+});
+
+if (result.ok) {
+  await blocks(supabase, tenant).workItems.create(tenant, result.input);
+  // result.custom is { region: "eu" }
+} else {
+  // result.errors is { title?: string, region?: string, ... }
+}
+```
+
+Errors are keyed by the first segment of each issue's path, with the first
+message per field; an issue without a path is under `""`.
+
+## Use it in a component
+
+`useEntityForm(form, { initial, onSubmit })` returns `values`, `errors`,
+`pending`, `set(key, value)`, `submit(event?)` and `reset()`. `submit`
+prevents the browser's submit, validates, and calls `onSubmit` with the
+split values only when they pass:
+
+```tsx
+"use client";
+
+import { useEntityForm } from "better-supabase/react";
+
+const state = useEntityForm(form, {
+  initial: { title: "", priority: "0" },
+  onSubmit: ({ input, custom }) => create.run({ ...input, custom }),
+});
+
+<form onSubmit={(event) => void state.submit(event)}>
+  <Input
+    value={String(state.values["title"] ?? "")}
+    onChange={(event) => state.set("title", event.target.value)}
+  />
+  {state.errors["title"] ? (
+    <FieldError>{state.errors["title"]}</FieldError>
+  ) : null}
+</form>;
+```
+
+The example's create dialog for work items is the full version: it renders
+the custom fields after the built-in ones and saves them with
+`customFields.setValue` in the same Server Action.

@@ -10421,6 +10421,11 @@ msgid "Title"
 msgstr "Title"
 
 #: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.CrGNTq"
+msgid "Enter a title."
+msgstr "Enter a title."
+
+#: src/features/work/components/create-work-item-dialog.tsx
 #: src/features/work/components/team-picker.tsx
 msgctxt "work.wsUmh9"
 msgid "Team"

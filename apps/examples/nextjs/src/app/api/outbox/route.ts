@@ -11,6 +11,7 @@ import {
   rpcTransport,
   setFieldAction,
 } from "better-supabase/blocks/rules";
+import { conversationToWorkItem, createFlows } from "better-supabase/flows";
 import { connection } from "next/server";
 import * as v from "valibot";
 
@@ -49,8 +50,9 @@ const setTaskField: RuleFieldSetter = async (write) => {
 
 /**
  * Runs the rules on the `task.created`, `task.updated` and `task.deleted`
- * events the `tasks` app table writes to the outbox. Call it every minute from
- * a cron (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`).
+ * events the `tasks` app table writes to the outbox, and the flows on the
+ * inbox's events. Call it every minute from a cron (Vercel Cron sends
+ * `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
   // Without a request-time API, Next.js runs this handler at build time.
@@ -102,8 +104,15 @@ export async function GET(request: Request): Promise<Response> {
     },
   });
 
+  // Opens a work item for each new inbox conversation, linked to it as
+  // `created_from`. A redelivered event finds the work item and leaves it.
+  const flows = createFlows({
+    flows: [conversationToWorkItem()],
+    clients: (tenant) => blocks(admin.$client, tenant),
+  });
+
   return blocks(admin.$client).outbox.relayRoute({
     secret: process.env["CRON_SECRET"],
-    consumers: { rules: sink },
+    consumers: { rules: sink, flows: flows.sink() },
   })(request);
 }
