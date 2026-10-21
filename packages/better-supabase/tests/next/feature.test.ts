@@ -346,7 +346,8 @@ interface Page {
 
 const customers: RecordListQuery<{ readonly page: number }, Page> = {
   parse: (input) =>
-    input?.["page"] === "x"
+    (input instanceof URLSearchParams ? input.get("page") : input?.["page"]) ===
+    "x"
       ? { ok: false, issues: [{ path: ["page"], message: "Not a page" }] }
       : { ok: true, value: { page: 1 } },
   run: () => resolved({ items: [{ id: "7" }, { id: "8" }], total: 2 }),

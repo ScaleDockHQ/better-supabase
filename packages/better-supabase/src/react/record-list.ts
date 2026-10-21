@@ -7,6 +7,11 @@ import { useMemo } from "react";
  * definition, or a `defineRecordList`'s `list`.
  */
 export interface RecordListUrl<Q> {
+  /** The query with every default, for URL state the list refuses. */
+  readonly defaults: Q;
+  parse(
+    input: URLSearchParams,
+  ): { readonly ok: true; readonly value: Q } | { readonly ok: false };
   toSearchParams(query: Partial<Q>): URLSearchParams;
 }
 
@@ -23,9 +28,14 @@ export type RecordListQueryStates = readonly [
 ];
 
 /** What `useRecordListState` returns. */
-export interface RecordListState {
+export interface RecordListState<Q> {
   /** The URL state, one key per list parameter (`null` when unset). */
   readonly state: RecordListUrlState;
+  /**
+   * The URL state parsed by the list, defaults filled in and typed; the
+   * defaults alone when the URL holds a value the list refuses.
+   */
+  readonly query: Q;
   /**
    * The URL state as query params, defaults left out, for the list route or
    * `recordList.load` on the server.
@@ -69,14 +79,19 @@ const present = (state: RecordListUrlState): Record<string, unknown> =>
 export function useRecordListState<Q>(
   list: RecordListUrl<Q>,
   queryStates: RecordListQueryStates,
-): RecordListState {
+): RecordListState<Q> {
   const [state, setState] = queryStates;
 
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    // SAFETY: the state holds the values the list's own parsers produced.
+    const searchParams = list.toSearchParams(present(state) as Partial<Q>);
+    const parsed = list.parse(searchParams);
+    const query = parsed.ok ? parsed.value : list.defaults;
+
+    return {
       state,
-      // SAFETY: the state holds the values the list's own parsers produced.
-      searchParams: list.toSearchParams(present(state) as Partial<Q>),
+      query,
+      searchParams,
       set(patch) {
         void setState({ ...patch, page: null, after: null });
       },
@@ -92,7 +107,6 @@ export function useRecordListState<Q>(
           Object.fromEntries(Object.keys(state).map((key) => [key, null])),
         );
       },
-    }),
-    [list, state, setState],
-  );
+    };
+  }, [list, state, setState]);
 }

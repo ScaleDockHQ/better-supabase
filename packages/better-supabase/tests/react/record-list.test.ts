@@ -79,6 +79,22 @@ describe("useRecordListState", () => {
 
     expect(view.result.state["q"]).toBe("acme");
     expect(view.result.searchParams.toString()).toBe("q=acme&page=2");
+    expect(view.result.query).toMatchObject({ q: "acme", page: 2 });
+  });
+
+  it("falls back to the defaults when the list refuses the URL state", () => {
+    const { nuqs } = fakeNuqs({ sort: "oldest", status: ["active"] });
+
+    const view = renderHook(
+      () =>
+        useRecordListState(
+          offset,
+          nuqs.useQueryStates(offset.nuqs((spec: Parser) => spec)),
+        ),
+      undefined,
+    );
+
+    expect(view.result.query).toEqual(offset.defaults);
   });
 
   it("resets the page on a change and sets or clears it on demand", () => {
