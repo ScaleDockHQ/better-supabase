@@ -219,6 +219,7 @@
       "APP_TABLE_EVENT_KINDS",
       "blockEntities",
       "blockEntityRenames",
+      "blockSubjectTypes",
       "buildJsonSchema",
       "claimPaths",
       "CONFIG_DEFAULTS",
@@ -809,6 +810,7 @@
     "values": [
       "BetterSupabaseProvider",
       "createHooks",
+      "createRecordProvider",
       "escapeLike",
       "fieldErrorsOf",
       "SessionProvider",
@@ -867,6 +869,13 @@
       "PresenceHookOptions",
       "PresenceTopic",
       "ProfileOf",
+      "RecordActionsOf",
+      "RecordContextValue",
+      "RecordInitial",
+      "RecordProviderKit",
+      "RecordProviderProps",
+      "RecordState",
+      "RecordWriteHandlers",
       "SessionProviderProps",
       "SignedUrl",
       "SignedUrlSource",
@@ -912,9 +921,11 @@
       "escapeLike",
       "invalidateOnBlockEvents",
       "invalidateOnMutation",
+      "invalidateOnRecordEvents",
       "invalidateTables",
       "optimistic",
-      "queryCache"
+      "queryCache",
+      "recordQueries"
     ],
     "types": [
       "BetterQueries",
@@ -935,6 +946,10 @@
       "QueryHelpers",
       "QueryKeyOf",
       "QueryOptionsOf",
+      "RecordQueries",
+      "RecordQueriesOptions",
+      "RecordSectionQueries",
+      "RecordWriteMutations",
       "TableQueries",
       "UserChangeSource"
     ]
@@ -944,24 +959,45 @@
       "can",
       "countSection",
       "createRecordController",
+      "defineRecordFeature",
       "defineSection",
+      "findSectionWrite",
       "loadSections",
       "permissionFlags",
+      "plainData",
+      "recordCan",
+      "recordPermissionKeys",
+      "recordSubject",
+      "recordWriteInput",
       "sectionCan",
-      "sectionEventMatches"
+      "sectionEventMatches",
+      "sectionRowInput",
+      "sectionWrite"
     ],
     "types": [
       "AnySection",
+      "AnySectionWrite",
+      "FeatureBlocks",
+      "FeaturePermissions",
+      "FeatureWriteInput",
+      "FeatureWriteOutput",
       "LoadedSections",
       "LoadSectionsOptions",
       "PermissionFlags",
       "PermissionSet",
+      "Plain",
+      "PlainSection",
+      "PlainSections",
       "RecordActions",
+      "RecordCan",
       "RecordController",
       "RecordControllerOptions",
+      "RecordFeature",
+      "RecordFeatureSpec",
       "RecordSnapshot",
       "RecordSummary",
       "RecordSummaryOptions",
+      "RecordWriteInput",
       "Section",
       "SectionBlocks",
       "SectionCheck",
@@ -973,7 +1009,14 @@
       "SectionOptions",
       "SectionPermissions",
       "SectionResult",
-      "SectionSource"
+      "SectionRowInput",
+      "SectionSource",
+      "SectionWrite",
+      "SectionWriteInput",
+      "SectionWriteName",
+      "SectionWriteOutput",
+      "SectionWrites",
+      "SectionWritesOf"
     ]
   },
   "./server": {
@@ -1343,6 +1386,7 @@
       "defineAction",
       "invalidateSection",
       "nextCache",
+      "recordServer",
       "recordTag",
       "REQUEST_ID_HEADER",
       "requireAal",
@@ -1388,7 +1432,13 @@
       "NextResourceRoutes",
       "NextResourcesOptions",
       "ProxyOptions",
+      "RecordLoadOptions",
+      "RecordServer",
+      "RecordServerActions",
+      "RecordServerContext",
+      "RecordServerHost",
       "RecordTagOptions",
+      "RecordView",
       "RequireAalOptions",
       "RequireOptions",
       "ResourceAction",
@@ -3539,6 +3589,7 @@
       "CommentsOptions",
       "CommentsSnapshot",
       "CommentSubject",
+      "CommentsWrites",
       "ListCommentsOptions",
       "NewComment"
     ]
@@ -3570,6 +3621,7 @@
       "AttachmentsOptions",
       "AttachmentStatus",
       "AttachmentStorage",
+      "AttachmentsWrites",
       "AttachmentUpload",
       "Author",
       "BlockTransport",
@@ -5273,6 +5325,7 @@
     "values": [
       "createTagInputController",
       "createTags",
+      "tagRefInput",
       "tagsBlock",
       "tagsEvents",
       "tagsOptimistic",
@@ -5285,10 +5338,12 @@
       "TagInputController",
       "TagInputControllerOptions",
       "TagInputSnapshot",
+      "TagRefInput",
       "Tags",
       "TagsEvents",
       "TagsOptimisticAction",
-      "TagsOptions"
+      "TagsOptions",
+      "TagsWrites"
     ]
   },
   "./blocks/state-machine": {
@@ -5325,17 +5380,21 @@
   "./blocks/share-links": {
     "values": [
       "createShareLinks",
+      "shareLinkInput",
       "shareLinksBlock",
-      "shareLinksEvents"
+      "shareLinksEvents",
+      "shareLinksSection"
     ],
     "types": [
       "CreatedShareLink",
       "CreateShareLinkOptions",
       "ResolvedShareLink",
       "ShareLink",
+      "ShareLinkInput",
       "ShareLinks",
       "ShareLinksEvents",
-      "ShareLinksOptions"
+      "ShareLinksOptions",
+      "ShareLinksWrites"
     ]
   },
   "./blocks/signing-keys": {
@@ -5896,10 +5955,13 @@
   "./blocks/relations": {
     "values": [
       "createRelations",
+      "relationInput",
       "relationsBlock",
       "relationsEvents",
+      "relationsSection",
       "toGanttTasks",
-      "toTreeItems"
+      "toTreeItems",
+      "unlinkRelationInput"
     ],
     "types": [
       "GanttDependency",
@@ -5908,15 +5970,18 @@
       "LinkResult",
       "Relation",
       "RelationEdge",
+      "RelationInput",
       "RelationNode",
       "RelationRollup",
       "Relations",
       "RelationsEvents",
       "RelationsOptions",
+      "RelationsWrites",
       "RollupInput",
       "SubjectRef",
       "TreeItem",
       "UnlinkInput",
+      "UnlinkRelationInput",
       "UnlinkResult"
     ]
   },
@@ -6366,8 +6431,10 @@
       "JsonPatchError",
       "rpcTransport",
       "sqlTransport",
+      "versionInput",
       "versionsBlock",
-      "versionsEvents"
+      "versionsEvents",
+      "versionsSection"
     ],
     "types": [
       "BlockTransport",
@@ -6377,11 +6444,13 @@
       "SnapshotInput",
       "SnapshotResult",
       "Version",
+      "VersionInput",
       "VersionListOptions",
       "Versions",
       "VersionsEvents",
       "VersionsOptions",
-      "VersionSource"
+      "VersionSource",
+      "VersionsWrites"
     ]
   },
   "./blocks/trash": {
@@ -7014,6 +7083,8 @@
       "rpcTransport",
       "slaBlock",
       "slaEvents",
+      "slaSection",
+      "slaStartInput",
       "sqlTransport",
       "withBlockHooks",
       "wrapTransport"
@@ -7031,7 +7102,9 @@
       "SlaOptions",
       "SlaPolicy",
       "SlaPolicyInput",
-      "SlaState"
+      "SlaStartInput",
+      "SlaState",
+      "SlaWrites"
     ]
   },
   "./blocks/targets": {
