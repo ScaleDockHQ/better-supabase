@@ -31,15 +31,17 @@ export type BlockScope = "tenant" | "user" | "none";
 export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
 
 /**
- * A new name for one of a block's entities: its singular, an irregular plural
- * and, for an entity the block registers as a subject, the URL of one row with
- * `{column}` placeholders.
+ * A new name for one of a block's entities: its singular `name`, an irregular
+ * plural and, for an entity the block registers as a subject, the URL of one
+ * row with `{column}` placeholders.
  */
 export interface EntityConfig<Columns extends string = string> {
-  readonly singular: string;
-  /** Defaults to the English plural of `singular`. */
+  readonly name: string;
+  /** Defaults to the English plural of `name`. */
   readonly plural?: string;
   readonly url?: `${string}{${Columns}}${string}`;
+  /** `false` keeps the entity out of `config.subjects`. */
+  readonly subject?: false;
 }
 
 /**
@@ -330,7 +332,7 @@ export function tenantNameOf(
 
   const value = entities["organization"];
 
-  return typeof value === "string" ? value : value?.singular;
+  return typeof value === "string" ? value : value?.name;
 }
 
 function isNameList(

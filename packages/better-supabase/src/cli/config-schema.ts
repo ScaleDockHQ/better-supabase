@@ -101,9 +101,10 @@ const blockEntries = {
         v.union([
           entityName,
           v.strictObject({
-            singular: entityName,
+            name: entityName,
             plural: v.optional(entityName),
             url: v.optional(v.string()),
+            subject: v.optional(v.literal(false)),
           }),
         ]),
       ),

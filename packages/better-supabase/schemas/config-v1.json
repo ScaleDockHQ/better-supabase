@@ -2722,7 +2722,7 @@
                   {
                     "type": "object",
                     "properties": {
-                      "singular": {
+                      "name": {
                         "type": "string",
                         "pattern": "^[a-z][a-z0-9_]{0,40}$"
                       },
@@ -2732,9 +2732,12 @@
                       },
                       "url": {
                         "type": "string"
+                      },
+                      "subject": {
+                        "const": false
                       }
                     },
-                    "required": ["singular"],
+                    "required": ["name"],
                     "additionalProperties": false
                   }
                 ]
@@ -2895,7 +2898,7 @@
                   {
                     "type": "object",
                     "properties": {
-                      "singular": {
+                      "name": {
                         "type": "string",
                         "pattern": "^[a-z][a-z0-9_]{0,40}$"
                       },
@@ -2905,9 +2908,12 @@
                       },
                       "url": {
                         "type": "string"
+                      },
+                      "subject": {
+                        "const": false
                       }
                     },
-                    "required": ["singular"],
+                    "required": ["name"],
                     "additionalProperties": false
                   }
                 ]

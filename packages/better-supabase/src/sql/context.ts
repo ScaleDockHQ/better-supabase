@@ -9,13 +9,14 @@ import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
+import type { ResolvedNames } from "./resolved-names.ts";
 import type { ModuleScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveModule } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
-import { tenantNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 
@@ -304,7 +305,12 @@ export interface ModuleContext {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: ModuleScope;
-  /** The tenant concept's names (`blocks.tenant.entities.organization`). */
+  /**
+   * The module's final names: its entities as `blocks.<name>.entities` and
+   * `blocks.tenant.entities.organization` rename them.
+   */
+  readonly resolved: ResolvedNames;
+  /** The renamer every default name goes through (`resolved.naming`). */
   readonly naming: EntityNames;
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
@@ -490,8 +496,6 @@ export interface ModuleContextSource {
   readonly providerIdType?: ModuleIdType;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
-  /** `blocks.tenant.entities.organization`. */
-  readonly tenantName?: string;
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -654,7 +658,8 @@ export function createModuleContext(
     );
   }
 
-  const naming = tenantNames(source.tenantName);
+  const resolved = resolveNames(module, names, modules);
+  const naming = resolved.naming;
   // blocks.access.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
   const renames = module === "access" ? {} : config.functions;
@@ -967,6 +972,7 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     appTables: new Set(source.appTables),
     scope,
+    resolved,
     naming,
     modules,
     manages: config.mode === "managed",
