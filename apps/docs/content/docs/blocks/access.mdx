@@ -135,8 +135,86 @@ export function TaskImportAction({ projectId }: { projectId: string }) {
 `createPermissionsController` is the same logic without React, and
 `better-supabase/blocks/access/vue`, `/svelte` and `/solid` export
 `usePermissions` over it. Those bindings have no `<Can>` component; render
-on `can(key)` with `v-if`, `{#if}` or `<Show>`. The
-[Can recipe](/docs/registry/ui-recipes) shows it in the Next.js example.
+on `can(state.permissions, key)` with `v-if`, `{#if}` or `<Show>`. Wrap the
+client in `batchPermissions` so the components of one render share a call.
+The [Can recipe](/docs/registry/ui-recipes) shows it in the Next.js example.
+
+```vue title="ImportButton.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createAccess,
+} from "better-supabase/blocks/access";
+import { usePermissions } from "better-supabase/blocks/access/vue";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = usePermissions({
+  client: batchPermissions(
+    createAccess({ transport: rpcTransport(supabase), schema: "api" }),
+  ),
+  keys: ["imports.manage"],
+  tenant: props.organizationId,
+});
+</script>
+
+<template>
+  <button v-if="can(state.permissions, 'imports.manage')">Import</button>
+</template>
+```
+
+```svelte title="ImportButton.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { rpcTransport } from "better-supabase/blocks";
+  import { batchPermissions, can, createAccess } from "better-supabase/blocks/access";
+  import { usePermissions } from "better-supabase/blocks/access/svelte";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const access = usePermissions({
+    client: batchPermissions(createAccess({ transport: rpcTransport(supabase), schema: "api" })),
+    keys: ["imports.manage"],
+    tenant: organizationId,
+  });
+</script>
+
+{#if can($access.permissions, "imports.manage")}
+  <button>Import</button>
+{/if}
+```
+
+```tsx title="ImportButton.tsx"
+import { Show } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createAccess,
+} from "better-supabase/blocks/access";
+import { usePermissions } from "better-supabase/blocks/access/solid";
+
+export function ImportButton(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = usePermissions({
+    client: batchPermissions(
+      createAccess({ transport: rpcTransport(supabase), schema: "api" }),
+    ),
+    keys: ["imports.manage"],
+    tenant: props.organizationId,
+  });
+
+  return (
+    <Show when={can(state().permissions, "imports.manage")}>
+      <button>Import</button>
+    </Show>
+  );
+}
+```
 
 With `mode: "custom"`, write `my_permissions(tenant, keys text[] default null)
 returns text[]` next to your contract functions, and expose it through your
