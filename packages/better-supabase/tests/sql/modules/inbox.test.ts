@@ -30,7 +30,7 @@ describe("inbox module", () => {
       "inbox_members",
       "contacts",
       "contact_identities",
-      "conversations",
+      "inbox_conversations",
       "conversation_participants",
       "conversation_events",
       "conversation_reads",
@@ -88,7 +88,7 @@ describe("inbox module", () => {
     }
 
     expect(sql).toContain(
-      'grant execute on function "better_supabase"."set_typing"(uuid, boolean, text) to authenticated, service_role;',
+      'grant execute on function "better_supabase"."set_inbox_typing"(uuid, boolean, text) to authenticated, service_role;',
     );
   });
 

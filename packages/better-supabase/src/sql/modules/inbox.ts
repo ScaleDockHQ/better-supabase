@@ -1,7 +1,7 @@
 import type { ModuleContext, ModuleContractFunction } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
@@ -48,6 +48,26 @@ ${inboxRealtime(q)}
 ${inboxStorage(q)}`;
 }
 
+// The module file creates the new names; the old ones go, and the moved
+// table's primary key takes its new name so messaging can create its own.
+function renamedFunctions(ctx: ModuleContext): string {
+  const { id } = inboxSql(ctx);
+
+  const old = [
+    "send_message(uuid, jsonb)",
+    "edit_message(uuid, text, boolean)",
+    "get_message(uuid)",
+    "list_messages(uuid, timestamptz, integer)",
+    `list_conversations(${id}, jsonb)`,
+    "set_typing(uuid, boolean, text)",
+  ];
+
+  const table = ctx.tableName("conversations");
+
+  return `${old.map((signature) => `drop function if exists ${ctx.schema}.${signature};`).join("\n")}
+alter index if exists ${ctx.schema}.conversations_pkey rename to ${sqlIdent(`${table.name}_pkey`)};`;
+}
+
 // An existing bucket keeps its settings.
 function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
@@ -82,7 +102,7 @@ function contract(): readonly ModuleContractFunction[] {
     },
     { name: "upsert_contact", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "start_conversation", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "send_message", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "send_inbox_message", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "record_inbound", args: ["jsonb"], returns: "jsonb" },
     {
       name: "assign_conversation",
@@ -102,14 +122,18 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "edit_message",
+      name: "edit_inbox_message",
       args: ["uuid", "text", "boolean"],
       returns: "jsonb",
     },
-    { name: "list_conversations", args: ["{id}", "jsonb"], returns: "jsonb" },
+    {
+      name: "list_inbox_conversations",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
     { name: "get_conversation", args: ["uuid"], returns: "jsonb" },
     {
-      name: "list_messages",
+      name: "list_inbox_messages",
       args: ["uuid", "timestamptz", "integer"],
       returns: "jsonb",
     },
@@ -153,9 +177,9 @@ function contract(): readonly ModuleContractFunction[] {
     },
     { name: "delete_message_template", args: ["uuid"], returns: "boolean" },
     { name: "purge_contact", args: ["uuid"], returns: "jsonb" },
-    { name: "get_message", args: ["uuid"], returns: "jsonb" },
+    { name: "get_inbox_message", args: ["uuid"], returns: "jsonb" },
     {
-      name: "set_typing",
+      name: "set_inbox_typing",
       args: ["uuid", "boolean", "text"],
       returns: "boolean",
     },
@@ -186,13 +210,19 @@ export const INBOX: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "purge_inbound_events keeps events for the data-lifecycle retention policy and skips those under a legal hold.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "The functions whose names the messaging block owns are send_inbox_message, edit_inbox_message, get_inbox_message, list_inbox_messages, list_inbox_conversations and set_inbox_typing.",
+      sql: renamedFunctions,
     },
   ],
   names: INBOX_NAMES,

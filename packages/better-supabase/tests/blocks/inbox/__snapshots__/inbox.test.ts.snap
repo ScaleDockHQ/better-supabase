@@ -95,7 +95,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "list_conversations",
+    "list_inbox_conversations",
     {
       "filter": {
         "assignee": "me",
@@ -170,7 +170,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "set_typing",
+    "set_inbox_typing",
     {
       "actor": undefined,
       "conversation": "c1",
@@ -190,7 +190,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "send_message",
+    "send_inbox_message",
     {
       "conversation": "c1",
       "input": {
@@ -214,7 +214,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "send_message",
+    "send_inbox_message",
     {
       "conversation": "c1",
       "input": {
@@ -227,7 +227,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "list_messages",
+    "list_inbox_messages",
     {
       "before": "2026-02-01T00:00:00Z",
       "conversation": "c1",
@@ -235,20 +235,20 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "get_message",
+    "get_inbox_message",
     {
       "message": "m1",
     },
   ],
   [
-    "edit_message",
+    "edit_inbox_message",
     {
       "body": "edited",
       "message": "m1",
     },
   ],
   [
-    "edit_message",
+    "edit_inbox_message",
     {
       "message": "m1",
       "remove": true,

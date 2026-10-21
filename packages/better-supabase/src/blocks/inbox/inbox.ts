@@ -482,7 +482,7 @@ export function createInbox(options: InboxOptions): Inbox {
     input: MessageInput,
   ): AsyncResult<InboxMessage> =>
     call(
-      "send_message",
+      "send_inbox_message",
       { conversation: conversationId, input: compact(messageArg(input)) },
       messageOf,
     );
@@ -554,7 +554,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
       list: (tenant, filter = {}) =>
         call(
-          "list_conversations",
+          "list_inbox_conversations",
           {
             tenant,
             filter: compact({
@@ -607,7 +607,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
       typing: (conversationId, typing = true, actor) =>
         call(
-          "set_typing",
+          "set_inbox_typing",
           { conversation: conversationId, typing, actor },
           (value) => value === true,
         ),
@@ -625,7 +625,7 @@ export function createInbox(options: InboxOptions): Inbox {
         send(conversationId, { ...input, body, kind: "note" }),
       list: (conversationId, page = {}) =>
         call(
-          "list_messages",
+          "list_inbox_messages",
           {
             conversation: conversationId,
             before: instantArg(pageOf<Temporal.Instant>(page).cursor),
@@ -634,13 +634,17 @@ export function createInbox(options: InboxOptions): Inbox {
           messagesOf,
         ),
       get: (messageId) =>
-        call("get_message", { message: messageId }, (value) =>
+        call("get_inbox_message", { message: messageId }, (value) =>
           value === null ? null : messageOf(value),
         ),
       edit: (messageId, body) =>
-        call("edit_message", { message: messageId, body }, messageOf),
+        call("edit_inbox_message", { message: messageId, body }, messageOf),
       remove: (messageId) =>
-        call("edit_message", { message: messageId, remove: true }, messageOf),
+        call(
+          "edit_inbox_message",
+          { message: messageId, remove: true },
+          messageOf,
+        ),
       react: (messageId, emoji, reactOptions = {}) =>
         call(
           "react_to_message",

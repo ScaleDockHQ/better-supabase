@@ -549,7 +549,7 @@ ${authed(`${fn("start_conversation")}(uuid, jsonb)`)}
 -- their own conversation; the service writes as the bot, the system, or the
 -- contact (input.author_type). An agent's reply hands a bot conversation
 -- over to staff.
-create or replace function ${fn("send_message")}(conversation uuid, input jsonb)
+create or replace function ${fn("send_inbox_message")}(conversation uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -562,7 +562,7 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
-  ${loadConversation("send_message.conversation")}
+  ${loadConversation("send_inbox_message.conversation")}
   if ${service} then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
@@ -587,7 +587,7 @@ begin
   return to_jsonb(v_msg);
 end;
 $$;
-${authed(`${fn("send_message")}(uuid, jsonb)`)}
+${authed(`${fn("send_inbox_message")}(uuid, jsonb)`)}
 
 -- A message that arrived on a channel, for the inbound handler: finds the
 -- inbox's conversation for the thread (reopening it) or opens one, resolves
@@ -836,7 +836,7 @@ ${authed(`${fn("react_to_message")}(uuid, text, boolean, text)`)}
 
 -- The author (or the service) edits a message's body, or deletes it: the
 -- row stays as a tombstone with an empty body.
-create or replace function ${fn("edit_message")}(message uuid, body text default null, remove boolean default false)
+create or replace function ${fn("edit_inbox_message")}(message uuid, body text default null, remove boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -846,7 +846,7 @@ as $$
 declare
   v_msg ${T("messages")}%rowtype;
 begin
-  select * into v_msg from ${T("messages")} where ${ms("id")} = edit_message.message for update;
+  select * into v_msg from ${T("messages")} where ${ms("id")} = edit_inbox_message.message for update;
   if not found then
     ${missing("message", "MESSAGE_NOT_FOUND")}
   end if;
@@ -857,7 +857,7 @@ begin
     ${fail("MESSAGE_DELETED", "message is deleted", "22023")}
   end if;
   update ${T("messages")} set
-    ${ms("body")} = case when coalesce(remove, false) then '' else coalesce(edit_message.body, ${ms("body")}) end,
+    ${ms("body")} = case when coalesce(remove, false) then '' else coalesce(edit_inbox_message.body, ${ms("body")}) end,
     ${ms("attachments")} = case when coalesce(remove, false) then '[]'::jsonb else ${ms("attachments")} end,
     ${ms("deletedAt")} = case when coalesce(remove, false) then now() end,
     ${ms("editedAt")} = case when coalesce(remove, false) then ${ms("editedAt")} else now() end
@@ -866,13 +866,13 @@ begin
   return to_jsonb(v_msg);
 end;
 $$;
-${authed(`${fn("edit_message")}(uuid, text, boolean)`)}
+${authed(`${fn("edit_inbox_message")}(uuid, text, boolean)`)}
 
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
-create or replace function ${fn("list_conversations")}(tenant ${id} default null, filter jsonb default '{}'::jsonb)
+create or replace function ${fn("list_inbox_conversations")}(tenant ${id} default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 stable
@@ -884,7 +884,7 @@ as $$
       v.${cv("lastMessageAt")} > coalesce((select r.${rd("lastReadAt")} from ${T("reads")} r where r.${rd("conversation")} = v.${cv("id")} and r.${rd("user")} = (select auth.uid())), '-infinity'::timestamptz) as unread
     from ${T("conversations")} v
     left join ${T("contacts")} c on c.${ct("id")} = v.${cv("contact")}
-    where (list_conversations.tenant is null or v.${cv("tenant")} = list_conversations.tenant)
+    where (list_inbox_conversations.tenant is null or v.${cv("tenant")} = list_inbox_conversations.tenant)
       and (filter ->> 'inbox_id' is null or v.${cv("inbox")} = (filter ->> 'inbox_id')::uuid)
       and (coalesce(filter ->> 'status', 'open') = 'all' or v.${cv("status")} = coalesce(filter ->> 'status', 'open'))
       and (case filter ->> 'assignee'
@@ -904,7 +904,7 @@ as $$
     limit ${pageSize("(filter ->> 'limit')::integer", 50, 200)}
   ) page;
 $$;
-${authed(`${fn("list_conversations")}(${id}, jsonb)`)}
+${authed(`${fn("list_inbox_conversations")}(${id}, jsonb)`)}
 
 create or replace function ${fn("get_conversation")}(conversation uuid)
 returns jsonb
@@ -918,7 +918,7 @@ ${authed(`${fn("get_conversation")}(uuid)`)}
 
 -- A page of messages, oldest first, ending before the given instant. Staff
 -- also get notes and each outbound message's delivery.
-create or replace function ${fn("list_messages")}(conversation uuid, before timestamptz default null, max integer default 50)
+create or replace function ${fn("list_inbox_messages")}(conversation uuid, before timestamptz default null, max integer default 50)
 returns jsonb
 language sql
 stable
@@ -933,13 +933,13 @@ as $$
         order by d.${dl("createdAt")} limit 1
       )) as item
     from ${T("messages")} m
-    where m.${ms("conversation")} = list_messages.conversation
+    where m.${ms("conversation")} = list_inbox_messages.conversation
       and (before is null or m.${ms("createdAt")} < before)
     order by m.${ms("createdAt")} desc, m.${ms("id")} desc
     limit ${pageSize("max", 50, 200)}
   ) page;
 $$;
-${authed(`${fn("list_messages")}(uuid, timestamptz, integer)`)}
+${authed(`${fn("list_inbox_messages")}(uuid, timestamptz, integer)`)}
 
 -- The conversation's activity log, for staff.
 create or replace function ${fn("list_conversation_events")}(conversation uuid)

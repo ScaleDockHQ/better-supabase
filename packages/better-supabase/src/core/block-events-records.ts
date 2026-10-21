@@ -178,3 +178,31 @@ export interface PipelineEventData {
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
 export type PipelineStageEventData = PipelineEventData & SubjectEventData;
+
+/** Events from the messaging module about a conversation. */
+export interface ConversationEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly conversationId: string;
+  /** `channel`, `dm`, `group_dm`, `subject` or `inbox`. */
+  readonly kind: string;
+  /** For `conversation.created` of a record conversation: the record. */
+  readonly recordType?: string | null;
+  readonly recordId?: string | null;
+  /** For `conversation.member_added` and `member_removed`. */
+  readonly userId?: string;
+}
+
+/** Events from the messaging module about a message. */
+export interface MessageEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly authorId: string | null;
+  /** The thread's root message, null for a top-level message. */
+  readonly threadId: string | null;
+  /** For `message.sent`: the users it mentions. */
+  readonly mentionIds?: readonly string[];
+  /** For `message.pinned` and `message.resolved`: the new state. */
+  readonly pinned?: boolean;
+  readonly resolved?: boolean;
+}

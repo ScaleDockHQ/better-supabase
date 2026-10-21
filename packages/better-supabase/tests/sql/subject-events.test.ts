@@ -124,6 +124,15 @@ const SUBJECT_EVENTS = [
   "review.replied",
   "review.deleted",
   "rule.matched",
+  "conversation.created",
+  "conversation.archived",
+  "conversation.member_added",
+  "conversation.member_removed",
+  "message.sent",
+  "message.edited",
+  "message.deleted",
+  "message.pinned",
+  "message.resolved",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

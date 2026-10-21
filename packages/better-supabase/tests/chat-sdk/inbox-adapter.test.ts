@@ -35,9 +35,9 @@ const messages: Record<string, unknown> = {
 };
 
 const answers = {
-  get_message: (args: Record<string, unknown>) =>
+  get_inbox_message: (args: Record<string, unknown>) =>
     messages[String(args["message"])] ?? null,
-  send_message: ({ input }: { input: Record<string, unknown> }) => ({
+  send_inbox_message: ({ input }: { input: Record<string, unknown> }) => ({
     ...messageRow,
     id: "sent",
     author_type: "bot",
@@ -46,13 +46,13 @@ const answers = {
     format: input["format"],
     metadata: input["metadata"],
   }),
-  edit_message: { ...messageRow, body: "edited", edited_at: AT },
+  edit_inbox_message: { ...messageRow, body: "edited", edited_at: AT },
   remove_message: true,
   react_to_message: {},
-  set_typing: true,
+  set_inbox_typing: true,
   mark_conversation_read: AT,
   get_conversation: conversationRow,
-  list_messages: [
+  list_inbox_messages: [
     { ...messageRow, id: "a", created_at: "2026-01-01T00:00:00Z" },
     { ...messageRow, id: "b", kind: "note" },
     {
@@ -207,7 +207,7 @@ describe("inboxAdapter", () => {
     await adapter.markAsRead?.("inbox:c1", "m1");
 
     const sends = call.mock.calls
-      .filter(([, fn]) => fn === "send_message")
+      .filter(([, fn]) => fn === "send_inbox_message")
       .map(([, , args]) => args["input"]);
 
     expect(sends.map((args) => [args["body"], args["format"]])).toEqual([
@@ -231,7 +231,7 @@ describe("inboxAdapter", () => {
     ]);
 
     const typing = call.mock.calls
-      .filter(([, fn]) => fn === "set_typing")
+      .filter(([, fn]) => fn === "set_inbox_typing")
       .map(([, , args]) => args["typing"]);
 
     expect(typing).toEqual([true, false]);
@@ -324,7 +324,7 @@ describe("inboxAdapter", () => {
 });
 
 function identitySetup(target: IdentityTarget | null) {
-  const { transport } = fakeTransport({ get_message: messageRow });
+  const { transport } = fakeTransport({ get_inbox_message: messageRow });
   const principalByIdentity = vi.fn(() => target);
   const ticketFor = vi.fn((userId: string) => `ticket:${userId}`);
 

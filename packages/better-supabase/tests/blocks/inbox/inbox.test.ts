@@ -23,13 +23,13 @@ const answers = {
   set_inbox_team_member: true,
   upsert_contact: contactRow,
   start_conversation: conversationRow,
-  list_conversations: [conversationRow],
+  list_inbox_conversations: [conversationRow],
   get_conversation: null,
   assign_conversation: { ...conversationRow, assignee_id: "u1" },
   set_conversation_status: { ...conversationRow, status: "resolved" },
   set_bot_mode: { ...conversationRow, bot_mode: "human" },
   mark_conversation_read: AT,
-  set_typing: true,
+  set_inbox_typing: true,
   list_conversation_events: [
     {
       id: 1,
@@ -40,13 +40,13 @@ const answers = {
     },
   ],
   inbox_counts: { open: 3, mine: 1, unassigned: 2, unread: 1 },
-  send_message: {
+  send_inbox_message: {
     ...messageRow,
     delivery: { channel: "whatsapp", status: "sent", error: null },
   },
-  list_messages: [messageRow],
-  get_message: null,
-  edit_message: { ...messageRow, body: "edited", edited_at: AT },
+  list_inbox_messages: [messageRow],
+  get_inbox_message: null,
+  edit_inbox_message: { ...messageRow, body: "edited", edited_at: AT },
   react_to_message: { "👍": ["u1", "bot"] },
   record_delivery: null,
   set_delivery_status: 2,

@@ -474,7 +474,7 @@ describe("deliver", () => {
     overrides: { message?: unknown; conversation?: unknown } = {},
   ) {
     const { transport, call } = fakeTransport({
-      get_message:
+      get_inbox_message:
         "message" in overrides
           ? overrides.message
           : { ...messageRow, direction: "outbound", author_type: "agent" },
@@ -614,7 +614,7 @@ describe("deliver", () => {
 describe("whatsappWindowOpen", () => {
   const inboxWith = (rows: unknown[]) =>
     createInbox({
-      transport: fakeTransport({ list_messages: rows }).transport,
+      transport: fakeTransport({ list_inbox_messages: rows }).transport,
     });
 
   const at = Temporal.Instant.from(AT);

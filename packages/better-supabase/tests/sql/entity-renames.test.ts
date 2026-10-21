@@ -190,6 +190,8 @@ describe("blocks.<name>.entities in the SQL", () => {
               new RegExp(String.raw`bs_${name}_\w+|/${name}/`, "g"),
               "",
             )
+            // Supabase owns `realtime.messages`.
+            .replaceAll("realtime.messages", "")
             // Realtime topic prefixes are option values (`options.topic`).
             .replaceAll(/'[a-z][a-z0-9_-]*:%?'/g, "")
             .replaceAll(/\bv_\w+/g, "")

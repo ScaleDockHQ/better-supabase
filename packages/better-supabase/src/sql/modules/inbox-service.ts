@@ -24,7 +24,7 @@ export function inboxServiceFunctions(q: InboxSql): string {
 grant execute on function ${signature} to authenticated, service_role;`;
 
   return `-- One message with its first delivery, under the caller's RLS.
-create or replace function ${fn("get_message")}(message uuid)
+create or replace function ${fn("get_inbox_message")}(message uuid)
 returns jsonb
 language sql
 stable
@@ -35,13 +35,13 @@ as $$
     from ${T("deliveries")} d where d.${dl("message")} = m.${ms("id")}
     order by d.${dl("createdAt")} limit 1
   ))
-  from ${T("messages")} m where m.${ms("id")} = get_message.message;
+  from ${T("messages")} m where m.${ms("id")} = get_inbox_message.message;
 $$;
-${authed(`${fn("get_message")}(uuid)`)}
+${authed(`${fn("get_inbox_message")}(uuid)`)}
 
 -- A typing ping on the conversation's topic, from staff, the contact or
 -- the service (actor names the bot).
-create or replace function ${fn("set_typing")}(conversation uuid, typing boolean default true, actor text default null)
+create or replace function ${fn("set_inbox_typing")}(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
 security definer
@@ -66,7 +66,7 @@ begin
   return true;
 end;
 $$;
-${authed(`${fn("set_typing")}(uuid, boolean, text)`)}
+${authed(`${fn("set_inbox_typing")}(uuid, boolean, text)`)}
 
 -- After posting an outbound message on its channel: records the platform's
 -- id and the status.

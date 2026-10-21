@@ -212,10 +212,10 @@ const deliveryStatusOf = (value: unknown): DeliveryStatus =>
   );
 
 export const conversationsOf = (value: unknown): readonly Conversation[] =>
-  recordsOf(value, "list_conversations").map(conversationOf);
+  recordsOf(value, "list_inbox_conversations").map(conversationOf);
 
 export const messagesOf = (value: unknown): readonly InboxMessage[] =>
-  recordsOf(value, "list_messages").map(messageOf);
+  recordsOf(value, "list_inbox_messages").map(messageOf);
 
 export const eventsOf = (value: unknown): readonly ConversationEvent[] =>
   recordsOf(value, "list_conversation_events").map((row) => ({

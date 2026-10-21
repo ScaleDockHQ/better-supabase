@@ -59,6 +59,7 @@ import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { MEMORY } from "./modules/memory.ts";
+import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
@@ -307,6 +308,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(LEAVE),
       built(RULES),
       built(VERCEL_MARKETPLACE),
+      built(MESSAGING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

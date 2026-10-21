@@ -446,9 +446,14 @@ export interface ModuleContext {
   notify(fields: string, options?: { readonly indent?: string }): string;
   /**
    * PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs`
-   * module.
+   * module. `delay` is an integer expression of seconds before it runs.
    */
-  enqueue(queue: string, payload: string, dedupe: string): string;
+  enqueue(
+    queue: string,
+    payload: string,
+    dedupe: string,
+    options?: { readonly delay?: string },
+  ): string;
   /**
    * The `text[]` of a tenant's entitlements, or `fallback` without the
    * `entitlements` module.
@@ -1233,7 +1238,7 @@ export function createModuleContext(
         "perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);",
       ].join(`\n${indent}`);
     },
-    enqueue(queue, payload, dedupe) {
+    enqueue(queue, payload, dedupe, options = {}) {
       declares("jobs");
 
       if (!installed.has("jobs")) {
@@ -1242,7 +1247,10 @@ export function createModuleContext(
 
       const jobs = createModuleContext("jobs", namesOf, source);
 
-      return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
+      const delay =
+        options.delay === undefined ? "" : `, delay => ${options.delay}`;
+
+      return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}${delay}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
     entitlements,
     retention,

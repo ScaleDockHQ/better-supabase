@@ -152,7 +152,7 @@ export const INBOX_NAMES: ModuleNames = {
       },
     },
     conversations: {
-      name: "conversations",
+      name: "inbox_conversations",
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -294,6 +294,15 @@ export const INBOX_NAMES: ModuleNames = {
       },
     },
   },
+  migrations: [
+    {
+      from: 2,
+      description:
+        "The conversations table is inbox_conversations, so the messaging block owns conversations.",
+      table: "conversations",
+      was: "conversations",
+    },
+  ],
 };
 
 type Action = keyof ModuleOperations<"inbox">;
