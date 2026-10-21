@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
+import { pluralOf } from "../../src/core/entity-naming.ts";
 import { entityRenameChanges, renderModules } from "../../src/sql/index.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS = ["tenant", "access", "outbox", "work-items"];
 
@@ -96,6 +98,78 @@ describe("blocks.<name>.entities in the SQL", () => {
 
     expect(left).toEqual([]);
   });
+
+  const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {
+    const entities = Object.entries(module.names?.entities ?? {}).filter(
+      ([, entity]) => !entity.global,
+    );
+
+    return entities.length === 0 || name === "tenant"
+      ? []
+      : [[name, entities] as const];
+  });
+
+  it.each(renamable)(
+    "renames every %s identifier with its entities",
+    (name, entities) => {
+      const modules = {
+        [name]: {
+          entities: Object.fromEntries(
+            entities.map(([key], index) => [
+              key,
+              `zq${"abcdefgh".charAt(index)}`,
+            ]),
+          ),
+        },
+      };
+
+      const layout: ModuleLayout = {
+        modules,
+        subjects: withBlockSubjects({}, [name], modules),
+      };
+
+      const camel = (value: string): string =>
+        value.replaceAll(/_([a-z])/g, (_, letter: string) =>
+          letter.toUpperCase(),
+        );
+
+      const nouns = entities.map(([, entity]) => ({
+        singular: entity.singular,
+        plural: entity.plural ?? pluralOf(entity.singular),
+      }));
+
+      const parameter = new RegExp(
+        String.raw`\b(?:\w+\.)?(?:${nouns.map((noun) => noun.singular).join("|")})\b(?= uuid|[^_\w'"]|$)`,
+        "g",
+      );
+
+      const leftover = new RegExp(
+        String.raw`(?<![a-zA-Z])(?:${nouns
+          .flatMap(({ singular, plural }) => [
+            String.raw`${plural}(?![a-z])`,
+            camel(plural),
+            `${singular}_`,
+            `${camel(singular)}Id`,
+          ])
+          .join("|")})`,
+      );
+
+      const left = renderModules([name], layout)
+        .flatMap((file) => file.contents.split("\n"))
+        .filter((line) => !line.trimStart().startsWith("--"))
+        .map((line) =>
+          line
+            .replaceAll(`'${name}'`, "")
+            .replaceAll(`'${name}.`, "'")
+            .replaceAll(/'[^']*\s[^']*'/g, "")
+            .replaceAll(/\bv_\w+/g, "")
+            .replaceAll(parameter, ""),
+        )
+        .filter((line) => leftover.test(line));
+
+      expect(left).toEqual([]);
+    },
+  );
 
   it("refuses a rename onto another block's table", () => {
     expect(() =>

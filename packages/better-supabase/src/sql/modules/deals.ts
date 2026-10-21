@@ -233,10 +233,10 @@ create table if not exists ${t("deals")} (
   unique (${d("tenant")}, ${d("number")}),
   check ((${d("companyType")} is null) = (${d("companyId")} is null))
 );
-create index if not exists deals_pipeline_stage_idx on ${t("deals")} (${d("pipeline")}, ${d("stage")}, ${d("rank")});
-create index if not exists deals_tenant_close_idx on ${t("deals")} (${d("tenant")}, ${d("closeOn")}) where ${d("outcome")} = 'open';
-create index if not exists deals_owner_idx on ${t("deals")} (${d("owner")});
-create index if not exists deals_company_idx on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}
+create index if not exists ${ctx.naming.rename("deals_pipeline_stage_idx")} on ${t("deals")} (${d("pipeline")}, ${d("stage")}, ${d("rank")});
+create index if not exists ${ctx.naming.rename("deals_tenant_close_idx")} on ${t("deals")} (${d("tenant")}, ${d("closeOn")}) where ${d("outcome")} = 'open';
+create index if not exists ${ctx.naming.rename("deals_owner_idx")} on ${t("deals")} (${d("owner")});
+create index if not exists ${ctx.naming.rename("deals_company_idx")} on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}
 ${lockTable(t("deals"), { read: true })}
 
 create table if not exists ${t("contacts")} (
@@ -248,8 +248,8 @@ create table if not exists ${t("contacts")} (
   ${k("isPrimary")} boolean not null default false,
   primary key (${k("deal")}, ${k("contactType")}, ${k("contactId")})
 );
-create index if not exists deal_contacts_contact_idx on ${t("contacts")} (${k("contactType")}, ${k("contactId")});
-create unique index if not exists deal_contacts_primary_idx on ${t("contacts")} (${k("deal")}) where ${k("isPrimary")};
+create index if not exists ${ctx.naming.rename("deal_contacts_contact_idx")} on ${t("contacts")} (${k("contactType")}, ${k("contactId")});
+create unique index if not exists ${ctx.naming.rename("deal_contacts_primary_idx")} on ${t("contacts")} (${k("deal")}) where ${k("isPrimary")};
 ${lockTable(t("contacts"), { read: true })}
 
 create table if not exists ${t("members")} (
@@ -259,20 +259,20 @@ create table if not exists ${t("members")} (
   ${m("role")} text,
   primary key (${m("deal")}, ${m("user")})
 );
-create index if not exists deal_members_user_idx on ${t("members")} (${m("user")});
+create index if not exists ${ctx.naming.rename("deal_members_user_idx")} on ${t("members")} (${m("user")});
 ${lockTable(t("members"), { read: true })}
 
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-drop policy if exists deals_read on ${t("deals")};
-create policy deals_read on ${t("deals")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("deals_read")} on ${t("deals")};
+create policy ${ctx.naming.rename("deals_read")} on ${t("deals")} for select to authenticated
 using (${visible});
-drop policy if exists deal_contacts_read on ${t("contacts")};
-create policy deal_contacts_read on ${t("contacts")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("deal_contacts_read")} on ${t("contacts")};
+create policy ${ctx.naming.rename("deal_contacts_read")} on ${t("contacts")} for select to authenticated
 using (exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read'));
-drop policy if exists deal_members_read on ${t("members")};
-create policy deal_members_read on ${t("members")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("deal_members_read")} on ${t("members")};
+create policy ${ctx.naming.rename("deal_members_read")} on ${t("members")} for select to authenticated
 using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)});
 `;
 }
@@ -345,8 +345,10 @@ function guard(ctx: ModuleContext, n: DealNames): string {
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join("\n      or ");
 
+  const guardName = ctx.naming.rename("bs_deal_guard");
+
   return `
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.${guardName}()
 returns trigger
 language plpgsql
 security definer
@@ -395,10 +397,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bs_deal_guard()")}
-drop trigger if exists bs_deal_guard on ${t("deals")};
-create trigger bs_deal_guard before insert or update on ${t("deals")}
-for each row execute function better_supabase.bs_deal_guard();
+${triggerGrant(`better_supabase.${guardName}()`)}
+drop trigger if exists ${guardName} on ${t("deals")};
+create trigger ${guardName} before insert or update on ${t("deals")}
+for each row execute function better_supabase.${guardName}();
 `;
 }
 

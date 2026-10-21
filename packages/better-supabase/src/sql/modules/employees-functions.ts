@@ -60,6 +60,7 @@ export function employeeFunctions(
   ctx: ModuleContext,
   n: EmployeeNames,
 ): string {
+  const employeeId = sqlString(ctx.resolved.entityNaming.rename("employeeId"));
   const { fn, t } = n;
   const e = (column: string): string => n.c("employees", column);
   const has = (column: string): boolean => ctx.has("employees", column);
@@ -296,7 +297,7 @@ begin
   for v_change in select value from jsonb_array_elements(update_employees.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_id := (v_change ->> 'employeeId')::uuid;
+      v_id := (v_change ->> ${employeeId})::uuid;
       select * into v_was from ${table} x where x.${e("id")} = v_id and ${editable("x")};
       if v_was.${e("id")} is null then
         ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can edit", "P0002")}
@@ -333,7 +334,7 @@ ${writes}
       if v_row.${e("manager")} is distinct from v_was.${e("manager")} then
         ${managerChanged("v_row", `v_was.${e("manager")}`)}
       end if;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('employeeId', v_id, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object(${employeeId}, v_id, 'field', v_field));
       v_touched := array_append(v_touched, v_id);
       ${ctx.hook("after_employee_update", [
         ["uuid", "v_id"],
@@ -346,11 +347,11 @@ ${writes}
       elsif nullif(v_hint, '') is null and v_state in ('23514', '23502', '22P02', '22007', '22008') then
         v_hint := 'EMPLOYEE_ATTRS_INVALID';
       end if;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('employeeId', v_change ->> 'employeeId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object(${employeeId}, v_change ->> ${employeeId}, 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from ${table} x where x.${e("id")} = any (v_touched) loop
-    ${record("employee.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'employeeId')::uuid = v_row.${e("id")})`)}
+    ${record("employee.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> ${employeeId})::uuid = v_row.${e("id")})`)}
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;

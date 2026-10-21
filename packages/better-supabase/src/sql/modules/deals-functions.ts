@@ -89,6 +89,7 @@ function fields(d: (column: string) => string): readonly Field[] {
 
 export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
   const { fn, t, c } = n;
+  const dealId = sqlString(ctx.resolved.entityNaming.rename("dealId"));
   const d = (column: string): string => c("deals", column);
   const k = (column: string): string => c("contacts", column);
   const m = (column: string): string => c("members", column);
@@ -302,7 +303,7 @@ begin
   for v_change in select value from jsonb_array_elements(update_deals.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_deal := (v_change ->> 'dealId')::uuid;
+      v_deal := (v_change ->> ${dealId})::uuid;
       select * into v_row from ${t("deals")} x where x.${d("id")} = v_deal and ${editable("x")} and x.${d("archivedAt")} is null;
       if v_row.${d("id")} is null then
         ${fail("DEAL_NOT_FOUND", "no such deal you can edit", "P0002")}
@@ -326,7 +327,7 @@ ${writes}
       else
         ${fail("DEAL_FIELD_UNKNOWN", "that field can't be written", "22023")}
       end case;${checkValues("v_row")}
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('dealId', v_deal, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object(${dealId}, v_deal, 'field', v_field));
       v_touched := array_append(v_touched, v_deal);
       ${ctx.hook("after_deal_update", [
         ["uuid", "v_deal"],
@@ -334,11 +335,11 @@ ${writes}
       ])}
     exception when others then
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('dealId', v_change ->> 'dealId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object(${dealId}, v_change ->> ${dealId}, 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from ${t("deals")} x where x.${d("id")} = any (v_touched) loop
-    ${recordDeal("deal.updated", `v_row.${d("id")}`, `v_row.${d("tenant")}`, `v_row.${d("name")}`, `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'dealId')::uuid = v_row.${d("id")})`)}
+    ${recordDeal("deal.updated", `v_row.${d("id")}`, `v_row.${d("tenant")}`, `v_row.${d("name")}`, `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> ${dealId})::uuid = v_row.${d("id")})`)}
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -601,7 +602,7 @@ set search_path = ''
 as $$
 begin
   return (select coalesce(jsonb_agg(jsonb_build_object(
-    'dealId', x.${d("id")}, 'identifier', x.${d("identifier")}, 'name', x.${d("name")},
+    ${dealId}, x.${d("id")}, 'identifier', x.${d("identifier")}, 'name', x.${d("name")},
     'daysInStage', (extract(epoch from now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")})) / 86400)::integer,
     'rotting', st.${s("rottingAfterDays")} is not null and now() - coalesce(x.${d("stageEnteredAt")}, x.${d("createdAt")}) > make_interval(days => st.${s("rottingAfterDays")}),
     'slipped', x.${d("pushCount")} > 0 or x.${d("closeOn")} < current_date,
