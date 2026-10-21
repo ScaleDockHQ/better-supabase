@@ -23,16 +23,6 @@ export type NamesOf<M extends string> = M extends keyof BlockNameRegistry
 
 export type TablesOf<M extends string> = keyof NamesOf<M>["tables"] & string;
 
-export type ColumnsOf<
-  M extends string,
-  T extends TablesOf<M>,
-> = NamesOf<M>["tables"][T];
-
 export type FunctionsOf<M extends string> = NamesOf<M>["functions"];
 
 export type ActionsOf<M extends string> = NamesOf<M>["actions"];
-
-export type HooksOf<M extends string> = NamesOf<M>["hooks"];
-
-export type EntitiesOf<M extends string> = keyof NamesOf<M>["entities"] &
-  string;

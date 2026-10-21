@@ -183,6 +183,68 @@ describe("renameBlock", () => {
     });
   });
 
+  it("renames promises, callbacks and handler objects, through with and using", async () => {
+    const seen: unknown[] = [];
+
+    const block = defineBlock({
+      name: "items",
+      category: "work",
+      create: () => ({
+        kind: { workItemId: "w0" },
+        fetchWorkItem: async (id: string) => ({ workItemId: id }),
+        onWorkItem: (callback: (item: { workItemId: string }) => unknown) =>
+          callback({ workItemId: "w1" }),
+        watch: (handlers: {
+          readonly scope: { readonly workItemId: string };
+          readonly onWorkItem: (item: { workItemId: string }) => void;
+        }) => {
+          seen.push(handlers.scope);
+          handlers.onWorkItem({ workItemId: "w2" });
+        },
+      }),
+    });
+
+    const tasks = renameBlock(block, NAMES)
+      .with({})
+      .using(block.create as never);
+
+    // SAFETY: the renamed client's keys, read without its generated type.
+    const client = tasks.create?.({ transport: sql().transport }) as {
+      readonly kind: unknown;
+      readonly fetchTask: (id: string) => Promise<unknown>;
+      readonly onTask: (callback: (item: unknown) => unknown) => unknown;
+      readonly watch: (handlers: {
+        readonly scope: { readonly taskId: string };
+        readonly onTask: (item: unknown) => void;
+      }) => void;
+    };
+
+    const callbackResult = client.onTask((item) => {
+      seen.push(item);
+
+      return { taskId: "w9" };
+    });
+
+    client.watch({
+      scope: { taskId: "w3" },
+      onTask: (item) => {
+        seen.push(item);
+      },
+    });
+
+    expect({
+      kind: client.kind,
+      fetched: await client.fetchTask("w4"),
+      callbackResult,
+      seen,
+    }).toEqual({
+      kind: { taskId: "w0" },
+      fetched: { taskId: "w4" },
+      callbackResult: { taskId: "w9" },
+      seen: [{ taskId: "w1" }, { workItemId: "w3" }, { taskId: "w2" }],
+    });
+  });
+
   it("returns the block itself when nothing is renamed", () => {
     expect(renameBlock(workItemsBlock, undefined)).toBe(workItemsBlock);
   });

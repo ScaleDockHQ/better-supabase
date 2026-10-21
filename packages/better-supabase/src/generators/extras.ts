@@ -83,7 +83,7 @@ function camel(name: string): string {
 }
 
 /** `workItemId` and `work_item_id` → `Work item id`. */
-export function labelOf(name: string): string {
+function labelOf(name: string): string {
   return titleOf(name.replaceAll(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase());
 }
 
@@ -331,7 +331,7 @@ export function extraKinds(extras: ExtraSchemas): ScalarKind["kind"][] {
 }
 
 /** The TypeScript type a field validates to. */
-export function fieldType(spec: FieldSpec): string {
+function fieldType(spec: FieldSpec): string {
   let type = scalarType(spec);
 
   if (spec.array) {
