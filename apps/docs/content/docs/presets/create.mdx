@@ -92,6 +92,43 @@ const projects = await client.projects();
 
 Pass your own `fetch` to trace or stub the calls in tests.
 
+### Deploy records
+
+Give every deploy an id so a project can be matched to the preset it came
+from. `newDeployId()` returns a random UUID, and `deployQuery(files, { id })`
+writes it as `-- better-supabase deploy <id>` on the first line of the
+migration. `DeployResponse` carries the `id`, the preset code and the design
+code (or `null`), and the host app stores them as a `DeployRecord`:
+
+```ts
+import {
+  deployQuery,
+  MIGRATION_NAME,
+  newDeployId,
+  type DeployRecord,
+} from "better-supabase/create";
+
+const id = newDeployId();
+const migration = deployQuery(files, { id });
+
+// After the migration applies:
+const record: DeployRecord = {
+  id,
+  ref: project.ref,
+  preset: presetCode,
+  design: designCode,
+  migration: MIGRATION_NAME,
+  deployedAt: Temporal.Now.instant().toString(),
+};
+```
+
+Keep the record in your own table, keyed by the user who deployed. A visitor
+who deploys before signing in to your app can keep the records in a sealed
+cookie, and you move them to the table once they sign in. To find the record
+for a project later, search the `statements` of the `better_supabase_blocks`
+row in `supabase_migrations.schema_migrations` for the comment and look up its
+id.
+
 ## OAuth for other providers
 
 `better-supabase/create/oauth` holds the parts of the Supabase sign-in that
