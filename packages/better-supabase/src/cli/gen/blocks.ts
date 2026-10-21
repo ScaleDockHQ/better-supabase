@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import type { BlockNaming, GeneratedBlock } from "../../blocks/index.ts";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
+import { tenantNameOf } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -27,7 +28,7 @@ function hasSchema(
 }
 
 /**
- * How `sql.naming` and the modules' `blocks.<module>.functions` rename the
+ * How the tenant rename and the modules' `blocks.<module>.functions` rename the
  * block's functions, or undefined when nothing does. `blocks.access.functions`
  * is the custom model's templates, not renames.
  */
@@ -43,7 +44,7 @@ function namingOf(
     ),
   );
 
-  const tenant = config.sql.naming?.tenant;
+  const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
 
   if (tenant === undefined && !renames) {

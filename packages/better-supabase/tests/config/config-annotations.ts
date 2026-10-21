@@ -246,7 +246,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "subjects.*.tenant": {
     description:
-      "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<sql.naming.tenant>_id` when the tenant is renamed.",
+      "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.tenant.entities.organization>_id` when the tenant is renamed.",
   },
   "subjects.*.title": { description: "The column `subject_title` returns." },
   "subjects.*.url": {
@@ -441,12 +441,6 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
     default: "tenant",
-  },
-  "sql.naming": { description: "Names for the tenant concept in SQL." },
-  "sql.naming.tenant": {
-    description:
-      "The tenant concept's singular name in table, function and column names, such as workspace or team.",
-    default: "organization",
   },
   "seed.entry": { default: "supabase/seed.ts" },
   "seed.output": { default: "supabase/seeds/000_better_supabase.sql" },

@@ -772,19 +772,6 @@ const ENTRIES = {
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
       scope: v.optional(v.picklist(["tenant", "user", "none"])),
-      naming: v.optional(
-        v.strictObject({
-          tenant: v.optional(
-            v.pipe(
-              v.string(),
-              v.regex(
-                /^[a-z][a-z0-9_]{0,40}$/,
-                "a tenant name is lowercase letters, digits and underscores",
-              ),
-            ),
-          ),
-        }),
-      ),
     }),
   ),
   seed: v.optional(
@@ -896,20 +883,31 @@ const ConfigSchema = v.strictObject({
   $ci: v.optional(EnvironmentSchema),
 } satisfies { [K in keyof Required<BetterSupabaseConfig>]: v.GenericSchema });
 
-/** Each issue as `path: message`, the path in config keys. */
-const hasSqlModules = (value: unknown): boolean =>
+const hasSqlKey = (value: unknown, key: string): boolean =>
   typeof value === "object" &&
   value !== null &&
   "sql" in value &&
   typeof value.sql === "object" &&
   value.sql !== null &&
-  "modules" in value.sql;
+  key in value.sql;
+
+/** `sql` keys that moved, with where they went. */
+const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
+  [
+    "modules",
+    "moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+  ],
+  [
+    "naming",
+    "`sql.naming.tenant` moved to `blocks.tenant.entities.organization`",
+  ],
+];
 
 /**
- * `sql.modules` in the config or one of its environment blocks. The key moved
- * to `blocks` in 0.9, and the codemod moves it.
+ * Moved `sql` keys in the config or one of its environment blocks, each as
+ * `path: message`.
  */
-function sqlModulesIssues(value: unknown): string[] {
+function movedKeyIssues(value: unknown): string[] {
   if (typeof value !== "object" || value === null) {
     return [];
   }
@@ -931,16 +929,16 @@ function sqlModulesIssues(value: unknown): string[] {
     }
   }
 
-  return blocks
-    .filter(([, block]) => hasSqlModules(block))
-    .map(
-      ([prefix]) =>
-        `${prefix}sql.modules: moved to the top-level \`blocks\` key in 0.9; run \`better-supabase codemod 0.9\``,
-    );
+  return blocks.flatMap(([prefix, block]) =>
+    MOVED_SQL_KEYS.filter(([key]) => hasSqlKey(block, key)).map(
+      ([key, message]) => `${prefix}sql.${key}: ${message}`,
+    ),
+  );
 }
 
+/** Each issue as `path: message`, the path in config keys. */
 export function configIssues(value: unknown): string[] {
-  const moved = sqlModulesIssues(value);
+  const moved = movedKeyIssues(value);
 
   if (moved.length > 0) {
     return moved;

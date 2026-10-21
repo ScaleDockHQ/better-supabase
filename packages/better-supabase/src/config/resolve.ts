@@ -10,6 +10,7 @@ import { tenantNames } from "../core/entity-naming.ts";
 import { expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
+import { tenantNameOf } from "./blocks.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
   isFunctionKey,
@@ -206,7 +207,8 @@ export function resolveConfig(
   const output = config.output ?? CONFIG_DEFAULTS.output;
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
   const legacyOpenApi = config.openapi;
-  const appTables = appTablesOf(config.appTables, config.sql?.naming?.tenant);
+  const tenantName = tenantNameOf(config.blocks);
+  const appTables = appTablesOf(config.appTables, tenantName);
 
   return {
     root,
@@ -250,9 +252,7 @@ export function resolveConfig(
       }),
       softDelete: pick(config.plugins?.softDelete, { column: "deleted_at" }),
       tenant: pick(config.plugins?.tenant, {
-        column: tenantNames(config.sql?.naming?.tenant).rename(
-          "organization_id",
-        ),
+        column: tenantNames(tenantName).rename("organization_id"),
       }),
       actor: pick(config.plugins?.actor, {
         createdBy: "created_by",
@@ -284,7 +284,7 @@ export function resolveConfig(
       config.subjects ?? {},
       appTables,
       config.sql?.scope,
-      config.sql?.naming?.tenant,
+      tenantName,
     ),
     sql: {
       ...(config.sql?.workflow === undefined
@@ -294,9 +294,6 @@ export function resolveConfig(
       prefix: config.sql?.prefix ?? CONFIG_DEFAULTS.sql.prefix,
       testsDir: config.sql?.testsDir ?? CONFIG_DEFAULTS.sql.testsDir,
       ...(config.sql?.scope === undefined ? {} : { scope: config.sql.scope }),
-      ...(config.sql?.naming === undefined
-        ? {}
-        : { naming: config.sql.naming }),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),

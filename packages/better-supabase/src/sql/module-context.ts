@@ -2,6 +2,7 @@ import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleContext, ModuleIdType } from "./context.ts";
 import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
+import { tenantNameOf } from "../config/blocks.ts";
 import { createModuleContext } from "./context.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
@@ -51,7 +52,7 @@ export function moduleContext(
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(installed ? { installed } : {}),
       ...(layout.scope ? { scope: layout.scope } : {}),
-      ...(layout.naming?.tenant ? { tenantName: layout.naming.tenant } : {}),
+      ...tenantNameEntry(layout.modules),
       ...providerIdType(layout),
       integrations(module) {
         const definition = registry().modules[module];
@@ -186,4 +187,12 @@ export function providerIdType(layout: ModuleLayout): {
     layout.accessProvider?.idType ?? layout.entitlementsProvider?.idType;
 
   return idType ? { providerIdType: idType } : {};
+}
+
+function tenantNameEntry(modules: AnyBlocksConfig | undefined): {
+  readonly tenantName?: string;
+} {
+  const tenantName = tenantNameOf(modules);
+
+  return tenantName === undefined ? {} : { tenantName };
 }

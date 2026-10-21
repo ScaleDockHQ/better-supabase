@@ -3,7 +3,7 @@ import type {
   BucketPolicyName,
 } from "../../schema/types.ts";
 import type { BucketLifecycle } from "../../storage/versioning.ts";
-import type { BlockScope, SqlNaming } from "../blocks.ts";
+import type { BlockScope } from "../blocks.ts";
 
 export interface BucketConfig {
   readonly id?: string;
@@ -66,8 +66,6 @@ export interface SqlConfig {
    * every signed-in user reads and writes).
    */
   readonly scope?: BlockScope;
-  /** Names for the tenant concept in tables, functions and columns. */
-  readonly naming?: SqlNaming;
 }
 
 /** `sql` with defaults applied. */
@@ -79,7 +77,6 @@ export interface ResolvedSqlConfig {
   readonly testsDir: string;
   /** Unset means `tenant`. */
   readonly scope?: BlockScope;
-  readonly naming?: SqlNaming;
 }
 
 export interface SeedConfig {

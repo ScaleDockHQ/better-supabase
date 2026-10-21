@@ -175,6 +175,21 @@ describe("config environments", () => {
     ).toThrow("sql.modules: moved to the top-level `blocks` key");
   });
 
+  it("points sql.naming at blocks.tenant.entities", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ sql: { naming: { tenant: "workspace" } } }),
+    );
+
+    const error = await loadConfig(dir).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      code: "config_invalid",
+      message: expect.stringContaining(
+        "sql.naming: `sql.naming.tenant` moved to `blocks.tenant.entities.organization`",
+      ),
+    });
+  });
+
   it("picks --env, then $BETTER_SUPABASE_ENV, then ci in CI", () => {
     expect(
       configEnvironment("staging", { BETTER_SUPABASE_ENV: "x", CI: "1" }),

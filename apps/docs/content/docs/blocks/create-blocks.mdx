@@ -187,7 +187,7 @@ and Postgres executors have it.
 
 ### Renamed functions
 
-When the config sets `sql.naming` or `blocks.<name>.functions`, the SQL writes
+When the config renames the tenant or sets `blocks.<name>.functions`, the SQL writes
 the block functions under other names. `gen` writes those names into each
 block's `naming` entry in `blocks.generated.ts`, and `defineBlocks` wraps that
 block's transport with `blockNames(naming)`, so the clients call the renamed

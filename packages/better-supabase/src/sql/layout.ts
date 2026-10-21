@@ -34,7 +34,6 @@ export function moduleLayout(
     claims: config.claims,
     modules: config.blocks,
     ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
-    ...(config.sql.naming === undefined ? {} : { naming: config.sql.naming }),
     subjects: config.subjects,
     appTables: config.appTables,
     vectorSearch: config.vectorSearch,

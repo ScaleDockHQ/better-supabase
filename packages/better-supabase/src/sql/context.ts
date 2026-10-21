@@ -304,11 +304,11 @@ export interface ModuleContext {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: ModuleScope;
-  /** The tenant concept's names (`sql.naming.tenant`). */
+  /** The tenant concept's names (`blocks.tenant.entities.organization`). */
   readonly naming: EntityNames;
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
-   * `sql.naming` and `blocks.<name>.functions` rename it.
+   * `blocks.<name>.entities` and `blocks.<name>.functions` rename it.
    */
   fn(name: string): string;
   /** The unquoted name a module function is written under (see `fn`). */
@@ -490,7 +490,7 @@ export interface ModuleContextSource {
   readonly providerIdType?: ModuleIdType;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
-  /** `sql.naming.tenant`. */
+  /** `blocks.tenant.entities.organization`. */
   readonly tenantName?: string;
   /**
    * The modules `module` may read through `installed` and `of`: what it

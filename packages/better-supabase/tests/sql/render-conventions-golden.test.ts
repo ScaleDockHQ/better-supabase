@@ -8,7 +8,7 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderModules } from "../../src/sql/render.ts";
 
 // The SQL each module writes under a convention (`sql.scope`,
-// `sql.naming`), next to the default output in render-golden.test.ts. A
+// `blocks.tenant.entities`), next to the default output in render-golden.test.ts. A
 // module gets a file only where the convention changes its SQL.
 
 const NAMES = Object.keys(SQL_MODULES);
@@ -36,7 +36,9 @@ const CONVENTIONS: readonly Convention[] = [
   {
     name: "naming-workspace",
     applies: () => true,
-    layout: { naming: { tenant: "workspace" } },
+    layout: {
+      modules: { tenant: { entities: { organization: "workspace" } } },
+    },
   },
 ];
 

@@ -205,7 +205,10 @@ describe("appTables SQL", () => {
   it("renders the golden SQL with the tenant renamed", async () => {
     await expect(
       golden(
-        render(BLOCKS, { naming: { tenant: "workspace" }, appTables: TABLES }),
+        render(BLOCKS, {
+          modules: { tenant: { entities: { organization: "workspace" } } },
+          appTables: TABLES,
+        }),
       ),
     ).toMatchFileSnapshot("__golden__/app-tables/workspace.sql");
   });
@@ -499,7 +502,7 @@ describe("appTables SQL errors", () => {
   it("refuses the renamed tenant table's name", () => {
     expect(() =>
       render(BLOCKS, {
-        naming: { tenant: "workspace" },
+        modules: { tenant: { entities: { organization: "workspace" } } },
         appTables: { workspaces: {} },
       }),
     ).toThrow("the organizations block already keeps a table named workspaces");

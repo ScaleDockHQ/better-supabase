@@ -87,7 +87,7 @@ Options
   --check                                   Write nothing; exit 1 with the diff when the config lacks the preset
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
   --scope <tenant|user|none>                Row ownership (sql.scope): tenant (the default), user or none for one shared space
-  --tenant-name <name>                      What a tenant is called (sql.naming.tenant): organization (the default), workspace, team or another lowercase name
+  --tenant-name <name>                      What a tenant is called (blocks.tenant.entities.organization): organization (the default), workspace, team or another lowercase name
   --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
   --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
   --api <none|api>                          API schema (sql.api): none (the default) or api for security invoker wrappers in an api schema
@@ -656,7 +656,7 @@ Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the fra
 Options
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
   --scope <tenant|user|none>                Row ownership (sql.scope): tenant (the default), user or none for one shared space
-  --tenant-name <name>                      What a tenant is called (sql.naming.tenant): organization (the default), workspace, team or another lowercase name
+  --tenant-name <name>                      What a tenant is called (blocks.tenant.entities.organization): organization (the default), workspace, team or another lowercase name
   --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
   --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
   --api <none|api>                          API schema (sql.api): none (the default) or api for security invoker wrappers in an api schema

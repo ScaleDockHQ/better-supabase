@@ -30,17 +30,6 @@ export type BlockScope = "tenant" | "user" | "none";
 
 export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
 
-/** `sql.naming`: how the tenant concept is named in SQL. */
-export interface SqlNaming {
-  /**
-   * The tenant concept's singular name in table, function and column names:
-   * `workspace` turns `organizations` into `workspaces`, `create_organization`
-   * into `create_workspace` and `organization_id` into `workspace_id`.
-   * Lowercase letters, digits and underscores. Defaults to `organization`.
-   */
-  readonly tenant?: "organization" | "workspace" | "team" | (string & {});
-}
-
 /**
  * A new name for one of a block's entities: its singular, an irregular plural
  * and, for an entity the block registers as a subject, the URL of one row with
@@ -319,6 +308,35 @@ export interface AnyBlocksConfig {
 export function asBlocksConfig(blocks: AnyBlocksConfig): BlocksConfig {
   // SAFETY: the config checks in resolveConfig validate every key at runtime.
   return blocks as BlocksConfig;
+}
+
+/**
+ * The tenant's new singular name (`blocks.tenant.entities.organization`), or
+ * `undefined` while it is `organization`. `blocks` may be the config's list of
+ * block names, which renames nothing.
+ */
+export function tenantNameOf(
+  blocks: AnyBlocksConfig | readonly string[] | undefined,
+): string | undefined {
+  if (blocks === undefined || isNameList(blocks)) {
+    return undefined;
+  }
+
+  const entities = blocks["tenant"]?.entities;
+
+  if (entities === undefined || typeof entities === "string") {
+    return undefined;
+  }
+
+  const value = entities["organization"];
+
+  return typeof value === "string" ? value : value?.singular;
+}
+
+function isNameList(
+  blocks: AnyBlocksConfig | readonly string[],
+): blocks is readonly string[] {
+  return Array.isArray(blocks);
 }
 
 /** A module's config with defaults applied. */

@@ -4,17 +4,19 @@ import { defineTransportMiddleware } from "./block-hooks.ts";
 import { tenantNames } from "./entity-naming.ts";
 
 // The block columns that carry the tenant concept in their default name.
-// `sql.naming.tenant` refuses a name that would make one of them collide
-// with a column a block already has, so the map back is unambiguous.
+// `blocks.tenant.entities.organization` refuses a name that would make one of
+// them collide with a column a block already has, so the map back is
+// unambiguous.
 const TENANT_COLUMNS = ["organization_id", "active_organization_id"] as const;
 
 /**
- * How the SQL names the block functions: `sql.naming.tenant` and the
- * `blocks.<name>.functions` maps, merged. `better-supabase gen` writes it to
- * each block's `naming` in `blocks.generated.ts`.
+ * How the SQL names the block functions: the tenant's name
+ * (`blocks.tenant.entities.organization`) and the `blocks.<name>.functions`
+ * maps, merged. `better-supabase gen` writes it to each block's `naming` in
+ * `blocks.generated.ts`.
  */
 export interface BlockNaming {
-  /** `sql.naming.tenant`, such as `workspace`. */
+  /** `blocks.tenant.entities.organization`, such as `workspace`. */
   readonly tenant?: string;
   /** Function name to the name the SQL writes it under. */
   readonly functions?: Readonly<Record<string, string>>;
@@ -24,7 +26,7 @@ export interface BlockNaming {
  * Transport middleware that calls each block function by the name the SQL wrote
  * it under: `create_organization` becomes `create_workspace` with `tenant:
  * "workspace"`, then `functions` renames single functions. Wrap a block's
- * transport with it when the config sets `sql.naming` or
+ * transport with it when the config sets `blocks.<name>.entities` or
  * `blocks.<name>.functions`; `defineBlocks` does it from
  * `blocks.generated.ts`.
  */

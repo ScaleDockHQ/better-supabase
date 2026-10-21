@@ -15,8 +15,8 @@ export interface EntityRename {
   readonly cases?: readonly EntityCase[];
   /**
    * Match only whole identifier segments, so `deal` leaves `ideal` and `dealer`
-   * alone. Defaults to true. The tenant rename sets false: it has renamed
-   * `organization` inside any identifier since `sql.naming.tenant`.
+   * alone. Defaults to true. The tenant rename sets false, so it renames
+   * `organization` inside any identifier, as it always has.
    */
   readonly bounded?: boolean;
 }

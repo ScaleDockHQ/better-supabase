@@ -130,10 +130,10 @@ describe("init prompts", () => {
     );
 
     expect(config).toContain("casing: 'camel'");
+    expect(config).toContain("sql: { api: 'api' },");
     expect(config).toContain(
-      "sql: { api: 'api', naming: { tenant: 'workspace' } },",
+      "blocks: { access: { idType: 'text' }, tenant: { entities: { organization: 'workspace' } } },",
     );
-    expect(config).toContain("blocks: { access: { idType: 'text' } },");
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
   });
 

@@ -30,7 +30,7 @@ describe("CONFIG_DEFAULTS", () => {
     ).toBe(500);
   });
 
-  it("names the tenant column after sql.naming.tenant", () => {
+  it("names the tenant column after the tenant's name", () => {
     expect(
       resolveConfig({ plugins: { tenant: true } }, "/app").plugins,
     ).toEqual(
@@ -38,7 +38,10 @@ describe("CONFIG_DEFAULTS", () => {
     );
     expect(
       resolveConfig(
-        { plugins: { tenant: true }, sql: { naming: { tenant: "workspace" } } },
+        {
+          plugins: { tenant: true },
+          blocks: { tenant: { entities: { organization: "workspace" } } },
+        },
         "/app",
       ).plugins.tenant,
     ).toEqual({ column: "workspace_id" });

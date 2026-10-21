@@ -69,14 +69,14 @@ Side effects: Writes files.
 The convention flags set what [Create](https://app.bettersupabase.com/create)
 sets in its Conventions step, with the same names and defaults:
 
-| Flag            | Config key             | Values                                                             |
-| --------------- | ---------------------- | ------------------------------------------------------------------ |
-| `--casing`      | `casing`               | `snake` (default), `camel`                                         |
-| `--scope`       | `sql.scope`            | `tenant` (default), `user`, `none`                                 |
-| `--tenant-name` | `sql.naming.tenant`    | `organization` (default), `workspace`, `team`, or a lowercase name |
-| `--access`      | `blocks.access.model`  | `roles` (default), `catalog`, `provider`, `custom`                 |
-| `--id-type`     | `blocks.access.idType` | `uuid` (default), `text`, `bigint`, `integer`                      |
-| `--api`         | `sql.api`              | `none` (default), `api`                                            |
+| Flag            | Config key                            | Values                                                             |
+| --------------- | ------------------------------------- | ------------------------------------------------------------------ |
+| `--casing`      | `casing`                              | `snake` (default), `camel`                                         |
+| `--scope`       | `sql.scope`                           | `tenant` (default), `user`, `none`                                 |
+| `--tenant-name` | `blocks.tenant.entities.organization` | `organization` (default), `workspace`, `team`, or a lowercase name |
+| `--access`      | `blocks.access.model`                 | `roles` (default), `catalog`, `provider`, `custom`                 |
+| `--id-type`     | `blocks.access.idType`                | `uuid` (default), `text`, `bigint`, `integer`                      |
+| `--api`         | `sql.api`                             | `none` (default), `api`                                            |
 
 Without `--preset`, `init` asks for each one in a terminal, in Create's
 order: Casing, Row ownership, Tenant name (for tenant scope only), Auth and
@@ -90,7 +90,7 @@ that points you at the `authorization` key.
 With `--preset`, each flag overrides that convention of the preset, and
 `init` writes the changed preset code. A code stores the tenant names Create
 offers (`organization`, `workspace`, `team`), so for another name leave
-`--tenant-name` out and set `sql.naming.tenant` in the config. `apply` takes
+`--tenant-name` out and set `blocks.tenant.entities.organization` in the config. `apply` takes
 the same flags.
 
 ```bash

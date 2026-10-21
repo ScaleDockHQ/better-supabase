@@ -143,10 +143,9 @@ export type {
   BlocksConfig,
   EntitiesConfig,
   EntityConfig,
-  SqlNaming,
 } from "./blocks.ts";
 
-export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
 
 export type * from "./snapshot.ts";
 

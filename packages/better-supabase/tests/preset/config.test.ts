@@ -109,7 +109,7 @@ describe("expandPreset", () => {
 });
 
 describe("conventions", () => {
-  it("write sql.scope and sql.naming when they differ from the defaults", () => {
+  it("write sql.scope and the tenant name when they differ from the defaults", () => {
     const user = expandPreset({
       preset: encodePreset({ blocks: ["tags"], scope: "user" }),
     });
@@ -125,9 +125,9 @@ describe("conventions", () => {
       }),
     });
 
-    expect(workspace.sql).toEqual({
-      api: "api",
-      naming: { tenant: "workspace" },
+    expect(workspace.sql).toEqual({ api: "api" });
+    expect(workspace.blocks).toMatchObject({
+      tenant: { entities: { organization: "workspace" } },
     });
     expect(expandPreset({ preset: "minimal" }).sql).toBeUndefined();
   });

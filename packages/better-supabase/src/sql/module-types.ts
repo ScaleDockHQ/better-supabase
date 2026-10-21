@@ -9,7 +9,6 @@ import type {
   BlockScope,
   DisabledRow,
   BlockMode,
-  SqlNaming,
 } from "../config/blocks.ts";
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
@@ -292,8 +291,6 @@ export interface ModuleLayout {
   readonly modules?: AnyBlocksConfig;
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
   readonly scope?: BlockScope;
-  /** `sql.naming`: the tenant concept's name in tables, functions and columns. */
-  readonly naming?: SqlNaming;
   /** `config.subjects`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /**

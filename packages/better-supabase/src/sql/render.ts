@@ -6,6 +6,7 @@ import type {
 } from "./context.ts";
 import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
+import { tenantNameOf } from "../config/blocks.ts";
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
@@ -222,14 +223,14 @@ export function renderModules(
 }
 
 /**
- * Throws when `sql.naming.tenant` gives a renamed table or column a name a
- * module already uses.
+ * Throws when `blocks.tenant.entities.organization` gives a renamed table or
+ * column a name a module already uses.
  */
 function checkTenantName(
   modules: readonly SqlModule[],
   layout: ModuleLayout,
 ): void {
-  const tenant = layout.naming?.tenant;
+  const tenant = tenantNameOf(layout.modules);
 
   if (tenant === undefined) {
     return;
@@ -243,7 +244,7 @@ function checkTenantName(
     }
 
     throw new TypeError(
-      `sql.naming.tenant: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
+      `blocks.tenant.entities.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
   }
 }

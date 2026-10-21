@@ -39,7 +39,8 @@ function column(where: string, value: unknown): string {
 /**
  * `config.subjects`, checked: every entry with its table split and quoted. A
  * subject without `tenant` gets the tenant column `naming` names
- * (`organization_id`, or `workspace_id` for `sql.naming.tenant: workspace`).
+ * (`organization_id`, or `workspace_id` for
+ * `blocks.tenant.entities.organization: workspace`).
  */
 export function registeredSubjects(
   subjects: SubjectsConfig,

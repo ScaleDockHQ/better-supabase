@@ -46,11 +46,11 @@ describe("blocks.generated.ts", () => {
     });
   });
 
-  it("writes the function names sql.naming and blocks.<name>.functions give", () => {
+  it("writes the function names the tenant name and blocks.<name>.functions give", () => {
     const config = resolveConfig(
       {
-        sql: { naming: { tenant: "workspace" } },
         blocks: {
+          tenant: { entities: { organization: "workspace" } },
           organizations: {},
           tags: { functions: { create_tag: "make_tag" } },
           access: {

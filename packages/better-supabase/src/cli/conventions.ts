@@ -49,7 +49,7 @@ export const CONVENTION_ARGS: {
   "tenant-name": {
     type: "string",
     description:
-      "What a tenant is called (sql.naming.tenant): organization (the default), workspace, team or another lowercase name",
+      "What a tenant is called (blocks.tenant.entities.organization): organization (the default), workspace, team or another lowercase name",
     valueHint: "name",
   },
   access: arg(
@@ -151,7 +151,7 @@ export function withConventions(
     ) {
       throw new CliError(
         "usage",
-        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set sql.naming.tenant in the config for another name.`,
+        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set blocks.tenant.entities.organization in the config for another name.`,
       );
     }
 
