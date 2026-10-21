@@ -20,6 +20,7 @@ import {
   resolveModule,
   resolveModules,
 } from "../../sql/index.ts";
+import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { prop, q } from "./shared.ts";
 
@@ -359,7 +360,14 @@ function pascal(name: string): string {
 export function emitBlockConfig(
   config: Pick<
     ResolvedConfig,
-    "appTables" | "blocks" | "blockNames" | "output" | "sql"
+    | "appTables"
+    | "blocks"
+    | "blockNames"
+    | "buckets"
+    | "casing"
+    | "output"
+    | "sql"
+    | "subjects"
   >,
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
@@ -371,6 +379,7 @@ export function emitBlockConfig(
   const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
+  const constants = nameConstantLines(config, entries);
 
   const specifiers = [
     ...(events.length === 0
@@ -378,6 +387,7 @@ export function emitBlockConfig(
       : ["type AppTableEventData", "defineEvents", "event"]),
     "type GeneratedBlocks",
     ...renamed.specifiers,
+    ...constants.specifiers,
   ].toSorted((a, b) =>
     a.replace("type ", "").localeCompare(b.replace("type ", "")),
   );
@@ -394,6 +404,7 @@ export function emitBlockConfig(
       "",
       blocksImport,
       ...renamed.imports,
+      ...constants.imports,
       "",
       "/**",
       " * The installed blocks' settings from the `blocks` config, for",
@@ -403,6 +414,7 @@ export function emitBlockConfig(
       `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
       ...renamed.lines,
       ...appTableEventLines(events),
+      ...constants.lines,
       "",
     ].join("\n"),
   };

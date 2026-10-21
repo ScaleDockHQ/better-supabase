@@ -28,6 +28,8 @@ export { moduleVersion } from "./module-types.ts";
 
 export { resolveModules, SQL_MODULES } from "./registry.ts";
 
+export { DEFAULT_ROLES } from "./modules/access-model.ts";
+
 export {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,

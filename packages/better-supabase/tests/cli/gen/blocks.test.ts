@@ -121,6 +121,7 @@ describe("blocks.generated.ts", () => {
 
     expect(contents).toContain(
       `import {
+  type Events,
   type GeneratedBlocks,
   renameBlock,
   type RenamedEvents,
@@ -146,6 +147,45 @@ describe("blocks.generated.ts", () => {
     expect(contents).not.toContain("TasksOptions");
   });
 
+  it("writes typed name constants for permissions, roles, events and keys", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: { roles: { owner: ["*"], editor: ["tasks.write"] } },
+          notifications: {},
+          "work-items": { entities: { work_item: "task" } },
+          settings: {
+            options: { schemas: { user: { theme: { type: "string" } } } },
+          },
+          usage: { options: { meters: { seats: { aggregate: "count" } } } },
+        },
+        buckets: { avatars: { path: "{userId}/{name}" } },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain("export const permissions = {");
+    expect(contents).toContain('    write: "tasks.write",');
+    expect(contents).toMatch(
+      /export type PermissionKey = [^;]*"tasks\.write"/u,
+    );
+    expect(contents).toContain('export type RoleName = "editor" | "owner";');
+    expect(contents).toContain(
+      "export const blockEvents: Events<BlockEvents> = {",
+    );
+    expect(contents).toContain('    "task.created",');
+    expect(contents).not.toContain('"work_item.created"');
+    expect(contents).toMatch(/export type BlockEvents = [^;]*TasksEvents/u);
+    expect(contents).toContain("export const topics = {");
+    expect(contents).toMatch(/notifications:\$\{String\(v\.userId\)\}/u);
+    expect(contents).toContain("export const paths = {");
+    expect(contents).toContain('export type SettingKey = "theme";');
+    expect(contents).toContain('export type MeterName = "seats";');
+  });
+
   it("leaves out tenant and access in user scope", () => {
     const entries = blockConfigEntries(
       resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),
@@ -165,7 +205,7 @@ describe("blocks.generated.ts", () => {
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");
     expect(file?.contents).toContain(
-      'import type { GeneratedBlocks } from "better-supabase/blocks";',
+      'import {\n  type Events,\n  type GeneratedBlocks,\n} from "better-supabase/blocks";',
     );
     expect(file?.contents).toContain(
       `  attachments: {

@@ -2280,7 +2280,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/access-requests"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AccessRequestsEvents",
+        "types": [
+          "access.requested",
+          "access.request_approved",
+          "access.ended"
+        ]
+      }
     },
     {
       "name": "actor",
@@ -2303,7 +2311,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/agents"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AgentsEvents",
+        "types": [
+          "agent.saved",
+          "agent.published",
+          "agent.deleted",
+          "agent.installed",
+          "agent.uninstalled"
+        ]
+      }
     },
     {
       "name": "ai-cache",
@@ -2329,7 +2347,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-chat"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AiChatEvents",
+        "types": [
+          "ai_tool_policy.set",
+          "ai_tool_approval.decided",
+          "ai_chat_message.completed",
+          "ai_chat.shared",
+          "ai_chat.share_revoked"
+        ]
+      }
     },
     {
       "name": "ai-files",
@@ -2357,7 +2385,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-providers"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AiProvidersEvents",
+        "types": [
+          "ai_provider_key.saved",
+          "ai_provider_key.deleted"
+        ]
+      }
     },
     {
       "name": "ai-tasks",
@@ -2385,7 +2420,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/announcements"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AnnouncementsEvents",
+        "types": [
+          "announcement.saved",
+          "announcement.deleted"
+        ]
+      }
     },
     {
       "name": "api-keys",
@@ -2398,7 +2440,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/api-keys"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ApiKeysEvents",
+        "types": [
+          "api_key.created",
+          "api_key.revoked",
+          "api_key.rotated"
+        ]
+      }
     },
     {
       "name": "approvals",
@@ -2411,7 +2461,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/approvals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ApprovalsEvents",
+        "types": [
+          "approval.requested",
+          "approval.approved",
+          "approval.rejected",
+          "approval.cancelled",
+          "approval.expired",
+          "approval.delegated"
+        ]
+      }
     },
     {
       "name": "attachments",
@@ -2426,7 +2487,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "attachments"
-      ]
+      ],
+      "events": {
+        "type": "AttachmentsEvents",
+        "types": [
+          "object.uploaded",
+          "attachment.uploaded",
+          "attachment.scanned"
+        ]
+      }
     },
     {
       "name": "audit",
@@ -2439,7 +2508,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/audit"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "AuditEvents",
+        "types": [
+          "audit.revealed"
+        ]
+      }
     },
     {
       "name": "billing",
@@ -2452,7 +2527,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/billing"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BillingEvents",
+        "types": [
+          "billing.customer_linked",
+          "billing.checkout_completed",
+          "billing.subscription_created",
+          "billing.subscription_updated",
+          "billing.subscription_deleted",
+          "billing.seats_synced"
+        ]
+      }
     },
     {
       "name": "bookings",
@@ -2465,7 +2551,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/bookings"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BookingsEvents",
+        "types": [
+          "booking.reserved",
+          "booking.confirmed",
+          "booking.cancelled",
+          "booking.expired"
+        ]
+      }
     },
     {
       "name": "bulk",
@@ -2478,7 +2573,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/bulk"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "BulkEvents",
+        "types": [
+          "bulk_run.completed"
+        ]
+      }
     },
     {
       "name": "calendar",
@@ -2491,7 +2592,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/calendar"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CalendarEvents",
+        "types": [
+          "calendar.created",
+          "calendar_event.created",
+          "calendar_event.updated",
+          "calendar_event.deleted"
+        ]
+      }
     },
     {
       "name": "catalog",
@@ -2518,7 +2628,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "SavedProduct"
         }
-      ]
+      ],
+      "events": {
+        "type": "CatalogEvents",
+        "types": [
+          "product.created",
+          "product.updated",
+          "product.status_changed",
+          "product.deleted",
+          "variant.created",
+          "variant.updated",
+          "variant.deleted",
+          "catalog.price_changed",
+          "storefront.published",
+          "storefront.unpublished"
+        ]
+      }
     },
     {
       "name": "collections",
@@ -2531,7 +2656,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/collections"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CollectionsEvents",
+        "types": [
+          "collection.created",
+          "collection.archived",
+          "collection.entry_added",
+          "collection.entry_removed"
+        ]
+      }
     },
     {
       "name": "comments",
@@ -2544,7 +2678,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/comments"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CommentsEvents",
+        "types": [
+          "comment.created",
+          "comment.mentioned",
+          "comment.deleted"
+        ]
+      }
     },
     {
       "name": "connectors",
@@ -2557,7 +2699,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/connectors"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ConnectorsEvents",
+        "types": [
+          "connector.saved",
+          "connector.deleted",
+          "connector.fingerprint_decided",
+          "connector_grant.created",
+          "connector_grant.revoked"
+        ]
+      }
     },
     {
       "name": "credentials",
@@ -2580,7 +2732,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/custom-fields"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "CustomFieldsEvents",
+        "types": [
+          "custom_field.saved",
+          "custom_field.deleted",
+          "field_value.set"
+        ]
+      }
     },
     {
       "name": "data-lifecycle",
@@ -2593,7 +2753,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/data-lifecycle"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DataLifecycleEvents",
+        "types": [
+          "data_export.requested",
+          "data_export.completed",
+          "data_export.failed",
+          "organization.deletion_requested",
+          "organization.deletion_cancelled",
+          "organization.purged",
+          "legal_hold.placed",
+          "legal_hold.released"
+        ]
+      }
     },
     {
       "name": "deals",
@@ -2656,7 +2829,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "DealTotals"
         }
-      ]
+      ],
+      "events": {
+        "type": "DealsEvents",
+        "types": [
+          "deal.created",
+          "deal.updated",
+          "deal.closed",
+          "deal.reopened",
+          "deal.archived",
+          "deal.deleted"
+        ]
+      }
     },
     {
       "name": "documents",
@@ -2669,7 +2853,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/documents"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DocumentsEvents",
+        "types": [
+          "document.created"
+        ]
+      }
     },
     {
       "name": "domains",
@@ -2682,7 +2872,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/domains"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DomainsEvents",
+        "types": [
+          "hostname.added",
+          "hostname.verified",
+          "hostname.primary_set",
+          "hostname.removed"
+        ]
+      }
     },
     {
       "name": "reviews",
@@ -2695,7 +2894,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/reviews"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ReviewsEvents",
+        "types": [
+          "review.submitted",
+          "review.published",
+          "review.rejected",
+          "review.replied",
+          "review.deleted"
+        ]
+      }
     },
     {
       "name": "leave",
@@ -2708,7 +2917,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/leave"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "LeaveEvents",
+        "types": [
+          "leave.requested",
+          "leave.approved",
+          "leave.cancelled",
+          "leave.adjusted"
+        ]
+      }
     },
     {
       "name": "drive",
@@ -2724,7 +2942,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "attachments": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "DriveEvents",
+        "types": [
+          "drive.node_created",
+          "drive.node_renamed",
+          "drive.node_moved",
+          "drive.node_shared",
+          "drive.node_unshared",
+          "drive.node_purged"
+        ]
+      }
     },
     {
       "name": "employees",
@@ -2769,7 +2998,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "EmployeeStatus"
         }
-      ]
+      ],
+      "events": {
+        "type": "EmployeesEvents",
+        "types": [
+          "employee.created",
+          "employee.updated",
+          "employee.offboarded",
+          "employee.manager_changed"
+        ]
+      }
     },
     {
       "name": "engagements",
@@ -2782,7 +3020,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/engagements"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "EngagementsEvents",
+        "types": [
+          "engagement.logged",
+          "engagement.updated",
+          "engagement.completed",
+          "engagement.deleted"
+        ]
+      }
     },
     {
       "name": "ensure-rls",
@@ -2818,7 +3065,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/flags"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "FlagsEvents",
+        "types": [
+          "flag.saved",
+          "flag.deleted",
+          "flag.override_set"
+        ]
+      }
     },
     {
       "name": "forms",
@@ -2831,7 +3086,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/forms"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "FormsEvents",
+        "types": [
+          "form.created",
+          "form_version.published",
+          "form_submission.submitted",
+          "form_submission.reviewed",
+          "form_submission.deleted"
+        ]
+      }
     },
     {
       "name": "signatures",
@@ -2844,7 +3109,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/forms"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SignaturesEvents",
+        "types": [
+          "signature.requested",
+          "signature.signed",
+          "signature.completed",
+          "signature.declined",
+          "signature.cancelled"
+        ]
+      }
     },
     {
       "name": "grants",
@@ -2867,7 +3142,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/hiring"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "HiringEvents",
+        "types": [
+          "job.opened",
+          "job.closed",
+          "application.created",
+          "application.hired",
+          "application.rejected",
+          "application.retracted",
+          "scorecard.submitted",
+          "interview.scheduled"
+        ]
+      }
     },
     {
       "name": "identities",
@@ -2893,7 +3181,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/imports"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ImportsEvents",
+        "types": [
+          "import.completed",
+          "import.failed"
+        ]
+      }
     },
     {
       "name": "inbox",
@@ -2907,7 +3202,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/inbox"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InboxEvents",
+        "types": [
+          "inbox_conversation.opened",
+          "inbox_conversation.assigned",
+          "inbox_conversation.resolved",
+          "inbox_conversation.reopened",
+          "inbox_message.received"
+        ]
+      }
     },
     {
       "name": "inventory",
@@ -2920,7 +3225,23 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/inventory"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InventoryEvents",
+        "types": [
+          "stock.adjusted",
+          "stock.reorder_point_reached",
+          "reservation.created",
+          "reservation.committed",
+          "reservation.released",
+          "transfer.shipped",
+          "transfer.received",
+          "transfer.cancelled",
+          "purchase_order.placed",
+          "purchase_order.received",
+          "purchase_order.cancelled"
+        ]
+      }
     },
     {
       "name": "invoices",
@@ -2933,7 +3254,19 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/invoices"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "InvoicesEvents",
+        "types": [
+          "invoice.created",
+          "invoice.issued",
+          "invoice.payment_recorded",
+          "invoice.paid",
+          "invoice.credited",
+          "invoice.voided",
+          "invoice.uncollected"
+        ]
+      }
     },
     {
       "name": "idempotency",
@@ -3063,7 +3396,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "notifier"
-      ]
+      ],
+      "events": {
+        "type": "NotificationsEvents",
+        "types": [
+          "notification.created",
+          "notification.delivered",
+          "notification.failed",
+          "notification.opened",
+          "notification.clicked",
+          "notification.bounced",
+          "notification.complained",
+          "notification.delayed"
+        ]
+      }
     },
     {
       "name": "number-sequences",
@@ -3076,7 +3422,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/number-sequences"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "NumberSequencesEvents",
+        "types": [
+          "number.assigned"
+        ]
+      }
     },
     {
       "name": "oauth-server",
@@ -3115,7 +3467,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/orders"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OrdersEvents",
+        "types": [
+          "order.placed",
+          "order.paid",
+          "order.cancelled",
+          "order.fulfilled",
+          "order.completed",
+          "order.refunded",
+          "fulfillment.shipped",
+          "fulfillment.delivered",
+          "return.requested",
+          "return.received"
+        ]
+      }
     },
     {
       "name": "organizations",
@@ -3129,7 +3496,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/organizations"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OrganizationsEvents",
+        "types": [
+          "organization.created",
+          "organization.updated",
+          "organization.deleted",
+          "organization.member_added",
+          "organization.member_removed",
+          "organization.member_left",
+          "organization.member_suspended",
+          "organization.member_resumed",
+          "organization.role_changed",
+          "organization.ownership_transferred",
+          "organization.switched",
+          "invitation.created",
+          "invitation.resent",
+          "invitation.updated",
+          "invitation.accepted",
+          "invitation.declined",
+          "invitation.revoked"
+        ]
+      }
     },
     {
       "name": "outbox",
@@ -3174,7 +3563,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "PersonInput"
         }
-      ]
+      ],
+      "events": {
+        "type": "PartiesEvents",
+        "types": [
+          "company.created",
+          "company.updated",
+          "company.archived",
+          "company.merged",
+          "company.person_linked",
+          "company.person_unlinked",
+          "person.created",
+          "person.updated",
+          "person.archived",
+          "person.merged"
+        ]
+      }
     },
     {
       "name": "pgtap",
@@ -3197,7 +3601,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/pipelines"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PipelinesEvents",
+        "types": [
+          "pipeline.created",
+          "pipeline.updated",
+          "pipeline.archived",
+          "pipeline_stage.saved",
+          "pipeline_stage.archived",
+          "pipeline.stage_changed"
+        ]
+      }
     },
     {
       "name": "profiles",
@@ -3223,7 +3638,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/promotions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PromotionsEvents",
+        "types": [
+          "promotion.redeemed"
+        ]
+      }
     },
     {
       "name": "push",
@@ -3236,7 +3657,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/push"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "PushEvents",
+        "types": [
+          "push.device_registered",
+          "push.device_unregistered"
+        ]
+      }
     },
     {
       "name": "quotes",
@@ -3249,7 +3677,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/quotes"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "QuotesEvents",
+        "types": [
+          "quote.created",
+          "quote.updated",
+          "quote.sent",
+          "quote.viewed",
+          "quote.accepted",
+          "quote.rejected",
+          "quote.changes_requested",
+          "quote.expired",
+          "quote.revised"
+        ]
+      }
     },
     {
       "name": "rank",
@@ -3275,7 +3717,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/reactions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ReactionsEvents",
+        "types": [
+          "reaction.added",
+          "reaction.removed"
+        ]
+      }
     },
     {
       "name": "read-sets",
@@ -3308,7 +3757,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/relations"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RelationsEvents",
+        "types": [
+          "subject.linked",
+          "subject.unlinked"
+        ]
+      }
     },
     {
       "name": "reminders",
@@ -3323,7 +3779,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "notifier": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RemindersEvents",
+        "types": [
+          "reminder.sent"
+        ]
+      }
     },
     {
       "name": "reserved-slugs",
@@ -3346,7 +3808,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/rules"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "RulesEvents",
+        "types": [
+          "rule.saved",
+          "rule.enabled",
+          "rule.disabled",
+          "rule.removed",
+          "rule.matched"
+        ]
+      }
     },
     {
       "name": "vercel-marketplace",
@@ -3359,7 +3831,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/vercel-marketplace"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "VercelMarketplaceEvents",
+        "types": [
+          "marketplace_installation.upserted",
+          "marketplace_installation.removed",
+          "marketplace_invoice.state_changed"
+        ]
+      }
     },
     {
       "name": "saved-views",
@@ -3372,7 +3852,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/saved-views"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SavedViewsEvents",
+        "types": [
+          "saved_view.saved",
+          "saved_view.deleted"
+        ]
+      }
     },
     {
       "name": "search",
@@ -3400,7 +3887,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/service-principals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ServicePrincipalsEvents",
+        "types": [
+          "service_principal.created",
+          "service_principal.role_changed",
+          "service_principal.disabled"
+        ]
+      }
     },
     {
       "name": "sessions",
@@ -3423,7 +3918,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/settings"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SettingsEvents",
+        "types": [
+          "organization_setting.updated",
+          "organization_setting.reset",
+          "platform_setting.updated",
+          "platform_setting.reset"
+        ]
+      }
     },
     {
       "name": "share-links",
@@ -3436,7 +3940,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/share-links"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ShareLinksEvents",
+        "types": [
+          "share_link.created",
+          "share_link.revoked",
+          "subject.viewed"
+        ]
+      }
     },
     {
       "name": "shared-signals",
@@ -3449,7 +3961,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/shared-signals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SharedSignalsEvents",
+        "types": [
+          "ssf_stream.created",
+          "ssf_stream.status_changed",
+          "ssf_stream.deleted"
+        ]
+      }
     },
     {
       "name": "signing-keys",
@@ -3462,7 +3982,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/signing-keys"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SigningKeysEvents",
+        "types": [
+          "signing_key.created",
+          "signing_key.retired"
+        ]
+      }
     },
     {
       "name": "sla",
@@ -3475,7 +4002,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/sla"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SlaEvents",
+        "types": [
+          "sla.warned",
+          "sla.breached",
+          "sla.completed"
+        ]
+      }
     },
     {
       "name": "sso",
@@ -3488,7 +4023,25 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/sso"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SsoEvents",
+        "types": [
+          "organization.member_added",
+          "organization.member_removed",
+          "organization.role_changed",
+          "organization.domain_added",
+          "organization.domain_updated",
+          "organization.domain_verified",
+          "organization.domain_removed",
+          "sso_provider.registered",
+          "sso_provider.unregistered",
+          "scim_user.saved",
+          "scim_user.deleted",
+          "scim_group.saved",
+          "scim_group.deleted"
+        ]
+      }
     },
     {
       "name": "state-machine",
@@ -3501,7 +4054,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/state-machine"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "StateMachineEvents",
+        "types": [
+          "status.changed",
+          "status.paused",
+          "status.resumed",
+          "status.flagged"
+        ]
+      }
     },
     {
       "name": "streams",
@@ -3544,7 +4106,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/tags"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TagsEvents",
+        "types": [
+          "tag.created",
+          "tag.updated",
+          "tag.deleted",
+          "subject.tagged",
+          "subject.untagged"
+        ]
+      }
     },
     {
       "name": "targets",
@@ -3570,7 +4142,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/teams"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TeamsEvents",
+        "types": [
+          "team.created",
+          "team.updated",
+          "team.archived",
+          "team.deleted",
+          "team_member.added",
+          "team_member.removed"
+        ]
+      }
     },
     {
       "name": "templates",
@@ -3583,7 +4166,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/templates"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TemplatesEvents",
+        "types": [
+          "template.published",
+          "template.applied"
+        ]
+      }
     },
     {
       "name": "tenant",
@@ -3606,7 +4196,19 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/time-tracking"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TimeTrackingEvents",
+        "types": [
+          "time_entry.started",
+          "time_entry.recorded",
+          "time_entry.updated",
+          "time_entry.deleted",
+          "timesheet.submitted",
+          "timesheet.approved",
+          "timesheet.reopened"
+        ]
+      }
     },
     {
       "name": "trash",
@@ -3619,7 +4221,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/trash"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "TrashEvents",
+        "types": [
+          "subject.trashed",
+          "subject.restored",
+          "subject.purged"
+        ]
+      }
     },
     {
       "name": "undo",
@@ -3676,7 +4286,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/versions"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "VersionsEvents",
+        "types": [
+          "version.created",
+          "version.restored",
+          "version.deleted"
+        ]
+      }
     },
     {
       "name": "waitlist",
@@ -3689,7 +4307,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/waitlist"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WaitlistEvents",
+        "types": [
+          "organization.member_added",
+          "waitlist.approved",
+          "waitlist.rejected",
+          "invite_code.created",
+          "invite_code.revoked"
+        ]
+      }
     },
     {
       "name": "incoming-webhooks",
@@ -3702,7 +4330,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/webhooks"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "IncomingWebhooksEvents",
+        "types": [
+          "incoming_webhook.created",
+          "incoming_webhook.updated",
+          "incoming_webhook.enabled_set",
+          "incoming_webhook.token_rotated",
+          "incoming_webhook.secret_rotated",
+          "incoming_webhook.deleted"
+        ]
+      }
     },
     {
       "name": "webhooks",
@@ -3715,7 +4354,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/webhooks"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WebhooksEvents",
+        "types": [
+          "webhook.delivered",
+          "webhook.failed",
+          "webhook.disabled",
+          "webhook.secret_rotated"
+        ]
+      }
     },
     {
       "name": "work-items",
@@ -4072,6 +4720,18 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "WorkItemsEvents",
+        "types": [
+          "work_item.created",
+          "work_item.updated",
+          "work_item.assigned",
+          "work_item.closed",
+          "work_item.reopened",
+          "work_item.archived",
+          "work_item.deleted"
+        ]
       }
     },
     {
@@ -4087,7 +4747,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "workflows": "optional"
       },
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "WorkflowBuilderEvents",
+        "types": [
+          "workflow.published",
+          "workflow_alert.triggered"
+        ]
+      }
     },
     {
       "name": "workflow-sdk-world",
@@ -4112,7 +4779,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "workflows"
-      ]
+      ],
+      "events": {
+        "type": "WorkflowsEvents",
+        "types": [
+          "workflow_run.completed",
+          "workflow_run.failed",
+          "workflow_run.cancelled"
+        ]
+      }
     }
   ],
   "glue": [

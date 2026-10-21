@@ -504,9 +504,24 @@ function presetManifest(
   const typed =
     entityTypes.length === 0 ? manifest : { ...manifest, entityTypes };
 
-  return Object.keys(entitySchemas).length === 0
-    ? typed
-    : { ...typed, entitySchemas };
+  const withSchemas =
+    Object.keys(entitySchemas).length === 0
+      ? typed
+      : { ...typed, entitySchemas };
+
+  const eventsType = `${block.name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("")}Events`;
+
+  return manifest.client !== null &&
+    block.events.types.length > 0 &&
+    (types.get(subpath) ?? []).includes(eventsType)
+    ? {
+        ...withSchemas,
+        events: { type: eventsType, types: [...block.events.types] },
+      }
+    : withSchemas;
 }
 
 const PORT_NAMES: readonly PortName[] = [

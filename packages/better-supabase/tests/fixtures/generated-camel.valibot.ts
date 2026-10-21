@@ -462,3 +462,51 @@ export const validators: {
   tags: { insert: tagsInsert, update: tagsUpdate },
   tasks: { insert: tasksInsert, update: tasksUpdate },
 };
+
+export const appTableSetArgs: v.GenericSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = v.pipe(v.object({
+  args: json,
+  subject_id: v.string(),
+  subject_type: v.string(),
+  tenant: v.pipe(v.string(), v.uuid()),
+}), v.title("app_table_set arguments"));
+
+export const customerNoteCountsArgs: v.GenericSchema<{ p_customer_ids?: string[] }> = v.pipe(v.object({
+  p_customer_ids: v.exactOptional(v.array(v.pipe(v.string(), v.uuid()))),
+}), v.title("customer_note_counts arguments"));
+
+export const customersByStatusArgs: v.GenericSchema<{ p_limit?: number; p_status: string }> = v.pipe(v.object({
+  p_limit: v.exactOptional(v.pipe(v.number(), v.integer())),
+  p_status: v.string(),
+}), v.title("customers_by_status arguments"));
+
+export const organizationInvitationsArgs: v.GenericSchema<{ organization: string }> = v.pipe(v.object({
+  organization: v.pipe(v.string(), v.uuid()),
+}), v.title("organization_invitations arguments"));
+
+export const organizationMembersArgs: v.GenericSchema<{ organization: string }> = v.pipe(v.object({
+  organization: v.pipe(v.string(), v.uuid()),
+}), v.title("organization_members arguments"));
+
+export const rsWorkspaceSummaryArgs: v.GenericSchema<{ p: Json }> = v.pipe(v.object({
+  p: json,
+}), v.title("rs_workspace_summary arguments"));
+
+export const searchNotesArgs: v.GenericSchema<{ k?: number; query: string }> = v.pipe(v.object({
+  k: v.exactOptional(v.pipe(v.number(), v.integer())),
+  query: v.string(),
+}), v.title("search_notes arguments"));
+
+export const searchNotesScoresArgs: v.GenericSchema<{ k?: number; query: string }> = v.pipe(v.object({
+  k: v.exactOptional(v.pipe(v.number(), v.integer())),
+  query: v.string(),
+}), v.title("search_notes_scores arguments"));
+
+export const setMyAvatarPathArgs: v.GenericSchema<{ avatar_path: string }> = v.pipe(v.object({
+  avatar_path: v.string(),
+}), v.title("set_my_avatar_path arguments"));
+
+export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pipe(v.object({
+  full_name: v.string(),
+}), v.title("update_my_profile arguments"));
+
+export const rsWorkspaceSummaryResult: v.GenericSchema<Json> = json;

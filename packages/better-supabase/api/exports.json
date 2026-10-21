@@ -7804,6 +7804,7 @@
       "customContracts",
       "dataExportPlan",
       "declaredTables",
+      "DEFAULT_ROLES",
       "entityRenameChanges",
       "excludedColumns",
       "expiredFlagsQuery",

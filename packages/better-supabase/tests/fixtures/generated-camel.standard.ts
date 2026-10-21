@@ -2,7 +2,7 @@
 
 import { type TableSchema, tableSchema } from "../../src/index.ts";
 
-import type { InsertOf, RowOf, UpdateOf } from "./generated-camel.ts";
+import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
 export const contactsRow: TableSchema<RowOf<'contacts'>> = tableSchema({
   title: "Contacts",
@@ -623,3 +623,79 @@ export const validators: {
   tags: { insert: tagsInsert, update: tagsUpdate },
   tasks: { insert: tasksInsert, update: tasksUpdate },
 };
+
+export const appTableSetArgs: TableSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = tableSchema({
+  title: "app_table_set arguments",
+  fields: {
+    args: {"kind":"json"},
+    subject_id: {"kind":"string"},
+    subject_type: {"kind":"string"},
+    tenant: {"kind":"uuid"},
+  },
+});
+
+export const customerNoteCountsArgs: TableSchema<{ p_customer_ids?: string[] }> = tableSchema({
+  title: "customer_note_counts arguments",
+  fields: {
+    p_customer_ids: {"kind":"uuid","array":true,"optional":true},
+  },
+});
+
+export const customersByStatusArgs: TableSchema<{ p_limit?: number; p_status: string }> = tableSchema({
+  title: "customers_by_status arguments",
+  fields: {
+    p_limit: {"kind":"integer","optional":true},
+    p_status: {"kind":"string"},
+  },
+});
+
+export const organizationInvitationsArgs: TableSchema<{ organization: string }> = tableSchema({
+  title: "organization_invitations arguments",
+  fields: {
+    organization: {"kind":"uuid"},
+  },
+});
+
+export const organizationMembersArgs: TableSchema<{ organization: string }> = tableSchema({
+  title: "organization_members arguments",
+  fields: {
+    organization: {"kind":"uuid"},
+  },
+});
+
+export const rsWorkspaceSummaryArgs: TableSchema<{ p: Json }> = tableSchema({
+  title: "rs_workspace_summary arguments",
+  fields: {
+    p: {"kind":"json"},
+  },
+});
+
+export const searchNotesArgs: TableSchema<{ k?: number; query: string }> = tableSchema({
+  title: "search_notes arguments",
+  fields: {
+    k: {"kind":"integer","optional":true},
+    query: {"kind":"string"},
+  },
+});
+
+export const searchNotesScoresArgs: TableSchema<{ k?: number; query: string }> = tableSchema({
+  title: "search_notes_scores arguments",
+  fields: {
+    k: {"kind":"integer","optional":true},
+    query: {"kind":"string"},
+  },
+});
+
+export const setMyAvatarPathArgs: TableSchema<{ avatar_path: string }> = tableSchema({
+  title: "set_my_avatar_path arguments",
+  fields: {
+    avatar_path: {"kind":"string"},
+  },
+});
+
+export const updateMyProfileArgs: TableSchema<{ full_name: string }> = tableSchema({
+  title: "update_my_profile arguments",
+  fields: {
+    full_name: {"kind":"string"},
+  },
+});

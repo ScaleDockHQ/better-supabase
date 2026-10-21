@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { InsertOf, RowOf, UpdateOf } from "./generated-camel.ts";
+import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
 export const contactsRow: z.ZodType<RowOf<'contacts'>> = z.object({
   id: z.guid(),
@@ -458,3 +458,51 @@ export const validators: {
   tags: { insert: tagsInsert, update: tagsUpdate },
   tasks: { insert: tasksInsert, update: tasksUpdate },
 };
+
+export const appTableSetArgs: z.ZodType<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = z.object({
+  args: z.json(),
+  subject_id: z.string(),
+  subject_type: z.string(),
+  tenant: z.guid(),
+}).meta({ title: "app_table_set arguments" });
+
+export const customerNoteCountsArgs: z.ZodType<{ p_customer_ids?: string[] }> = z.object({
+  p_customer_ids: z.array(z.guid()).exactOptional(),
+}).meta({ title: "customer_note_counts arguments" });
+
+export const customersByStatusArgs: z.ZodType<{ p_limit?: number; p_status: string }> = z.object({
+  p_limit: z.int().exactOptional(),
+  p_status: z.string(),
+}).meta({ title: "customers_by_status arguments" });
+
+export const organizationInvitationsArgs: z.ZodType<{ organization: string }> = z.object({
+  organization: z.guid(),
+}).meta({ title: "organization_invitations arguments" });
+
+export const organizationMembersArgs: z.ZodType<{ organization: string }> = z.object({
+  organization: z.guid(),
+}).meta({ title: "organization_members arguments" });
+
+export const rsWorkspaceSummaryArgs: z.ZodType<{ p: Json }> = z.object({
+  p: z.json(),
+}).meta({ title: "rs_workspace_summary arguments" });
+
+export const searchNotesArgs: z.ZodType<{ k?: number; query: string }> = z.object({
+  k: z.int().exactOptional(),
+  query: z.string(),
+}).meta({ title: "search_notes arguments" });
+
+export const searchNotesScoresArgs: z.ZodType<{ k?: number; query: string }> = z.object({
+  k: z.int().exactOptional(),
+  query: z.string(),
+}).meta({ title: "search_notes_scores arguments" });
+
+export const setMyAvatarPathArgs: z.ZodType<{ avatar_path: string }> = z.object({
+  avatar_path: z.string(),
+}).meta({ title: "set_my_avatar_path arguments" });
+
+export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
+  full_name: z.string(),
+}).meta({ title: "update_my_profile arguments" });
+
+export const rsWorkspaceSummaryResult: z.ZodType<Json> = z.json();

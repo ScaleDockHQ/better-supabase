@@ -68,6 +68,14 @@ export interface PresetCatalogManifest {
    * Standard Schemas the block exports.
    */
   readonly entitySchemas?: Readonly<Record<string, PresetCatalogEntitySchemas>>;
+  /**
+   * The block's events: the event map type its subpath exports and the event
+   * types, in its default names.
+   */
+  readonly events?: {
+    readonly type: string;
+    readonly types: readonly string[];
+  };
 }
 
 /** One entity's input schemas, in the block's default names. */
