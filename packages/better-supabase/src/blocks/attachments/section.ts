@@ -55,6 +55,16 @@ export const attachmentsSection: Section<
 > = defineSection({
   permissions: { read: "read", write: "upload" },
   load: (client: Attachments, subject) => client.list(subject),
+  timeline: (attachments) =>
+    attachments.map((attachment) => ({
+      id: attachment.id,
+      kind: "attachment",
+      at: attachment.uploadedAt ?? attachment.createdAt,
+      ...(attachment.uploadedBy === undefined
+        ? {}
+        : { actor: attachment.uploadedBy }),
+      row: attachment,
+    })),
   events: ["attachment.*"],
   optimistic: attachmentsOptimistic,
   writes: {

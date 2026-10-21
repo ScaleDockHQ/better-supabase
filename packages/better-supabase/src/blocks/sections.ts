@@ -51,6 +51,21 @@ export interface AnySectionWrite {
 /** A section's writes, by name. */
 export type SectionWrites = Readonly<Record<string, AnySectionWrite>>;
 
+/**
+ * One event of a record's history that a section's rows hold, such as a comment
+ * or a saved version, for `loadTimeline`.
+ */
+export interface TimelineItem<Row = unknown> {
+  /** Unique within its section. */
+  readonly id: string;
+  /** What happened, such as `comment` or `version`. */
+  readonly kind: string;
+  readonly at: Temporal.Instant;
+  /** The user who did it, when the row says. */
+  readonly actor?: string;
+  readonly row: Row;
+}
+
 /** What `defineSection` takes. */
 export interface SectionDefinition<
   Client,
@@ -79,6 +94,17 @@ export interface SectionDefinition<
     client: Client,
     subjects: readonly SubjectRef[],
   ) => AsyncResult<Readonly<Record<string, number>>>;
+  /**
+   * The section's value for each of many subjects, keyed by `subjectKey`
+   * (`type:id`), for a column of a record list (`defineRecordList`). Default:
+   * `count`, or else one `load` per subject.
+   */
+  readonly column?: (
+    client: Client,
+    subjects: readonly SubjectRef[],
+  ) => AsyncResult<Readonly<Record<string, unknown>>>;
+  /** The section's rows as timeline entries, for `loadTimeline`. */
+  readonly timeline?: (data: Data) => readonly TimelineItem[];
   /** The block events that make the section stale; `*` ends a prefix. */
   readonly events?: readonly string[];
   /** A reducer for `useOptimistic`, applying a pending write to the rows. */
@@ -118,6 +144,11 @@ export interface AnySection {
     client: never,
     subjects: readonly SubjectRef[],
   ) => AsyncResult<Readonly<Record<string, number>>>;
+  readonly column?: (
+    client: never,
+    subjects: readonly SubjectRef[],
+  ) => AsyncResult<Readonly<Record<string, unknown>>>;
+  readonly timeline?: (data: never) => readonly TimelineItem[];
   readonly events: readonly string[];
   readonly optimistic?: (state: never, action: never) => unknown;
   readonly writes?: SectionWrites;

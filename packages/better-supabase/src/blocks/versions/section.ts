@@ -43,6 +43,14 @@ export const versionsSection: Section<
   module: "versions",
   load: (client: Versions, subject, options?: VersionListOptions) =>
     client.list(subject, options),
+  timeline: (versions) =>
+    versions.map((version) => ({
+      id: version.id,
+      kind: "version",
+      at: version.createdAt,
+      ...(version.createdBy === undefined ? {} : { actor: version.createdBy }),
+      row: version,
+    })),
   events: ["version.*"],
   writes: {
     snapshot: {

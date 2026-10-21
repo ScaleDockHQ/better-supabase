@@ -69,6 +69,14 @@ export const commentsSection: Section<
   load: (client: Comments, subject, options?: ListCommentsOptions) =>
     client.list(subject, options),
   count: (client: Comments, subjects) => client.counts(subjects),
+  timeline: (comments) =>
+    comments.map((comment) => ({
+      id: comment.id,
+      kind: "comment",
+      at: comment.createdAt,
+      ...(comment.authorId === undefined ? {} : { actor: comment.authorId }),
+      row: comment,
+    })),
   events: ["comment.created", "comment.deleted"],
   optimistic: commentsOptimistic,
   writes: {

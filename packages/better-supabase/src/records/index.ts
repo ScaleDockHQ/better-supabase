@@ -6,6 +6,24 @@ export type {
 } from "./controller.ts";
 
 export type {
+  RecordList,
+  RecordListCell,
+  RecordListCells,
+  RecordListColumn,
+  RecordListPage,
+  RecordListQuery,
+  RecordListRow,
+  RecordListSource,
+  RecordListSpec,
+} from "./list.ts";
+
+export type {
+  LoadTimelineOptions,
+  Timeline,
+  TimelineEntry,
+} from "./timeline.ts";
+
+export type {
   LoadedSections,
   LoadSectionsOptions,
   SectionBlocks,
@@ -31,6 +49,7 @@ export type {
   SectionWrites,
   AnySectionWrite,
   SectionRowInput,
+  TimelineItem,
 } from "../blocks/sections.ts";
 
 export type {
@@ -71,6 +90,10 @@ export {
 } from "./feature.ts";
 
 export { countSection, loadSections, sectionCan } from "./sections.ts";
+
+export { defineRecordList } from "./list.ts";
+
+export { loadTimeline, timelineSections } from "./timeline.ts";
 
 export {
   defineSection,
