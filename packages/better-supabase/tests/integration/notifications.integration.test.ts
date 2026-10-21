@@ -127,6 +127,7 @@ class Session {
 
 describe.skipIf(!live)("notifications", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("sends, filters, deduplicates and delivers notifications", async () => {
@@ -862,6 +863,7 @@ describe.skipIf(!live)("notifications", () => {
       client.release();
     }
   });
+
   it("pages, searches and settles the inbox and reads the caller's settings", async () => {
     const client = await pool.connect();
     const s = new Session(client);

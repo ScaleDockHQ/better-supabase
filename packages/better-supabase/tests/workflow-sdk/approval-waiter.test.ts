@@ -30,9 +30,9 @@ const resumeHook = vi.fn(async (_token: string, _payload: unknown) => ({
   runId: "wrun_1",
 }));
 
-vi.mock("workflow", () => ({ createHook, sleep }));
+vi.mock(import("workflow"), () => ({ createHook, sleep }));
 
-vi.mock("workflow/api", () => ({ resumeHook }));
+vi.mock(import("workflow/api"), () => ({ resumeHook }));
 
 const { approvalWaiter, wakeOnApproval } =
   await import("../../src/workflow-sdk/approval-waiter.ts");

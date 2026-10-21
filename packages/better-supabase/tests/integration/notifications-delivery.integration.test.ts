@@ -57,6 +57,7 @@ describe.skipIf(!live)("notification email delivery", () => {
     organization = await s.organization(owner, { member, member2: bounced });
   });
   afterEach(() => s.close());
+
   afterAll(() => pool.end());
 
   const mailer = (audience?: SubscriberPolicy) => {

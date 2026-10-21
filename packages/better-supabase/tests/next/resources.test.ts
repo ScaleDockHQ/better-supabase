@@ -10,12 +10,12 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const mocks = vi.hoisted(() => ({ headers: new Headers() }));
 
-vi.mock("next/headers.js", () => ({
+vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () => Promise.resolve({ set: () => undefined }),
 }));
 
-vi.mock("next/server.js", async (original) => ({
+vi.mock(import("next/server.js"), async (original) => ({
   ...(await original<Record<string, unknown>>()),
   after: () => undefined,
 }));

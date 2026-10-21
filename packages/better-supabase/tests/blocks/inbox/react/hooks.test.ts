@@ -70,7 +70,7 @@ const runtime = vi.hoisted(() => {
   return { state, slot, changed, schedule };
 });
 
-vi.mock("react", async (importOriginal) => {
+vi.mock(import("react"), async (importOriginal) => {
   const actual = await importOriginal<typeof ReactModule>();
   const { state, slot, changed, schedule } = runtime;
 

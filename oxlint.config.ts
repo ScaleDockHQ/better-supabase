@@ -476,24 +476,21 @@ const config: OxlintConfig = defineConfig({
         // codemod across the tests. Backlog in docs/decisions/0002.
         // Findings when measured: prefer-strict-equal 6,576,
         // prefer-expect-resolves 4,241, max-expects 4,068, prefer-to-be-truthy
-        // 946, prefer-describe-function-title 766, prefer-to-be-falsy 734,
-        // padding-around-after-all-blocks 122, require-top-level-describe 71,
-        // prefer-import-in-mock 56, prefer-expect-type-of 21,
-        // padding-around-test-blocks 11, consistent-test-filename 7,
-        // prefer-importing-vitest-globals 7.
+        // 946, prefer-describe-function-title 892, prefer-to-be-falsy 734,
+        // require-top-level-describe 88, prefer-expect-type-of 25,
+        // consistent-test-filename 16. The autofixes of
+        // prefer-describe-function-title and prefer-expect-type-of move a
+        // method reference into `describe()` or `expect()`, which
+        // typescript/unbound-method then rejects.
         "vitest/prefer-strict-equal": "off",
         "vitest/prefer-expect-resolves": "off",
         "vitest/max-expects": "off",
         "vitest/prefer-to-be-truthy": "off",
         "vitest/prefer-describe-function-title": "off",
         "vitest/prefer-to-be-falsy": "off",
-        "vitest/padding-around-after-all-blocks": "off",
         "vitest/require-top-level-describe": "off",
-        "vitest/prefer-import-in-mock": "off",
         "vitest/prefer-expect-type-of": "off",
-        "vitest/padding-around-test-blocks": "off",
         "vitest/consistent-test-filename": "off",
-        "vitest/prefer-importing-vitest-globals": "off",
         // Its 3 findings compare base-62 rank keys, which are strings, and
         // `toBeLessThan` takes only numbers.
         "vitest/prefer-comparison-matcher": "off",
@@ -508,6 +505,9 @@ const config: OxlintConfig = defineConfig({
       ],
       rules: {
         ...playwrightRules,
+        // `test` and `expect` come from @playwright/test here, not Vitest.
+        "vitest/prefer-importing-vitest-globals": "off",
+        // `test` and `expect` come from @playwright/test here, not Vitest.
         "playwright/expect-expect": [
           "error",
           { assertFunctionNames: ["expectInstant"] },

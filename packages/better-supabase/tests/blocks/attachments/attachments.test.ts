@@ -770,6 +770,7 @@ describe("createAttachmentScanner", () => {
       "set_attachment_status",
     ]);
   });
+
   it("skips events and jobs for deleted attachments and scans the rest", async () => {
     const { scanner: s, calls } = scanner(
       {

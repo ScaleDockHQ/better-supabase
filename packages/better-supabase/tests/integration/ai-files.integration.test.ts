@@ -39,6 +39,7 @@ const storage: AiFileStorage = {
 
 describe.skipIf(!live)("ai-files module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("accepts only the reserved upload and shows files to their owner and the chat", async () => {

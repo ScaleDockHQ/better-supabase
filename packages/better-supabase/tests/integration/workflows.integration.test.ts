@@ -13,6 +13,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("workflows module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("records runs that their actor and the tenant read, and cancels them", async () => {

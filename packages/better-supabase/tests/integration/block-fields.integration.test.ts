@@ -45,6 +45,7 @@ const kind = (result: Result<unknown>) =>
 // from its reads and refuses a value the schema rejects (ADR 0015).
 describe.skipIf(!live)("block fields", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("agents", async () => {

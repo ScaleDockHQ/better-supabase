@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("installing on CentraKit", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("installs every SQL module", async () => {

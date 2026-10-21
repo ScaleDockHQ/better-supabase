@@ -74,6 +74,7 @@ interface Bucket {
 
 describe.skipIf(!live)("metrics", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("rolls up, reads series and totals, and checks the permission", async () => {

@@ -36,6 +36,7 @@ const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
 
 describe.skipIf(!live)("attachments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("accepts only expected uploads, hides unscanned files and records scans", async () => {

@@ -49,6 +49,7 @@ create table versions_it.notes (
 
 describe.skipIf(!live)("versions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("shares one version through a link that anon reads with the token", async () => {

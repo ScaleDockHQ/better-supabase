@@ -8,6 +8,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("push module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("registers, moves, reads and prunes device tokens", async () => {

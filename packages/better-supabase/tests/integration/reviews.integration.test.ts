@@ -108,6 +108,7 @@ async function paidOrder(
 
 describe.skipIf(!live)("reviews module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("moderates storefront product reviews and keeps the aggregate public", async () => {

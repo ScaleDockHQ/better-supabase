@@ -15,13 +15,13 @@ import {
 } from "../fixtures/block-bindings.ts";
 
 // Node resolves svelte to its server runtime, where effects never run.
-vi.mock("svelte", () => {
+vi.mock(import("svelte"), () => {
   const clientBuild = "../../node_modules/svelte/src/index-client.js";
 
   return import(clientBuild);
 });
 
-vi.mock("svelte/reactivity", () => {
+vi.mock(import("svelte/reactivity"), () => {
   const clientBuild =
     "../../node_modules/svelte/src/reactivity/index-client.js";
 

@@ -29,9 +29,9 @@ const api = vi.hoisted(() => ({
   resumeHook: vi.fn(),
 }));
 
-vi.mock("workflow/api", () => api);
+vi.mock(import("workflow/api"), () => api);
 
-vi.mock("@ai-sdk/workflow", () => ({
+vi.mock(import("@ai-sdk/workflow"), () => ({
   createModelCallToUIChunkTransform: () => new TransformStream(),
   async *normalizeUIMessageStreamParts(source: AsyncIterable<unknown>) {
     yield* source;

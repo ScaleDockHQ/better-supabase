@@ -26,6 +26,7 @@ interface Row {
 
 describe.skipIf(!live)("domains module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("verifies a custom domain for one organization and resolves it", async () => {

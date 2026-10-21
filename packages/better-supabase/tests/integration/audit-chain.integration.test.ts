@@ -28,6 +28,7 @@ const chained = { modules: { audit: { options: { chain: true } } } };
 
 describe.skipIf(!live)("audit hash chain", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("links each tenant's entries, finds an edited one and signs the heads", async () => {

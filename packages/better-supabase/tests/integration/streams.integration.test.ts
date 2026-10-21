@@ -24,6 +24,7 @@ async function text(stream: ReadableStream<string>): Promise<string> {
 
 describe.skipIf(!live)("streams module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("passes the StreamStore kit as the service role", async () => {

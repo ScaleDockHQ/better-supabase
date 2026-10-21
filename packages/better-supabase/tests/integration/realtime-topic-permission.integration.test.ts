@@ -47,6 +47,7 @@ describe.skipIf(!live)("realtime topic permission", () => {
     });
   });
   afterEach(() => s.close());
+
   afterAll(() => pool.end());
 
   /**

@@ -50,6 +50,7 @@ const date = (value: string): Temporal.PlainDate =>
 
 describe.skipIf(!live)("employees", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps an org chart, private details, contracts and offboarding", async () => {

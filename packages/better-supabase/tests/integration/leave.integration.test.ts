@@ -17,6 +17,7 @@ const day = (text: string): Temporal.PlainDate => Temporal.PlainDate.from(text);
 
 describe.skipIf(!live)("leave", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("books approved leave against a balance and gives it back on cancel", async () => {

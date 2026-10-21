@@ -13,6 +13,7 @@ const OWNER = { type: "organization", id: "org-signing" };
 
 describe.skipIf(!live)("signing-keys module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps the private key in Vault, rotates and publishes retired keys until their exp", async () => {

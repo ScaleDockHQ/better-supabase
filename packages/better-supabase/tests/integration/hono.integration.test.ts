@@ -75,6 +75,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
   );
 
   const created: string[] = [];
+
   afterAll(async () => {
     if (created.length > 0) {
       await admin.customers.deleteMany({ where: { id: { in: created } } });

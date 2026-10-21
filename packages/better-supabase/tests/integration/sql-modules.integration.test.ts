@@ -222,6 +222,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       select better_supabase.audit('${table}', ignore => '{updated_at}');
     `);
   });
+
   afterAll(async () => {
     // The suite shares the local database. Installing `tenant` replaces the
     // fixture helpers, which the other integration tests read the JWT and

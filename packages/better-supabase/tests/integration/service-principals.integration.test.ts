@@ -48,6 +48,7 @@ const LAYOUT: ModuleLayout = {
 
 describe.skipIf(!live)("service principals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   /**

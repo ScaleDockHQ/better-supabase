@@ -34,6 +34,7 @@ describe("recipe module sets", () => {
 
 describe.skipIf(!live)("installing a recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it.each(RECIPES)(

@@ -53,6 +53,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("quotes and invoices", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("turns a deal into a quote the customer accepts, then a deposit and a final invoice", async () => {

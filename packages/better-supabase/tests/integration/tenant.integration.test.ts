@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("tenant sameTenant", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("refuses a reference to another tenant's row for every writer", async () => {
@@ -205,6 +206,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
       await s.close();
     }
   });
+
   it("matches a column reached through another reference", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);

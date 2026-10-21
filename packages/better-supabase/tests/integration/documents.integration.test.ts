@@ -17,6 +17,7 @@ const MODULES = ["organizations", "outbox", "versions", "documents"];
 
 describe.skipIf(!live)("documents", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   const hint = (result: Result<unknown>) =>

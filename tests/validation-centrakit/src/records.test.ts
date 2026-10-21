@@ -60,6 +60,7 @@ async function organization(s: Session): Promise<string> {
 
 describe.skipIf(!live)("CRM and work records on CentraKit", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("points deals at CentraKit customers and contacts", async () => {

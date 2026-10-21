@@ -12,7 +12,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const written = vi.hoisted(() => ({ headers: new Headers() }));
 
-vi.mock("expo-server", async (importOriginal) => ({
+vi.mock(import("expo-server"), async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   setResponseHeaders: (
     update: Headers | Record<string, string> | ((headers: Headers) => void),

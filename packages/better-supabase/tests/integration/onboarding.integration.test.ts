@@ -27,6 +27,7 @@ const profile = defineChecklist({
 
 describe.skipIf(!live)("onboarding", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("tracks user and organization checklists, by hand and from outbox events", async () => {

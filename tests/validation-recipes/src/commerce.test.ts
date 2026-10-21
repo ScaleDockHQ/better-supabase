@@ -108,6 +108,7 @@ function fakePayments(): PaymentProvider {
 
 describe.skipIf(!live)("commerce recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("sells to an anonymous shopper who signs in, with a code, then ships", async () => {

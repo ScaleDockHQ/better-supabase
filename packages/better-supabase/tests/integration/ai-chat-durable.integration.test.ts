@@ -50,6 +50,7 @@ function transports(s: BlockSession, caller: () => TestUser) {
 
 describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("attaches engine runs, records steps and lists them for readers", async () => {

@@ -61,6 +61,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("collections", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("stars records, ranks them and hides what the caller can't read", async () => {

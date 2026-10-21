@@ -16,6 +16,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps private agents private and runs the store", async () => {

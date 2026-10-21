@@ -27,6 +27,7 @@ const TABLES = [
 
 describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it.each(TABLES)("adopts centrakit.%s", async (table) => {

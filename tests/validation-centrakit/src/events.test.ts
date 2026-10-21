@@ -37,6 +37,7 @@ describe.skipIf(!live)(
   "notifications, outbox and webhooks on CentraKit's tables",
   () => {
     const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
     afterAll(() => pool.end());
 
     it("notifies in workflow_events, relays to webhook_deliveries and signs like CentraKit", async () => {

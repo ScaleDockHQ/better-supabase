@@ -71,6 +71,7 @@ function clientAs(client: PoolClient, claims: () => object): SqlClient {
 
 describe.skipIf(!live)("incoming webhook endpoints", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("creates endpoints and stores verified deliveries per tenant", async () => {

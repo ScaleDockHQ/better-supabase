@@ -33,6 +33,7 @@ describe.skipIf(!live)(
   "the module migration of sql.workflow 'migrations'",
   () => {
     const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
     afterAll(() => pool.end());
 
     it("applies twice, so a later module migration can repeat every statement", async () => {

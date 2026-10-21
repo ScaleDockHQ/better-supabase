@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("comments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("copies a thread in a PostgREST session, where pg-safeupdate refuses a delete without where", async () => {

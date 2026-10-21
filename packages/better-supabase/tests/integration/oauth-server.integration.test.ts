@@ -14,6 +14,7 @@ const REDIRECT = "https://app.example.com/callback";
 
 describe.skipIf(!live)("oauth-server module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("redeems a PKCE code once and revokes the grant on a replay", async () => {

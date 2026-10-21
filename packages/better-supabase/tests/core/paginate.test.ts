@@ -6,12 +6,14 @@ describe("pageWindow", () => {
   it("reads page and size", () => {
     expect(pageWindow({ page: 3, size: 10 })).toEqual({ size: 10, offset: 20 });
   });
+
   it("reads limit and offset", () => {
     expect(pageWindow({ limit: 5, offset: 15 })).toEqual({
       size: 5,
       offset: 15,
     });
   });
+
   it("rejects mixed and invalid arguments", () => {
     expect(pageWindow({ limit: 5, size: 5 })).toHaveProperty("invalid");
     expect(pageWindow({ size: 0 })).toHaveProperty("invalid");
@@ -32,6 +34,7 @@ describe("offsetEnvelope", () => {
       hasMore: true,
     });
   });
+
   it("leaves pages unknown without a total", () => {
     expect(offsetEnvelope([], null, 5, 0).page).toMatchObject({
       pages: null,

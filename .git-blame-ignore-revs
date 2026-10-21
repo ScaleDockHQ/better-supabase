@@ -18,3 +18,6 @@ e17ac822c5cb730788e6fe7f970915bd76a86018
 
 # style: format JSDoc and collapse short objects with oxfmt
 334982abeccfa9f9ac88c600665a7e201d5eaf7c
+
+# style: write type-only imports as top-level `import type`
+df55d2b5597003b11c05846df26195017e497324

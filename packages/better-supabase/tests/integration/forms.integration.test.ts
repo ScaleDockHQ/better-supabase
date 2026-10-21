@@ -57,6 +57,7 @@ const DEFINITION = {
 
 describe.skipIf(!live)("forms", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("publishes versions, validates submissions in Postgres and takes public answers", async () => {

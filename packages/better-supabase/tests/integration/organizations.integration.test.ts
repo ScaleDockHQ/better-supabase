@@ -155,6 +155,7 @@ class Session {
 
 describe.skipIf(!live)("organizations and invitations", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs the organization lifecycle on the access contract", async () => {

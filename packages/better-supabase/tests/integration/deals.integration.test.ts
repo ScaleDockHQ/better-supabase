@@ -44,6 +44,7 @@ const day = (text: string): Temporal.PlainDate => Temporal.PlainDate.from(text);
 
 describe.skipIf(!live)("deals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs a deal from qualified to won with edits, lines and a forecast", async () => {

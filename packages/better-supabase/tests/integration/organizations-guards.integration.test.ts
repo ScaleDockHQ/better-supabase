@@ -43,6 +43,7 @@ function adopted(
 
 describe.skipIf(!live)("organizations member guards", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("checks the own-role rule and can_assign in update_member_role under an external guard", async () => {

@@ -16,6 +16,7 @@ const DOCUMENT =
 
 describe.skipIf(!live)("drive recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("shares, labels and files a document, and notifies its watchers", async () => {

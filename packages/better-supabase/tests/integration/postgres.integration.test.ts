@@ -42,6 +42,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("Postgres executor", async () => {
   const postgres = createPostgres({ connectionString: dbUrl, max: 4 });
+
   afterAll(() => postgres.end());
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };

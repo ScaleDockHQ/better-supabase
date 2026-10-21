@@ -45,6 +45,7 @@ async function verified(
 
 describe.skipIf(!live)("sso", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("claims and verifies domains for one organization", async () => {

@@ -124,6 +124,7 @@ function fakeHttp(script: Record<string, number[]>) {
 
 describe.skipIf(!live)("webhooks-out", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("fans out, signs, retries, dead-letters, disables and redelivers", async () => {

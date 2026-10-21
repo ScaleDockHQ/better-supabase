@@ -11,6 +11,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("billing", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("links customers, syncs seats and handles Stripe events", async () => {

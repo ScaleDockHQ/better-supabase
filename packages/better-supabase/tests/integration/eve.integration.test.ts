@@ -35,6 +35,7 @@ function serviceTransport(s: BlockSession): BlockTransport {
 
 describe.skipIf(!live)("better-supabase/eve", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("stores each redelivered eve event once", async () => {

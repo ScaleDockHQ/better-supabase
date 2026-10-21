@@ -36,6 +36,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("scopedSeed and withRollback", () => {
   const postgres = createPostgres({ connectionString: stackDbUrl(), max: 4 });
+
   afterAll(() => postgres.end());
 
   const betterSupabase = defineSupabase(schema);

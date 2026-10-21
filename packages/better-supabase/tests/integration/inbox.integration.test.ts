@@ -19,6 +19,7 @@ const MODULES = ["organizations", "jobs", "streams", "inbox"];
 
 describe.skipIf(!live)("inbox module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function claim(s: BlockSession, queue: string) {
@@ -310,6 +311,7 @@ describe.skipIf(!live)("inbox module", () => {
 
 describe.skipIf(!live)("chat-sdk-state module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("passes the StateAdapter kit as the service role", async () => {

@@ -8,13 +8,13 @@ import { fakeAuth, SIGNED_OUT } from "../../fixtures/ports.ts";
 import { readBlocks } from "./render.ts";
 
 // Node resolves these to their server builds, where effects never run.
-vi.mock("svelte", () => {
+vi.mock(import("svelte"), () => {
   const clientBuild = "../../../node_modules/svelte/src/index-client.js";
 
   return import(clientBuild);
 });
 
-vi.mock("solid-js", () => {
+vi.mock(import("solid-js"), () => {
   const browserBuild = "../../../node_modules/solid-js/dist/solid.js";
 
   return import(browserBuild);

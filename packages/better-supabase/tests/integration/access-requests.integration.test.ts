@@ -24,6 +24,7 @@ const MODULES = [
 
 describe.skipIf(!live)("access requests", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   const hint = (result: Result<unknown>) =>

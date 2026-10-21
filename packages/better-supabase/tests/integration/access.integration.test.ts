@@ -85,6 +85,7 @@ async function asUser(
 
 describe.skipIf(!live)("access contract against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("answers from the roles model, with platform permissions from the token", async () => {

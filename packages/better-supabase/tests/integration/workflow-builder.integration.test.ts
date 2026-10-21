@@ -47,6 +47,7 @@ const STEPS = [
 
 describe.skipIf(!live)("workflow-builder module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("saves drafts, publishes validated versions and starts runs of them", async () => {

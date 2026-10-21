@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("api wrappers", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keep anon out under default privileges that grant every function", async () => {

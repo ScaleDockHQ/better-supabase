@@ -71,6 +71,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("service levels and targets", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("counts business hours and runs clocks off a ticket's status", async () => {

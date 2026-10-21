@@ -73,6 +73,7 @@ const layoutFor = (finance: string): ModuleLayout => ({
 
 describe.skipIf(!live)("approvals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("walks a request through its steps and runs the gated transition", async () => {

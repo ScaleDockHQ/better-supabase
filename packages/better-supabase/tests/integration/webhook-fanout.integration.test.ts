@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("webhook fan-out read check", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("queues an event only for endpoints whose owner can read its subject", async () => {

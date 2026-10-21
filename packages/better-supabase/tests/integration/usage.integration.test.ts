@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("usage", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("meters idempotently, enforces quotas and reports to Stripe", async () => {

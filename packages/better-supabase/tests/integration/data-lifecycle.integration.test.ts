@@ -74,6 +74,7 @@ function memoryStorage() {
 
 describe.skipIf(!live)("data lifecycle", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("exports a user's and an organization's rows to NDJSON files", async () => {
@@ -904,6 +905,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.close();
     }
   });
+
   it("never exports API keys and still purges them with the tenant", async () => {
     const s = await BlockSession.open(pool);
 

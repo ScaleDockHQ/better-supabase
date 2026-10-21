@@ -13,6 +13,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("approvals with the provider's isApprover", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("lets the user isApprover allows decide, never the requester", async () => {

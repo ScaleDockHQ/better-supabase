@@ -60,6 +60,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       [OTHER, `support-${OTHER}@example.test`],
     );
   });
+
   afterAll(async () => {
     await postgres.admin.queryRaw(
       "delete from better_supabase.support_sessions where admin_id = $1",

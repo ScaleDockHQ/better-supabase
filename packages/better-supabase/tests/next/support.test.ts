@@ -25,13 +25,13 @@ const mocks = vi.hoisted(() => ({
   deleteCookie: vi.fn<(options: unknown) => void>(),
 }));
 
-vi.mock("next/headers.js", () => ({
+vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () =>
     Promise.resolve({ set: mocks.setCookie, delete: mocks.deleteCookie }),
 }));
 
-vi.mock("next/cache.js", () => ({
+vi.mock(import("next/cache.js"), () => ({
   updateTag: mocks.updateTag,
   revalidateTag: vi.fn(),
   cacheTag: mocks.cacheTag,

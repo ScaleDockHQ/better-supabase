@@ -19,11 +19,11 @@ const mocks = vi.hoisted(() => ({
   clients: 0,
 }));
 
-vi.mock("next/headers.js", () => ({
+vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(mocks.headers),
 }));
 
-vi.mock("next/cache.js", () => ({
+vi.mock(import("next/cache.js"), () => ({
   cacheLife: mocks.cacheLife,
   cacheTag: mocks.cacheTag,
   updateTag: mocks.updateTag,
@@ -31,7 +31,7 @@ vi.mock("next/cache.js", () => ({
   io: () => Promise.resolve(),
 }));
 
-vi.mock("@supabase/server/core", async (original) => {
+vi.mock(import("@supabase/server/core"), async (original) => {
   const actual = await original<typeof ServerCore>();
 
   return {
@@ -46,7 +46,7 @@ vi.mock("@supabase/server/core", async (original) => {
   };
 });
 
-vi.mock("@supabase/supabase-js", async (original) => {
+vi.mock(import("@supabase/supabase-js"), async (original) => {
   const actual = await original<typeof SupabaseJs>();
 
   return {

@@ -73,6 +73,7 @@ async function providerLayout(
 
 describe.skipIf(!live)("support session approvals as real users", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {
@@ -247,6 +248,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
 
 describe.skipIf(!live)("ai-chat tool approvals through isApprover", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("never lets the chat's owner approve their own tool call", async () => {

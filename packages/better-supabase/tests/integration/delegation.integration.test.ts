@@ -12,6 +12,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("delegated jobs under RLS", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   /**

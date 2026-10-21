@@ -29,6 +29,7 @@ grant select on reactions_it.docs to authenticated;`;
 
 describe.skipIf(!live)("reactions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("reacts to subjects and comments under their read rules, with custom emoji", async () => {

@@ -33,6 +33,7 @@ const GRAPH: WorkflowGraph = {
 
 describe.skipIf(!live)("templates module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("syncs starters, forks them, applies a fork and starts its workflows on the record", async () => {

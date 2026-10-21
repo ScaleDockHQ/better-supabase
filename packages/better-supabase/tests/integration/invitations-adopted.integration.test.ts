@@ -90,6 +90,7 @@ function providerLayout(schema: string, canAssignFor?: string): ModuleLayout {
 
 describe.skipIf(!live)("invitations in adopted tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("accepts an invitation to a tenant custom role through the provider's canAssignFor", async () => {

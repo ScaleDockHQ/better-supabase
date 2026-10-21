@@ -30,6 +30,7 @@ describe.skipIf(!live)("Express example against the local stack", () => {
     const { port } = server.address() as AddressInfo;
     base = `http://127.0.0.1:${String(port)}/api`;
   });
+
   afterAll(() => {
     server.close();
   });

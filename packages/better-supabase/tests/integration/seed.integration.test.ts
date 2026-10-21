@@ -30,6 +30,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("seed against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("inserts fixtures in dependency order and is re-runnable", async () => {

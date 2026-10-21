@@ -23,6 +23,7 @@ const BUCKET_VECTORS = [
 
 describe.skipIf(!live)("flags", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("buckets like the TypeScript provider", async () => {

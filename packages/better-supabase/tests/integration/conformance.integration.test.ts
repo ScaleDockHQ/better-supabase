@@ -39,6 +39,7 @@ const live = await reachable();
 describe.skipIf(!live)("built-in executors conform", () => {
   const betterSupabase = defineSupabase(schema);
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => postgres.end());
 
   const create = (name: string) => ({

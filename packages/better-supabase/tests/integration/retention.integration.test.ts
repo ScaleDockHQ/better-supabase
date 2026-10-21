@@ -13,6 +13,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("retention policies and legal holds", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps rows for a tenant's policy and skips held tenants in the purges", async () => {

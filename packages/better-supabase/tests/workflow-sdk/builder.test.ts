@@ -17,11 +17,11 @@ const listRuns = vi.fn(
 const world = { analytics: { runs: { list: listRuns } } };
 let attempt = 1;
 
-vi.mock("workflow/api", () => ({ start }));
+vi.mock(import("workflow/api"), () => ({ start }));
 
-vi.mock("workflow/runtime", () => ({ getWorld: async () => world }));
+vi.mock(import("workflow/runtime"), () => ({ getWorld: async () => world }));
 
-vi.mock("workflow", () => ({
+vi.mock(import("workflow"), () => ({
   getWorkflowMetadata: () => ({ workflowRunId: "wrun_7" }),
   getStepMetadata: () => ({ attempt }),
 }));

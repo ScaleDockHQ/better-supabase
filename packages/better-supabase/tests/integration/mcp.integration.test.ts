@@ -60,6 +60,7 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
   );
 
   const created: string[] = [];
+
   afterAll(async () => {
     if (created.length > 0) {
       await admin.customers.deleteMany({ where: { id: { in: created } } });

@@ -21,6 +21,7 @@ const BOOKING =
 
 describe.skipIf(!live)("scheduling recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("confirms a booking, records its fields and reminds once", async () => {

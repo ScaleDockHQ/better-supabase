@@ -64,6 +64,7 @@ async function asUser(client: PoolClient, sub: string): Promise<void> {
 
 describe.skipIf(!live)("appTables on the local stack", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("passes the generated pgTAP checks", async () => {

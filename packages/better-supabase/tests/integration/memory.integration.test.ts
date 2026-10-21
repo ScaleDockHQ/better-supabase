@@ -9,6 +9,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("memory module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs the memory tool commands on the caller's own files", async () => {

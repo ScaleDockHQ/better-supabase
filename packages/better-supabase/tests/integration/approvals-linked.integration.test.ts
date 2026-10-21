@@ -27,6 +27,7 @@ interface Approval {
 
 describe.skipIf(!live)("requests other modules file in approvals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function linked(s: BlockSession, subjectId: string): Promise<Approval> {

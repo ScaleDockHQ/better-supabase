@@ -101,6 +101,7 @@ describe.skipIf(!live)("Realtime module", async () => {
       }),
     );
   });
+
   afterAll(async () => {
     await pool.query("delete from public.customers where kvk like $1", [
       `${kvk}%`,

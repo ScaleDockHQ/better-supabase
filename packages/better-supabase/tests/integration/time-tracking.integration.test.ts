@@ -27,6 +27,7 @@ const WEEK = Temporal.PlainDate.from("2026-10-05");
 
 describe.skipIf(!live)("time-tracking", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("tracks time, locks a submitted week and unlocks it on rejection or reopen", async () => {

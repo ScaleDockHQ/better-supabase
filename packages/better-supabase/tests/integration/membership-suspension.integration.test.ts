@@ -45,6 +45,7 @@ const layout = (schema: string): ModuleLayout => ({
 
 describe.skipIf(!live)("membership suspension", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps the role and takes away every permission until resumed", async () => {

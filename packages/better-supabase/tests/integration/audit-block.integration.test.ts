@@ -19,6 +19,7 @@ async function lines(stream: ReadableStream<Uint8Array>) {
 
 describe.skipIf(!live)("audit block", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("exports one tenant's entries as NDJSON and OCSF, in pages", async () => {

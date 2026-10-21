@@ -150,6 +150,7 @@ describe("registry.json", () => {
 
 describe("apps/marketing/public/r", () => {
   const out = mkdtempSync(join(tmpdir(), "registry-"));
+
   afterAll(() => {
     rmSync(out, { recursive: true, force: true });
   });

@@ -69,6 +69,7 @@ interface Row {
 
 describe.skipIf(!live)("employees on CentraKit", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("adopts centrakit.employees and keeps its org chart", async () => {

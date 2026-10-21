@@ -76,6 +76,7 @@ describe.skipIf(!live)("Storage module", async () => {
     await pool.query(logos.sql());
     await pool.query(avatars.sql());
   });
+
   afterAll(async () => {
     const all = await admin.list({
       organizationId: ACME,

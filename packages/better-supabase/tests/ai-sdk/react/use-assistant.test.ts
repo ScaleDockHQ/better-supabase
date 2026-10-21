@@ -7,12 +7,12 @@ import { useAssistant as useAssistantOnServer } from "../../../src/ai-sdk/react/
 
 const chatHook = vi.hoisted(() => vi.fn());
 
-vi.mock("react", () => ({
+vi.mock(import("react"), () => ({
   useMemo: (make: () => unknown) => make(),
   useCallback: (callback: unknown) => callback,
 }));
 
-vi.mock("@ai-sdk/react", () => ({ useChat: chatHook }));
+vi.mock(import("@ai-sdk/react"), () => ({ useChat: chatHook }));
 
 const user: UIMessage = {
   id: "u1",

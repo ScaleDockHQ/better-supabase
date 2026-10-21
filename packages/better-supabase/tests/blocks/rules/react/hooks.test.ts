@@ -26,7 +26,7 @@ const rpc = vi.hoisted(() => {
 });
 
 // vi.mock factories run before the imports above, so they load modules themselves.
-vi.mock("react", async (importOriginal) => ({
+vi.mock(import("react"), async (importOriginal) => ({
   ...(await importOriginal<typeof ReactModule>()),
   ...(await import("../../../fixtures/hook-runtime.ts")).reactHooks,
 }));

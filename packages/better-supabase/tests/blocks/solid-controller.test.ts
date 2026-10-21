@@ -15,7 +15,7 @@ import {
 } from "../fixtures/block-bindings.ts";
 
 // Node resolves solid-js to its server build, where effects never run.
-vi.mock("solid-js", () => {
+vi.mock(import("solid-js"), () => {
   const browserBuild = "../../node_modules/solid-js/dist/solid.js";
 
   return import(browserBuild);

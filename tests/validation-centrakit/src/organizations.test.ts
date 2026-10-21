@@ -19,6 +19,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("organizations on CentraKit's tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("creates, invites, checks permissions and transfers ownership", async () => {

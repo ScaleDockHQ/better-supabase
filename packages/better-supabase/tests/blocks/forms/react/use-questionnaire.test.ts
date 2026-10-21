@@ -7,7 +7,7 @@ import { useQuestionnaire } from "../../../../src/blocks/forms/react/index.ts";
 import { renderHook } from "../../../fixtures/hook-runtime.ts";
 import { SIGNUP } from "../fixtures.ts";
 
-vi.mock("react", async (importOriginal) => ({
+vi.mock(import("react"), async (importOriginal) => ({
   ...(await importOriginal<typeof ReactModule>()),
   ...(await import("../../../fixtures/hook-runtime.ts")).reactHooks,
 }));

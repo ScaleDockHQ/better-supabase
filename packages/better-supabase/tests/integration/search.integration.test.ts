@@ -57,6 +57,7 @@ interface Hit {
 
 describe.skipIf(!live)("search", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("indexes rows through triggers and finds what the caller can read", async () => {

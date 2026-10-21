@@ -55,6 +55,7 @@ const STEPS = [
 
 describe.skipIf(!live)("workflow-builder publisher rights", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {

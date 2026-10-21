@@ -19,6 +19,7 @@ const createOrganization = async (s: Session): Promise<string> => {
 
 describe.skipIf(!live)("integrations on CentraKit's tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps credentials in integration_credentials with Vault ids", async () => {

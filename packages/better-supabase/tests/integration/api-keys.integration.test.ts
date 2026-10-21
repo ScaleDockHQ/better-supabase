@@ -12,6 +12,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("api-keys", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("creates, verifies, rate-limits, rotates and revokes keys", async () => {
@@ -200,6 +201,7 @@ describe.skipIf(!live)("api-keys", () => {
       await s.close();
     }
   });
+
   it("needs the own permission in every tenant for a key without a tenant", async () => {
     const s = await BlockSession.open(pool);
 

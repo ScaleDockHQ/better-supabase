@@ -11,6 +11,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("announcements", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("shows each user the announcements for their audience until they dismiss them", async () => {

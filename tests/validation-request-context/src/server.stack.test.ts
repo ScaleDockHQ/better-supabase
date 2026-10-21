@@ -121,6 +121,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
   beforeAll(async () => {
     [a, b] = await Promise.all([signIn(), signIn()]);
   });
+
   afterAll(async () => {
     await Promise.all([a.remove(), b.remove()]);
   });

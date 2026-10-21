@@ -29,6 +29,7 @@ const admit = (s: BlockSession, email: string, code: string | null = null) =>
 
 describe.skipIf(!live)("waitlist", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("queues, approves and admits addresses", async () => {

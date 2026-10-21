@@ -8,12 +8,12 @@ import { serverTimingValue } from "../../src/next/proxy.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-vi.mock("next/headers.js", () => ({
+vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(new Headers()),
   cookies: () => Promise.resolve({ set: () => undefined }),
 }));
 
-vi.mock("next/cache.js", () => ({
+vi.mock(import("next/cache.js"), () => ({
   updateTag: () => undefined,
   revalidateTag: () => undefined,
   cacheTag: () => undefined,

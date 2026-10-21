@@ -96,6 +96,7 @@ describe.skipIf(!live)("support storage against the local stack", () => {
       }
     }
   });
+
   afterAll(async () => {
     await service.storage.from(files.id).remove([...own, hidden]);
     await postgres.end();
@@ -288,6 +289,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
       throw error;
     }
   });
+
   afterAll(async () => {
     await pool.query(
       "drop policy if exists bs_it_revocable_insert on storage.objects",

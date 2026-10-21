@@ -35,7 +35,7 @@ const PINNED = vi.hoisted(async () => {
   return /SPLINTER_SHA256 =\s*"([0-9a-f]{64})"/.exec(source)![1]!;
 });
 
-vi.mock("node:crypto", async (importOriginal) => {
+vi.mock(import("node:crypto"), async (importOriginal) => {
   const crypto = await importOriginal<typeof Crypto>();
   const pinned = await PINNED;
 

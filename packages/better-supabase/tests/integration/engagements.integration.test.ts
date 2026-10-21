@@ -30,6 +30,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("engagements", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("logs calls and tasks on records and finds the next step", async () => {

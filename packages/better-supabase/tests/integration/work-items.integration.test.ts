@@ -44,6 +44,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("work items", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs items through their team's pipeline with parents, assignees and a tree", async () => {

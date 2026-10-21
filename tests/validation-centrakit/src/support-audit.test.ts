@@ -9,6 +9,7 @@ describe.skipIf(!live)(
   "support sessions and audit on CentraKit's tables",
   () => {
     const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
     afterAll(() => pool.end());
 
     it("lets system support view as a user and audits it in audit_logs", async () => {

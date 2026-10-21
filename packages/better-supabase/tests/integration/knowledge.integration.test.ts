@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("knowledge module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("ingests, embeds and finds chunks the caller may read", async () => {

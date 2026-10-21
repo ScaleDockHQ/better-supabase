@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn<() => void>(),
 }));
 
-vi.mock("next/navigation.js", () => ({
+vi.mock(import("next/navigation.js"), () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
 
-vi.mock("react", async (original) => ({
+vi.mock(import("react"), async (original) => ({
   ...(await original<typeof ReactModule>()),
   useCallback: <T>(fn: T): T => fn,
 }));

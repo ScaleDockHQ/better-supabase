@@ -124,6 +124,7 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
         .orThrow();
     }
   });
+
   afterAll(async () => {
     await admin.remove([
       { organizationId: ACME, file: "a.txt" },
