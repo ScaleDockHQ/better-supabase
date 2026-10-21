@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SvelteKitHandle } from "../bridges/sveltekit.ts";
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -82,6 +83,7 @@ export interface BetterSvelteKit<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
@@ -114,7 +116,7 @@ export interface BetterSvelteKit<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
@@ -129,7 +131,7 @@ export interface BetterSvelteKit<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -163,11 +165,12 @@ export function createSvelteKit<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: SvelteKitOptions = {},
-): BetterSvelteKit<M, F, E, C, P, B> {
+  options: SvelteKitOptions & { readonly authorizer?: A } = {},
+): BetterSvelteKit<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
@@ -223,80 +226,83 @@ export function createSvelteKit<
     });
   };
 
-  return extendServer<BetterSvelteKit<M, F, E, C, P, B>>(server, {
-    // SAFETY: `Locals` only carries a type, like Drizzle's `$inferSelect`; reading
-    // it at runtime is documented as `undefined`.
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
-    Locals: undefined as unknown as Locals,
-    handle,
+  return extendServer<BetterSvelteKit<M, F, E, C, P, PermissionRef<A>, B>>(
+    server,
+    {
+      // SAFETY: `Locals` only carries a type, like Drizzle's `$inferSelect`; reading
+      // it at runtime is documented as `undefined`.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
+      Locals: undefined as unknown as Locals,
+      handle,
 
-    require: async (event, requireOptions = {}) => {
-      const locals = localsFrom(event);
-
-      const caller = await requireCaller(
-        locals.bs.auth,
-        requireOptions,
-        locals.tenant,
-        options.authorizer,
-        locals,
-      );
-
-      if ("kind" in caller) {
-        return refuse(caller, event.request);
-      }
-
-      // SAFETY: requireTenant refused a missing tenant.
-      return { ...locals, ...caller } as never;
-    },
-
-    action(actionOptions, fn) {
-      return async (event) => {
+      require: async (event, requireOptions = {}) => {
         const locals = localsFrom(event);
-        const input = await actionInput(event.request);
 
-        const result = await runAction(
+        const caller = await requireCaller(
           locals.bs.auth,
-          actionOptions,
-          input,
+          requireOptions,
           locals.tenant,
-          // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema; requireTenant refused a missing tenant.
-          (parsed, caller) =>
-            fn(parsed as never, { ...locals, ...caller } as never, event),
           options.authorizer,
           locals,
         );
 
-        if (!result.ok && options.kit) {
-          // SAFETY: fail() wraps the failed ActionResult, the declared failure branch.
-          return options.kit.fail(result.error.status, result) as never;
+        if ("kind" in caller) {
+          return refuse(caller, event.request);
         }
 
-        // SAFETY: the settled data is what fn returned, unwrapped.
-        return result as never;
-      };
+        // SAFETY: requireTenant refused a missing tenant.
+        return { ...locals, ...caller } as never;
+      },
+
+      action(actionOptions, fn) {
+        return async (event) => {
+          const locals = localsFrom(event);
+          const input = await actionInput(event.request);
+
+          const result = await runAction(
+            locals.bs.auth,
+            actionOptions,
+            input,
+            locals.tenant,
+            // SAFETY: parsed is the validated input, or the raw input when the
+            // action has no schema; requireTenant refused a missing tenant.
+            (parsed, caller) =>
+              fn(parsed as never, { ...locals, ...caller } as never, event),
+            options.authorizer,
+            locals,
+          );
+
+          if (!result.ok && options.kit) {
+            // SAFETY: fail() wraps the failed ActionResult, the declared failure branch.
+            return options.kit.fail(result.error.status, result) as never;
+          }
+
+          // SAFETY: the settled data is what fn returned, unwrapped.
+          return result as never;
+        };
+      },
+
+      handleError({ error }) {
+        const found = dbErrorOf(error);
+
+        if (found) {
+          const problem = toProblem(found, { expose });
+
+          return { message: problem.detail ?? problem.title, code: found.kind };
+        }
+
+        return {
+          message:
+            expose && error instanceof Error ? error.message : "Internal Error",
+        };
+      },
+
+      depends(load, ...tables) {
+        // The same tag as tagFor(table), spelled out for the `bs:${string}` type.
+        for (const table of tables) {
+          load.depends(`bs:${table}`);
+        }
+      },
     },
-
-    handleError({ error }) {
-      const found = dbErrorOf(error);
-
-      if (found) {
-        const problem = toProblem(found, { expose });
-
-        return { message: problem.detail ?? problem.title, code: found.kind };
-      }
-
-      return {
-        message:
-          expose && error instanceof Error ? error.message : "Internal Error",
-      };
-    },
-
-    depends(load, ...tables) {
-      // The same tag as tagFor(table), spelled out for the `bs:${string}` type.
-      for (const table of tables) {
-        load.depends(`bs:${table}`);
-      }
-    },
-  });
+  );
 }

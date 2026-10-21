@@ -132,11 +132,12 @@ export interface EdgeRoute<
   P = unknown,
   Params = Readonly<Record<string, string>>,
   B = unknown,
+  Ref = unknown,
 > extends BlockRequireOptions<
   C,
   P,
   boolean,
-  unknown,
+  Ref,
   ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
 > {
   readonly handler: EdgeRouteHandler<M, F, E, C, P, Params, B>;
@@ -153,11 +154,12 @@ export type EdgeRoutes<
   C = unknown,
   P = unknown,
   B = unknown,
+  Ref = unknown,
 > = Readonly<
   Record<
     string,
     | EdgeRouteHandler<M, F, E, C, P, Readonly<Record<string, string>>, B>
-    | EdgeRoute<M, F, E, C, P, Readonly<Record<string, string>>, B>
+    | EdgeRoute<M, F, E, C, P, Readonly<Record<string, string>>, B, Ref>
   >
 >;
 
@@ -205,7 +207,7 @@ export interface BetterEdge<
     routes: {
       readonly [Key in K]:
         | EdgeRouteHandler<M, F, E, C, P, RouteParams<Key>, B>
-        | EdgeRoute<M, F, E, C, P, RouteParams<Key>, B>;
+        | EdgeRoute<M, F, E, C, P, RouteParams<Key>, B, Ref>;
     },
     options?: ResourcesOptions,
   ): EdgeHandler;

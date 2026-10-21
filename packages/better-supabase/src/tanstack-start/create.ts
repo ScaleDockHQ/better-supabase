@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { TanStackStartServerArgs } from "../bridges/tanstack-start.ts";
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -44,6 +45,7 @@ export interface BetterTanStackStart<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
@@ -73,7 +75,7 @@ export interface BetterTanStackStart<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
@@ -88,7 +90,7 @@ export interface BetterTanStackStart<
       C,
       P,
       R,
-      unknown,
+      Ref,
       LocalsResource<M, F, E, C, P, B>
     >,
     fn: (
@@ -111,11 +113,12 @@ export function createTanStackStart<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: TanStackStartOptions = {},
-): BetterTanStackStart<M, F, E, C, P, B> {
+  options: TanStackStartOptions & { readonly authorizer?: A } = {},
+): BetterTanStackStart<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const requests = new WeakMap<object, Request>();
@@ -143,52 +146,57 @@ export function createTanStackStart<
     return context;
   };
 
-  return extendServer<BetterTanStackStart<M, F, E, C, P, B>>(server, {
-    async middleware(args) {
-      return withFlush(server, options.waitUntil, () => served(args));
-    },
+  return extendServer<BetterTanStackStart<M, F, E, C, P, PermissionRef<A>, B>>(
+    server,
+    {
+      async middleware(args) {
+        return withFlush(server, options.waitUntil, () => served(args));
+      },
 
-    require: async (context, requireOptions = {}) => {
-      const scope = scopeOf(context);
-
-      const caller = await requireCaller(
-        scope.bs.auth,
-        requireOptions,
-        scope.tenant,
-        options.authorizer,
-        scope,
-      );
-
-      if ("kind" in caller) {
-        const request = requests.get(scope) ?? new Request("http://localhost/");
-        // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer.
-        throw refusalResponse(caller, request, options, expose);
-      }
-
-      // SAFETY: requireTenant refused a missing tenant.
-      return { ...scope, ...caller } as never;
-    },
-
-    action(actionOptions, fn) {
-      return async ({ data, context }) => {
+      require: async (context, requireOptions = {}) => {
         const scope = scopeOf(context);
 
-        const result = await runAction(
+        const caller = await requireCaller(
           scope.bs.auth,
-          actionOptions,
-          data,
+          requireOptions,
           scope.tenant,
-          // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema; requireTenant refused a missing tenant.
-          (parsed, caller) =>
-            fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
           scope,
         );
 
-        // SAFETY: the settled data is what fn returned, unwrapped.
-        return result as never;
-      };
+        if ("kind" in caller) {
+          const request =
+            requests.get(scope) ?? new Request("http://localhost/");
+
+          // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer.
+          throw refusalResponse(caller, request, options, expose);
+        }
+
+        // SAFETY: requireTenant refused a missing tenant.
+        return { ...scope, ...caller } as never;
+      },
+
+      action(actionOptions, fn) {
+        return async ({ data, context }) => {
+          const scope = scopeOf(context);
+
+          const result = await runAction(
+            scope.bs.auth,
+            actionOptions,
+            data,
+            scope.tenant,
+            // SAFETY: parsed is the validated input, or the raw input when the
+            // action has no schema; requireTenant refused a missing tenant.
+            (parsed, caller) =>
+              fn(parsed as never, { ...scope, ...caller } as never),
+            options.authorizer,
+            scope,
+          );
+
+          // SAFETY: the settled data is what fn returned, unwrapped.
+          return result as never;
+        };
+      },
     },
-  });
+  );
 }
