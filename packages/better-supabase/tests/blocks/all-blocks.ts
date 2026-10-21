@@ -54,6 +54,7 @@ import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.
 import type { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
+import type { messagingBlock } from "../../src/blocks/messaging/manifest.ts";
 import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
 import type { mfaBlock } from "../../src/blocks/mfa/manifest.ts";
 import type { notificationsBlock } from "../../src/blocks/notifications/manifest.ts";
@@ -169,6 +170,7 @@ export type AllBlocks = {
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;
   readonly memory: typeof memoryBlock;
+  readonly messaging: typeof messagingBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;
   readonly notifications: typeof notificationsBlock;

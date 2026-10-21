@@ -2551,6 +2551,117 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "messaging",
+      "title": "Messaging",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "notifications",
+        "jobs",
+        "profiles",
+        "attachments",
+        "reactions",
+        "data-lifecycle"
+      ],
+      "manifest": "messaging",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "messages",
+      "entities": {
+        "specs": {
+          "message": {
+            "table": "messages",
+            "singular": "message",
+            "primary": true,
+            "subject": {
+              "title": "body",
+              "deletedAt": "deletedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              },
+              "search": {
+                "title": "body",
+                "body": []
+              }
+            }
+          },
+          "conversation": {
+            "table": "conversations",
+            "singular": "conversation",
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              }
+            }
+          }
+        },
+        "tables": {
+          "messages": {
+            "name": "messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "conversation": "conversation_id",
+              "parent": "parent_id",
+              "thread": "thread_id",
+              "author": "author_id",
+              "body": "body",
+              "document": "document",
+              "mentions": "mentions",
+              "mentionScope": "mention_scope",
+              "broadcast": "broadcast",
+              "replyCount": "reply_count",
+              "lastReplyAt": "last_reply_at",
+              "replyUsers": "reply_user_ids",
+              "pinnedAt": "pinned_at",
+              "pinnedBy": "pinned_by",
+              "resolvedAt": "resolved_at",
+              "resolvedBy": "resolved_by",
+              "scheduledFor": "scheduled_for",
+              "sentAt": "sent_at",
+              "editedAt": "edited_at",
+              "deletedAt": "deleted_at",
+              "createdAt": "created_at"
+            }
+          },
+          "conversations": {
+            "name": "conversations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "access": "access",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "title": "title",
+              "memberKey": "member_key",
+              "createdBy": "created_by",
+              "lastMessageAt": "last_message_at",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "send": "messages.send",
+          "moderate": "messages.moderate"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5146,6 +5257,218 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": []
+    },
+    {
+      "name": "messaging",
+      "sql": [
+        "messaging"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "messagingBlock",
+        "subpath": "better-supabase/blocks/messaging"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Conversation"
+        },
+        {
+          "name": "ConversationAccess"
+        },
+        {
+          "name": "ConversationKind"
+        },
+        {
+          "name": "ConversationSummary"
+        },
+        {
+          "name": "Message",
+          "fields": true
+        },
+        {
+          "name": "MessageCursor"
+        },
+        {
+          "name": "MessageEdit"
+        },
+        {
+          "name": "MessageEdition",
+          "fields": true
+        },
+        {
+          "name": "MessageFile"
+        },
+        {
+          "name": "MessageListOptions"
+        },
+        {
+          "name": "MessageReaction"
+        },
+        {
+          "name": "NewMessage",
+          "fields": true
+        },
+        {
+          "name": "OpenConversation"
+        }
+      ],
+      "entitySchemas": {
+        "message": {
+          "input": {
+            "title": "NewMessage",
+            "fields": {
+              "body": {
+                "kind": "string"
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "A rich-text document (any JSON)."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "broadcast": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "scheduledFor": {
+                "kind": "instant",
+                "optional": true
+              },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewMessage",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "document": {
+                  "description": "A rich-text document (any JSON)."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "broadcast": {
+                  "type": "boolean"
+                },
+                "scheduledFor": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "MessageEdition",
+            "fields": {
+              "body": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "`null` removes the document."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MessageEdition",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "document": {
+                  "description": "`null` removes the document."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MessagingEvents",
+        "types": [
+          "conversation.created",
+          "conversation.archived",
+          "conversation.member_added",
+          "conversation.member_removed",
+          "message.sent",
+          "message.edited",
+          "message.deleted",
+          "message.pinned",
+          "message.resolved"
+        ]
+      }
     },
     {
       "name": "metrics",

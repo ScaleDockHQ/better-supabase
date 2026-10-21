@@ -44,6 +44,7 @@ import type {
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
+import type { MessagingSqlOptions } from "./messaging/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
 import type { NotificationsSqlOptions } from "./notifications/options.ts";
 import type { NumberSequencesSqlOptions } from "./number-sequences/options.ts";
@@ -147,6 +148,7 @@ import {
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
+import { messagingSqlOptions } from "./messaging/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
 import { notificationsSqlOptions } from "./notifications/options.ts";
 import { numberSequencesSqlOptions } from "./number-sequences/options.ts";
@@ -264,6 +266,7 @@ export interface BlockOptionsRegistry {
   readonly knowledge: KnowledgeSqlOptions;
   readonly leave: LeaveSqlOptions;
   readonly memory: MemorySqlOptions;
+  readonly messaging: MessagingSqlOptions;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
   readonly notifications: NotificationsSqlOptions;
@@ -384,6 +387,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   knowledge: knowledgeSqlOptions,
   leave: leaveSqlOptions,
   memory: memorySqlOptions,
+  messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,
   notifications: notificationsSqlOptions,

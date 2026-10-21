@@ -4780,6 +4780,48 @@
       "RecalledMessage"
     ]
   },
+  "./blocks/messaging": {
+    "values": [
+      "conversationTopic",
+      "createMessaging",
+      "dbTransport",
+      "extendBlock",
+      "messageChangeSchema",
+      "messageInputSchema",
+      "messagingBlock",
+      "messagingEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Conversation",
+      "ConversationAccess",
+      "ConversationKind",
+      "ConversationSummary",
+      "FollowTarget",
+      "Message",
+      "MessageCursor",
+      "MessageEdit",
+      "MessageEdition",
+      "MessageFile",
+      "MessageListOptions",
+      "MessageReaction",
+      "Messaging",
+      "MessagingEvents",
+      "MessagingOptions",
+      "MessagingSqlOptions",
+      "NewMessage",
+      "NotifyLevel",
+      "OpenConversation",
+      "RpcClient",
+      "UnreadCount"
+    ]
+  },
   "./blocks/agents": {
     "values": [
       "agentsBlock",

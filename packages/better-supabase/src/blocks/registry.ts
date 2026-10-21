@@ -52,6 +52,7 @@ import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
+import { messagingBlock } from "./messaging/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
 import { notificationsBlock } from "./notifications/manifest.ts";
@@ -168,6 +169,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   jsonbSchemasBlock,
   knowledgeBlock,
   memoryBlock,
+  messagingBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

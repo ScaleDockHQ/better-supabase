@@ -1,0 +1,48 @@
+export {
+  type Conversation,
+  type ConversationAccess,
+  type ConversationKind,
+  type ConversationSummary,
+  conversationTopic,
+  createMessaging,
+  type FollowTarget,
+  type Message,
+  type MessageCursor,
+  type MessageEdit,
+  type MessageEdition,
+  type MessageFile,
+  type MessageListOptions,
+  type MessageReaction,
+  type Messaging,
+  type MessagingOptions,
+  type NewMessage,
+  type NotifyLevel,
+  type OpenConversation,
+  type UnreadCount,
+} from "./messaging.ts";
+
+export {
+  extendBlock,
+  withBlockHooks,
+  wrapTransport,
+  type BlockHooks,
+  type BlockTransportMiddleware,
+} from "../../core/block-hooks.ts";
+
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+  type BlockTransport,
+  type RpcClient,
+} from "../../core/block-transport.ts";
+
+export { messagingBlock } from "./manifest.ts";
+
+export { messageChangeSchema, messageInputSchema } from "./schemas.ts";
+
+export { messagingEvents } from "./events.ts";
+
+export type { MessagingEvents } from "./events.ts";
+
+export type { MessagingSqlOptions } from "./options.ts";

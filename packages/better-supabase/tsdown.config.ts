@@ -86,6 +86,7 @@ const entries = [
   "blocks/ai-files/index",
   "blocks/knowledge/index",
   "blocks/memory/index",
+  "blocks/messaging/index",
   "blocks/agents/index",
   "blocks/connectors/index",
   "blocks/ai-tasks/index",

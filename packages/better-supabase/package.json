@@ -757,6 +757,11 @@
       "types": "./dist/blocks/memory/index.d.ts",
       "default": "./dist/blocks/memory/index.js"
     },
+    "./blocks/messaging": {
+      "@better-supabase/source": "./src/blocks/messaging/index.ts",
+      "types": "./dist/blocks/messaging/index.d.ts",
+      "default": "./dist/blocks/messaging/index.js"
+    },
     "./blocks/agents": {
       "@better-supabase/source": "./src/blocks/agents/index.ts",
       "types": "./dist/blocks/agents/index.d.ts",
@@ -2129,6 +2134,10 @@
       "./blocks/memory": {
         "types": "./dist/blocks/memory/index.d.ts",
         "default": "./dist/blocks/memory/index.js"
+      },
+      "./blocks/messaging": {
+        "types": "./dist/blocks/messaging/index.d.ts",
+        "default": "./dist/blocks/messaging/index.js"
       },
       "./blocks/agents": {
         "types": "./dist/blocks/agents/index.d.ts",

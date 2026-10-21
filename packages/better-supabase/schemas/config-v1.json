@@ -1802,6 +1802,7 @@
               "knowledge",
               "leave",
               "memory",
+              "messaging",
               "metrics",
               "mfa",
               "notifications",
@@ -2022,6 +2023,9 @@
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
+            },
+            "messaging": {
+              "$ref": "#/$defs/blocks/messaging"
             },
             "metrics": {
               "$ref": "#/$defs/blocks/metrics"
@@ -4226,6 +4230,36 @@
                 "type": "number",
                 "default": 100000
               }
+            }
+          }
+        }
+      },
+      "messaging": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "messages"
+              },
+              "threadDepth": {},
+              "maxBodyLength": {
+                "type": "number",
+                "default": 40000
+              },
+              "editWindow": {
+                "type": "number",
+                "default": 0
+              },
+              "scheduleQueue": {
+                "type": "string",
+                "default": "messaging"
+              },
+              "extraColumns": {}
             }
           }
         }

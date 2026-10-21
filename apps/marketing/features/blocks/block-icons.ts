@@ -62,6 +62,7 @@ import {
   LogInIcon,
   MailPlusIcon,
   MegaphoneIcon,
+  MessageCircleIcon,
   MessageSquareIcon,
   MessagesSquareIcon,
   MonitorSmartphoneIcon,
@@ -141,6 +142,7 @@ export const BLOCK_ICONS = {
   teams: UsersIcon,
   // Collaboration
   comments: MessageSquareIcon,
+  messaging: MessageCircleIcon,
   attachments: PaperclipIcon,
   "share-links": Link2Icon,
   reactions: SmilePlusIcon,
