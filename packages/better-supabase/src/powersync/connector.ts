@@ -2,7 +2,7 @@ import type { DbError, DbErrorKind } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 
 import { dbError } from "../core/errors.ts";
-import { err } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 
 /** A queued local change: PowerSync's `CrudEntry`. */
 export interface CrudEntryLike {
@@ -25,18 +25,46 @@ export interface CrudQueueLike {
 
 /**
  * A repository a table's changes replay through (`bs.db.customers`), so RLS,
- * plugins and validation run as they do online.
+ * plugins and validation run as they do online. `I` is the table's insert type
+ * and `K` its primary key; every generated repository fits.
  */
-export interface UploadRepository {
-  upsert(data: never): PromiseLike<Result<unknown>>;
-  update(id: never, patch: never): PromiseLike<Result<unknown>>;
-  delete(id: never): PromiseLike<Result<unknown>>;
+export interface UploadRepository<I = Record<string, unknown>, K = string> {
+  upsert(data: I): PromiseLike<Result<unknown>>;
+  update(id: K, patch: Partial<I>): PromiseLike<Result<unknown>>;
+  delete(id: K): PromiseLike<Result<unknown>>;
 }
 
+/**
+ * A repository for a table whose rows are written once (attachments, events): a
+ * `PUT` inserts with `create`, and a `DELETE` calls `delete`.
+ */
+export interface CreateUploadRepository<
+  I = Record<string, unknown>,
+  K = string,
+> {
+  create(data: I): PromiseLike<Result<unknown>>;
+  delete(id: K): PromiseLike<Result<unknown>>;
+}
+
+/** Replays one queued change. */
+export type UploadFunction = (
+  entry: CrudEntryLike,
+) => PromiseLike<Result<unknown>>;
+
 /** A table's route: its repository, or a function for custom replay. */
-export type UploadRoute =
-  | UploadRepository
-  | ((entry: CrudEntryLike) => PromiseLike<Result<unknown>>);
+export type UploadRoute<I = Record<string, unknown>, K = string> =
+  | UploadRepository<I, K>
+  | UploadFunction;
+
+export interface UploadRouteOptions<P extends "upsert" | "create"> {
+  /**
+   * What a `PUT` calls. `upsert` (the default) inserts or replaces the row.
+   * `create` inserts it and counts a `conflict` as applied, since the row is
+   * already on the server (an earlier upload of the same change); a `PATCH`
+   * then fails with `unsupported` and is discarded.
+   */
+  readonly put?: P;
+}
 
 /** What an upload error means for the queued change. */
 export type UploadOutcome = "retry" | "conflict" | "discard";
@@ -65,8 +93,22 @@ interface SessionClient {
           readonly expires_at?: number | undefined;
         } | null;
       };
+      readonly error?: {
+        readonly name?: string;
+        readonly message: string;
+      } | null;
     }>;
   };
+}
+
+/** Where the connector met an error it reports to `onError`. */
+export interface UploadErrorContext {
+  /**
+   * `credentials`: reading the Supabase session failed, so sync and uploads
+   * wait for PowerSync's next try. `upload`: a change failed with an error that
+   * keeps the batch queued for a retry.
+   */
+  readonly phase: "credentials" | "upload";
 }
 
 export interface UploadConnectorOptions {
@@ -85,6 +127,13 @@ export interface UploadConnectorOptions {
   ) => UploadOutcome | undefined;
   readonly onConflict?: (change: RejectedChange) => void;
   readonly onDiscard?: (change: RejectedChange) => void;
+  /**
+   * Called when reading the session fails (kind `unauthorized`, or `network`
+   * when the Auth server is unreachable) and when an upload error keeps the
+   * batch queued. PowerSync retries both on its own; this is for logging. A
+   * signed-out session is not an error.
+   */
+  readonly onError?: (error: DbError, context: UploadErrorContext) => void;
 }
 
 /** PowerSync's `PowerSyncBackendConnector`. */
@@ -167,44 +216,106 @@ function rejectedStore(): RejectedStore & {
   };
 }
 
-function replay(
-  route: UploadRoute,
-  entry: CrudEntryLike,
-): PromiseLike<Result<unknown>> {
-  if (typeof route === "function") {
-    return route(entry);
-  }
+function sessionError(cause: unknown): DbError {
+  const failure = typeof cause === "object" && cause !== null ? cause : {};
+  const name = "name" in failure ? failure.name : undefined;
 
-  const data = entry.opData ?? {};
+  const message =
+    "message" in failure && typeof failure.message === "string"
+      ? failure.message
+      : String(cause);
 
-  switch (entry.op) {
-    case "PUT": {
-      // SAFETY: PowerSync recorded these columns from a write to the local
-      // table, whose columns mirror the repository's table.
-      return route.upsert({ ...data, id: entry.id } as never);
-    }
+  // supabase-js raises AuthRetryableFetchError, and fetch a TypeError, when
+  // the Auth server is unreachable.
+  return cause instanceof TypeError || name === "AuthRetryableFetchError"
+    ? dbError("network", message)
+    : dbError("unauthorized", message);
+}
 
-    case "PATCH": {
-      // SAFETY: as above; the id is the row's text primary key.
-      return route.update(entry.id as never, data as never);
-    }
+function unsupportedOp(entry: CrudEntryLike, route: string): Result<never> {
+  return err(
+    dbError(
+      "unsupported",
+      `better-supabase: a ${route} upload route can't replay PowerSync op ${entry.op}`,
+    ),
+  );
+}
 
-    case "DELETE": {
-      // SAFETY: as above.
-      return route.delete(entry.id as never);
-    }
+/**
+ * Turns a repository into a function route. By default a `PUT` upserts, a
+ * `PATCH` updates and a `DELETE` deletes, as a bare repository in `tables`
+ * does. With `put: "create"`, a `PUT` inserts and a `conflict` counts as
+ * applied, for tables whose rows are written once.
+ *
+ * ```ts
+ * tables: {
+ *   customers: bs.db.customers,
+ *   attachments: uploadRoute(bs.db.attachments, { put: "create" }),
+ * }
+ * ```
+ */
+export function uploadRoute<I, K>(
+  repository: CreateUploadRepository<I, K>,
+  options: UploadRouteOptions<"create"> & { readonly put: "create" },
+): UploadFunction;
+export function uploadRoute<I, K>(
+  repository: UploadRepository<I, K>,
+  options?: UploadRouteOptions<"upsert">,
+): UploadFunction;
+export function uploadRoute(
+  repository: UploadRepository | CreateUploadRepository,
+  options: UploadRouteOptions<"upsert" | "create"> = {},
+): UploadFunction {
+  const put = options.put ?? "upsert";
 
-    default: {
-      return Promise.resolve(
-        err(
+  return async (entry) => {
+    // PowerSync recorded these columns from a write to the local table, whose
+    // columns mirror the repository's table, and the id is its primary key.
+    const row = { ...entry.opData, id: entry.id };
+    const id = entry.id;
+
+    switch (entry.op) {
+      case "PUT": {
+        if (put === "create" && "create" in repository) {
+          const result = await repository.create(row);
+
+          return !result.ok && result.error.kind === "conflict"
+            ? ok(undefined)
+            : result;
+        }
+
+        return "upsert" in repository
+          ? repository.upsert(row)
+          : unsupportedOp(entry, put);
+      }
+
+      case "PATCH": {
+        return put === "upsert" && "update" in repository
+          ? repository.update(id, entry.opData ?? {})
+          : unsupportedOp(entry, put);
+      }
+
+      case "DELETE": {
+        return repository.delete(id);
+      }
+
+      default: {
+        return err(
           dbError(
             "unsupported",
             `better-supabase: unknown PowerSync op ${entry.op}`,
           ),
-        ),
-      );
+        );
+      }
     }
-  }
+  };
+}
+
+function replay(
+  route: UploadRoute,
+  entry: CrudEntryLike,
+): PromiseLike<Result<unknown>> {
+  return typeof route === "function" ? route(entry) : uploadRoute(route)(entry);
 }
 
 /**
@@ -231,17 +342,32 @@ export function createUploadConnector(
   const rejected = rejectedStore();
   const batchSize = options.batchSize ?? 100;
 
-  const signedIn = async (): Promise<boolean> => {
-    const { data } = await options.supabase.auth.getSession();
+  // undefined when reading the session failed; the failure went to onError.
+  const currentSession = async () => {
+    try {
+      const { data, error } = await options.supabase.auth.getSession();
 
-    return data.session !== null;
+      if (error) {
+        options.onError?.(sessionError(error), { phase: "credentials" });
+
+        return;
+      }
+
+      return data.session;
+    } catch (cause) {
+      options.onError?.(sessionError(cause), { phase: "credentials" });
+
+      return;
+    }
   };
+
+  const signedIn = async (): Promise<boolean> =>
+    (await currentSession()) !== null;
 
   return {
     rejected,
     async fetchCredentials() {
-      const { data } = await options.supabase.auth.getSession();
-      const session = data.session;
+      const session = await currentSession();
 
       if (!session) {
         return null;
@@ -287,6 +413,8 @@ export function createUploadConnector(
             if (error.kind === "unauthorized" && !(await signedIn())) {
               return;
             }
+
+            options.onError?.(error, { phase: "upload" });
 
             // PowerSync keeps the batch queued and calls uploadData again.
             throw new Error(error.message);

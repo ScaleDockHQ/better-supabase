@@ -167,31 +167,39 @@ describe("compileSqlite", () => {
     ).toContain('from "ps_customers"');
   });
 
-  it("returns unsupported for includes, full-text search and function sources", () => {
+  it("compiles an include to a correlated json subquery", () => {
     const notesRelation = customers.relations["notes"]!;
-    expect(
-      unsupportedOf(() =>
-        compileSqlite(
-          select({
-            selection: {
-              columns: [],
-              includes: [
-                {
-                  alias: "notes",
-                  relation: notesRelation,
-                  target: notes,
-                  selection: { columns: [], includes: [] },
-                  where: undefined,
-                  orderBy: [],
-                  limit: undefined,
-                  required: false,
-                },
-              ],
-            },
-          }),
-        ),
+
+    const plan = selectPlan(
+      compileSqlite(
+        select({
+          selection: {
+            columns: [],
+            includes: [
+              {
+                alias: "notes",
+                relation: notesRelation,
+                target: notes,
+                selection: { columns: [], includes: [] },
+                where: undefined,
+                orderBy: [],
+                limit: 2,
+                required: false,
+              },
+            ],
+          },
+        }),
       ),
-    ).toMatchObject({ kind: "unsupported", table: "customers" });
+    );
+
+    expect(plan.rows?.text).toContain("json_group_array(json(");
+    expect(plan.rows?.text).toMatch(/limit 2/);
+    expect(plan.columns).toMatchObject([
+      { alias: "notes", decode: "json", nested: { many: true } },
+    ]);
+  });
+
+  it("returns unsupported for full-text search and function sources", () => {
     expect(
       unsupportedOf(() =>
         compileSqlite(

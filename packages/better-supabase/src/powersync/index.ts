@@ -32,6 +32,7 @@ export type {
   SqliteInsertPlan,
   SqliteKeyedPlan,
   SqliteKeys,
+  SqliteNested,
   SqlitePlan,
   SqliteQuery,
   SqliteReturning,
@@ -47,16 +48,24 @@ export type {
   SyncWithAuthOptions,
 } from "./auth.ts";
 
-export { createUploadConnector, uploadOutcome } from "./connector.ts";
+export {
+  createUploadConnector,
+  uploadOutcome,
+  uploadRoute,
+} from "./connector.ts";
 
 export type {
+  CreateUploadRepository,
   CrudEntryLike,
   CrudQueueLike,
   RejectedChange,
   RejectedStore,
   UploadConnector,
   UploadConnectorOptions,
+  UploadErrorContext,
+  UploadFunction,
   UploadOutcome,
   UploadRepository,
   UploadRoute,
+  UploadRouteOptions,
 } from "./connector.ts";

@@ -131,7 +131,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
 
-  const { files, warnings } = await render(config, snapshot);
+  const { files, warnings, notices } = await render(config, snapshot);
   // Under the migrations workflow the read sets go into a migration, which
   // the manifest never lists: a later run must not remove it.
   const migrations = !options.isolated && (await writesMigrations(config));
@@ -141,7 +141,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       manifestPath(config.root, file.path),
     );
 
-  const notice = (await generationNotices(snapshot, warnings))
+  const notice = (await generationNotices(snapshot, warnings, notices))
     .map((line) => `\n${line}`)
     .join("");
 

@@ -260,6 +260,7 @@ export async function parseSnapshot(
       ...(doc.extras.functionComments
         ? { functionComments: doc.extras.functionComments }
         : {}),
+      ...(doc.extras.domains ? { domains: doc.extras.domains } : {}),
     },
   };
 }

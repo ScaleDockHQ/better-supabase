@@ -61,6 +61,7 @@ export function buildFunctions(
   }
 
   const shadowed = new Set<string>();
+  const unpromised: string[] = [];
 
   const functions: FunctionModel[] = callable
     .filter((fn) => {
@@ -132,21 +133,27 @@ export function buildFunctions(
         const columns = fn.returnsTable.map((column) => {
           const codec = codecFor(column.udt, config);
 
+          const tsType = codec
+            ? CODEC_TYPE[codec]
+            : typeOf(column.udt, column.typeSchema);
+
           return {
             db: column.name,
             app: applyCasing(column.name, config.casing),
             codec,
-            tsType: codec
-              ? CODEC_TYPE[codec]
-              : typeOf(column.udt, column.typeSchema),
+            tsType: column.notNull ? tsType : orNull(tsType, column.name),
           };
         });
 
+        if (
+          notNull === undefined &&
+          columns.some((column) => column.tsType.endsWith(" | null"))
+        ) {
+          unpromised.push(`${fn.schema}.${fn.name}`);
+        }
+
         returns = `{ ${columns
-          .map(
-            (column) =>
-              `${JSON.stringify(column.app)}: ${orNull(column.tsType, column.db)}`,
-          )
+          .map((column) => `${JSON.stringify(column.app)}: ${column.tsType}`)
           .join("; ")} }[]`;
 
         if (
@@ -212,6 +219,14 @@ export function buildFunctions(
         `functions.${name}: no function "${name}" in ${config.schemas.join(", ")}`,
       );
     }
+  }
+
+  if (unpromised.length > 0) {
+    const names = [...new Set(unpromised)];
+
+    ctx.notices.push(
+      `Notice: Postgres can't declare a \`returns table\` column not null, so ${names.length === 1 ? "this function's columns are" : `the columns of these ${names.length} functions are`} typed \`| null\`: ${names.join(", ")}. Name the columns that are never null with an \`@notNull(a, b)\` tag in the function's comment or with \`functions.<name>.notNull\`; \`notNull: []\` keeps them all nullable and silences this notice.`,
+    );
   }
 
   for (const id of shadowed) {

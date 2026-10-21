@@ -408,6 +408,15 @@ describe("_count, $table and $withoutPlugins", () => {
     void db.customers.findMany({ include: { _count: { organization: true } } });
   });
 
+  it("rejects _count and measures outside include", () => {
+    // @ts-expect-error _count goes inside include
+    void db.customers.findMany({ _count: { notes: true } });
+    // @ts-expect-error _sum goes inside include
+    void db.customers.findFirst({ _sum: { notes: { id: true } } });
+    // @ts-expect-error _count goes inside include
+    void db.customers.findOnly({ where: { id: "x" }, _count: { notes: true } });
+  });
+
   it("types runtime table lookups and the plugin-free connection", () => {
     expectTypeOf(db.$table("tags")).toEqualTypeOf(db.tags);
     // @ts-expect-error unknown table

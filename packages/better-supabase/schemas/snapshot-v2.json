@@ -964,6 +964,31 @@
             "type": "string"
           }
         },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema", "name", "baseType", "baseSchema", "notNull"],
+            "properties": {
+              "schema": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "baseType": {
+                "type": "string"
+              },
+              "baseSchema": {
+                "type": "string"
+              },
+              "notNull": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
         "hooks": {
           "type": "array",
           "items": {

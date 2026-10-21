@@ -91,7 +91,7 @@ async function renderEmit(
 ): Promise<Rendered & { readonly contents: string }> {
   const generator = emitGenerator(config, emit);
 
-  const { files, warnings } = await render(
+  const { files, warnings, notices } = await render(
     { ...config, generators: generator ? [generator] : [] },
     snapshot,
     { inlineMeta: emit === "schema" },
@@ -124,7 +124,7 @@ async function renderEmit(
     );
   }
 
-  return { files: picked, warnings, contents: file.contents };
+  return { files: picked, warnings, notices, contents: file.contents };
 }
 
 /**
@@ -299,8 +299,10 @@ export async function runMetadataGen(
     return refused;
   }
 
-  const { contents, warnings } = await renderEmit(config, snapshot, emit);
-  const notices = await generationNotices(snapshot, warnings);
+  const rendered = await renderEmit(config, snapshot, emit);
+  const { contents, warnings } = rendered;
+
+  const notices = await generationNotices(snapshot, warnings, rendered.notices);
 
   const shown =
     emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);

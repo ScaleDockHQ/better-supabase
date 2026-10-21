@@ -140,7 +140,7 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 const customers = result.data;
 ```
 
-- Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.
+- Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted. The `DbException` it throws has the `DbError` as `error` and `cause`, plus its own `kind`, `status`, `code`, `details`, `hint` and `table`; kind-specific fields such as `constraint` stay on `error`.
 - Apps on better-result: `withBetterResult(db, toResult)` from `better-supabase/better-result` returns a `db` whose repositories, `$rpc` and `$list(list, query)` return better-result values; `toBetterResult(result, Result, mapError)` converts one result, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
 - Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
@@ -148,6 +148,7 @@ const customers = result.data;
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
 - Jobs and webhooks run as a user so RLS applies: `bs.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bs.actingAs(userId, { tenant_id })` for a webhook or script. `bs.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.
+- `$rpc` types each `returns table` column and scalar result `| null`, because Postgres can't declare them not null. Don't cast them: add `@notNull(a, b)` to the function's comment (or `functions.<name>.notNull` in the config), type the column with a `not null` domain, or return `setof` a table. `gen` prints a notice for each function still nullable. Arguments accept `null` too; that only widens the input.
 
 ## Time values
 

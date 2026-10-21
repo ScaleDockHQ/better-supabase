@@ -316,6 +316,13 @@ export interface ReadArgs<
 > extends RequestArgs {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
+  /** Related counts go inside `include`: `include: { _count: { notes: true } }`. */
+  readonly _count?: never;
+  /** Related aggregates go inside `include`; `aggregate()` aggregates the table. */
+  readonly _sum?: never;
+  readonly _avg?: never;
+  readonly _min?: never;
+  readonly _max?: never;
 }
 
 export interface FindManyArgs<

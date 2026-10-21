@@ -61,9 +61,16 @@ function toColumn(column: PostgresColumn): CatalogColumn {
   };
 }
 
+interface FunctionType {
+  readonly name: string;
+  readonly schema: string;
+  /** A NOT NULL domain, resolved to its base type. */
+  readonly notNull?: boolean;
+}
+
 function toFunction(
   fn: PostgresFunction,
-  typeOf: (id: number) => { name: string; schema: string } | undefined,
+  typeOf: (id: number) => FunctionType | undefined,
   relationName: (id: number | null) => string | null,
 ): CatalogFunction {
   const args: CatalogFunction["args"][number][] = [];
@@ -87,7 +94,12 @@ function toFunction(
     }
 
     if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout") {
-      table.push({ name, udt: raw, ...typeSchema });
+      table.push({
+        name,
+        udt: raw,
+        ...typeSchema,
+        ...(type?.notNull ? { notNull: true as const } : {}),
+      });
     }
   }
 
@@ -302,12 +314,30 @@ export function toCatalog(snapshot: Snapshot): Catalog {
 
   const comments = snapshot.extras.functionComments ?? {};
 
+  const domains = new Map(
+    (snapshot.extras.domains ?? []).map((domain) => [
+      `${domain.schema}.${domain.name}`,
+      domain,
+    ]),
+  );
+
+  const functionType = (id: number): FunctionType | undefined => {
+    const type = types.get(id);
+    const domain = type && domains.get(`${type.schema}.${type.name}`);
+
+    return domain
+      ? {
+          name: domain.baseType,
+          schema: domain.baseSchema,
+          notNull: domain.notNull,
+        }
+      : type;
+  };
+
   const functions = meta.functions
     .map((fn) => {
-      const entry = toFunction(
-        fn,
-        (id) => types.get(id),
-        (id) => (id === null ? null : (relationNames.get(id) ?? null)),
+      const entry = toFunction(fn, functionType, (id) =>
+        id === null ? null : (relationNames.get(id) ?? null),
       );
 
       const comment =

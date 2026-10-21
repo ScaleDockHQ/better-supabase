@@ -893,6 +893,28 @@ describe("events", () => {
     });
     expect(errors).toEqual([{ table: "customers", error: result.error }]);
   });
+
+  it("rejects _count and measures outside include instead of ignoring them", async () => {
+    const { client, requests } = capturingClient();
+    const customers = defineSupabase(camel).connect(client).customers;
+
+    // SAFETY: an untyped caller (JavaScript, a cast) passes the key anyway.
+    const loose = (args: object) => args as never;
+
+    for (const result of [
+      await customers.findMany(loose({ _count: { notes: true } })),
+      await customers.findFirst(loose({ _sum: { notes: { id: true } } })),
+      await customers.findOnly(loose({ where: { id: "x" }, _count: {} })),
+    ]) {
+      expect(result.error).toMatchObject({
+        kind: "invalid_request",
+        table: "customers",
+        message: expect.stringMatching(/include: \{ _(count|sum)/u),
+      });
+    }
+
+    expect(requests).toHaveLength(0);
+  });
 });
 
 describe("row caps and default order", () => {

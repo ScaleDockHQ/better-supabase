@@ -57,12 +57,29 @@ export interface SnapshotExtras {
    */
   readonly functionComments?: Readonly<Record<string, string>>;
   /**
+   * Domains that the read schemas' functions take or return, with their base
+   * type. Typegen leaves them `unknown`; `gen` types them by the base type, and
+   * a `returns table` column of a NOT NULL domain is never null. Absent when no
+   * function uses a domain.
+   */
+  readonly domains?: readonly ExtrasDomain[];
+  /**
    * Set when the snapshot comes from a `GeneratorMetadata` document alone (`gen
    * --metadata`): unique keys, checks and foreign keys are inferred from the
    * columns and relationships, and the rest is empty, so doctor skips the rules
    * that read it.
    */
   readonly fromMetadata?: true;
+}
+
+export interface ExtrasDomain {
+  readonly schema: string;
+  readonly name: string;
+  /** The base type's name (`uuid`, `_text`). */
+  readonly baseType: string;
+  readonly baseSchema: string;
+  /** Declared `not null`. */
+  readonly notNull: boolean;
 }
 
 /** An `[auth.hook.<name>]` with a `pg-functions://` URI. */
@@ -316,6 +333,8 @@ export interface CatalogFunction {
         readonly udt: string;
         /** Schema of the column's type, when typegen knows it. */
         readonly typeSchema?: string;
+        /** The column's type is a NOT NULL domain. */
+        readonly notNull?: true;
       }[]
     | null;
   /** Return type name (`int4`, `_text`, a table's row type). */

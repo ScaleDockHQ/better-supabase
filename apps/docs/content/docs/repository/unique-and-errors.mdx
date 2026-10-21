@@ -82,8 +82,39 @@ to HTTP Problem Details.
 
 ## Throwing your own errors
 
-`.orThrow()` throws a `DbException`. Pass a factory to throw something your
-framework understands instead:
+`.orThrow()` throws a `DbException`. It carries the plain `DbError` as
+`error` and as `cause`, and copies the fields you usually branch on or log
+onto the exception itself:
+
+| Field     | Value                                                            |
+| --------- | ---------------------------------------------------------------- |
+| `message` | the error's message                                              |
+| `kind`    | the `DbError` kind (`not_found`, `conflict`, ...)                |
+| `status`  | the suggested HTTP status                                        |
+| `code`    | the SQLSTATE or PostgREST code (`23505`, `PGRST116`), when known |
+| `details` | the Postgres `DETAIL`, when present                              |
+| `hint`    | the Postgres `HINT`, when present                                |
+| `table`   | the app-cased table key, when known                              |
+
+These are own, enumerable fields, so error trackers and loggers that
+serialize an error's own properties record them. The kind-specific fields,
+such as `constraint` on a `conflict`, stay on `error`. The guards
+(`isConflict`, `isNotFound`) and `dbErrorOf()` accept the exception
+directly, and `isDbError()` is `false` for it, because it is an `Error`
+rather than plain data.
+
+```ts
+try {
+  await db.customers.create(input).orThrow();
+} catch (exception) {
+  if (exception instanceof DbException && exception.code === "23505") {
+    // a unique violation; exception.error.constraint names it
+  }
+  throw exception;
+}
+```
+
+Pass a factory to throw something your framework understands instead:
 
 ```ts
 const customer = await db.customers

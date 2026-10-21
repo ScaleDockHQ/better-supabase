@@ -234,6 +234,21 @@ join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = any(${schemas}) and obj_description(p.oid, 'pg_proc') ~ '@notNull'
 order by 1`;
 
+// Typegen types a domain in a function signature as `unknown`, so record the
+// base type and NOT NULL of each domain the read schemas' functions use.
+const FUNCTION_DOMAINS = (schemas: string) => `
+select distinct tn.nspname as schema, t.typname as name,
+  bt.typname as base_type, bn.nspname as base_schema, t.typnotnull as not_null
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+cross join lateral unnest(array_append(coalesce(p.proallargtypes, p.proargtypes::oid[]), p.prorettype)) as a(type_id)
+join pg_type t on t.oid = a.type_id and t.typtype = 'd'
+join pg_namespace tn on tn.oid = t.typnamespace
+join pg_type bt on bt.oid = t.typbasetype
+join pg_namespace bn on bn.oid = bt.typnamespace
+where n.nspname = any(${schemas})
+order by 1, 2`;
+
 const HAS_TABLE = (qualified: string) =>
   `select to_regclass('${qualified}') is not null as present`;
 
@@ -458,6 +473,7 @@ export async function readExtras(
     roleRows,
     hookRows,
     commentRows,
+    domainRows,
   ] = await Promise.all([
     rows<{
       id: number | string;
@@ -478,6 +494,13 @@ export async function readExtras(
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
     hooks.length > 0 ? readHooks(db, hooks) : undefined,
     rows<{ key: string; comment: string }>(db, FUNCTION_COMMENTS(list)),
+    rows<{
+      schema: string;
+      name: string;
+      base_type: string;
+      base_schema: string;
+      not_null: boolean;
+    }>(db, FUNCTION_DOMAINS(list)),
   ]);
 
   const constraints = groupById(constraintRows);
@@ -595,6 +618,17 @@ export async function readExtras(
           functionComments: Object.fromEntries(
             commentRows.map((row) => [row.key, row.comment]),
           ),
+        }
+      : {}),
+    ...(domainRows.length > 0
+      ? {
+          domains: domainRows.map((row) => ({
+            schema: row.schema,
+            name: row.name,
+            baseType: row.base_type,
+            baseSchema: row.base_schema,
+            notNull: row.not_null,
+          })),
         }
       : {}),
   };

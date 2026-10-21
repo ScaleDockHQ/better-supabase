@@ -36,6 +36,8 @@ const primaryOrders = new WeakMap<TableMeta, readonly OrderTerm[]>();
 
 const existsSelections = new WeakMap<TableMeta, Selection>();
 
+const RELATED_MEASURES = ["_count", "_sum", "_avg", "_min", "_max"] as const;
+
 /** Database names of the table's `config.sensitive` columns. */
 function sensitiveColumnsOf(table: TableMeta): ReadonlySet<string> {
   let sensitive = sensitiveByTable.get(table);
@@ -66,13 +68,23 @@ export function createRepository(
     (plugin) => plugin.beforeMutation,
   );
 
-  // SAFETY: the select option of every read method is a column list.
-  const selection = (args: Args | undefined): Selection =>
-    builder.selection(
+  const selection = (args: Args | undefined): Selection => {
+    const misplaced = RELATED_MEASURES.find((key) => args?.[key] !== undefined);
+
+    if (misplaced !== undefined) {
+      invalidRequest(
+        `${misplaced} belongs inside include: { ${misplaced}: { ... } } for related rows; aggregate() covers the table itself`,
+        table.key,
+      );
+    }
+
+    // SAFETY: the select option of every read method is a column list.
+    return builder.selection(
       table,
       args?.["select"] as readonly string[] | undefined,
       args?.["include"],
     );
+  };
 
   const rowCount = (
     args: Args | undefined,

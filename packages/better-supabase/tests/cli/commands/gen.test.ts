@@ -151,7 +151,7 @@ describe("gen", () => {
     expect(first.code).toBe(0);
     expect(first.output).toMatch(
       new RegExp(
-        `^Created src/db/database.types.ts\\nCreated src/db/generated.ts\\nCreated src/db/generated.meta.js\\nCreated src/db/generated.meta.d.ts\\nCreated ${READ_SET_FILE}\\nGenerated \\d+ tables.$`,
+        `^Created src/db/database.types.ts\\nCreated src/db/generated.ts\\nCreated src/db/generated.meta.js\\nCreated src/db/generated.meta.d.ts\\nCreated ${READ_SET_FILE}\\nGenerated \\d+ tables.(\\nNotice: [^\\n]*)*$`,
       ),
     );
     const sql = await readFile(join(root, READ_SET_FILE), "utf-8");
@@ -162,9 +162,13 @@ describe("gen", () => {
     expect(await gen(true)).toEqual({
       code: 0,
       data: { stale: [], leftovers: [], upToDate: true, warnings: [] },
-      output: "Generated files are up to date (5).",
+      output: expect.stringMatching(
+        /^Generated files are up to date \(5\)\.(\nNotice: [^\n]*)*$/u,
+      ),
     });
-    expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);
+    expect((await gen(false)).output).toMatch(
+      /^No changes \(\d+ tables\)\.(\nNotice: [^\n]*)*$/u,
+    );
 
     await writeFile(
       join(root, READ_SET_FILE),
@@ -233,7 +237,9 @@ describe("gen", () => {
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect((await gen(true)).code).toBe(0);
-    expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);
+    expect((await gen(false)).output).toMatch(
+      /^No changes \(\d+ tables\)\.(\nNotice: [^\n]*)*$/u,
+    );
     expect(existsSync(join(root, path!))).toBe(true);
 
     await writeFile(join(root, path!), "-- emptied\n");

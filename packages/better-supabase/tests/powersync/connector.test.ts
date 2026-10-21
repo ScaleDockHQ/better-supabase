@@ -11,6 +11,7 @@ import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
   createUploadConnector,
   uploadOutcome,
+  uploadRoute,
 } from "../../src/powersync/connector.ts";
 
 function queue(crud: CrudEntryLike[]) {
@@ -104,6 +105,89 @@ describe("createUploadConnector", () => {
     });
 
     expect(await signedOut.fetchCredentials()).toBeNull();
+  });
+
+  it("reports a session error to onError and returns no credentials", async () => {
+    const onError = vi.fn();
+
+    const failing = (
+      getSession: Parameters<
+        typeof createUploadConnector
+      >[0]["supabase"]["auth"]["getSession"],
+    ) =>
+      createUploadConnector({
+        endpoint: "e",
+        supabase: { auth: { getSession } },
+        tables: {},
+        onError,
+      });
+
+    const refused = failing(async () => ({
+      data: { session: null },
+      error: { name: "AuthApiError", message: "refresh token revoked" },
+    }));
+
+    expect(await refused.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: "unauthorized",
+        message: "refresh token revoked",
+      }),
+      { phase: "credentials" },
+    );
+
+    const offline = failing(async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    expect(await offline.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "network", message: "fetch failed" }),
+      { phase: "credentials" },
+    );
+
+    const retryable = failing(async () => ({
+      data: { session: null },
+      error: { name: "AuthRetryableFetchError", message: "offline" },
+    }));
+
+    expect(await retryable.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "network" }),
+      { phase: "credentials" },
+    );
+    expect(onError).toHaveBeenCalledTimes(3);
+  });
+
+  it("calls no onError for a signed-out session, and reports retried uploads", async () => {
+    const onError = vi.fn();
+
+    const signedOut = createUploadConnector({
+      endpoint: "e",
+      supabase: session(null),
+      tables: {},
+      onError,
+    });
+
+    expect(await signedOut.fetchCredentials()).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+
+    const { repo } = repository("network");
+
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: repo },
+      onError,
+    });
+
+    await expect(connector.uploadData(queue([put("1")]).db)).rejects.toThrow(
+      "network",
+    );
+    expect(onError).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ kind: "network" }),
+      { phase: "upload" },
+    );
   });
 
   it("replays a batch through the repositories and completes it", async () => {
@@ -241,6 +325,116 @@ describe("createUploadConnector", () => {
     await custom.uploadData(db);
     expect(route).toHaveBeenCalledWith(put("1"));
     expect(custom.rejected.current()[0]?.outcome).toBe("discard");
+  });
+});
+
+describe("uploadRoute", () => {
+  function inserts(failWith?: DbErrorKind) {
+    const calls: unknown[] = [];
+
+    const reply = () =>
+      new AsyncResult(
+        Promise.resolve(
+          failWith ? err(dbError(failWith, failWith)) : ok({ id: "x" }),
+        ),
+      );
+
+    return {
+      calls,
+      repo: {
+        create: (row: { id: string; name?: string }) => {
+          calls.push(["create", row]);
+
+          return reply();
+        },
+        delete: (id: string) => {
+          calls.push(["delete", id]);
+
+          return reply();
+        },
+      },
+    };
+  }
+
+  it("replays a repository like a bare route by default", async () => {
+    const { repo, calls } = repository();
+    const route = uploadRoute(repo);
+
+    expect((await route(put("1", { name: "A" }))).ok).toBe(true);
+    await route({ op: "PATCH", table: "customers", id: "1", opData: {} });
+    await route({ op: "DELETE", table: "customers", id: "1" });
+    expect(calls).toEqual([
+      ["upsert", { name: "A", id: "1" }],
+      ["update", "1", {}],
+      ["delete", "1"],
+    ]);
+  });
+
+  it("inserts a PUT with put: create, and counts a conflict as applied", async () => {
+    const created = inserts();
+
+    const { db, complete } = queue([
+      put("1", { name: "A" }),
+      { op: "DELETE", table: "customers", id: "1" },
+    ]);
+
+    await createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: uploadRoute(created.repo, { put: "create" }) },
+    }).uploadData(db);
+
+    expect(created.calls).toEqual([
+      ["create", { name: "A", id: "1" }],
+      ["delete", "1"],
+    ]);
+    expect(complete).toHaveBeenCalledOnce();
+
+    const conflicting = inserts("conflict");
+    const onConflict = vi.fn();
+    const replayed = queue([put("1")]);
+
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: uploadRoute(conflicting.repo, { put: "create" }) },
+      onConflict,
+    });
+
+    await connector.uploadData(replayed.db);
+    expect(replayed.complete).toHaveBeenCalledOnce();
+    expect(onConflict).not.toHaveBeenCalled();
+    expect(connector.rejected.current()).toEqual([]);
+  });
+
+  it("classifies other create errors, and discards a PATCH on a create route", async () => {
+    const refused = inserts("check");
+    const classify = vi.fn(() => undefined);
+
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: uploadRoute(refused.repo, { put: "create" }) },
+      classify,
+    });
+
+    await connector.uploadData(
+      queue([
+        put("1"),
+        { op: "PATCH", table: "customers", id: "1", opData: { name: "B" } },
+      ]).db,
+    );
+
+    expect(classify).toHaveBeenCalledTimes(2);
+    expect(
+      connector.rejected
+        .current()
+        .map((change) => [change.entry.op, change.outcome, change.error.kind]),
+    ).toEqual([
+      ["PUT", "discard", "check"],
+      ["PATCH", "discard", "unsupported"],
+    ]);
+    expect(refused.calls).toEqual([["create", { id: "1" }]]);
   });
 });
 
