@@ -56,6 +56,7 @@ export type {
   RejectedStore,
   UploadConnector,
   UploadConnectorOptions,
+  UploadErrorContext,
   UploadOutcome,
   UploadRepository,
   UploadRoute,

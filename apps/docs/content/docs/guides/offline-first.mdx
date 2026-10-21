@@ -83,6 +83,23 @@ server's version, so the device ends up where the server is. An
 `unauthorized` error retries while the session lives; once the refresh token
 is dead, the upload stops until the user signs in again.
 
+PowerSync retries on its own, so a failed retry and a failed session read
+don't throw to your code. Pass `onError` to log them. When `getSession`
+fails, `fetchCredentials` returns `null` and calls `onError` with a
+`DbError` of kind `unauthorized` (or `network` when the Auth server is
+unreachable) and `{ phase: "credentials" }`. An upload error that keeps the
+batch queued arrives with `{ phase: "upload" }`. A signed-out session is not
+an error:
+
+```ts
+createUploadConnector({
+  endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+  supabase,
+  tables: { customers: bs.db.customers },
+  onError: (error, { phase }) => log.warn(`powersync ${phase}`, error),
+});
+```
+
 ## Conflicts
 
 The server's row wins once the change is gone from the queue. The connector

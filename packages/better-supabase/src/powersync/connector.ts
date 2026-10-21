@@ -65,8 +65,22 @@ interface SessionClient {
           readonly expires_at?: number | undefined;
         } | null;
       };
+      readonly error?: {
+        readonly name?: string;
+        readonly message: string;
+      } | null;
     }>;
   };
+}
+
+/** Where the connector met an error it reports to `onError`. */
+export interface UploadErrorContext {
+  /**
+   * `credentials`: reading the Supabase session failed, so sync and uploads
+   * wait for PowerSync's next try. `upload`: a change failed with an error that
+   * keeps the batch queued for a retry.
+   */
+  readonly phase: "credentials" | "upload";
 }
 
 export interface UploadConnectorOptions {
@@ -85,6 +99,13 @@ export interface UploadConnectorOptions {
   ) => UploadOutcome | undefined;
   readonly onConflict?: (change: RejectedChange) => void;
   readonly onDiscard?: (change: RejectedChange) => void;
+  /**
+   * Called when reading the session fails (kind `unauthorized`, or `network`
+   * when the Auth server is unreachable) and when an upload error keeps the
+   * batch queued. PowerSync retries both on its own; this is for logging. A
+   * signed-out session is not an error.
+   */
+  readonly onError?: (error: DbError, context: UploadErrorContext) => void;
 }
 
 /** PowerSync's `PowerSyncBackendConnector`. */
@@ -167,6 +188,22 @@ function rejectedStore(): RejectedStore & {
   };
 }
 
+function sessionError(cause: unknown): DbError {
+  const failure = typeof cause === "object" && cause !== null ? cause : {};
+  const name = "name" in failure ? failure.name : undefined;
+
+  const message =
+    "message" in failure && typeof failure.message === "string"
+      ? failure.message
+      : String(cause);
+
+  // supabase-js raises AuthRetryableFetchError, and fetch a TypeError, when
+  // the Auth server is unreachable.
+  return cause instanceof TypeError || name === "AuthRetryableFetchError"
+    ? dbError("network", message)
+    : dbError("unauthorized", message);
+}
+
 function replay(
   route: UploadRoute,
   entry: CrudEntryLike,
@@ -231,17 +268,32 @@ export function createUploadConnector(
   const rejected = rejectedStore();
   const batchSize = options.batchSize ?? 100;
 
-  const signedIn = async (): Promise<boolean> => {
-    const { data } = await options.supabase.auth.getSession();
+  // undefined when reading the session failed; the failure went to onError.
+  const currentSession = async () => {
+    try {
+      const { data, error } = await options.supabase.auth.getSession();
 
-    return data.session !== null;
+      if (error) {
+        options.onError?.(sessionError(error), { phase: "credentials" });
+
+        return;
+      }
+
+      return data.session;
+    } catch (cause) {
+      options.onError?.(sessionError(cause), { phase: "credentials" });
+
+      return;
+    }
   };
+
+  const signedIn = async (): Promise<boolean> =>
+    (await currentSession()) !== null;
 
   return {
     rejected,
     async fetchCredentials() {
-      const { data } = await options.supabase.auth.getSession();
-      const session = data.session;
+      const session = await currentSession();
 
       if (!session) {
         return null;
@@ -287,6 +339,8 @@ export function createUploadConnector(
             if (error.kind === "unauthorized" && !(await signedIn())) {
               return;
             }
+
+            options.onError?.(error, { phase: "upload" });
 
             // PowerSync keeps the batch queued and calls uploadData again.
             throw new Error(error.message);

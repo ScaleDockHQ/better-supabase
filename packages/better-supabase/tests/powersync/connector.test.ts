@@ -106,6 +106,89 @@ describe("createUploadConnector", () => {
     expect(await signedOut.fetchCredentials()).toBeNull();
   });
 
+  it("reports a session error to onError and returns no credentials", async () => {
+    const onError = vi.fn();
+
+    const failing = (
+      getSession: Parameters<
+        typeof createUploadConnector
+      >[0]["supabase"]["auth"]["getSession"],
+    ) =>
+      createUploadConnector({
+        endpoint: "e",
+        supabase: { auth: { getSession } },
+        tables: {},
+        onError,
+      });
+
+    const refused = failing(async () => ({
+      data: { session: null },
+      error: { name: "AuthApiError", message: "refresh token revoked" },
+    }));
+
+    expect(await refused.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: "unauthorized",
+        message: "refresh token revoked",
+      }),
+      { phase: "credentials" },
+    );
+
+    const offline = failing(async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    expect(await offline.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "network", message: "fetch failed" }),
+      { phase: "credentials" },
+    );
+
+    const retryable = failing(async () => ({
+      data: { session: null },
+      error: { name: "AuthRetryableFetchError", message: "offline" },
+    }));
+
+    expect(await retryable.fetchCredentials()).toBeNull();
+    expect(onError).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "network" }),
+      { phase: "credentials" },
+    );
+    expect(onError).toHaveBeenCalledTimes(3);
+  });
+
+  it("calls no onError for a signed-out session, and reports retried uploads", async () => {
+    const onError = vi.fn();
+
+    const signedOut = createUploadConnector({
+      endpoint: "e",
+      supabase: session(null),
+      tables: {},
+      onError,
+    });
+
+    expect(await signedOut.fetchCredentials()).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+
+    const { repo } = repository("network");
+
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: session("jwt"),
+      tables: { customers: repo },
+      onError,
+    });
+
+    await expect(connector.uploadData(queue([put("1")]).db)).rejects.toThrow(
+      "network",
+    );
+    expect(onError).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ kind: "network" }),
+      { phase: "upload" },
+    );
+  });
+
   it("replays a batch through the repositories and completes it", async () => {
     const { repo, calls } = repository();
 
