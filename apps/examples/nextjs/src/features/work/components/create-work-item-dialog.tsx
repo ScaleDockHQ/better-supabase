@@ -1,10 +1,11 @@
 "use client";
 
 // #region recipe:entity-form
+import type { DbError } from "better-supabase";
 import type { EntityFormInput } from "better-supabase/records";
 
 import { workItemInputSchema } from "better-supabase/blocks/work-items";
-import { useAction, useEntityForm } from "better-supabase/react";
+import { useEntityForm } from "better-supabase/react";
 import { entityForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -95,17 +96,12 @@ export function CreateWorkItemDialog({
     [customFields],
   );
 
-  const create = useAction(createWorkItem, {
-    onSuccess: (identifier) => {
-      toast.success(t("Created {identifier}", { identifier }));
-      setOpen(false);
-    },
-  });
+  const [failure, setFailure] = useState<DbError>();
 
   const form = useEntityForm(definition, {
     initial: { title: "", priority: "0" },
     onSubmit: async ({ input, custom }) => {
-      await create.run({
+      const result = await createWorkItem({
         title: input.title,
         teamId,
         priority: input.priority ?? 0,
@@ -113,10 +109,20 @@ export function CreateWorkItemDialog({
           Object.entries(custom).map(([key, value]) => [key, String(value)]),
         ),
       });
+
+      if (!result.ok) {
+        setFailure(result.error);
+
+        return;
+      }
+
+      toast.success(t("Created {identifier}", { identifier: result.data }));
+      setOpen(false);
+      form.reset();
     },
   });
 
-  const error = create.error === undefined ? null : errorMessage(create.error);
+  const error = failure === undefined ? null : errorMessage(failure);
   const textOf = (key: string) => String(form.values[key] ?? "");
 
   const teamItems = [
@@ -139,7 +145,7 @@ export function CreateWorkItemDialog({
 
         if (!next) {
           form.reset();
-          create.reset();
+          setFailure(undefined);
         }
       }}
     >
@@ -267,7 +273,7 @@ export function CreateWorkItemDialog({
             <DialogClose render={<Button type="button" variant="outline" />}>
               {t("Cancel")}
             </DialogClose>
-            <Button type="submit" disabled={form.pending || create.pending}>
+            <Button type="submit" disabled={form.pending}>
               {t("Create item")}
             </Button>
           </DialogFooter>
