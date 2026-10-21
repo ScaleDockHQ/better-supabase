@@ -94,6 +94,8 @@ export interface Model {
   readonly introspection: GeneratorMetadata;
   /** Config entries that matched nothing in the schema. */
   readonly warnings: readonly string[];
+  /** Hints about the schema, such as nullable `returns table` columns. */
+  readonly notices: readonly string[];
 }
 
 function tableKey(
@@ -296,6 +298,7 @@ function prepareCatalog(
     included,
     keyOf,
     warnings: [],
+    notices: [],
     tsType,
     jsonTypeFor,
     optionsOf,
@@ -882,6 +885,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     catalog: ctx.catalog,
     introspection: ctx.introspection,
     warnings: ctx.warnings,
+    notices: ctx.notices,
   };
 }
 

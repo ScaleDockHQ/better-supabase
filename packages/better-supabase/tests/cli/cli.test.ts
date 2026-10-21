@@ -435,6 +435,79 @@ describe("function result nullability", () => {
       'the @notNull tag on public.customer_note_counts: "nope" is not a column the function returns',
     );
   });
+
+  it("types a returns table column of a NOT NULL domain as non-null", async () => {
+    const fixture = await loadFixtureSnapshot();
+    const domainId = 9_999_001;
+
+    const snapshot = {
+      ...fixture,
+      extras: {
+        ...fixture.extras,
+        domains: [
+          {
+            schema: "public",
+            name: "customer_ref",
+            baseType: "uuid",
+            baseSchema: "pg_catalog",
+            notNull: true,
+          },
+        ],
+      },
+      generator: {
+        ...fixture.generator,
+        types: [
+          ...fixture.generator.types,
+          {
+            id: domainId,
+            name: "customer_ref",
+            schema: "public",
+            format: "uuid",
+            enums: [],
+            attributes: [],
+            comment: null,
+            type_relation_id: null,
+          },
+        ],
+        functions: fixture.generator.functions.map((fn) =>
+          fn.name === "customer_note_counts"
+            ? {
+                ...fn,
+                args: fn.args.map((arg) =>
+                  arg.name === "customer_id"
+                    ? { ...arg, type_id: domainId }
+                    : arg,
+                ),
+              }
+            : fn,
+        ),
+      },
+    };
+
+    const model = buildModel(snapshot, resolveConfig({}, fixtures));
+
+    const returns = model.functions.find(
+      (entry) => entry.key === "customer_note_counts",
+    )?.returns;
+
+    expect(returns).toBe(
+      '{ "customer_id": string; "last_note_at": string | null; "note_count": number | null }[]',
+    );
+  });
+
+  it("names returns table functions with nullable columns and no notNull promise", async () => {
+    const fixture = await loadFixtureSnapshot();
+
+    const notice = (config: BetterSupabaseConfig) =>
+      buildModel(fixture, resolveConfig(config, fixtures)).notices.find(
+        (line) => line.includes("@notNull"),
+      );
+
+    expect(notice({})).toMatch(/customer_note_counts/u);
+    expect(
+      notice({ functions: { customer_note_counts: { notNull: [] } } }),
+    ).not.toMatch(/customer_note_counts/u);
+  });
 });
 
 describe("CHECK not null", () => {

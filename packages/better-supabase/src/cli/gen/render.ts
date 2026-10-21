@@ -32,6 +32,8 @@ export interface Rendered {
   readonly files: GeneratedFile[];
   /** Config entries that matched nothing in the schema. */
   readonly warnings: readonly string[];
+  /** Hints about the schema, printed as they are. */
+  readonly notices: readonly string[];
 }
 
 /**
@@ -157,5 +159,5 @@ export async function render(
     }
   }
 
-  return { files, warnings: model.warnings };
+  return { files, warnings: model.warnings, notices: model.notices };
 }

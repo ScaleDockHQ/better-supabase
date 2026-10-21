@@ -148,6 +148,7 @@ const customers = result.data;
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
 - Jobs and webhooks run as a user so RLS applies: `bs.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bs.actingAs(userId, { tenant_id })` for a webhook or script. `bs.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.
+- `$rpc` types each `returns table` column and scalar result `| null`, because Postgres can't declare them not null. Don't cast them: add `@notNull(a, b)` to the function's comment (or `functions.<name>.notNull` in the config), type the column with a `not null` domain, or return `setof` a table. `gen` prints a notice for each function still nullable. Arguments accept `null` too; that only widens the input.
 
 ## Time values
 

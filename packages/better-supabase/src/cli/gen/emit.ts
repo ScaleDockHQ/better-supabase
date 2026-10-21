@@ -54,7 +54,8 @@ function updateEntries(
 }
 
 /**
- * Postgres passes `null` to any argument, so every argument accepts it. An
+ * Postgres passes `null` to any argument, so every argument accepts it. This
+ * only widens what a caller may pass; no result type changes with it. An
  * optional argument also accepts `undefined`, which `rpc()` leaves out, so
  * `exactOptionalPropertyTypes` apps can pass a maybe-missing value.
  */

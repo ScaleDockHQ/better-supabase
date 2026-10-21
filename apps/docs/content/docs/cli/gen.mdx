@@ -305,6 +305,30 @@ stored`) or an identity column `always` is in `Row` and typed `?: never` in
   [BS338](/docs/cli/doctor#bs338) lists the config entries a tag could
   replace.
 
+  Postgres has no syntax for `not null` on a `returns table` column, and the
+  catalog records none, so `gen` can't infer it from the function body. Two
+  things do carry it: a function that `returns setof` a table gets that
+  table's column nullability, and a column whose type is a domain declared
+  `not null` is typed without `| null`:
+
+  ```sql
+  create domain public.customer_ref as uuid not null;
+
+  create function public.customer_note_counts(customer_ids uuid[])
+  returns table (customer_id public.customer_ref, note_count bigint)
+  ...
+  ```
+
+  When a `returns table` function still has a nullable column and neither a
+  tag nor a config entry covers it, `gen` prints a notice that names the
+  function. `notNull: []` in the config keeps every column nullable and
+  silences the notice.
+
+- **Nullable arguments.** Every argument type includes `| null`, because
+  Postgres passes `null` to any argument. This only widens what you may pass
+  to `$rpc`; it never changes a result type. A `strict` function returns
+  `null` for a `null` argument, which is why its result stays `| null`.
+
 ## Documentation in the validators
 
 The `zod()`, `valibot()`, `jsonSchema()` and `standardSchema()` generators carry what the

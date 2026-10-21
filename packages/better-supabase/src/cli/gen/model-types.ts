@@ -111,6 +111,8 @@ export interface ModelContext {
   readonly included: readonly CatalogTable[];
   readonly keyOf: ReadonlyMap<string, string>;
   readonly warnings: string[];
+  /** Informational lines, printed as they are, unlike the warnings. */
+  readonly notices: string[];
   readonly tsType: (
     schema: string,
     format: string,
