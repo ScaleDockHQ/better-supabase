@@ -66,6 +66,11 @@ import {
   type DataGridI18nConfig,
   type DataGridI18nOverrides,
 } from "@/components/reui/data-grid/data-grid-i18n";
+import {
+  getDataGridCallbackInputs,
+  getDataGridStateInputs,
+  isSameDataGridInputs,
+} from "@/components/reui/data-grid/data-grid-inputs";
 import { cn } from "@/lib/utils";
 
 /**
@@ -1020,59 +1025,6 @@ function useDataGridAtom<TValue, TSelected = TValue | undefined>(
   const getSnapshot = () => select(atom?.get());
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
-
-// Slices kept out of the inputs: cells paint cell selection through their
-// own Subscribe, and a resize drag paints through useDataGridAtom.
-const DATA_GRID_UNPUBLISHED_STATE = new Set([
-  "cellSelection",
-  "columnResizing",
-]);
-
-const isDataGridPropNode = (value: unknown) =>
-  value !== null &&
-  typeof value === "object" &&
-  !Array.isArray(value) &&
-  ("$$typeof" in value || Object.getPrototypeOf(value) !== Object.prototype);
-
-// Functions and React nodes count by presence here; their identity is a
-// callback input.
-function dataGridPropsSignatureReplacer(_key: string, value: unknown) {
-  if (typeof value === "function") return "fn";
-  if (isDataGridPropNode(value)) return "node";
-  return value;
-}
-
-// Inputs that always publish: every state slice but the two above, `data`
-// and `columns` (TanStack needs both stable already), and props by value.
-function getDataGridStateInputs<TData extends object>(
-  table: DataGridTableInstance<TData>,
-  props: DataGridLayoutProps<TData>,
-  autoSize: DataGridAutoSizeController,
-): unknown[] {
-  const inputs: unknown[] = [
-    autoSize,
-    table.options.data,
-    table.options.columns,
-    JSON.stringify(props, dataGridPropsSignatureReplacer),
-  ];
-  for (const [key, slice] of Object.entries(table.state)) {
-    if (!DATA_GRID_UNPUBLISHED_STATE.has(key)) inputs.push(key, slice);
-  }
-  return inputs;
-}
-
-// Every callback and React node prop, compared by identity.
-function getDataGridCallbackInputs<TData extends object>(
-  props: DataGridLayoutProps<TData>,
-): unknown[] {
-  return Object.values(props).filter(
-    (value) => typeof value === "function" || isDataGridPropNode(value),
-  );
-}
-
-const isSameDataGridInputs = (previous: unknown[], next: unknown[]) =>
-  previous.length === next.length &&
-  next.every((input, index) => Object.is(input, previous[index]));
 
 function DataGridProvider<TData extends object>({
   children,

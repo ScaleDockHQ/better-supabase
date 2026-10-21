@@ -9,6 +9,7 @@ export default defineConfig({
       "apps/docs",
       "apps/marketing",
       "apps/examples/express",
+      "apps/examples/nextjs",
       "tests/bundle",
       "tests/validation-centrakit",
       "tests/validation-recipes",

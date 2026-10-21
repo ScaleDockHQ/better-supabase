@@ -62,6 +62,7 @@ interface Recipe {
     readonly width: number;
     readonly height: number;
   } | null;
+  readonly note: string | null;
   readonly missing: string | null;
 }
 
@@ -205,6 +206,7 @@ function buildRecipes(): readonly Recipe[] {
         available && screenshots.has(screenshot)
           ? { src: `/recipes/${screenshot}`, ...pngSize(screenshot) }
           : null,
+      note: recipe.note ?? null,
       missing: recipe.missing ?? null,
     };
   });
@@ -254,6 +256,10 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
         `npx shadcn add ${recipe.web.glue.map((item) => `@better-supabase/${item}`).join(" ")}\n`,
       ),
     );
+  }
+
+  if (recipe.note) {
+    lines.push("", recipe.note);
   }
 
   lines.push(
