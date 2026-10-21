@@ -109,6 +109,11 @@
       "types": "./dist/query/index.d.ts",
       "default": "./dist/query/index.js"
     },
+    "./records": {
+      "@better-supabase/source": "./src/records/index.ts",
+      "types": "./dist/records/index.d.ts",
+      "default": "./dist/records/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -1603,6 +1608,10 @@
       "./query": {
         "types": "./dist/query/index.d.ts",
         "default": "./dist/query/index.js"
+      },
+      "./records": {
+        "types": "./dist/records/index.d.ts",
+        "default": "./dist/records/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",
