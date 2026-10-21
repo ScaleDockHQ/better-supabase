@@ -77,3 +77,8 @@ const customers = await db.customers
 To-one relations can't be counted; that's a type error, and an
 `invalid_request` error at runtime. `_sum`, `_avg`, `_min` and `_max` work
 the same way; see [Aggregates](/docs/repository/aggregates).
+
+`_count` and the measures belong inside `include`. Passed next to `select`,
+as in `findMany({ _count: { notes: true } })`, they are a type error and an
+`invalid_request` error at runtime, never silently ignored. To count or
+aggregate the table itself, use `count()` or `aggregate()`.
