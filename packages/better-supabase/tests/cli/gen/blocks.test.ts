@@ -63,18 +63,46 @@ describe("blocks.generated.ts", () => {
     );
 
     const entries = blockConfigEntries(config);
-    expect(entries["organizations"]?.naming).toEqual({ tenant: "workspace" });
-    expect(entries["tags"]?.naming).toEqual({
+    expect(entries["organizations"]?.names).toEqual({ tenant: "workspace" });
+    expect(entries["tags"]?.names).toEqual({
       tenant: "workspace",
       functions: { create_tag: "make_tag" },
     });
-    expect(entries["access"]?.naming).toEqual({ tenant: "workspace" });
+    expect(entries["access"]?.names).toEqual({ tenant: "workspace" });
 
     const plain = blockConfigEntries(
       resolveConfig({ blocks: ["tags"] }, "/project"),
     );
 
-    expect(plain["tags"]).not.toHaveProperty("naming");
+    expect(plain["tags"]).not.toHaveProperty("names");
+  });
+
+  it("writes the entities blocks.<name>.entities renames", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: {},
+          "work-items": {
+            entities: { work_item: "task", project: "initiative" },
+          },
+        },
+      },
+      "/project",
+    );
+
+    expect(blockConfigEntries(config)["work-items"]?.names).toEqual({
+      entities: [
+        {
+          from: { singular: "work_item", plural: "work_items" },
+          to: { singular: "task", plural: "tasks" },
+        },
+        {
+          from: { singular: "project", plural: "projects" },
+          to: { singular: "initiative", plural: "initiatives" },
+        },
+      ],
+    });
   });
 
   it("leaves out tenant and access in user scope", () => {

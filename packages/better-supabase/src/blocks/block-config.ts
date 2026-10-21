@@ -21,9 +21,9 @@ export interface GeneratedBlock {
   /**
    * The names the SQL gives the block's functions when `blocks.<name>.entities`
    * or `blocks.<module>.functions` renames them. `defineBlocks` wraps the
-   * block's transport with `blockNames(naming)`.
+   * block's transport with `blockNames(names)`.
    */
-  readonly naming?: BlockNaming;
+  readonly names?: BlockNaming;
 }
 
 /**

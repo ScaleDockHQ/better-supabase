@@ -63,3 +63,80 @@ describe("blockNames", () => {
     expect((await call({}, "list_comments", kept)).result).toBe(kept);
   });
 });
+
+const TASKS = {
+  entities: [
+    {
+      from: { singular: "work_item", plural: "work_items" },
+      to: { singular: "task", plural: "tasks" },
+    },
+    {
+      from: { singular: "project", plural: "projects" },
+      to: { singular: "initiative", plural: "initiatives" },
+    },
+  ],
+} as const;
+
+describe("blockNames with renamed entities", () => {
+  async function request(
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+    result: unknown,
+  ): Promise<{
+    readonly seen: BlockTransportRequest;
+    readonly result: unknown;
+  }> {
+    const seen: BlockTransportRequest[] = [];
+
+    const value = await blockNames(TASKS).call(
+      { schema: "better_supabase", fn, args },
+      async (next) => {
+        seen.push(next);
+
+        return result;
+      },
+    );
+
+    return { seen: seen[0] ?? { schema: "", fn: "", args: {} }, result: value };
+  }
+
+  it("calls the renamed function with the nested keys renamed", async () => {
+    const { seen } = await request(
+      "update_work_items",
+      {
+        work_item: "w1",
+        changes: [{ workItemId: "w1", field: "projectId", value: "p1" }],
+        attrs: { projectId: "p1", fields: { project_code: "x" } },
+      },
+      null,
+    );
+
+    expect(seen).toEqual({
+      schema: "better_supabase",
+      fn: "update_tasks",
+      args: {
+        work_item: "w1",
+        changes: [{ taskId: "w1", field: "initiativeId", value: "p1" }],
+        attrs: { initiativeId: "p1", fields: { project_code: "x" } },
+      },
+    });
+  });
+
+  it("returns result keys under the default names", async () => {
+    const { result } = await request("list_work_items", {}, [
+      {
+        initiative_id: "p1",
+        accepted: [{ taskId: "w1", field: "initiativeId" }],
+        metadata: { taskId: "kept" },
+      },
+    ]);
+
+    expect(result).toEqual([
+      {
+        project_id: "p1",
+        accepted: [{ workItemId: "w1", field: "projectId" }],
+        metadata: { taskId: "kept" },
+      },
+    ]);
+  });
+});

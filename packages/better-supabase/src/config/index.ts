@@ -145,6 +145,8 @@ export type {
   EntityConfig,
 } from "./blocks.ts";
 
+export { blockEntityRenames } from "./block-subjects.ts";
+
 export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
 
 export type * from "./snapshot.ts";

@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import type { BlockNaming, GeneratedBlock } from "../../blocks/index.ts";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
-import { tenantNameOf } from "../../config/index.ts";
+import { blockEntityRenames, tenantNameOf } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -28,9 +28,10 @@ function hasSchema(
 }
 
 /**
- * How the tenant rename and the modules' `blocks.<module>.functions` rename the
- * block's functions, or undefined when nothing does. `blocks.access.functions`
- * is the custom model's templates, not renames.
+ * How the tenant rename, the modules' renamed entities and their
+ * `blocks.<module>.functions` rename the block's functions and payload keys, or
+ * undefined when nothing does. `blocks.access.functions` is the custom model's
+ * templates, not renames.
  */
 function namingOf(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
@@ -44,16 +45,21 @@ function namingOf(
     ),
   );
 
+  const entities = modules.flatMap((module) =>
+    blockEntityRenames(module, config.blocks),
+  );
+
   const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
 
-  if (tenant === undefined && !renames) {
+  if (tenant === undefined && !renames && entities.length === 0) {
     return undefined;
   }
 
   return {
     ...(tenant === undefined ? {} : { tenant }),
     ...(renames ? { functions } : {}),
+    ...(entities.length === 0 ? {} : { entities }),
   };
 }
 
@@ -108,14 +114,14 @@ export function blockConfigEntries(
       }
     }
 
-    const naming = namingOf(config, modules);
+    const names = namingOf(config, modules);
     entries.push([
       manifest.name,
       {
         schema: resolved.schema,
         ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
         options,
-        ...(naming === undefined ? {} : { naming }),
+        ...(names === undefined ? {} : { names }),
       },
     ]);
   }

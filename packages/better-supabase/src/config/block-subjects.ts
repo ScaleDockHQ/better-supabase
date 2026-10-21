@@ -1,3 +1,4 @@
+import type { EntityRename } from "../core/entity-naming.ts";
 import type { ModuleNames } from "../sql/context.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
@@ -35,22 +36,56 @@ function withRequired(names: readonly string[]): readonly string[] {
 
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 
+/** One installed module's names under `blocks`, from the catalog. */
+function catalogNames(module: string): ModuleNames | undefined {
+  const entities = CATALOG.get(module)?.entities;
+
+  return entities === undefined
+    ? undefined
+    : { tables: entities.tables, entities: entities.specs };
+}
+
+/**
+ * The entities `blocks.<module>.entities` gives a new name, such as `work_item`
+ * to `task`, for the block's TypeScript client (`blocks.generated.ts`). Empty
+ * when the module renames none.
+ */
+export function blockEntityRenames(
+  module: string,
+  blocks: AnyBlocksConfig,
+): readonly EntityRename[] {
+  const names = catalogNames(module);
+
+  if (names === undefined) {
+    return [];
+  }
+
+  return Object.values(resolveNames(module, names, blocks).entities)
+    .filter(
+      (entity) =>
+        !entity.global &&
+        (entity.to.singular !== entity.from.singular ||
+          entity.to.plural !== entity.from.plural),
+    )
+    .map((entity) => ({ from: entity.from, to: entity.to }));
+}
+
 /** The subjects one installed block registers, keyed by renamed entity. */
 function subjectsOf(
   module: string,
   blocks: AnyBlocksConfig,
 ): Readonly<Record<string, SubjectConfig>> {
   const entities = CATALOG.get(module)?.entities;
+  const names = catalogNames(module);
   const config = resolveModule(blocks[module]);
 
-  if (entities === undefined || config.mode === "custom") {
+  if (
+    entities === undefined ||
+    names === undefined ||
+    config.mode === "custom"
+  ) {
     return {};
   }
-
-  const names: ModuleNames = {
-    tables: entities.tables,
-    entities: entities.specs,
-  };
 
   const resolved = resolveNames(module, names, blocks);
 

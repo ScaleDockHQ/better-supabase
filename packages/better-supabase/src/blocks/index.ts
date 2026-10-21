@@ -35,6 +35,20 @@ export type {
 
 export { fillTopic, generatedOptions } from "./block-config.ts";
 
+export { renameBlock } from "./rename-block.ts";
+
+export type {
+  NounRename,
+  NounRenames,
+  RenamedBlock,
+  RenamedClient,
+  RenamedEvents,
+  RenamedOptions,
+  RenamedType,
+  RenameKey,
+  RenamesOf,
+} from "./rename-block.ts";
+
 export type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 
 export type {

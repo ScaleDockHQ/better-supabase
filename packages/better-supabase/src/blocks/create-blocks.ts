@@ -289,7 +289,7 @@ function buildBlocks<B extends BlockMap>(
     return {
       ...shared,
       ...(entry === undefined ? {} : generatedOptions(entry)),
-      ...(entry?.naming === undefined ? {} : renamedTransports(entry.naming)),
+      ...(entry?.names === undefined ? {} : renamedTransports(entry.names)),
       ...ports,
       ...block.settings,
     };
