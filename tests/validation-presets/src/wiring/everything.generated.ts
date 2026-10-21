@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { accessBlock } from "better-supabase/blocks/access";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiCacheBlock } from "better-supabase/blocks/ai-cache";
@@ -79,6 +80,7 @@ import { signingKeysBlock } from "better-supabase/blocks/signing-keys";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
+import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { targetsBlock } from "better-supabase/blocks/targets";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -98,6 +100,7 @@ import { blockConfig } from "./everything.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  access: accessBlock,
   accessRequests: accessRequestsBlock,
   agents: agentsBlock,
   aiCache: aiCacheBlock,
@@ -174,6 +177,7 @@ export const blockSet = defineBlocks(blockConfig, {
   sla: slaBlock,
   sso: ssoBlock,
   stateMachine: stateMachineBlock,
+  subjects: subjectsBlock,
   tags: tagsBlock,
   targets: targetsBlock,
   teams: teamsBlock,
