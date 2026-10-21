@@ -1,4 +1,8 @@
-import type { FieldSpec, TableSchema } from "../core/table-schema.ts";
+import type {
+  FieldSpec,
+  TableSchema,
+  TableSchemaSpec,
+} from "../core/table-schema.ts";
 
 import { tableSchema } from "../core/table-schema.ts";
 
@@ -34,9 +38,11 @@ export interface EntitySchemaSpec<T> {
 
 /**
  * A Standard Schema that also converts to JSON Schema (Standard JSON Schema),
- * for one of a block's inputs.
+ * for one of a block's inputs, with the spec it was built from.
  */
-export type EntitySchema<T> = TableSchema<T>;
+export interface EntitySchema<T> extends TableSchema<T> {
+  readonly spec: TableSchemaSpec;
+}
 
 /** What a block's client takes for one entity. */
 export interface EntitySchemas {
@@ -64,5 +70,5 @@ export type BlockSchemas = Readonly<Record<string, EntitySchemas>>;
  * JSON Schema. The spec names every key of `T`.
  */
 export function entitySchema<T>(spec: EntitySchemaSpec<T>): EntitySchema<T> {
-  return tableSchema<T>(spec);
+  return { ...tableSchema<T>(spec), spec };
 }

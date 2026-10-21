@@ -98,7 +98,19 @@ function renameSchema(
       return isRecord(converted) ? { ...converted } : {};
     };
 
+  const spec = schema.spec;
+
   return {
+    spec: {
+      ...spec,
+      ...(spec.title === undefined ? {} : { title: names.rename(spec.title) }),
+      fields: Object.fromEntries(
+        Object.entries(spec.fields).map(([name, field]) => [
+          names.rename(name),
+          field,
+        ]),
+      ),
+    },
     "~standard": {
       version: 1,
       vendor: standard.vendor,

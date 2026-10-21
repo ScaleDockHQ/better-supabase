@@ -1,5 +1,6 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
+import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { ModuleEntitySpec, ModuleTableSpec } from "../sql/context.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
@@ -71,9 +72,16 @@ export interface PresetCatalogManifest {
 
 /** One entity's input schemas, in the block's default names. */
 export interface PresetCatalogEntitySchemas {
-  readonly input?: Readonly<Record<string, unknown>>;
-  readonly change?: Readonly<Record<string, unknown>>;
-  readonly listFilter?: Readonly<Record<string, unknown>>;
+  readonly input?: PresetCatalogInputSchema;
+  readonly change?: PresetCatalogInputSchema;
+  readonly listFilter?: PresetCatalogInputSchema;
+}
+
+/** One input schema: its fields as `entitySchema` takes them, and JSON Schema. */
+export interface PresetCatalogInputSchema {
+  readonly title: string;
+  readonly fields: Readonly<Record<string, FieldSpec>>;
+  readonly jsonSchema: Readonly<Record<string, unknown>>;
 }
 
 /** A block type named after one of its entities, such as `WorkItem`. */

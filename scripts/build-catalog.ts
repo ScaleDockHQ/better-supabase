@@ -439,9 +439,19 @@ function entitySchemasOf(
         const schema = schemas[kind];
 
         if (schema !== undefined) {
-          converted[kind] = schema["~standard"].jsonSchema.input({
-            target: "draft-2020-12",
-          });
+          converted[kind] = {
+            title: schema.spec.title ?? `${block.name}.${entity}.${kind}`,
+            fields: Object.fromEntries(
+              Object.entries(schema.spec.fields).map(([name, field]) => {
+                const { schema: _, ...plain } = field;
+
+                return [name, plain];
+              }),
+            ),
+            jsonSchema: schema["~standard"].jsonSchema.input({
+              target: "draft-2020-12",
+            }),
+          };
         }
       }
 

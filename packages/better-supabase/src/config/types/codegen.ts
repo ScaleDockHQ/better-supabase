@@ -1,3 +1,4 @@
+import type { FieldSpec } from "../../core/table-json-schema.ts";
 import type { Casing, SchemaMeta } from "../../schema/types.ts";
 import type { GeneratorMetadata, SnapshotExtras } from ".././snapshot.ts";
 import type { ResolvedConfig } from "./config.ts";
@@ -244,17 +245,31 @@ export interface GeneratorFunction {
 export type GeneratorJsonSchema = Readonly<Record<string, unknown>>;
 
 /**
- * The JSON Schemas of the inputs a block's client takes for one entity, with
- * keys in the block's default names. Each is absent when the block declares
- * none.
+ * One field of a block input schema: its scalar kind with the flags and bounds
+ * `entitySchema` takes. It never carries a nested `schema`.
+ */
+export type GeneratorField = FieldSpec;
+
+/** One of a block's input schemas, in the block's default names. */
+export interface GeneratorInputSchema {
+  /** The type it validates (`WorkItemInput`). */
+  readonly title: string;
+  readonly fields: Readonly<Record<string, GeneratorField>>;
+  /** The same schema as JSON Schema (draft 2020-12), in its wire form. */
+  readonly jsonSchema: GeneratorJsonSchema;
+}
+
+/**
+ * The inputs a block's client takes for one entity. Each is absent when the
+ * block declares none.
  */
 export interface GeneratorEntitySchemas {
   /** What creating one takes (`WorkItemInput`). */
-  readonly input?: GeneratorJsonSchema;
+  readonly input?: GeneratorInputSchema;
   /** What updating one takes (`WorkItemChange`). */
-  readonly change?: GeneratorJsonSchema;
+  readonly change?: GeneratorInputSchema;
   /** What listing them takes (`WorkItemListOptions`). */
-  readonly listFilter?: GeneratorJsonSchema;
+  readonly listFilter?: GeneratorInputSchema;
 }
 
 export interface GeneratorNoun {

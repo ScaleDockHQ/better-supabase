@@ -168,8 +168,19 @@ const TEMPORAL_GUARDS: Partial<Record<ScalarKind["kind"], string>> = {
  * The `better-supabase` guards the generated validators call. They check
  * `Symbol.toStringTag`, so the module never reads `Temporal` when it loads.
  */
-export function temporalGuardImport(input: SchemaSource): string | undefined {
+export function temporalGuardImport(
+  input: SchemaSource,
+  extraKinds: readonly ScalarKind["kind"][] = [],
+): string | undefined {
   const names = new Set<string>();
+
+  for (const kind of extraKinds) {
+    const guard = TEMPORAL_GUARDS[kind];
+
+    if (guard) {
+      names.add(guard);
+    }
+  }
 
   for (const [, table] of tableEntries(input)) {
     for (const plan of fieldsFor(table, "Row", input)) {

@@ -4,6 +4,7 @@ import type {
   GeneratorInput,
 } from "../config/index.ts";
 
+import { extraSchemas, fieldMetaLines, objectType } from "./extras.ts";
 import {
   fieldDocs,
   fieldSpec,
@@ -30,6 +31,11 @@ export interface StandardSchemaGeneratorOptions {
    * './schemas.ts#metadata' }`.
    */
   readonly json?: Readonly<Record<string, string>>;
+  /**
+   * Also export `fieldMeta`: a label, a required flag, enum options and bounds
+   * for each writable field, for building forms.
+   */
+  readonly fieldMeta?: boolean;
 }
 
 /**
@@ -69,11 +75,17 @@ export function standardSchema(
         );
       }
 
+      const extras = extraSchemas(input);
+
+      const usesJson = extras.inputs.some((schema) =>
+        Object.values(schema.fields).some((field) => field.kind === "json"),
+      );
+
       const lines = [
         HEADER,
         `import { type TableSchema, tableSchema } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`,
         "",
-        `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
+        `import type { InsertOf, ${usesJson ? "Json, " : ""}RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];
 
       for (const [from, names] of imports) {
@@ -146,6 +158,25 @@ export function standardSchema(
         "} = {",
         ...validators,
         "};",
+      );
+
+      for (const schema of extras.inputs) {
+        lines.push(
+          "",
+          `export const ${schema.name}: TableSchema<${objectType(schema)}> = tableSchema({`,
+          `  title: ${JSON.stringify(schema.title)},`,
+          "  fields: {",
+          ...Object.entries(schema.fields).map(
+            ([name, spec]) =>
+              `    ${propertyKey(name)}: ${JSON.stringify(spec)},`,
+          ),
+          "  },",
+          "});",
+        );
+      }
+
+      lines.push(
+        ...(options.fieldMeta ? fieldMetaLines(input, extras) : []),
         "",
       );
 

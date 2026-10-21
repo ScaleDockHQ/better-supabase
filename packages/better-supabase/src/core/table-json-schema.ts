@@ -175,6 +175,11 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   return field.readOnly ? { ...schema, readOnly: true } : schema;
 }
 
+/** The JSON Schema for one field, with its array, null, bounds and docs. */
+export function fieldJsonSchema(field: FieldSpec): JsonSchema {
+  return propertySchema(field, scalarJsonSchema(field));
+}
+
 /**
  * The JSON Schema object for a table shape. `nested` converts a typed jsonb
  * column's own schema; without it those columns accept any value.

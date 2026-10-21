@@ -3777,156 +3777,299 @@ export const PRESET_CATALOG: PresetCatalog = {
       "entitySchemas": {
         "work_item": {
           "input": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "WorkItemInput",
-            "type": "object",
-            "properties": {
+            "fields": {
               "title": {
-                "type": "string",
+                "kind": "string",
                 "minLength": 1,
                 "maxLength": 500
               },
               "body": {
-                "type": "string"
+                "kind": "string",
+                "optional": true
               },
               "parentId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "teamId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "projectId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "iterationId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "priority": {
-                "type": "integer",
+                "kind": "integer",
+                "optional": true,
                 "minimum": 0,
                 "maximum": 4
               },
               "estimate": {
-                "type": "number",
+                "kind": "number",
+                "optional": true,
                 "minimum": 0
               },
               "progress": {
-                "type": "integer",
+                "kind": "integer",
+                "optional": true,
                 "minimum": 0,
                 "maximum": 100
               },
               "startAt": {
-                "type": "string",
-                "format": "date-time"
+                "kind": "instant",
+                "optional": true
               },
               "endAt": {
-                "type": "string",
-                "format": "date-time"
+                "kind": "instant",
+                "optional": true
               },
               "dueAt": {
-                "type": "string",
-                "format": "date-time"
+                "kind": "instant",
+                "optional": true
               },
               "pipelineId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "stageId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "fields": {
+                "kind": "json",
+                "optional": true,
                 "description": "The extra columns to set."
               }
             },
-            "required": [
-              "title"
-            ],
-            "additionalProperties": false
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "body": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "iterationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "priority": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "estimate": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "progress": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "startAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "pipelineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
           },
           "change": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "WorkItemChange",
-            "type": "object",
-            "properties": {
+            "fields": {
               "workItemId": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid"
               },
               "field": {
-                "type": "string",
+                "kind": "string",
                 "minLength": 1
               },
               "value": {
+                "kind": "unknown",
                 "description": "`null` clears the field."
               }
             },
-            "required": [
-              "workItemId",
-              "field",
-              "value"
-            ],
-            "additionalProperties": false
-          },
-          "listFilter": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "WorkItemListOptions",
-            "type": "object",
-            "properties": {
-              "teamId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "projectId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "iterationId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "parentId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "assigneeId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "states": {
-                "type": "array",
-                "items": {
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemChange",
+              "type": "object",
+              "properties": {
+                "workItemId": {
                   "type": "string",
-                  "enum": [
-                    "triage",
-                    "backlog",
-                    "unstarted",
-                    "started",
-                    "completed",
-                    "canceled"
-                  ]
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
                 }
               },
+              "required": [
+                "workItemId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "WorkItemListOptions",
+            "fields": {
+              "teamId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "projectId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "iterationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "states": {
+                "kind": "enum",
+                "values": [
+                  "triage",
+                  "backlog",
+                  "unstarted",
+                  "started",
+                  "completed",
+                  "canceled"
+                ],
+                "optional": true,
+                "array": true
+              },
               "open": {
-                "type": "boolean"
+                "kind": "boolean",
+                "optional": true
               },
               "search": {
-                "type": "string"
+                "kind": "string",
+                "optional": true
               },
               "after": {
-                "type": "string",
-                "format": "uuid"
+                "kind": "uuid",
+                "optional": true
               },
               "limit": {
-                "type": "integer",
+                "kind": "integer",
+                "optional": true,
                 "minimum": 1
               }
             },
-            "additionalProperties": false
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkItemListOptions",
+              "type": "object",
+              "properties": {
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "iterationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "states": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "triage",
+                      "backlog",
+                      "unstarted",
+                      "started",
+                      "completed",
+                      "canceled"
+                    ]
+                  }
+                },
+                "open": {
+                  "type": "boolean"
+                },
+                "search": {
+                  "type": "string"
+                },
+                "after": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
           }
         }
       }

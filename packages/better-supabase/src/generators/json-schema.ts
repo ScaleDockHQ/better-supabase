@@ -3,11 +3,13 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { ExtraSchemas, FieldMeta, ResultSchema } from "./extras.ts";
 import type { JsonSchemaTarget } from "./json-schema-target.ts";
 import type { DocsSource } from "./shared.ts";
 
-import { tableJsonSchema } from "../core/table-json-schema.ts";
+import { fieldJsonSchema, tableJsonSchema } from "../core/table-json-schema.ts";
 import { forTarget } from "../core/table-schema.ts";
+import { extraSchemas, fieldMeta } from "./extras.ts";
 import { toDraft07 } from "./json-schema-target.ts";
 import {
   fieldDocs,
@@ -35,9 +37,16 @@ export interface JsonSchemaGeneratorOptions {
    * `openapi-3.0` (`nullable`, `example`) write `definitions`.
    */
   readonly target?: JsonSchemaTarget;
+  /**
+   * Give each writable field a `title` label (from a short column comment or
+   * its name), for form builders that read JSON Schema.
+   */
+  readonly fieldMeta?: boolean;
 }
 
 type JsonSchema = Record<string, unknown>;
+
+const NO_EXTRAS: ExtraSchemas = { inputs: [], results: [] };
 
 /** Marks the deprecated table and columns, which only `meta` knows about. */
 function withDeprecated(
@@ -71,6 +80,69 @@ function withDeprecated(
   };
 }
 
+function resultJsonSchema(
+  result: ResultSchema,
+  defs: Readonly<Record<string, JsonSchema>>,
+  prefix: string,
+): JsonSchema | undefined {
+  if (result.of.kind === "row") {
+    const row = `${result.of.table}Row`;
+
+    if (defs[row] === undefined) {
+      return undefined;
+    }
+
+    const ref = { $ref: `${prefix}${row}` };
+
+    return {
+      title: result.title,
+      ...(result.set
+        ? { type: "array", items: ref }
+        : { anyOf: [ref, { type: "null" }] }),
+    };
+  }
+
+  return {
+    title: result.title,
+    ...fieldJsonSchema({
+      ...result.of.scalar,
+      array: result.set,
+      nullable: result.nullable && !result.set,
+    }),
+    ...(result.set && result.nullable
+      ? { items: fieldJsonSchema({ ...result.of.scalar, nullable: true }) }
+      : {}),
+  };
+}
+
+/** Each field's `fieldMeta` label as its `title`. */
+function withLabels(
+  schema: JsonSchema,
+  labels: Readonly<Record<string, FieldMeta>> | undefined,
+): JsonSchema {
+  const properties = schema["properties"];
+
+  if (!labels || typeof properties !== "object" || !properties) {
+    return schema;
+  }
+
+  return {
+    ...schema,
+    properties: Object.fromEntries(
+      Object.entries(properties).map(([name, value]: [string, unknown]) => {
+        const label = labels[name]?.label;
+
+        return [
+          name,
+          label !== undefined && typeof value === "object" && value
+            ? { title: label, ...value }
+            : value,
+        ];
+      }),
+    ),
+  };
+}
+
 /**
  * JSON Schema `$defs` for every table: `customersRow`, `customersInsert`, ...
  * `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect, which
@@ -80,6 +152,7 @@ export function buildJsonSchema(
   input: DocsSource,
   id?: string,
   target: JsonSchemaTarget = "draft-2020-12",
+  extras: ExtraSchemas = NO_EXTRAS,
 ): JsonSchema {
   const defs: Record<string, JsonSchema> = {};
 
@@ -112,6 +185,23 @@ export function buildJsonSchema(
         table.deprecated === true,
         plans.filter((plan) => plan.column.deprecated).map((plan) => plan.name),
       );
+    }
+  }
+
+  for (const schema of extras.inputs) {
+    defs[schema.name] = tableJsonSchema({
+      title: schema.title,
+      fields: schema.fields,
+    });
+  }
+
+  const prefix = target === "draft-2020-12" ? "#/$defs/" : "#/definitions/";
+
+  for (const result of extras.results) {
+    const schema = resultJsonSchema(result, defs, prefix);
+
+    if (schema) {
+      defs[result.name] = schema;
     }
   }
 
@@ -167,12 +257,51 @@ export function jsonSchema(
       const path =
         options.output ?? siblingPath(input.config.output, "schema.json");
 
+      const extras = extraSchemas(input);
+
+      const document = buildJsonSchema(
+        input,
+        options.id,
+        options.target,
+        extras,
+      );
+
       return [
         {
           path,
-          contents: `${JSON.stringify(buildJsonSchema(input, options.id, options.target), null, 2)}\n`,
+          contents: `${JSON.stringify(options.fieldMeta ? labelled(document, fieldMeta(input, extras)) : document, null, 2)}\n`,
         },
       ];
     },
   };
+}
+
+/** The document with `fieldMeta` labels on each table's Insert and each input. */
+function labelled(
+  document: JsonSchema,
+  meta: Readonly<Record<string, Readonly<Record<string, FieldMeta>>>>,
+): JsonSchema {
+  const key = "$defs" in document ? "$defs" : "definitions";
+  const defs = document[key];
+
+  if (typeof defs !== "object" || !defs) {
+    return document;
+  }
+
+  return {
+    ...document,
+    [key]: Object.fromEntries(
+      Object.entries(defs).map(([name, def]: [string, unknown]) => {
+        const labels =
+          meta[name] ??
+          (name.endsWith("Insert") ? meta[name.slice(0, -6)] : undefined);
+
+        return [name, isJsonObject(def) ? withLabels(def, labels) : def];
+      }),
+    ),
+  };
+}
+
+function isJsonObject(value: unknown): value is JsonSchema {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
