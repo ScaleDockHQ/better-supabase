@@ -1,10 +1,13 @@
-import { type DbError, dbError } from "../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import type { DbError } from "../core/errors.ts";
+import type { Result } from "../core/result.ts";
+import type { Money } from "./money.ts";
+
+import { dbError } from "../core/errors.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   applyRate,
   isMoney,
   isRate,
-  type Money,
   negateMoney,
   subtractMoney,
   sumMoney,

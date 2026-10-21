@@ -2,11 +2,9 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
-import {
-  type SigningJwk,
-  signTestJwtWithKey,
-  type TestJwtClaims,
-} from "./jwt.ts";
+import type { SigningJwk, TestJwtClaims } from "./jwt.ts";
+
+import { signTestJwtWithKey } from "./jwt.ts";
 
 const SIGNING_KEYS_PATH = /^\s*signing_keys_path\s*=\s*"([^"]+)"/m;
 

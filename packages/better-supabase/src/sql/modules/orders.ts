@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { OrdersNames } from "./orders-shared.ts";
 
 import {
   addExtraColumns,
@@ -18,7 +19,7 @@ import { OPERATIONS } from "./access-model.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
-import { type OrdersNames, columns, paymentWindow } from "./orders-shared.ts";
+import { columns, paymentWindow } from "./orders-shared.ts";
 
 type CommerceKey = keyof CommerceSubjectEventData;
 

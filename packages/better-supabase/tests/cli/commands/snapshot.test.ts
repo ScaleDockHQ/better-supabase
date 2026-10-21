@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+
 import {
   loadSnapshot,
   managementTarget,
@@ -11,10 +13,7 @@ import {
   serializeSnapshot,
   snapshotFile,
 } from "../../../src/cli/commands/snapshot.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";

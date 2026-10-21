@@ -11,14 +11,9 @@ import type {
   GraphCompiler,
 } from "../blocks/workflow-builder/workflow-builder.ts";
 import type { EveDocumentBackend } from "../eve/eve.ts";
+import type { Check, ConformanceReport } from "./conformance.ts";
 
-import {
-  type Check,
-  type ConformanceReport,
-  conform,
-  expect,
-  same,
-} from "./conformance.ts";
+import { conform, expect, same } from "./conformance.ts";
 
 const hasApiVersion = (subject: { readonly apiVersion?: unknown }): Check => [
   "has apiVersion 1",

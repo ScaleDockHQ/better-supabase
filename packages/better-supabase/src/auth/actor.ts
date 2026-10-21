@@ -1,4 +1,6 @@
-import { type DbError, dbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 
 /** One level of an RFC 8693 `act` chain: who acts, and who acted before it. */

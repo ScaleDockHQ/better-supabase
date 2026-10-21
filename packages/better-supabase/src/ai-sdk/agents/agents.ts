@@ -1,13 +1,13 @@
-import {
-  type LanguageModel,
-  type LanguageModelMiddleware,
-  type StopCondition,
-  stepCountIs,
-  type ToolApprovalStatus,
-  ToolLoopAgent,
-  type ToolLoopAgentSettings,
-  type ToolSet,
+import type {
+  LanguageModel,
+  LanguageModelMiddleware,
+  StopCondition,
+  ToolApprovalStatus,
+  ToolLoopAgentSettings,
+  ToolSet,
 } from "ai";
+
+import { stepCountIs, ToolLoopAgent } from "ai";
 
 import type { SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
@@ -23,25 +23,28 @@ import type {
   KnowledgeSearchOptions,
 } from "../../blocks/knowledge/knowledge.ts";
 import type { OperationTable } from "../../core/operations.ts";
+import type {
+  ResultsFilter,
+  SearchToolOptions,
+} from "../embeddings/embeddings.ts";
+import type { GatewayOptions } from "../gateway-options.ts";
+import type {
+  AgentCaller,
+  AgentModelAuthorizer,
+  AgentResultsContext,
+  AgentRunContext,
+  AgentToolAuthorizer,
+  AgentToolOperation,
+  AgentToolOperations,
+  AgentToolPermissions,
+} from "./authorization.ts";
 
 import { DbException } from "../../core/db-exception.ts";
+import { searchTool } from "../embeddings/embeddings.ts";
+import { gatewayOptions } from "../gateway-options.ts";
 import {
-  type ResultsFilter,
-  searchTool,
-  type SearchToolOptions,
-} from "../embeddings/embeddings.ts";
-import { gatewayOptions, type GatewayOptions } from "../gateway-options.ts";
-import {
-  type AgentCaller,
-  type AgentModelAuthorizer,
-  type AgentResultsContext,
   agentRunContext,
-  type AgentRunContext,
-  type AgentToolAuthorizer,
   agentToolOperation,
-  type AgentToolOperation,
-  type AgentToolOperations,
-  type AgentToolPermissions,
   assertModelAllowed,
   assertToolDelegated,
   toolDelegated,

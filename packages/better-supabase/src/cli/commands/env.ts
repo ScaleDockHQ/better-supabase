@@ -4,15 +4,16 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
+import type { StackStatus } from "../stack-status.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
   applyPlan,
   changeLines,
-  type FilePlan,
   insideRoot,
   PLAN_ARGS,
   planResult,
@@ -21,11 +22,7 @@ import { display, readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
 import { prefixFromFlag, stackEnvValues } from "../stack-env.ts";
-import {
-  parseStackStatus,
-  readStackStatus,
-  type StackStatus,
-} from "../stack-status.ts";
+import { parseStackStatus, readStackStatus } from "../stack-status.ts";
 
 const ARGS = {
   write: {

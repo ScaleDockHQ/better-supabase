@@ -1,14 +1,17 @@
+import type {
+  FlagContext,
+  FlagContextOptions,
+  FlagDefinition,
+  FlagsProvider,
+  FlagsProviderOptions,
+  FlagType,
+  FlagValue,
+} from "../blocks/flags/flags.ts";
+
 import {
   createFlagsProvider,
   evaluateFlag,
-  type FlagContext,
   flagContext,
-  type FlagContextOptions,
-  type FlagDefinition,
-  type FlagsProvider,
-  type FlagsProviderOptions,
-  type FlagType,
-  type FlagValue,
 } from "../blocks/flags/flags.ts";
 import { errorText } from "../core/block-helpers.ts";
 

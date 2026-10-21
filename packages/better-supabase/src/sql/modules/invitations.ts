@@ -1,6 +1,7 @@
 import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -45,7 +46,6 @@ import {
   statusOf,
   tenantTable,
   tokenHash,
-  type InviteTable,
 } from "./invitations-tables.ts";
 import { assignableRole, roleValue } from "./organizations-roles.ts";
 import { roleThrough } from "./tenant.ts";

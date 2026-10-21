@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createInventory,
-  type Inventory,
-} from "../../../src/blocks/inventory/index.ts";
+import type { Inventory } from "../../../src/blocks/inventory/index.ts";
+
+import { createInventory } from "../../../src/blocks/inventory/index.ts";
 import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {

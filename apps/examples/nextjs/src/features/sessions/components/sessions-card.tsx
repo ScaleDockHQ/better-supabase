@@ -12,12 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
-  type CurrentSession,
-  type OtherSession,
-  getCurrentSession,
-  getOtherSessions,
-} from "../sessions-queries";
+import type { CurrentSession, OtherSession } from "../sessions-queries";
+
+import { getCurrentSession, getOtherSessions } from "../sessions-queries";
 import { SessionsList } from "./sessions-list";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await

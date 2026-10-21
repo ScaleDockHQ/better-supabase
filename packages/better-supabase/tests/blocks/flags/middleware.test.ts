@@ -3,9 +3,10 @@ import { withOpenFeature } from "@supabase-labs/middleware-openfeature";
 import { pipeline } from "@supabase/middleware";
 import { describe, expect, it } from "vitest";
 
+import type { FlagContextSource } from "../../../src/blocks/flags/index.ts";
+
 import {
   createFlagClient,
-  type FlagContextSource,
   flagContext,
 } from "../../../src/blocks/flags/index.ts";
 import { defineSupabase } from "../../../src/core/define.ts";

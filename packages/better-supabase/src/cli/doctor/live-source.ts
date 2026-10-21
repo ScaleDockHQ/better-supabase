@@ -1,7 +1,9 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { SnapshotSource } from "../commands/snapshot.ts";
 import type { connect } from "../db.ts";
+import type { AdvisorSource } from "../doctor/advisors.ts";
 import type { LiveDatabase } from "../doctor/live.ts";
 import type { DoctorContext } from "../doctor/rules.ts";
 import type { CliEnv } from "../env.ts";
@@ -10,11 +12,9 @@ import type { IntrospectionSource } from "../introspect/source.ts";
 import {
   managementTarget,
   openSource,
-  type SnapshotSource,
   snapshotFile,
 } from "../commands/snapshot.ts";
 import {
-  type AdvisorSource,
   apiSchemas,
   managementAdvisors,
   splinterAdvisors,

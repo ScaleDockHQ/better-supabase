@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { PlanLookup } from "./billing-platform.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +20,7 @@ import {
   raise,
 } from "../shared.ts";
 import { moduleOperations, modulePermission } from "./access-model.ts";
-import { type PlanLookup, platformLists } from "./billing-platform.ts";
+import { platformLists } from "./billing-platform.ts";
 import {
   subscriptionSourceOf,
   webhookSubscriptions,

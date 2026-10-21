@@ -1,14 +1,11 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { TestUser } from "./block-session.ts";
+
 import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 

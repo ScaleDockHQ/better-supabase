@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { Jwk, Jwks } from "../../src/core/jws.ts";
+
 import {
   generateSigningKey,
   importSigningKey,
-  type Jwk,
-  type Jwks,
   JwsError,
   jwksOf,
   jwkThumbprint,

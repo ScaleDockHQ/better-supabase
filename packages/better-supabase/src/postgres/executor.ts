@@ -1,3 +1,4 @@
+import type { CompileSqlOptions, SqlPlan, SqlQuery } from "../compile/sql.ts";
 import type {
   ExecuteContext,
   ExecuteResult,
@@ -7,13 +8,7 @@ import type {
 import type { Result } from "../core/result.ts";
 import type { Operation } from "../ir/types.ts";
 
-import {
-  compileSql,
-  type CompileSqlOptions,
-  quoteIdent,
-  type SqlPlan,
-  type SqlQuery,
-} from "../compile/sql.ts";
+import { compileSql, quoteIdent } from "../compile/sql.ts";
 import { isPlainObject } from "../core/clone.ts";
 import { dbError, mapDbError, withMaxAffected } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";

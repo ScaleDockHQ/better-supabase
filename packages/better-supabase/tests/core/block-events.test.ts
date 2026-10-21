@@ -1,15 +1,13 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { NotificationsEvents } from "../../src/blocks/notifications/events.ts";
+import type { OrganizationsEvents } from "../../src/blocks/organizations/events.ts";
+import type { BlockEvent } from "../../src/core/block-events.ts";
 
-import {
-  organizationsEvents,
-  type OrganizationsEvents,
-} from "../../src/blocks/organizations/events.ts";
+import { organizationsEvents } from "../../src/blocks/organizations/events.ts";
 import {
   blockEmitter,
   emitBlockEvent,
-  type BlockEvent,
   blockEventAttributes,
   onBlockEvent,
 } from "../../src/core/block-events.ts";

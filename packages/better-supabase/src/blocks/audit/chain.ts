@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { base64ToText } from "../../core/base64.ts";
 import { dbError } from "../../core/errors.ts";
@@ -13,7 +14,6 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
 /**

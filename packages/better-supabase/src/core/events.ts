@@ -1,10 +1,11 @@
 import type { Operation } from "../ir/types.ts";
 import type { BlockEvent } from "./block-events.ts";
 import type { DbError } from "./errors.ts";
+import type { Logger } from "./logger.ts";
 import type { MutationIntent, MutationKind, RequestContext } from "./plugin.ts";
 
 import { cloneValue, deepFreeze } from "./clone.ts";
-import { consoleLogger, type Logger } from "./logger.ts";
+import { consoleLogger } from "./logger.ts";
 
 export interface QueryEvent {
   readonly table: string;

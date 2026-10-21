@@ -1,20 +1,22 @@
 import type { BlockOptionsSchema } from "../blocks/options.ts";
+import type {
+  BlockMode,
+  AnyBlocksConfig,
+  BlockScope,
+  ResolvedModule,
+} from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
+import type { TenantNames } from "../core/tenant-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
+import type { ModuleScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
-import {
-  type BlockMode,
-  type AnyBlocksConfig,
-  type BlockScope,
-  type ResolvedModule,
-  resolveModule,
-} from "../config/blocks.ts";
+import { resolveModule } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { type TenantNames, tenantNames } from "../core/tenant-naming.ts";
-import { type ModuleScope, moduleScope } from "./scope.ts";
+import { tenantNames } from "../core/tenant-naming.ts";
+import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 
 export { NOTHING };

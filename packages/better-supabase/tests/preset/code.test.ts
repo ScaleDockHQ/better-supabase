@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { PresetLayout } from "../../src/preset/code.ts";
 import type { Preset } from "../../src/preset/fields.ts";
 
 import { PRESET_BLOCKS } from "../../src/preset/blocks.ts";
@@ -9,7 +10,6 @@ import {
   decodePreset,
   encodePreset,
   isPresetCode,
-  type PresetLayout,
   withPresetField,
 } from "../../src/preset/code.ts";
 import {

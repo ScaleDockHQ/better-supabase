@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/query-core";
+import type { Context } from "react";
 
-import { type Context, createContext } from "react";
+import { createContext } from "react";
 
 import type { ClientLike } from "../bindings/client.ts";
 

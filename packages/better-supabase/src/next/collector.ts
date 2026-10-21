@@ -1,6 +1,7 @@
 import type { Logger } from "../core/logger.ts";
+import type { DbStats } from "../core/stats.ts";
 
-import { type DbStats, StatsRecorder } from "../core/stats.ts";
+import { StatsRecorder } from "../core/stats.ts";
 
 /** Forwarded by the proxy so every scope of one render shares an id. */
 export const REQUEST_ID_HEADER = "x-bs-request-id";

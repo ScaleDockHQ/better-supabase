@@ -1,13 +1,8 @@
 import type { DbError } from "../core/errors.ts";
+import type { Result } from "../core/result.ts";
 import type { StreamOpenOptions, StreamStore } from "./store.ts";
 
-import {
-  AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 
 export interface TeeToStoreOptions extends StreamOpenOptions {
   /** Milliseconds a chunk may wait before its batch is written. Defaults to 100. */

@@ -1,7 +1,8 @@
 import type { Result } from "../core/result.ts";
 import type { StreamStore } from "../streams/store.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface TestStreamStoreOptions {
   /** A fresh stream id per call. Defaults to `conformance-<uuid>`. */

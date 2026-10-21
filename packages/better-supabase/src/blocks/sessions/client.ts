@@ -1,9 +1,10 @@
+import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { AuthReply } from "../auth-reply.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 
 import { toInstant } from "../../core/block-helpers.ts";
-import { type DbError, dbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import { authResult } from "../auth-reply.ts";
 import { defineController, whileSignedIn } from "../controller.ts";

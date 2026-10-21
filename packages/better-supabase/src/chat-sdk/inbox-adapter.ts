@@ -24,6 +24,7 @@ import type { Inbox } from "../blocks/inbox/inbox.ts";
 import type { InboxMessage } from "../blocks/inbox/types.ts";
 import type { IdentityRef } from "../core/contracts/authorization-hooks.ts";
 import type { StreamStore } from "../streams/store.ts";
+import type { BotJobsOptions } from "./identity.ts";
 
 import {
   isRecord,
@@ -32,7 +33,7 @@ import {
   toInstant,
 } from "../core/block-helpers.ts";
 import { writeToStore } from "../streams/tee.ts";
-import { type BotJobsOptions, botJobs } from "./identity.ts";
+import { botJobs } from "./identity.ts";
 
 const PREFIX = "inbox:";
 

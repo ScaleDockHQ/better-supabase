@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 import {
   BellIcon,
   BotIcon,
@@ -9,7 +11,6 @@ import {
   FileTextIcon,
   HandshakeIcon,
   KanbanIcon,
-  type LucideIcon,
   MessagesSquareIcon,
   RocketIcon,
   ScaleIcon,

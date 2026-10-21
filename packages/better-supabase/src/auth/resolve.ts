@@ -7,13 +7,22 @@ import type {
 
 import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
+import type { DbError } from "../core/errors.ts";
 import type { AuthOutageEvent, RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
+import type {
+  CookieOptions,
+  CookieRecord,
+  CookieWrite,
+  SessionEncoding,
+  StoredSession,
+  WriteSessionOptions,
+} from "./session.ts";
 
 import { decodeJwtPayload } from "../core/base64.ts";
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
@@ -22,18 +31,12 @@ import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
-  type CookieOptions,
-  type CookieRecord,
-  type CookieWrite,
   parseCookies,
   pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,
-  type SessionEncoding,
-  type StoredSession,
   writeSession,
-  type WriteSessionOptions,
 } from "./session.ts";
 
 /**

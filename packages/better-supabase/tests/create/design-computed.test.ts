@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { Design } from "../../src/create/index.ts";
+
 import {
   addTable,
   columnError,
   deleteColumn,
   deleteTable,
-  type Design,
   EMPTY_DESIGN,
   editTable,
   renameColumn,

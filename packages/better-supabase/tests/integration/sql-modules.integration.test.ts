@@ -7,6 +7,8 @@ import { Client, Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { RpcClient } from "../../src/core/block-transport.ts";
+import type { RawDbError } from "../../src/core/errors.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { AnyModels } from "../../src/schema/types.ts";
 
@@ -26,13 +28,9 @@ import {
 } from "../../src/blocks/jobs/index.ts";
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
-import {
-  rpcTransport,
-  sqlTransport,
-  type RpcClient,
-} from "../../src/core/block-transport.ts";
+import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { mapDbError, type RawDbError } from "../../src/core/errors.ts";
+import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";

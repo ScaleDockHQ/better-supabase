@@ -1,9 +1,10 @@
 /** SCIM PATCH (RFC 7644 §3.5.2) over resource JSON, applied to a copy. */
 
+import type { ScimFilter } from "./scim-filter.ts";
 import type { ScimAttribute } from "./scim-schema.ts";
 
 import { isRecord } from "../shared.ts";
-import { matches, parseFilter, type ScimFilter } from "./scim-filter.ts";
+import { matches, parseFilter } from "./scim-filter.ts";
 
 /** A PATCH the service provider rejects, with its `scimType`. */
 export class ScimPatchError extends Error {

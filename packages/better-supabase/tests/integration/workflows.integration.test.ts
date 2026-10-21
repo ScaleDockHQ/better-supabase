@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { WorkflowStartCall } from "../../src/blocks/workflows/index.ts";
+
 import {
   createWorkflows,
   sqlTransport,
-  type WorkflowStartCall,
 } from "../../src/blocks/workflows/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 

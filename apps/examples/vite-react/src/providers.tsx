@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BetterSupabaseProvider } from "better-supabase/react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
 import { bs } from "./lib/supabase/client";
 

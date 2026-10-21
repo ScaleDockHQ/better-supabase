@@ -4,12 +4,12 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { RANK_ALPHABET, RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, schemaPreamble, serviceGrant, userGrant } from "../shared.ts";
 import {
-  type RegisteredSubject,
   registeredIdMatches,
   registeredSubjects,
 } from "../subject-registry.ts";

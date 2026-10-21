@@ -1,11 +1,11 @@
-import { defineSupabase } from "better-supabase";
-import {
-  type AuthSession,
-  type ServerContext,
-  toSession,
-} from "better-supabase/server";
+import type { AuthSession, ServerContext } from "better-supabase/server";
 
-import { type Functions, type Models, schema } from "./generated";
+import { defineSupabase } from "better-supabase";
+import { toSession } from "better-supabase/server";
+
+import type { Functions, Models } from "./generated";
+
+import { schema } from "./generated";
 
 /**
  * The one `defineSupabase` in the monorepo. Domain packages never import

@@ -18,12 +18,10 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { MemberOption, TaskRow } from "../project-types";
+
 import { moveTask } from "../project-actions";
-import {
-  type MemberOption,
-  TASK_STATUSES,
-  type TaskRow,
-} from "../project-types";
+import { TASK_STATUSES } from "../project-types";
 import { statusBadgeVariant, useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-board

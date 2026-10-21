@@ -1,11 +1,14 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 import type { ServerContext } from "../server-types.ts";
 import type { ActiveSupport } from "../support.ts";
+import type { ServerCore } from "./core.ts";
 
-import { callOf, type ServerCore } from "./core.ts";
+import { callOf } from "./core.ts";
 
 /** The keys `withServerContext` reads. */
 export interface ServerContextIn<C, P> {

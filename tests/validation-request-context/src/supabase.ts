@@ -1,16 +1,15 @@
+import type { BetterSupabaseEnv, PublicEnv } from "better-supabase/env";
 import type { ServerContext } from "better-supabase/server";
 
 import { createBrowserClient } from "@supabase/ssr";
 import { defineSupabase } from "better-supabase";
 import { createClient } from "better-supabase/client";
 import { createEdge } from "better-supabase/edge";
-import {
-  type BetterSupabaseEnv,
-  envSchema,
-  type PublicEnv,
-} from "better-supabase/env";
+import { envSchema } from "better-supabase/env";
 
-import { type Functions, type Models, schema } from "./generated.ts";
+import type { Functions, Models } from "./generated.ts";
+
+import { schema } from "./generated.ts";
 
 export const betterSupabase = defineSupabase(schema);
 

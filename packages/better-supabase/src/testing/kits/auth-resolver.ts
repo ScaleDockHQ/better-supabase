@@ -1,11 +1,7 @@
 import type { AuthResolver, AuthState } from "../../auth/resolve.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import {
-  Violation,
-  conform,
-  expect,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { Violation, conform, expect } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestAuthResolverOptions {

@@ -1,10 +1,11 @@
+import type { DbError } from "../core/errors.ts";
 import type {
   CredentialProvider,
   CredentialRef,
   CredentialSubject,
 } from "../credentials/provider.ts";
 
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 
 /** Eve's `ConnectionAuthorizationRequiredError`, matched by name. */
 export class ConnectionAuthorizationRequiredError extends Error {

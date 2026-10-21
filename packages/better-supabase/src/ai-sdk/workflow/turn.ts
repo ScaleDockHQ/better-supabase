@@ -7,13 +7,10 @@ import type {
 } from "../../blocks/ai-chat/ai-chat.ts";
 import type { AiMessage } from "../../blocks/ai-chat/message.ts";
 import type { AiUsage, GatewayOptions } from "../gateway.ts";
+import type { ModelApproval, ModelSource } from "../model-messages.ts";
 
 import { usageOf } from "../gateway.ts";
-import {
-  fromModelMessages,
-  type ModelApproval,
-  type ModelSource,
-} from "../model-messages.ts";
+import { fromModelMessages } from "../model-messages.ts";
 
 /**
  * What `durableChat` starts the turn's workflow with. Every field is

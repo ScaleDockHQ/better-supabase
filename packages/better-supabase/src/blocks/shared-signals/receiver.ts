@@ -1,25 +1,24 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Jwks } from "../../core/jws.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
+import type { BlockOptions } from "../shared.ts";
+import type { SetErrorCode, VerifiedSet } from "./set.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { type Jwks, jwksOf } from "../../core/jws.ts";
-import { consoleLogger, type Logger } from "../../core/logger.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { jwksOf } from "../../core/jws.ts";
+import { consoleLogger } from "../../core/logger.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   errorText,
   isRecord,
   readBodyCapped,
 } from "../shared.ts";
 import { SSF_POLL, SSF_PUSH } from "./methods.ts";
-import {
-  SET_CONTENT_TYPE,
-  type SetErrorCode,
-  type VerifiedSet,
-  verifySet,
-} from "./set.ts";
+import { SET_CONTENT_TYPE, verifySet } from "./set.ts";
 
 /**
  * Handles one event type; a throw leaves the SET unprocessed, so the

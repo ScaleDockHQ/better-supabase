@@ -1,4 +1,8 @@
 import type {
+  MetricDefinition,
+  MetricGrain,
+} from "../../core/metric-definition.ts";
+import type {
   ModuleContext,
   ModuleContractFunction,
   ModuleNames,
@@ -7,8 +11,6 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   METRIC_GRAINS,
-  type MetricDefinition,
-  type MetricGrain,
   grainDivides,
   metricsOf,
 } from "../../core/metric-definition.ts";

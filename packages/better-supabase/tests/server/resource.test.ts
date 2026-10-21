@@ -1,13 +1,13 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
+import type {
+  AuthorizationOutcome,
+  AuthorizationRequest,
+} from "../../src/core/authorizer.ts";
 import type { Executor } from "../../src/core/executor.ts";
 
-import {
-  defineAuthorizer,
-  type AuthorizationOutcome,
-  type AuthorizationRequest,
-} from "../../src/core/authorizer.ts";
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";

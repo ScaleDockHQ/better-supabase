@@ -1,14 +1,9 @@
 import type { AnyCommand } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import {
-  applyPlan,
-  type FilePlan,
-  insideRoot,
-  PLAN_ARGS,
-  planResult,
-} from "../core/files.ts";
+import { applyPlan, insideRoot, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";

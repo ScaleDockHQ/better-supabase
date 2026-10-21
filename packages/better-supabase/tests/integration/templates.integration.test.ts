@@ -1,19 +1,19 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { TemplateApplyCall } from "../../src/blocks/templates/index.ts";
+import type {
+  BuilderStartCall,
+  WorkflowGraph,
+} from "../../src/blocks/workflow-builder/index.ts";
 import type { Result } from "../../src/core/result.ts";
 
 import {
   createTemplates,
   defineTemplateType,
   sqlTransport,
-  type TemplateApplyCall,
 } from "../../src/blocks/templates/index.ts";
-import {
-  type BuilderStartCall,
-  createWorkflowBuilder,
-  type WorkflowGraph,
-} from "../../src/blocks/workflow-builder/index.ts";
+import { createWorkflowBuilder } from "../../src/blocks/workflow-builder/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();

@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
   withExtraFields,
 } from "../shared.ts";
 import {
-  type Subject,
   subjectAccess,
   subjectCascades,
   subjectReadable,

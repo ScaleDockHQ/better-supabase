@@ -22,14 +22,11 @@ import type {
   CredentialSubject,
   CredentialToken,
 } from "../credentials/provider.ts";
+import type { DeliveryParser, ParsedDeliveries } from "./delivery.ts";
 
 import { errorText } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
-import {
-  DELIVERY_PARSERS,
-  type DeliveryParser,
-  type ParsedDeliveries,
-} from "./delivery.ts";
+import { DELIVERY_PARSERS } from "./delivery.ts";
 
 /** The parts of a Chat SDK `Chat` the inbox helpers use. */
 export interface ChatLike {

@@ -1,7 +1,8 @@
+import type { GeneratorMetadata } from "./typegen.ts";
 import type { ExtrasTable, Snapshot } from "./types.ts";
 
 import { byCodePoint } from "../compare.ts";
-import { type GeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
+import { stabilizeMetadata } from "./typegen.ts";
 
 /**
  * What the extras query set reads that a `GeneratorMetadata` document leaves

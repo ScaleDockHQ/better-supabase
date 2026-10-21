@@ -5,28 +5,23 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogTable,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { runSql } from "../../../src/cli/commands/sql.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { renderModules, moduleLayout } from "../../../src/sql/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";

@@ -1,8 +1,9 @@
 "use client";
 
 import type { EmployeeStatus } from "better-supabase/blocks/employees";
+import type { ActionHandle } from "better-supabase/react";
 
-import { type ActionHandle, useAction } from "better-supabase/react";
+import { useAction } from "better-supabase/react";
 import { SearchIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useDeferredValue, useState } from "react";

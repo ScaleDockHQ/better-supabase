@@ -1,15 +1,9 @@
 "use client";
 
+import type { DynamicToolUIPart, FileUIPart, ToolUIPart, UIMessage } from "ai";
 import type { AssistantState } from "better-supabase/ai-sdk/react";
 
-import {
-  type DynamicToolUIPart,
-  type FileUIPart,
-  getToolName,
-  isToolUIPart,
-  type ToolUIPart,
-  type UIMessage,
-} from "ai";
+import { getToolName, isToolUIPart } from "ai";
 import {
   ArrowUpIcon,
   CheckIcon,

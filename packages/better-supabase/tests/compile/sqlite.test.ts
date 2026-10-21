@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { SqlitePlan } from "../../src/compile/sqlite.ts";
 import type { Condition, SelectOp } from "../../src/ir/types.ts";
 import type { TableMeta } from "../../src/schema/types.ts";
 
@@ -9,7 +10,6 @@ import {
   likeToGlob,
   quoteSqliteIdent,
   sqliteValue,
-  type SqlitePlan,
 } from "../../src/compile/sqlite.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { sqliteCompiler } from "../../src/powersync/index.ts";

@@ -4,18 +4,19 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseToml } from "smol-toml";
 
+import type {
+  BetterSupabaseConfig,
+  EnvironmentConfig,
+  ResolvedConfig,
+} from "../config/index.ts";
+import type { CliIo } from "./core/io.ts";
 import type { CliEnv } from "./env.ts";
 
-import {
-  type BetterSupabaseConfig,
-  type EnvironmentConfig,
-  type ResolvedConfig,
-  resolveConfig,
-} from "../config/index.ts";
+import { resolveConfig } from "../config/index.ts";
 import { configIssues } from "./config-schema.ts";
 import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
-import { type CliIo, display, readStdin } from "./core/io.ts";
+import { display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";

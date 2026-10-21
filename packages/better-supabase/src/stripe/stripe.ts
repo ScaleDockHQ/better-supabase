@@ -1,4 +1,6 @@
-import { type StripeClient, stripeClient } from "../blocks/stripe.ts";
+import type { StripeClient } from "../blocks/stripe.ts";
+
+import { stripeClient } from "../blocks/stripe.ts";
 import { memoized } from "../core/optional-peer.ts";
 
 /**

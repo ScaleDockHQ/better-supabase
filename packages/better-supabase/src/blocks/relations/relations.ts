@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -7,12 +12,9 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
   readFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";

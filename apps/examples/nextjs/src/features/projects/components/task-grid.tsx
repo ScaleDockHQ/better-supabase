@@ -14,10 +14,15 @@ import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
 
+import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type {
+  FilterField,
+  FilterQuery,
+} from "@/components/reui/filters/filters";
+
 import {
   DataGrid,
   DataGridContainer,
-  type DataGridFeatures,
   dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
@@ -27,8 +32,6 @@ import {
   DataGridTableRowSelectAll,
 } from "@/components/reui/data-grid/data-grid-table";
 import {
-  type FilterField,
-  type FilterQuery,
   Filters,
   createFilterQuery,
   createFilterRule,
@@ -57,21 +60,21 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type {
+  MemberOption,
+  ProjectOption,
+  TaskQuery,
+  TaskRow,
+  TaskViewOption,
+} from "../project-types";
+
 import {
   deleteTaskView,
   runTaskBulkAction,
   saveTaskView,
   setTaskField,
 } from "../project-actions";
-import {
-  type MemberOption,
-  type ProjectOption,
-  type TaskQuery,
-  type TaskRow,
-  type TaskViewOption,
-  TASK_STATUSES,
-  taskSearch,
-} from "../project-types";
+import { TASK_STATUSES, taskSearch } from "../project-types";
 import { useStatusLabel } from "../use-task-labels";
 import { TaskStatusBadge } from "./task-status-badge";
 

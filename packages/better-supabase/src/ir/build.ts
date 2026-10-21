@@ -1,22 +1,20 @@
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
+import type {
+  AggregateFn,
+  Condition,
+  Include,
+  Measure,
+  OrderTerm,
+  SelectColumn,
+  Selection,
+} from "./types.ts";
 
 import { isPlainObject } from "../core/clone.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { relationMeta } from "../schema/define.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { escapeLike } from "./escape-like.ts";
-import {
-  type AggregateFn,
-  type Condition,
-  type Include,
-  type Measure,
-  type OrderTerm,
-  type SelectColumn,
-  type Selection,
-  and,
-  not,
-  or,
-} from "./types.ts";
+import { and, not, or } from "./types.ts";
 import { encodeValue } from "./wire.ts";
 
 const AGGREGATE_KEYS: Readonly<Record<string, AggregateFn>> = {

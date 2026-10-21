@@ -1,10 +1,11 @@
 import type { CliEnv } from "../env.ts";
 import type { SharedMemorySegment, SharedMemoryUsage } from "../shm.ts";
+import type { ManagedStack } from "../stacks.ts";
 import type { Rule } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
 import { readSharedMemory } from "../shm.ts";
-import { branchName, listStacks, type ManagedStack } from "../stacks.ts";
+import { branchName, listStacks } from "../stacks.ts";
 
 /** The segment use and the managed stacks, for BS700 and BS701. */
 export type LocalStackCheck =

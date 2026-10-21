@@ -1,11 +1,8 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import {
-  around,
-  type Around,
-  bufferInPlace,
-  type Validated,
-} from "./shared.ts";
+import type { Around, Validated } from "./shared.ts";
+
+import { around, bufferInPlace } from "./shared.ts";
 
 /**
  * The `response` of a request middleware's `next()` result; server function

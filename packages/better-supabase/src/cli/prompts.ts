@@ -1,6 +1,7 @@
+import type { Option } from "@clack/prompts";
+
 import {
   confirm,
-  type Option,
   isCancel,
   multiselect,
   select,

@@ -1,15 +1,12 @@
 import "server-only";
+import type { Embedder, Knowledge } from "better-supabase/blocks/knowledge";
+import type { Memory } from "better-supabase/blocks/memory";
+import type { RpcClient } from "better-supabase/blocks/organizations";
+
 import { embedWith } from "better-supabase/ai-sdk/embeddings";
-import {
-  createKnowledge,
-  type Embedder,
-  type Knowledge,
-} from "better-supabase/blocks/knowledge";
-import { createMemory, type Memory } from "better-supabase/blocks/memory";
-import {
-  type RpcClient,
-  rpcTransport,
-} from "better-supabase/blocks/organizations";
+import { createKnowledge } from "better-supabase/blocks/knowledge";
+import { createMemory } from "better-supabase/blocks/memory";
+import { rpcTransport } from "better-supabase/blocks/organizations";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";

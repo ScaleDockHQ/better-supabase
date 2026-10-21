@@ -1,12 +1,12 @@
-import {
-  type ArgsDef,
-  type CommandDef,
-  type CommandMeta,
-  defineCommand,
-  type ParsedArgs,
-  parseArgs,
-  type SubCommandsDef,
+import type {
+  ArgsDef,
+  CommandDef,
+  CommandMeta,
+  ParsedArgs,
+  SubCommandsDef,
 } from "citty";
+
+import { defineCommand, parseArgs } from "citty";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";

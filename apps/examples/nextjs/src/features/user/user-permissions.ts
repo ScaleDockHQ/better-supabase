@@ -1,7 +1,11 @@
-import { type AuthSession, tenantOf } from "better-supabase/react";
+import type { AuthSession } from "better-supabase/react";
+
+import { tenantOf } from "better-supabase/react";
 import * as v from "valibot";
 
-import { type Claims, MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
+import type { Claims } from "@/lib/claims";
+
+import { MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
 
 // A deliberately small, hand-written permission check that runs on the server
 // and the client, over the claims the access token hook writes. An app with

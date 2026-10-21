@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { DealNames } from "./deals-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -22,7 +23,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { moduleOperations } from "./access-model.ts";
-import { dealFunctions, type DealNames } from "./deals-functions.ts";
+import { dealFunctions } from "./deals-functions.ts";
 
 const DEAL = [
   "organizationId",

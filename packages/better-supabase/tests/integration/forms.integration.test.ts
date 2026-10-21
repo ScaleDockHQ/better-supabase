@@ -1,10 +1,9 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  type FormDefinition,
-  formSchema,
-} from "../../src/core/contracts/form-definition.ts";
+import type { FormDefinition } from "../../src/core/contracts/form-definition.ts";
+
+import { formSchema } from "../../src/core/contracts/form-definition.ts";
 import { SIGNUP } from "../blocks/forms/fixtures.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 

@@ -1,5 +1,6 @@
 import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
+import type { OperationModule } from "./modules/access-model.ts";
 
 import { sqlIdent } from "../core/template.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
@@ -9,7 +10,6 @@ import {
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
-  type OperationModule,
 } from "./modules/access-model.ts";
 import { SQL_MODULES, checkModules, resolveModules } from "./registry.ts";
 

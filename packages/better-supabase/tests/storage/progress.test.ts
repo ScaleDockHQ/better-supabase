@@ -1,11 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { StorageApi, StorageResponse } from "../../src/storage/index.ts";
+
 import { ok } from "../../src/core/result.ts";
-import {
-  defineBucket,
-  type StorageApi,
-  type StorageResponse,
-} from "../../src/storage/index.ts";
+import { defineBucket } from "../../src/storage/index.ts";
 import { sendable, xhrUpload } from "../../src/storage/progress.ts";
 import { fakeStorage } from "../fixtures/fake-storage.ts";
 

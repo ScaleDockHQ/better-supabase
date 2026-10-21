@@ -1,3 +1,5 @@
+import type { UIMessage } from "ai";
+
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -6,7 +8,6 @@ import {
   streamText,
   toUIMessageStream,
   tool,
-  type UIMessage,
 } from "ai";
 import { checkBotId } from "botid/server";
 import * as v from "valibot";

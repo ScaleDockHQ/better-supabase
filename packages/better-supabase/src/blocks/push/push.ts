@@ -1,4 +1,9 @@
 import type { ExpoNotificationsLike } from "../../client/native/push-token.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -10,14 +15,12 @@ import type {
   NotificationMessage,
   NotificationSendResult,
 } from "../notifications/channel.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { expoPushToken } from "../../client/native/push-token.ts";
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -25,7 +28,6 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   recordOrEmpty,
   recordsOf,
   run,

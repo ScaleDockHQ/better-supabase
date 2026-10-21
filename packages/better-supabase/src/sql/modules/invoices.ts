@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { InvoiceNames } from "./invoices-functions.ts";
 
 import {
   lineTableSpec,
@@ -14,7 +15,7 @@ import {
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { invoiceFunctions, type InvoiceNames } from "./invoices-functions.ts";
+import { invoiceFunctions } from "./invoices-functions.ts";
 
 const INVOICE = [
   "organizationId",

@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
@@ -12,11 +17,8 @@ import type { Notifier } from "../ports.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";

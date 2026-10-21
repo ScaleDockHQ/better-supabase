@@ -37,7 +37,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { TASK_IMPORT_FIELDS, type TaskImportField } from "../project-types";
+import type { TaskImportField } from "../project-types";
+
+import { TASK_IMPORT_FIELDS } from "../project-types";
 import { previewTaskImport, runTaskImport } from "../task-import-actions";
 
 // #region recipe:upsert-import

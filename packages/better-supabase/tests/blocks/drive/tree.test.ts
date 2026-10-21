@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { DriveNode } from "../../../src/blocks/drive/index.ts";
+
 import {
   DRIVE_ROOT,
-  type DriveNode,
   driveTree,
   fileTypeCategory,
   nodeType,

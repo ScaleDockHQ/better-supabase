@@ -1,5 +1,6 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockOptions } from "../shared.ts";
 
 import { toBase64Url } from "../../core/base64.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -9,7 +10,6 @@ import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   enumOrThrow,
   instantOf,
   nullableInstant,

@@ -1,7 +1,9 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AuthorizationResource, Authorizer } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RepositoryOf } from "../core/repository-types.ts";
+import type { Result } from "../core/result.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type { ResourceOperation } from "../spec/model.ts";
 import type {
@@ -12,17 +14,13 @@ import type {
   ResourceRouteOptions,
   ResourceTarget,
 } from "./resource-types.ts";
+import type { RespondOptions } from "./respond.ts";
 
-import {
-  checkEach,
-  checkPermission,
-  type AuthorizationResource,
-  type Authorizer,
-} from "../core/authorizer.ts";
+import { checkEach, checkPermission } from "../core/authorizer.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { methodNotAllowed } from "../core/problem.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { matchAction, planResource } from "../spec/resource.ts";
 import { runHandler, runHook, settled } from "./resource-execute.ts";
@@ -38,7 +36,7 @@ import {
   readJson,
   splitPath,
 } from "./resource-http.ts";
-import { respond, type RespondOptions } from "./respond.ts";
+import { respond } from "./respond.ts";
 
 type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
 

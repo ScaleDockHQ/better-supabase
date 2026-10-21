@@ -4,15 +4,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type {
+  BetterSupabaseConfig,
+  Generator,
+  GeneratorModel,
+} from "../../../src/config/index.ts";
+
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { runGen } from "../../../src/cli/gen/run.ts";
-import {
-  type BetterSupabaseConfig,
-  type Generator,
-  type GeneratorModel,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const src = resolve(import.meta.dirname, "../../../src");

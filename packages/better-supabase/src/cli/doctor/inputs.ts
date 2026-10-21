@@ -4,9 +4,10 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { TextFile } from "../doctor/rules.ts";
+import type { SupabaseToml } from "../supabase-toml.ts";
 
 import { byCodePoint } from "../compare.ts";
-import { schemaPaths, type SupabaseToml } from "../supabase-toml.ts";
+import { schemaPaths } from "../supabase-toml.ts";
 
 export const ENV_FILES: readonly string[] = [
   ".env",

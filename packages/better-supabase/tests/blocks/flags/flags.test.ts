@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { FlagDefinition } from "../../../src/blocks/flags/index.ts";
+
 import {
   createFlagClient,
   createFlagsProvider,
   evaluateFlag,
   flagBucket,
   flagContext,
-  type FlagDefinition,
   flagDefinitionsOf,
 } from "../../../src/blocks/flags/index.ts";
 

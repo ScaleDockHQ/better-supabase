@@ -12,10 +12,11 @@ import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bs } from "@/lib/supabase/server";
 
+import type { WorkItemSort } from "./work-types";
+
 import {
   WORK_ITEM_LIST,
   WORK_ITEM_SUBJECT,
-  type WorkItemSort,
   WorkItemSortSchema,
   WorkItemStateSchema,
 } from "./work-types";

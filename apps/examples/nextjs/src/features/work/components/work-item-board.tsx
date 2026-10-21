@@ -21,6 +21,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { StageColumn, WorkItemRow } from "../work-types";
+
 import {
   stateBadgeVariant,
   usePriorityLabel,
@@ -28,11 +30,7 @@ import {
   useWorkErrorHint,
 } from "../use-work-labels";
 import { moveWorkItem } from "../work-actions";
-import {
-  type StageColumn,
-  type WorkItemRow,
-  WorkItemStateSchema,
-} from "../work-types";
+import { WorkItemStateSchema } from "../work-types";
 
 type Columns = Record<string, WorkItemRow[]>;
 

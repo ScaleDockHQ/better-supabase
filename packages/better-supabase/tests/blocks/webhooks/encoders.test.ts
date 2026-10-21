@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  WebhookEncoder,
+  WebhookResponse,
+} from "../../../src/blocks/webhooks/index.ts";
 import type { CloudEvent } from "../../../src/events/index.ts";
 
 import { encoderRegistry } from "../../../src/blocks/webhooks/encoders.ts";
@@ -9,8 +13,6 @@ import {
   securityEvents,
   splunkHec,
   standardEnvelope,
-  type WebhookEncoder,
-  type WebhookResponse,
 } from "../../../src/blocks/webhooks/index.ts";
 
 const event = (overrides: Partial<CloudEvent> = {}): CloudEvent => ({

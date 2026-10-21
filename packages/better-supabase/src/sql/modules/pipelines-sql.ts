@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 
 import { rankKeys } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -11,12 +12,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
-import {
-  byType,
-  type Names,
-  outcomeCase,
-  type PipelineBinding,
-} from "./pipelines-bindings.ts";
+import { byType, outcomeCase } from "./pipelines-bindings.ts";
 
 /**
  * ` || jsonb_build_object('fields', ...)` for pipeline row `alias`; empty

@@ -1,9 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server.js";
+import type { NextRequest } from "next/server.js";
 
+import { NextResponse } from "next/server.js";
+
+import type { Aal } from "../auth/mfa.ts";
 import type { AuthState } from "../auth/resolve.ts";
 import type { EndedSessionOptions, RequireAalOptions } from "./types.ts";
 
-import { checkAal, type Aal } from "../auth/mfa.ts";
+import { checkAal } from "../auth/mfa.ts";
 import { problemResponse } from "../core/problem.ts";
 import { isPrefetch } from "../server/refresh.ts";
 

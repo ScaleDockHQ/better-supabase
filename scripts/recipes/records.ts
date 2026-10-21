@@ -1,4 +1,6 @@
-import { type RecipeSource, WEB_APP } from "./types.ts";
+import type { RecipeSource } from "./types.ts";
+
+import { WEB_APP } from "./types.ts";
 
 const PROJECTS = `${WEB_APP}/src/features/projects/components`;
 

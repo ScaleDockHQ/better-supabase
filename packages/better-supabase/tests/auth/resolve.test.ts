@@ -2,13 +2,12 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
+import type { StoredSession } from "../../src/auth/session.ts";
+
 import { authContext } from "../../src/auth/context.ts";
-import {
-  clearVerifiedTokens,
-  resolveAuth,
-  type ResolveAuthOptions,
-} from "../../src/auth/resolve.ts";
-import { type StoredSession, writeSession } from "../../src/auth/session.ts";
+import { clearVerifiedTokens, resolveAuth } from "../../src/auth/resolve.ts";
+import { writeSession } from "../../src/auth/session.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";

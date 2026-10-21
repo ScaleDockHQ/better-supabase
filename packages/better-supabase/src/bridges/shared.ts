@@ -1,9 +1,6 @@
-import {
-  type AnyEntry,
-  pipeline,
-  seedContext,
-  type ValidateEntries,
-} from "@supabase/middleware";
+import type { AnyEntry, ValidateEntries } from "@supabase/middleware";
+
+import { pipeline, seedContext } from "@supabase/middleware";
 
 /**
  * `unknown` when the entries compose, so a parameter typed `Entries &

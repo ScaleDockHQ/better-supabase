@@ -4,16 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CliCommand } from "../../../src/cli/core/command.ts";
 import type { CliIo } from "../../../src/cli/core/io.ts";
+import type { Cli } from "../../../src/cli/core/run.ts";
 import type { Prompter } from "../../../src/cli/prompts.ts";
 
-import {
-  type CliCommand,
-  defineCliCommand,
-} from "../../../src/cli/core/command.ts";
+import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
-import { type Cli, createCli } from "../../../src/cli/core/run.ts";
+import { createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 

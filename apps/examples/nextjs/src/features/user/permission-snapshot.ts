@@ -3,7 +3,9 @@ import { cacheTag } from "next/cache";
 
 import { bs } from "@/lib/supabase/server";
 
-import { PERMISSIONS, type Permission, can } from "./user-permissions";
+import type { Permission } from "./user-permissions";
+
+import { PERMISSIONS, can } from "./user-permissions";
 
 // An authorization library with its own snapshot replaces `can` here and
 // keeps the `bs.cached()` call.

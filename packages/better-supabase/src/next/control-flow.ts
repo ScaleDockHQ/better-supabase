@@ -2,7 +2,9 @@ import { forbidden } from "next/dist/client/components/forbidden.js";
 import { notFound } from "next/dist/client/components/not-found.js";
 import { unauthorized } from "next/dist/client/components/unauthorized.js";
 
-import { DbException, type DbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { DbException } from "../core/errors.ts";
 
 /**
  * Whether `cause` is one of Next's own control-flow errors (they carry a

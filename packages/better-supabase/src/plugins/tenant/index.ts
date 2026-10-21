@@ -1,16 +1,15 @@
+import type {
+  HasFlag,
+  Plugin,
+  RepositoryExtension,
+  RequestContext,
+} from "../../core/plugin.ts";
 import type { MutationOp, Operation } from "../../ir/types.ts";
 import type { SchemaMeta, TableMeta } from "../../schema/types.ts";
 
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { DbException, dbError } from "../../core/errors.ts";
-import {
-  definePlugin,
-  type HasFlag,
-  type Plugin,
-  spansAllTenants,
-  type RepositoryExtension,
-  type RequestContext,
-} from "../../core/plugin.ts";
+import { definePlugin, spansAllTenants } from "../../core/plugin.ts";
 import { scopeOperation } from "../../ir/scope.ts";
 import { dbName, equals, forbidden, insertsOnly } from "../shared.ts";
 

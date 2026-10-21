@@ -11,13 +11,11 @@ import type {
   ApprovalRequestRef,
   AuthorizationHooks,
 } from "../../src/core/contracts/authorization-hooks.ts";
+import type { SupportOptions } from "../../src/server/support.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { supportOff } from "../../src/server/support-off.ts";
-import {
-  type SupportOptions,
-  supportSessions,
-} from "../../src/server/support.ts";
+import { supportSessions } from "../../src/server/support.ts";
 import { pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";

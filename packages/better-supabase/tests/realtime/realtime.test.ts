@@ -2,14 +2,11 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { RealtimeClient } from "../../src/realtime/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
-import {
-  defineTopic,
-  type RealtimeClient,
-  rowChange,
-  rowKeys,
-} from "../../src/realtime/index.ts";
+import { defineTopic, rowChange, rowKeys } from "../../src/realtime/index.ts";
 import { LOOKUP_WARNING } from "../../src/realtime/topic-trigger.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 

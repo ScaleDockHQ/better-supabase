@@ -1,24 +1,19 @@
 "use client";
 
+import type { Edge, Node, NodeProps } from "@xyflow/react";
 import type {
   WorkflowGraph,
   WorkflowGraphNode,
   WorkflowNodeKind,
   WorkflowNodeRunStatus,
 } from "better-supabase/blocks/workflow-builder";
+import type { LucideIcon } from "lucide-react";
 
-import {
-  type Edge,
-  Handle,
-  type Node,
-  type NodeProps,
-  Position,
-} from "@xyflow/react";
+import { Handle, Position } from "@xyflow/react";
 import {
   ClockIcon,
   GitBranchIcon,
   HandIcon,
-  type LucideIcon,
   PlayIcon,
   SquareFunctionIcon,
 } from "lucide-react";

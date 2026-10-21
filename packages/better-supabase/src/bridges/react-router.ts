@@ -1,6 +1,8 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { around, bufferInPlace, type Validated } from "./shared.ts";
+import type { Validated } from "./shared.ts";
+
+import { around, bufferInPlace } from "./shared.ts";
 
 /** The part of React Router's `RouterContextProvider` the bridge writes. */
 export interface ReactRouterContext<Key, Value> {

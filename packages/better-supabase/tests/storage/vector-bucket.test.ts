@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  defineVectorBucket,
-  type StorageAdminClient,
-} from "../../src/storage/index.ts";
+import type { StorageAdminClient } from "../../src/storage/index.ts";
+
+import { defineVectorBucket } from "../../src/storage/index.ts";
 
 const missing = {
   name: "StorageVectorsApiError",

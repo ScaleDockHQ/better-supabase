@@ -2,18 +2,20 @@ import { readFile } from "node:fs/promises";
 import { posix, resolve } from "node:path";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
+import type { CreateDesign, DesignChange, Preset } from "../../preset/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { AdoptProposal, ExistingTable } from "../sql/adopt.ts";
+import type { ConfigEdit } from "../sql/config-edit.ts";
 import type { Now } from "../sql/migrations.ts";
+import type { Paint } from "../style.ts";
 
 import {
-  type CreateDesign,
-  type DesignChange,
   designConfig,
   diffAppTables,
   encodePreset,
   isPresetName,
-  type Preset,
   PRESET_NAMES,
   resolvePreset,
 } from "../../preset/index.ts";
@@ -27,30 +29,27 @@ import {
 } from "../conventions.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
+import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { ident as sqlIdent } from "../doctor/live.ts";
 import { readPresetInput } from "../preset-input.ts";
 import {
-  type AdoptProposal,
   adoptableBlocks,
   describeProposal,
-  type ExistingTable,
   hasDefaultTable,
   proposeAdoption,
 } from "../sql/adopt.ts";
 import {
   addBlocksToConfig,
   addBlocksToJson,
-  type ConfigEdit,
   setPresetInConfig,
   setPresetInJson,
 } from "../sql/config-edit.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
-import { type Paint, plain } from "../style.ts";
+import { plain } from "../style.ts";
 import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 

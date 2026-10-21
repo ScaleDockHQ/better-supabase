@@ -5,6 +5,8 @@ import type { Jwks } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { ProblemFormat } from "../../core/problem.ts";
 import type { Result } from "../../core/result.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { PartnerApiOptions } from "./partner-api.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
@@ -17,7 +19,6 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   isRecord,
   optionalText,
@@ -25,7 +26,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
-import { createPartnerApi, type PartnerApiOptions } from "./partner-api.ts";
+import { createPartnerApi } from "./partner-api.ts";
 
 const API = "https://api.vercel.com";
 const JWKS = "https://marketplace.vercel.com/.well-known/jwks";

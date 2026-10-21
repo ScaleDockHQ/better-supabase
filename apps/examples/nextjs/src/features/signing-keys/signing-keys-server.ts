@@ -1,10 +1,11 @@
 import "server-only";
-import { rpcTransport } from "better-supabase/blocks/organizations";
-import {
-  createSigningKeys,
-  type SigningKeyOwner,
-  type SigningKeys,
+import type {
+  SigningKeyOwner,
+  SigningKeys,
 } from "better-supabase/blocks/signing-keys";
+
+import { rpcTransport } from "better-supabase/blocks/organizations";
+import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";

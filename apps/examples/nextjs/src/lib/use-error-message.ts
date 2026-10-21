@@ -1,6 +1,8 @@
 "use client";
 
-import { type DbError, createErrorMessages } from "better-supabase";
+import type { DbError } from "better-supabase";
+
+import { createErrorMessages } from "better-supabase";
 import { useExtracted } from "next-intl";
 
 /**

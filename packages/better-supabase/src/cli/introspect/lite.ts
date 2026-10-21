@@ -3,12 +3,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { LiteDriver } from "../../server/index.ts";
+import type { SupabaseToml } from "../supabase-toml.ts";
 import type { IntrospectionSource } from "./source.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { LITE_DRIVERS, loadCliLite } from "../lite.ts";
-import { schemaPaths, type SupabaseToml, tomlGet } from "../supabase-toml.ts";
+import { schemaPaths, tomlGet } from "../supabase-toml.ts";
 import { pgSource } from "./source.ts";
 
 function isLiteDriver(value: unknown): value is LiteDriver {

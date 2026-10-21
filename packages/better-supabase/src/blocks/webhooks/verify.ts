@@ -1,4 +1,10 @@
 import type { BetterSupabase } from "../../core/define.ts";
+import type { Result } from "../../core/result.ts";
+import type {
+  VerifiedWebhook,
+  VerifyOptions,
+  WebhookInput,
+} from "../../core/signatures.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -8,15 +14,12 @@ import type {
 } from "../../schema/types.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { err, ok, type Result } from "../../core/result.ts";
+import { err, ok } from "../../core/result.ts";
 import {
   header,
   hmacHex,
   replayed,
   unauthorized,
-  type VerifiedWebhook,
-  type VerifyOptions,
-  type WebhookInput,
   timingSafeEqual,
   verifyWebhook,
 } from "../../core/signatures.ts";

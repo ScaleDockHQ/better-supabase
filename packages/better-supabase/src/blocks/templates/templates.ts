@@ -1,25 +1,27 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { WorkflowBuilder } from "../workflow-builder/types.ts";
 import type { MergeFieldCatalog } from "./merge-fields.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
-import { type StandardSchemaV1, validate } from "../../core/standard.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
+import { validate } from "../../core/standard.ts";
 import {
   applyTemporal,
   asDbError,
   blockCall,
-  type BlockTemporalOptions,
   enumOrThrow,
   isRecord,
   optionalInstant,

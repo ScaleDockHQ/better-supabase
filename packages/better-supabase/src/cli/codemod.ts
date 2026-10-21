@@ -4,13 +4,14 @@
  * parser dependency, so each transform is a narrow, mechanical rename.
  */
 
+import type { CliCallMigration } from "./codemod-calls.ts";
 import type { ConfigEdit } from "./sql/config-edit.ts";
+import type { WebhookFormat } from "./sql/config-webhook-format.ts";
 
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import {
   CLI_CALL_FILE,
-  type CliCallMigration,
   cliCallHints,
   rewriteCliCalls,
   SHELL_FILE,
@@ -21,10 +22,7 @@ import {
   moveSqlModulesToBlocks,
   moveSqlModulesToBlocksJson,
 } from "./sql/config-move.ts";
-import {
-  pinWebhookFormat,
-  type WebhookFormat,
-} from "./sql/config-webhook-format.ts";
+import { pinWebhookFormat } from "./sql/config-webhook-format.ts";
 
 /**
  * `better-supabase.config.*`, the files a codemod's `configFile` edit applies

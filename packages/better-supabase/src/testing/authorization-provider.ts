@@ -1,5 +1,6 @@
 import type { AuthorizationProvider } from "../config/authorization.ts";
 import type { DisabledRow } from "../config/blocks.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import {
   isScopeName,
@@ -9,7 +10,7 @@ import {
   templatePlaceholders,
   templateProblems,
 } from "../core/access-sql.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 function isPlainJson(value: unknown): boolean {

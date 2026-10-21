@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { DriveNode } from "../../../src/blocks/drive/index.ts";
+
 import { createAttachments } from "../../../src/blocks/attachments/attachments.ts";
-import {
-  createDrive,
-  driveSubject,
-  type DriveNode,
-} from "../../../src/blocks/drive/index.ts";
+import { createDrive, driveSubject } from "../../../src/blocks/drive/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, string, unknown][] = [];

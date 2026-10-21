@@ -1,8 +1,9 @@
+import type { Middleware } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { defineMiddleware, type Middleware } from "@supabase/middleware";
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { BetterSupabase } from "../../core/define.ts";
 import type { RequestContext } from "../../core/plugin.ts";

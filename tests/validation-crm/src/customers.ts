@@ -1,11 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AsyncResult, Db, WhereInput } from "better-supabase";
 
-import {
-  type AsyncResult,
-  type Db,
-  dbError,
-  type WhereInput,
-} from "better-supabase";
+import { dbError } from "better-supabase";
 
 import type { Functions, Models } from "./generated.ts";
 

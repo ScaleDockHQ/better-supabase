@@ -1,29 +1,28 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockProblemOptions } from "../../core/problem.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type { BlockOptions } from "../shared.ts";
 import type { DrainResult, JobHandler } from "./types.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import {
-  problemResponse,
-  type BlockProblemOptions,
-} from "../../core/problem.ts";
-import { ok, type AsyncResult, type Result } from "../../core/result.ts";
+import { problemResponse } from "../../core/problem.ts";
+import { ok } from "../../core/result.ts";
 import { verifyWebhook } from "../../core/signatures.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   errorText,
   isRecord,
   readBodyCapped,

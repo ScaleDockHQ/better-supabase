@@ -3,19 +3,13 @@ import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { SharedMemoryUsage } from "../shm.ts";
+import type { PruneAction, StackReport } from "../stacks.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { supabaseCli } from "../exec.ts";
 import { readSharedMemory } from "../shm.ts";
-import {
-  branchName,
-  listStacks,
-  type PruneAction,
-  prunePlan,
-  reportStacks,
-  type StackReport,
-} from "../stacks.ts";
+import { branchName, listStacks, prunePlan, reportStacks } from "../stacks.ts";
 
 export interface StackDeps {
   readonly stacks: (

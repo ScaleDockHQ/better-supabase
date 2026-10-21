@@ -4,9 +4,10 @@ import type {
   WebhookSignInput,
   WebhookSigner,
 } from "../blocks/webhooks/signers.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { temporal } from "../core/temporal-required.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface TestWebhookSignerOptions {
   /**

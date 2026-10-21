@@ -3,10 +3,11 @@ import type {
   AutomationHooks,
   AutomationRef,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { WorkflowVersion } from "./types.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../../auth/delegation.ts";
-import { type DbError, dbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { isRecord, optionalText, recordOf, stringsOf } from "../shared.ts";
 import { graphOf } from "./graph.ts";

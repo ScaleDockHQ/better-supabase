@@ -3,6 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type {
   BotMode,
   Contact,
@@ -24,7 +25,6 @@ import type {
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
-  type BlockTemporalOptions,
   applyTemporal,
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
@@ -34,7 +34,6 @@ import {
   seconds,
   textOf,
   toInstant,
-  type CursorPageOptions,
   pageOf,
 } from "../shared.ts";
 import {

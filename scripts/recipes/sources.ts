@@ -1,3 +1,5 @@
+import type { RecipeSource } from "./types.ts";
+
 /**
  * The recipe list that `build-recipes.ts` renders. A recipe with a `web` side
  * is available; the planned ones in `planned.ts` name what they wait for.
@@ -5,7 +7,7 @@
 import { PLANNED } from "./planned.ts";
 import { RECORD_RECIPES } from "./records.ts";
 import { SAAS_RECIPES } from "./saas.ts";
-import { NATIVE_APP, type RecipeSource, WEB_APP } from "./types.ts";
+import { NATIVE_APP, WEB_APP } from "./types.ts";
 
 export const RECIPES: readonly RecipeSource[] = [
   {

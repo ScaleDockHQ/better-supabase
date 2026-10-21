@@ -1,8 +1,7 @@
+import type { MetricDefinition } from "../../core/metric-definition.ts";
+
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
-import {
-  defineMetric,
-  type MetricDefinition,
-} from "../../core/metric-definition.ts";
+import { defineMetric } from "../../core/metric-definition.ts";
 
 export interface OrderMetricsOptions {
   /** The orders module's schema. Default `better_supabase`. */

@@ -1,7 +1,8 @@
 import "server-only";
 import type { InvoiceStatus } from "better-supabase/blocks/invoices";
+import type { Money } from "better-supabase/commerce";
 
-import { type Money, money } from "better-supabase/commerce";
+import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";

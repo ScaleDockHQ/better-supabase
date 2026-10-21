@@ -1,10 +1,12 @@
+import type { Locator, Page } from "@playwright/test";
+
 /**
  * Where each UI recipe renders, shared by `recipes.spec.ts` (the region
  * renders) and `recipe-screenshots.spec.ts` (the marketing screenshots).
  * Recipes that need a record create it through the UI first, so both run
  * against a freshly reset stack.
  */
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 export interface RecipeRoute {
   readonly slug: string;

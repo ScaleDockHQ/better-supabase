@@ -1,13 +1,13 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
 import type { AutomationRef } from "../../src/core/contracts/authorization-hooks.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
   createWorkflowBuilder,
   sqlTransport,
-  type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";

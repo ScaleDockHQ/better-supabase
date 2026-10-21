@@ -1,10 +1,13 @@
+import type {
+  RuleFieldSetter,
+  RuleSubjectContext,
+} from "better-supabase/blocks/rules";
+
 import { dbError, err } from "better-supabase";
 import {
   createRuleDispatcher,
   createRuleSink,
   createRulesAdmin,
-  type RuleFieldSetter,
-  type RuleSubjectContext,
   rpcTransport,
   setFieldAction,
 } from "better-supabase/blocks/rules";

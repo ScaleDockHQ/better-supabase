@@ -2,10 +2,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
+import type { ReactNode } from "react";
 
 import {
   createElement,
-  type ReactNode,
   useContext,
   useEffect,
   useMemo,
@@ -35,6 +35,7 @@ import type {
   TopicHandlers,
 } from "../realtime/index.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
+import type { ContextValue } from "./context.ts";
 
 import {
   countSource,
@@ -48,7 +49,7 @@ import {
 import { sessionUserId, specKey } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
-import { ClientContext, type ContextValue } from "./context.ts";
+import { ClientContext } from "./context.ts";
 import { useSession } from "./session.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";

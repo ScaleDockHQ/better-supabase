@@ -3,9 +3,12 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { OpenLive } from "../doctor/live-source.ts";
+import type { DoctorContext, Finding, TextFile } from "../doctor/rules.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
+import type { SnapshotSource } from "./snapshot.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
 import { defineCliCommand, list } from "../core/command.ts";
@@ -23,21 +26,14 @@ import {
   sqlFiles,
   sourceFiles,
 } from "../doctor/inputs.ts";
-import { LIVE_CODES, type OpenLive, openLive } from "../doctor/live-source.ts";
+import { LIVE_CODES, openLive } from "../doctor/live-source.ts";
 import { locate } from "../doctor/locate.ts";
 import {
   explainClaims,
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
-import {
-  type DoctorContext,
-  type Finding,
-  RULE_CODES,
-  RULES,
-  runRules,
-  type TextFile,
-} from "../doctor/rules.ts";
+import { RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
 import {
@@ -54,7 +50,7 @@ import {
   sqlWorkflow,
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
-import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
+import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {

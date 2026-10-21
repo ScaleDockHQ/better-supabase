@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { Preset } from "../../src/preset/index.ts";
+
 import {
   previewAccessProvider,
   previewFiles,
@@ -8,7 +10,6 @@ import {
 import {
   encodePreset,
   namedPreset,
-  type Preset,
   PRESET_NAMES,
   PRESETS,
 } from "../../src/preset/index.ts";

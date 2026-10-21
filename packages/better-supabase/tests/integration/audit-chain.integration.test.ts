@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { AuditCheckpointSigner } from "../../src/blocks/audit/index.ts";
+
 import {
   createAuditChain,
   sqlTransport,
-  type AuditCheckpointSigner,
 } from "../../src/blocks/audit/index.ts";
 import {
   createRetention,

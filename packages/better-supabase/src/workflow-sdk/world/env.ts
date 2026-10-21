@@ -1,4 +1,6 @@
-import { FLOW_PATH, type SupabaseWorldOptions } from "./types.ts";
+import type { SupabaseWorldOptions } from "./types.ts";
+
+import { FLOW_PATH } from "./types.ts";
 
 export function env(name: string): string | undefined {
   const value = process.env[name];

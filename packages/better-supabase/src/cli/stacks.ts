@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 
 import type { CliEnv } from "./env.ts";
+import type { RunProcess } from "./exec.ts";
 import type { SharedMemoryUsage } from "./shm.ts";
 
 import { CliError } from "./core/errors.ts";
-import { type RunProcess, runProcess, supabaseCli } from "./exec.ts";
+import { runProcess, supabaseCli } from "./exec.ts";
 
 /** One stack from `supabase stack list`, as the Supabase CLI persists it. */
 export interface ManagedStack {

@@ -1,12 +1,9 @@
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type { BetterSupabase } from "./define.ts";
+import type { Plugin, RepositoryExtension } from "./plugin.ts";
 import type { RepositoryOf } from "./repository-types.ts";
 
-import {
-  definePlugin,
-  type Plugin,
-  type RepositoryExtension,
-} from "./plugin.ts";
+import { definePlugin } from "./plugin.ts";
 
 /** Adds `Methods` to the repository of `Table` only. */
 export interface TableRepositoryExtension<

@@ -1,12 +1,14 @@
 import "server-only";
-import { PRODUCT_STATUSES } from "better-supabase/blocks/catalog";
-import {
-  ORDER_STATUSES,
-  type Order,
-  type OrderStatus,
-  type PricedCart,
+import type {
+  Order,
+  OrderStatus,
+  PricedCart,
 } from "better-supabase/blocks/orders";
-import { type Money, money } from "better-supabase/commerce";
+import type { Money } from "better-supabase/commerce";
+
+import { PRODUCT_STATUSES } from "better-supabase/blocks/catalog";
+import { ORDER_STATUSES } from "better-supabase/blocks/orders";
+import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";

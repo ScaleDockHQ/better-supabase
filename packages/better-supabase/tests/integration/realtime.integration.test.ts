@@ -4,12 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { TopicMessage } from "../../src/realtime/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  defineTopic,
-  rowKeys,
-  type TopicMessage,
-} from "../../src/realtime/index.ts";
+import { defineTopic, rowKeys } from "../../src/realtime/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";

@@ -1,15 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 import type { AuthorizationProvider } from "../../../src/config/index.ts";
 
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";

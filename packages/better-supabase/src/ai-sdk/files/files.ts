@@ -1,4 +1,6 @@
-import { createDownload, type Experimental_DownloadFunction } from "ai";
+import type { Experimental_DownloadFunction } from "ai";
+
+import { createDownload } from "ai";
 
 import type { AiFilePart } from "../../blocks/ai-chat/message.ts";
 import type { AiFiles, AiFileSource } from "../../blocks/ai-files/ai-files.ts";

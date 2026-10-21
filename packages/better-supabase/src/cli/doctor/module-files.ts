@@ -1,13 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { ModuleFile } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import {
-  type ModuleFile,
-  moduleFileVersion,
-  renderModules,
-} from "../../sql/index.ts";
+import { moduleFileVersion, renderModules } from "../../sql/index.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import {
   latestMigration,

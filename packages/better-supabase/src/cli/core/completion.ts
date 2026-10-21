@@ -6,9 +6,11 @@
 
 import type { ArgDef, ArgsDef } from "citty";
 
+import type { CommandNode } from "./parse.ts";
+
 import { completionValues, GLOBAL_ARGS, listArgs } from "./command.ts";
 import { COMPLETE_COMMAND } from "./manifest.ts";
-import { type CommandNode, commandArgs, isVariadic } from "./parse.ts";
+import { commandArgs, isVariadic } from "./parse.ts";
 
 export const SHELLS = ["bash", "zsh", "fish"] as const;
 

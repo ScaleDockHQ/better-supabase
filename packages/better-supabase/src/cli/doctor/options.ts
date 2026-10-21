@@ -1,5 +1,7 @@
+import type { DoctorFormat } from "../doctor/format.ts";
+
 import { CliError, errorText } from "../core/errors.ts";
-import { DOCTOR_FORMATS, type DoctorFormat } from "../doctor/format.ts";
+import { DOCTOR_FORMATS } from "../doctor/format.ts";
 
 /** The formats `--format` takes; `--json` picks the JSON one. */
 export const FLAG_FORMATS: readonly DoctorFormat[] = DOCTOR_FORMATS.filter(

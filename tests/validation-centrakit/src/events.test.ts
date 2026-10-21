@@ -1,16 +1,15 @@
 import type { StandardSchemaV1 } from "better-supabase";
+import type {
+  WebhookRequest,
+  WebhookTransport,
+} from "better-supabase/blocks/webhooks";
 
 import {
   createNotifications,
   sqlTransport,
 } from "better-supabase/blocks/notifications";
 import { createOutbox } from "better-supabase/blocks/outbox";
-import {
-  createWebhooks,
-  hmacSigner,
-  type WebhookRequest,
-  type WebhookTransport,
-} from "better-supabase/blocks/webhooks";
+import { createWebhooks, hmacSigner } from "better-supabase/blocks/webhooks";
 import { createHmac } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";

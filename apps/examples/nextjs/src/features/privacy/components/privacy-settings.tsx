@@ -4,13 +4,15 @@ import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { unstable_rethrow } from "next/navigation";
 
+import type { BadgeProps } from "@/components/reui/badge";
+
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
-import { Badge, type BadgeProps } from "@/components/reui/badge";
+import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,12 +33,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
+import type { ExportRow, PrivacyData } from "../privacy-queries";
+
 import { refreshPrivacy } from "../privacy-actions";
-import {
-  type ExportRow,
-  loadPrivacy,
-  type PrivacyData,
-} from "../privacy-queries";
+import { loadPrivacy } from "../privacy-queries";
 import {
   CancelDeletionButton,
   DeleteOrganizationButton,

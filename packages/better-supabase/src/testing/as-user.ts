@@ -1,19 +1,18 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { createClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { SqlClient } from "../postgres/executor.ts";
 import type { BetterPostgres } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { SigningJwk, TestJwtClaims } from "./jwt.ts";
 
 import { ENV_VARIABLES } from "../env/index.ts";
-import { postgresExecutor, type SqlClient } from "../postgres/executor.ts";
-import {
-  type SigningJwk,
-  signTestJwt,
-  signTestJwtWithKey,
-  type TestJwtClaims,
-} from "./jwt.ts";
+import { postgresExecutor } from "../postgres/executor.ts";
+import { signTestJwt, signTestJwtWithKey } from "./jwt.ts";
 import { localSigningKey } from "./local-key.ts";
 
 /** The local CLI stack's default JWT secret. */

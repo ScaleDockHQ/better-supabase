@@ -9,17 +9,13 @@ import type {
 } from "../../src/blocks/notifications/index.ts";
 import type { SubscriberPolicy } from "../../src/core/contracts/authorization-hooks.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import {
   createNotifications,
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 const DENIED = /permission denied|Grant the required privileges/;

@@ -1,8 +1,17 @@
+import type { StripeSource } from "../blocks/stripe.ts";
+import type { Result } from "../core/result.ts";
 import type { Money } from "./money.ts";
+import type {
+  TaxAddress,
+  TaxCart,
+  TaxLine,
+  TaxProvider,
+  TaxQuote,
+} from "./tax.ts";
 
-import { lazyStripe, type StripeSource } from "../blocks/stripe.ts";
+import { lazyStripe } from "../blocks/stripe.ts";
 import { dbError } from "../core/errors.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 import {
   fromStripeAmount,
@@ -10,16 +19,7 @@ import {
   stripeResult,
   toStripeAmount,
 } from "./stripe-shared.ts";
-import {
-  invalidTaxCart,
-  reversalOf,
-  SHIPPING_LINE,
-  type TaxAddress,
-  type TaxCart,
-  type TaxLine,
-  type TaxProvider,
-  type TaxQuote,
-} from "./tax.ts";
+import { invalidTaxCart, reversalOf, SHIPPING_LINE } from "./tax.ts";
 
 type Params = Readonly<Record<string, unknown>>;
 

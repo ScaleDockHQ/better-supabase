@@ -1,10 +1,12 @@
 // #region recipe:tag-input
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useTagInput } from "better-supabase/blocks/tags/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -7,6 +7,7 @@ import type {
   RecordedDeliveryEvent,
   SuppressInput,
 } from "../../../src/blocks/notifications/index.ts";
+import type { Result } from "../../../src/core/result.ts";
 
 import {
   mailHeaders,
@@ -17,7 +18,7 @@ import {
   resendWebhook,
 } from "../../../src/blocks/notifications/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { signWebhook } from "../../../src/core/signatures.ts";
 import { ConformanceError } from "../../../src/testing/conformance.ts";
 import { testDeliveryTransport } from "../../../src/testing/delivery-transport.ts";

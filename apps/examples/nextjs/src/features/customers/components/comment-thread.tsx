@@ -1,9 +1,11 @@
 // #region recipe:comment-thread
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useComments } from "better-supabase/blocks/comments/react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";

@@ -2,13 +2,13 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleLayout } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
-  type ModuleLayout,
   moduleTopics,
   renderModules,
   sameModuleFile,

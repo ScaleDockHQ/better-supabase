@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Names } from "./pipelines-bindings.ts";
 
 import {
   addExtraColumns,
@@ -14,7 +15,7 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { type Names, pipelineBindings } from "./pipelines-bindings.ts";
+import { pipelineBindings } from "./pipelines-bindings.ts";
 import {
   defaultPipeline,
   manageFunctions,

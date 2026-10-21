@@ -7,13 +7,14 @@ import type {
   RpcContext,
 } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
+import type { Result } from "../../src/core/result.ts";
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

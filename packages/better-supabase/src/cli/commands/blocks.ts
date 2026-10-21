@@ -1,13 +1,10 @@
 import type { BlockCategory } from "../../blocks/index.ts";
+import type { PresetCatalogBlock } from "../../preset/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { BLOCK_CATEGORIES } from "../../blocks/index.ts";
-import {
-  glueCommand,
-  PRESET_CATALOG,
-  type PresetCatalogBlock,
-} from "../../preset/index.ts";
+import { glueCommand, PRESET_CATALOG } from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";

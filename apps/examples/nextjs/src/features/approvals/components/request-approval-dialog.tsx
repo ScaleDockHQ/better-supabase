@@ -33,12 +33,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { ApprovalAction, SubjectOption } from "../approvals-types";
+
 import { requestApproval } from "../approvals-actions";
-import {
-  APPROVAL_ACTIONS,
-  type ApprovalAction,
-  type SubjectOption,
-} from "../approvals-types";
+import { APPROVAL_ACTIONS } from "../approvals-types";
 
 function useActionLabel(): (action: string) => string {
   const t = useExtracted("approvals");

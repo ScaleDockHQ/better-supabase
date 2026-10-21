@@ -2,10 +2,11 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type { ServerContext, ServerOptions } from "../server/server-types.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { dbError, DbException } from "../core/errors.ts";
 import { PRIMARY_COOKIE } from "../server/replicas.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 // oxlint-disable-next-line typescript/no-explicit-any -- the module accepts a definition of any schema.
 type AnySupabase = BetterSupabase<any, any, any, any>;

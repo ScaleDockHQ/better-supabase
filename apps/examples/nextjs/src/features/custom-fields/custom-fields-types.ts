@@ -1,7 +1,6 @@
-import {
-  CUSTOM_FIELD_TYPES,
-  type CustomFieldType,
-} from "better-supabase/blocks/custom-fields";
+import type { CustomFieldType } from "better-supabase/blocks/custom-fields";
+
+import { CUSTOM_FIELD_TYPES } from "better-supabase/blocks/custom-fields";
 import * as v from "valibot";
 
 /** The records the editor defines fields for, by subject type. */

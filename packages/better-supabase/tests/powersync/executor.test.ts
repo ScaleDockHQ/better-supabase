@@ -2,6 +2,10 @@ import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
+import type {
+  PowerSyncDatabaseLike,
+  SqliteContextLike,
+} from "../../src/powersync/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -9,8 +13,6 @@ import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import {
-  type PowerSyncDatabaseLike,
-  type SqliteContextLike,
   checkSqlite,
   fromSqliteError,
   postgrestTimestamp,

@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -18,7 +19,6 @@ import {
   platformTable,
   raise,
   tenantTable,
-  type InviteTable,
 } from "./invitations-tables.ts";
 import { assignableRole } from "./organizations-roles.ts";
 

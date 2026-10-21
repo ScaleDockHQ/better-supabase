@@ -4,11 +4,11 @@ import { seedContext } from "@supabase/middleware";
 import { describe, expect, it } from "vitest";
 
 import type { RequestContext } from "../../../src/core/plugin.ts";
+import type { SupabaseAuthContext } from "../../../src/server/entries/upstream.ts";
 
 import { defineSupabase } from "../../../src/core/define.ts";
 import {
   contextFromSupabase,
-  type SupabaseAuthContext,
   withBetterDb,
   withBetterPostgres,
 } from "../../../src/server/entries/upstream.ts";

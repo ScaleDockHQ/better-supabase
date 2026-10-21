@@ -1,9 +1,11 @@
+import type { ModelCallStreamPart } from "@ai-sdk/workflow";
+import type { UIMessageChunk } from "ai";
+
 import {
   createModelCallToUIChunkTransform,
-  type ModelCallStreamPart,
   normalizeUIMessageStreamParts,
 } from "@ai-sdk/workflow";
-import { JsonToSseTransformStream, type UIMessageChunk } from "ai";
+import { JsonToSseTransformStream } from "ai";
 import { getRun, resumeHook, start } from "workflow/api";
 
 import type {

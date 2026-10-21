@@ -1,6 +1,7 @@
+import type { SingleKeyEntry } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "./resolve.ts";
 

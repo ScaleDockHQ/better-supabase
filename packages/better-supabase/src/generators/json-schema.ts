@@ -3,12 +3,13 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { JsonSchemaTarget } from "./json-schema-target.ts";
+import type { DocsSource } from "./shared.ts";
 
 import { tableJsonSchema } from "../core/table-json-schema.ts";
 import { forTarget } from "../core/table-schema.ts";
-import { type JsonSchemaTarget, toDraft07 } from "./json-schema-target.ts";
+import { toDraft07 } from "./json-schema-target.ts";
 import {
-  type DocsSource,
   fieldDocs,
   fieldSpec,
   fieldsFor,

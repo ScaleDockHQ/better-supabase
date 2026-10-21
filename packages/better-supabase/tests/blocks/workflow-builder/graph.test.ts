@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type { GraphStepCall } from "../../../src/blocks/workflow-builder/executor.ts";
+import type {
+  WorkflowCondition,
+  WorkflowGraph,
+} from "../../../src/blocks/workflow-builder/graph.ts";
+
 import {
   approvalToken,
   executeGraph,
-  type GraphStepCall,
   graphRunFields,
 } from "../../../src/blocks/workflow-builder/executor.ts";
 import {
@@ -20,8 +25,6 @@ import {
   triggerMatches,
   triggerWhenProblem,
   validateGraph,
-  type WorkflowCondition,
-  type WorkflowGraph,
 } from "../../../src/blocks/workflow-builder/graph.ts";
 import { fakeRuntime, GRAPH } from "./fixture.ts";
 

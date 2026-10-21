@@ -1,31 +1,36 @@
+import type {
+  ElicitResult,
+  ElicitationRequest,
+  InitializeResult,
+  ListToolsResult,
+  MCPClient,
+  OAuthClientProvider,
+} from "@ai-sdk/mcp";
+import type { ToolSet } from "ai";
+
 import {
   ElicitationRequestSchema,
   createMCPClient,
   mcpAppClientCapabilities,
   splitMCPAppTools,
-  type ElicitResult,
-  type ElicitationRequest,
-  type InitializeResult,
-  type ListToolsResult,
-  type MCPClient,
-  type OAuthClientProvider,
 } from "@ai-sdk/mcp";
-import { fingerprintTools, type ToolSet } from "ai";
+import { fingerprintTools } from "ai";
 
 import type {
   ConnectorServer,
   Connectors,
 } from "../../blocks/connectors/connectors.ts";
+import type { DbError } from "../../core/errors.ts";
+import type { CredentialProvider } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 import type { McpToolSchemas } from "./supabase.ts";
 
 import { errorText, sha256Hex } from "../../core/block-helpers.ts";
-import { dbError, type DbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   credentialRefInTenant,
   foreignCredentialRef,
-  type CredentialProvider,
 } from "../../credentials/provider.ts";
 import { isOAuthRef, vaultOAuthProvider } from "./oauth.ts";
 

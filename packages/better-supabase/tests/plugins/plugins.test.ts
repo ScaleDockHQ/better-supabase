@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
+import type {
+  Database,
+  Functions,
+  Models,
+} from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { allTenantsContext } from "../../src/core/plugin.ts";
@@ -11,12 +16,7 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { validation } from "../../src/plugins/validation/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
-import {
-  type Database,
-  type Functions,
-  type Models,
-  schema,
-} from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 
 const NOW = Temporal.Instant.from("2026-09-24T10:00:00Z");

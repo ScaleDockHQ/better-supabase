@@ -1,300 +1,208 @@
+import type { AccessRequestsSqlOptions } from "./access-requests/options.ts";
+import type { AccessSqlOptions } from "./access/options.ts";
+import type { AgentsSqlOptions } from "./agents/options.ts";
+import type { AiCacheSqlOptions } from "./ai-cache/options.ts";
+import type { AiChatSqlOptions } from "./ai-chat/options.ts";
+import type { AiFilesSqlOptions } from "./ai-files/options.ts";
+import type { AiProvidersSqlOptions } from "./ai-providers/options.ts";
+import type { AiTasksSqlOptions } from "./ai-tasks/options.ts";
+import type { AnnouncementsSqlOptions } from "./announcements/options.ts";
+import type { ApiKeysSqlOptions } from "./api-keys/options.ts";
+import type { ApprovalsSqlOptions } from "./approvals/options.ts";
+import type { AttachmentsSqlOptions } from "./attachments/options.ts";
+import type { AuditSqlOptions } from "./audit/options.ts";
+import type { BillingSqlOptions } from "./billing/options.ts";
+import type { BookingsSqlOptions } from "./bookings/options.ts";
+import type { BulkSqlOptions } from "./bulk/options.ts";
+import type { CalendarSqlOptions } from "./calendar/options.ts";
+import type { CatalogSqlOptions } from "./catalog/options.ts";
+import type { CollectionsSqlOptions } from "./collections/options.ts";
+import type { CommentsSqlOptions } from "./comments/options.ts";
+import type { ConnectorsSqlOptions } from "./connectors/options.ts";
+import type { CredentialsSqlOptions } from "./credentials/options.ts";
+import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
+import type { DataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
+import type { DealsSqlOptions } from "./deals/options.ts";
+import type { DocumentsSqlOptions } from "./documents/options.ts";
+import type { DomainsSqlOptions } from "./domains/options.ts";
+import type { DriveSqlOptions } from "./drive/options.ts";
+import type { EmployeesSqlOptions } from "./employees/options.ts";
+import type { EngagementsSqlOptions } from "./engagements/options.ts";
+import type { FlagsSqlOptions } from "./flags/options.ts";
+import type { FormsSqlOptions, SignaturesSqlOptions } from "./forms/options.ts";
+import type { GrantsSqlOptions } from "./grants/options.ts";
+import type { HiringSqlOptions } from "./hiring/options.ts";
+import type { IdentitiesSqlOptions } from "./identities/options.ts";
+import type { InboxSqlOptions } from "./inbox/options.ts";
+import type { InventorySqlOptions } from "./inventory/options.ts";
+import type { InvoicesSqlOptions } from "./invoices/options.ts";
+import type {
+  JobsSqlOptions,
+  RateLimitSqlOptions,
+  WebhookInboxSqlOptions,
+} from "./jobs/options.ts";
+import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
+import type { LeaveSqlOptions } from "./leave/options.ts";
+import type { MemorySqlOptions } from "./memory/options.ts";
+import type { MetricsSqlOptions } from "./metrics/options.ts";
+import type { NotificationsSqlOptions } from "./notifications/options.ts";
+import type { NumberSequencesSqlOptions } from "./number-sequences/options.ts";
+import type { OAuthServerSqlOptions } from "./oauth-server/options.ts";
+import type { OnboardingSqlOptions } from "./onboarding/options.ts";
+import type { BlockOptionsSchema } from "./options.ts";
+import type { OrdersSqlOptions } from "./orders/options.ts";
+import type {
+  OrganizationsSqlOptions,
+  InvitationsSqlOptions,
+} from "./organizations/options.ts";
+import type { OutboxSqlOptions } from "./outbox/options.ts";
+import type { PartiesSqlOptions } from "./parties/options.ts";
+import type { PipelinesSqlOptions } from "./pipelines/options.ts";
+import type { ProfilesSqlOptions } from "./profiles/options.ts";
+import type { PromotionsSqlOptions } from "./promotions/options.ts";
+import type { PushSqlOptions } from "./push/options.ts";
+import type { QuotesSqlOptions } from "./quotes/options.ts";
+import type { ReactionsSqlOptions } from "./reactions/options.ts";
+import type { RelationsSqlOptions } from "./relations/options.ts";
+import type { RemindersSqlOptions } from "./reminders/options.ts";
+import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
+import type { ReviewsSqlOptions } from "./reviews/options.ts";
+import type { RulesSqlOptions } from "./rules/options.ts";
+import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
+import type { SearchSqlOptions } from "./search/options.ts";
+import type { ServicePrincipalsSqlOptions } from "./service-principals/options.ts";
+import type { SessionsSqlOptions } from "./sessions/options.ts";
+import type { SettingsSqlOptions } from "./settings/options.ts";
+import type { ShareLinksSqlOptions } from "./share-links/options.ts";
+import type { SharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
+import type { SlaSqlOptions } from "./sla/options.ts";
+import type { SsoSqlOptions } from "./sso/options.ts";
+import type { StateMachineSqlOptions } from "./state-machine/options.ts";
+import type { StreamsSqlOptions } from "./streams/options.ts";
+import type { SupportSessionsSqlOptions } from "./support-sessions/options.ts";
+import type { TagsSqlOptions } from "./tags/options.ts";
+import type { TargetsSqlOptions } from "./targets/options.ts";
+import type { TeamsSqlOptions } from "./teams/options.ts";
+import type { TemplatesSqlOptions } from "./templates/options.ts";
+import type { TenantSqlOptions } from "./tenant/options.ts";
+import type { TimeTrackingSqlOptions } from "./time-tracking/options.ts";
+import type { TrashSqlOptions } from "./trash/options.ts";
+import type { UsageSqlOptions } from "./usage/options.ts";
+import type { VectorSearchSqlOptions } from "./vector-search/options.ts";
+import type { VercelMarketplaceSqlOptions } from "./vercel-marketplace/options.ts";
+import type { VersionsSqlOptions } from "./versions/options.ts";
+import type { WaitlistSqlOptions } from "./waitlist/options.ts";
+import type {
+  WebhooksOutSqlOptions,
+  WebhooksInSqlOptions,
+} from "./webhooks/options.ts";
+import type { WorkItemsSqlOptions } from "./work-items/options.ts";
+import type { WorkflowBuilderSqlOptions } from "./workflow-builder/options.ts";
+import type { WorkflowSdkWorldSqlOptions } from "./workflow-sdk-world/options.ts";
+
+import { accessRequestsSqlOptions } from "./access-requests/options.ts";
+import { accessSqlOptions } from "./access/options.ts";
+import { agentsSqlOptions } from "./agents/options.ts";
+import { aiCacheSqlOptions } from "./ai-cache/options.ts";
+import { aiChatSqlOptions } from "./ai-chat/options.ts";
+import { aiFilesSqlOptions } from "./ai-files/options.ts";
+import { aiProvidersSqlOptions } from "./ai-providers/options.ts";
+import { aiTasksSqlOptions } from "./ai-tasks/options.ts";
+import { announcementsSqlOptions } from "./announcements/options.ts";
+import { apiKeysSqlOptions } from "./api-keys/options.ts";
+import { approvalsSqlOptions } from "./approvals/options.ts";
+import { attachmentsSqlOptions } from "./attachments/options.ts";
+import { auditSqlOptions } from "./audit/options.ts";
+import { billingSqlOptions } from "./billing/options.ts";
+import { bookingsSqlOptions } from "./bookings/options.ts";
+import { bulkSqlOptions } from "./bulk/options.ts";
+import { calendarSqlOptions } from "./calendar/options.ts";
+import { catalogSqlOptions } from "./catalog/options.ts";
+import { collectionsSqlOptions } from "./collections/options.ts";
+import { commentsSqlOptions } from "./comments/options.ts";
+import { connectorsSqlOptions } from "./connectors/options.ts";
+import { credentialsSqlOptions } from "./credentials/options.ts";
+import { customFieldsSqlOptions } from "./custom-fields/options.ts";
+import { dataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
+import { dealsSqlOptions } from "./deals/options.ts";
+import { documentsSqlOptions } from "./documents/options.ts";
+import { domainsSqlOptions } from "./domains/options.ts";
+import { driveSqlOptions } from "./drive/options.ts";
+import { employeesSqlOptions } from "./employees/options.ts";
+import { engagementsSqlOptions } from "./engagements/options.ts";
+import { flagsSqlOptions } from "./flags/options.ts";
+import { formsSqlOptions, signaturesSqlOptions } from "./forms/options.ts";
+import { grantsSqlOptions } from "./grants/options.ts";
+import { hiringSqlOptions } from "./hiring/options.ts";
+import { identitiesSqlOptions } from "./identities/options.ts";
+import { inboxSqlOptions } from "./inbox/options.ts";
+import { inventorySqlOptions } from "./inventory/options.ts";
+import { invoicesSqlOptions } from "./invoices/options.ts";
 import {
-  type AccessRequestsSqlOptions,
-  accessRequestsSqlOptions,
-} from "./access-requests/options.ts";
-import { type AccessSqlOptions, accessSqlOptions } from "./access/options.ts";
-import { type AgentsSqlOptions, agentsSqlOptions } from "./agents/options.ts";
-import {
-  type AiCacheSqlOptions,
-  aiCacheSqlOptions,
-} from "./ai-cache/options.ts";
-import { type AiChatSqlOptions, aiChatSqlOptions } from "./ai-chat/options.ts";
-import {
-  type AiFilesSqlOptions,
-  aiFilesSqlOptions,
-} from "./ai-files/options.ts";
-import {
-  type AiProvidersSqlOptions,
-  aiProvidersSqlOptions,
-} from "./ai-providers/options.ts";
-import {
-  type AiTasksSqlOptions,
-  aiTasksSqlOptions,
-} from "./ai-tasks/options.ts";
-import {
-  type AnnouncementsSqlOptions,
-  announcementsSqlOptions,
-} from "./announcements/options.ts";
-import {
-  type ApiKeysSqlOptions,
-  apiKeysSqlOptions,
-} from "./api-keys/options.ts";
-import {
-  type ApprovalsSqlOptions,
-  approvalsSqlOptions,
-} from "./approvals/options.ts";
-import {
-  type AttachmentsSqlOptions,
-  attachmentsSqlOptions,
-} from "./attachments/options.ts";
-import { type AuditSqlOptions, auditSqlOptions } from "./audit/options.ts";
-import {
-  type BillingSqlOptions,
-  billingSqlOptions,
-} from "./billing/options.ts";
-import {
-  type BookingsSqlOptions,
-  bookingsSqlOptions,
-} from "./bookings/options.ts";
-import { type BulkSqlOptions, bulkSqlOptions } from "./bulk/options.ts";
-import {
-  type CalendarSqlOptions,
-  calendarSqlOptions,
-} from "./calendar/options.ts";
-import {
-  type CatalogSqlOptions,
-  catalogSqlOptions,
-} from "./catalog/options.ts";
-import {
-  type CollectionsSqlOptions,
-  collectionsSqlOptions,
-} from "./collections/options.ts";
-import {
-  type CommentsSqlOptions,
-  commentsSqlOptions,
-} from "./comments/options.ts";
-import {
-  type ConnectorsSqlOptions,
-  connectorsSqlOptions,
-} from "./connectors/options.ts";
-import {
-  type CredentialsSqlOptions,
-  credentialsSqlOptions,
-} from "./credentials/options.ts";
-import {
-  type CustomFieldsSqlOptions,
-  customFieldsSqlOptions,
-} from "./custom-fields/options.ts";
-import {
-  type DataLifecycleSqlOptions,
-  dataLifecycleSqlOptions,
-} from "./data-lifecycle/options.ts";
-import { type DealsSqlOptions, dealsSqlOptions } from "./deals/options.ts";
-import {
-  type DocumentsSqlOptions,
-  documentsSqlOptions,
-} from "./documents/options.ts";
-import {
-  type DomainsSqlOptions,
-  domainsSqlOptions,
-} from "./domains/options.ts";
-import { type DriveSqlOptions, driveSqlOptions } from "./drive/options.ts";
-import {
-  type EmployeesSqlOptions,
-  employeesSqlOptions,
-} from "./employees/options.ts";
-import {
-  type EngagementsSqlOptions,
-  engagementsSqlOptions,
-} from "./engagements/options.ts";
-import { type FlagsSqlOptions, flagsSqlOptions } from "./flags/options.ts";
-import {
-  type FormsSqlOptions,
-  formsSqlOptions,
-  type SignaturesSqlOptions,
-  signaturesSqlOptions,
-} from "./forms/options.ts";
-import { type GrantsSqlOptions, grantsSqlOptions } from "./grants/options.ts";
-import { type HiringSqlOptions, hiringSqlOptions } from "./hiring/options.ts";
-import {
-  type IdentitiesSqlOptions,
-  identitiesSqlOptions,
-} from "./identities/options.ts";
-import { type InboxSqlOptions, inboxSqlOptions } from "./inbox/options.ts";
-import {
-  type InventorySqlOptions,
-  inventorySqlOptions,
-} from "./inventory/options.ts";
-import {
-  type InvoicesSqlOptions,
-  invoicesSqlOptions,
-} from "./invoices/options.ts";
-import {
-  type JobsSqlOptions,
   jobsSqlOptions,
-  type RateLimitSqlOptions,
   rateLimitSqlOptions,
-  type WebhookInboxSqlOptions,
   webhookInboxSqlOptions,
 } from "./jobs/options.ts";
+import { knowledgeSqlOptions } from "./knowledge/options.ts";
+import { leaveSqlOptions } from "./leave/options.ts";
+import { memorySqlOptions } from "./memory/options.ts";
+import { metricsSqlOptions } from "./metrics/options.ts";
+import { notificationsSqlOptions } from "./notifications/options.ts";
+import { numberSequencesSqlOptions } from "./number-sequences/options.ts";
+import { oauthServerSqlOptions } from "./oauth-server/options.ts";
+import { onboardingSqlOptions } from "./onboarding/options.ts";
+import { NO_OPTIONS } from "./options.ts";
+import { ordersSqlOptions } from "./orders/options.ts";
 import {
-  type KnowledgeSqlOptions,
-  knowledgeSqlOptions,
-} from "./knowledge/options.ts";
-import { type LeaveSqlOptions, leaveSqlOptions } from "./leave/options.ts";
-import { type MemorySqlOptions, memorySqlOptions } from "./memory/options.ts";
-import {
-  type MetricsSqlOptions,
-  metricsSqlOptions,
-} from "./metrics/options.ts";
-import {
-  type NotificationsSqlOptions,
-  notificationsSqlOptions,
-} from "./notifications/options.ts";
-import {
-  type NumberSequencesSqlOptions,
-  numberSequencesSqlOptions,
-} from "./number-sequences/options.ts";
-import {
-  type OAuthServerSqlOptions,
-  oauthServerSqlOptions,
-} from "./oauth-server/options.ts";
-import {
-  type OnboardingSqlOptions,
-  onboardingSqlOptions,
-} from "./onboarding/options.ts";
-import { type BlockOptionsSchema, NO_OPTIONS } from "./options.ts";
-import { type OrdersSqlOptions, ordersSqlOptions } from "./orders/options.ts";
-import {
-  type OrganizationsSqlOptions,
   organizationsSqlOptions,
-  type InvitationsSqlOptions,
   invitationsSqlOptions,
 } from "./organizations/options.ts";
-import { type OutboxSqlOptions, outboxSqlOptions } from "./outbox/options.ts";
+import { outboxSqlOptions } from "./outbox/options.ts";
+import { partiesSqlOptions } from "./parties/options.ts";
+import { pipelinesSqlOptions } from "./pipelines/options.ts";
+import { profilesSqlOptions } from "./profiles/options.ts";
+import { promotionsSqlOptions } from "./promotions/options.ts";
+import { pushSqlOptions } from "./push/options.ts";
+import { quotesSqlOptions } from "./quotes/options.ts";
+import { reactionsSqlOptions } from "./reactions/options.ts";
+import { relationsSqlOptions } from "./relations/options.ts";
+import { remindersSqlOptions } from "./reminders/options.ts";
+import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
+import { reviewsSqlOptions } from "./reviews/options.ts";
+import { rulesSqlOptions } from "./rules/options.ts";
+import { savedViewsSqlOptions } from "./saved-views/options.ts";
+import { searchSqlOptions } from "./search/options.ts";
+import { servicePrincipalsSqlOptions } from "./service-principals/options.ts";
+import { sessionsSqlOptions } from "./sessions/options.ts";
+import { settingsSqlOptions } from "./settings/options.ts";
+import { shareLinksSqlOptions } from "./share-links/options.ts";
+import { sharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import { signingKeysSqlOptions } from "./signing-keys/options.ts";
+import { slaSqlOptions } from "./sla/options.ts";
+import { ssoSqlOptions } from "./sso/options.ts";
+import { stateMachineSqlOptions } from "./state-machine/options.ts";
+import { streamsSqlOptions } from "./streams/options.ts";
+import { supportSessionsSqlOptions } from "./support-sessions/options.ts";
+import { tagsSqlOptions } from "./tags/options.ts";
+import { targetsSqlOptions } from "./targets/options.ts";
+import { teamsSqlOptions } from "./teams/options.ts";
+import { templatesSqlOptions } from "./templates/options.ts";
+import { tenantSqlOptions } from "./tenant/options.ts";
+import { timeTrackingSqlOptions } from "./time-tracking/options.ts";
+import { trashSqlOptions } from "./trash/options.ts";
+import { usageSqlOptions } from "./usage/options.ts";
+import { vectorSearchSqlOptions } from "./vector-search/options.ts";
+import { vercelMarketplaceSqlOptions } from "./vercel-marketplace/options.ts";
+import { versionsSqlOptions } from "./versions/options.ts";
+import { waitlistSqlOptions } from "./waitlist/options.ts";
 import {
-  type PartiesSqlOptions,
-  partiesSqlOptions,
-} from "./parties/options.ts";
-import {
-  type PipelinesSqlOptions,
-  pipelinesSqlOptions,
-} from "./pipelines/options.ts";
-import {
-  type ProfilesSqlOptions,
-  profilesSqlOptions,
-} from "./profiles/options.ts";
-import {
-  type PromotionsSqlOptions,
-  promotionsSqlOptions,
-} from "./promotions/options.ts";
-import { type PushSqlOptions, pushSqlOptions } from "./push/options.ts";
-import { type QuotesSqlOptions, quotesSqlOptions } from "./quotes/options.ts";
-import {
-  type ReactionsSqlOptions,
-  reactionsSqlOptions,
-} from "./reactions/options.ts";
-import {
-  type RelationsSqlOptions,
-  relationsSqlOptions,
-} from "./relations/options.ts";
-import {
-  type RemindersSqlOptions,
-  remindersSqlOptions,
-} from "./reminders/options.ts";
-import {
-  type ReservedSlugsSqlOptions,
-  reservedSlugsSqlOptions,
-} from "./reserved-slugs/options.ts";
-import {
-  type ReviewsSqlOptions,
-  reviewsSqlOptions,
-} from "./reviews/options.ts";
-import { type RulesSqlOptions, rulesSqlOptions } from "./rules/options.ts";
-import {
-  type SavedViewsSqlOptions,
-  savedViewsSqlOptions,
-} from "./saved-views/options.ts";
-import { type SearchSqlOptions, searchSqlOptions } from "./search/options.ts";
-import {
-  type ServicePrincipalsSqlOptions,
-  servicePrincipalsSqlOptions,
-} from "./service-principals/options.ts";
-import {
-  type SessionsSqlOptions,
-  sessionsSqlOptions,
-} from "./sessions/options.ts";
-import {
-  type SettingsSqlOptions,
-  settingsSqlOptions,
-} from "./settings/options.ts";
-import {
-  type ShareLinksSqlOptions,
-  shareLinksSqlOptions,
-} from "./share-links/options.ts";
-import {
-  type SharedSignalsSqlOptions,
-  sharedSignalsSqlOptions,
-} from "./shared-signals/options.ts";
-import {
-  type SigningKeysSqlOptions,
-  signingKeysSqlOptions,
-} from "./signing-keys/options.ts";
-import { type SlaSqlOptions, slaSqlOptions } from "./sla/options.ts";
-import { type SsoSqlOptions, ssoSqlOptions } from "./sso/options.ts";
-import {
-  type StateMachineSqlOptions,
-  stateMachineSqlOptions,
-} from "./state-machine/options.ts";
-import {
-  type StreamsSqlOptions,
-  streamsSqlOptions,
-} from "./streams/options.ts";
-import {
-  type SupportSessionsSqlOptions,
-  supportSessionsSqlOptions,
-} from "./support-sessions/options.ts";
-import { type TagsSqlOptions, tagsSqlOptions } from "./tags/options.ts";
-import {
-  type TargetsSqlOptions,
-  targetsSqlOptions,
-} from "./targets/options.ts";
-import { type TeamsSqlOptions, teamsSqlOptions } from "./teams/options.ts";
-import {
-  type TemplatesSqlOptions,
-  templatesSqlOptions,
-} from "./templates/options.ts";
-import { type TenantSqlOptions, tenantSqlOptions } from "./tenant/options.ts";
-import {
-  type TimeTrackingSqlOptions,
-  timeTrackingSqlOptions,
-} from "./time-tracking/options.ts";
-import { type TrashSqlOptions, trashSqlOptions } from "./trash/options.ts";
-import { type UsageSqlOptions, usageSqlOptions } from "./usage/options.ts";
-import {
-  type VectorSearchSqlOptions,
-  vectorSearchSqlOptions,
-} from "./vector-search/options.ts";
-import {
-  type VercelMarketplaceSqlOptions,
-  vercelMarketplaceSqlOptions,
-} from "./vercel-marketplace/options.ts";
-import {
-  type VersionsSqlOptions,
-  versionsSqlOptions,
-} from "./versions/options.ts";
-import {
-  type WaitlistSqlOptions,
-  waitlistSqlOptions,
-} from "./waitlist/options.ts";
-import {
-  type WebhooksOutSqlOptions,
   webhooksOutSqlOptions,
-  type WebhooksInSqlOptions,
   webhooksInSqlOptions,
 } from "./webhooks/options.ts";
-import {
-  type WorkItemsSqlOptions,
-  workItemsSqlOptions,
-} from "./work-items/options.ts";
-import {
-  type WorkflowBuilderSqlOptions,
-  workflowBuilderSqlOptions,
-} from "./workflow-builder/options.ts";
-import {
-  type WorkflowSdkWorldSqlOptions,
-  workflowSdkWorldSqlOptions,
-} from "./workflow-sdk-world/options.ts";
+import { workItemsSqlOptions } from "./work-items/options.ts";
+import { workflowBuilderSqlOptions } from "./workflow-builder/options.ts";
+import { workflowSdkWorldSqlOptions } from "./workflow-sdk-world/options.ts";
 
 type None = Record<never, never>;
 

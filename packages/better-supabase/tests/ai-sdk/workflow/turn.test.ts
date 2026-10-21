@@ -3,13 +3,16 @@ import type { ModelMessage } from "ai";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+  DurableAgentArgs,
+  DurableAgentResult,
+  DurableHook,
+  DurableSaveInput,
+  DurableStep,
+  DurableTurnInput,
+} from "../../../src/ai-sdk/workflow/index.ts";
+
 import {
-  type DurableAgentArgs,
-  type DurableAgentResult,
-  type DurableHook,
-  type DurableSaveInput,
-  type DurableStep,
-  type DurableTurnInput,
   durableStopToken,
   durableTurn,
   durableTurnToken,

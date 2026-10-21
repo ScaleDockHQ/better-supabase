@@ -1,3 +1,4 @@
+import type { Result } from "../core/result.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -8,7 +9,7 @@ import type {
 import { isRecord } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 
 interface ConnectTokenParams {

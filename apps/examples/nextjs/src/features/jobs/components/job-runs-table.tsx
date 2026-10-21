@@ -39,11 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  type JobRunRow,
-  type JobRunStatus,
-  loadJobRuns,
-} from "../jobs-queries";
+import type { JobRunRow, JobRunStatus } from "../jobs-queries";
+
+import { loadJobRuns } from "../jobs-queries";
 import { JOBS_PERMISSION } from "../jobs-server";
 import { EnqueueTestJobButton, RetryJobButton } from "./job-run-controls";
 

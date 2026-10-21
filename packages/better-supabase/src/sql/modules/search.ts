@@ -4,6 +4,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -15,7 +16,6 @@ import {
   userGrant,
 } from "../shared.ts";
 import {
-  type RegisteredSubject,
   registeredIdMatches,
   registeredSubjects,
   urlExpression,

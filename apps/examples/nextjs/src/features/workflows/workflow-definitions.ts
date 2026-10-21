@@ -2,11 +2,9 @@ import type { RequestContext } from "better-supabase";
 
 import { createHook, getWorkflowMetadata, sleep } from "workflow";
 
-import {
-  type DocumentSummary,
-  notifyActor,
-  summarizeDocument,
-} from "./workflow-steps";
+import type { DocumentSummary } from "./workflow-steps";
+
+import { notifyActor, summarizeDocument } from "./workflow-steps";
 
 /** A welcome now and a tip a minute later (a day, in a real drip). */
 export async function onboardingDrip(context: RequestContext): Promise<void> {

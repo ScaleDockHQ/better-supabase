@@ -1,12 +1,9 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CreateDesign } from "../../preset/index.ts";
+import type { ConfigEdit } from "./config-edit.ts";
 
 import { isRecord } from "../guards.ts";
-import {
-  type ConfigEdit,
-  setPathInConfig,
-  setPathInJson,
-} from "./config-edit.ts";
+import { setPathInConfig, setPathInJson } from "./config-edit.ts";
 
 /** The `extraColumns` a block already has in the config, as plain strings. */
 function currentExtraColumns(

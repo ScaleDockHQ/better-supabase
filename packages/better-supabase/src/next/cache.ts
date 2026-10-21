@@ -2,13 +2,14 @@ import { revalidateTag, updateTag } from "next/cache.js";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
+import type { TagOptions } from "../core/tags.ts";
 import type {
   NextCacheOptions,
   RevalidateProfile,
   SessionStaleOptions,
 } from "./types.ts";
 
-import { cacheTagsOf, tagFor, type TagOptions } from "../core/tags.ts";
+import { cacheTagsOf, tagFor } from "../core/tags.ts";
 
 /** The tag `bs.cached()` adds to entries rendered in a support session. */
 export function supportTag(sessionId: string): string {

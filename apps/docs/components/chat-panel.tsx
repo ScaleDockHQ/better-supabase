@@ -1,14 +1,12 @@
 "use client";
 
+import type { UIMessage } from "ai";
+import type { SubmitEvent } from "react";
+
 import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  getToolName,
-  isToolUIPart,
-  type UIMessage,
-} from "ai";
+import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
 import { X } from "lucide-react";
-import { type SubmitEvent, useState } from "react";
+import { useState } from "react";
 import * as v from "valibot";
 
 const transport = new DefaultChatTransport({ api: "/docs/api/chat" });

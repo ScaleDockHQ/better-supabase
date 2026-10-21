@@ -1,7 +1,10 @@
-import { type Tool, tool, jsonSchema } from "ai";
+import type { Tool } from "ai";
+
+import { tool, jsonSchema } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ExtractMemoriesPayload } from "../../../src/ai-sdk/memory/index.ts";
 import type { Job } from "../../../src/blocks/jobs/types.ts";
 import type {
   Memory,
@@ -10,7 +13,6 @@ import type {
 } from "../../../src/blocks/memory/index.ts";
 
 import {
-  type ExtractMemoriesPayload,
   anthropicMemory,
   extractMemories,
   memoryTool,

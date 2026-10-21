@@ -2,6 +2,7 @@ import * as $ from "svelte/internal/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SvelteController } from "../../src/blocks/svelte-controller.ts";
+import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
 import { useBlockController } from "../../src/blocks/svelte-controller.ts";
 import { useUndoStack } from "../../src/blocks/undo/svelte/index.ts";
@@ -11,7 +12,6 @@ import {
   fakeBlockClient,
   fakeEnv,
   startCounter,
-  type EnvOptions,
 } from "../fixtures/block-bindings.ts";
 
 // Node resolves svelte to its server runtime, where effects never run.

@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createComments } from "../../src/blocks/comments/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
@@ -9,12 +10,7 @@ import { createTags } from "../../src/blocks/tags/index.ts";
 import { wrapTransport } from "../../src/core/block-hooks.ts";
 import { blockNames } from "../../src/core/block-names.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 

@@ -1,9 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import {
-  createErrorMessages,
-  type ErrorMessages,
-} from "../../src/core/error-messages.ts";
+import type { ErrorMessages } from "../../src/core/error-messages.ts";
+
+import { createErrorMessages } from "../../src/core/error-messages.ts";
 import { dbError } from "../../src/core/errors.ts";
 
 const messages: ErrorMessages = {

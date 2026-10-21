@@ -1,6 +1,7 @@
 import type { CliEnv } from "./env.ts";
+import type { RunProcess } from "./exec.ts";
 
-import { type RunProcess, runProcess } from "./exec.ts";
+import { runProcess } from "./exec.ts";
 
 export interface SharedMemorySegment {
   readonly id: string;

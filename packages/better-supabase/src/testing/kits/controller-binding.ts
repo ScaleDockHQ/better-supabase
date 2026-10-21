@@ -1,5 +1,8 @@
-import { type Controller, defineController } from "../../blocks/controller.ts";
-import { conform, expect, type ConformanceReport } from "../conformance.ts";
+import type { Controller } from "../../blocks/controller.ts";
+import type { ConformanceReport } from "../conformance.ts";
+
+import { defineController } from "../../blocks/controller.ts";
+import { conform, expect } from "../conformance.ts";
 
 /** The state of the probe controller a binding is tested over. */
 export interface ProbeSnapshot {

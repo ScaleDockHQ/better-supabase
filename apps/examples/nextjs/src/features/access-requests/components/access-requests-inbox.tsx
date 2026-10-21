@@ -4,13 +4,15 @@ import { InboxIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { forbidden, unstable_rethrow } from "next/navigation";
 
+import type { BadgeProps } from "@/components/reui/badge";
+
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
-import { Badge, type BadgeProps } from "@/components/reui/badge";
+import { Badge } from "@/components/reui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -40,11 +42,10 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
+import type { AccessRequestsData } from "../access-requests-queries";
+
 import { refreshAccessRequests } from "../access-requests-actions";
-import {
-  type AccessRequestsData,
-  loadAccessRequests,
-} from "../access-requests-queries";
+import { loadAccessRequests } from "../access-requests-queries";
 import {
   AccessRequestActions,
   RequestAccessForm,

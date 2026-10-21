@@ -1,9 +1,12 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { ServerCore } from "./core.ts";
 
-import { callOf, type ServerCore, startSupportLookup } from "./core.ts";
+import { callOf, startSupportLookup } from "./core.ts";
 
 /**
  * Entry contributing `ctx.tenant`: the active tenant from

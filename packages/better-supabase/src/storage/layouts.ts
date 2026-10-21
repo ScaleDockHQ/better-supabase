@@ -1,5 +1,7 @@
+import type { Template } from "../core/template.ts";
+
 import { dbError, DbException } from "../core/errors.ts";
-import { parseTemplate, type Template } from "../core/template.ts";
+import { parseTemplate } from "../core/template.ts";
 
 type Values = Readonly<Record<string, string | number | undefined>>;
 

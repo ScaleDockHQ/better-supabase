@@ -1,11 +1,7 @@
 import type { SupportSessionStore } from "../../auth/support.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import {
-  conform,
-  expect,
-  same,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestSupportSessionStoreOptions {

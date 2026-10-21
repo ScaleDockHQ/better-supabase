@@ -1,4 +1,6 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /** `blocks.custom-fields.options`. */
 export type CustomFieldsSqlOptions = { readonly layout?: string };

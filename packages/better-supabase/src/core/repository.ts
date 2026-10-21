@@ -1,35 +1,32 @@
+import type {
+  Condition,
+  DeleteOp,
+  InsertOp,
+  Operation,
+  OrderTerm,
+  SelectColumn,
+  SelectOp,
+  Selection,
+  UpdateOp,
+} from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 import type { ExecuteResult } from "./executor.ts";
+import type { Result } from "./result.ts";
+import type { OperationRunner, Args } from "./runner.ts";
 
 import { invalidRequest } from "../ir/build.ts";
 import { decodeRows } from "../ir/codec.ts";
 import { simplify } from "../ir/simplify.ts";
-import {
-  and,
-  type Condition,
-  type DeleteOp,
-  type InsertOp,
-  type Operation,
-  type OrderTerm,
-  type SelectColumn,
-  type SelectOp,
-  type Selection,
-  type UpdateOp,
-} from "../ir/types.ts";
+import { and } from "../ir/types.ts";
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { decodeBoundCursor, encodeBoundCursor, sortKey } from "./cursor.ts";
 import { dbError } from "./errors.ts";
 import { keysetCondition } from "./keyset.ts";
 import { offsetEnvelope, pageWindow, strip } from "./paginate.ts";
-import { AsyncResult, ok, toDbError, type Result } from "./result.ts";
+import { AsyncResult, ok, toDbError } from "./result.ts";
 import { byKey } from "./row-keys.ts";
-import {
-  type OperationRunner,
-  optionsOf,
-  signalOf,
-  type Args,
-} from "./runner.ts";
+import { optionsOf, signalOf } from "./runner.ts";
 import { tuningOf } from "./timeout.ts";
 import { countOf, maxAffectedOf } from "./write-args.ts";
 

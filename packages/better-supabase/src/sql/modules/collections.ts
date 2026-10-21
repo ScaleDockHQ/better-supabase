@@ -6,6 +6,8 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
+import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -15,10 +17,9 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { type Subject, subjectCascades } from "../subjects.ts";
+import { subjectCascades } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
-  type CollectionNames,
   collectionExtras,
   collectionFunctions,
   starFunctions,

@@ -1,6 +1,8 @@
 import type { Message, StateAdapter } from "chat";
 
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import type { ConformanceReport } from "./conformance.ts";
+
+import { conform, expect } from "./conformance.ts";
 
 export interface TestChatStateOptions {
   /**

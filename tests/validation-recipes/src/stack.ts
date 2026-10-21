@@ -1,8 +1,9 @@
 import type { SqlClient } from "better-supabase/postgres";
+import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
 import { moduleLayout, renderModules } from "better-supabase/sql";
-import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 import type { Recipe } from "./recipes.ts";
 

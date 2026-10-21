@@ -1,16 +1,14 @@
+import type { SqliteCompilerOptions, SqlitePlan } from "../compile/sqlite.ts";
 import type { Compiler } from "../core/compiler.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { ExecuteResult, Executor } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 import type { ListDefinition, ListQuery } from "../list/list-query.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
-import {
-  compileSqlite,
-  type SqliteCompilerOptions,
-  type SqlitePlan,
-} from "../compile/sqlite.ts";
-import { err, ok, type Result, toDbError } from "../core/result.ts";
+import { compileSqlite } from "../compile/sqlite.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 
 export const sqliteCompiler: Compiler<SqlitePlan> = {
   target: "sqlite",

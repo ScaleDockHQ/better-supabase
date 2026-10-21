@@ -6,11 +6,12 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { PartyNames } from "./parties-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { partyFunctions, type PartyNames } from "./parties-functions.ts";
+import { partyFunctions } from "./parties-functions.ts";
 import { partiesInboxSql } from "./parties-inbox.ts";
 
 /** The lifecycle stages `options.companyLifecycles` falls back to. */

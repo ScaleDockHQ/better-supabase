@@ -1,6 +1,7 @@
+import type { GraphStepCall } from "better-supabase/blocks/workflow-builder";
+
 import {
   createWorkflowBuilder,
-  type GraphStepCall,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 import { createWorkflows } from "better-supabase/blocks/workflows";

@@ -1,16 +1,13 @@
+import type { SchemaData } from "../../src/create/index.ts";
+import type { Preset, PresetName } from "../../src/preset/index.ts";
+
 import {
   previewFiles,
   parseSchema,
-  type SchemaData,
   tenantColumnOf,
   schemaData,
 } from "../../src/create/index.ts";
-import {
-  encodePreset,
-  namedPreset,
-  type Preset,
-  type PresetName,
-} from "../../src/preset/index.ts";
+import { encodePreset, namedPreset } from "../../src/preset/index.ts";
 
 /** A preset with its code and the schema the canvas draws for it. */
 export interface PresetSchema {

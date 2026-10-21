@@ -1,8 +1,10 @@
+import type { DbErrorOf } from "./errors.ts";
 import type { RequestContext } from "./plugin.ts";
+import type { Result } from "./result.ts";
 
 import { cloneValue, deepFreeze, isPlainObject } from "./clone.ts";
-import { dbError, type DbErrorOf } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
+import { dbError } from "./errors.ts";
+import { err, ok } from "./result.ts";
 
 type JsonObject = Readonly<Record<string, unknown>>;
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { RecipeSummary } from "../../lib/recipe-filter";
+
 import {
   ALL,
   filterRecipes,
   isFiltering,
   NO_FILTER,
-  type RecipeSummary,
 } from "../../lib/recipe-filter";
 
 function summary(

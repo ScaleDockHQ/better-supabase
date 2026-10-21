@@ -6,17 +6,21 @@ import type {
   ResolvedConfig,
   SqlWorkflow,
 } from "../../config/index.ts";
+import type {
+  ConfigConventions,
+  CreateDesign,
+  ResolvedPreset,
+} from "../../preset/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
+import type { InstallTarget, Project } from "../project/detect.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { TemplateFile } from "../templates.ts";
 
 import { resolveConfig } from "../../config/index.ts";
 import {
-  type ConfigConventions,
   conventionConfig,
-  type CreateDesign,
   designConfig,
   encodePreset,
   glueCommand,
@@ -27,7 +31,6 @@ import {
   presetGlue,
   PRESETS,
   resolvePreset,
-  type ResolvedPreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import {
@@ -63,12 +66,7 @@ import {
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { readPresetInput } from "../preset-input.ts";
-import {
-  detectProject,
-  installCommand,
-  type InstallTarget,
-  type Project,
-} from "../project/detect.ts";
+import { detectProject, installCommand } from "../project/detect.ts";
 import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";

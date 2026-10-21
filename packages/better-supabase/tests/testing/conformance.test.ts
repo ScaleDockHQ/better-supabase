@@ -6,17 +6,13 @@ import type {
   QueueBackend,
   QueueMessageRow,
 } from "../../src/blocks/jobs/index.ts";
+import type { Generator, GeneratorInput } from "../../src/config/index.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Executor } from "../../src/core/executor.ts";
 import type { CloudEvent, EventSink } from "../../src/events/index.ts";
 import type { Condition, Selection } from "../../src/ir/types.ts";
 
-import {
-  jsonSchema,
-  resolveConfig,
-  type Generator,
-  type GeneratorInput,
-} from "../../src/config/index.ts";
+import { jsonSchema, resolveConfig } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";

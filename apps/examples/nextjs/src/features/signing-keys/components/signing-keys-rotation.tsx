@@ -39,10 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  loadSigningKeys,
-  type SigningKeysOverview,
-} from "../signing-keys-queries";
+import type { SigningKeysOverview } from "../signing-keys-queries";
+
+import { loadSigningKeys } from "../signing-keys-queries";
 import { SIGNING_KEYS_PERMISSION } from "../signing-keys-server";
 import { RotateSigningKeyButton } from "./rotate-signing-key-button";
 

@@ -5,7 +5,9 @@ import { useExtracted } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
-import { type SettingsTabId, settingsTabs } from "../settings-tabs";
+import type { SettingsTabId } from "../settings-tabs";
+
+import { settingsTabs } from "../settings-tabs";
 
 function useTabLabel() {
   const t = useExtracted("settings");

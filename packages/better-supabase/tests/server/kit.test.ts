@@ -2,10 +2,9 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  defineAuthorizer,
-  type AuthorizationRequest,
-} from "../../src/core/authorizer.ts";
+import type { AuthorizationRequest } from "../../src/core/authorizer.ts";
+
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import {

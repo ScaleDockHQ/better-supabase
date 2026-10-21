@@ -1,4 +1,7 @@
-import { AsyncResult, type StandardSchemaV1 } from "better-supabase";
+import type { StandardSchemaV1 } from "better-supabase";
+import type { Payment, PaymentProvider } from "better-supabase/commerce";
+
+import { AsyncResult } from "better-supabase";
 import { createBlocks, sqlTransport } from "better-supabase/blocks";
 import { createApprovals } from "better-supabase/blocks/approvals";
 import { createCatalog } from "better-supabase/blocks/catalog";
@@ -16,12 +19,7 @@ import {
 import { createPromotions } from "better-supabase/blocks/promotions";
 import { createSavedViews } from "better-supabase/blocks/saved-views";
 import { createSearch } from "better-supabase/blocks/search";
-import {
-  fixedRates,
-  money,
-  type Payment,
-  type PaymentProvider,
-} from "better-supabase/commerce";
+import { fixedRates, money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 

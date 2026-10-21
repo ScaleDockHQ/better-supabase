@@ -29,8 +29,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
+import type { SsoSettingsData } from "../sso-queries";
+
 import { refreshSso } from "../sso-actions";
-import { loadSsoSettings, type SsoSettingsData } from "../sso-queries";
+import { loadSsoSettings } from "../sso-queries";
 import {
   AddDomainForm,
   AddSamlForm,

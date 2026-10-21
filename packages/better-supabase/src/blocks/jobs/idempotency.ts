@@ -1,25 +1,19 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { JobHandler } from "./types.ts";
 
 import { leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { dbError, type ErrorMapper } from "../../core/errors.ts";
-import {
-  problemResponse,
-  type BlockProblemOptions,
-} from "../../core/problem.ts";
+import { dbError } from "../../core/errors.ts";
+import { problemResponse } from "../../core/problem.ts";
 import { periodSeconds } from "../../core/ratelimit-headers.ts";
 import { AsyncResult } from "../../core/result.ts";
-import {
-  applyTemporal,
-  blockCall,
-  run,
-  seconds,
-  type BlockTemporalOptions,
-} from "../shared.ts";
+import { applyTemporal, blockCall, run, seconds } from "../shared.ts";
 import { transportRows } from "./backends.ts";
 
 /**

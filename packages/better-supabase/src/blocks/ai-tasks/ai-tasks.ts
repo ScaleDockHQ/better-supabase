@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
@@ -7,13 +8,12 @@ import type { RunState } from "../../core/run-state.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -25,7 +25,6 @@ import { assertCron, nextCronRun } from "../jobs/cron.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   isRecord,
   optionalInstant,

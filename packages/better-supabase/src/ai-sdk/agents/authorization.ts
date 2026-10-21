@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai";
 import type { AgentActOptions, SessionActor } from "../../auth/actor.ts";
 import type { Agent } from "../../blocks/agents/agents.ts";
 import type { AuthorizationOperation } from "../../config/authorization.ts";
+import type { OperationTable } from "../../core/operations.ts";
 
 import { DbException } from "../../core/db-exception.ts";
 import { dbError } from "../../core/errors.ts";
@@ -10,7 +11,6 @@ import {
   OPERATION_PREFIXES,
   operationMeta,
   operationPermission,
-  type OperationTable,
 } from "../../core/operations.ts";
 
 /**

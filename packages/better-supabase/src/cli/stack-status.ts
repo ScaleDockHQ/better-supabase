@@ -1,7 +1,8 @@
 import type { CliEnv } from "./env.ts";
+import type { ExecOptions } from "./exec.ts";
 
 import { CliError } from "./core/errors.ts";
-import { type ExecOptions, supabaseCli } from "./exec.ts";
+import { supabaseCli } from "./exec.ts";
 
 export interface StackStatus {
   readonly [key: string]: unknown;

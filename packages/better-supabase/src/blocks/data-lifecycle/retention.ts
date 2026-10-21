@@ -2,6 +2,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { RETENTION_KINDS } from "../../sql/modules/data-lifecycle-retention.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   applyTemporal,
@@ -13,7 +14,6 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
 /** A kind the modules' purges look up; an app's own purges may use any other. */

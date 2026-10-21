@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
+import type { OperationModule } from "./access-model.ts";
 
 import { operationPermission } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
@@ -8,7 +9,6 @@ import {
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
-  type OperationModule,
 } from "./access-model.ts";
 
 const isOperationModule = (name: string): name is OperationModule =>

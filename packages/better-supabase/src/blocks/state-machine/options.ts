@@ -1,4 +1,6 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /** `blocks.state-machine.options`. */
 export type StateMachineSqlOptions = { readonly machines?: unknown };

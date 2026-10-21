@@ -1,6 +1,8 @@
 "use client";
 
-import { type Money, formatMoney, negateMoney } from "better-supabase/commerce";
+import type { Money } from "better-supabase/commerce";
+
+import { formatMoney, negateMoney } from "better-supabase/commerce";
 import { useAction, useActionForm } from "better-supabase/react";
 import { TicketPercentIcon, XIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";

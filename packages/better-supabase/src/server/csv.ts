@@ -1,4 +1,6 @@
-import { type CsvOptions, toCsv } from "../core/csv.ts";
+import type { CsvOptions } from "../core/csv.ts";
+
+import { toCsv } from "../core/csv.ts";
 
 export interface CsvResponseOptions extends CsvOptions {
   /** The download name, such as `invoices.csv`. */

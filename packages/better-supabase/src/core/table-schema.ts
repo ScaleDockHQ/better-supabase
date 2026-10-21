@@ -3,13 +3,14 @@ import type {
   StandardSchemaV1,
 } from "@standard-schema/spec";
 
-import { isList, isRecord } from "./guards.ts";
-import {
-  type FieldSpec,
-  type JsonSchema,
-  tableJsonSchema,
-  type TableSchemaSpec,
+import type {
+  FieldSpec,
+  JsonSchema,
+  TableSchemaSpec,
 } from "./table-json-schema.ts";
+
+import { isList, isRecord } from "./guards.ts";
+import { tableJsonSchema } from "./table-json-schema.ts";
 import { isInstant, isPlainDateTime } from "./temporal.ts";
 
 export type { StandardJSONSchemaV1 };

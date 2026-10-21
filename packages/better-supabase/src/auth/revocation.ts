@@ -1,4 +1,6 @@
-import { type DbError, dbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { dbError } from "../core/errors.ts";
 
 /** A client that can read `auth.sessions`, such as `createPostgres().admin`. */
 export interface SessionLookup {

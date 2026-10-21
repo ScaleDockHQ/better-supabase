@@ -1,9 +1,10 @@
 import type { AnyFunctions, AnyModels, SchemaMeta } from "../schema/types.ts";
 import type { BetterSupabase } from "./define.ts";
+import type { DbError } from "./errors.ts";
 import type { AnyPlugin } from "./plugin.ts";
 import type { InferResult, QuerySpec, Specs } from "./spec.ts";
 
-import { type DbError, dbError } from "./errors.ts";
+import { dbError } from "./errors.ts";
 import { isQuerySpec, specTables } from "./spec.ts";
 
 type ScalarParamType =

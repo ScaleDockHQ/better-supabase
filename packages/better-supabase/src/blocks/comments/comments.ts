@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
@@ -12,13 +17,9 @@ import type {
   TableKey,
   TableMeta,
 } from "../../schema/types.ts";
+import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -35,9 +36,7 @@ import {
   stringsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
   applyTemporal,
-  type CursorPageOptions,
   pageOf,
 } from "../shared.ts";
 

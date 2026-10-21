@@ -3,11 +3,12 @@ import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
+import type { HonoEnv } from "../../src/hono/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { createHono, type HonoEnv } from "../../src/hono/index.ts";
+import { createHono } from "../../src/hono/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

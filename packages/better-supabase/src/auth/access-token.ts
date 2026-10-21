@@ -1,18 +1,16 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
 import type { DbError } from "../core/errors.ts";
+import type { JwksInput, JwksSourceOptions } from "../core/jwks-cache.ts";
+import type { JwsAlgorithm } from "../core/jws.ts";
 import type { Result } from "../core/result.ts";
 import type { AuthResolver, ResolvedState } from "./resolve.ts";
 
 import { base64ToText } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
-import {
-  type JwksInput,
-  jwksSource,
-  type JwksSourceOptions,
-} from "../core/jwks-cache.ts";
-import { type JwsAlgorithm, JwsError, verifyCompact } from "../core/jws.ts";
+import { jwksSource } from "../core/jwks-cache.ts";
+import { JwsError, verifyCompact } from "../core/jws.ts";
 
 /**
  * Checks whether an access token was revoked, by its `jti` or by the grant it

@@ -1,12 +1,12 @@
-import {
-  type Attributes,
-  type Meter,
-  type Span,
-  type SpanOptions,
-  SpanKind,
-  SpanStatusCode,
-  type Tracer,
+import type {
+  Attributes,
+  Meter,
+  Span,
+  SpanOptions,
+  Tracer,
 } from "@opentelemetry/api";
+
+import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";

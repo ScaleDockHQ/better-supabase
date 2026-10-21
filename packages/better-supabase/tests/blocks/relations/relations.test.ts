@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { RelationEdge } from "../../../src/blocks/relations/index.ts";
+
 import {
   createRelations,
-  type RelationEdge,
   toGanttTasks,
   toTreeItems,
 } from "../../../src/blocks/relations/index.ts";

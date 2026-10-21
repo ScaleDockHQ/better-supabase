@@ -1,8 +1,6 @@
-import {
-  type BudgetPage,
-  expectDbBudget,
-  type MeasuredRender,
-} from "./budget.ts";
+import type { BudgetPage, MeasuredRender } from "./budget.ts";
+
+import { expectDbBudget } from "./budget.ts";
 
 /** The part of a Playwright `BrowserContext` that `instant()` uses. */
 export interface InstantBrowserContext {

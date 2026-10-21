@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { SvelteKitHelpers } from "../../src/sveltekit/index.ts";
+
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  createSvelteKit,
-  type SvelteKitHelpers,
-} from "../../src/sveltekit/index.ts";
+import { createSvelteKit } from "../../src/sveltekit/index.ts";
 import {
   betterSupabase,
   env,

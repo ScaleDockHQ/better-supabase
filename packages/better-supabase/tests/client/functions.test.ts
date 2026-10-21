@@ -3,15 +3,12 @@ import * as v from "valibot";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
+import type { ContractOf } from "../../src/edge/index.ts";
 
 import { functions } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
-import {
-  type ContractOf,
-  createEdge,
-  defineFunction,
-} from "../../src/edge/index.ts";
+import { createEdge, defineFunction } from "../../src/edge/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

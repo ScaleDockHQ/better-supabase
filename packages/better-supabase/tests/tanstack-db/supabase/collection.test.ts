@@ -5,17 +5,16 @@ import { QueryClient } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaMeta } from "../../../src/schema/types.ts";
+import type { Models as CamelModels } from "../../fixtures/generated-camel.ts";
+import type { Models } from "../../fixtures/generated.ts";
 
 import { defineSupabase } from "../../../src/core/define.ts";
 import { DbException } from "../../../src/core/errors.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 import { supabaseCollection } from "../../../src/tanstack-db/supabase/index.ts";
 import { capturingClient } from "../../fixtures/client.ts";
-import {
-  schema as camelSchema,
-  type Models as CamelModels,
-} from "../../fixtures/generated-camel.ts";
-import { schema, type Models } from "../../fixtures/generated.ts";
+import { schema as camelSchema } from "../../fixtures/generated-camel.ts";
+import { schema } from "../../fixtures/generated.ts";
 
 const betterSupabase = defineSupabase(schema);
 

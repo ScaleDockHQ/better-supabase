@@ -3,10 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import type { SigningJwk } from "../../src/testing/jwt.ts";
+
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { type SigningJwk, signTestJwtWithKey } from "../../src/testing/jwt.ts";
+import { signTestJwtWithKey } from "../../src/testing/jwt.ts";
 import { localSigningKey } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

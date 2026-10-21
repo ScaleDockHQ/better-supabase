@@ -1,9 +1,11 @@
 "use client";
 
+import type { ChangeEvent } from "react";
+
 import { useAction } from "better-supabase/react";
 import { DownloadIcon, PaperclipIcon, UploadIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type ChangeEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";

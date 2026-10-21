@@ -1,7 +1,6 @@
-import {
-  type RealtimeChannel,
-  REALTIME_SUBSCRIBE_STATES,
-} from "@supabase/supabase-js";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";

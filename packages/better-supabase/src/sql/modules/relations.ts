@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  type Subject,
   qualifiedTable,
   subjectCascades,
   subjectReadable,

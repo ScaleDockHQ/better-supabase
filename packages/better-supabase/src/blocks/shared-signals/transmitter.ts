@@ -1,17 +1,19 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
+import type { BlockOptions } from "../shared.ts";
+import type { SecurityEvent, SetSigner, SubjectIdentifier } from "./set.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   isRecord,
   nullableText,
   readBodyCapped,
@@ -22,15 +24,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { SSF_POLL, SSF_PUSH } from "./methods.ts";
-import {
-  CAEP_EVENTS,
-  mintSet,
-  RISC_EVENTS,
-  type SecurityEvent,
-  type SetSigner,
-  SSF_EVENTS,
-  type SubjectIdentifier,
-} from "./set.ts";
+import { CAEP_EVENTS, mintSet, RISC_EVENTS, SSF_EVENTS } from "./set.ts";
 
 export type SsfDeliveryMethod = "push" | "poll";
 

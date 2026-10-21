@@ -5,6 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
@@ -13,7 +14,6 @@ import { vectorLiteral as pgVector } from "../../core/search.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   isRecord,
   optionalText,

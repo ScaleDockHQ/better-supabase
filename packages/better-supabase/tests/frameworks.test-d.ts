@@ -6,6 +6,7 @@ import type {
   ExternalImageService,
   MiddlewareHandler,
 } from "astro";
+import type { H3Event as H3EventV2 } from "h3";
 import type Koa from "koa";
 import type { Nuxt, NuxtModule } from "nuxt/schema";
 import type {
@@ -20,7 +21,7 @@ import { createMiddleware as createStartMiddleware } from "@tanstack/react-start
 import { Elysia } from "elysia";
 import express from "express";
 import Fastify from "fastify";
-import { H3, type H3Event as H3EventV2 } from "h3";
+import { H3 } from "h3";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type {

@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GraphStepCall } from "../../src/blocks/workflow-builder/executor.ts";
 import type { BuilderStartCall } from "../../src/blocks/workflow-builder/workflow-builder.ts";
 
-import {
-  executeGraph,
-  type GraphStepCall,
-} from "../../src/blocks/workflow-builder/executor.ts";
+import { executeGraph } from "../../src/blocks/workflow-builder/executor.ts";
 import { fakeRuntime, GRAPH } from "../blocks/workflow-builder/fixture.ts";
 
 const start = vi.fn(async (..._args: unknown[]) => ({ runId: "wrun_new" }));

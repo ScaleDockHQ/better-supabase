@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
@@ -7,13 +12,9 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -21,7 +22,6 @@ import { revokeIfConfigured } from "../../credentials/compose.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   credentialRefOf,
   instantArg,
   isRecord,

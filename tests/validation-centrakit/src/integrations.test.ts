@@ -3,13 +3,9 @@ import { defineTopic } from "better-supabase/realtime";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  dbUrl,
-  reachable,
-  type Session,
-  USERS,
-  withCentraKit,
-} from "./stack.ts";
+import type { Session } from "./stack.ts";
+
+import { dbUrl, reachable, USERS, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 

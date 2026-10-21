@@ -1,4 +1,6 @@
-import { type Money, formatMoney, negateMoney } from "better-supabase/commerce";
+import type { Money } from "better-supabase/commerce";
+
+import { formatMoney, negateMoney } from "better-supabase/commerce";
 import { ShoppingCartIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
 import { refresh } from "next/cache";

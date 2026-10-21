@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { PoolClient } from "pg";
 
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";

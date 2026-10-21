@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
@@ -22,11 +23,7 @@ import type {
   WorkflowVersion,
 } from "./types.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";

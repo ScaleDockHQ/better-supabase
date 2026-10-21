@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import type { FilePlan } from "../../../src/cli/core/files.ts";
+
 import {
   applyPlan,
   changeLines,
-  type FilePlan,
   ownedByUs,
   planResult,
 } from "../../../src/cli/core/files.ts";

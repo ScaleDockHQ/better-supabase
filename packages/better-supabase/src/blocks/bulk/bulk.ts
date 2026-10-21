@@ -2,9 +2,10 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   isRecord,

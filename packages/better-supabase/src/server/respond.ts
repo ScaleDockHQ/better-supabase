@@ -1,10 +1,12 @@
+import type { Aal } from "../auth/mfa.ts";
 import type { AuthState } from "../auth/resolve.ts";
+import type { DbError } from "../core/errors.ts";
 import type { RefreshPolicy } from "./refresh.ts";
 
 import { actorOf, delegationOf } from "../auth/actor.ts";
-import { type Aal, checkAal } from "../auth/mfa.ts";
+import { checkAal } from "../auth/mfa.ts";
 import { isAnonymousUser } from "../auth/view.ts";
-import { type DbError, dbError, dbErrorOf, isDbError } from "../core/errors.ts";
+import { dbError, dbErrorOf, isDbError } from "../core/errors.ts";
 import { jsonResponse } from "../core/json.ts";
 import { problemResponse } from "../core/problem.ts";
 import { toDbError } from "../core/result.ts";

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { BuilderStartCall } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import type { Result } from "../../../src/core/result.ts";
 import type { CredentialProvider } from "../../../src/credentials/provider.ts";
@@ -11,10 +12,7 @@ import {
   triggerOf,
   versionOf,
 } from "../../../src/blocks/workflow-builder/rows.ts";
-import {
-  type BuilderStartCall,
-  createWorkflowBuilder,
-} from "../../../src/blocks/workflow-builder/workflow-builder.ts";
+import { createWorkflowBuilder } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
 import { createWorkflows } from "../../../src/blocks/workflows/workflows.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { GRAPH } from "./fixture.ts";

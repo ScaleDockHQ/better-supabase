@@ -1,13 +1,15 @@
+import type { FunctionInvokeOptions } from "@supabase/supabase-js";
+
 import {
-  type FunctionInvokeOptions,
   FunctionsFetchError,
   FunctionsHttpError,
   FunctionsRelayError,
 } from "@supabase/supabase-js";
 
+import type { DbError } from "../core/errors.ts";
 import type { FunctionContract } from "../core/function-contract.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { fromProblem, isProblem } from "../core/problem.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 

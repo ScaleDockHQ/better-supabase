@@ -1,11 +1,7 @@
 import type { QueryClient } from "@tanstack/query-core";
+import type { Accessor, Context as SolidContext } from "solid-js";
 
-import {
-  type Accessor,
-  type Context as SolidContext,
-  createContext,
-  useContext as useSolidContext,
-} from "solid-js";
+import { createContext, useContext as useSolidContext } from "solid-js";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { ClientLike } from "../bindings/client.ts";

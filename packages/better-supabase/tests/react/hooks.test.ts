@@ -9,7 +9,13 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { PowerSyncDatabaseLike } from "../../src/powersync/executor.ts";
+import type { SyncStatusLike } from "../../src/powersync/react/index.ts";
 import type { ActionResultOf } from "../../src/react/actions.ts";
+import type { ClientLike } from "../../src/react/hooks.ts";
+import type {
+  LinkingLike,
+  UseOAuthOptions,
+} from "../../src/react/native/index.ts";
 import type { PresenceTopic } from "../../src/react/presence.ts";
 import type {
   PresenceMember,
@@ -60,7 +66,6 @@ import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createUploadConnector } from "../../src/powersync/connector.ts";
 import {
-  type SyncStatusLike,
   useConflicts,
   useSyncStatus,
   useWatch,
@@ -68,7 +73,6 @@ import {
 import { useAction, useActionForm } from "../../src/react/actions.ts";
 import {
   BetterSupabaseProvider,
-  type ClientLike,
   createHooks,
   useAuth,
   useBroadcast,
@@ -79,8 +83,6 @@ import {
 } from "../../src/react/hooks.ts";
 import {
   AuthGate,
-  type LinkingLike,
-  type UseOAuthOptions,
   useAuthDeepLinks,
   useOAuth,
   useProtectedRoute,

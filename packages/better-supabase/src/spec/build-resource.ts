@@ -16,6 +16,7 @@ import type {
 } from "./model.ts";
 import type { ApiOptions, ResourceInput } from "./options.ts";
 import type { ErrorResponse, ResourcePlan } from "./resource.ts";
+import type { StandardLike } from "./schemas.ts";
 
 import { isPlainObject } from "../core/clone.ts";
 import { mergeJson, pointerToken } from "./merge.ts";
@@ -28,13 +29,7 @@ import {
 } from "./presets.ts";
 import { pageQuery, pageSchema } from "./resource-schemas.ts";
 import { planResource } from "./resource.ts";
-import {
-  convertStandard,
-  pascal,
-  schemaRef,
-  type StandardLike,
-  tableSchemas,
-} from "./schemas.ts";
+import { convertStandard, pascal, schemaRef, tableSchemas } from "./schemas.ts";
 
 type Json = Record<string, unknown>;
 

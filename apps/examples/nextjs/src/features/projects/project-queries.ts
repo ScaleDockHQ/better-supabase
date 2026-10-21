@@ -9,15 +9,18 @@ import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import type {
+  MemberOption,
+  ProjectHistoryField,
+  ProjectOption,
+  ProjectVersion,
+  TaskQuery,
+  TaskRow,
+  TaskStatus,
+  TaskViewOption,
+} from "./project-types";
+
 import {
-  type MemberOption,
-  type ProjectHistoryField,
-  type ProjectOption,
-  type ProjectVersion,
-  type TaskQuery,
-  type TaskRow,
-  type TaskStatus,
-  type TaskViewOption,
   PROJECT_HISTORY_FIELDS,
   PROJECT_SUBJECT,
   TASK_LIST,

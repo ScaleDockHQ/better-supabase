@@ -7,6 +7,7 @@ import type {
 } from "../config/types/app-tables.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
+import type { ConfigSourceKeys } from "./render.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
@@ -14,7 +15,6 @@ import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig, presetOf } from "./config.ts";
 import {
-  type ConfigSourceKeys,
   configSource,
   createUrl,
   presetApplyCommand,

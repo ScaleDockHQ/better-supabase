@@ -1,11 +1,12 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
+import type { Validated } from "./shared.ts";
+
 import {
   around,
   bufferInPlace,
   nitroCloudflareEnv,
   toResponse,
-  type Validated,
 } from "./shared.ts";
 
 /** The part of an H3 2 event the bridge reads and writes. */

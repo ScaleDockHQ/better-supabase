@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const snapshot = await parseSnapshot(fixture);

@@ -1,9 +1,11 @@
 import { ChevronRightIcon } from "lucide-react";
 
+import type { Crumb } from "@/lib/structured-data";
+
 import { JsonLd } from "@/components/site/json-ld";
 import { SiteLink } from "@/components/site/site-link";
 import { site } from "@/lib/site";
-import { absoluteUrl, breadcrumbList, type Crumb } from "@/lib/structured-data";
+import { absoluteUrl, breadcrumbList } from "@/lib/structured-data";
 
 /** The trail above a catalog page, with the same trail as a BreadcrumbList. */
 export function Breadcrumbs({ items }: { items: readonly Crumb[] }) {

@@ -1,6 +1,7 @@
+import type { Money } from "../commerce/money.ts";
 import type { DbError } from "../core/errors.ts";
 
-import { isCurrency, type Money, money } from "../commerce/money.ts";
+import { isCurrency, money } from "../commerce/money.ts";
 import { bigintOf, optionalBigintOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 

@@ -1,24 +1,23 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
+import type { CookieScope, SessionEncoding } from "../../auth/session.ts";
 import type { AuthOutageEvent } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { RefreshPolicy } from "../refresh.ts";
+import type { ServerCore } from "./core.ts";
 
 import {
   AUTH_CACHE_HEADERS,
   clearSessionAtScopes,
-  type CookieScope,
   parseCookies,
-  type SessionEncoding,
   serializeCookie,
 } from "../../auth/session.ts";
-import {
-  refreshFor,
-  type RefreshPolicy,
-  shouldCheckSession,
-} from "../refresh.ts";
-import { callOf, type ServerCore } from "./core.ts";
+import { refreshFor, shouldCheckSession } from "../refresh.ts";
+import { callOf } from "./core.ts";
 
 function checkFor(
   policy: SessionEntryConfig["checkSession"],

@@ -1,14 +1,11 @@
+import type { AnyBlocksConfig, BlockScope } from "../config/blocks.ts";
 import type {
   ModuleDefinition,
   ModuleLayout,
   SqlModule,
 } from "./module-types.ts";
 
-import {
-  type AnyBlocksConfig,
-  BLOCK_SCOPES,
-  type BlockScope,
-} from "../config/blocks.ts";
+import { BLOCK_SCOPES } from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";

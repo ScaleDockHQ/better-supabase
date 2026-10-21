@@ -1,13 +1,11 @@
+import type { DbError, DbErrorKind, DbErrorOf, RawDbError } from "./errors.ts";
+
 import {
-  type DbError,
-  type DbErrorKind,
-  type DbErrorOf,
   DbException,
   dbError,
   dbErrorOf,
   isDbError,
   mapDbError,
-  type RawDbError,
 } from "./errors.ts";
 
 /**

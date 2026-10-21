@@ -1,6 +1,8 @@
 import type { BetterQueries } from "better-supabase/query";
 
-import { betterSupabase, type Models } from "./lib/supabase";
+import type { Models } from "./lib/supabase";
+
+import { betterSupabase } from "./lib/supabase";
 
 type AppQueries = BetterQueries<Models, unknown>;
 

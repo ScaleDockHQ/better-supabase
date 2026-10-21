@@ -2,9 +2,10 @@ import type { Money } from "../../commerce/money.ts";
 import type { Payment, PaymentProvider } from "../../commerce/payments.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
 import { money } from "../../commerce/money.ts";
-import { type ConformanceReport, conform, expect } from "../conformance.ts";
+import { conform, expect } from "../conformance.ts";
 
 export interface TestPaymentProviderOptions {
   /** What the kit charges. Defaults to 10.00 EUR. */

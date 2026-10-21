@@ -1,10 +1,11 @@
 "use client";
 
 import type { DbError } from "better-supabase";
+import type { SubmitEvent } from "react";
 
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {

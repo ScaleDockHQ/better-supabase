@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Names } from "./catalog-functions.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import {
@@ -16,7 +17,6 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
-  type Names,
   SLUG,
   optionFunctions,
   productExtras,

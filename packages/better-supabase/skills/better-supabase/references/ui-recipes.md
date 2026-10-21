@@ -776,9 +776,11 @@ npx shadcn add button field skeleton textarea
 ```tsx title="apps/examples/nextjs/src/features/customers/components/comment-thread.tsx"
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useComments } from "better-supabase/blocks/comments/react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -2441,10 +2443,12 @@ npx shadcn add button dialog field input select
 ```tsx title="apps/examples/nextjs/src/features/organization/components/invite-member-dialog.tsx"
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
 
@@ -3360,10 +3364,12 @@ npx shadcn add badge button input skeleton
 ```tsx title="apps/examples/nextjs/src/features/customers/components/tag-input.tsx"
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useTagInput } from "better-supabase/blocks/tags/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -4019,13 +4025,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+import type { ConversationRow } from "../inbox-types";
+
 import { loadConversations } from "../inbox-actions";
 import { unwrap } from "../inbox-load";
-import {
-  AssigneeFilter,
-  type ConversationRow,
-  ConversationStatus,
-} from "../inbox-types";
+import { AssigneeFilter, ConversationStatus } from "../inbox-types";
 import { ConversationPanel } from "./conversation-panel";
 
 export function InboxView({
@@ -4702,12 +4706,12 @@ npx shadcn add badge button input select
 ```tsx title="apps/examples/nextjs/src/features/workflows/builder/components/workflow-canvas.tsx"
 "use client";
 
+import type { Connection } from "@xyflow/react";
 import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
 
 import {
   addEdge,
   Background,
-  type Connection,
   Controls,
   ReactFlow,
   useEdgesState,
@@ -4735,6 +4739,7 @@ import {
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
+import type { GraphFlowNode, GraphNodeData } from "./graph-node";
 
 import { isFinished, statusVariant } from "../../workflow-labels";
 import {
@@ -4744,13 +4749,7 @@ import {
   saveDraft,
 } from "../builder-actions";
 import { CredentialSheet } from "./credential-sheet";
-import {
-  fromFlow,
-  type GraphFlowNode,
-  type GraphNodeData,
-  nodeTypes,
-  toFlow,
-} from "./graph-node";
+import { fromFlow, nodeTypes, toFlow } from "./graph-node";
 import { NodePanel } from "./node-panel";
 import { PublishDialog } from "./publish-dialog";
 import { TriggerSheet } from "./trigger-sheet";
@@ -5680,10 +5679,12 @@ npx shadcn add alert alert-dialog badge button card dialog empty field input sel
 ```tsx title="apps/examples/nextjs/src/features/ai-providers/components/ai-provider-settings.tsx"
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useAction } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type SubmitEvent, useId, useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -5758,10 +5759,11 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { Provider } from "../ai-provider-options";
 import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
 
 import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
-import { PROVIDERS, type Provider } from "../ai-provider-options";
+import { PROVIDERS } from "../ai-provider-options";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",
@@ -6489,11 +6491,7 @@ npx shadcn add alert badge button card empty skeleton
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/metrics/components/metrics-dashboard.tsx"
-import {
-  toChartData,
-  type Kpi,
-  type MetricChartRow,
-} from "better-supabase/blocks/metrics";
+import { toChartData } from "better-supabase/blocks/metrics";
 import { tenantOf } from "better-supabase/next";
 import { ChartColumnIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
@@ -6899,6 +6897,8 @@ npx shadcn add alert button card empty field input label select skeleton switch
 ```tsx title="apps/examples/nextjs/src/features/rules/components/rule-builder.tsx"
 "use client";
 
+import type { DragEndEvent } from "@dnd-kit/core";
+import type { RuleField } from "better-supabase/blocks/rules";
 import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
 import type {
   FilterCombinator,
@@ -6907,11 +6907,11 @@ import type {
   FilterQuery,
   FilterRule,
 } from "better-supabase/list";
+import type { CSSProperties, ReactNode } from "react";
 
 import {
   closestCenter,
   DndContext,
-  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -6924,11 +6924,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  contains,
-  ruleOperators,
-  type RuleField,
-} from "better-supabase/blocks/rules";
+import { contains, ruleOperators } from "better-supabase/blocks/rules";
 import { useRuleBuilder } from "better-supabase/blocks/rules/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
@@ -6940,15 +6936,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
-import {
-  type CSSProperties,
-  createContext,
-  type ReactNode,
-  use,
-  useId,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, use, useId, useMemo, useState } from "react";
 import * as v from "valibot";
 
 import {
@@ -14772,7 +14760,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { type AnswerCell, getForm } from "../forms-queries";
+import type { AnswerCell } from "../forms-queries";
+
+import { getForm } from "../forms-queries";
 import { FormBuilderWorkspace } from "./form-builder-workspace";
 import { FormStatusBadge } from "./form-status-badge";
 
@@ -15033,17 +15023,11 @@ import {
 import { Link } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import {
-  type ImportOutcome,
-  type ImportPreview,
-  previewCustomerImport,
-  runCustomerImport,
-} from "../imports-actions";
-import {
-  type ColumnMapping,
-  CUSTOMER_IMPORT_FIELDS,
-  type CustomerImportField,
-} from "../imports-fields";
+import type { ImportOutcome, ImportPreview } from "../imports-actions";
+import type { ColumnMapping, CustomerImportField } from "../imports-fields";
+
+import { previewCustomerImport, runCustomerImport } from "../imports-actions";
+import { CUSTOMER_IMPORT_FIELDS } from "../imports-fields";
 
 const SKIP = "skip";
 const MAX_BYTES = 500_000;
@@ -15794,12 +15778,11 @@ npx shadcn add alert badge button card field input skeleton textarea
 ```tsx title="apps/examples/nextjs/src/features/documents/components/document-editor.tsx"
 "use client";
 
+import type { DocumentProviderStatus } from "better-supabase/yjs";
+
 import { rpcTransport } from "better-supabase/blocks";
 import { createDocuments } from "better-supabase/blocks/documents";
-import {
-  createDocumentProvider,
-  type DocumentProviderStatus,
-} from "better-supabase/yjs";
+import { createDocumentProvider } from "better-supabase/yjs";
 import { TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";

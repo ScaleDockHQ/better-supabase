@@ -1,7 +1,9 @@
 import { useContext, useMemo } from "react";
 
+import type { BlockEnv } from "./block-env.ts";
+
 import { ClientContext } from "../react/context.ts";
-import { blockEnv, type BlockEnv } from "./block-env.ts";
+import { blockEnv } from "./block-env.ts";
 
 export type { BlockEnv } from "./block-env.ts";
 

@@ -1,8 +1,10 @@
+import type { DbError } from "../core/errors.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { WebhookInput } from "../core/signatures.ts";
+import type { Money } from "./money.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
-import { isMoney, type Money } from "./money.ts";
+import { dbError } from "../core/errors.ts";
+import { isMoney } from "./money.ts";
 
 /**
  * Where a payment stands. `requires_action`: the customer still has to act

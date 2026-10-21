@@ -2,19 +2,22 @@ import { Temporal as Polyfill } from "temporal-polyfill";
 import * as v from "valibot";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import type {
+  Job,
+  QueueBackend,
+  QueueRpcClient,
+} from "../../../src/blocks/jobs/index.ts";
 import type { DbError } from "../../../src/core/errors.ts";
 import type { Executor } from "../../../src/core/executor.ts";
+import type { SqlAnswer } from "../../fixtures/fake-sql.ts";
 
 import {
   createIdempotency,
   withLease,
   createWebhookInbox,
   createJobs,
-  type Job,
   nextCronRun,
   pgmqPublicBackend,
-  type QueueBackend,
-  type QueueRpcClient,
   sqlQueueBackend,
   sqlTransport,
 } from "../../../src/blocks/jobs/index.ts";
@@ -25,7 +28,7 @@ import { ok } from "../../../src/core/result.ts";
 import { provideTemporal } from "../../../src/core/temporal.ts";
 import { tenant } from "../../../src/plugins/tenant/index.ts";
 import { capturingClient } from "../../fixtures/client.ts";
-import { fakeSql, pgError, type SqlAnswer } from "../../fixtures/fake-sql.ts";
+import { fakeSql, pgError } from "../../fixtures/fake-sql.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
 const echoExecutor: Executor = {

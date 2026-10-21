@@ -2,13 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { ContractOf } from "../../src/edge/index.ts";
+
 import { functions } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  type ContractOf,
-  createEdge,
-  defineFunction,
-} from "../../src/edge/index.ts";
+import { createEdge, defineFunction } from "../../src/edge/index.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";

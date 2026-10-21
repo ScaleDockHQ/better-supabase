@@ -1,11 +1,8 @@
 import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
+import type { ModuleContext, ModuleIdType } from "./context.ts";
 import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
-import {
-  createModuleContext,
-  type ModuleContext,
-  type ModuleIdType,
-} from "./context.ts";
+import { createModuleContext } from "./context.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
 export interface ModuleRegistry {

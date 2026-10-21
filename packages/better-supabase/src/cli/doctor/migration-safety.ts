@@ -2,8 +2,9 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
+import type { SqlStatement } from "./shared.ts";
 
-import { splitStatements, type SqlStatement } from "./shared.ts";
+import { splitStatements } from "./shared.ts";
 
 const NAME = String.raw`(?:"[^"]+"|[\w$]+)`;
 const TABLE = String.raw`(${NAME}(?:\s*\.\s*${NAME})?)`;

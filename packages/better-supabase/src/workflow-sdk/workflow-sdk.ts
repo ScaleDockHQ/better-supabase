@@ -1,12 +1,7 @@
 import type { World } from "@workflow/world";
+import type { Hook, Run } from "workflow/api";
 
-import {
-  getHookByToken,
-  getRun,
-  start,
-  type Hook,
-  type Run,
-} from "workflow/api";
+import { getHookByToken, getRun, start } from "workflow/api";
 import { getWorld } from "workflow/runtime";
 
 import type { OutboxEvent, OutboxHandler } from "../blocks/outbox/outbox.ts";

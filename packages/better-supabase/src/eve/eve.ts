@@ -3,10 +3,11 @@ import type {
   KnowledgeSearchOptions,
 } from "../blocks/knowledge/knowledge.ts";
 import type { Memory, MemoryNamespace } from "../blocks/memory/memory.ts";
+import type { DbError } from "../core/errors.ts";
 import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 

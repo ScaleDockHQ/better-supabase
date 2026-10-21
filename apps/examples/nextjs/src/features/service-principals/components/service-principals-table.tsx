@@ -39,10 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  loadServicePrincipals,
-  type ServicePrincipalRow,
-} from "../service-principals-queries";
+import type { ServicePrincipalRow } from "../service-principals-queries";
+
+import { loadServicePrincipals } from "../service-principals-queries";
 import {
   CreateServicePrincipalDialog,
   DisableServicePrincipalButton,

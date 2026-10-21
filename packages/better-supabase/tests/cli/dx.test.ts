@@ -17,6 +17,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { TemplateContext } from "../../src/cli/templates.ts";
+
 import { mergeEnv } from "../../src/cli/commands/env.ts";
 import { loadSkills } from "../../src/cli/commands/skills.ts";
 import { run } from "../../src/cli/core/run.ts";
@@ -24,7 +26,6 @@ import {
   baseFiles,
   INTEGRATIONS,
   resolveIntegrations,
-  type TemplateContext,
   TEMPLATES,
 } from "../../src/cli/templates.ts";
 import { libraryFixture } from "./fixtures/library.ts";

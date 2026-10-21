@@ -6,11 +6,9 @@ import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
-import {
-  APPROVAL_SUBJECT,
-  type ApprovalRow,
-  type SubjectOption,
-} from "./approvals-types";
+import type { ApprovalRow, SubjectOption } from "./approvals-types";
+
+import { APPROVAL_SUBJECT } from "./approvals-types";
 
 export interface ApprovalsQueue {
   readonly requests: readonly ApprovalRow[];

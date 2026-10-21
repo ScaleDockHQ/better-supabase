@@ -1,13 +1,11 @@
-import {
-  embedMany,
-  type EmbeddingModel,
-  jsonSchema,
-  rerank,
-  type RerankingModel,
-  type SourceDocumentUIPart,
-  type Tool,
-  tool,
+import type {
+  EmbeddingModel,
+  RerankingModel,
+  SourceDocumentUIPart,
+  Tool,
 } from "ai";
+
+import { embedMany, jsonSchema, rerank, tool } from "ai";
 
 import type {
   Embedder,

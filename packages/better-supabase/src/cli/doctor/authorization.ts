@@ -3,6 +3,10 @@ import type {
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { ModuleEntitlementsProvider } from "../../sql/index.ts";
+import type {
+  AccessProviderMode,
+  ProviderRequirement,
+} from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import {
@@ -12,13 +16,11 @@ import {
 } from "../../sql/index.ts";
 import {
   accessProviderMode,
-  type AccessProviderMode,
   accessRequirements,
   entitlementRequirements,
   entitlementsMode,
   moduleKeyProblems,
   providerLabel,
-  type ProviderRequirement,
   unsafeKey,
 } from "../authorization.ts";
 import { withoutStrings } from "./rls.ts";

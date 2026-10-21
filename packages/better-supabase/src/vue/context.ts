@@ -1,12 +1,7 @@
 import type { QueryClient } from "@tanstack/query-core";
+import type { InjectionKey, Ref } from "vue";
 
-import {
-  getCurrentInstance,
-  inject,
-  type InjectionKey,
-  onMounted,
-  type Ref,
-} from "vue";
+import { getCurrentInstance, inject, onMounted } from "vue";
 
 import type { ClientLike } from "../bindings/client.ts";
 import type { AuthSnapshot } from "../client/index.ts";

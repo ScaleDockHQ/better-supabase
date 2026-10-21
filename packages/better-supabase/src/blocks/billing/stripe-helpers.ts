@@ -1,14 +1,9 @@
+import type { Result } from "../../core/result.ts";
 import type { StripeTaxId } from "../stripe.ts";
 import type { StripeEvent, SubscriptionItem } from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { isRecord, optionalText, textOf } from "../shared.ts";
 
 export const ORGANIZATION_KEY = "organization_id";

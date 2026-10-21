@@ -1,4 +1,6 @@
-import { type ContractOf, defineFunction } from "better-supabase/edge";
+import type { ContractOf } from "better-supabase/edge";
+
+import { defineFunction } from "better-supabase/edge";
 import * as v from "valibot";
 
 import { bs } from "./server.ts";

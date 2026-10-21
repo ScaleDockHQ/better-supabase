@@ -1,4 +1,6 @@
+import type { Money } from "../../commerce/money.ts";
 import type { SubjectsConfig } from "../../config/types/subjects.ts";
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -6,12 +8,10 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { type Money, money } from "../../commerce/money.ts";
+import { money } from "../../commerce/money.ts";
 import {
-  type BlockFields,
   blockFields,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";

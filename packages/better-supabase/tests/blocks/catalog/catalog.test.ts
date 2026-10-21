@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { Catalog } from "../../../src/blocks/catalog/index.ts";
+
 import {
   catalogSubjects,
   createCatalog,
-  type Catalog,
 } from "../../../src/blocks/catalog/index.ts";
 import { money } from "../../../src/commerce/index.ts";
 

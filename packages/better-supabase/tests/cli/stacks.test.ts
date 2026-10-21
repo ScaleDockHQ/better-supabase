@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { RunProcess } from "../../src/cli/exec.ts";
+import type { ManagedStack, StackReport } from "../../src/cli/stacks.ts";
 
 import { parseEnv } from "../../src/cli/env.ts";
 import {
   branchName,
-  type ManagedStack,
   parseStackList,
   prunePlan,
   reportStacks,
-  type StackReport,
 } from "../../src/cli/stacks.ts";
 
 const LIST = JSON.stringify({

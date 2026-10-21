@@ -20,6 +20,7 @@ import {
 import type { AuthState } from "../../auth/resolve.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { GuardOptions } from "../../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -29,7 +30,7 @@ import type {
 import { delegationOf } from "../../auth/actor.ts";
 import { flushEvents, resolveToken } from "../../server/adapter.ts";
 import { withExtra } from "../../server/extra.ts";
-import { guard, type GuardOptions } from "../../server/respond.ts";
+import { guard } from "../../server/respond.ts";
 import { createServer, extendServer } from "../../server/server.ts";
 import {
   discovery,

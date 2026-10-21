@@ -1,12 +1,6 @@
-import {
-  generateText,
-  jsonSchema,
-  type JSONSchema7,
-  type LanguageModel,
-  Output,
-  type Tool,
-  tool,
-} from "ai";
+import type { JSONSchema7, LanguageModel, Tool } from "ai";
+
+import { generateText, jsonSchema, Output, tool } from "ai";
 
 import type { JobHandler } from "../../blocks/jobs/types.ts";
 import type {

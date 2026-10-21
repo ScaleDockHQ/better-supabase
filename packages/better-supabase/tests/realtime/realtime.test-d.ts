@@ -2,13 +2,14 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type {
+  PresenceMember,
+  RealtimeClient,
+} from "../../src/realtime/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { useBroadcast } from "../../src/react/index.ts";
-import {
-  defineTopic,
-  type PresenceMember,
-  type RealtimeClient,
-} from "../../src/realtime/index.ts";
+import { defineTopic } from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { buckets, schema, topics } from "../fixtures/generated-camel.ts";
 

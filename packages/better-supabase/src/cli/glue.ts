@@ -5,18 +5,16 @@ import type { FilePlan } from "./core/files.ts";
 import type { CommandResult } from "./core/io.ts";
 import type { Project } from "./project/detect.ts";
 import type { Prompter } from "./prompts.ts";
+import type {
+  Integration,
+  TemplateContext,
+  TemplateFile,
+} from "./templates.ts";
 
 import { INTEGRATION_INFO } from "../config/index.ts";
 import { parseNames } from "./core/errors.ts";
 import { display } from "./core/io.ts";
-import {
-  INTEGRATIONS,
-  isIntegration,
-  type Integration,
-  type TemplateContext,
-  type TemplateFile,
-  TEMPLATES,
-} from "./templates.ts";
+import { INTEGRATIONS, isIntegration, TEMPLATES } from "./templates.ts";
 import { VERSION } from "./version.ts";
 
 export interface WriteFlags {

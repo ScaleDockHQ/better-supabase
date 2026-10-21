@@ -6,11 +6,14 @@ import { Hono } from "hono";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
+import type { Result } from "../../src/core/result.ts";
+import type { OrpcRequestContext } from "../../src/orpc/index.ts";
+
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
-import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
+import { err, ok } from "../../src/core/result.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";

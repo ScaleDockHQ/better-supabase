@@ -4,10 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  type CliCommand,
-  defineCliCommand,
-} from "../../src/cli/core/command.ts";
+import type { CliCommand } from "../../src/cli/core/command.ts";
+
+import { defineCliCommand } from "../../src/cli/core/command.ts";
 import { CliError } from "../../src/cli/core/errors.ts";
 import {
   cliFromTree,

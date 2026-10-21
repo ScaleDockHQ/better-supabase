@@ -1,8 +1,9 @@
-import {
-  type RealtimeChannel,
-  type RealtimePresenceState,
-  REALTIME_SUBSCRIBE_STATES,
+import type {
+  RealtimeChannel,
+  RealtimePresenceState,
 } from "@supabase/supabase-js";
+
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 import type {
   RealtimeClient,

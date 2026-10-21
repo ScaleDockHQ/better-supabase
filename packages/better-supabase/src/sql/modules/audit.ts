@@ -1,13 +1,13 @@
 import type { AuditEvents } from "../../blocks/audit/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
+import type { BatchArgument } from "../shared.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { ACTING_MEMBER } from "../actor-guard.ts";
 import {
   batchFunction,
-  type BatchArgument,
   defaultPartition,
   ensureCheck,
   EQUIVALENT_TRIGGERS,

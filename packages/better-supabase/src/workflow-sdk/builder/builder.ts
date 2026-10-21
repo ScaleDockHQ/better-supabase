@@ -8,11 +8,17 @@ import type {
   GraphSubject,
 } from "../../blocks/workflow-builder/executor.ts";
 import type {
+  WorkflowGraph,
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+} from "../../blocks/workflow-builder/graph.ts";
+import type {
   BuilderStartCall,
   BuilderStarter,
   NodeRunRecord,
 } from "../../blocks/workflow-builder/workflow-builder.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
+import type { WorkflowFn } from "../workflow-sdk.ts";
 
 import { startNodeOf } from "../../blocks/workflow-builder/executor.ts";
 import {
@@ -20,16 +26,9 @@ import {
   isGraphRecord,
   topologicalOrder,
   validateGraph,
-  type WorkflowGraph,
-  type WorkflowGraphEdge,
-  type WorkflowGraphNode,
 } from "../../blocks/workflow-builder/graph.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "../attributes.ts";
-import {
-  contextAttributes,
-  runForKey,
-  type WorkflowFn,
-} from "../workflow-sdk.ts";
+import { contextAttributes, runForKey } from "../workflow-sdk.ts";
 
 /** The env flag the Workflow SDK reads before it starts or runs dynamic source. */
 export const DYNAMIC_WORKFLOWS_ENV = "WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS";

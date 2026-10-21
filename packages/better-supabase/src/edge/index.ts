@@ -1,41 +1,38 @@
 import { withCors } from "@supabase/middleware/cors";
 
 import type { AuthSession } from "../auth/view.ts";
+import type { EdgeHandler } from "../bridges/edge.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { CorsOptions } from "../server/cors.ts";
+import type {
+  BlockRequireOptions,
+  ResourceLoaderContext,
+} from "../server/kit.ts";
+import type { ResourceMap } from "../server/resources.ts";
+import type { MiddlewareOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { RouteMatch } from "./routes.ts";
 
-import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
+import { toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
 import { withFlush, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import {
-  type CorsOptions,
-  corsConfig,
-  SUPABASE_CORS_HEADERS,
-} from "../server/cors.ts";
+import { corsConfig, SUPABASE_CORS_HEADERS } from "../server/cors.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
-import {
-  type BlockRequireOptions,
-  requireCaller,
-  type ResourceLoaderContext,
-} from "../server/kit.ts";
-import { type ResourceMap, resourceRouter } from "../server/resources.ts";
-import {
-  defaultExpose,
-  type MiddlewareOptions,
-  respond,
-} from "../server/respond.ts";
+import { requireCaller } from "../server/kit.ts";
+import { resourceRouter } from "../server/resources.ts";
+import { defaultExpose, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
-import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
+import { compileRoutes, matchRoute } from "./routes.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 

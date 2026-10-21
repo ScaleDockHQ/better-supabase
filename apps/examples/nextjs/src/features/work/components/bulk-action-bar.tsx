@@ -35,9 +35,11 @@ import {
 } from "@/components/ui/select";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { WorkItemRow } from "../work-types";
+
 import { useStateLabel } from "../use-work-labels";
 import { runWorkBulkAction } from "../work-actions";
-import { WORK_ITEM_STATES, type WorkItemRow } from "../work-types";
+import { WORK_ITEM_STATES } from "../work-types";
 
 interface BulkFailure {
   readonly id: string;

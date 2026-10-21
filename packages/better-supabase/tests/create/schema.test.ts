@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import type { SchemaSource } from "../../src/create/index.ts";
+import type { Preset, PresetName } from "../../src/preset/index.ts";
+
 import { resolveConfig } from "../../src/config/index.ts";
 import {
   parseSchema,
-  type SchemaSource,
   schemaRelations,
   tableStatements,
   tenantColumnOf,
 } from "../../src/create/index.ts";
-import {
-  encodePreset,
-  namedPreset,
-  type Preset,
-  type PresetName,
-} from "../../src/preset/index.ts";
+import { encodePreset, namedPreset } from "../../src/preset/index.ts";
 import { moduleLayout, renderModules } from "../../src/sql/index.ts";
 
 interface Rendered {

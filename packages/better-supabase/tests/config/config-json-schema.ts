@@ -8,11 +8,13 @@
  */
 import { toJsonSchema } from "@valibot/to-json-schema";
 
+import type { Annotation } from "./config-annotations.ts";
+
 import { BLOCK_OPTION_SCHEMAS } from "../../src/blocks/options-registry.ts";
 import { optionsJsonSchema } from "../../src/blocks/options.ts";
 import { configSchemas } from "../../src/cli/config-schema.ts";
 import { PRESET_NAMES } from "../../src/preset/index.ts";
-import { type Annotation, CONFIG_ANNOTATIONS } from "./config-annotations.ts";
+import { CONFIG_ANNOTATIONS } from "./config-annotations.ts";
 
 export const CONFIG_SCHEMA: URL = new URL(
   "../../schemas/config-v1.json",

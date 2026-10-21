@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { InventoryNames } from "./inventory-stock.ts";
 
 import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
@@ -15,7 +16,6 @@ import {
   transferFunctions,
 } from "./inventory-purchasing.ts";
 import {
-  type InventoryNames,
   columns,
   locationFunctions,
   reservationFunctions,

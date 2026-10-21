@@ -1,3 +1,4 @@
+import type { DbError } from "../core/errors.ts";
 import type {
   CredentialCapabilities,
   CredentialProvider,
@@ -5,7 +6,7 @@ import type {
   CredentialSubject,
 } from "./provider.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { AsyncResult } from "../core/result.ts";
 import { credentialProviderOf, credentialRefInTenant } from "./provider.ts";
 

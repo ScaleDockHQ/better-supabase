@@ -1,5 +1,6 @@
 import type { OperationTable } from "../../core/operations.ts";
 import type { ModuleContext } from "../context.ts";
+import type { ModuleOperations } from "./access-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -14,7 +15,7 @@ import {
   serviceGrant,
   withExtraFields,
 } from "../shared.ts";
-import { moduleOperations, type ModuleOperations } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
 export type BuilderAction = keyof ModuleOperations<"workflow-builder">;

@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { AiMessagePart } from "../ai-chat/message.ts";
@@ -5,10 +6,8 @@ import type { AiFile, AiFiles, AiFilesOptions, StorageReply } from "./types.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";

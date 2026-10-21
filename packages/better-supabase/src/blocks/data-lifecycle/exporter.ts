@@ -1,10 +1,13 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { DataExport, LifecycleStorage } from "./data-lifecycle.ts";
 
 import { toCsv } from "../../core/csv.ts";
 import { dbError } from "../../core/errors.ts";
-import { type AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -13,14 +16,8 @@ import {
   optionalText,
   recordOf,
   stringsOf,
-  type BlockTemporalOptions,
 } from "../shared.ts";
-import {
-  exportOf,
-  stored,
-  type DataExport,
-  type LifecycleStorage,
-} from "./data-lifecycle.ts";
+import { exportOf, stored } from "./data-lifecycle.ts";
 
 export interface DataExporterOptions extends BlockTemporalOptions {
   /**

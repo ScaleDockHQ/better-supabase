@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { RateLimiter } from "../../src/server/rate-limit.ts";
+
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import {
-  type RateLimiter,
-  rateLimitGate,
-} from "../../src/server/rate-limit.ts";
+import { rateLimitGate } from "../../src/server/rate-limit.ts";
 
 function limiter(remaining: number[]): RateLimiter {
   return {

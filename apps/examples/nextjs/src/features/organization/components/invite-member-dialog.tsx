@@ -1,10 +1,12 @@
 // #region recipe:invite-dialog
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
 

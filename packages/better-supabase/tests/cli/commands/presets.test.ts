@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { CreateDesign } from "../../../src/preset/index.ts";
+
 import { runApply } from "../../../src/cli/commands/apply.ts";
 import {
   listBlocks,
@@ -17,7 +19,6 @@ import {
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
-  type CreateDesign,
   DESIGN_FILE,
   DesignTooLongError,
   designFileSource,

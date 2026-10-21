@@ -1,6 +1,7 @@
+import type { Plugin } from "../../core/plugin.ts";
 import type { MutationOp } from "../../ir/types.ts";
 
-import { definePlugin, type Plugin } from "../../core/plugin.ts";
+import { definePlugin } from "../../core/plugin.ts";
 import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
 /**

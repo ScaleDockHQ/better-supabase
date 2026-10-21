@@ -1,20 +1,17 @@
+import type {
+  AuthorizationOutcome,
+  AuthorizationRequest,
+  Authorizer,
+} from "../core/authorizer.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import {
-  type AuthorizationOutcome,
-  type AuthorizationRequest,
-  type Authorizer,
   checkPermission,
   defineAuthorizer,
   requestOf,
 } from "../core/authorizer.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  frozenCopy,
-  same,
-} from "./conformance.ts";
+import { conform, expect, frozenCopy, same } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 export interface TestAuthorizerOptions<Ref> {

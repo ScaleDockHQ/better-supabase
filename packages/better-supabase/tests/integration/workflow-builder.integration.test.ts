@@ -1,13 +1,15 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type {
+  BuilderStartCall,
+  WorkflowGraph,
+} from "../../src/blocks/workflow-builder/index.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
 
 import {
-  type BuilderStartCall,
   createWorkflowBuilder,
   sqlTransport,
-  type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
 import { createWorkflows } from "../../src/blocks/workflows/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";

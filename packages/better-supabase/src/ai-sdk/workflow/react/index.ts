@@ -1,21 +1,15 @@
 "use client";
 
-import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
-import {
-  type ChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
-} from "ai";
+import type { ChatTransport, UIMessage } from "ai";
 
-import {
-  type AssistantTransportConfig,
-  assistantBody,
-} from "../../react/body.ts";
-import {
-  type AssistantState,
-  useAssistant,
-  type UseAssistantOptions,
-} from "../../react/index.ts";
+import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+
+import type { AssistantTransportConfig } from "../../react/body.ts";
+import type { AssistantState, UseAssistantOptions } from "../../react/index.ts";
+
+import { assistantBody } from "../../react/body.ts";
+import { useAssistant } from "../../react/index.ts";
 
 export type { AssistantState } from "../../react/index.ts";
 

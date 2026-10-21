@@ -1,9 +1,11 @@
 import { channel } from "node:diagnostics_channel";
 
+import type { HttpEvent } from "./trace.ts";
+
 import { VERSION } from "../version.ts";
 import { CliError } from "./errors.ts";
 import { redactUrl } from "./redact.ts";
-import { HTTP_CHANNEL, type HttpEvent } from "./trace.ts";
+import { HTTP_CHANNEL } from "./trace.ts";
 
 const httpChannel = channel(HTTP_CHANNEL);
 

@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
@@ -21,7 +22,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  type SubjectTableBinding,
   subjectReadable,
   subjectTableBindings,
   subjectsOption,

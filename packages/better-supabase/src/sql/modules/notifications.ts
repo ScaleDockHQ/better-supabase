@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -21,11 +22,7 @@ import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
-import {
-  functions,
-  type NotifyNames,
-  notifyNames,
-} from "./notifications-sql.ts";
+import { functions, notifyNames } from "./notifications-sql.ts";
 import {
   suppressionContract,
   suppressionsTable,

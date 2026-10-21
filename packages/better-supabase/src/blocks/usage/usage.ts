@@ -3,11 +3,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockOptions, CursorPageOptions } from "../shared.ts";
+import type { StripeSource } from "../stripe.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
-  type BlockOptions,
   DEFAULT_BLOCK_SCHEMA,
   eachLimit,
   isRecord,
@@ -17,11 +18,10 @@ import {
   textOf,
   toInstant,
   applyTemporal,
-  type CursorPageOptions,
   pageOf,
   seconds,
 } from "../shared.ts";
-import { lazyStripe, type StripeSource } from "../stripe.ts";
+import { lazyStripe } from "../stripe.ts";
 
 export interface UsageOptions extends BlockOptions {
   /**

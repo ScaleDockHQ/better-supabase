@@ -1,7 +1,9 @@
+import type { RecipeSummary } from "@/lib/recipe-filter";
+
 import { Badge } from "@/components/reui/badge";
 import { SiteLink } from "@/components/site/site-link";
 import { BlockIcon } from "@/features/blocks/components/block-icon";
-import { type RecipeSummary, recipePath } from "@/lib/recipe-filter";
+import { recipePath } from "@/lib/recipe-filter";
 
 import { RecipeCover } from "./recipe-cover";
 

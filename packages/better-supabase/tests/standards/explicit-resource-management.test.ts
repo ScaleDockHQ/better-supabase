@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { RealtimeClient } from "../../src/realtime/index.ts";
+
 import { createPostgres } from "../../src/postgres/index.ts";
-import { defineTopic, type RealtimeClient } from "../../src/realtime/index.ts";
+import { defineTopic } from "../../src/realtime/index.ts";
 import { fakePgPool } from "../fixtures/fake-pg-pool.ts";
 import { topics } from "../fixtures/generated-camel.ts";
 

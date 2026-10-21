@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
+import type { PostgrestClientLike } from "../../src/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { resolveUrlLengthLimit } from "../../src/core/postgrest-executor.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  type PostgrestClientLike,
-  postgrestExecutor,
-} from "../../src/index.ts";
+import { postgrestExecutor } from "../../src/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

@@ -5,11 +5,9 @@ import * as v from "valibot";
 import { postgres, userClaims } from "@/features/developer/postgres";
 import { bs } from "@/lib/supabase/server";
 
-import {
-  type WebhookDeliveryRow,
-  type WebhookEndpointRow,
-  WebhookStatus,
-} from "./webhook-types";
+import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
+
+import { WebhookStatus } from "./webhook-types";
 
 interface EndpointRecord {
   readonly id: string;

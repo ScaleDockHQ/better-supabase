@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 

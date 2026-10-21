@@ -1,15 +1,15 @@
 "use client";
 
-import { type UseChatHelpers, useChat } from "@ai-sdk/react";
-import {
-  type ChatOnFinishCallback,
-  type ChatTransport,
-  DefaultChatTransport,
-  type UIMessage,
-} from "ai";
+import type { UseChatHelpers } from "@ai-sdk/react";
+import type { ChatOnFinishCallback, ChatTransport, UIMessage } from "ai";
+
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { useCallback, useMemo } from "react";
 
-import { type AssistantTransportConfig, assistantBody } from "./body.ts";
+import type { AssistantTransportConfig } from "./body.ts";
+
+import { assistantBody } from "./body.ts";
 
 export type { AssistantTransportConfig } from "./body.ts";
 

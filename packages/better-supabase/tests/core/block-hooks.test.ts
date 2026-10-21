@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
+import type { Result } from "../../src/core/result.ts";
 
 import {
   defineTransportMiddleware,
@@ -10,7 +11,7 @@ import {
 } from "../../src/core/block-hooks.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { silentLogger } from "../../src/core/logger.ts";
-import { AsyncResult, type Result } from "../../src/core/result.ts";
+import { AsyncResult } from "../../src/core/result.ts";
 
 interface Counter {
   add(by: number, label?: string): AsyncResult<{ total: number }>;

@@ -1,4 +1,6 @@
-import { type DbError, DbException, dbError } from "./errors.ts";
+import type { DbError } from "./errors.ts";
+
+import { DbException, dbError } from "./errors.ts";
 import { optionalTemporal, TEMPORAL_MISSING } from "./temporal.ts";
 
 /** The error for a runtime without Temporal, naming the polyfill to load. */

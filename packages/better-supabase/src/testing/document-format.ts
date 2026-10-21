@@ -6,15 +6,10 @@ import type {
 } from "../spec/format.ts";
 import type { ApiModel, JsonSchema } from "../spec/model.ts";
 import type { StandardLike } from "../spec/schemas.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { buildApiModel } from "../spec/build.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  frozenCopy,
-  same,
-} from "./conformance.ts";
+import { conform, expect, frozenCopy, same } from "./conformance.ts";
 
 export interface TestDocumentFormatOptions<V extends string = string> {
   /**

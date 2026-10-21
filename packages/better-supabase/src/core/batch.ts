@@ -1,8 +1,9 @@
 import type { Operation } from "../ir/types.ts";
 import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
+import type { Result } from "./result.ts";
 
 import { dbError } from "./errors.ts";
-import { err, type Result, toDbError } from "./result.ts";
+import { err, toDbError } from "./result.ts";
 
 interface Pending {
   readonly op: Operation;

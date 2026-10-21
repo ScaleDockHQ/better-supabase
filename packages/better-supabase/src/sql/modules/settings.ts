@@ -7,12 +7,12 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 import type { ModuleScope } from "../scope.ts";
+import type { JsonSchemaCheck } from "../shared.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   recordTrigger,
-  type JsonSchemaCheck,
   jsonSchemaChecks,
   ownRowPolicies,
   schemaPreamble,

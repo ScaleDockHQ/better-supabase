@@ -1,7 +1,10 @@
+import type { DbError } from "./errors.ts";
+import type { Result } from "./result.ts";
+
 import { fromBase64, toBase64 } from "./base64.ts";
-import { type DbError, dbError } from "./errors.ts";
+import { dbError } from "./errors.ts";
 import { encoder, timingSafeEqual } from "./hmac.ts";
-import { err, ok, type Result } from "./result.ts";
+import { err, ok } from "./result.ts";
 import { temporalMissing } from "./temporal-required.ts";
 import { nowInstant, optionalTemporal } from "./temporal.ts";
 

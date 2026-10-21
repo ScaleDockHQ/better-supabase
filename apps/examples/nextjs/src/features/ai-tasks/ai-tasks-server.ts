@@ -1,10 +1,9 @@
 import "server-only";
-import { generatedOptions, type RpcClient } from "better-supabase/blocks";
-import {
-  type AiTasks,
-  createAiTasks,
-  rpcTransport,
-} from "better-supabase/blocks/ai-tasks";
+import type { RpcClient } from "better-supabase/blocks";
+import type { AiTasks } from "better-supabase/blocks/ai-tasks";
+
+import { generatedOptions } from "better-supabase/blocks";
+import { createAiTasks, rpcTransport } from "better-supabase/blocks/ai-tasks";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";

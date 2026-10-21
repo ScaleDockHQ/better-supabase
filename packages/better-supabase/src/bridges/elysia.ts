@@ -1,10 +1,10 @@
-import {
-  type AnyEntry,
-  bufferRequest,
-  type Contributions,
-} from "@supabase/middleware";
+import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { around, type Validated } from "./shared.ts";
+import { bufferRequest } from "@supabase/middleware";
+
+import type { Validated } from "./shared.ts";
+
+import { around } from "./shared.ts";
 
 export interface ElysiaBridge<Entries extends readonly AnyEntry[]> {
   /**

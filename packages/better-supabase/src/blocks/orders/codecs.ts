@@ -1,8 +1,10 @@
+import type { Money } from "../../commerce/money.ts";
 import type { Payment } from "../../commerce/payments.ts";
 import type { TaxLine, TaxQuote, TaxTransaction } from "../../commerce/tax.ts";
+import type { RowFields } from "../../core/block-fields.ts";
 
-import { money, type Money } from "../../commerce/money.ts";
-import { type RowFields, rowFields } from "../../core/block-fields.ts";
+import { money } from "../../commerce/money.ts";
+import { rowFields } from "../../core/block-fields.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
 import {
   enumOrThrow,

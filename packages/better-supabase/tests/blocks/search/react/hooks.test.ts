@@ -2,12 +2,11 @@ import type * as ReactModule from "react";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ClientLike } from "../../../../src/react/hooks.ts";
+
 import { useCommandSearch } from "../../../../src/blocks/search/react/index.ts";
 import { webKeyboard } from "../../../../src/client/web-ports.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { renderHook as render } from "../../../fixtures/hook-runtime.ts";
 
 vi.mock("react", async (importOriginal) => ({

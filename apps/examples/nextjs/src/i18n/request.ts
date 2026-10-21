@@ -1,4 +1,6 @@
-import { type AbstractIntlMessages, hasLocale } from "next-intl";
+import type { AbstractIntlMessages } from "next-intl";
+
+import { hasLocale } from "next-intl";
 import { getRequestConfig } from "next-intl/server";
 import { notFound } from "next/navigation";
 import * as rootParams from "next/root-params";

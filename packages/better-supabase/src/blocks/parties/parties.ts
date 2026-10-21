@@ -1,25 +1,27 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { CursorPageOptions } from "../shared.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
   readFields,
-  type RowFields,
   writeFields,
 } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
-  type CursorPageOptions,
   isRecord,
   optionalText,
   pageOf,

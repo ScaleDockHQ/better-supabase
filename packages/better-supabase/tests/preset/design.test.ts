@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { CreateDesign } from "../../src/preset/index.ts";
+
 import {
-  type CreateDesign,
   decodeDesign,
   DESIGN_FORMAT,
   designApplyCommand,

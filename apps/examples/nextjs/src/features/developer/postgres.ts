@@ -1,20 +1,10 @@
 import "server-only";
+import type { Result } from "better-supabase";
 import type { AuthSession } from "better-supabase/next";
+import type { BetterPostgres, SqlClaims } from "better-supabase/postgres";
 
-import {
-  dbError,
-  err,
-  mapDbError,
-  ok,
-  type Result,
-  toDbError,
-} from "better-supabase";
-import {
-  type BetterPostgres,
-  createPostgres,
-  fromPgError,
-  type SqlClaims,
-} from "better-supabase/postgres";
+import { dbError, err, mapDbError, ok, toDbError } from "better-supabase";
+import { createPostgres, fromPgError } from "better-supabase/postgres";
 
 let pool: BetterPostgres | undefined;
 

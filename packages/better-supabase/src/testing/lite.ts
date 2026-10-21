@@ -1,20 +1,22 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { createClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
+import type { LiteConnection, PgliteConnection } from "../lite/runtime.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { TestUser } from "./as-user.ts";
 import type { TestJwtClaims } from "./jwt.ts";
 
 import { toBase64Url } from "../core/base64.ts";
 import {
   LITE_INSTALL,
-  type LiteConnection,
   loadLite,
   migrateLite,
-  type PgliteConnection,
   seedLite,
 } from "../lite/runtime.ts";
-import { asUser, type TestUser } from "./as-user.ts";
+import { asUser } from "./as-user.ts";
 
 export interface LiteStackOptions {
   /**

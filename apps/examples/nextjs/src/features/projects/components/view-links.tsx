@@ -13,7 +13,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Link } from "@/i18n/navigation";
 
-import { TASK_VIEWS, type TaskView } from "../project-types";
+import type { TaskView } from "../project-types";
+
+import { TASK_VIEWS } from "../project-types";
 import { useViewLabel } from "../use-task-labels";
 
 const ICONS = {

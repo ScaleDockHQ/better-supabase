@@ -2,13 +2,11 @@ import { os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 
+import type { OrpcRequestContext, RateLimiter } from "../../src/orpc/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  createOrpc,
-  type OrpcRequestContext,
-  type RateLimiter,
-} from "../../src/orpc/index.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";

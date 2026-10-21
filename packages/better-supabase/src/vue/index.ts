@@ -1,23 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
+import type {
+  App,
+  ComputedRef,
+  InjectionKey,
+  MaybeRefOrGetter,
+  Ref,
+} from "vue";
 
 import {
-  type App,
   computed,
-  type ComputedRef,
   getCurrentScope,
   inject,
-  type InjectionKey,
-  type MaybeRefOrGetter,
   onScopeDispose,
   provide,
   readonly,
-  type Ref,
   shallowRef,
   toValue,
   watch,
 } from "vue";
 
+import type { SupportView } from "../auth/support-view.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
   ActionInputOf,
@@ -48,8 +51,9 @@ import type {
   Topic,
   TopicHandlers,
 } from "../realtime/index.ts";
+import type { Context } from "./context.ts";
 
-import { supportOf, type SupportView } from "../auth/support-view.ts";
+import { supportOf } from "../auth/support-view.ts";
 import {
   assertInvalidateClient,
   callerOf,
@@ -67,7 +71,7 @@ import {
   startLiveQuery,
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
-import { CLIENT, type Context, onClient, useContext } from "./context.ts";
+import { CLIENT, onClient, useContext } from "./context.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 

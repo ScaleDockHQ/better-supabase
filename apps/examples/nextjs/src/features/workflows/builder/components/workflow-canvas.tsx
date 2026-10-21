@@ -1,12 +1,12 @@
 // #region recipe:workflow-canvas
 "use client";
 
+import type { Connection } from "@xyflow/react";
 import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
 
 import {
   addEdge,
   Background,
-  type Connection,
   Controls,
   ReactFlow,
   useEdgesState,
@@ -34,6 +34,7 @@ import {
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
+import type { GraphFlowNode, GraphNodeData } from "./graph-node";
 
 import { isFinished, statusVariant } from "../../workflow-labels";
 import {
@@ -43,13 +44,7 @@ import {
   saveDraft,
 } from "../builder-actions";
 import { CredentialSheet } from "./credential-sheet";
-import {
-  fromFlow,
-  type GraphFlowNode,
-  type GraphNodeData,
-  nodeTypes,
-  toFlow,
-} from "./graph-node";
+import { fromFlow, nodeTypes, toFlow } from "./graph-node";
 import { NodePanel } from "./node-panel";
 import { PublishDialog } from "./publish-dialog";
 import { TriggerSheet } from "./trigger-sheet";

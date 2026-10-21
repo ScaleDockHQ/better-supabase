@@ -1,3 +1,4 @@
+import type { DbError } from "../../core/errors.ts";
 import type {
   EndpointRow,
   IncomingVerify,
@@ -13,7 +14,7 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { sqlTransport } from "../../core/block-transport.ts";
-import { dbError, type DbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../../core/problem.ts";
 import {
   hmacHex,

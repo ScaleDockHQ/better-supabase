@@ -4,10 +4,11 @@ import type { DbError } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 import type { Result } from "./result.ts";
 import type { OperationRunner } from "./runner.ts";
+import type { SearchInput } from "./search.ts";
 
 import { dbError } from "./errors.ts";
 import { AsyncResult, err, ok } from "./result.ts";
-import { vectorLiteral, type SearchInput } from "./search.ts";
+import { vectorLiteral } from "./search.ts";
 
 /**
  * `db.$search({ score: true })`: the ranked ids and scores from

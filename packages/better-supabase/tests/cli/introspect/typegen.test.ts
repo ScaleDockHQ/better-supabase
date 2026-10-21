@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { GeneratorMetadata } from "../../../src/cli/introspect/typegen.ts";
+
 import {
-  type GeneratorMetadata,
   generatorJsonSchema,
   orderArgsByPosition,
   readGeneratorMetadata,

@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { HookNames } from "./webhooks-out-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
 import {
   ADDED_COLUMNS,
   functions,
-  type HookNames,
   hookNames,
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";

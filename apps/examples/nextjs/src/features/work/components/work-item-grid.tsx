@@ -46,6 +46,15 @@ import {
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type {
+  MemberOption,
+  SavedViewOption,
+  StageColumn,
+  WorkGridQuery,
+  WorkItemRow,
+  WorkItemSort,
+} from "../work-types";
+
 import {
   stateBadgeVariant,
   usePriorityLabel,
@@ -59,14 +68,8 @@ import {
   setWorkItemStage,
 } from "../work-actions";
 import {
-  type MemberOption,
-  type SavedViewOption,
-  type StageColumn,
-  type WorkGridQuery,
-  type WorkItemRow,
   WORK_ITEM_SORTS,
   WORK_ITEM_STATES,
-  type WorkItemSort,
   workGridSearch,
 } from "../work-types";
 import { BulkActionBar } from "./bulk-action-bar";

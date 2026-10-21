@@ -1,13 +1,10 @@
 import * as v from "valibot";
 
+import type { RecipeSummary } from "./recipe-filter";
 import type { RecipePlatform } from "./recipe-platform";
 
 import { blockCategories, getBlock } from "./blocks";
-import {
-  RECIPE_CATEGORY_NAMES,
-  type RecipeSummary,
-  recipeKinds,
-} from "./recipe-filter";
+import { RECIPE_CATEGORY_NAMES, recipeKinds } from "./recipe-filter";
 // Written by scripts/build-recipes.ts from the example apps' region markers
 // before every build, dev, typecheck, lint and test run (Turbo `//#recipes`).
 import recipesJson from "./recipes.json";

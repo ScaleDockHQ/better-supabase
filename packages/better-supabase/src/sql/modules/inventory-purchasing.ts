@@ -1,7 +1,8 @@
 import type { ModuleContext } from "../context.ts";
+import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
-import { type InventoryNames, columns, guard } from "./inventory-stock.ts";
+import { columns, guard } from "./inventory-stock.ts";
 
 const UUID =
   "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";

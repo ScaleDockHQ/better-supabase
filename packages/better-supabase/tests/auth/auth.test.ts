@@ -2,18 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
+import type { StoredSession } from "../../src/auth/session.ts";
+
 import { authContext } from "../../src/auth/context.ts";
-import {
-  clientIp,
-  resolveAuth,
-  type ResolveAuthOptions,
-} from "../../src/auth/resolve.ts";
+import { clientIp, resolveAuth } from "../../src/auth/resolve.ts";
 import {
   parseCookies,
   readSession,
   serializeCookie,
   sessionCookieName,
-  type StoredSession,
   writeSession,
 } from "../../src/auth/session.ts";
 import { toSession } from "../../src/auth/view.ts";

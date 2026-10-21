@@ -1,5 +1,9 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+
+import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
+
+import type { UserName } from "./users";
 
 import {
   cardTitle,
@@ -10,7 +14,7 @@ import {
   visibleTestId,
   visibleText,
 } from "./nav";
-import { type UserName, users } from "./users";
+import { users } from "./users";
 
 interface Tab {
   readonly path: string;

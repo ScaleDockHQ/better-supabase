@@ -1,16 +1,15 @@
 import type { ArgDef, ArgsDef } from "citty";
 
 import type { Paint } from "../style.ts";
+import type {
+  CommandEffect,
+  CommandExample,
+  CommandGroup,
+} from "./manifest.ts";
 import type { CommandNode } from "./parse.ts";
 
 import { GLOBAL_ARGS, listArgs } from "./command.ts";
-import {
-  type CommandEffect,
-  type CommandExample,
-  type CommandGroup,
-  DOCS_ORIGIN,
-  GROUPS,
-} from "./manifest.ts";
+import { DOCS_ORIGIN, GROUPS } from "./manifest.ts";
 import { commandArgs, isVariadic } from "./parse.ts";
 
 const COMMANDS_SCHEMA_URL =

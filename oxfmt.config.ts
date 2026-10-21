@@ -1,4 +1,6 @@
-import { type OxfmtConfig, defineConfig } from "oxfmt";
+import type { OxfmtConfig } from "oxfmt";
+
+import { defineConfig } from "oxfmt";
 import ultracite from "ultracite/oxfmt";
 
 import { ignorePatterns } from "./oxlint.config.ts";

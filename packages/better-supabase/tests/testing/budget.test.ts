@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { DbStats } from "../../src/core/stats.ts";
-
-import {
-  type BudgetPage,
-  type BudgetRequest,
-  type BudgetResponse,
-  expectDbBudget,
+import type {
+  BudgetPage,
+  BudgetRequest,
+  BudgetResponse,
 } from "../../src/testing/budget.ts";
+
+import { expectDbBudget } from "../../src/testing/budget.ts";
 
 function fakePage(
   renders: Record<string, DbStats>,

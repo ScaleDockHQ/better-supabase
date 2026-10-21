@@ -1,5 +1,7 @@
+import type { DefineApiOptions } from "../spec/api.ts";
 import type { SpecDiagnostic } from "../spec/format.ts";
 import type { ApiSource } from "../spec/options.ts";
+import type { ArazzoFormatOptions } from "./format.ts";
 import type {
   AnyArazzoDocument,
   ArazzoDocuments,
@@ -7,8 +9,8 @@ import type {
   RenderedArazzo,
 } from "./types.ts";
 
-import { type DefineApiOptions, defineApi } from "../spec/api.ts";
-import { type ArazzoFormatOptions, createArazzoFormat } from "./format.ts";
+import { defineApi } from "../spec/api.ts";
+import { createArazzoFormat } from "./format.ts";
 
 export type { WorkflowSource } from "../spec/options.ts";
 

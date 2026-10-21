@@ -1,5 +1,7 @@
+import type { LogFields, Logger } from "./logger.ts";
+
 import { EventHub } from "./events.ts";
-import { consoleLogger, type LogFields, type Logger } from "./logger.ts";
+import { consoleLogger } from "./logger.ts";
 
 /**
  * Debug records for the `diagnostics` option, after the Supabase SDK capability

@@ -1,24 +1,28 @@
+import type {
+  Attributes,
+  Histogram,
+  Meter,
+  Span,
+  Tracer,
+} from "@opentelemetry/api";
+
 import {
-  type Attributes,
   context,
-  type Histogram,
-  type Meter,
   metrics,
   propagation,
   SpanKind,
-  type Span,
   SpanStatusCode,
   trace,
-  type Tracer,
 } from "@opentelemetry/api";
 
 import type { DbError } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
+import type { Plugin } from "../core/plugin.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { blockEventAttributes } from "../core/block-events.ts";
-import { definePlugin, type Plugin } from "../core/plugin.ts";
+import { definePlugin } from "../core/plugin.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { VERSION } from "../core/version.ts";
 

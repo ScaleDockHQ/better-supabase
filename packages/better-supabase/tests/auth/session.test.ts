@@ -5,15 +5,15 @@ import {
 } from "@supabase/ssr";
 import { describe, expect, it } from "vitest";
 
+import type { CookieWrite, StoredSession } from "../../src/auth/session.ts";
+
 import {
   applyCookieWrites,
-  type CookieWrite,
   clearSessionAtScopes,
   DEFAULT_SESSION_ENCODING,
   pruneSessionChunks,
   readSession,
   sessionEncoding,
-  type StoredSession,
   writeSession,
 } from "../../src/auth/session.ts";
 

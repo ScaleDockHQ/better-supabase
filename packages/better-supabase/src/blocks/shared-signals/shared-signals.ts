@@ -1,15 +1,9 @@
 import type { BlockOptions } from "../shared.ts";
+import type { SsfReceiver, SsfReceiverOptions } from "./receiver.ts";
+import type { SsfTransmitter, SsfTransmitterOptions } from "./transmitter.ts";
 
-import {
-  createSsfReceiver,
-  type SsfReceiver,
-  type SsfReceiverOptions,
-} from "./receiver.ts";
-import {
-  createSsfTransmitter,
-  type SsfTransmitter,
-  type SsfTransmitterOptions,
-} from "./transmitter.ts";
+import { createSsfReceiver } from "./receiver.ts";
+import { createSsfTransmitter } from "./transmitter.ts";
 
 export type SharedSignalsOptions = BlockOptions;
 

@@ -1,10 +1,13 @@
 "use server";
 
+import type {
+  ImportPreview,
+  ImportRowError,
+} from "better-supabase/blocks/imports";
+
 import { DbException, err, ok } from "better-supabase";
 import {
   appTableImport,
-  type ImportPreview,
-  type ImportRowError,
   previewImport,
   runImport,
 } from "better-supabase/blocks/imports";
@@ -15,11 +18,9 @@ import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bs } from "@/lib/supabase/server";
 
-import {
-  TASK_IMPORT_FIELDS,
-  type TaskStatus,
-  TaskStatusSchema,
-} from "./project-types";
+import type { TaskStatus } from "./project-types";
+
+import { TASK_IMPORT_FIELDS, TaskStatusSchema } from "./project-types";
 
 const PREVIEW_ROWS = 20;
 

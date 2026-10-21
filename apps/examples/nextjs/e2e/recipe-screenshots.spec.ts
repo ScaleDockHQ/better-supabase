@@ -12,7 +12,9 @@
 import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 
-import { openCustomer, RECIPE_ROUTES, type RecipeRoute } from "./recipe-routes";
+import type { RecipeRoute } from "./recipe-routes";
+
+import { openCustomer, RECIPE_ROUTES } from "./recipe-routes";
 import { users } from "./users";
 
 const OUT = join(import.meta.dirname, "../../../marketing/public/recipes");

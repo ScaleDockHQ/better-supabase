@@ -6,14 +6,14 @@ import type {
   CursorPage,
   OffsetPage,
 } from "../../src/core/repository-types.ts";
+import type {
+  FilterField,
+  FilterQuery,
+  ListQuery,
+} from "../../src/list/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  defineListQuery,
-  type FilterField,
-  type FilterQuery,
-  type ListQuery,
-} from "../../src/list/index.ts";
+import { defineListQuery } from "../../src/list/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;

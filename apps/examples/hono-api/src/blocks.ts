@@ -1,3 +1,6 @@
+import type { VercelMarketplace } from "better-supabase/blocks/vercel-marketplace";
+import type { BetterPostgres } from "better-supabase/postgres";
+
 import { DbException, dbError } from "better-supabase";
 import { createApiKeys } from "better-supabase/blocks/api-keys";
 import { createOAuthServer } from "better-supabase/blocks/oauth-server";
@@ -5,9 +8,8 @@ import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 import {
   createVercelMarketplace,
   sqlTransport,
-  type VercelMarketplace,
 } from "better-supabase/blocks/vercel-marketplace";
-import { type BetterPostgres, createPostgres } from "better-supabase/postgres";
+import { createPostgres } from "better-supabase/postgres";
 
 interface Blocks {
   readonly postgres: BetterPostgres;

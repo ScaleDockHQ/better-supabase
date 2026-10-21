@@ -10,7 +10,18 @@ import type {
   SchemaMeta,
   TableMeta,
 } from "../../index.ts";
+import type { GeneratorMetadata } from "../introspect/typegen.ts";
 import type { Catalog, CatalogTable, Snapshot } from "../introspect/types.ts";
+import type {
+  ColumnModel,
+  DraftTable,
+  EnumModel,
+  FunctionModel,
+  JsonImport,
+  ModelContext,
+  RelationModel,
+  TableModel,
+} from "./model-types.ts";
 
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
@@ -18,28 +29,11 @@ import { resolveProviderSql } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { toCatalog } from "../introspect/catalog.ts";
-import {
-  type GeneratorMetadata,
-  restrictSchemas,
-  tsTypeOf,
-} from "../introspect/typegen.ts";
+import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
 import { commentMeta } from "./comment.ts";
 import { buildFunctions } from "./model-functions.ts";
 import { buildRelations, namingColumns } from "./model-relations.ts";
-import {
-  type ColumnModel,
-  type DraftTable,
-  type EnumModel,
-  type FunctionModel,
-  type JsonImport,
-  type ModelContext,
-  type RelationModel,
-  type TableModel,
-  CODEC_TYPE,
-  applyCasing,
-  codecFor,
-  enumType,
-} from "./model-types.ts";
+import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
 import {
   arrayOf,
   configFor,

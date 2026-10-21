@@ -40,8 +40,9 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import type { WebhookEndpointRow, WebhookStatus } from "../webhook-types";
+import type { WebhooksOverview } from "../webhooks-queries";
 
-import { loadWebhooks, type WebhooksOverview } from "../webhooks-queries";
+import { loadWebhooks } from "../webhooks-queries";
 import {
   CreateWebhookDialog,
   RedeliverButton,

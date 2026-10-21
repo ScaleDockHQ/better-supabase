@@ -3,13 +3,14 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { BetterQueries } from "../query/index.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
-import { createQueries, type BetterQueries } from "../query/index.ts";
+import { createQueries } from "../query/index.ts";
 import { identityKey } from "../query/user-change.ts";
 
 export interface AuthUser {

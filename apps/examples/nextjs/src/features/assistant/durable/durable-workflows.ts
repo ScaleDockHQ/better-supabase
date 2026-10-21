@@ -1,12 +1,13 @@
+import type {
+  DurableAgentArgs,
+  DurableTurnDeps,
+  DurableTurnInput,
+  DurableTurnResult,
+} from "better-supabase/ai-sdk/workflow";
+
 import { WorkflowAgent } from "@ai-sdk/workflow";
 import { jsonSchema, tool } from "ai";
-import {
-  type DurableAgentArgs,
-  durableTurn,
-  type DurableTurnDeps,
-  type DurableTurnInput,
-  type DurableTurnResult,
-} from "better-supabase/ai-sdk/workflow";
+import { durableTurn } from "better-supabase/ai-sdk/workflow";
 import { createHook, getWorkflowMetadata, getWritable } from "workflow";
 
 import {

@@ -1,5 +1,6 @@
+import type { CookieOptions } from "@supabase/ssr";
+
 import {
-  type CookieOptions,
   createChunks,
   DEFAULT_COOKIE_OPTIONS,
   isChunkLike,

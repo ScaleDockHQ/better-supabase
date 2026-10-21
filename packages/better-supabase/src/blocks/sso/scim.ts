@@ -1,19 +1,18 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { ApiKeys } from "../api-keys/api-keys.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { ScimFilter } from "./scim-filter.ts";
+import type {
+  ScimResourceType,
+  ScimStore,
+  ScimStoredResource,
+  ScimSyncLog,
+  ScimSyncOperation,
+} from "./scim-store.ts";
 
-import {
-  isRecord,
-  optionalText,
-  type BlockTemporalOptions,
-  applyTemporal,
-} from "../shared.ts";
-import {
-  matches,
-  parseFilter,
-  type ScimFilter,
-  ScimFilterError,
-} from "./scim-filter.ts";
+import { isRecord, optionalText, applyTemporal } from "../shared.ts";
+import { matches, parseFilter, ScimFilterError } from "./scim-filter.ts";
 import { applyPatch, ScimPatchError } from "./scim-patch.ts";
 import {
   ATTRIBUTES,
@@ -27,14 +26,7 @@ import {
   schemas,
   serviceProviderConfig,
 } from "./scim-schema.ts";
-import {
-  type ScimResourceType,
-  type ScimStore,
-  type ScimStoredResource,
-  type ScimSyncLog,
-  type ScimSyncOperation,
-  sqlScimStore,
-} from "./scim-store.ts";
+import { sqlScimStore } from "./scim-store.ts";
 
 interface ScimHandlerBaseOptions extends BlockTemporalOptions {
   /** Verifies the bearer token: an organization API key with the `scim` scope. */

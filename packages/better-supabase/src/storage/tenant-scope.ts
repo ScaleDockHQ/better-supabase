@@ -1,6 +1,8 @@
+import type { RequestContext } from "../core/plugin.ts";
+
 import { tenantFrom, tenantPathsFor } from "../core/claims.ts";
 import { dbError, DbException } from "../core/errors.ts";
-import { type RequestContext, spansAllTenants } from "../core/plugin.ts";
+import { spansAllTenants } from "../core/plugin.ts";
 
 export interface TenantScopeOptions {
   readonly context?: RequestContext | undefined;

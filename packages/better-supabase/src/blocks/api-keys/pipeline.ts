@@ -1,11 +1,7 @@
+import type { Entry, SingleKeyEntry } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 
-import {
-  defineComposite,
-  defineMiddleware,
-  type Entry,
-  type SingleKeyEntry,
-} from "@supabase/middleware";
+import { defineComposite, defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "../../auth/resolve.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";

@@ -1,7 +1,8 @@
+import type { DbError } from "../core/errors.ts";
 import type { ProblemFormat } from "../core/problem.ts";
 import type { Result } from "../core/result.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import {
   isRateLimitPolicyName,
   periodSeconds,

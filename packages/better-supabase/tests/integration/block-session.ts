@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";

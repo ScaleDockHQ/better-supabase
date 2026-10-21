@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockOptions } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -6,10 +7,8 @@ import type { JobHandler } from "../jobs/types.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { applyTemporal } from "../../core/block-helpers.ts";

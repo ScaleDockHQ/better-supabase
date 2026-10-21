@@ -2,14 +2,10 @@ import type {
   DeliveryTransport,
   EmailMessage,
 } from "../blocks/notifications/delivery.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { mailHeaders } from "../blocks/notifications/delivery.ts";
-import {
-  type ConformanceReport,
-  conform,
-  deepFreeze,
-  expect,
-} from "./conformance.ts";
+import { conform, deepFreeze, expect } from "./conformance.ts";
 
 /** What the provider received for one message, as the test's fake reports it. */
 export interface ReceivedDelivery {

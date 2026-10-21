@@ -1,8 +1,9 @@
 import type { EventHub } from "../core/events.ts";
+import type { Logger } from "../core/logger.ts";
 
 import { mapDbError } from "../core/errors.ts";
 import { errorEvent } from "../core/events.ts";
-import { consoleLogger, type Logger } from "../core/logger.ts";
+import { consoleLogger } from "../core/logger.ts";
 import { toDbError } from "../core/result.ts";
 import { fromPgError } from "./pg-error.ts";
 

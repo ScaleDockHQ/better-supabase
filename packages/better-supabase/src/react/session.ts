@@ -1,16 +1,13 @@
 "use client";
 
-import {
-  createContext,
-  createElement,
-  type ReactNode,
-  use,
-  useContext,
-} from "react";
+import type { ReactNode } from "react";
 
+import { createContext, createElement, use, useContext } from "react";
+
+import type { SupportView } from "../auth/support-view.ts";
 import type { AuthSession } from "../auth/view.ts";
 
-import { supportOf, type SupportView } from "../auth/support-view.ts";
+import { supportOf } from "../auth/support-view.ts";
 
 const SessionContext = createContext<Promise<AuthSession> | null>(null);
 

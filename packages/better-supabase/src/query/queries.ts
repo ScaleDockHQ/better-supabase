@@ -7,6 +7,7 @@ import type {
 
 import type { CacheAdapter } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
 import type {
   CursorPage,
   CursorPageArgs,
@@ -44,11 +45,12 @@ import type {
   UniqueWhere,
   Update,
 } from "../schema/types.ts";
+import type { BetterQueryMeta } from "./invalidate.ts";
 
 import { isPlainObject } from "../core/clone.ts";
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 import { invalidationTargets } from "../ir/tables.ts";
-import { type BetterQueryMeta, invalidateTables } from "./invalidate.ts";
+import { invalidateTables } from "./invalidate.ts";
 
 /**
  * Query errors stay `DbException`s, even for an `betterSupabase` with

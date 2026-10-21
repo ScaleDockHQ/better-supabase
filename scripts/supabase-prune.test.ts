@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { Stack } from "./supabase-prune.ts";
+
 import {
   mergedBranches,
   prunableStacks,
-  type Stack,
   worktreeRoots,
 } from "./supabase-prune.ts";
 

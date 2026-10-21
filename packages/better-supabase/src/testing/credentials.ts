@@ -4,9 +4,10 @@ import type {
   CredentialRef,
   CredentialSubject,
 } from "../credentials/provider.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { tenantCredentialRef } from "../credentials/provider.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface TestCredentialProviderOptions {
   /** An app-scoped ref the kit may store into and revoke. */

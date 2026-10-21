@@ -1,16 +1,13 @@
 import type { BlockCall } from "./block-helpers.ts";
 import type { BlockTransport } from "./block-transport.ts";
+import type { DbError, ErrorMapper } from "./errors.ts";
 import type { Logger } from "./logger.ts";
+import type { Result } from "./result.ts";
 
 import { blockCall, DEFAULT_BLOCK_SCHEMA } from "./block-helpers.ts";
-import {
-  type DbError,
-  dbError,
-  type ErrorMapper,
-  isDbError,
-} from "./errors.ts";
+import { dbError, isDbError } from "./errors.ts";
 import { consoleLogger } from "./logger.ts";
-import { AsyncResult, err, type Result } from "./result.ts";
+import { AsyncResult, err } from "./result.ts";
 
 /** A block method: anything that returns an `AsyncResult`. */
 type BlockMethod = (...args: never[]) => AsyncResult<unknown>;

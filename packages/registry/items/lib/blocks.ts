@@ -1,8 +1,6 @@
-import {
-  type RpcClient,
-  defineBlocks,
-  rpcTransport,
-} from "better-supabase/blocks";
+import type { RpcClient } from "better-supabase/blocks";
+
+import { defineBlocks, rpcTransport } from "better-supabase/blocks";
 import { auditBlock } from "better-supabase/blocks/audit";
 import {
   createNotifications,

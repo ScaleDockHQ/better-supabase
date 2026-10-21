@@ -11,7 +11,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-import { type Permission, can } from "../user-permissions";
+import type { Permission } from "../user-permissions";
+
+import { can } from "../user-permissions";
 import { getSession } from "../user-queries";
 
 /**

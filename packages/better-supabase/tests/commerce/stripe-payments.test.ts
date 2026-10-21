@@ -1,18 +1,21 @@
 import { Stripe } from "stripe";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type {
+  Payment,
+  PaymentProvider,
+  StripePaymentIntent,
+  StripePaymentsClient,
+  StripeRefund,
+} from "../../src/commerce/index.ts";
+
 import { signStripeWebhook } from "../../src/blocks/webhooks/verify.ts";
 import {
   fromStripeAmount,
   money,
-  type Payment,
   paymentProviderOf,
-  type PaymentProvider,
   stripePaymentEvents,
   stripePayments,
-  type StripePaymentIntent,
-  type StripePaymentsClient,
-  type StripeRefund,
   toStripeAmount,
 } from "../../src/commerce/index.ts";
 import { stripeError } from "../../src/commerce/stripe-shared.ts";

@@ -1,14 +1,14 @@
 import "server-only";
-import { generatedOptions, type RpcClient } from "better-supabase/blocks";
+import type { RpcClient } from "better-supabase/blocks";
+import type { AiProviders } from "better-supabase/blocks/ai-providers";
+import type { VaultCredentials } from "better-supabase/credentials";
+
+import { generatedOptions } from "better-supabase/blocks";
 import {
-  type AiProviders,
   createAiProviders,
   rpcTransport,
 } from "better-supabase/blocks/ai-providers";
-import {
-  type VaultCredentials,
-  vaultCredentials,
-} from "better-supabase/credentials";
+import { vaultCredentials } from "better-supabase/credentials";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";

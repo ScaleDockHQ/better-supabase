@@ -1,6 +1,7 @@
 import type { CacheAdapter, CacheTarget } from "../../core/cache.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import { conform, deepFreeze, type ConformanceReport } from "../conformance.ts";
+import { conform, deepFreeze } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 /**

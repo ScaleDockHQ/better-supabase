@@ -1,4 +1,6 @@
-import { arrayOf, isRecord, type Reader } from "./guards.ts";
+import type { Reader } from "./guards.ts";
+
+import { arrayOf, isRecord } from "./guards.ts";
 import { SUPABASE_API } from "./oauth.ts";
 
 export const SMART_REGIONS = ["americas", "emea", "apac"] as const;

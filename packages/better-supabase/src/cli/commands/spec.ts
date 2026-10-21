@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SpecDiagnostic, SpecUi } from "../../spec/index.ts";
 import type { AnyCommand, CliContext, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type {
   FailOn,
@@ -15,12 +16,7 @@ import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { errorText, failedResult, CliError } from "../core/errors.ts";
-import {
-  applyPlan,
-  changedFiles,
-  changeLines,
-  type FilePlan,
-} from "../core/files.ts";
+import { applyPlan, changedFiles, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { writeAtomic } from "../introspect/cache.ts";

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { type DocsPageSummary, searchDocs } from "../../lib/page-search";
+import type { DocsPageSummary } from "../../lib/page-search";
+
+import { searchDocs } from "../../lib/page-search";
 
 const pages: readonly DocsPageSummary[] = [
   {

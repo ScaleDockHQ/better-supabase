@@ -5,6 +5,8 @@
  * imports nothing from Node.
  */
 
+import type { Json, JsonRpcRequest } from "./json-rpc.ts";
+
 import { jsonReplacer } from "../core/json.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import {
@@ -12,8 +14,6 @@ import {
   INVALID_REQUEST,
   isObject,
   isRpcRequest,
-  type Json,
-  type JsonRpcRequest,
   META_SERVER_INFO,
   META_VERSION,
   METHOD_NOT_FOUND,

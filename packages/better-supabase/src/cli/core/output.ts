@@ -1,7 +1,9 @@
+import type { Paint } from "../style.ts";
+import type { CliErrorCode, CliProblem } from "./errors.ts";
 import type { CommandResult, NextStep } from "./io.ts";
 
-import { highlight, type Paint } from "../style.ts";
-import { CliError, type CliErrorCode, type CliProblem } from "./errors.ts";
+import { highlight } from "../style.ts";
+import { CliError } from "./errors.ts";
 
 /**
  * What one run writes: text, or under `--json` exactly one JSON document on

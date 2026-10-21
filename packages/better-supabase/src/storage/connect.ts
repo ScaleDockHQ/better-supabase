@@ -14,6 +14,7 @@ import type {
 } from "./bucket.ts";
 import type { StoragePath } from "./path.ts";
 import type { TenantGuard } from "./tenant-scope.ts";
+import type { ObjectVersion } from "./versioning.ts";
 
 import { DbException, dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
@@ -24,7 +25,7 @@ import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
 import { storageApiOf } from "./storage-api.ts";
 import { ttlSeconds } from "./ttl.ts";
-import { type ObjectVersion, toVersion } from "./versioning.ts";
+import { toVersion } from "./versioning.ts";
 
 /** Folder listings in flight at once while `list` walks a tree. */
 const LIST_CONCURRENCY = 4;

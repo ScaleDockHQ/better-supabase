@@ -1,10 +1,6 @@
-import {
-  type DependencyList,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import type { DependencyList } from "react";
+
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { Controller } from "./controller.ts";
 

@@ -2,13 +2,12 @@ import type * as ReactModule from "react";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { ClientLike } from "../../src/react/hooks.ts";
+
 import { defineController } from "../../src/blocks/controller.ts";
 import { useController } from "../../src/blocks/react-controller.ts";
 import { useBlockEnv } from "../../src/blocks/react-env.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../src/react/hooks.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { fakeAuth, fakeTopic } from "../fixtures/ports.ts";

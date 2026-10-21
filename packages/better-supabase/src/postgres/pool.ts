@@ -3,8 +3,9 @@ import { Pool } from "pg";
 import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Logger } from "../core/logger.ts";
+import type { SqlClient } from "./executor.ts";
 
-import { postgresExecutor, type SqlClient } from "./executor.ts";
+import { postgresExecutor } from "./executor.ts";
 import { watchPoolErrors } from "./pool-errors.ts";
 
 /** The part of a `pg` pool client `createPostgres` uses. */

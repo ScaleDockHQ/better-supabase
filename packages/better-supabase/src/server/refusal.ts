@@ -1,14 +1,11 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AnyAuthorizer } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { BlockRequireOptions, ResourceLoaderContext } from "./kit.ts";
 
 import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
-import {
-  type BlockRequireOptions,
-  requireCaller,
-  type ResourceLoaderContext,
-} from "./kit.ts";
+import { requireCaller } from "./kit.ts";
 import { defaultExpose } from "./respond.ts";
 
 /** Where refused callers go instead of a Problem Details response. */

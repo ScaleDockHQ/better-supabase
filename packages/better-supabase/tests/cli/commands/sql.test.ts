@@ -11,12 +11,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import {
   modulePermissionKeys,
   renderModules,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Lint } from "../../../src/cli/doctor/advisors.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogColumn,
@@ -9,11 +10,7 @@ import type {
 } from "../../../src/cli/introspect/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";

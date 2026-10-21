@@ -4,6 +4,7 @@ import type * as ReactModule from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../../../src/client/index.ts";
+import type { ClientLike } from "../../../../src/react/hooks.ts";
 
 import {
   useConversation,
@@ -12,10 +13,7 @@ import {
 } from "../../../../src/blocks/inbox/react/index.ts";
 import { webStorage } from "../../../../src/client/web-ports.ts";
 import { defineSupabase } from "../../../../src/core/define.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { defineSchema } from "../../../../src/schema/define.ts";
 import { schema } from "../../../fixtures/generated-camel.ts";
 

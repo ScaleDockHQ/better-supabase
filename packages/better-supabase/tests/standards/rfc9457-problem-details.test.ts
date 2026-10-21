@@ -3,13 +3,12 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
+import type { DbError, DbErrorKind } from "../../src/core/errors.ts";
+import type { HonoEnv } from "../../src/hono/index.ts";
+import type { Functions, Models } from "../fixtures/generated-camel.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  type DbError,
-  type DbErrorKind,
-  dbError,
-  statusOf,
-} from "../../src/core/errors.ts";
+import { dbError, statusOf } from "../../src/core/errors.ts";
 import {
   fromProblem,
   isProblem,
@@ -19,14 +18,10 @@ import {
 } from "../../src/core/problem.ts";
 import { err } from "../../src/core/result.ts";
 import { createEdge } from "../../src/edge/index.ts";
-import { type HonoEnv, createHono } from "../../src/hono/index.ts";
+import { createHono } from "../../src/hono/index.ts";
 import { PROBLEM_SCHEMA } from "../../src/openapi/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
-import {
-  type Functions,
-  type Models,
-  schema,
-} from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 const KINDS: readonly DbErrorKind[] = [
   "not_found",

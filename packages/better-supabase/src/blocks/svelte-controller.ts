@@ -1,11 +1,14 @@
+import type { Readable } from "svelte/store";
+
 import { getContext, onDestroy, onMount } from "svelte";
-import { readable, type Readable } from "svelte/store";
+import { readable } from "svelte/store";
 
 import type { ClientLike } from "../bindings/client.ts";
+import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
 
 import { CLIENT } from "../svelte/context.ts";
-import { blockEnv, type BlockOptions, withEnv } from "./block-env.ts";
+import { blockEnv, withEnv } from "./block-env.ts";
 
 /**
  * A block controller in a Svelte component: a readable store of its state, with

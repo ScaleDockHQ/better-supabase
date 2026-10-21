@@ -1,13 +1,7 @@
 import type { TableMeta } from "../schema/types.ts";
+import type { Condition, Include, Operation, Selection } from "./types.ts";
 
-import {
-  and,
-  type Condition,
-  type Include,
-  not,
-  type Operation,
-  type Selection,
-} from "./types.ts";
+import { and, not } from "./types.ts";
 
 /** Returns the filter that always applies to rows of `table`, if any. */
 export type ScopeFor = (table: TableMeta) => Condition | undefined;

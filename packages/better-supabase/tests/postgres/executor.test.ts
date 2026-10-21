@@ -7,13 +7,11 @@ import type {
   SelectOp,
   UpdateOp,
 } from "../../src/ir/types.ts";
+import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { dbError } from "../../src/core/errors.ts";
 import { IrBuilder } from "../../src/ir/build.ts";
-import {
-  postgresExecutor,
-  type SqlClient,
-} from "../../src/postgres/executor.ts";
+import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { fromPgError } from "../../src/postgres/pg-error.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";

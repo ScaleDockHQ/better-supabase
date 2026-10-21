@@ -1,11 +1,9 @@
+import type { HookTarget } from "./extras.ts";
+import type { Queryable } from "./typegen.ts";
 import type { Snapshot } from "./types.ts";
 
-import { type HookTarget, readExtras } from "./extras.ts";
-import {
-  type Queryable,
-  readGeneratorMetadata,
-  stabilizeMetadata,
-} from "./typegen.ts";
+import { readExtras } from "./extras.ts";
+import { readGeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
 
 export interface IntrospectOptions {
   /** Auth hook functions to read too, in any schema (`[auth.hook.*]`). */

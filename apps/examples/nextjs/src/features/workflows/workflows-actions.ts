@@ -1,6 +1,8 @@
 "use server";
 
-import { dbError, err, ok, type RequestContext } from "better-supabase";
+import type { RequestContext } from "better-supabase";
+
+import { dbError, err, ok } from "better-supabase";
 import {
   authorizeHook,
   HookForbiddenError,
@@ -12,11 +14,9 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 import { getRun, resumeHook } from "workflow/api";
 
-import {
-  can,
-  type Permission,
-  PERMISSIONS,
-} from "@/features/user/user-permissions";
+import type { Permission } from "@/features/user/user-permissions";
+
+import { can, PERMISSIONS } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 

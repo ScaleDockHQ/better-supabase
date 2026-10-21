@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";

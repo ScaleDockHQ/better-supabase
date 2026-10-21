@@ -1,7 +1,8 @@
+import type { Jwks } from "../../core/jws.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { Signer } from "../signing-keys/signing-keys.ts";
 
-import { type Jwks, JwsError, verifyCompact } from "../../core/jws.ts";
+import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { isRecord } from "../shared.ts";
 
 /** The `typ` header of a Security Event Token (RFC 8417 §2.3). */

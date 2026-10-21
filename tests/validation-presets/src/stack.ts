@@ -1,8 +1,9 @@
 import type { PresetName } from "better-supabase/preset";
+import type { PoolClient } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
 import { moduleLayout, renderModules } from "better-supabase/sql";
-import { DatabaseError, Pool, type PoolClient } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 // `pnpm env:local` writes it (the CLI picks the ports per checkout); without
 // it the suites skip, like they do when the stack is down.

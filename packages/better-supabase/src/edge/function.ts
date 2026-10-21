@@ -4,6 +4,7 @@ import type {
   FunctionContract,
   FunctionDescriptor,
 } from "../core/function-contract.ts";
+import type { Result } from "../core/result.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { MiddlewareOptions } from "../server/respond.ts";
@@ -12,7 +13,7 @@ import type { BetterEdge } from "./index.ts";
 
 import { dbError } from "../core/errors.ts";
 import { FUNCTION_DESCRIPTOR } from "../core/function-contract.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { withExtra } from "../server/extra.ts";
 import { settle } from "../server/respond.ts";

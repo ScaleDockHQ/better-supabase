@@ -1,15 +1,14 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
+import type {
+  NodeHeaderTarget,
+  NodeRequestHead,
+} from "../../bridges/node-headers.ts";
 import type { Validated } from "../../bridges/shared.ts";
 import type { RouteGuardOptions } from "../../server/refusal.ts";
 
 import { beforeRoute } from "../../bridges/before-route.ts";
-import {
-  applyWebHeaders,
-  headRequest,
-  type NodeHeaderTarget,
-  type NodeRequestHead,
-} from "../../bridges/node-headers.ts";
+import { applyWebHeaders, headRequest } from "../../bridges/node-headers.ts";
 import {
   errorResponse,
   guardedLocals,

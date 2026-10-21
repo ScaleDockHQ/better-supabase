@@ -1,6 +1,8 @@
 import type { Executor } from "../../core/executor.ts";
 import type { AnyPlugin, HookArgs, RequestContext } from "../../core/plugin.ts";
 import type { Operation } from "../../ir/types.ts";
+import type { ConformanceReport } from "../conformance.ts";
+import type { AnyDb, AnySupabase } from "./executor.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { ok } from "../../core/result.ts";
@@ -15,16 +17,8 @@ import {
   expect,
   frozenCopy,
   same,
-  type ConformanceReport,
 } from "../conformance.ts";
-import {
-  captureOp,
-  hasName,
-  recorder,
-  tableKey,
-  type AnyDb,
-  type AnySupabase,
-} from "./executor.ts";
+import { captureOp, hasName, recorder, tableKey } from "./executor.ts";
 
 export interface TestPluginOptions {
   /** The definition without this plugin. */

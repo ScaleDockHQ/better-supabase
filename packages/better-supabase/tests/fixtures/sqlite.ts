@@ -1,5 +1,7 @@
+import type { SQLInputValue } from "node:sqlite";
+
 import { randomUUID } from "node:crypto";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
   PowerSyncDatabaseLike,

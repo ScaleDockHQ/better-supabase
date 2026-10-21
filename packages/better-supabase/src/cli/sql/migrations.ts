@@ -2,15 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleExtension, ModuleFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import {
-  type ModuleExtension,
-  type ModuleFile,
-  moduleSchemaExtensions,
-  renderModules,
-} from "../../sql/index.ts";
+import { moduleSchemaExtensions, renderModules } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";

@@ -1,11 +1,10 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { SupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
+
 import { startFor, WORKFLOW_ATTRIBUTES } from "../../src/workflow-sdk/index.ts";
-import {
-  createSupabaseWorld,
-  type SupabaseWorld,
-} from "../../src/workflow-sdk/world/index.ts";
+import { createSupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 import { dbUrl, reachable } from "./block-session.ts";
 import { installWorld } from "./workflow-world.ts";
 

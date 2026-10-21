@@ -1,21 +1,24 @@
-import {
-  auth,
-  type OAuthClientInformation,
-  type OAuthClientMetadata,
-  type OAuthClientProvider,
-  type OAuthTokens,
+import type {
+  OAuthClientInformation,
+  OAuthClientMetadata,
+  OAuthClientProvider,
+  OAuthTokens,
 } from "@ai-sdk/mcp";
+
+import { auth } from "@ai-sdk/mcp";
 
 import type {
   ConnectorServer,
   Connectors,
 } from "../../blocks/connectors/connectors.ts";
+import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 
 import { errorText, isRecord } from "../../core/block-helpers.ts";
-import { DbException, dbError, type DbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { DbException, dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { nowInstant } from "../../core/temporal.ts";
 
 /** What the Vault keeps for one user's OAuth connection to one server. */

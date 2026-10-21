@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  defineBucket,
-  fromStorageError,
-  type StorageClient,
-} from "../../src/storage/index.ts";
+import type { StorageClient } from "../../src/storage/index.ts";
+
+import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import {
   lifecyclePayload,
   sameLifecycle,

@@ -1,26 +1,28 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  Jwk,
+  Jwks,
+  JwsAlgorithm,
+  SigningAlgorithm,
+  SigningCryptoKey,
+} from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   generateSigningKey,
   importSigningKey,
-  type Jwk,
-  type Jwks,
   jwksOf,
-  type JwsAlgorithm,
   signBytes,
   signCompact,
-  type SigningAlgorithm,
-  type SigningCryptoKey,
 } from "../../core/jws.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   enumOrThrow,
   isRecord,
   recordOf,

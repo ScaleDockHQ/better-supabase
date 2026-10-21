@@ -1,3 +1,4 @@
+import type { DefineApiOptions, OverlayEngine } from "../spec/api.ts";
 import type { SpecDiagnostic } from "../spec/format.ts";
 import type { ApiSource } from "../spec/options.ts";
 import type { ResourceDescription } from "../spec/resource.ts";
@@ -7,11 +8,7 @@ import type {
   RenderedOpenApi,
 } from "./types.ts";
 
-import {
-  type DefineApiOptions,
-  defineApi,
-  type OverlayEngine,
-} from "../spec/api.ts";
+import { defineApi } from "../spec/api.ts";
 
 export type { ResourceOperation } from "../spec/model.ts";
 

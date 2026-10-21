@@ -1,11 +1,11 @@
-import {
-  type DbError,
-  type DbErrorKind,
-  type DbErrorKinds,
-  dbError,
-  statusOf,
-  type ValidationIssue,
+import type {
+  DbError,
+  DbErrorKind,
+  DbErrorKinds,
+  ValidationIssue,
 } from "./errors.ts";
+
+import { dbError, statusOf } from "./errors.ts";
 
 /** RFC 9457 Problem Details, with the `DbError` fields as extension members. */
 export interface ProblemDetails {

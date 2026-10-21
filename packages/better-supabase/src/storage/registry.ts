@@ -1,3 +1,4 @@
+import type { Result } from "../core/result.ts";
 import type {
   Bucket,
   BucketClient,
@@ -7,7 +8,7 @@ import type {
 import type { StoragePath } from "./path.ts";
 
 import { dbError } from "../core/errors.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 
 /** Any bucket definition from `defineBucket` or a preset. */
 export type AnyBucket = Bucket<string>;

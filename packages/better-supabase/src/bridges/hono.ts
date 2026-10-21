@@ -1,13 +1,11 @@
+import type {
+  AnyEntry,
+  Contributions,
+  ValidateEntries,
+} from "@supabase/middleware";
 import type { Context, MiddlewareHandler, Next } from "hono";
 
-import {
-  type AnyEntry,
-  bufferRequest,
-  type Contributions,
-  pipeline,
-  seedContext,
-  type ValidateEntries,
-} from "@supabase/middleware";
+import { bufferRequest, pipeline, seedContext } from "@supabase/middleware";
 
 import { handoffOf } from "./shared.ts";
 

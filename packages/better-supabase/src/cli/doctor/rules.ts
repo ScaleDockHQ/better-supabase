@@ -2,15 +2,17 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleLayout } from "../../sql/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PeerVersion } from "../peers.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
 import type { AdvisorSource } from "./advisors.ts";
+import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
+import type { LocalStackCheck } from "./stacks.ts";
 
 import {
   moduleFileVersion,
-  type ModuleLayout,
   moduleVersion,
   sameModuleFile,
   SQL_MODULES,
@@ -26,7 +28,7 @@ import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
-import { ENV_RULES, type StackEnvCheck } from "./env.ts";
+import { ENV_RULES } from "./env.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
@@ -49,7 +51,7 @@ import {
   tableObject,
   workflowOf,
 } from "./shared.ts";
-import { type LocalStackCheck, STACK_RULES } from "./stacks.ts";
+import { STACK_RULES } from "./stacks.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
 export { lineOf };

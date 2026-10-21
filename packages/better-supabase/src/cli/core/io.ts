@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
 import type { Prompter } from "../prompts.ts";
+import type { CliErrorCode } from "./errors.ts";
 
-import { CliError, type CliErrorCode } from "./errors.ts";
+import { CliError } from "./errors.ts";
 
 export interface CliIo {
   readonly stdout: (text: string) => void;

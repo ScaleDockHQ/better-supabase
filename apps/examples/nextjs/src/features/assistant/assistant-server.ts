@@ -1,32 +1,22 @@
 import "server-only";
-import { stepCountIs, streamText, type LanguageModel, type ToolSet } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
+import type { AssistantContext } from "better-supabase/ai-sdk/chat";
+import type { AiChat, AiRuns } from "better-supabase/blocks/ai-chat";
+import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
+import type { AiProviders } from "better-supabase/blocks/ai-providers";
+import type { RpcClient } from "better-supabase/blocks/organizations";
+
+import { stepCountIs, streamText } from "ai";
 import { byokOptions } from "better-supabase/ai-sdk";
-import {
-  type AssistantContext,
-  createAssistant,
-} from "better-supabase/ai-sdk/chat";
+import { createAssistant } from "better-supabase/ai-sdk/chat";
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
 import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
 import { generatedOptions } from "better-supabase/blocks";
-import {
-  type AiChat,
-  type AiRuns,
-  createAiChat,
-} from "better-supabase/blocks/ai-chat";
-import {
-  type AiFiles,
-  type AiFileStorage,
-  createAiFiles,
-} from "better-supabase/blocks/ai-files";
-import {
-  type AiProviders,
-  createAiProviders,
-} from "better-supabase/blocks/ai-providers";
-import {
-  type RpcClient,
-  rpcTransport,
-} from "better-supabase/blocks/organizations";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
+import { createAiFiles } from "better-supabase/blocks/ai-files";
+import { createAiProviders } from "better-supabase/blocks/ai-providers";
+import { rpcTransport } from "better-supabase/blocks/organizations";
 import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";

@@ -1,6 +1,7 @@
+import type { SingleKeyEntry } from "@supabase/middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { Db } from "../../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";

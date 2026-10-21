@@ -1,20 +1,15 @@
-import type { SchemaMeta } from "../schema/types.ts";
-
-import {
-  type Generator,
-  type GeneratorInput,
-  type GeneratorModel,
-  type ResolvedConfig,
-  resolveConfig,
+import type {
+  Generator,
+  GeneratorInput,
+  GeneratorModel,
+  ResolvedConfig,
 } from "../config/index.ts";
+import type { SchemaMeta } from "../schema/types.ts";
+import type { ConformanceReport } from "./conformance.ts";
+
+import { resolveConfig } from "../config/index.ts";
 import { isList } from "../core/guards.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  frozenCopy,
-  same,
-} from "./conformance.ts";
+import { conform, expect, frozenCopy, same } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 function relativeImport(from: string, to: string): string {

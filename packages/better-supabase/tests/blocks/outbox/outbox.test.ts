@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { OutboxEvent } from "../../../src/blocks/outbox/outbox.ts";
 import type { CloudEvent } from "../../../src/events/index.ts";
 import type { SqlClient } from "../../../src/postgres/executor.ts";
 
 import {
   createOutbox,
   outboxCloudEvent,
-  type OutboxEvent,
 } from "../../../src/blocks/outbox/outbox.ts";
 import { sqlTransport } from "../../../src/core/block-transport.ts";
 

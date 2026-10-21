@@ -1,12 +1,15 @@
 /* oxlint-disable eslint/no-bitwise -- trace flags are a bit field. */
 
+import type {
+  Context,
+  ContextManager,
+  TextMapPropagator,
+} from "@opentelemetry/api";
+
 import {
-  type Context,
   context,
-  type ContextManager,
   propagation,
   ROOT_CONTEXT,
-  type TextMapPropagator,
   trace,
   TraceFlags,
 } from "@opentelemetry/api";

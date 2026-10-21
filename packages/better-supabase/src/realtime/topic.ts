@@ -11,6 +11,13 @@ import type {
   SubscriberPolicy,
 } from "../core/contracts/authorization-hooks.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError, ValidationIssue } from "../core/errors.ts";
+import type { RealtimeStatus } from "../core/realtime-status.ts";
+import type {
+  Template,
+  TemplateParams,
+  TemplateValues,
+} from "../core/template.ts";
 import type {
   AnyFunctions,
   AccessTopicPolicy,
@@ -19,12 +26,15 @@ import type {
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type { Subscriber } from "./channels.ts";
 import type { FanOutResult, TopicFanOutOptions } from "./fan-out.ts";
+import type { AnyTriggerValue } from "./topic-sql.ts";
+import type { TriggerPayloadSql, TriggerTopicSql } from "./topic-trigger.ts";
 
 import { accessCheck, resolveProviderSql } from "../core/access-sql.ts";
 import { tenantClaimPaths } from "../core/claims.ts";
-import { dbError, type DbError, type ValidationIssue } from "../core/errors.ts";
-import { type RealtimeStatus, topicStatus } from "../core/realtime-status.ts";
+import { dbError } from "../core/errors.ts";
+import { topicStatus } from "../core/realtime-status.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   parseTemplate,
@@ -32,13 +42,10 @@ import {
   sqlIdent,
   claimSql,
   sqlString,
-  type Template,
-  type TemplateParams,
-  type TemplateValues,
 } from "../core/template.ts";
 import { toApp } from "../schema/casing.ts";
 import { refreshRealtimeAuth } from "./auth.ts";
-import { joinTopic, type Subscriber } from "./channels.ts";
+import { joinTopic } from "./channels.ts";
 import { fanOutTopic } from "./fan-out.ts";
 import {
   changedSql,
@@ -47,15 +54,8 @@ import {
   topicPermissionSql,
   TriggerLookups,
   triggerValueSql,
-  type AnyTriggerValue,
 } from "./topic-sql.ts";
-import {
-  CATALOG_ID_SQL,
-  idSql,
-  triggerFunctionSql,
-  type TriggerPayloadSql,
-  type TriggerTopicSql,
-} from "./topic-trigger.ts";
+import { CATALOG_ID_SQL, idSql, triggerFunctionSql } from "./topic-trigger.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 

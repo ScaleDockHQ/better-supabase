@@ -1,4 +1,5 @@
 import type { Actor, RequestContext } from "../../core/plugin.ts";
+import type { Result } from "../../core/result.ts";
 import type { JobContext } from "./types.ts";
 
 import {
@@ -11,7 +12,7 @@ import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
-import { err, ok, type Result } from "../../core/result.ts";
+import { err, ok } from "../../core/result.ts";
 
 /** Marks a payload that carries a job context; pgmq stores it as the payload. */
 const ENVELOPE = "$bs";

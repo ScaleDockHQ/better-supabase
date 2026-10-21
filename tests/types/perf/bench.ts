@@ -1,12 +1,13 @@
-import {
-  type CatalogColumn,
-  type CatalogForeignKey,
-  type CatalogFunction,
-  type CatalogTable,
-  type CatalogUnique,
-  fromCatalog,
-  type Snapshot,
+import type {
+  CatalogColumn,
+  CatalogForeignKey,
+  CatalogFunction,
+  CatalogTable,
+  CatalogUnique,
+  Snapshot,
 } from "better-supabase/cli";
+
+import { fromCatalog } from "better-supabase/cli";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";

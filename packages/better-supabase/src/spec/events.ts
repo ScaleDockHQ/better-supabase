@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { EventMap } from "../core/block-events.ts";
 import type { MutationIntent } from "../core/plugin.ts";
+import type { RealtimeStatus } from "../core/realtime-status.ts";
 import type { CloudEventOptions } from "../events/cloud-event.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { SpecDiagnostic } from "./format.ts";
@@ -15,19 +16,14 @@ import type {
   ModelWorkflow,
 } from "./model.ts";
 import type { ApiOptions } from "./options.ts";
+import type { StandardLike } from "./schemas.ts";
 
 import { isPlainObject } from "../core/clone.ts";
 import { isRecord } from "../core/guards.ts";
-import { type RealtimeStatus, topicStatus } from "../core/realtime-status.ts";
+import { topicStatus } from "../core/realtime-status.ts";
 import { dataschemaOf, DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
 import { ROW_EVENT_TYPES } from "../events/index.ts";
-import {
-  convertStandard,
-  pascal,
-  schemaRef,
-  type StandardLike,
-  tableSchemas,
-} from "./schemas.ts";
+import { convertStandard, pascal, schemaRef, tableSchemas } from "./schemas.ts";
 
 /** A schema for a block event's data, checked against the block's event map. */
 export type BlockEventSchema<T> = StandardSchemaV1<unknown, T>;

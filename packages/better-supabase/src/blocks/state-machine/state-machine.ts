@@ -1,13 +1,12 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
-  type CursorPageOptions,
   instantArg,
   optionalInstant,
   optionalText,

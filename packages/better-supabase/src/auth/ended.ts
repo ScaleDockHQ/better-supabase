@@ -1,9 +1,10 @@
 import { extractCredentials } from "@supabase/server/core";
 
+import type { CookieOptions } from "./session.ts";
+
 import { decodeJwtPayload } from "../core/base64.ts";
 import {
   AUTH_CACHE_HEADERS,
-  type CookieOptions,
   parseCookies,
   readSession,
   serializeCookie,

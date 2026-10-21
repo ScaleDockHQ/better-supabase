@@ -1,8 +1,6 @@
-import {
-  isOAuthSession,
-  type OAuthSession,
-  OAuthError,
-} from "../oauth/index.ts";
+import type { OAuthSession } from "../oauth/index.ts";
+
+import { isOAuthSession, OAuthError } from "../oauth/index.ts";
 import { isRecord } from "./guards.ts";
 
 export {

@@ -1,15 +1,9 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  dbUrl,
-  type Extra,
-  reachable,
-  ROLES,
-  type Session,
-  USERS,
-  withCentraKit,
-} from "./stack.ts";
+import type { Extra, Session } from "./stack.ts";
+
+import { dbUrl, reachable, ROLES, USERS, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 

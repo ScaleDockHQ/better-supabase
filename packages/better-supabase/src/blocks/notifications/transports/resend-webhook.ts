@@ -1,4 +1,6 @@
+import type { BlockProblemOptions } from "../../../core/problem.ts";
 import type { AsyncResult } from "../../../core/result.ts";
+import type { VerifyOptions } from "../../../core/signatures.ts";
 import type {
   DeliveryEventInput,
   DeliveryEventKind,
@@ -8,12 +10,8 @@ import type {
 
 import { readBodyCapped } from "../../../core/block-helpers.ts";
 import { dbError } from "../../../core/errors.ts";
-import {
-  type BlockProblemOptions,
-  methodNotAllowed,
-  problemResponse,
-} from "../../../core/problem.ts";
-import { verifyWebhook, type VerifyOptions } from "../../../core/signatures.ts";
+import { methodNotAllowed, problemResponse } from "../../../core/problem.ts";
+import { verifyWebhook } from "../../../core/signatures.ts";
 import { temporal } from "../../../core/temporal-required.ts";
 import { isRecord } from "../../shared.ts";
 

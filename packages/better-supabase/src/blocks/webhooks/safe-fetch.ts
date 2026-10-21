@@ -1,8 +1,6 @@
-import {
-  type AllowUrl,
-  publicUrl,
-  type PublicUrlOptions,
-} from "./url-policy.ts";
+import type { AllowUrl, PublicUrlOptions } from "./url-policy.ts";
+
+import { publicUrl } from "./url-policy.ts";
 
 export interface SafeFetchOptions extends PublicUrlOptions {
   /** The fetch to call. Defaults to the global `fetch`. */

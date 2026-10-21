@@ -1,3 +1,9 @@
+import type {
+  BillingEventData,
+  BlockEventType,
+} from "../../core/block-events.ts";
+import type { Result } from "../../core/result.ts";
+import type { StripeClient } from "../stripe.ts";
 import type { BillingEvents } from "./events.ts";
 import type {
   Billing,
@@ -12,14 +18,10 @@ import type {
   TenantStripeRow,
 } from "./types.ts";
 
-import {
-  blockEmitter,
-  type BillingEventData,
-  type BlockEventType,
-} from "../../core/block-events.ts";
+import { blockEmitter } from "../../core/block-events.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { entitlementMembers } from "../entitlements/entitlements.ts";
 import {
   applyTemporal,
@@ -31,7 +33,7 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
-import { lazyStripe, type StripeClient } from "../stripe.ts";
+import { lazyStripe } from "../stripe.ts";
 import {
   ORGANIZATION_KEY,
   SEAT_EVENT,

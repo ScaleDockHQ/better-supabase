@@ -1,4 +1,16 @@
 import type { BlockScope } from "./blocks.ts";
+import type {
+  AppColumnConfig,
+  AppColumnFormat,
+  AppColumnType,
+  AppReference,
+  AppTableConfig,
+  AppTableEventKind,
+  AppTableEvents,
+  AppTableVersions,
+  AppTableSubject,
+  AppTablesConfig,
+} from "./types/app-tables.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
@@ -9,16 +21,6 @@ import {
   APP_COLUMN_TYPES,
   APP_ON_DELETE_ACTIONS,
   APP_TABLE_EVENT_KINDS,
-  type AppColumnConfig,
-  type AppColumnFormat,
-  type AppColumnType,
-  type AppReference,
-  type AppTableConfig,
-  type AppTableEventKind,
-  type AppTableEvents,
-  type AppTableVersions,
-  type AppTableSubject,
-  type AppTablesConfig,
 } from "./types/app-tables.ts";
 
 const IDENT = /^[a-z][a-z0-9_]{0,62}$/;

@@ -4,11 +4,13 @@ import type {
   SubscriberEvent,
   SubscriberPolicy,
 } from "../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../core/errors.ts";
+import type { Result } from "../core/result.ts";
 import type { TemplateValues } from "../core/template.ts";
 import type { EventSchemas, TopicEvent, TopicPayload } from "./topic.ts";
 
-import { dbError, type DbError } from "../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import { dbError } from "../core/errors.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import { allowedSubscribers } from "./subscribers.ts";
 
 export interface TopicFanOutOptions<

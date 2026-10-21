@@ -1,10 +1,7 @@
 import type { Result } from "better-supabase";
+import type { StorageClient, TransformOptions } from "better-supabase/storage";
 
-import {
-  defineBucket,
-  type StorageClient,
-  type TransformOptions,
-} from "better-supabase/storage";
+import { defineBucket } from "better-supabase/storage";
 
 export const IMAGE_TYPES = {
   "image/jpeg": "jpg",

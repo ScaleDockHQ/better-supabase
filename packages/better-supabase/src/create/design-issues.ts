@@ -1,17 +1,14 @@
+import type { DesignErrorCode } from "../preset/design.ts";
 import type { Preset } from "../preset/index.ts";
+import type { Design } from "./design.ts";
 import type { SchemaData } from "./schema.ts";
 
-import { type DesignErrorCode, jsonPointer } from "../preset/design.ts";
+import { jsonPointer } from "../preset/design.ts";
 import { appNameLengthError } from "../preset/index.ts";
 import { lockedWithoutDefault } from "./column-keys.ts";
 import { AUTH_USERS, scopeColumnOf } from "./design-scope.ts";
 import { subjectColumns } from "./design-subject.ts";
-import {
-  defaultError,
-  type Design,
-  identifierError,
-  isAppTable,
-} from "./design.ts";
+import { defaultError, identifierError, isAppTable } from "./design.ts";
 
 /**
  * Why `checkDesign` rejects a design: a `DesignErrorCode` from parsing, or a

@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  docsWebMcpTools,
-  registerDocsWebMcp,
-  type WebMcpTool,
-} from "../../lib/webmcp";
+import type { WebMcpTool } from "../../lib/webmcp";
+
+import { docsWebMcpTools, registerDocsWebMcp } from "../../lib/webmcp";
 
 const NAME = /^[A-Za-z0-9_.-]{1,128}$/u;
 

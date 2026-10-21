@@ -1,6 +1,8 @@
 "use server";
 
-import { type Result, dbError, err, ok } from "better-supabase";
+import type { Result } from "better-supabase";
+
+import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
@@ -9,7 +11,9 @@ import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
-import { getPlans, type PlanOption } from "./billing-queries";
+import type { PlanOption } from "./billing-queries";
+
+import { getPlans } from "./billing-queries";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bs.action(

@@ -1,13 +1,8 @@
 import type { ModuleContext } from "../context.ts";
+import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
-import {
-  type OrdersNames,
-  amountOf,
-  columns,
-  guard,
-  serviceOnlyGuard,
-} from "./orders-shared.ts";
+import { amountOf, columns, guard, serviceOnlyGuard } from "./orders-shared.ts";
 
 const MAX_QUANTITY = 10_000;
 

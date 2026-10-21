@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { CloudEvent } from "../../src/events/index.ts";
+
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { EventHub } from "../../src/core/events.ts";
-import {
-  type CloudEvent,
-  forwardBlockEvents,
-  blockCloudEvent,
-} from "../../src/events/index.ts";
+import { forwardBlockEvents, blockCloudEvent } from "../../src/events/index.ts";
 
 const fixed = { id: () => "evt-1", source: "/crm" };
 

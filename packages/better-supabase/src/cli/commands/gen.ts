@@ -1,6 +1,7 @@
 import type { GenTask } from "../../config/index.ts";
 import type { AnyCommand, CliContext } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { GenOptions } from "../gen/run.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
@@ -8,7 +9,7 @@ import { defineCliCommand, list } from "../core/command.ts";
 import { failedResult, CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { checkMetadataFlags, EMITS, runMetadataGen } from "../gen/metadata.ts";
-import { type GenOptions, runGen } from "../gen/run.ts";
+import { runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import { GEN_TASKS } from "../names.ts";
 import { plain } from "../style.ts";

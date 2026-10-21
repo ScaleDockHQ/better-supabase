@@ -6,6 +6,7 @@ import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
+import type { InStackDiffOptions } from "../in-stack-diff.ts";
 
 import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
@@ -16,7 +17,6 @@ import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { supabaseCli } from "../exec.ts";
 import {
-  type InStackDiffOptions,
   inStackDiff,
   isShadowFailure,
   MIGRATION_HEADER,

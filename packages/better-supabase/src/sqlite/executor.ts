@@ -1,31 +1,26 @@
 import type {
+  SqliteColumn,
+  SqliteCompilerOptions,
+  SqliteInsertPlan,
+  SqliteKeyedPlan,
+  SqliteKeys,
+  SqlitePlan,
+  SqliteQuery,
+  SqliteValue,
+} from "../compile/sqlite.ts";
+import type { DbError, ErrorMapper, RawDbError } from "../core/errors.ts";
+import type {
   ExecuteContext,
   ExecuteResult,
   Executor,
 } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 import type { InsertOp, Operation } from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 
-import {
-  compileSqlite,
-  keyPages,
-  type SqliteColumn,
-  type SqliteCompilerOptions,
-  type SqliteInsertPlan,
-  type SqliteKeyedPlan,
-  type SqliteKeys,
-  type SqlitePlan,
-  type SqliteQuery,
-  type SqliteValue,
-} from "../compile/sqlite.ts";
-import {
-  type DbError,
-  dbError,
-  mapDbError,
-  type ErrorMapper,
-  type RawDbError,
-} from "../core/errors.ts";
-import { err, ok, type Result, toDbError } from "../core/result.ts";
+import { compileSqlite, keyPages } from "../compile/sqlite.ts";
+import { dbError, mapDbError } from "../core/errors.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 
 /** What a SQLite database, transaction or lock context can run. */
 export interface SqliteContextLike {

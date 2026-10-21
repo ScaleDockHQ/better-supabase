@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { App } from "vue";
 
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
@@ -9,7 +10,6 @@ import {
   h,
   nextTick,
   ref,
-  type App,
 } from "vue";
 import { renderToString } from "vue/server-renderer";
 

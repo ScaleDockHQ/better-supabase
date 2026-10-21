@@ -1,6 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
+import type { Result } from "../../core/result.ts";
 import type {
   DeliveryEventKind,
   ListOptions,
@@ -26,16 +33,8 @@ import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
-import {
-  blockEmitter,
-  type NotificationDeliveryEventData,
-} from "../../core/block-events.ts";
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-  type RowFields,
-} from "../../core/block-fields.ts";
+import { blockEmitter } from "../../core/block-events.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import {
   batchResultsOf,
   budget,
@@ -44,13 +43,7 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  toDbError,
-  type Result,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";

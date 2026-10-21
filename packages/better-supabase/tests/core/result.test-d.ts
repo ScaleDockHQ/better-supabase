@@ -1,14 +1,13 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { DbError, DbErrorOf } from "../../src/core/errors.ts";
+import type { BetterResultValue, Result } from "../../src/core/result.ts";
 
 import {
   AsyncResult,
-  type BetterResultValue,
   defineBetterResultErrors,
   fromBetterResult,
   ok,
-  type Result,
   toBetterResult,
 } from "../../src/core/result.ts";
 

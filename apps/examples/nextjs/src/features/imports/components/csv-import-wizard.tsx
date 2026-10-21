@@ -65,17 +65,11 @@ import {
 import { Link } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import {
-  type ImportOutcome,
-  type ImportPreview,
-  previewCustomerImport,
-  runCustomerImport,
-} from "../imports-actions";
-import {
-  type ColumnMapping,
-  CUSTOMER_IMPORT_FIELDS,
-  type CustomerImportField,
-} from "../imports-fields";
+import type { ImportOutcome, ImportPreview } from "../imports-actions";
+import type { ColumnMapping, CustomerImportField } from "../imports-fields";
+
+import { previewCustomerImport, runCustomerImport } from "../imports-actions";
+import { CUSTOMER_IMPORT_FIELDS } from "../imports-fields";
 
 const SKIP = "skip";
 const MAX_BYTES = 500_000;

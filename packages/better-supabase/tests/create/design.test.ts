@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { Design } from "../../src/create/index.ts";
+
 import {
   boundError,
   fitted,
@@ -12,7 +14,6 @@ import {
   deleteExtraColumn,
   defaultError,
   deleteTable,
-  type Design,
   designIssues,
   duplicateTable,
   EMPTY_DESIGN,

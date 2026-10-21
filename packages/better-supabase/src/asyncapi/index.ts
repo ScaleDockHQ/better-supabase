@@ -1,3 +1,4 @@
+import type { DefineApiOptions } from "../spec/api.ts";
 import type { SpecDiagnostic } from "../spec/format.ts";
 import type { ApiSource } from "../spec/options.ts";
 import type {
@@ -7,7 +8,7 @@ import type {
   RenderedAsyncApi,
 } from "./types.ts";
 
-import { type DefineApiOptions, defineApi } from "../spec/api.ts";
+import { defineApi } from "../spec/api.ts";
 import { asyncapiFormat } from "./format.ts";
 
 export { asyncapiFormat } from "./format.ts";

@@ -1,16 +1,15 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
+import type { HonoEnv } from "../../src/hono/index.ts";
+import type { Functions, Models } from "../fixtures/generated-camel.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { problemResponse } from "../../src/core/problem.ts";
-import { type HonoEnv, createHono } from "../../src/hono/index.ts";
+import { createHono } from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
-import {
-  type Functions,
-  type Models,
-  schema,
-} from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 // RFC 6750 section 3 and RFC 9110 section 11.6.1: `Bearer` followed by comma
 // separated auth-params `token = quoted-string`.

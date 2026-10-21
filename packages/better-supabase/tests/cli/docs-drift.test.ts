@@ -2,16 +2,14 @@ import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import type { TemplateContext } from "../../src/cli/templates.ts";
+
 import { GLOBAL_ARGS } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
 import { effectsLine } from "../../src/cli/core/help.ts";
 import { findSpec, specPaths } from "../../src/cli/core/manifest.ts";
 import { commandNames, help } from "../../src/cli/core/run.ts";
-import {
-  INTEGRATIONS,
-  type TemplateContext,
-  TEMPLATES,
-} from "../../src/cli/templates.ts";
+import { INTEGRATIONS, TEMPLATES } from "../../src/cli/templates.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const repo = join(import.meta.dirname, "../../../..");

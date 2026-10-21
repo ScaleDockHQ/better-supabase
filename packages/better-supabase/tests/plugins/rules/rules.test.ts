@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { RuleViolation } from "../../../src/plugins/rules/index.ts";
+
 import { defineSupabase } from "../../../src/core/define.ts";
 import { definePlugin, orderPlugins } from "../../../src/core/plugin.ts";
 import {
   recommended,
   rules,
-  type RuleViolation,
   safe,
   strict,
 } from "../../../src/plugins/rules/index.ts";

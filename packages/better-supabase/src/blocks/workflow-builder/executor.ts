@@ -1,3 +1,9 @@
+import type {
+  WorkflowGraph,
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+} from "./graph.ts";
+
 import {
   approved,
   conditionOf,
@@ -6,9 +12,6 @@ import {
   isGraphRecord,
   topologicalOrder,
   validateGraph,
-  type WorkflowGraph,
-  type WorkflowGraphEdge,
-  type WorkflowGraphNode,
 } from "./graph.ts";
 
 /** The record a run belongs to. */

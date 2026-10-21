@@ -1,6 +1,9 @@
+import type { Jwks, JwksOfOptions } from "./jws.ts";
+import type { Result } from "./result.ts";
+
 import { dbError } from "./errors.ts";
-import { type Jwks, jwksOf, type JwksOfOptions } from "./jws.ts";
-import { err, ok, type Result } from "./result.ts";
+import { jwksOf } from "./jws.ts";
+import { err, ok } from "./result.ts";
 
 /** Where a key set comes from: inline, a URL fetched and cached, or a loader. */
 export type JwksInput = Jwks | URL | (() => Promise<Jwks>);

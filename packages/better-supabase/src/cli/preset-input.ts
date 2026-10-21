@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { CreateDesign, Preset } from "../preset/index.ts";
+
 import {
-  type CreateDesign,
   designOf,
   isPresetName,
-  type Preset,
   presetOf,
   readDesignFile,
 } from "../preset/index.ts";

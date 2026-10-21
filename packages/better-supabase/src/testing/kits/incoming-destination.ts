@@ -2,8 +2,9 @@ import type {
   IncomingDelivery,
   IncomingDestination,
 } from "../../blocks/webhooks/incoming-types.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import { conform, expect, type ConformanceReport } from "../conformance.ts";
+import { conform, expect } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestIncomingDestinationOptions {

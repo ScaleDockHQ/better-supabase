@@ -1,9 +1,7 @@
 import type { WorkflowStartCall } from "better-supabase/blocks/workflows";
+import type { WorkflowRunAs } from "better-supabase/workflow-sdk";
 
-import {
-  type WorkflowRunAs,
-  workflowStarter,
-} from "better-supabase/workflow-sdk";
+import { workflowStarter } from "better-supabase/workflow-sdk";
 
 import { serviceBuilder } from "@/features/workflows/builder/builder-server";
 import { scheduledWorkflows } from "@/features/workflows/workflow-definitions";

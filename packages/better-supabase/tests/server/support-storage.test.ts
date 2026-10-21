@@ -1,16 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { StorageApi, StorageBucketApi } from "../../src/storage/index.ts";
 import type { SqlCall, SqlRule } from "../fixtures/fake-sql.ts";
 
 import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createDataLifecycle } from "../../src/blocks/data-lifecycle/index.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
-import {
-  defineBucket,
-  fromStorageError,
-  type StorageApi,
-  type StorageBucketApi,
-} from "../../src/storage/index.ts";
+import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 
 const VISIBLE = "as visible";

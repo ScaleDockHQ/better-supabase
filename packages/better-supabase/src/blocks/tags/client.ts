@@ -1,9 +1,10 @@
 import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Tag, Tags } from "./tags.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { err, ok, type Result, toDbError } from "../../core/result.ts";
+import { err, ok, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
 /** A tag change on the subject that committed, for `onChanged`. */

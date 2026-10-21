@@ -1,7 +1,8 @@
+import type { ModuleTableSpec } from "../sql/index.ts";
 import type { SchemaData, SchemaSoftRef, SchemaTable } from "./schema.ts";
 
 import { PRESET_CATALOG } from "../preset/index.ts";
-import { type ModuleTableSpec, SQL_MODULES } from "../sql/index.ts";
+import { SQL_MODULES } from "../sql/index.ts";
 
 const AUTH_USERS = "auth.users";
 

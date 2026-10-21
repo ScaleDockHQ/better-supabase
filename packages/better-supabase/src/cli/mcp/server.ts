@@ -7,14 +7,10 @@
 
 import * as v from "valibot";
 
+import type { ProtocolServer, ToolInfo, ToolResult } from "../../mcp/index.ts";
 import type { Cli } from "../core/run.ts";
 
-import {
-  answerLine,
-  type ProtocolServer,
-  type ToolInfo,
-  type ToolResult,
-} from "../../mcp/index.ts";
+import { answerLine } from "../../mcp/index.ts";
 import { consentToken } from "../core/agent.ts";
 import { CliError } from "../core/errors.ts";
 import { envelope } from "../core/output.ts";

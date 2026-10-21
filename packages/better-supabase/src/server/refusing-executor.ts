@@ -1,7 +1,8 @@
 import type { DbError } from "../core/errors.ts";
 import type { Executor } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 
-import { err, type Result } from "../core/result.ts";
+import { err } from "../core/result.ts";
 
 /**
  * An executor for credentials that did not verify: every query, function call

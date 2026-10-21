@@ -1,7 +1,7 @@
+import type { CreateDesign, Preset, PresetInput } from "../preset/index.ts";
 import type { DesignIssue } from "./design-issues.ts";
 
 import {
-  type CreateDesign,
   designConfig,
   DesignParseError,
   DesignTooLongError,
@@ -9,8 +9,6 @@ import {
   encodeDesign,
   encodePreset,
   parseDesign,
-  type Preset,
-  type PresetInput,
   presetOf,
   resolvePreset,
 } from "../preset/index.ts";

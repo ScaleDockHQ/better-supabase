@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig, ScaffoldApiConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
@@ -12,7 +13,6 @@ import {
   applyPlan,
   hasConflicts,
   changeLines,
-  type FilePlan,
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";

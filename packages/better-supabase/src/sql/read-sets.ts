@@ -1,8 +1,9 @@
+import type { SqlQuery } from "../compile/sql.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Placeholder, ReadSet } from "../core/read-set.ts";
 import type { Operation } from "../ir/types.ts";
 
-import { compileSql, type SqlQuery } from "../compile/sql.ts";
+import { compileSql } from "../compile/sql.ts";
 import {
   hasPlaceholder,
   placeholderOf,

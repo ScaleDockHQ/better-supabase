@@ -3,19 +3,18 @@ import type {
   AppColumnType,
   AppOnDeleteAction as OnDeleteAction,
 } from "../config/index.ts";
+import type { AppColumnFormat, Preset } from "../preset/index.ts";
+import type { AppLookup, AppRollup } from "./design-computed.ts";
+import type { AppEvents, AppSubject } from "./design-subject.ts";
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema.ts";
 
 import {
-  type AppColumnFormat,
   appDefaultError,
   appIdentifierError,
   appReservedColumns,
-  type Preset,
 } from "../preset/index.ts";
 import { columnLabel, fitted } from "./column-keys.ts";
 import {
-  type AppLookup,
-  type AppRollup,
   computedColumnRenamed,
   computedRows,
   computedTableRenamed,
@@ -23,8 +22,6 @@ import {
 } from "./design-computed.ts";
 import { AUTH_USERS, scopeColumnOf } from "./design-scope.ts";
 import {
-  type AppEvents,
-  type AppSubject,
   eventsColumnsEdited,
   subjectColumns,
   subjectColumnsEdited,

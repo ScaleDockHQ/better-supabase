@@ -1,4 +1,6 @@
-import { type DbError, dbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { dbError } from "../core/errors.ts";
 
 /**
  * Authenticator assurance level: `aal2` once a second factor is verified in

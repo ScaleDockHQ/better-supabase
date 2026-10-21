@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { DbError } from "../../src/core/errors.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import {
-  type DbError,
   DbException,
   dbError,
   dbErrorOf,

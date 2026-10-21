@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  AuthorizationRequest,
+  Authorizer,
+} from "../../src/core/authorizer.ts";
+
 import {
-  type AuthorizationRequest,
-  type Authorizer,
   checkPermission,
   defineAuthorizer,
 } from "../../src/core/authorizer.ts";

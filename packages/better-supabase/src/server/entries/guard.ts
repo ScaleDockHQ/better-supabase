@@ -1,9 +1,12 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "../../auth/resolve.ts";
+import type { GuardOptions } from "../respond.ts";
 
 import { problemResponse } from "../../core/problem.ts";
-import { defaultExpose, guard, type GuardOptions } from "../respond.ts";
+import { defaultExpose, guard } from "../respond.ts";
 
 export interface GuardEntryConfig extends GuardOptions {
   /**

@@ -3,27 +3,28 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleFile } from "../../sql/index.ts";
+import type { SnapshotSource } from "../commands/snapshot.ts";
+import type { FileChange, FilePlan } from "../core/files.ts";
+import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
 
 import {
-  type ModuleFile,
   moduleLayout,
   renderModules,
   sameModuleFile,
 } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
-import { loadSnapshot, type SnapshotSource } from "../commands/snapshot.ts";
+import { loadSnapshot } from "../commands/snapshot.ts";
 import {
   applyPlan,
   hasConflicts,
   changedFiles,
   changeLines,
-  type FileChange,
-  type FilePlan,
 } from "../core/files.ts";
-import { type CommandResult, display, sameText } from "../core/io.ts";
+import { display, sameText } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { providerBucketKeys } from "../doctor/authorization.ts";
 import { compiledReadSets } from "../read-sets.ts";

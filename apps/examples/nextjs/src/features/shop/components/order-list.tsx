@@ -40,11 +40,10 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
+import type { OrderableProduct } from "./create-draft-order-dialog";
+
 import { getOrders, getProducts } from "../shop-queries";
-import {
-  CreateDraftOrderDialog,
-  type OrderableProduct,
-} from "./create-draft-order-dialog";
+import { CreateDraftOrderDialog } from "./create-draft-order-dialog";
 import { OrderStatusBadge } from "./order-status-badge";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await

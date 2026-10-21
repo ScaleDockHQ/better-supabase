@@ -3,13 +3,15 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type {
+  ModuleAccessProvider,
+  ModuleEntitlementsProvider,
+  ModuleLayout,
+  AuditedTable,
+} from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
 
 import {
-  type ModuleAccessProvider,
-  type ModuleEntitlementsProvider,
-  type ModuleLayout,
-  type AuditedTable,
   adoptedColumnProblems,
   auditRegistrations,
   declaredTables,

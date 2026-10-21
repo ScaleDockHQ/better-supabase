@@ -6,50 +6,39 @@ import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "./agent.ts";
+import type { AnyCommand, CliCommand, CliContext } from "./command.ts";
+import type { CliErrorCode } from "./errors.ts";
 import type { CliIo, CommandResult, RunResult } from "./io.ts";
 import type { CommandSpec } from "./manifest.ts";
+import type { Rendered } from "./output.ts";
+import type { CommandNode, Loader } from "./parse.ts";
+import type { ExecEvent, HttpEvent } from "./trace.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
 import { checkConsent, missingInputNext, resolveAgent } from "./agent.ts";
 import {
-  type AnyCommand,
-  type CliCommand,
-  type CliContext,
   GLOBAL_ARGS,
   joinRepeated,
   listArgs,
   runsWithInvalidConfig,
 } from "./command.ts";
-import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
+import { CliError, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
 import { COMPLETE_COMMAND, RESERVED_NAMES } from "./manifest.ts";
 import { movedCommand, movedFlag } from "./moved.ts";
-import {
-  document,
-  envelope,
-  type Rendered,
-  renderError,
-  renderResult,
-} from "./output.ts";
+import { document, envelope, renderError, renderResult } from "./output.ts";
 import {
   checkArgs,
   closestName,
   commandArgs,
-  type CommandNode,
   commandTree,
   globalFlags,
-  type Loader,
   resolveCommand,
 } from "./parse.ts";
-import {
-  EXEC_CHANNEL,
-  type ExecEvent,
-  HTTP_CHANNEL,
-  type HttpEvent,
-} from "./trace.ts";
+import { EXEC_CHANNEL, HTTP_CHANNEL } from "./trace.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */

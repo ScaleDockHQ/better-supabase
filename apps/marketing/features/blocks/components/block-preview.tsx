@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type CategoryStyle, categoryStyle } from "../categories";
+import type { CategoryStyle } from "../categories";
+
+import { categoryStyle } from "../categories";
 
 /*
  * Illustrations, not product UI: each scene sketches what a category's blocks

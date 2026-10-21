@@ -1,12 +1,14 @@
+import type { Provider } from "@openfeature/server-sdk";
 import type { FlagClient as MiddlewareFlagClient } from "@supabase-labs/middleware-openfeature";
 
-import { ErrorCode, OpenFeature, type Provider } from "@openfeature/server-sdk";
+import { ErrorCode, OpenFeature } from "@openfeature/server-sdk";
 import { afterAll, describe, expect, expectTypeOf, it } from "vitest";
+
+import type { FlagDefinition } from "../../src/blocks/flags/index.ts";
 
 import {
   createFlagClient,
   createFlagsProvider,
-  type FlagDefinition,
   flagContext,
 } from "../../src/blocks/flags/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";

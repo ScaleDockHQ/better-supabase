@@ -2,7 +2,9 @@ import { existsSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { detectProject, type Project } from "./detect.ts";
+import type { Project } from "./detect.ts";
+
+import { detectProject } from "./detect.ts";
 
 /** One package of a pnpm, npm, yarn or bun workspace. */
 export interface WorkspacePackage {

@@ -1,9 +1,10 @@
+import type { FlagsSdkEntities } from "better-supabase/flags-sdk";
+
 import { createClient } from "@supabase/supabase-js";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   betterSupabaseAdapter,
   createIdentify,
-  type FlagsSdkEntities,
 } from "better-supabase/flags-sdk";
 import { toSession } from "better-supabase/next";
 import { dedupe, flag } from "flags/next";

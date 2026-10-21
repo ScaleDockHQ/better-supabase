@@ -4,6 +4,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type {
   FilterEvaluation,
   FilterRecordField,
@@ -14,17 +15,17 @@ import type {
   FilterQuery,
   FilterRule,
 } from "../../list/filter-query.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { RuleField, RuleFieldCatalog } from "./fields.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { evaluateFilterQuery } from "../../list/filter-evaluate.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   instantArg,
   isRecord,

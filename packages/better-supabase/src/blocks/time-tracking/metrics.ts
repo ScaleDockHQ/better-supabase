@@ -1,11 +1,9 @@
+import type { MetricDefinition } from "../../core/metric-definition.ts";
 import type { CloudEvent } from "../../events/cloud-event.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { isRecord } from "../../core/guards.ts";
-import {
-  defineMetric,
-  type MetricDefinition,
-} from "../../core/metric-definition.ts";
+import { defineMetric } from "../../core/metric-definition.ts";
 
 export interface TimeTrackingMetricsOptions {
   /** The time-tracking module's schema. Default `better_supabase`. */

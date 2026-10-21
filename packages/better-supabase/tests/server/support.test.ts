@@ -9,16 +9,14 @@ import type {
   SessionOptions,
   SqlClaims,
 } from "../../src/postgres/pool.ts";
+import type { SupportOptions } from "../../src/server/support.ts";
 
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { dbTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
-import {
-  type SupportOptions,
-  supportSessions as denyingSupportSessions,
-} from "../../src/server/support.ts";
+import { supportSessions as denyingSupportSessions } from "../../src/server/support.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";

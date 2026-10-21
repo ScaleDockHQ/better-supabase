@@ -2,19 +2,20 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type {
+  AnyAuthorizer,
+  AuthorizationResource,
+} from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { GuardOptions } from "./respond.ts";
 
 import { authContext } from "../auth/context.ts";
 import { toSession } from "../auth/view.ts";
-import {
-  checkPermission,
-  type AnyAuthorizer,
-  type AuthorizationResource,
-} from "../core/authorizer.ts";
+import { checkPermission } from "../core/authorizer.ts";
 import { claimAt } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { validate } from "../core/standard.ts";
-import { guard, type GuardOptions, settle } from "./respond.ts";
+import { guard, settle } from "./respond.ts";
 
 /**
  * What a server action returns: plain data, safe across any serialization

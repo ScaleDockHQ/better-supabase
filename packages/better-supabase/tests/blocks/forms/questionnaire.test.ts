@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  FormDefinition,
+  QuestionnaireAction,
+  QuestionnaireState,
+} from "../../../src/blocks/forms/index.ts";
+
 import {
-  type FormDefinition,
   conditionHolds,
   finishQuestionnaire,
   formSchema,
   initialQuestionnaire,
   pruneAnswers,
-  type QuestionnaireAction,
-  type QuestionnaireState,
   questionnaireReducer,
   questionnaireSteps,
   stepIssues,

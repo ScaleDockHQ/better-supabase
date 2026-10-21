@@ -10,6 +10,7 @@ import {
 
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
@@ -17,14 +18,23 @@ import type {
   ResourceHandler,
   ResourceRouteOptions,
 } from "../server/resource-types.ts";
+import type { GuardOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { ToolSchemaTarget } from "./dialect.ts";
 import type { Json, JsonRpcRequest } from "./json-rpc.ts";
+import type { RequiredRoles } from "./permissions.ts";
+import type {
+  ServerDescription,
+  ToolAnnotations,
+  ToolInfo,
+  ToolResult,
+} from "./protocol.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { jsonResponse } from "../core/json.ts";
 import {
   methodNotAllowed,
@@ -37,19 +47,10 @@ import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
 import { defineResource } from "../server/resource.ts";
-import {
-  defaultExpose,
-  guard,
-  type GuardOptions,
-  settle,
-} from "../server/respond.ts";
+import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { pageInputSchema, pageSchema } from "../spec/resource-schemas.ts";
-import {
-  schemaTargetFor,
-  type ToolSchemaTarget,
-  toolDialects,
-} from "./dialect.ts";
+import { schemaTargetFor, toolDialects } from "./dialect.ts";
 import {
   discovery,
   endpointPreflight,
@@ -77,7 +78,6 @@ import {
   contextOf,
   missingRole,
   permittedTools,
-  type RequiredRoles,
   toolPermission,
 } from "./permissions.ts";
 import {
@@ -87,12 +87,8 @@ import {
   LIST_TTL_MS,
   MCP_PROTOCOL_VERSION,
   modernResult,
-  type ServerDescription,
   SUPPORTED_VERSIONS,
   textResult,
-  type ToolAnnotations,
-  type ToolInfo,
-  type ToolResult,
 } from "./protocol.ts";
 
 export { MCP_PROTOCOL_VERSION } from "./protocol.ts";

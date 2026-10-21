@@ -15,6 +15,7 @@ import {
 import { useExtracted, useLocale } from "next-intl";
 import { useTransition } from "react";
 
+import type { Locale } from "@/i18n/routing";
 import type { Role } from "@/lib/claims";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,7 +36,7 @@ import {
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useRoleLabel } from "@/features/organization/use-role-label";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { type Locale, routing } from "@/i18n/routing";
+import { routing } from "@/i18n/routing";
 import { useSupabase } from "@/lib/hooks";
 import { initials } from "@/lib/initials";
 

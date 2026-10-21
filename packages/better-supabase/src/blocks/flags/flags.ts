@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import {
@@ -11,7 +12,6 @@ import {
   recordsOf,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 

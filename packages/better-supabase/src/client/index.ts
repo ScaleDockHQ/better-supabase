@@ -1,17 +1,19 @@
-import { createBrowserClient } from "@supabase/ssr";
-import {
-  createClient as createSupabaseClient,
-  type SupabaseClient,
-  type SupabaseClientOptions,
+import type {
+  SupabaseClient,
+  SupabaseClientOptions,
 } from "@supabase/supabase-js";
+
+import { createBrowserClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import type { SessionEncoding } from "../auth/session.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { PublicEnv } from "../env/index.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterClient } from "./bind.ts";
 import type { ClientPorts } from "./ports.ts";
 
-import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
+import { EnvValidationError, parseEnv } from "../env/index.ts";
 import { bindClient } from "./bind.ts";
 import { storageUpload } from "./ports.ts";
 import { webPorts } from "./web-ports.ts";

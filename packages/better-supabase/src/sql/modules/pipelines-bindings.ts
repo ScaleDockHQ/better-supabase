@@ -1,12 +1,10 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
-import {
-  type RegisteredSubject,
-  registeredSubjects,
-} from "../subject-registry.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 
 /**
  * The fixed outcomes every stage category maps to. Reports read these, never

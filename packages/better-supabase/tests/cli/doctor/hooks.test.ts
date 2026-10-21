@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   ExtrasHookFunction,
   Snapshot,
@@ -11,11 +12,7 @@ import {
   hookGrantBlock,
   hookGrantProblems,
 } from "../../../src/cli/doctor/hooks.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {

@@ -2,13 +2,17 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { UndoToken } from "../undo/undo.ts";
 import type { AuditEntry, OcsfProduct } from "./audit.ts";
+import type { AuditCsvOptions } from "./csv.ts";
+import type { AuditSinkOptions } from "./sink.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   batchResultsOf,
@@ -19,14 +23,13 @@ import {
   optionalText,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
   pageOf,
 } from "../shared.ts";
 import { undoToken } from "../undo/undo.ts";
 import { toOcsf } from "./audit.ts";
-import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
-import { auditSink, type AuditSinkOptions } from "./sink.ts";
+import { csvPage, revealsDetails } from "./csv.ts";
+import { auditSink } from "./sink.ts";
 
 /**
  * The adopted log's own columns, by column name, as `metadataColumns` maps

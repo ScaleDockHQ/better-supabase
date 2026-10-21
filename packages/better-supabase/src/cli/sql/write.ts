@@ -2,16 +2,16 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleFile, ModuleLayout } from "../../sql/index.ts";
 import type { PlannedFile } from "../core/files.ts";
 import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
+import type { Now } from "./migrations.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
-  type ModuleFile,
-  type ModuleLayout,
   moduleTopics,
   renderModules,
   resolveModules,
@@ -27,7 +27,7 @@ import {
   sqlWorkflow,
 } from "../supabase-toml.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { DATA_NEXT, type Now, writeExtensionsMigration } from "./migrations.ts";
+import { DATA_NEXT, writeExtensionsMigration } from "./migrations.ts";
 import {
   MODULES_SUFFIX,
   renderModuleMigration,

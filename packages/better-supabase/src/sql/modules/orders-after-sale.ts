@@ -1,8 +1,8 @@
 import type { ModuleContext } from "../context.ts";
+import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import {
-  type OrdersNames,
   columns,
   guard,
   orderFields,

@@ -3,10 +3,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { x } from "tinyexec";
 
+import type { ExecEvent } from "./core/trace.ts";
 import type { CliEnv } from "./env.ts";
 
 import { CliError, errorText } from "./core/errors.ts";
-import { EXEC_CHANNEL, type ExecEvent } from "./core/trace.ts";
+import { EXEC_CHANNEL } from "./core/trace.ts";
 import { PROCESS_ENV } from "./env.ts";
 import { findUp } from "./supabase-toml.ts";
 

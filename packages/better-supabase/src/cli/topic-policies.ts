@@ -1,12 +1,9 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
+import type { LoadedTopic, LoadedTriggerOptions } from "./topics.ts";
 
 import { CliError } from "./core/errors.ts";
-import {
-  type LoadedTopic,
-  type LoadedTriggerOptions,
-  loadTopics,
-} from "./topics.ts";
+import { loadTopics } from "./topics.ts";
 
 const literalParts = (template: string): string =>
   template.replaceAll(/\{[^}]+\}/g, "{}");

@@ -1,4 +1,5 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type {
@@ -7,7 +8,7 @@ import type {
   VercelMarketplace,
 } from "./vercel-marketplace.ts";
 
-import { type DbError, dbError, dbErrorOf } from "../../core/errors.ts";
+import { dbError, dbErrorOf } from "../../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../../core/problem.ts";
 import { errorText, isRecord, optionalText } from "../shared.ts";
 

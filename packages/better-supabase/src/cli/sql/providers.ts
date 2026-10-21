@@ -1,10 +1,12 @@
 import type { ResolvedConfig } from "../../config/index.ts";
+import type {
+  ModuleAccessProvider,
+  ModuleLayout,
+  ModuleEntitlementsProvider,
+} from "../../sql/index.ts";
 import type { SqlFlags } from "./args.ts";
 
 import {
-  type ModuleAccessProvider,
-  type ModuleLayout,
-  type ModuleEntitlementsProvider,
   moduleLayout,
   modulePermissionKeys,
   resolveModules,

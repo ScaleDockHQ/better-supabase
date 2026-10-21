@@ -2,8 +2,9 @@ import type {
   AuthorizationHooks,
   SupportAuthorizeInput,
 } from "../core/contracts/authorization-hooks.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 /**
  * Proves `AuthorizationHooks` target API v1 and fail closed for strangers:

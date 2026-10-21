@@ -27,6 +27,7 @@ import type {
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
 import type { ModuleContext } from "../packages/better-supabase/src/sql/context.ts";
+import type { SqlModule } from "../packages/better-supabase/src/sql/index.ts";
 import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
@@ -34,7 +35,6 @@ import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fiel
 import {
   renderModules,
   SQL_MODULES,
-  type SqlModule,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";

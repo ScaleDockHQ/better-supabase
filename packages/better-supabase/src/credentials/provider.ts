@@ -1,7 +1,8 @@
 import type { AuthState } from "../auth/resolve.ts";
+import type { DbError } from "../core/errors.ts";
 import type { AsyncResult } from "../core/result.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 
 /**
  * Names a credential without holding it. Tables store this as a `credential_ref

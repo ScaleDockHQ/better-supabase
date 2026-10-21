@@ -3,14 +3,10 @@ import type {
   QueueMessageRow,
 } from "../../blocks/jobs/backends.ts";
 import type { Job } from "../../blocks/jobs/types.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
-import {
-  conform,
-  expect,
-  same,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestQueueBackendOptions {

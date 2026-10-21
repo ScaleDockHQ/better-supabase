@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -28,7 +29,6 @@ import {
   record,
   reminderMirror,
   slotsJson,
-  type Parts,
 } from "./bookings-public.ts";
 
 /** The queue a hold enqueues to expire itself once `hold_expires_at` passes. */

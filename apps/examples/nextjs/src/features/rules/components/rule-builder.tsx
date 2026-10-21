@@ -1,6 +1,8 @@
 // #region recipe:rule-builder
 "use client";
 
+import type { DragEndEvent } from "@dnd-kit/core";
+import type { RuleField } from "better-supabase/blocks/rules";
 import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
 import type {
   FilterCombinator,
@@ -9,11 +11,11 @@ import type {
   FilterQuery,
   FilterRule,
 } from "better-supabase/list";
+import type { CSSProperties, ReactNode } from "react";
 
 import {
   closestCenter,
   DndContext,
-  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -26,11 +28,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  contains,
-  ruleOperators,
-  type RuleField,
-} from "better-supabase/blocks/rules";
+import { contains, ruleOperators } from "better-supabase/blocks/rules";
 import { useRuleBuilder } from "better-supabase/blocks/rules/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
@@ -42,15 +40,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
-import {
-  type CSSProperties,
-  createContext,
-  type ReactNode,
-  use,
-  useId,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, use, useId, useMemo, useState } from "react";
 import * as v from "valibot";
 
 import {

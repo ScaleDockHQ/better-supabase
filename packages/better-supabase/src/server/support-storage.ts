@@ -1,4 +1,5 @@
 import type { SupportSession } from "../auth/support.ts";
+import type { DbError } from "../core/errors.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type {
   StorageApi,
@@ -18,7 +19,7 @@ import type {
   StorageSignedUrlEntry,
 } from "../storage/storage-api.ts";
 
-import { type DbError, mapDbError } from "../core/errors.ts";
+import { mapDbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { toDbError } from "../core/result.ts";
 import { fromPgError } from "../postgres/pg-error.ts";

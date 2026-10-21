@@ -7,6 +7,7 @@ import type { CliLog } from "../core/log.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
+import type { Rendered } from "./render.ts";
 
 import {
   jsonSchema,
@@ -23,7 +24,7 @@ import {
 } from "../introspect/typegen.ts";
 import { metaPaths } from "./emit.ts";
 import { generationNotices, UNFORMATTED } from "./notices.ts";
-import { type Rendered, render } from "./render.ts";
+import { render } from "./render.ts";
 import { refuseRowConditionedBuckets, runGen } from "./run.ts";
 
 /** The files `gen --metadata` can write to stdout. */

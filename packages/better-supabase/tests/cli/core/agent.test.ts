@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AgentProbe } from "../../../src/cli/core/agent.ts";
+
 import {
-  type AgentProbe,
   checkConsent,
   consentToken,
   databaseHost,

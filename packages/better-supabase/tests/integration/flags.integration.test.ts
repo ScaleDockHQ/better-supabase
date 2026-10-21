@@ -1,11 +1,12 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { FlagContext } from "../../src/blocks/flags/index.ts";
+
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import {
   createFlags,
   createFlagsProvider,
-  type FlagContext,
   sqlTransport,
 } from "../../src/blocks/flags/index.ts";
 import { expiredFlagsQuery } from "../../src/sql/index.ts";

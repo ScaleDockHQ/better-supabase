@@ -1,10 +1,9 @@
 import "server-only";
-import { generatedOptions, type RpcClient } from "better-supabase/blocks";
-import {
-  type Orders,
-  createOrders,
-  rpcTransport,
-} from "better-supabase/blocks/orders";
+import type { RpcClient } from "better-supabase/blocks";
+import type { Orders } from "better-supabase/blocks/orders";
+
+import { generatedOptions } from "better-supabase/blocks";
+import { createOrders, rpcTransport } from "better-supabase/blocks/orders";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";

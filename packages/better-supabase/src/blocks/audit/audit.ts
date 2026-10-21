@@ -10,6 +10,7 @@ import type {
   TableKey,
   TableMeta,
 } from "../../schema/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
@@ -25,7 +26,6 @@ import {
   seconds,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 

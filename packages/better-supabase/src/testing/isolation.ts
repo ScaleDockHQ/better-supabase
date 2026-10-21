@@ -9,17 +9,14 @@ import type {
   TableMeta,
   Update,
 } from "../schema/types.ts";
+import type { LocalStack } from "./as-user.ts";
+import type { Check, ConformanceReport } from "./conformance.ts";
 import type { TestJwtClaims } from "./jwt.ts";
 
 import { BetterSupabase } from "../core/define.ts";
 import { ENV_VARIABLES } from "../env/index.ts";
-import { asUser, type LocalStack } from "./as-user.ts";
-import {
-  type Check,
-  type ConformanceReport,
-  conform,
-  expect,
-} from "./conformance.ts";
+import { asUser } from "./as-user.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface IsolationTenant {
   /** Handed to each table's `row`, usually the tenant's id. */

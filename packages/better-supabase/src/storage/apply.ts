@@ -1,12 +1,9 @@
 import type { StorageAdminClient } from "./bucket.ts";
+import type { LifecyclePayload, VersioningStatus } from "./versioning.ts";
 
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
-import {
-  lifecycleAbsent,
-  type LifecyclePayload,
-  type VersioningStatus,
-} from "./versioning.ts";
+import { lifecycleAbsent } from "./versioning.ts";
 
 export interface BucketSettings {
   readonly id: string;

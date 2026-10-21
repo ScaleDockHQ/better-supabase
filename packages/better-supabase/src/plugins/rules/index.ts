@@ -1,14 +1,14 @@
+import type {
+  HookArgs,
+  Plugin,
+  RepositoryExtension,
+} from "../../core/plugin.ts";
 import type { Condition, Operation, Selection } from "../../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
 
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError, DbException } from "../../core/errors.ts";
-import {
-  definePlugin,
-  type HookArgs,
-  type Plugin,
-  type RepositoryExtension,
-} from "../../core/plugin.ts";
+import { definePlugin } from "../../core/plugin.ts";
 import { simplify } from "../../ir/simplify.ts";
 import { lookupOf } from "../../schema/lookup.ts";
 

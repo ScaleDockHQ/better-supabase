@@ -1,12 +1,9 @@
+import type { Contributions } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  type Contributions,
-  defineMiddleware,
-  pipeline,
-} from "@supabase/middleware";
+import { defineMiddleware, pipeline } from "@supabase/middleware";
 import { withSupabase } from "@supabase/server";
 import { withPostgresClient } from "@supabase/server/middleware/postgres";
 import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";

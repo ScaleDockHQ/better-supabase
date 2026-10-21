@@ -1,11 +1,8 @@
+import type { Kpi, MetricChartRow } from "better-supabase/blocks/metrics";
 import type { CSSProperties } from "react";
 
 // #region recipe:metrics-dashboard
-import {
-  toChartData,
-  type Kpi,
-  type MetricChartRow,
-} from "better-supabase/blocks/metrics";
+import { toChartData } from "better-supabase/blocks/metrics";
 import { tenantOf } from "better-supabase/next";
 import { ChartColumnIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";

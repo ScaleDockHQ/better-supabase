@@ -1,17 +1,14 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
 import type { DbError } from "../core/errors.ts";
+import type { SessionActor, SessionDelegation } from "./actor.ts";
+import type { Impersonator } from "./impersonation.ts";
+import type { Aal, AmrEntry } from "./mfa.ts";
 import type { AuthState, InvalidReason } from "./resolve.ts";
 
-import {
-  actorOf,
-  delegationOf,
-  invalidActorError,
-  type SessionActor,
-  type SessionDelegation,
-} from "./actor.ts";
-import { type Impersonator, impersonatorOf } from "./impersonation.ts";
-import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
+import { actorOf, delegationOf, invalidActorError } from "./actor.ts";
+import { impersonatorOf } from "./impersonation.ts";
+import { aalOf, amrOf } from "./mfa.ts";
 
 export { tenantOf } from "./tenant.ts";
 

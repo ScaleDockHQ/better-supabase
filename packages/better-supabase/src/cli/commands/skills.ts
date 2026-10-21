@@ -6,18 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
 import { byCodePoint } from "../compare.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import {
-  applyPlan,
-  type FilePlan,
-  PLAN_ARGS,
-  planResult,
-} from "../core/files.ts";
+import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 
 const SOURCE_ARG = {

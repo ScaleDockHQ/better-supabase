@@ -9,6 +9,14 @@ import type { Inbox } from "../../src/blocks/inbox/inbox.ts";
 import type { Knowledge } from "../../src/blocks/knowledge/knowledge.ts";
 import type { Memory } from "../../src/blocks/memory/memory.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
+import type {
+  EveChatMessage,
+  EveChatThread,
+  EveConnectionPrincipal,
+  EveMemoryContext,
+  EveSessionAuth,
+  EveSessionContext,
+} from "../../src/eve/index.ts";
 
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -18,12 +26,6 @@ import {
   ConnectionAuthorizationRequiredError,
   credentialAuth,
   EveAuthRejection,
-  type EveChatMessage,
-  type EveChatThread,
-  type EveConnectionPrincipal,
-  type EveMemoryContext,
-  type EveSessionAuth,
-  type EveSessionContext,
   MemoryDocumentConflictError,
   persistSessions,
   principalOf,

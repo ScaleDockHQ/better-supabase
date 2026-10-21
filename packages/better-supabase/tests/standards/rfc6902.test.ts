@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  JsonPatchOperation,
+  JsonValue,
+} from "../../src/blocks/versions/index.ts";
+
 import {
   applyPatch,
   createPatch,
   JsonPatchError,
-  type JsonPatchOperation,
-  type JsonValue,
   jsonEqual,
 } from "../../src/blocks/versions/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";

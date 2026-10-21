@@ -1,6 +1,8 @@
 import { createTwoFilesPatch } from "diff";
 
-import { type Paint, plain } from "./style.ts";
+import type { Paint } from "./style.ts";
+
+import { plain } from "./style.ts";
 
 /** Diff lines shown per file; the rest are counted. */
 export const DIFF_LINES = 40;

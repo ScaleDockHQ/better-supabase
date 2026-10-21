@@ -1,4 +1,6 @@
-import { type RecipeSource, WEB_APP } from "./types.ts";
+import type { RecipeSource } from "./types.ts";
+
+import { WEB_APP } from "./types.ts";
 
 /** Recipes for the record, commerce, people, content and admin blocks. */
 export const SAAS_RECIPES: readonly RecipeSource[] = [

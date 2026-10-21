@@ -1,8 +1,11 @@
-import { type ProxyOptions, toSession } from "better-supabase/next";
+import type { ProxyOptions } from "better-supabase/next";
+import type { NextRequest } from "next/server";
+
+import { toSession } from "better-supabase/next";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";

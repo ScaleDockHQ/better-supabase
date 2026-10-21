@@ -1,7 +1,8 @@
 import type { RequestContext } from "../core/plugin.ts";
+import type { ActClaim } from "./actor.ts";
 
 import { isRecord } from "../core/guards.ts";
-import { actorOf, type ActClaim } from "./actor.ts";
+import { actorOf } from "./actor.ts";
 import { actClaim, impersonatorClaim } from "./impersonation.ts";
 
 /** One RFC 9396 `authorization_details` entry. */

@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
+import type { EveSessionAuth } from "../../src/eve/index.ts";
 
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import { createMemory, sqlTransport } from "../../src/blocks/memory/index.ts";
@@ -10,7 +11,6 @@ import {
   chatIdOf,
   ConnectionAuthorizationRequiredError,
   credentialAuth,
-  type EveSessionAuth,
   persistSessions,
   supabaseDocumentBackend,
   supabaseMemory,

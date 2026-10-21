@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
+import type { ApproverCheck } from "./approver.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -11,11 +12,7 @@ import {
   pageSize,
 } from "../shared.ts";
 import { AI_TOOL_SUBJECT, linkedPolicy } from "./approvals.ts";
-import {
-  AI_TOOL_APPROVAL,
-  type ApproverCheck,
-  approverCheck,
-} from "./approver.ts";
+import { AI_TOOL_APPROVAL, approverCheck } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */

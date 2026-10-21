@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { OrdersNames } from "./orders-shared.ts";
 
 import {
   extraFieldsArg,
@@ -9,7 +10,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  type OrdersNames,
   amountOf,
   asService,
   assignNumber,

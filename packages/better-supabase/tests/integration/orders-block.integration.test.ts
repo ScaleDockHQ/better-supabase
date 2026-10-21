@@ -1,22 +1,14 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { Payment, PaymentProvider } from "../../src/commerce/index.ts";
 import type { BlockTransport } from "../../src/core/block-transport.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createOrders, sqlTransport } from "../../src/blocks/orders/index.ts";
-import {
-  fixedRates,
-  money,
-  type Payment,
-  type PaymentProvider,
-} from "../../src/commerce/index.ts";
+import { fixedRates, money } from "../../src/commerce/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 

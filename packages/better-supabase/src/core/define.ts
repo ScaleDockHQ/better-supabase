@@ -6,74 +6,53 @@ import type {
   TableKey,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { CacheAdapter, CacheTarget } from "./cache.ts";
 import type { BucketRegistry } from "./db-buckets.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
+import type { DbError, ErrorMapper } from "./errors.ts";
+import type { EventHandler, EventName } from "./events.ts";
 import type { Executor } from "./executor.ts";
+import type {
+  AnyPlugin,
+  ExtensionOf,
+  RequestContext,
+  WithExtension,
+} from "./plugin.ts";
+import type {
+  PostgrestClientLike,
+  PostgrestExecutorOptions,
+} from "./postgrest-executor.ts";
+import type { ReadSet } from "./read-set.ts";
 import type { Db } from "./repository-types.ts";
+import type { Result, ThrowMapper } from "./result.ts";
 import type { SearchInput } from "./search.ts";
+import type { QuerySpec, Specs } from "./spec.ts";
+import type { StandardSchemaV1 } from "./standard.ts";
+import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
-import {
-  cacheTargetOf,
-  rpcCacheTargets,
-  type CacheAdapter,
-  type CacheTarget,
-} from "./cache.ts";
+import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { searchTable } from "./db-search.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
-import {
-  DbException,
-  dbError,
-  type DbError,
-  type ErrorMapper,
-} from "./errors.ts";
-import {
-  EventHub,
-  errorEvent,
-  type EventHandler,
-  type EventName,
-} from "./events.ts";
+import { DbException, dbError } from "./errors.ts";
+import { EventHub, errorEvent } from "./events.ts";
 import { isRecord } from "./guards.ts";
-import {
-  orderPlugins,
-  type AnyPlugin,
-  type ExtensionOf,
-  type RequestContext,
-  type WithExtension,
-} from "./plugin.ts";
-import {
-  postgrestExecutor,
-  type PostgrestClientLike,
-  type PostgrestExecutorOptions,
-} from "./postgrest-executor.ts";
+import { orderPlugins } from "./plugin.ts";
+import { postgrestExecutor } from "./postgrest-executor.ts";
 import {
   bindParams,
   checkParams,
   containsPlaceholder,
   isReadSet,
-  type ReadSet,
 } from "./read-set.ts";
 import { createRepository } from "./repository.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  withErrorMapper,
-  type Result,
-  type ThrowMapper,
-} from "./result.ts";
+import { AsyncResult, err, ok, withErrorMapper } from "./result.ts";
 import { decodeRpcResult, rpcFunction, rpcSelect } from "./rpc-result.ts";
 import { OperationRunner } from "./runner.ts";
-import {
-  createSpecs,
-  isQuerySpec,
-  specTables,
-  type QuerySpec,
-  type Specs,
-} from "./spec.ts";
-import { validate, type StandardSchemaV1 } from "./standard.ts";
+import { createSpecs, isQuerySpec, specTables } from "./spec.ts";
+import { validate } from "./standard.ts";
 import { StatsRecorder, recordStats } from "./stats.ts";
 import {
   nowInstant,
@@ -81,7 +60,7 @@ import {
   provideTemporal,
   providedTemporal,
 } from "./temporal.ts";
-import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
+import { deadline, invalidTuning } from "./timeout.ts";
 
 /** What a `Db` was connected to: its client, and the `storage` option. */
 interface DbSource {

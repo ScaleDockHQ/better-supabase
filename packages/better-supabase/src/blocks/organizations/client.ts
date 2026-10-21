@@ -1,4 +1,5 @@
 import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type {
   InvitationSent,
@@ -12,7 +13,7 @@ import type {
 
 import { tenantOf } from "../../auth/tenant.ts";
 import { dbError } from "../../core/errors.ts";
-import { err, type Result, toDbError } from "../../core/result.ts";
+import { err, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
 /** Loads the caller's organizations, e.g. a server action; it throws on failure. */

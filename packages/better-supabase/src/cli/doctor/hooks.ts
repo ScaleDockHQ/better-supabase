@@ -3,6 +3,8 @@ import type {
   SqlWorkflow,
 } from "../../config/index.ts";
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
+import type { PgFunctionHook } from "../supabase-toml.ts";
+import type { LiveDatabase } from "./live.ts";
 import type {
   DoctorContext,
   FindingInput,
@@ -14,12 +16,8 @@ import type {
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
-import {
-  httpHooks,
-  type PgFunctionHook,
-  pgFunctionHooks,
-} from "../supabase-toml.ts";
-import { ident, literal, type LiveDatabase } from "./live.ts";
+import { httpHooks, pgFunctionHooks } from "../supabase-toml.ts";
+import { ident, literal } from "./live.ts";
 import { lineOf, workflowOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */

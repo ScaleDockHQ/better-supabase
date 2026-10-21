@@ -1,6 +1,8 @@
+import type { OxlintConfig } from "oxlint";
+
 import playwright from "eslint-plugin-playwright";
 import { fileURLToPath } from "node:url";
-import { type OxlintConfig, defineConfig } from "oxlint";
+import { defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
@@ -350,10 +352,10 @@ const config: OxlintConfig = defineConfig({
     // declarations, keys in reading order, interfaces); adopting one is a
     // repo-wide codemod.
     // Findings when measured: sort-keys 22,476, func-style 5,625,
-    // consistent-type-specifier-style 2,187, method-signature-style 2,106,
-    // no-await-expression-member 1,504, no-use-before-define 603,
-    // prefer-named-capture-group 598, prefer-destructuring 519,
-    // no-nested-ternary 314, consistent-type-definitions 221, import-style 148.
+    // method-signature-style 2,106, no-await-expression-member 1,504,
+    // no-use-before-define 603, prefer-named-capture-group 598,
+    // prefer-destructuring 519, no-nested-ternary 314,
+    // consistent-type-definitions 221, import-style 148.
     // consistent-type-definitions would turn types into interfaces, which
     // are not assignable to `Record<string, unknown>`.
     // no-array-reduce (8) flags folds that compose middleware or chain
@@ -366,7 +368,6 @@ const config: OxlintConfig = defineConfig({
     "eslint/sort-keys": "off",
     "eslint/func-style": "off",
     "typescript/method-signature-style": "off",
-    "import/consistent-type-specifier-style": "off",
     "unicorn/no-await-expression-member": "off",
     "eslint/prefer-named-capture-group": "off",
     "eslint/no-use-before-define": "off",

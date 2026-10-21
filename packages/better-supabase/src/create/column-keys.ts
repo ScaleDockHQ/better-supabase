@@ -1,6 +1,7 @@
+import type { AppColumnFormat } from "../preset/index.ts";
 import type { AppColumn, AppColumnType } from "./design.ts";
 
-import { type AppColumnFormat, isAppDefault } from "../preset/index.ts";
+import { isAppDefault } from "../preset/index.ts";
 
 /** The most options a select takes, and the longest option. */
 const MAX_OPTIONS = 100;

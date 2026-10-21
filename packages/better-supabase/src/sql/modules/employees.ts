@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -16,10 +17,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import {
-  employeeFunctions,
-  type EmployeeNames,
-} from "./employees-functions.ts";
+import { employeeFunctions } from "./employees-functions.ts";
 import { sensitiveFunctions } from "./employees-sensitive.ts";
 
 const EMPLOYEE = [

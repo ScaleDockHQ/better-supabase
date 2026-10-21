@@ -1,8 +1,9 @@
-import {
-  executeGraph,
-  type GraphStepCall,
-  type WorkflowGraph,
+import type {
+  GraphStepCall,
+  WorkflowGraph,
 } from "better-supabase/blocks/workflow-builder";
+
+import { executeGraph } from "better-supabase/blocks/workflow-builder";
 import { createHook, sleep } from "workflow";
 
 import { graphSteps } from "./graph-steps";

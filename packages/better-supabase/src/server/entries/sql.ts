@@ -1,4 +1,6 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "../../auth/resolve.ts";
 import type { Db } from "../../core/repository-types.ts";

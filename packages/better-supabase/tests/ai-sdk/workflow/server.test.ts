@@ -4,6 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AssistantTurn } from "../../../src/ai-sdk/chat/index.ts";
+import type { DurableChatContext } from "../../../src/ai-sdk/workflow/index.ts";
 import type {
   AiChat,
   AiChatRecord,
@@ -13,7 +14,6 @@ import type {
 import type { DbError } from "../../../src/core/errors.ts";
 
 import {
-  type DurableChatContext,
   durableChat,
   WORKFLOW_RUN_ID_HEADER,
 } from "../../../src/ai-sdk/workflow/index.ts";

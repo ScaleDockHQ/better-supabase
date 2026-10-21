@@ -1,7 +1,6 @@
-import {
-  FIELD_FORMAT_NAMES,
-  type FieldFormatName,
-} from "../../core/contracts/field-formats.ts";
+import type { FieldFormatName } from "../../core/contracts/field-formats.ts";
+
+import { FIELD_FORMAT_NAMES } from "../../core/contracts/field-formats.ts";
 
 /**
  * The column types an app table may use. Money is a `bigint` of minor units

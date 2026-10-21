@@ -1,4 +1,6 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 /**
  * Entry contributing `ctx[key]`: a block service built from the keys the

@@ -1,20 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AsyncResult,
+  BetterResultValue,
+  CacheAdapter,
+  DbError,
+  Executor,
+  Logger,
+  Result,
+} from "better-supabase";
 import type { Job } from "better-supabase/blocks/jobs";
+import type { LiveCountSeed } from "better-supabase/react";
+import type { Aal } from "better-supabase/server";
+import type { StoragePath } from "better-supabase/storage";
 
 import { QueryClient } from "@tanstack/react-query";
 import {
-  type AsyncResult,
-  type BetterResultValue,
-  type CacheAdapter,
-  type DbError,
   defineRepository,
   defineSupabase,
-  type Executor,
   fromBetterResult,
-  type Logger,
   memoryCache,
   ok,
-  type Result,
   silentLogger,
   toBetterResult,
 } from "better-supabase";
@@ -39,36 +44,24 @@ import { tenant } from "better-supabase/plugins/tenant";
 import { timestamps } from "better-supabase/plugins/timestamps";
 import { createPostgres, postgresExecutor } from "better-supabase/postgres";
 import { createQueries, queryCache } from "better-supabase/query";
-import {
-  createHooks,
-  type LiveCountSeed,
-  useLiveCount,
-} from "better-supabase/react";
+import { createHooks, useLiveCount } from "better-supabase/react";
 import { defineTopic, liveCount } from "better-supabase/realtime";
 import {
-  type Aal,
   checkAal,
   createServer,
   impersonatorOf,
   PRIMARY_COOKIE,
 } from "better-supabase/server";
-import {
-  defineBucket,
-  defineBuckets,
-  type StoragePath,
-} from "better-supabase/storage";
+import { defineBucket, defineBuckets } from "better-supabase/storage";
 import {
   defineSeed,
   expectTenantIsolation,
   testExecutor,
 } from "better-supabase/testing";
 
-import {
-  type Database,
-  type Functions,
-  type Models,
-  schema,
-} from "./generated.ts";
+import type { Database, Functions, Models } from "./generated.ts";
+
+import { schema } from "./generated.ts";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2

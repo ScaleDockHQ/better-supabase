@@ -4,7 +4,9 @@ import "server-only";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
-import { type ConversationRow, toConversationRow } from "./inbox-types";
+import type { ConversationRow } from "./inbox-types";
+
+import { toConversationRow } from "./inbox-types";
 
 /** The open conversations of the active organization, newest activity first. */
 export async function getConversations(): Promise<readonly ConversationRow[]> {

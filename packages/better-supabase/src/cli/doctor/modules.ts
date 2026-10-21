@@ -1,3 +1,4 @@
+import type { ModuleDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
@@ -5,7 +6,6 @@ import {
   adoptedTables,
   contractSignature,
   customContracts,
-  type ModuleDeprecation,
   moduleDeprecations,
   moduleEventTriggers,
   moduleFileVersion,

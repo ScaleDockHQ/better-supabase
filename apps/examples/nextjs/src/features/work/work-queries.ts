@@ -8,13 +8,16 @@ import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import type {
+  MemberOption,
+  SavedViewOption,
+  StageColumn,
+  TeamOption,
+  WorkGridQuery,
+  WorkItemRow,
+} from "./work-types";
+
 import {
-  type MemberOption,
-  type SavedViewOption,
-  type StageColumn,
-  type TeamOption,
-  type WorkGridQuery,
-  type WorkItemRow,
   WORK_ITEM_LIST,
   WORK_ITEM_STATES,
   WORK_ITEM_SUBJECT,

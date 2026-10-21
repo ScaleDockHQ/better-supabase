@@ -1,13 +1,15 @@
+import type { PostgrestPlan } from "../compile/postgrest.ts";
 import type {
   Condition,
   Operation,
   SelectColumn,
   SelectOp,
 } from "../ir/types.ts";
+import type { DbError } from "./errors.ts";
 
-import { listItem, type PostgrestPlan } from "../compile/postgrest.ts";
+import { listItem } from "../compile/postgrest.ts";
 import { lookupOf } from "../schema/lookup.ts";
-import { type DbError, dbError } from "./errors.ts";
+import { dbError } from "./errors.ts";
 
 type Row = Record<string, unknown>;
 

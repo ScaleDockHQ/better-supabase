@@ -1,4 +1,6 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+
+import { expect, test } from "@playwright/test";
 
 import { users } from "./users";
 

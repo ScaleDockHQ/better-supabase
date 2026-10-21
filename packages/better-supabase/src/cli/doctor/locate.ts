@@ -1,9 +1,6 @@
-import {
-  lineOf,
-  type Location,
-  type SqlObject,
-  type TextFile,
-} from "../doctor/rules.ts";
+import type { Location, SqlObject, TextFile } from "../doctor/rules.ts";
+
+import { lineOf } from "../doctor/rules.ts";
 
 const escape = (name: string): string =>
   name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");

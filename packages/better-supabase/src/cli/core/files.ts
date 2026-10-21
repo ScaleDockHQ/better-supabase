@@ -1,10 +1,11 @@
 import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
+import type { Paint } from "../style.ts";
 import type { CommandResult } from "./io.ts";
 
 import { fileDiff } from "../diff.ts";
-import { type Paint, plain } from "../style.ts";
+import { plain } from "../style.ts";
 import { CliError } from "./errors.ts";
 import { display, readIfExists, sameText } from "./io.ts";
 

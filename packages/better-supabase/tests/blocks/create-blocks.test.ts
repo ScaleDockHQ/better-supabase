@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AiFiles } from "../../src/blocks/ai-files/index.ts";
 import type { BlockContext, Notifier } from "../../src/blocks/index.ts";
+import type { OrganizationsEvents } from "../../src/blocks/organizations/index.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
 import { auditBlock } from "../../src/blocks/audit/index.ts";
@@ -16,10 +17,7 @@ import {
 } from "../../src/blocks/index.ts";
 import { rateLimitBlock } from "../../src/blocks/jobs/index.ts";
 import { metricsBlock } from "../../src/blocks/metrics/index.ts";
-import {
-  organizationsBlock,
-  type OrganizationsEvents,
-} from "../../src/blocks/organizations/index.ts";
+import { organizationsBlock } from "../../src/blocks/organizations/index.ts";
 import { remindersBlock } from "../../src/blocks/reminders/index.ts";
 import { searchSink } from "../../src/blocks/search/index.ts";
 import { tenantBlock } from "../../src/blocks/tenant/manifest.ts";

@@ -1,5 +1,6 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { MiddlewareOptions } from "./respond.ts";
 import type {
   BetterServer,
   ContextOptions,
@@ -9,12 +10,7 @@ import type {
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { refreshFor } from "./refresh.ts";
-import {
-  defaultExpose,
-  guard,
-  type MiddlewareOptions,
-  respond,
-} from "./respond.ts";
+import { defaultExpose, guard, respond } from "./respond.ts";
 
 export interface HandleOptions extends MiddlewareOptions {
   /**

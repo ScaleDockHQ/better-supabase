@@ -1,17 +1,17 @@
+import type { Entry, SingleKeyEntry } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  defineComposite,
-  type Entry,
-  type SingleKeyEntry,
-} from "@supabase/middleware";
+import { defineComposite } from "@supabase/middleware";
 
 import type { AuthResolution, AuthState } from "../auth/resolve.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ServerContextIn } from "./entries/context.ts";
+import type { ServerCore } from "./entries/core.ts";
+import type { GuardEntryConfig } from "./entries/guard.ts";
+import type { SessionEntryConfig } from "./entries/session.ts";
 import type { SqlIn } from "./entries/sql.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { GuardOptions } from "./respond.ts";
@@ -29,11 +29,11 @@ import {
   withUserClaims,
 } from "../auth/claims.ts";
 import { withServerContext } from "./entries/context.ts";
-import { type ServerCore, serverCore } from "./entries/core.ts";
+import { serverCore } from "./entries/core.ts";
 import { withDb } from "./entries/db.ts";
-import { type GuardEntryConfig, withGuard } from "./entries/guard.ts";
+import { withGuard } from "./entries/guard.ts";
 import { withReplica } from "./entries/replica.ts";
-import { type SessionEntryConfig, withSession } from "./entries/session.ts";
+import { withSession } from "./entries/session.ts";
 import { withSql } from "./entries/sql.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";

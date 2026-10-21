@@ -1,6 +1,7 @@
+import type { NotificationCounts } from "better-supabase/blocks/notifications";
+
 import {
   createNotifications,
-  type NotificationCounts,
   rpcTransport,
 } from "better-supabase/blocks/notifications";
 import { useNotifications } from "better-supabase/blocks/notifications/react";

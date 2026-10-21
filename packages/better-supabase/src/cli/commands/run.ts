@@ -3,12 +3,13 @@ import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliLog } from "../core/log.ts";
 import type { CliEnv } from "../env.ts";
+import type { InheritedOptions } from "../exec.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { PROCESS_ENV } from "../env.ts";
-import { type InheritedOptions, spawnInherited } from "../exec.ts";
+import { spawnInherited } from "../exec.ts";
 import { staleVariables } from "../stack-env.ts";
 import { readStackEnv } from "./env.ts";
 

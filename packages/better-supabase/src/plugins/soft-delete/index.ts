@@ -1,14 +1,16 @@
+import type {
+  HasFlag,
+  Plugin,
+  RepositoryExtension,
+} from "../../core/plugin.ts";
+import type { Result } from "../../core/result.ts";
+import type { MutationOp, Operation } from "../../ir/types.ts";
 import type { PrimaryKeyValue, TableMeta } from "../../schema/types.ts";
 
-import {
-  definePlugin,
-  type HasFlag,
-  type Plugin,
-  type RepositoryExtension,
-} from "../../core/plugin.ts";
-import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { definePlugin } from "../../core/plugin.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { scopeOperation } from "../../ir/scope.ts";
-import { and, type MutationOp, type Operation } from "../../ir/types.ts";
+import { and } from "../../ir/types.ts";
 import {
   dbName,
   guardManaged,

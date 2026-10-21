@@ -1,12 +1,10 @@
-import {
-  type AnyEntry,
-  bufferRequest,
-  type Contributions,
-  pipeline,
-  seedContext,
-} from "@supabase/middleware";
+import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { handoffOf, type Validated } from "./shared.ts";
+import { bufferRequest, pipeline, seedContext } from "@supabase/middleware";
+
+import type { Validated } from "./shared.ts";
+
+import { handoffOf } from "./shared.ts";
 
 /** Route parameters from the file name (`[id]`, `[...slug]`). */
 export type ExpoParams = Record<string, string | string[]>;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { TemplateContext } from "../../src/cli/templates.ts";
+
 import {
   baseFiles,
   INTEGRATIONS,
@@ -7,7 +9,6 @@ import {
   needsLib,
   resolveIntegrations,
   suggestedIntegrations,
-  type TemplateContext,
   TEMPLATES,
 } from "../../src/cli/templates.ts";
 

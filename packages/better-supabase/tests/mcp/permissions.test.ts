@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  type AuthorizationRequest,
-  defineAuthorizer,
-} from "../../src/core/authorizer.ts";
+import type { AuthorizationRequest } from "../../src/core/authorizer.ts";
+
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createMcp } from "../../src/mcp/index.ts";
 import {

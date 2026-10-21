@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { Result } from "../core/result.ts";
 import type { ResourceActionSpec } from "../spec/resource.ts";
 import type {
   ActionArgs,
@@ -9,7 +10,7 @@ import type {
 } from "./resource-types.ts";
 
 import { dbError, isDbError } from "../core/errors.ts";
-import { err, ok, toDbError, type Result } from "../core/result.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 import { isResult } from "./respond.ts";
 
 export async function settled(value: unknown): Promise<Result<unknown>> {

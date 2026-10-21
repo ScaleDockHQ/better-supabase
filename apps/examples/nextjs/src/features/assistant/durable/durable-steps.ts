@@ -1,14 +1,13 @@
-import { generateText } from "ai";
-import {
-  type DurableStepInput,
-  type DurableStepName,
-  type DurableStepOutput,
-  runDurableStep,
+import type {
+  DurableStepInput,
+  DurableStepName,
+  DurableStepOutput,
 } from "better-supabase/ai-sdk/workflow";
-import {
-  type AiRunStepInput,
-  createAiChat,
-} from "better-supabase/blocks/ai-chat";
+import type { AiRunStepInput } from "better-supabase/blocks/ai-chat";
+
+import { generateText } from "ai";
+import { runDurableStep } from "better-supabase/ai-sdk/workflow";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 

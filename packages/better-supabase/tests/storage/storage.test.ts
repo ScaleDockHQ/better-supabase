@@ -2,19 +2,23 @@ import { createClient } from "@supabase/supabase-js";
 import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
+import type { Result } from "../../src/core/result.ts";
+import type {
+  StorageApi,
+  StorageClient,
+  StoragePath,
+  StorageResponse,
+} from "../../src/storage/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
   fromStorageError,
   parseSize,
-  type StorageApi,
-  type StorageClient,
-  type StoragePath,
-  type StorageResponse,
   TTL,
 } from "../../src/storage/index.ts";
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";

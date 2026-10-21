@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { Validated } from "../bridges/shared.ts";
 import type { RouteGuardOptions } from "../server/refusal.ts";
+import type { WebRequestOptions } from "./http.ts";
 
 import { beforeRoute } from "../bridges/before-route.ts";
 import { applyWebHeaders } from "../bridges/node-headers.ts";
@@ -12,11 +13,7 @@ import {
   guardedLocals,
   routeRefusal,
 } from "../server/refusal.ts";
-import {
-  sendWebResponse,
-  toWebRequest,
-  type WebRequestOptions,
-} from "./http.ts";
+import { sendWebResponse, toWebRequest } from "./http.ts";
 
 export { applyWebHeaders, toWebHeaders } from "../bridges/node-headers.ts";
 

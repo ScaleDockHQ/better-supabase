@@ -1,4 +1,6 @@
-import { type DbError, dbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "../storage/errors.ts";
 

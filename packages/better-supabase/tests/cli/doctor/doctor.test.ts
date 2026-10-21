@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogFunction,
@@ -13,6 +14,7 @@ import type {
   ExtrasHookFunction,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
+import type { SupabaseToml } from "../../../src/cli/supabase-toml.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { run } from "../../../src/cli/core/run.ts";
@@ -23,19 +25,10 @@ import {
 } from "../../../src/cli/doctor/hooks.ts";
 import { summarizePlan } from "../../../src/cli/doctor/live.ts";
 import { locate } from "../../../src/cli/doctor/locate.ts";
-import {
-  type DoctorContext,
-  RULE_CODES,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULE_CODES, RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
-import {
-  parseToml,
-  pgFunctionHooks,
-  type SupabaseToml,
-} from "../../../src/cli/supabase-toml.ts";
+import { parseToml, pgFunctionHooks } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   stubProvider,

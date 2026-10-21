@@ -1,10 +1,12 @@
 "use server";
 
-import { DbException, err, ok, type Result } from "better-supabase";
+import type { Result } from "better-supabase";
+import type { ImportRowError } from "better-supabase/blocks/imports";
+
+import { DbException, err, ok } from "better-supabase";
 import {
   defineImport,
   dryRun,
-  type ImportRowError,
   runImport,
 } from "better-supabase/blocks/imports";
 import * as v from "valibot";

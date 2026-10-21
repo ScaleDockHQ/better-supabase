@@ -6,6 +6,8 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
+import type { ActivitySourceName } from "./comments-activity.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -24,7 +26,6 @@ import {
 } from "../shared.ts";
 import {
   qualifiedTable,
-  type Subject,
   subjectAccess,
   subjectCascades,
   subjectIdMatches,
@@ -32,7 +33,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
-import { type ActivitySourceName, activityReads } from "./comments-activity.ts";
+import { activityReads } from "./comments-activity.ts";
 import { commentWrites } from "./comments-writes.ts";
 
 const EVENTS: ModuleEvents<CommentsEvents> = {

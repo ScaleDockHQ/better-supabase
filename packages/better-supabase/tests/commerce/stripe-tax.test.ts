@@ -2,14 +2,13 @@ import type Stripe from "stripe";
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import {
-  money,
-  SHIPPING_LINE,
-  type StripeTaxCalculation,
-  type StripeTaxCalculationLine,
-  type StripeTaxClient,
-  stripeTax,
+import type {
+  StripeTaxCalculation,
+  StripeTaxCalculationLine,
+  StripeTaxClient,
 } from "../../src/commerce/index.ts";
+
+import { money, SHIPPING_LINE, stripeTax } from "../../src/commerce/index.ts";
 import { testTaxProvider } from "../../src/testing/index.ts";
 
 type Params = Readonly<Record<string, unknown>>;

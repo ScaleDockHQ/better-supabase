@@ -1,8 +1,10 @@
+import type { ValidationIssue } from "./errors.ts";
+import type { Result } from "./result.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 
-import { dbError, type ValidationIssue } from "./errors.ts";
+import { dbError } from "./errors.ts";
 import { isRecord } from "./guards.ts";
-import { AsyncResult, err, ok, type Result } from "./result.ts";
+import { AsyncResult, err, ok } from "./result.ts";
 import { toIssues } from "./standard.ts";
 
 /** The fields a `fields` schema adds, or none when the block has no schema. */

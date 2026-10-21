@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { CatalogTable } from "../../../src/cli/introspect/types.ts";
+import type { ExistingTable } from "../../../src/cli/sql/adopt.ts";
 
 import {
   adoptableBlocks,
   describeProposal,
-  type ExistingTable,
   existingTables,
   hasDefaultTable,
   proposeAdoption,

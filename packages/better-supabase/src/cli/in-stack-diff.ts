@@ -2,11 +2,13 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
+import type { PgQueryable } from "./db.ts";
 import type { CliEnv } from "./env.ts";
+import type { RunProcess } from "./exec.ts";
 
 import { CliError, errorText } from "./core/errors.ts";
-import { connect, type PgQueryable } from "./db.ts";
-import { type RunProcess, runProcess, supabaseCli } from "./exec.ts";
+import { connect } from "./db.ts";
+import { runProcess, supabaseCli } from "./exec.ts";
 
 /**
  * Schemas the platform owns. The declarative files may add policies to their

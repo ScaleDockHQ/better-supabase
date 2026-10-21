@@ -1,40 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { AsyncResult, Result } from "../core/result.ts";
+import type { TemplateParams, TemplateValues } from "../core/template.ts";
 import type { AccessBucketPolicy, BucketPolicyName } from "../schema/types.ts";
+import type { AppliedBucket } from "./apply.ts";
 import type { PathIn, StoragePath } from "./path.ts";
 import type { StorageClient } from "./storage-api.ts";
 import type { TtlPreset } from "./ttl.ts";
+import type {
+  BucketLifecycle,
+  ObjectVersion,
+  VersioningStatus,
+} from "./versioning.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
-import { type DbError, DbException, dbError } from "../core/errors.ts";
-import {
-  type AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../core/result.ts";
-import {
-  slug,
-  sqlIdent,
-  claimSql,
-  sqlString,
-  type TemplateParams,
-  type TemplateValues,
-} from "../core/template.ts";
-import { type AppliedBucket, applyBucket } from "./apply.ts";
+import { DbException, dbError } from "../core/errors.ts";
+import { err, ok, toDbError } from "../core/result.ts";
+import { slug, sqlIdent, claimSql, sqlString } from "../core/template.ts";
+import { applyBucket } from "./apply.ts";
 import { connectBucket } from "./connect.ts";
 import { pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
 import { tenantGuard } from "./tenant-scope.ts";
-import {
-  type BucketLifecycle,
-  lifecyclePayload,
-  type ObjectVersion,
-  sameLifecycle,
-  type VersioningStatus,
-} from "./versioning.ts";
+import { lifecyclePayload, sameLifecycle } from "./versioning.ts";
 
 export type BucketPolicy = BucketPolicyName | AccessBucketPolicy;
 

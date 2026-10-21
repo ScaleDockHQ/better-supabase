@@ -3,13 +3,13 @@ import type {
   NotificationMessage,
   NotificationSendResult,
 } from "./channel.ts";
-
-import {
-  type DeliveryTransport,
-  type MailCategory,
-  mailHeaders,
-  type UnsubscribeTarget,
+import type {
+  DeliveryTransport,
+  MailCategory,
+  UnsubscribeTarget,
 } from "./delivery.ts";
+
+import { mailHeaders } from "./delivery.ts";
 
 /** The mail for one delivery. */
 export interface ComposedEmail {

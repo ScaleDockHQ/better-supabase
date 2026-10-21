@@ -1,6 +1,7 @@
+import type { SupabaseToml } from "../supabase-toml.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { declarativeSchemasDir, type SupabaseToml } from "../supabase-toml.ts";
+import { declarativeSchemasDir } from "../supabase-toml.ts";
 import { workflowOf } from "./shared.ts";
 
 /** `config.toml` when the project runs the pg-delta workflow. */

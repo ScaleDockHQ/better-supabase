@@ -1,9 +1,11 @@
 import "server-only";
 import type { RpcClient } from "better-supabase/blocks";
+import type {
+  Attachments,
+  AttachmentStorage,
+} from "better-supabase/blocks/attachments";
 
 import {
-  type Attachments,
-  type AttachmentStorage,
   createAttachments,
   rpcTransport,
 } from "better-supabase/blocks/attachments";

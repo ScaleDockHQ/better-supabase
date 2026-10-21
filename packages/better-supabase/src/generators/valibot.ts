@@ -3,18 +3,16 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { FieldDocs, FieldPlan, ScalarKind } from "./shared.ts";
 
 import {
-  type FieldDocs,
   fieldDocs,
-  type FieldPlan,
   fieldsFor,
   HEADER,
   optionalLine,
   parseImport,
   propertyKey,
   rowType,
-  type ScalarKind,
   schemaName,
   siblingPath,
   tableDocs,

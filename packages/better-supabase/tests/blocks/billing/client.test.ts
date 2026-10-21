@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  type CheckoutStarted,
-  createPlanPickerController,
-  type PlanCatalog,
+import type {
+  CheckoutStarted,
+  PlanCatalog,
 } from "../../../src/blocks/billing/client.ts";
+import type { Result } from "../../../src/core/result.ts";
+
+import { createPlanPickerController } from "../../../src/blocks/billing/client.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { err, ok, type Result } from "../../../src/core/result.ts";
+import { err, ok } from "../../../src/core/result.ts";
 import { fakeAuth, flush, mount, SIGNED_OUT } from "../../fixtures/ports.ts";
 
 const plans = [

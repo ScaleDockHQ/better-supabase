@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { NuxtImportLike, NuxtLike } from "../../src/nuxt/index.ts";
+
 import betterSupabaseNuxt, {
   middlewareSource,
-  type NuxtImportLike,
-  type NuxtLike,
   VUE_COMPOSABLES,
 } from "../../src/nuxt/index.ts";
 import * as vue from "../../src/vue/index.ts";

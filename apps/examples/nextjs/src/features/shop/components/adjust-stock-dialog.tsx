@@ -1,9 +1,8 @@
 "use client";
 
-import {
-  type AdjustReason,
-  ADJUST_REASONS,
-} from "better-supabase/blocks/inventory";
+import type { AdjustReason } from "better-supabase/blocks/inventory";
+
+import { ADJUST_REASONS } from "better-supabase/blocks/inventory";
 import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";

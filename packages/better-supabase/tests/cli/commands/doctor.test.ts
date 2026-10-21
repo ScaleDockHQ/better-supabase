@@ -3,19 +3,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DoctorArgs } from "../../../src/cli/commands/doctor.ts";
 import type { CommandResult } from "../../../src/cli/core/io.ts";
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
-import {
-  doctorCommand,
-  type DoctorArgs,
-  runDoctor,
-} from "../../../src/cli/commands/doctor.ts";
+import { doctorCommand, runDoctor } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
