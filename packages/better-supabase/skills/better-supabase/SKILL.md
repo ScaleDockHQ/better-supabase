@@ -140,7 +140,7 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 const customers = result.data;
 ```
 
-- Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.
+- Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted. The `DbException` it throws has the `DbError` as `error` and `cause`, plus its own `kind`, `status`, `code`, `details`, `hint` and `table`; kind-specific fields such as `constraint` stay on `error`.
 - Apps on better-result: `withBetterResult(db, toResult)` from `better-supabase/better-result` returns a `db` whose repositories, `$rpc` and `$list(list, query)` return better-result values; `toBetterResult(result, Result, mapError)` converts one result, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
 - Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.

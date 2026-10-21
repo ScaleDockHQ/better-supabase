@@ -24,6 +24,10 @@ const name = await db.customers
   .unwrapOr("Unknown");
 ```
 
+A `DbException` has the `DbError` as `error` and `cause`, and its own
+`kind`, `status`, `code`, `details`, `hint` and `table` fields; see
+[Throwing your own errors](/docs/repository/unique-and-errors#throwing-your-own-errors).
+
 `AsyncResult` has `orThrow`, `unwrapOr`, `map`, `mapError` and `andThen`.
 `mapError` here rewrites the `DbError` inside one result; `betterSupabase.mapError()`
 ([below](#domain-errors-for-orthrow)) changes what `.orThrow()` throws.

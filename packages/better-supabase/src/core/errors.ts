@@ -162,11 +162,16 @@ export function dbError<K extends DbErrorKind>(
   return error as unknown as DbErrorOf<K>;
 }
 
+/**
+ * A plain `DbError`. A `DbException` carries the same fields but is not one;
+ * `dbErrorOf()` reads the `DbError` out of it.
+ */
 export function isDbError(value: unknown): value is DbError {
   // SAFETY: value is a non-null object here, and each property read is type-checked.
   return (
     typeof value === "object" &&
     value !== null &&
+    !(value instanceof Error) &&
     typeof (value as { kind?: unknown }).kind === "string" &&
     typeof (value as { message?: unknown }).message === "string" &&
     typeof (value as { status?: unknown }).status === "number"

@@ -58,6 +58,7 @@ describe("isDbError and dbErrorOf", () => {
 
   it.each<[string, unknown, boolean]>([
     ["a DbError", error, true],
+    ["a DbException", new DbException(error), false],
     ["null", null, false],
     ["a string", "not_found", false],
     ["an object without status", { kind: "x", message: "y" }, false],
@@ -95,6 +96,44 @@ describe("isDbError and dbErrorOf", () => {
       message: "Gone",
       kind: "not_found",
     });
+  });
+
+  it("copies the DbError fields onto DbException and keeps it as the cause", () => {
+    const conflict = dbError("conflict", "Taken", {
+      code: "23505",
+      details: "Key (kvk)=(1) already exists.",
+      hint: "Use another kvk",
+      table: "customers",
+      constraint: "customers_kvk_key",
+    });
+
+    const exception = new DbException(conflict);
+
+    expect(Object.fromEntries(Object.entries(exception))).toEqual({
+      name: "DbException",
+      error: conflict,
+      kind: "conflict",
+      code: "23505",
+      status: 409,
+      details: "Key (kvk)=(1) already exists.",
+      hint: "Use another kvk",
+      table: "customers",
+    });
+    expect(exception.cause).toBe(conflict);
+    expect(JSON.parse(JSON.stringify(exception))).toMatchObject({
+      kind: "conflict",
+      code: "23505",
+      status: 409,
+    });
+  });
+
+  it("leaves the optional fields off a DbException when the DbError has none", () => {
+    expect(Object.keys(new DbException(error)).toSorted()).toEqual([
+      "error",
+      "kind",
+      "name",
+      "status",
+    ]);
   });
 });
 
