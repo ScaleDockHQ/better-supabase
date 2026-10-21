@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createParties,
-  partiesSubjects,
-} from "../../../src/blocks/parties/index.ts";
+import { createParties } from "../../../src/blocks/parties/index.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -154,20 +151,6 @@ describe("parties block", () => {
       ["remove_company_person", { company: "c1", person: "p1" }],
       ["archive_person", { id: "p1", archived: true }],
     ]);
-  });
-
-  it("registers both tables as subjects", () => {
-    const subjects = partiesSubjects({
-      schema: "crm",
-      url: { company: "/c/{id}" },
-    });
-
-    expect(subjects.company).toMatchObject({
-      table: "crm.companies",
-      idType: "uuid",
-      url: "/c/{id}",
-    });
-    expect(subjects.person.url).toBeUndefined();
   });
 });
 

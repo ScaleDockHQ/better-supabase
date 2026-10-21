@@ -1,10 +1,7 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import {
-  createEmployees,
-  employeesSubjects,
-} from "../../../src/blocks/employees/index.ts";
+import { createEmployees } from "../../../src/blocks/employees/index.ts";
 import { money } from "../../../src/commerce/money.ts";
 
 function transport(
@@ -364,21 +361,5 @@ describe("employees block", () => {
     });
 
     expect((await employees.contracts("e1")).ok).toBe(false);
-  });
-
-  it("registers employees as a subject", () => {
-    expect(employeesSubjects()).toEqual({
-      employee: {
-        table: "better_supabase.employees",
-        idType: "uuid",
-        tenant: "tenant_id",
-        title: "name",
-        permissions: { read: "employees.read", write: "employees.write" },
-        search: { title: "name", body: ["email", "job_title"] },
-      },
-    });
-    expect(
-      employeesSubjects({ schema: "hr", url: "/people/{id}" }).employee,
-    ).toMatchObject({ table: "hr.employees", url: "/people/{id}" });
   });
 });

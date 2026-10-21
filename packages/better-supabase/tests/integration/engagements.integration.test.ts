@@ -5,16 +5,16 @@ import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import {
-  partiesSubjects,
-  createParties,
-} from "../../src/blocks/parties/index.ts";
+import { createParties } from "../../src/blocks/parties/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = { subjects: { ...partiesSubjects() } };
+const layout: ModuleLayout = {
+  subjects: withBlockSubjects({}, ["parties"], {}),
+};
 
 const MODULES = [
   "organizations",

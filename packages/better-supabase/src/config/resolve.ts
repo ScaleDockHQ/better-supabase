@@ -10,6 +10,7 @@ import { tenantNames } from "../core/entity-naming.ts";
 import { expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
+import { withBlockSubjects } from "./block-subjects.ts";
 import { tenantNameOf } from "./blocks.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
@@ -210,6 +211,12 @@ export function resolveConfig(
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
 
+  const blocks = blocksOf(
+    config.blocks,
+    config.sql,
+    config.authorization !== undefined,
+  );
+
   return {
     root,
     source: config.source ?? {},
@@ -280,11 +287,15 @@ export function resolveConfig(
       ? {}
       : { authorization: authorizationOf(config.authorization) }),
     vectorSearch: vectorSearchOf(config.vectorSearch),
-    subjects: withAppTableSubjects(
-      config.subjects ?? {},
-      appTables,
-      config.sql?.scope,
-      tenantName,
+    subjects: withBlockSubjects(
+      withAppTableSubjects(
+        config.subjects ?? {},
+        appTables,
+        config.sql?.scope,
+        tenantName,
+      ),
+      blocks.blockNames,
+      blocks.blocks,
     ),
     sql: {
       ...(config.sql?.workflow === undefined
@@ -296,7 +307,7 @@ export function resolveConfig(
       ...(config.sql?.scope === undefined ? {} : { scope: config.sql.scope }),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
-    ...blocksOf(config.blocks, config.sql, config.authorization !== undefined),
+    ...blocks,
     appTables,
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,

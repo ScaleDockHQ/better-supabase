@@ -15,7 +15,7 @@ better-supabase add catalog
 ```
 
 ```ts
-import { catalogSubjects, createCatalog } from "better-supabase/blocks/catalog";
+import { createCatalog } from "better-supabase/blocks/catalog";
 import { money } from "better-supabase/commerce";
 ```
 
@@ -169,13 +169,13 @@ policies.
 
 ## Subjects
 
-`catalogSubjects()` returns `config.subjects` entries for products
-(`product`) and variants (`product_variant`), so comments, tags, attachments
-and search work on them:
+Installing the block registers products (`product`) and variants
+(`product_variant`) as subjects, so comments, tags, attachments and search
+work on them. A product links to `/products/{slug}` unless you set its page:
 
 ```ts title="better-supabase.config.ts"
-subjects: {
-  ...catalogSubjects({ productUrl: "/admin/products/{id}" }),
+blocks: {
+  catalog: { entities: { product: { url: "/admin/products/{id}" } } },
 },
 ```
 

@@ -6,22 +6,22 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createBulk } from "../../src/blocks/bulk/index.ts";
 import { createCollections } from "../../src/blocks/collections/index.ts";
-import {
-  createParties,
-  partiesSubjects,
-} from "../../src/blocks/parties/index.ts";
+import { createParties } from "../../src/blocks/parties/index.ts";
 import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const parties = partiesSubjects();
+const { company, ...parties } = withBlockSubjects({}, ["parties"], {});
 
 const layout: ModuleLayout = {
   subjects: {
     ...parties,
-    company: { ...parties.company, cascade: true },
+    ...(company === undefined
+      ? {}
+      : { company: { ...company, cascade: true } }),
     memo: {
       table: "public.collection_test_memos",
       idType: "uuid",

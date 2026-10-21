@@ -1,9 +1,4 @@
-import { catalogSubjects } from "better-supabase/blocks/catalog";
-import { dealsSubjects } from "better-supabase/blocks/deals";
 import { driveSubject } from "better-supabase/blocks/drive";
-import { employeesSubjects } from "better-supabase/blocks/employees";
-import { partiesSubjects } from "better-supabase/blocks/parties";
-import { workItemsSubjects } from "better-supabase/blocks/work-items";
 import { defineConfig } from "better-supabase/config";
 
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
@@ -87,6 +82,8 @@ export default defineConfig({
   storagePaths: { "customers.logo_path": "customerLogos" },
   readSets: ["src/lib/read-sets.ts"],
   // Rows the search index, comments and other subject-aware modules point at.
+  // Installed blocks register their own entities (deals, work items, ...);
+  // `blocks.<name>.entities` sets their pages.
   subjects: {
     customer: {
       table: "public.customers",
@@ -97,13 +94,6 @@ export default defineConfig({
       permissions: { read: "customers.read", write: "customers.write" },
       search: {},
     },
-    ...partiesSubjects({
-      url: { company: "/crm/contacts/{id}", person: "/crm/contacts/{id}" },
-    }),
-    ...dealsSubjects({ url: "/crm/deals" }),
-    ...workItemsSubjects({ url: "/work" }),
-    ...employeesSubjects({ url: "/people" }),
-    ...catalogSubjects({ productUrl: "/shop" }),
     drive_node: driveSubject(),
     application: {
       table: "better_supabase.applications",
@@ -353,9 +343,14 @@ export default defineConfig({
     attachments: { options: { requireScan: false } },
     waitlist: {},
     teams: {},
-    parties: {},
+    parties: {
+      entities: {
+        company: { url: "/crm/contacts/{id}" },
+        person: { url: "/crm/contacts/{id}" },
+      },
+    },
     pipelines: {},
-    deals: {},
+    deals: { entities: { deal: { url: "/crm/deals" } } },
     engagements: {},
     quotes: {},
     targets: {},
@@ -380,18 +375,21 @@ export default defineConfig({
     },
     rank: {},
     // The app already has `projects` and `saved_views` tables (appTables).
-    "work-items": { tables: { projects: "work_projects" } },
+    "work-items": {
+      tables: { projects: "work_projects" },
+      entities: { work_item: { url: "/work" } },
+    },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
     "custom-fields": {},
     bulk: {},
     trash: {},
     relations: {},
-    employees: {},
+    employees: { entities: { employee: { url: "/people" } } },
     hiring: {},
     "time-tracking": {},
     invoices: {},
-    catalog: {},
+    catalog: { entities: { product: { url: "/shop" } } },
     inventory: {},
     orders: {},
     promotions: {},

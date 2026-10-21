@@ -7,10 +7,8 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
-import {
-  createWorkItems,
-  workItemsSubjects,
-} from "../../src/blocks/work-items/index.ts";
+import { createWorkItems } from "../../src/blocks/work-items/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -30,7 +28,7 @@ const MODULES = [
 // The shared stack's work_items table references `work_projects` (the Next.js
 // example renames it), and `create table if not exists` keeps that table.
 const layout = (maxAssignees = 0): ModuleLayout => ({
-  subjects: { ...workItemsSubjects() },
+  subjects: withBlockSubjects({}, ["work-items"], {}),
   modules: {
     "work-items": {
       tables: { projects: "work_projects" },

@@ -38,6 +38,10 @@ import {
   SQL_MODULES,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
+import {
+  isOperationModule,
+  moduleOperations,
+} from "../packages/better-supabase/src/sql/modules/access-model.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
 
@@ -473,14 +477,24 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
   if (entities.length > 0) {
     block = {
       ...block,
-      entities: Object.fromEntries(
-        entities.map(([key, entity]) => [
-          key,
-          entity.primary === true
-            ? { singular: entity.singular, primary: true }
-            : { singular: entity.singular },
-        ]),
-      ),
+      entities: {
+        specs: Object.fromEntries(entities),
+        tables: Object.fromEntries(
+          entities.flatMap(([, entity]) => {
+            const table =
+              entity.table === undefined
+                ? undefined
+                : module.names?.tables[entity.table];
+
+            return entity.table === undefined || table === undefined
+              ? []
+              : [[entity.table, { name: table.name, columns: table.columns }]];
+          }),
+        ),
+        keys: isOperationModule(module.name)
+          ? { ...moduleOperations(module.name) }
+          : {},
+      },
     };
   }
 

@@ -1,4 +1,3 @@
-import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type {
   BlockFields,
   FieldsOf,
@@ -18,7 +17,6 @@ import {
   readFields,
   writeFields,
 } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
@@ -440,41 +438,4 @@ export function createParties<
     block: "parties",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-/**
- * `config.subjects` entries for the parties tables, so subject-bound blocks
- * attach to companies and people. Pass `schema` when the module isn't in
- * `better_supabase`.
- */
-export function partiesSubjects(
-  options: {
-    readonly schema?: string;
-    readonly url?: { readonly company?: string; readonly person?: string };
-  } = {},
-): { readonly company: SubjectConfig; readonly person: SubjectConfig } {
-  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-
-  return {
-    company: {
-      table: `${schema}.companies`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "name",
-      permissions: { read: "parties.read", write: "parties.write" },
-      search: { title: "name", body: ["domain"] },
-      ...(options.url?.company === undefined
-        ? {}
-        : { url: options.url.company }),
-    },
-    person: {
-      table: `${schema}.people`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "name",
-      permissions: { read: "parties.read", write: "parties.write" },
-      search: { title: "name", body: ["email", "title"] },
-      ...(options.url?.person === undefined ? {} : { url: options.url.person }),
-    },
-  };
 }

@@ -46,9 +46,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "manifest": "tenant",
       "entities": {
-        "organization": {
-          "singular": "organization"
-        }
+        "specs": {
+          "organization": {
+            "singular": "organization",
+            "global": true
+          }
+        },
+        "tables": {},
+        "keys": {}
       }
     },
     {
@@ -1237,12 +1242,84 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "extraColumns": "products",
       "entities": {
-        "product": {
-          "singular": "product",
-          "primary": true
+        "specs": {
+          "product": {
+            "table": "products",
+            "singular": "product",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "url": "/products/{slug}",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "cascade": true,
+              "search": {
+                "title": "title",
+                "body": [
+                  "description",
+                  "slug"
+                ]
+              }
+            }
+          },
+          "product_variant": {
+            "table": "variants",
+            "singular": "product_variant",
+            "subject": {
+              "title": "sku",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "cascade": true,
+              "search": {
+                "title": "sku",
+                "body": [
+                  "title",
+                  "barcode"
+                ]
+              }
+            }
+          }
         },
-        "product_variant": {
-          "singular": "product_variant"
+        "tables": {
+          "products": {
+            "name": "products",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "slug": "slug",
+              "title": "title",
+              "description": "description",
+              "kind": "kind",
+              "status": "status",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "variants": {
+            "name": "product_variants",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "product": "product_id",
+              "sku": "sku",
+              "title": "title",
+              "barcode": "barcode",
+              "weight": "weight_grams",
+              "trackInventory": "track_inventory",
+              "allowBackorder": "allow_backorder",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "catalog.manage",
+          "read": "catalog.read"
         }
       }
     },
@@ -1507,11 +1584,89 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "extraColumns": "companies",
       "entities": {
-        "company": {
-          "singular": "company"
+        "specs": {
+          "company": {
+            "table": "companies",
+            "singular": "company",
+            "plural": "companies",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "domain"
+                ]
+              }
+            }
+          },
+          "person": {
+            "table": "people",
+            "singular": "person",
+            "plural": "people",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "email",
+                  "title"
+                ]
+              }
+            }
+          }
         },
-        "person": {
-          "singular": "person"
+        "tables": {
+          "companies": {
+            "name": "companies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "domain": "domain",
+              "website": "website",
+              "vatId": "vat_id",
+              "lifecycle": "lifecycle",
+              "owner": "owner_user_id",
+              "address": "address",
+              "mergedInto": "merged_into",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "people": {
+            "name": "people",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "email": "email",
+              "phone": "phone",
+              "title": "title",
+              "lifecycle": "lifecycle",
+              "owner": "owner_user_id",
+              "user": "user_id",
+              "mergedInto": "merged_into",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "parties.read",
+          "write": "parties.write",
+          "manage": "parties.manage"
         }
       }
     },
@@ -1556,9 +1711,89 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "extraColumns": "deals",
       "entities": {
-        "deal": {
-          "singular": "deal",
-          "primary": true
+        "specs": {
+          "deal": {
+            "table": "deals",
+            "singular": "deal",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "rank": {
+                "column": "rank",
+                "group": "stage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "identifier",
+                  "note"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "deals": {
+            "name": "deals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "identifier": "identifier",
+              "name": "name",
+              "companyType": "company_type",
+              "companyId": "company_id",
+              "motion": "motion",
+              "priority": "priority",
+              "owner": "owner_user_id",
+              "product": "product",
+              "seats": "seats",
+              "amount": "amount",
+              "existingAmount": "existing_amount",
+              "currency": "currency",
+              "valuePeriod": "value_period",
+              "amountSource": "amount_source",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "outcome": "outcome",
+              "probability": "probability",
+              "forecast": "forecast_category",
+              "openedOn": "opened_on",
+              "closeOn": "expected_close_on",
+              "slippedFrom": "slipped_from",
+              "pushCount": "push_count",
+              "closedAt": "closed_at",
+              "nextStep": "next_step",
+              "nextAt": "next_at",
+              "nextKind": "next_kind",
+              "flags": "flags",
+              "source": "source",
+              "note": "note",
+              "lostReason": "lost_reason",
+              "locked": "locked",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "listTotal": "list_total",
+              "discountTotal": "discount_total",
+              "subtotal": "subtotal",
+              "taxTotal": "tax_total",
+              "total": "total"
+            }
+          }
+        },
+        "keys": {
+          "read": "deals.read",
+          "write": "deals.write",
+          "manage": "deals.manage"
         }
       }
     },
@@ -1586,15 +1821,107 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "extraColumns": "items",
       "entities": {
-        "work_item": {
-          "singular": "work_item",
-          "primary": true
+        "specs": {
+          "work_item": {
+            "table": "items",
+            "singular": "work_item",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "rank": {
+                "column": "rank",
+                "group": "stage"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "identifier",
+                  "body"
+                ]
+              }
+            }
+          },
+          "project": {
+            "table": "projects",
+            "singular": "project"
+          },
+          "iteration": {
+            "table": "iterations",
+            "singular": "iteration"
+          }
         },
-        "project": {
-          "singular": "project"
+        "tables": {
+          "items": {
+            "name": "work_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "identifier": "identifier",
+              "title": "title",
+              "body": "body",
+              "parent": "parent_id",
+              "team": "team_id",
+              "project": "project_id",
+              "iteration": "iteration_id",
+              "priority": "priority",
+              "estimate": "estimate",
+              "progress": "progress",
+              "startAt": "start_at",
+              "endAt": "end_at",
+              "dueAt": "due_at",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "state": "state",
+              "closeReason": "close_reason",
+              "closedAt": "closed_at",
+              "locked": "locked",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "projects": {
+            "name": "projects",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "owner": "owner_user_id",
+              "status": "status",
+              "startOn": "start_on",
+              "targetOn": "target_on",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "iterations": {
+            "name": "iterations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "team": "team_id",
+              "name": "name",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          }
         },
-        "iteration": {
-          "singular": "iteration"
+        "keys": {
+          "read": "work_items.read",
+          "write": "work_items.write",
+          "manage": "work_items.manage"
         }
       }
     },
@@ -1728,9 +2055,56 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "extraColumns": "employees",
       "entities": {
-        "employee": {
-          "singular": "employee",
-          "primary": true
+        "specs": {
+          "employee": {
+            "table": "employees",
+            "singular": "employee",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "email",
+                  "jobTitle"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "employees": {
+            "name": "employees",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "name": "name",
+              "email": "email",
+              "jobTitle": "job_title",
+              "team": "team_id",
+              "manager": "manager_id",
+              "employmentType": "employment_type",
+              "status": "status",
+              "startDate": "start_date",
+              "endDate": "end_date",
+              "offboardReason": "offboard_reason",
+              "originType": "origin_type",
+              "originId": "origin_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "employees.read",
+          "write": "employees.write",
+          "viewSensitive": "employees.view_sensitive"
         }
       }
     },

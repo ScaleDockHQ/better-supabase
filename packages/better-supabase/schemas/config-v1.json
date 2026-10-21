@@ -2737,7 +2737,6 @@
                         "const": false
                       }
                     },
-                    "required": ["name"],
                     "additionalProperties": false
                   }
                 ]
@@ -2913,7 +2912,6 @@
                         "const": false
                       }
                     },
-                    "required": ["name"],
                     "additionalProperties": false
                   }
                 ]

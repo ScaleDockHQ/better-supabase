@@ -1,11 +1,9 @@
 export {
-  catalogSubjects,
   createCatalog,
   PRODUCT_KINDS,
   PRODUCT_STATUSES,
   type Catalog,
   type CatalogOptions,
-  type CatalogSubjectsOptions,
   type CategoryInput,
   type CollectionInput,
   type OptionInput,

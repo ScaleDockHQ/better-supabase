@@ -4,15 +4,13 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
-import { createDeals, dealsSubjects } from "../../src/blocks/deals/index.ts";
+import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import {
-  createParties,
-  partiesSubjects,
-} from "../../src/blocks/parties/index.ts";
+import { createParties } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
 import { money } from "../../src/commerce/money.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -33,7 +31,7 @@ const MODULES = [
 ];
 
 const layout = (readAll = true): ModuleLayout => ({
-  subjects: { ...partiesSubjects(), ...dealsSubjects() },
+  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
   modules: { deals: { options: { readAll } } },
 });
 

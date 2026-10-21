@@ -161,10 +161,12 @@ function resolveEntity(
   const from = entityNoun(spec.singular, spec.plural);
 
   const to =
-    config === undefined
+    config?.name === undefined && config?.plural === undefined
       ? from
       : entityNoun(
-          checkEntityName(`${where}.${key}`, config.name),
+          config.name === undefined
+            ? spec.singular
+            : checkEntityName(`${where}.${key}`, config.name),
           config.plural === undefined
             ? undefined
             : checkEntityName(`${where}.${key}.plural`, config.plural),

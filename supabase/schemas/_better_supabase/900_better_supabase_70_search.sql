@@ -107,13 +107,6 @@ begin
     end if;
   end;
   case search_refresh.subject_type
-    when 'customer' then
-      select s."organization_id", s."name"::text, null, '/customers/' || s."id"::text
-        into v_tenant, v_title, v_body, v_url
-        from "public"."customers" s
-        where s."id" = (search_refresh.subject_id)::uuid
-        and s."archived_at" is null;
-      v_found := found;
     when 'company' then
       select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."domain"::text), ''), '/crm/contacts/' || s."id"::text
         into v_tenant, v_title, v_body, v_url
@@ -157,6 +150,13 @@ begin
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."product_variants" s
         where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'customer' then
+      select s."organization_id", s."name"::text, null, '/customers/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "public"."customers" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."archived_at" is null;
       v_found := found;
     when 'drive_node' then
       select s."tenant_id", s."name"::text, null, null
@@ -240,13 +240,6 @@ declare
   v_count integer := 0;
   v_id text;
 begin
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'customer' then
-    for v_id in select s."id"::text from "public"."customers" s loop
-      if "better_supabase"."search_refresh"('customer', v_id) then
-        v_count := v_count + 1;
-      end if;
-    end loop;
-  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'company' then
     for v_id in select s."id"::text from "better_supabase"."companies" s loop
       if "better_supabase"."search_refresh"('company', v_id) then
@@ -296,6 +289,13 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'customer' then
+    for v_id in select s."id"::text from "public"."customers" s loop
+      if "better_supabase"."search_refresh"('customer', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'drive_node' then
     for v_id in select s."id"::text from "better_supabase"."drive_nodes" s loop
       if "better_supabase"."search_refresh"('drive_node', v_id) then
@@ -337,11 +337,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."search_index_row"() from public, anon, authenticated;
 
-drop trigger if exists "bs_search_customer_index" on "public"."customers";
-create trigger "bs_search_customer_index"
-  after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
-  for each row execute function "better_supabase"."search_index_row"('customer', 'id');
-
 drop trigger if exists "bs_search_company_index" on "better_supabase"."companies";
 create trigger "bs_search_company_index"
   after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
@@ -376,6 +371,11 @@ drop trigger if exists "bs_search_product_variant_index" on "better_supabase"."p
 create trigger "bs_search_product_variant_index"
   after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
+
+drop trigger if exists "bs_search_customer_index" on "public"."customers";
+create trigger "bs_search_customer_index"
+  after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
+  for each row execute function "better_supabase"."search_index_row"('customer', 'id');
 
 drop trigger if exists "bs_search_drive_node_index" on "better_supabase"."drive_nodes";
 create trigger "bs_search_drive_node_index"

@@ -9,7 +9,6 @@ export {
   type EmployeeField,
   type EmployeeInput,
   type Employees,
-  employeesSubjects,
   type EmployeesOptions,
   type EmployeeStatus,
   type OrgChartEntry,

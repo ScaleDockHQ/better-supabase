@@ -24,11 +24,11 @@ The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it b
 
 A stage's category sets the item's `state`, so a list or a policy reads `state` and never a stage name. Set `blocks.pipelines.options.subjects.work_item` to rename the stages or start with your own, such as CentraKit's Todo, In progress, On hold and Done; your keys are merged over the defaults.
 
-```ts title="better-supabase.config.ts"
-import { workItemsSubjects } from "better-supabase/blocks/work-items";
+Installing the block registers work items as the `work_item` subject, ranked by stage. Set the page a search result links to on the entity:
 
+```ts title="better-supabase.config.ts"
 export default defineConfig({
-  subjects: { ...workItemsSubjects({ url: "/tasks/{id}" }) },
+  blocks: { "work-items": { entities: { work_item: { url: "/tasks/{id}" } } } },
 });
 ```
 

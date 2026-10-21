@@ -11,7 +11,6 @@ export {
   type WorkItemListOptions,
   type WorkItemNode,
   type WorkItems,
-  workItemsSubjects,
   type WorkItemsOptions,
   type WorkItemState,
 } from "./work-items.ts";

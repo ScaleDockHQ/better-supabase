@@ -6469,7 +6469,6 @@
       "extendBlock",
       "partiesBlock",
       "partiesEvents",
-      "partiesSubjects",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -6558,7 +6557,6 @@
       "dbTransport",
       "dealsBlock",
       "dealsEvents",
-      "dealsSubjects",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -6598,7 +6596,6 @@
       "withBlockHooks",
       "workItemsBlock",
       "workItemsEvents",
-      "workItemsSubjects",
       "wrapTransport"
     ],
     "types": [
@@ -6774,7 +6771,6 @@
       "dbTransport",
       "employeesBlock",
       "employeesEvents",
-      "employeesSubjects",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -7252,7 +7248,6 @@
     "values": [
       "catalogBlock",
       "catalogEvents",
-      "catalogSubjects",
       "createCatalog",
       "dbTransport",
       "extendBlock",
@@ -7270,7 +7265,6 @@
       "Catalog",
       "CatalogEvents",
       "CatalogOptions",
-      "CatalogSubjectsOptions",
       "CategoryInput",
       "CollectionInput",
       "OptionInput",

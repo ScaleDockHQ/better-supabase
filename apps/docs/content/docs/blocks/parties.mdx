@@ -67,16 +67,19 @@ The lists, `peopleOf` and the tables all run as the caller: a member reads the o
 
 ## Use them as subjects
 
-Register the tables in `config.subjects` with `partiesSubjects()`, so [comments](/docs/blocks/comments), [tags](/docs/blocks/tags), [attachments](/docs/blocks/attachments), [pipelines](/docs/blocks/pipelines) and the activity feed attach to companies and people:
+Installing the block registers `company` and `person` as subjects, so [comments](/docs/blocks/comments), [tags](/docs/blocks/tags), [attachments](/docs/blocks/attachments), [pipelines](/docs/blocks/pipelines) and the activity feed attach to them. Set their pages on the entities, or `subject: false` to register one yourself:
 
 ```ts title="better-supabase.config.ts"
-import { partiesSubjects } from "better-supabase/blocks/parties";
-
-const { company, person } = partiesSubjects({
-  url: { company: "/companies/{id}", person: "/people/{id}" },
+export default defineConfig({
+  blocks: {
+    parties: {
+      entities: {
+        company: { url: "/companies/{id}" },
+        person: { url: "/people/{id}" },
+      },
+    },
+  },
 });
-
-export default defineConfig({ subjects: { company, person } });
 ```
 
 With the [notifications](/docs/blocks/notifications) module installed, the owner watches a company or person when they become its owner, and a level they already chose stays.

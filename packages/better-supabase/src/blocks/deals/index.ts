@@ -12,7 +12,6 @@ export {
   type DealOutcome,
   type DealParty,
   type Deals,
-  dealsSubjects,
   type DealsOptions,
   type DealTotals,
   type ForecastCategory,

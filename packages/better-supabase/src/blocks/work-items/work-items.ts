@@ -1,4 +1,3 @@
-import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type {
   BlockFields,
   ExtraFields,
@@ -12,7 +11,6 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -582,27 +580,4 @@ export function createWorkItems<
     block: "work-items",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-/**
- * The `config.subjects` entry for work items, so comments, tags, files,
- * relations (`blocks` for Gantt dependencies), rank and search attach. The
- * board moves an item by its stage id.
- */
-export function workItemsSubjects(
-  options: { readonly schema?: string; readonly url?: string } = {},
-): { readonly work_item: SubjectConfig } {
-  return {
-    work_item: {
-      table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.work_items`,
-      idType: "uuid",
-      tenant: "tenant_id",
-      title: "title",
-      deletedAt: "archived_at",
-      permissions: { read: "work_items.read", write: "work_items.write" },
-      rank: { column: "rank", group: "stage_id" },
-      search: { title: "title", body: ["identifier", "body"] },
-      ...(options.url === undefined ? {} : { url: options.url }),
-    },
-  };
 }

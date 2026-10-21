@@ -1,5 +1,6 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
+import type { ModuleEntitySpec, ModuleTableSpec } from "../sql/context.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
 /** One SQL module in the preset catalog: a key of `blocks` in the config. */
@@ -23,16 +24,25 @@ export interface PresetCatalogBlock {
    */
   readonly extraColumns?: string;
   /**
-   * The nouns `blocks.<name>.entities` renames, by key, with the default
-   * singular and whether it is the primary entity.
+   * The nouns `blocks.<name>.entities` renames, with what config resolution
+   * needs to name them and register their subjects.
    */
-  readonly entities?: Readonly<
-    Record<string, { readonly singular: string; readonly primary?: true }>
-  >;
+  readonly entities?: PresetCatalogEntities;
   /** Modules it works with when installed; `*` is every module. */
   readonly integrates: readonly string[];
   /** The manifest that installs it, a key of `manifests`. */
   readonly manifest: string;
+}
+
+/** A block's entities as the catalog carries them. */
+export interface PresetCatalogEntities {
+  readonly specs: Readonly<Record<string, ModuleEntitySpec>>;
+  /** The tables that hold them, with their default names and columns. */
+  readonly tables: Readonly<
+    Record<string, Pick<ModuleTableSpec, "name" | "columns">>
+  >;
+  /** The default permission key of each module action. */
+  readonly keys: Readonly<Record<string, string>>;
 }
 
 /** One block manifest (ADR 0029): what `lib/blocks.ts` wires. */

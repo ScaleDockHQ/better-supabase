@@ -4,7 +4,6 @@ export {
   type CompanyPerson,
   createParties,
   type Parties,
-  partiesSubjects,
   type PartiesOptions,
   type PartyCursor,
   type PartyListOptions,

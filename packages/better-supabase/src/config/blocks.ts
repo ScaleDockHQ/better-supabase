@@ -36,10 +36,16 @@ export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
  * row with `{column}` placeholders.
  */
 export interface EntityConfig<Columns extends string = string> {
-  readonly name: string;
+  /** Defaults to the entity's own name. */
+  readonly name?: string;
   /** Defaults to the English plural of `name`. */
   readonly plural?: string;
-  readonly url?: `${string}{${Columns}}${string}`;
+  /**
+   * The page `subject_url` returns, with `{column}` placeholders from the
+   * entity's logical columns: `/tasks/{id}`. A list page needs none.
+   */
+  // `string & {}` keeps a path without placeholders next to the templates.
+  readonly url?: `${string}{${Columns}}${string}` | (string & {});
   /** `false` keeps the entity out of `config.subjects`. */
   readonly subject?: false;
 }
