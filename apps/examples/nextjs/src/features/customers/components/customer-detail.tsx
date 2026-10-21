@@ -72,6 +72,10 @@ async function AttachmentsSection({
 }) {
   const files = await getAttachments(customerId);
 
+  if (files.kind === "hidden") {
+    return null;
+  }
+
   return (
     <AttachmentsUploader
       customerId={customerId}

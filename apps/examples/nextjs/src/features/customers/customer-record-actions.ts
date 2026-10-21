@@ -172,22 +172,17 @@ export const downloadAttachment = bs.action(
       .map((download) => ({ signedUrl: download.signedUrl })),
 );
 
-export const removeAttachment = bs.action(
+/** Removes a file; the customer's attachments section reads again. */
+export const removeAttachment = bs.sectionAction(
+  ({ supabase }) => customerAttachments(supabase),
+  "remove",
   {
-    input: v.object({ id: Id }),
+    input: v.object({ id: Id, customerId: Id }),
     requireTenant: true,
     authorize: (session) => can(session, "attachments.manage"),
-  },
-  async ({ id }, { supabase, auth }) => {
-    const removed = await customerAttachments(supabase).remove(id);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
+    section: "attachments",
+    subject: ({ customerId }) => ({ type: SUBJECT, id: customerId }),
+    args: ({ id }) => [id],
   },
 );
 

@@ -142,7 +142,11 @@ export function AttachmentsUploader({
             ) : null}
           </Empty>
         ) : (
-          <FileList files={files.data} canRemove={canRemove} />
+          <FileList
+            customerId={customerId}
+            files={files.data}
+            canRemove={canRemove}
+          />
         )}
       </CardContent>
     </Card>
@@ -150,9 +154,11 @@ export function AttachmentsUploader({
 }
 
 function FileList({
+  customerId,
   files,
   canRemove,
 }: {
+  customerId: string;
   files: readonly AttachmentRow[];
   canRemove: boolean;
 }) {
@@ -212,7 +218,13 @@ function FileList({
               >
                 <DownloadIcon />
               </Button>
-              {canRemove ? <RemoveFile id={file.id} name={file.name} /> : null}
+              {canRemove ? (
+                <RemoveFile
+                  id={file.id}
+                  customerId={customerId}
+                  name={file.name}
+                />
+              ) : null}
             </div>
           </li>
         );
@@ -302,7 +314,15 @@ function UploadButton({ customerId }: { customerId: string }) {
   );
 }
 
-function RemoveFile({ id, name }: { id: string; name: string }) {
+function RemoveFile({
+  id,
+  customerId,
+  name,
+}: {
+  id: string;
+  customerId: string;
+  name: string;
+}) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
@@ -334,7 +354,7 @@ function RemoveFile({ id, name }: { id: string; name: string }) {
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id });
+              void remove.run({ id, customerId });
             }}
           >
             {t("Remove")}

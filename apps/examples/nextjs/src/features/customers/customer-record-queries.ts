@@ -1,5 +1,10 @@
 import "server-only";
+import type { SectionResult } from "better-supabase/records";
+
+import { toDbError } from "better-supabase";
+import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { tenantOf } from "better-supabase/next";
+import { loadSections } from "better-supabase/records";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
@@ -8,16 +13,21 @@ import { bs } from "@/lib/supabase/server";
 
 import { customerAttachments } from "./customer-attachments";
 
-/** What the cards on the customer page render: the rows, or a failed read. */
-export type Loaded<T> =
-  | { readonly kind: "ok"; readonly data: T }
-  | { readonly kind: "error" };
+/**
+ * What a card on the customer page renders: the rows, or a failed read. The
+ * page renders no card for a hidden section.
+ */
+export type Loaded<T> = Exclude<SectionResult<T>, { readonly kind: "hidden" }>;
 
 const SUBJECT = "customer";
 
+/** The blocks whose sections the customer page loads with `loadSections`. */
+const SECTION_BLOCKS = { attachments: attachmentsBlock };
+
 /**
- * A failed read throws inside the cached loader, so it is never cached and
- * Retry (`refresh()`) reads again; here it becomes the card's error state.
+ * For the cards whose block has no section yet. A failed read throws inside the
+ * cached loader, so it is never cached and Retry (`refresh()`) reads again;
+ * here it becomes the card's error state.
  */
 async function settle<T>(load: () => Promise<T>): Promise<Loaded<T>> {
   try {
@@ -25,7 +35,7 @@ async function settle<T>(load: () => Promise<T>): Promise<Loaded<T>> {
   } catch (error) {
     unstable_rethrow(error);
 
-    return { kind: "error" };
+    return { kind: "error", error: toDbError(error) };
   }
 }
 
@@ -86,29 +96,38 @@ export interface AttachmentRow {
   readonly createdAt: number;
 }
 
-async function loadAttachments(
+/**
+ * The customer's files, newest first. `loadSections` settles the read, so it
+ * runs outside `"use cache"`, where a cached error would stick until it went
+ * stale.
+ */
+export async function getAttachments(
   customerId: string,
-): Promise<readonly AttachmentRow[]> {
-  "use cache: private";
+): Promise<SectionResult<readonly AttachmentRow[]>> {
   const { organizationId, supabase } = await caller();
 
-  const files = await customerAttachments(supabase, organizationId)
-    .list({ type: SUBJECT, id: customerId })
-    .orThrow();
+  const { attachments } = await loadSections(
+    {
+      blocks: SECTION_BLOCKS,
+      clients: { attachments: customerAttachments(supabase, organizationId) },
+    },
+    { type: SUBJECT, id: customerId },
+    ["attachments"],
+  );
 
-  return files.map((file) => ({
-    id: file.id,
-    name: file.name,
-    size: file.size,
-    status: file.status,
-    uploaded: file.uploadedAt !== undefined,
-    createdAt: file.createdAt.epochMilliseconds,
-  }));
-}
-
-/** The customer's files, newest first. */
-export function getAttachments(customerId: string) {
-  return settle(() => loadAttachments(customerId));
+  return attachments.kind === "ok"
+    ? {
+        kind: "ok",
+        data: attachments.data.map((file) => ({
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          status: file.status,
+          uploaded: file.uploadedAt !== undefined,
+          createdAt: file.createdAt.epochMilliseconds,
+        })),
+      }
+    : attachments;
 }
 
 export interface CustomerOption {
