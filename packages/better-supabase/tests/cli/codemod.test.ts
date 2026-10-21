@@ -340,3 +340,105 @@ const api = defineApi(bs, { resources: { customers: {} } });
     expect(result.review[3]!.message).toContain("defineApi");
   });
 });
+
+describe("webhooks-out defaultFormat pin", () => {
+  const v09 = CODEMODS["0.9"]!;
+  const v011 = CODEMODS["0.11"]!;
+  const file = "/app/better-supabase.config.ts";
+
+  const adopted = (inner: string) => `export default defineConfig({
+  blocks: {
+    "webhooks-out": {
+      mode: "adopt",
+${inner}    },
+  },
+});
+`;
+
+  it("pins standard with 0.9 and cloudevents with 0.11, and lists the edit", () => {
+    const source = adopted(
+      '      tables: { endpoints: "public.hooks" },\n      options: { retries: 3 },\n',
+    );
+
+    const v9 = applyCodemod(v09, source, file);
+    expect(v9.text).toContain('defaultFormat: "standard"');
+    expect(v9.review).toEqual([
+      expect.objectContaining({
+        line:
+          v9.text
+            .split("\n")
+            .findIndex((line) => line.includes("defaultFormat")) + 1,
+        message: expect.stringContaining('"standard"'),
+      }),
+    ]);
+
+    const v11 = applyCodemod(v011, source, file);
+    expect(v11.text).toContain('defaultFormat: "cloudevents"');
+    expect(applyCodemod(v011, v11.text, file).text).toBe(v11.text);
+  });
+
+  it("adds options when the block has none", () => {
+    const result = applyCodemod(v011, adopted(""), file);
+    expect(result.text).toMatch(
+      /options: \{\s*defaultFormat: "cloudevents",?\s*\}/,
+    );
+  });
+
+  it("leaves a block that maps a format column, sets the format or isn't adopted", () => {
+    for (const source of [
+      adopted('      columns: { endpoints: { format: "body_format" } },\n'),
+      adopted('      options: { defaultFormat: "standard" },\n'),
+      adopted("").replace('mode: "adopt"', 'mode: "install"'),
+    ]) {
+      const result = applyCodemod(v011, source, file);
+      expect(result.text).toBe(source);
+      expect(result.review).toEqual([]);
+    }
+  });
+
+  it("pins in a JSON config", () => {
+    const result = applyCodemod(
+      v011,
+      JSON.stringify({ blocks: { "webhooks-out": { mode: "adopt" } } }),
+      "better-supabase.config.json",
+    );
+
+    expect(JSON.parse(result.text)).toEqual({
+      blocks: {
+        "webhooks-out": {
+          mode: "adopt",
+          options: { defaultFormat: "cloudevents" },
+        },
+      },
+    });
+    expect(result.review).toHaveLength(1);
+  });
+});
+
+describe("sql add hint", () => {
+  it("lists sql add calls in scripts and shell files with 0.9", () => {
+    const v09 = CODEMODS["0.9"]!;
+
+    const scripts = JSON.stringify(
+      {
+        scripts: {
+          blocks: "better-supabase sql add teams",
+          gen: "better-supabase gen",
+        },
+      },
+      null,
+      2,
+    );
+
+    const result = applyCodemod(v09, scripts, "/app/package.json");
+    expect(result.review).toEqual([
+      expect.objectContaining({
+        line: 3,
+        message: expect.stringContaining("`add`"),
+      }),
+    ]);
+    expect(
+      applyCodemod(v09, "bsb sql add teams\n", "/app/scripts/setup.sh").review,
+    ).toEqual([expect.objectContaining({ line: 1 })]);
+  });
+});

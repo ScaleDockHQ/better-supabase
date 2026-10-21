@@ -9,6 +9,7 @@ import { nitroCloudflareEnv } from "../bridges/shared.ts";
 import { flushEvents } from "../server/adapter.ts";
 import {
   type FrameworkLocals,
+  type LocalsResource,
   type FrameworkOptions,
   frameworkEntry,
   localsOf,
@@ -90,14 +91,27 @@ export interface BetterSolidStart<
    * ```
    */
   require<R extends boolean = false>(
-    options?: BlockRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A server function returning an `ActionResult`, for `action()` from
    * `@solidjs/router`: `FormData` or a plain object, validated by `input`.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: BlockActionOptions<S, C, P, R>,
+    options: BlockActionOptions<
+      S,
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -189,6 +203,7 @@ export function createSolidStart<
         requireOptions,
         scope.tenant,
         options.authorizer,
+        scope,
       );
 
       if ("kind" in caller) {
@@ -214,6 +229,7 @@ export function createSolidStart<
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
+          scope,
         );
 
         // SAFETY: the settled data is what fn returned, unwrapped.

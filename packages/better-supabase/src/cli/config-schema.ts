@@ -178,6 +178,7 @@ const authorization = v.strictObject({
     isPlatformFor: v.optional(v.string()),
     memberIds: v.optional(v.string()),
     memberIdsFor: v.optional(v.string()),
+    teamIdsOf: v.optional(v.string()),
     canAssign: v.optional(v.string()),
     canAssignFor: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),
@@ -413,7 +414,7 @@ const ENTRIES = {
   ),
   codecs: v.optional(
     v.strictObject({
-      timestamptz: v.optional(v.picklist(["string", "instant"])),
+      timestamptz: v.optional(v.picklist(["string", "instant", "utc"])),
       int8: v.optional(v.picklist(["number", "string", "bigint"])),
       numeric: v.optional(v.picklist(["number", "string"])),
     }),

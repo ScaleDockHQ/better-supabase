@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 import type { Db } from "../core/repository-types.ts";
+import type { SqlClient } from "../postgres/executor.ts";
+import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -253,18 +255,51 @@ export async function withRollback<
     );
   }
 
+  return rolledBack(internal.postgres, internal.claims, async (client) => {
+    // SAFETY: connect builds the repositories asUser gave this user, over the transaction's client.
+    const db = internal.connect(client) as Db<M, F, E, unknown>;
+
+    return fn(db);
+  });
+}
+
+/**
+ * Runs `fn` over direct Postgres as the user that `claims` describe, inside
+ * one transaction that always rolls back. The transaction sets `role` (from
+ * `claims.role`, else `authenticated`) and `request.jwt.claims`, so
+ * `auth.uid()`, `auth.jwt()` and RLS answer as they would for that user's
+ * request. Use it for raw SQL; `withRollback` gives repositories instead.
+ *
+ * ```ts
+ * await withClaims(postgres, { sub: aliceId, tenant_id: orgId }, async (sql) => {
+ *   const [row] = await sql.queryRaw<{ id: string }>('select auth.uid() as id');
+ *   expect(row?.id).toBe(aliceId);
+ * });
+ * ```
+ */
+export function withClaims<T>(
+  postgres: BetterPostgres,
+  claims: SqlClaims,
+  fn: (sql: SqlClient) => Promise<T>,
+): Promise<T> {
+  return rolledBack(postgres, claims, fn);
+}
+
+async function rolledBack<T>(
+  postgres: BetterPostgres,
+  claims: SqlClaims,
+  fn: (client: SqlClient) => Promise<T>,
+): Promise<T> {
   let outcome: { readonly value: T } | undefined;
 
   try {
-    await internal.postgres.transaction(
+    await postgres.transaction(
       async (client) => {
-        // SAFETY: connect builds the repositories asUser gave this user, over the transaction's client.
-        const db = internal.connect(client) as Db<M, F, E, unknown>;
-        outcome = { value: await fn(db) };
+        outcome = { value: await fn(client) };
 
         throw new Rollback("rollback");
       },
-      { claims: internal.claims },
+      { claims },
     );
   } catch (error) {
     if (!(error instanceof Rollback) || !outcome) {

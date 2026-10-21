@@ -1545,6 +1545,18 @@ template and the live definition of each function it calls. Add a
 `'support-session'` branch, or set `blocks["support-sessions"].options.approval`
 to `"none"`.
 
+### BS417
+
+**Warning: the provider declares teams but sets no `teamIdsOf` template.**
+Under the provider access model, `team_ids_of()` and the team sharing in
+`saved-views` and `collections` call `authorization.functions.teamIdsOf` for
+the caller's teams. Without it, `team_ids_of()` reads the teams block's own
+`team_members`, which a provider that keeps its own teams never fills, and
+`saved-views` and `collections` without the teams block share with no team.
+Doctor warns when the provider declares a `team` (or `teams`) scope, one of
+those blocks is installed, and the template is unset. Set `teamIdsOf` to a
+set-returning call with `{user}`, such as `provider.team_ids_of({user})`.
+
 ## Env files
 
 ### BS501

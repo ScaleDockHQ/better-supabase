@@ -5,7 +5,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -23,6 +23,7 @@ import {
   collectionFunctions,
   starFunctions,
 } from "./collections-functions.ts";
+import { callerTeamIdsSql } from "./team-ids.ts";
 
 /** Who sees a collection: its owner, a team, or the whole tenant. */
 const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
@@ -217,16 +218,14 @@ function cascading(
     ]);
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
   const keys = moduleOperations("collections");
 
-  const teams = ctx.installed("teams")
-    ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
-    : "";
+  const teams = callerTeamIdsSql(ctx, layout);
 
   const subjectTypes = registeredSubjects(ctx.subjects, ctx.naming)
     .filter((subject) => subject.tenant !== undefined)

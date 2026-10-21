@@ -506,6 +506,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.11",
+        description:
+          "Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

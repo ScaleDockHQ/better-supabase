@@ -101,3 +101,47 @@ describe("saved-views module", () => {
     ).not.toContain("save_view");
   });
 });
+
+describe("saved-views module with the provider's teamIdsOf", () => {
+  const provider = {
+    modules: { access: { model: "provider" } },
+    accessProvider: {
+      name: "stub",
+      scope: "organization",
+      idType: "uuid",
+      functions: {
+        idsWith: "authz.ids_with({permission}, {scope})",
+        isPlatform: "authz.is_platform({permission})",
+        teamIdsOf: "authz.team_ids_of({user})",
+      },
+    },
+  } as Parameters<typeof renderModules>[1];
+
+  it("shares team views through the template without the teams module", () => {
+    const sql = sqlOf(["saved-views"], provider);
+    expect(sql).toContain(
+      `"team_id" in (select t.id::text from authz.team_ids_of((select auth.uid())) as t(id))`,
+    );
+    expect(sql).not.toContain("and false");
+  });
+
+  it("makes team_ids_of() return the template's set", () => {
+    const teams = renderModules(["teams"], provider)
+      .filter((file) => file.module === "teams")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(teams).toContain(
+      "from authz.team_ids_of(team_ids_of.member) as t(id)",
+    );
+  });
+
+  it("keeps the teams block's own lookup under the roles model", () => {
+    const sql = sqlOf(["teams", "saved-views"], {
+      ...provider,
+      modules: {},
+    });
+
+    expect(sql).not.toContain("authz.team_ids_of");
+  });
+});

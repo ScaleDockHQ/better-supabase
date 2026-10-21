@@ -88,13 +88,14 @@ command sits behind a route and you call the route over HTTP instead.
 
 ## Isolation between tests
 
-Tests that run at the same time must not share rows. Two helpers cover the
-two ways to do that:
+Tests that run at the same time must not share rows. These helpers cover the
+ways to do that:
 
 | Helper                              | Isolates with                                   | Covers                     |
 | ----------------------------------- | ----------------------------------------------- | -------------------------- |
 | `scopedSeed(betterSupabase, build)` | A fresh tenant and rows per test, deleted after | `db` over PostgREST, `sql` |
 | `withRollback(user, fn)`            | One transaction that always rolls back          | `sql` only                 |
+| `withClaims(postgres, claims, fn)`  | One transaction that always rolls back          | raw SQL as a user          |
 
 `scopedSeed` creates a new tenant id, inserts the fixtures that `build`
 returns through the service role, and returns the inserted rows.
@@ -147,6 +148,26 @@ const count = await withRollback(alice, async (db) => {
   await db.customers.create({ organizationId: acme, name: "Temp" }).orThrow();
 
   return db.customers.count().orThrow();
+});
+```
+
+`withClaims(postgres, claims, fn)` does the same for raw SQL, without
+`asUser`. It runs `fn` with a `SqlClient` inside one transaction that sets
+`role` (from `claims.role`, else `authenticated`) and `request.jwt.claims`,
+so `auth.uid()`, `auth.jwt()` and RLS answer as they would for that user, and
+it always rolls back:
+
+```ts
+import { createPostgres } from "better-supabase/postgres";
+import { withClaims } from "better-supabase/testing";
+
+const postgres = createPostgres({
+  connectionString: process.env.SUPABASE_DB_URL,
+});
+
+await withClaims(postgres, { sub: aliceId, tenant_id: acme }, async (sql) => {
+  const [row] = await sql.queryRaw<{ id: string }>("select auth.uid() as id");
+  expect(row?.id).toBe(aliceId);
 });
 ```
 

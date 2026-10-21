@@ -21,7 +21,11 @@ import { claimsOf } from "../core/claims.ts";
 import { type DbError, dbErrorOf } from "../core/errors.ts";
 import { type ProblemDetails, toProblem } from "../core/problem.ts";
 import { flushEvents } from "../server/adapter.ts";
-import { authorizeCaller, type BlockRequireOptions } from "../server/kit.ts";
+import {
+  authorizeCaller,
+  type AuthorizeOptions,
+  type ResourceLoaderContext,
+} from "../server/kit.ts";
 import {
   type RateLimitRouteOptions,
   rateLimitGate,
@@ -130,8 +134,14 @@ export type OrpcRateLimitMiddleware<TContext extends OrpcRequestContext> =
   >;
 
 /** Guard and authorize options of `middleware()` and `authed()`. */
-export interface OrpcGuardOptions<C = unknown, P = unknown>
-  extends MiddlewareOptions, BlockRequireOptions<C, P> {}
+export interface OrpcGuardOptions<
+  C = unknown,
+  P = unknown,
+  X = ResourceLoaderContext<C, P>,
+>
+  extends
+    MiddlewareOptions,
+    AuthorizeOptions<unknown, C, P, boolean, unknown, X> {}
 
 /** `os` with the caller's context: `bs.authed().handler(({ context }) => ...)`. */
 export type OrpcAuthed<
@@ -167,7 +177,11 @@ export interface BetterOrpc<
    * refreshed session cookies and `bs-primary-until` reach the response.
    */
   middleware(
-    options?: OrpcGuardOptions<C, P>,
+    options?: OrpcGuardOptions<
+      C,
+      P,
+      ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+    >,
   ): OrpcMiddleware<M, F, E, C, P, B>;
   /**
    * A procedure builder behind `middleware(options)`, so each procedure
@@ -178,7 +192,13 @@ export interface BetterOrpc<
    *   .handler(({ context }) => bs.unwrap(context.db.customers.findMany()))
    * ```
    */
-  authed(options?: OrpcGuardOptions<C, P>): OrpcAuthed<M, F, E, C, P, B>;
+  authed(
+    options?: OrpcGuardOptions<
+      C,
+      P,
+      ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+    >,
+  ): OrpcAuthed<M, F, E, C, P, B>;
   /**
    * A fetch handler for an oRPC handler: passes `{ request }` as the initial
    * context, answers 404 when no procedure matched, and applies the cookies
@@ -278,63 +298,70 @@ export function createOrpc<
   };
 
   const middleware = (
-    middlewareOptions: OrpcGuardOptions<C, P> = {},
+    middlewareOptions: OrpcGuardOptions<
+      C,
+      P,
+      ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+    > = {},
   ): OrpcMiddleware<M, F, E, C, P, B> =>
-    os.$context<OrpcRequestContext>().middleware(async ({ context, next }) => {
-      // Nested middleware resolves the request once; the context is kept
-      // before the guard so a denied call still returns rotated cookies.
-      const refresh =
-        refreshFor(middlewareOptions.refresh, context.request) ?? false;
+    os
+      .$context<OrpcRequestContext>()
+      .middleware(async ({ context, next }, input: unknown) => {
+        // Nested middleware resolves the request once; the context is kept
+        // before the guard so a denied call still returns rotated cookies.
+        const refresh =
+          refreshFor(middlewareOptions.refresh, context.request) ?? false;
 
-      const known = contexts.get(context.request);
+        const known = contexts.get(context.request);
 
-      const ctx =
-        known && (known.refresh || !refresh)
-          ? known.ctx
-          : await server.context(context.request, { refresh });
+        const ctx =
+          known && (known.refresh || !refresh)
+            ? known.ctx
+            : await server.context(context.request, { refresh });
 
-      contexts.set(context.request, {
-        ctx,
-        refresh: refresh || (known?.refresh ?? false),
-      });
-
-      const denied = guard(
-        ctx.auth,
-        middlewareOptions.allow,
-        middlewareOptions.aal,
-        middlewareOptions.scopes,
-      );
-
-      if (denied) {
-        throw toOrpcError(denied);
-      }
-
-      const caller = await authorizeCaller(
-        ctx.auth,
-        middlewareOptions,
-        undefined,
-        tenantOf(toSession(ctx.auth), tenantClaim),
-        options.authorizer,
-      );
-
-      if ("kind" in caller) {
-        throw toOrpcError(caller);
-      }
-
-      try {
-        return await next({
-          context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+        contexts.set(context.request, {
+          ctx,
+          refresh: refresh || (known?.refresh ?? false),
         });
-      } catch (cause) {
-        const thrown = dbErrorOf(cause);
 
-        if (thrown) {
-          throw toOrpcError(thrown);
+        const denied = guard(
+          ctx.auth,
+          middlewareOptions.allow,
+          middlewareOptions.aal,
+          middlewareOptions.scopes,
+        );
+
+        if (denied) {
+          throw toOrpcError(denied);
         }
 
-        throw cause;
-      }
-    });
+        const caller = await authorizeCaller(
+          ctx.auth,
+          middlewareOptions,
+          input,
+          tenantOf(toSession(ctx.auth), tenantClaim),
+          options.authorizer,
+          ctx,
+        );
+
+        if ("kind" in caller) {
+          throw toOrpcError(caller);
+        }
+
+        try {
+          return await next({
+            context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+          });
+        } catch (cause) {
+          const thrown = dbErrorOf(cause);
+
+          if (thrown) {
+            throw toOrpcError(thrown);
+          }
+
+          throw cause;
+        }
+      });
 
   return extendServer<BetterOrpc<M, F, E, C, P, B>>(server, {
     toOrpcError,

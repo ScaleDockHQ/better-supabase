@@ -256,3 +256,146 @@ describe("permission", () => {
     });
   });
 });
+
+describe("resource", () => {
+  const owners = new Map([["p1", USER]]);
+
+  const ownerOnly = defineAuthorizer({
+    name: "owner",
+    key: (ref: string) => ref,
+    evaluate: (request) =>
+      request.resource.properties?.["ownerId"] === request.subject.id
+        ? { outcome: "granted" }
+        : { outcome: "denied" },
+  });
+
+  const Project: StandardSchemaV1<unknown, { id: string }> = {
+    "~standard": {
+      version: 1,
+      vendor: "test",
+      validate: (value) =>
+        typeof value === "object" &&
+        value !== null &&
+        "id" in value &&
+        typeof value.id === "string"
+          ? { value: { id: value.id } }
+          : { issues: [{ message: "id is required" }] },
+    },
+  };
+
+  const load = (input: unknown) => {
+    const id =
+      typeof input === "object" && input !== null && "id" in input
+        ? String(input.id)
+        : "";
+
+    const ownerId = owners.get(id);
+
+    if (ownerId === undefined) {
+      throw new DbException(dbError("not_found", "No such project"));
+    }
+
+    return { type: "project", id, properties: { ownerId } };
+  };
+
+  it("checks the permission against the loaded resource", async () => {
+    const user = await authAs({ role: "member" });
+    const seen: unknown[] = [];
+
+    const granted = await runAction(
+      user,
+      {
+        input: Project,
+        permission: "projects.update",
+        resource: (input, ctx) => {
+          seen.push(ctx);
+
+          return load(input);
+        },
+      },
+      { id: "p1" },
+      "o1",
+      () => ok("saved"),
+      ownerOnly,
+      { db: "the db" },
+    );
+
+    expect(granted).toMatchObject({ ok: true, data: "saved" });
+    expect(seen).toEqual([
+      {
+        db: "the db",
+        session: expect.objectContaining({ user: expect.anything() }),
+        tenant: "o1",
+      },
+    ]);
+  });
+
+  it("refuses when the authorizer denies the loaded resource", async () => {
+    owners.set("p2", "someone-else");
+
+    const denied = await runAction(
+      await authAs({ role: "member" }),
+      { input: Project, permission: "projects.update", resource: load },
+      { id: "p2" },
+      undefined,
+      () => ok("saved"),
+      ownerOnly,
+    );
+
+    expect(denied.error).toMatchObject({
+      kind: "forbidden",
+      code: "PERMISSION_DENIED",
+    });
+  });
+
+  it("refuses when the loader throws, keeping a DbException's error", async () => {
+    const user = await authAs({ role: "member" });
+
+    const missing = await runAction(
+      user,
+      { input: Project, permission: "projects.update", resource: load },
+      { id: "nope" },
+      undefined,
+      () => ok("saved"),
+      ownerOnly,
+    );
+
+    expect(missing.error).toMatchObject({ kind: "not_found" });
+
+    const broken = await requireCaller(
+      user,
+      {
+        permission: "projects.read",
+        resource: () => {
+          throw new Error("connection reset");
+        },
+      },
+      undefined,
+      ownerOnly,
+    );
+
+    expect(broken).toMatchObject({
+      kind: "forbidden",
+      code: "RESOURCE_UNAVAILABLE",
+    });
+  });
+
+  it("runs no loader without a permission", async () => {
+    let loaded = 0;
+
+    const caller = await requireCaller(
+      await authAs({ role: "member" }),
+      {
+        resource: () => {
+          loaded += 1;
+
+          return { type: "project" };
+        },
+      },
+      undefined,
+    );
+
+    expect(caller).toMatchObject({ session: expect.anything() });
+    expect(loaded).toBe(0);
+  });
+});

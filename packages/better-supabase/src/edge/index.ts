@@ -23,7 +23,11 @@ import {
 } from "../server/cors.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
-import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
+import {
+  type BlockRequireOptions,
+  requireCaller,
+  type ResourceLoaderContext,
+} from "../server/kit.ts";
 import { type ResourceMap, resourceRouter } from "../server/resources.ts";
 import {
   defaultExpose,
@@ -125,7 +129,13 @@ export interface EdgeRoute<
   P = unknown,
   Params = Readonly<Record<string, string>>,
   B = unknown,
-> extends BlockRequireOptions<C, P> {
+> extends BlockRequireOptions<
+  C,
+  P,
+  boolean,
+  unknown,
+  ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+> {
   readonly handler: EdgeRouteHandler<M, F, E, C, P, Params, B>;
 }
 
@@ -350,6 +360,7 @@ export function createEdge<
             { ...shared, ...route.options },
             tenant,
             options.authorizer,
+            ctx,
           );
 
           if ("kind" in caller) {

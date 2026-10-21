@@ -13,6 +13,7 @@ import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
   type FrameworkLocals,
+  type LocalsResource,
   type FrameworkOptions,
   frameworkEntry,
   localsOf,
@@ -103,7 +104,13 @@ export interface BetterSvelteKit<
    */
   require<R extends boolean = false>(
     event: SvelteKitRequestEvent,
-    options?: BlockRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * A form action returning an `ActionResult`: validates the form with
@@ -111,7 +118,14 @@ export interface BetterSvelteKit<
    * `fail(status, result)` when `kit` is set, so `form.error` is a `DbError`.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: BlockActionOptions<S, C, P, R>,
+    options: BlockActionOptions<
+      S,
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -215,6 +229,7 @@ export function createSvelteKit<
         requireOptions,
         locals.tenant,
         options.authorizer,
+        locals,
       );
 
       if ("kind" in caller) {
@@ -240,6 +255,7 @@ export function createSvelteKit<
           (parsed, caller) =>
             fn(parsed as never, { ...locals, ...caller } as never, event),
           options.authorizer,
+          locals,
         );
 
         if (!result.ok && options.kit) {

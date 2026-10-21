@@ -19,6 +19,7 @@ export type {
   ActionResult,
   AuthorizedContext,
   AuthorizeOptions,
+  ResourceLoaderContext,
   BlockActionOptions,
   BlockRequireOptions,
 } from "../server/kit.ts";

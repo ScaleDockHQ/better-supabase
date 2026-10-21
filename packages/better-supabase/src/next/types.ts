@@ -15,6 +15,7 @@ import type {
   ActionResult,
   AuthorizeOptions,
   AuthorizedContext,
+  ResourceLoaderContext,
   Unwrapped,
 } from "../server/kit.ts";
 import type { ResourceMap } from "../server/resources.ts";
@@ -121,8 +122,9 @@ export interface ActionOptions<
   P = unknown,
   R extends boolean = boolean,
   Ref = unknown,
+  X = ResourceLoaderContext<C, P>,
 >
-  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R, Ref> {
+  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R, Ref, X> {
   /** Validates the input (plain object or `FormData`) with any Standard Schema. */
   readonly input?: S;
   /**
@@ -139,8 +141,9 @@ export interface RouteOptions<
   P = unknown,
   R extends boolean = boolean,
   Ref = unknown,
+  X = ResourceLoaderContext<C, P>,
 >
-  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R, Ref> {
+  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R, Ref, X> {
   /**
    * Refresh an expired session cookie in the route and send the new cookies
    * with its response. For routes the proxy's matcher skips; off by default
@@ -154,8 +157,9 @@ export interface RequireOptions<
   P = unknown,
   R extends boolean = boolean,
   Ref = unknown,
+  X = ResourceLoaderContext<C, P>,
 >
-  extends GuardOptions, AuthorizeOptions<undefined, C, P, R, Ref> {
+  extends GuardOptions, AuthorizeOptions<undefined, C, P, R, Ref, X> {
   /** The active tenant, as for `bs.context({ tenant })`. */
   readonly tenant?: string;
 }
@@ -256,7 +260,7 @@ export interface BetterNext<
       ctx: ServerContext<M, F, E, C, P, B> &
         AuthorizedContext<C, P, R> & { readonly params: Params },
     ) => unknown,
-    options?: RouteOptions<C, P, R, Ref>,
+    options?: RouteOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
   ): (
     request: NextRequest,
     segment: { readonly params: Promise<Params> },
@@ -272,7 +276,7 @@ export interface BetterNext<
    * ```
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: ActionOptions<S, C, P, R, Ref>,
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
     fn: (
       input: ActionParsed<S>,
       ctx: ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -289,7 +293,7 @@ export interface BetterNext<
    * ```
    */
   require<R extends boolean = false>(
-    options?: RequireOptions<C, P, R, Ref>,
+    options?: RequireOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
   ): Promise<ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * REST resources for a catch-all route, matching the API model:
@@ -428,3 +432,13 @@ export interface RequireAalOptions {
   /** Paths that need the level. Defaults to every path but `redirect`. */
   readonly match?: (pathname: string) => boolean;
 }
+
+/** What a `resource` loader gets in Next.js: the caller's context, with the checked tenant. */
+export type NextResource<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+  B = unknown,
+> = ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>;

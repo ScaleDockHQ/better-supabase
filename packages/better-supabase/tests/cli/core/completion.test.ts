@@ -44,7 +44,13 @@ describe("__complete", () => {
       "data",
       "print",
     ]);
-    expect(await values("codemod", "0.")).toEqual(["0.4", "0.5", "0.6", "0.9"]);
+    expect(await values("codemod", "0.")).toEqual([
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.9",
+      "0.11",
+    ]);
   });
 
   it("describes each candidate after a tab", async () => {

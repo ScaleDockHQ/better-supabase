@@ -234,6 +234,46 @@ describe("doctor rules", () => {
     expect(await runRules(context(snap), only)).toEqual([]);
   });
 
+  it("reads grants from the catalog, whatever file wrote them", async () => {
+    const exposeNotes = resolveConfig(
+      { expose: { notes: ["select", "update"] } },
+      "/project",
+    );
+
+    expect(exposeNotes.blockNames).not.toContain("grants");
+
+    const tableGrants = snapshot((tables) => {
+      table(tables, "notes").grants = [
+        { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+      ];
+    });
+
+    const columnGrants = snapshot((tables) => {
+      const notes = table(tables, "notes");
+
+      notes.grants = [];
+      notes.columnGrants = [
+        { role: "authenticated", column: "id", privileges: ["SELECT"] },
+        { role: "authenticated", column: "title", privileges: ["UPDATE"] },
+      ];
+    });
+
+    const only = RULES.filter((rule) => rule.code === "BS106");
+
+    for (const snap of [tableGrants, columnGrants]) {
+      const findings = await runRules(
+        context(snap, { config: exposeNotes }),
+        only,
+      );
+
+      expect(
+        findings.filter((finding) =>
+          finding.target?.startsWith("public.notes"),
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it("accepts service-role tables without grants and flags granted ones", async () => {
     const snap = snapshot((tables) => {
       table(tables, "tags").grants = [

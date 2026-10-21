@@ -60,6 +60,30 @@ describe("collections module", () => {
     expect(sqlOf(["teams"])).toContain('"team_ids_of"((select auth.uid()))');
   });
 
+  it("checks team membership through the provider's teamIdsOf", () => {
+    const sql = renderModules(["collections"], {
+      subjects: SUBJECTS,
+      modules: { access: { model: "provider" } },
+      accessProvider: {
+        name: "stub",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "authz.ids_with({permission}, {scope})",
+          isPlatform: "authz.is_platform({permission})",
+          teamIdsOf: "authz.team_ids_of({user})",
+        },
+      },
+    })
+      .filter((file) => file.module === "collections")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      "from authz.team_ids_of((select auth.uid())) as t(id)",
+    );
+  });
+
   it("records its events with outbox installed", () => {
     const sql = sqlOf(["outbox"]);
 

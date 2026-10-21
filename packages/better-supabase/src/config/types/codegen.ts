@@ -129,9 +129,11 @@ export interface PluginFlagsConfig {
 export interface CodecsConfig {
   /**
    * `'instant'` decodes `timestamptz` columns to `Temporal.Instant` and
-   * `timestamp` columns to `Temporal.PlainDateTime`.
+   * `timestamp` columns to `Temporal.PlainDateTime`. `'utc'` keeps
+   * `timestamptz` columns as strings, always in UTC as ISO 8601 with a `Z`
+   * and every fraction digit (`2026-10-21T05:10:00.123456Z`).
    */
-  readonly timestamptz?: "string" | "instant";
+  readonly timestamptz?: "string" | "instant" | "utc";
   /** `'bigint'` or `'string'` read `int8` exactly (above 2^53). */
   readonly int8?: "number" | "string" | "bigint";
   /** `'string'` reads `numeric` exactly. */

@@ -122,6 +122,13 @@ await db.orders.findMany({ where: { createdAt: { gte: since } } });
 Without the codec, `timestamptz` columns stay ISO strings, as PostgREST
 returns them.
 
+To keep strings without Temporal but get one canonical form, set
+`codecs: { timestamptz: 'utc' }`. The select casts the column to `text`, and
+the repository rewrites each value in UTC as ISO 8601 with a `Z`, keeping
+every fraction digit Postgres sent: `2026-10-21 07:10:00.123456+02` reads as
+`2026-10-21T05:10:00.123456Z`. The type stays `string`, `infinity` and
+`-infinity` pass through, and `timestamp` columns are left as they are.
+
 ## Durations
 
 `Temporal.Instant` arithmetic has no calendar, so a `Duration` passed to

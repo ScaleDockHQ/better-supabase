@@ -31,6 +31,10 @@ Use `"cloudevents"` if your receivers already read CloudEvents, or add a
 `format` column and map it in `columns.endpoints.format` to choose per
 endpoint. See [existing tables](/docs/blocks/webhooks-out#existing-tables).
 
+`better-supabase codemod 0.11` writes `defaultFormat: "cloudevents"` into
+such a block, which keeps what it sends today, and lists the line for
+review; change it to `"standard"` if your receivers still read the 0.8 body.
+
 ## Attachment permissions per subject
 
 Attachments on a subject use the block-wide `upload` and `read` permissions

@@ -4,7 +4,11 @@ import type { BetterPostgres } from "../../src/postgres/pool.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { scopedSeed, withRollback } from "../../src/testing/scope.ts";
+import {
+  scopedSeed,
+  withClaims,
+  withRollback,
+} from "../../src/testing/scope.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -66,6 +70,30 @@ describe("withRollback", () => {
     await expect(withRollback(user, () => Promise.resolve(1))).rejects.toThrow(
       /asUser\(betterSupabase, claims, \{ postgres \}\)/,
     );
+  });
+});
+
+describe("withClaims", () => {
+  const claims = {
+    sub: "11111111-1111-4111-8111-111111111111",
+    tenant_id: "t",
+  };
+
+  it("runs fn in a transaction with the claims and returns its value", async () => {
+    const transactions: unknown[] = [];
+
+    await expect(
+      withClaims(fakePostgres(transactions), claims, () => Promise.resolve(7)),
+    ).resolves.toBe(7);
+    expect(transactions).toEqual([{ claims }]);
+  });
+
+  it("passes on an error from fn", async () => {
+    await expect(
+      withClaims(fakePostgres([]), claims, () =>
+        Promise.reject(new Error("boom")),
+      ),
+    ).rejects.toThrow("boom");
   });
 });
 

@@ -5,7 +5,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
@@ -21,6 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { callerTeamIdsSql } from "./team-ids.ts";
 
 /** The layouts a saved view can open in. */
 export const SAVED_VIEW_KINDS = [
@@ -98,7 +99,7 @@ const textList = (values: readonly string[]): string =>
 const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -126,9 +127,7 @@ function build(ctx: ModuleContext): string {
   const read = ctx.permission("read", OPERATIONS["saved-views.read"]);
   const share = ctx.permission("share", OPERATIONS["saved-views.share"]);
 
-  const teams = ctx.installed("teams")
-    ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
-    : "";
+  const teams = callerTeamIdsSql(ctx, layout);
 
   const inTeam = (value: string): string =>
     teams === "" ? "false" : `${value} in (${teams})`;

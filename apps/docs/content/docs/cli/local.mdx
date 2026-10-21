@@ -169,7 +169,9 @@ so use `.ts` extensions in its relative imports.
 `seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
 `supabase/config.toml`. To keep a second stack for tests or a demo, give it
 its own `[db] port` in `supabase/stacks/<name>/config.toml` and pass
-`--stack <name>` or set `BSB_STACK=<name>`. A connection string from
+`--stack <name>` or set `BSB_STACK=<name>`. Without a port there, the
+command reads the `DB_URL` from `supabase status --stack <name>`, and fails
+with `not_found` when that stack isn't running. A connection string from
 `$DATABASE_URL` or `--db-url-stdin` still wins. If two stacks can't run side
 by side on your Supabase CLI, use one git worktree per purpose instead; each
 worktree gets its own stack.

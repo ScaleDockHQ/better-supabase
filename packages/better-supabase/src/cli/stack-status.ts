@@ -29,18 +29,25 @@ export function parseStackStatus(stdout: string): StackStatus | undefined {
 /**
  * The local stack's URLs and keys from `supabase status`. The stack engine
  * (`[experimental] stack`) rejects `-o json` and prints the same keys with
- * `--env`.
+ * `--env`. `stack` asks for a named stack (`supabase status --stack <name>`).
  */
 export async function readStackStatus(
   root: string,
   env: CliEnv,
-  options: ExecOptions = {},
+  options: ExecOptions & { readonly stack?: string } = {},
 ): Promise<StackStatusResult> {
-  let result = await supabaseCli(["status", "-o", "json"], root, env, options);
+  const named = options.stack === undefined ? [] : ["--stack", options.stack];
+
+  let result = await supabaseCli(
+    ["status", ...named, "-o", "json"],
+    root,
+    env,
+    options,
+  );
 
   if (result.code !== 0) {
     const engine = await supabaseCli(
-      ["status", "--env", "--output-format", "json"],
+      ["status", ...named, "--env", "--output-format", "json"],
       root,
       env,
       options,

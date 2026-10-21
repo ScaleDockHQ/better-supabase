@@ -719,6 +719,13 @@ describe("codecs", () => {
       tsType: "string",
     });
   });
+
+  it("keeps timestamptz columns as strings with the utc codec", async () => {
+    expect(await createdAt({ codecs: { timestamptz: "utc" } })).toMatchObject({
+      codec: "utcString",
+      tsType: "string",
+    });
+  });
 });
 
 describe("config JSON Schema", () => {

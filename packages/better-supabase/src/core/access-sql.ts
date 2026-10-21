@@ -18,6 +18,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   isPlatformFor: ["user", "permission"],
   memberIds: ["scope"],
   memberIdsFor: ["user", "scope"],
+  teamIdsOf: ["user"],
   canAssign: ["role", "tenant", "scope"],
   canAssignFor: ["user", "role", "tenant", "scope"],
   permissionsFor: ["user", "tenant", "scope"],

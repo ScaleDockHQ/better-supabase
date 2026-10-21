@@ -148,7 +148,7 @@ function inputOf(
     }
 
     case "timestamptz": {
-      return config.codecs.timestamptz === "string" ? "datetime" : undefined;
+      return config.codecs.timestamptz === "instant" ? undefined : "datetime";
     }
 
     case "jsonb":

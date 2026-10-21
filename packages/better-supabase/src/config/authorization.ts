@@ -25,6 +25,14 @@ export interface AuthorizationFunctions {
   readonly memberIds?: string;
   /** `memberIds` for `{user}`, which the access token hook calls as `supabase_auth_admin`. */
   readonly memberIdsFor?: string;
+  /**
+   * The team ids `{user}` belongs to, as a set of the team id type: it is
+   * used as `select t.id from <template> as t(id)`. Under the provider
+   * model the teams module's `team_ids_of()`, and the team sharing in
+   * `saved-views` and `collections`, call it instead of reading
+   * `team_members`.
+   */
+  readonly teamIdsOf?: string;
   /** Whether the caller may assign `{role}` in `{tenant}`. */
   readonly canAssign?: string;
   /** Whether `{user}` may assign `{role}` in `{tenant}`. */

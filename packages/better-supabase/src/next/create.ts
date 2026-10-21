@@ -198,17 +198,18 @@ export function createNext<
     scopedTenants.get(ctx) ?? tenantOf(view, tenantClaim);
 
   /** `requireTenant`, `roles`, `permission` and `authorize`, for the context's tenant. */
-  const authorizeCaller = <I>(
+  const authorizeCaller = <I, X>(
     ctx: ServerContext<M, F, E, C, P, B>,
-    checks: AuthorizeOptions<I, C, P, boolean>,
+    checks: AuthorizeOptions<I, C, P, boolean, unknown, X>,
     input: I,
-  ): ReturnType<typeof authorizeAuth<I, C, P>> =>
+  ): ReturnType<typeof authorizeAuth<I, C, P, X>> =>
     authorizeAuth(
       ctx.auth,
       checks,
       input,
       tenantFor(ctx, toSession(ctx.auth)),
       options.authorizer,
+      ctx,
     );
 
   /** `null` runs `NextOptions.tenant`; a string is the caller's explicit tenant. */
@@ -732,6 +733,7 @@ export function createNext<
           requireOptions,
           tenantFor(ctx, toSession(ctx.auth)),
           options.authorizer,
+          ctx,
         );
 
         if ("kind" in caller) {

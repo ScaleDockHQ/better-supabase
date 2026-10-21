@@ -1033,6 +1033,7 @@
       "ResourceHandler",
       "ResourceInput",
       "ResourceList",
+      "ResourceLoaderContext",
       "ResourcePagination",
       "ResourceRouteOptions",
       "RespondOptions",
@@ -1266,6 +1267,7 @@
       "ResourceAction",
       "ResourceContext",
       "ResourceHooks",
+      "ResourceLoaderContext",
       "ResourceMap",
       "ResourceRouteOptions",
       "RouteOptions",
@@ -1340,6 +1342,7 @@
       "FrameworkLocals",
       "FrameworkOptions",
       "RefusalRedirects",
+      "ResourceLoaderContext",
       "TanStackStartHandlerArgs",
       "TanStackStartOptions",
       "TanStackStartServerArgs",
@@ -1362,6 +1365,7 @@
       "FrameworkLocals",
       "FrameworkOptions",
       "RefusalRedirects",
+      "ResourceLoaderContext",
       "SvelteKitAppError",
       "SvelteKitDepends",
       "SvelteKitEvent",
@@ -1392,6 +1396,7 @@
       "ReactRouterMiddleware",
       "ReactRouterOptions",
       "RefusalRedirects",
+      "ResourceLoaderContext",
       "ToReactRouterOptions"
     ]
   },
@@ -7836,6 +7841,7 @@
       "testWebhookSecretStore",
       "testWebhookSigner",
       "testWebhookTransport",
+      "withClaims",
       "withRollback"
     ],
     "types": [

@@ -10,6 +10,7 @@ import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
   type FrameworkLocals,
+  type LocalsResource,
   type FrameworkOptions,
   frameworkEntry,
   localsOf,
@@ -78,7 +79,13 @@ export interface BetterReactRouter<
    * is thrown the same way.
    */
   loader<A extends ReactRouterArgs, T, R extends boolean = false>(
-    options: BlockRequireOptions<C, P, R>,
+    options: BlockRequireOptions<
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
     fn: (
       args: A,
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -91,7 +98,14 @@ export interface BetterReactRouter<
     A extends ReactRouterArgs = ReactRouterArgs,
     R extends boolean = false,
   >(
-    options: BlockActionOptions<S, C, P, R>,
+    options: BlockActionOptions<
+      S,
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -169,6 +183,7 @@ export function createReactRouter<
           loaderOptions,
           scope.tenant,
           options.authorizer,
+          scope,
         );
 
         if ("kind" in caller) {
@@ -207,6 +222,7 @@ export function createReactRouter<
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never, args),
           options.authorizer,
+          scope,
         );
 
         // SAFETY: the settled data is what fn returned, unwrapped.
