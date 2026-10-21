@@ -7,7 +7,11 @@ export {
 
 export { isModuleIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
-export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
+export {
+  entityRenameChanges,
+  moduleDeprecations,
+  upgradePlan,
+} from "./upgrade.ts";
 
 export { moduleFilePaths } from "./paths.ts";
 

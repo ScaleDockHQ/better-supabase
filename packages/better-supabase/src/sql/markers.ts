@@ -40,3 +40,35 @@ export function sameModuleFile(
 
   return strip(current) === strip(expected);
 }
+
+const ENTITIES_MARKER = /^-- @bs-entities ([a-z0-9-]+) (.+)$/gm;
+
+/**
+ * The `@bs-entities` line of a module file whose entities are renamed, such as
+ * `-- @bs-entities work-items work_item=task/tasks`; undefined without a
+ * rename.
+ */
+export function entitiesMarker(
+  module: string,
+  renames: readonly {
+    readonly key: string;
+    readonly singular: string;
+    readonly plural: string;
+  }[],
+): string | undefined {
+  return renames.length === 0
+    ? undefined
+    : `-- @bs-entities ${module} ${renames
+        .map((rename) => `${rename.key}=${rename.singular}/${rename.plural}`)
+        .join(" ")}`;
+}
+
+/** Module to its entity renames, from the `@bs-entities` lines in `text`. */
+export function entityMarkers(text: string): ReadonlyMap<string, string> {
+  return new Map(
+    [...text.matchAll(ENTITIES_MARKER)].map((match) => [
+      match[1] ?? "",
+      match[2] ?? "",
+    ]),
+  );
+}

@@ -584,10 +584,29 @@ export function accessModel(ctx: ModuleContext): AccessModel {
   return ctx.modules.access?.model ?? "roles";
 }
 
+/**
+ * `blocks.access.roles`, or the default roles with their keys renamed after the
+ * blocks' entities (`work_items.*` becomes `tasks.*`).
+ */
 export function rolesOf(
   ctx: ModuleContext,
 ): Readonly<Record<string, readonly string[]>> {
-  return ctx.modules.access?.roles ?? DEFAULT_ROLES;
+  const configured = ctx.modules.access?.roles;
+
+  if (configured !== undefined) {
+    return configured;
+  }
+
+  const naming = ctx.blockNaming();
+
+  return naming.renamed
+    ? Object.fromEntries(
+        Object.entries(DEFAULT_ROLES).map(([role, keys]) => [
+          role,
+          keys.map((key) => naming.rename(key)),
+        ]),
+      )
+    : DEFAULT_ROLES;
 }
 
 export const roleNames = (ctx: ModuleContext): readonly string[] =>

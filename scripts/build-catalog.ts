@@ -32,6 +32,7 @@ import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-ty
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
+import { tenantNameClashes } from "../packages/better-supabase/src/sql/entity-clashes.ts";
 import {
   renderModules,
   SQL_MODULES,
@@ -39,7 +40,6 @@ import {
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
-import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-clashes.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");

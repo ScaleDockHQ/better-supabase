@@ -44,3 +44,41 @@ export function tenantNameClashes(
     ),
   ];
 }
+
+/** A managed table a module writes under its default or entity-renamed name. */
+export interface EntityTable {
+  readonly module: string;
+  readonly logical: string;
+  readonly schema: string;
+  readonly name: string;
+  /** Whether `blocks.<module>.entities` gave the table its name. */
+  readonly renamed: boolean;
+}
+
+/**
+ * The first entity rename that gives a table a name another module's table
+ * already has in the same schema, as an error message, or undefined.
+ */
+export function entityTableClash(
+  tables: readonly EntityTable[],
+): string | undefined {
+  const byName = new Map<string, EntityTable>();
+
+  for (const table of tables) {
+    const key = `${table.schema}.${table.name}`;
+    const other = byName.get(key);
+
+    if (other === undefined) {
+      byName.set(key, table);
+      continue;
+    }
+
+    const [renamed, kept] = table.renamed ? [table, other] : [other, table];
+
+    if (renamed.renamed && renamed.module !== kept.module) {
+      return `blocks.${renamed.module}.entities: the ${renamed.module} block's ${renamed.logical} table would be named ${renamed.name}, which the ${kept.module} block already uses. Choose another name.`;
+    }
+  }
+
+  return undefined;
+}

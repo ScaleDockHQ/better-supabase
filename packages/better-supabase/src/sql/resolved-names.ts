@@ -51,7 +51,14 @@ export interface ResolvedNames {
   readonly entities: Readonly<Record<string, ResolvedEntity>>;
   /** The tenant's noun, `organization` unless the tenant block renames it. */
   readonly tenant: EntityNoun;
+  /** Tables, columns, functions, hooks and triggers: tenant and own entities. */
   readonly naming: EntityNames;
+  /**
+   * Event types, payload keys, subjects, permission keys and TypeScript names:
+   * the module's own entities. The tenant rename leaves them alone, as it
+   * always has.
+   */
+  readonly entityNaming: EntityNames;
 }
 
 const PLACEHOLDER = /\{([^{}]*)\}/g;
@@ -222,10 +229,19 @@ export function resolveNames(
     }
   }
 
-  const renames: EntityRename[] = [
-    ...(tenantName === undefined ? [] : [tenantRename(tenantName)]),
-    ...own.map((entity) => ({ from: entity.from, to: entity.to })),
-  ];
+  const renames: EntityRename[] = own.map((entity) => ({
+    from: entity.from,
+    to: entity.to,
+  }));
 
-  return { module, entities, tenant, naming: entityNames(renames) };
+  return {
+    module,
+    entities,
+    tenant,
+    naming: entityNames([
+      ...(tenantName === undefined ? [] : [tenantRename(tenantName)]),
+      ...renames,
+    ]),
+    entityNaming: entityNames(renames),
+  };
 }

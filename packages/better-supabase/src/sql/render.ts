@@ -4,6 +4,7 @@ import type {
   ModuleContractFunction,
   ModuleIdType,
 } from "./context.ts";
+import type { EntityTable } from "./entity-clashes.ts";
 import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { tenantNameOf } from "../config/blocks.ts";
@@ -12,14 +13,15 @@ import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
+import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
+import { entitiesMarker } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
-import { tenantNameClashes } from "./tenant-clashes.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
 /**
@@ -112,6 +114,7 @@ export function renderModules(
   const modules = resolveModules(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
+  checkEntityTables(modules, layout, installed);
 
   const files = modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
@@ -127,9 +130,22 @@ export function renderModules(
       "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ];
 
+    const entities = entitiesMarker(
+      module.name,
+      Object.values(ctx.resolved.entities)
+        .filter(
+          (entity) =>
+            !entity.global &&
+            (entity.to.singular !== entity.from.singular ||
+              entity.to.plural !== entity.from.plural),
+        )
+        .map((entity) => ({ key: entity.key, ...entity.to })),
+    );
+
     const header = [
       title,
       `-- @bs-module ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
+      ...(entities === undefined ? [] : [entities]),
       `-- ${module.description}`,
       ...managed,
     ].join("\n");
@@ -246,6 +262,48 @@ function checkTenantName(
     throw new TypeError(
       `blocks.tenant.entities.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
+  }
+}
+
+/**
+ * Throws when `blocks.<name>.entities` gives a managed table a name another
+ * installed block's table already has.
+ */
+function checkEntityTables(
+  modules: readonly SqlModule[],
+  layout: ModuleLayout,
+  installed: readonly string[],
+): void {
+  if (!modules.some((module) => layout.modules?.[module.name]?.entities)) {
+    return;
+  }
+
+  const tables = modules.flatMap((module): EntityTable[] => {
+    const ctx = moduleContext(module.name, layout, installed);
+
+    if (!ctx.manages) {
+      return [];
+    }
+
+    return Object.entries(module.names?.tables ?? {})
+      .filter(([logical]) => ctx.config.tables[logical] === undefined)
+      .map(([logical, spec]) => {
+        const { schema, name } = ctx.tableName(logical);
+
+        return {
+          module: module.name,
+          logical,
+          schema,
+          name,
+          renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
+        };
+      });
+  });
+
+  const clash = entityTableClash(tables);
+
+  if (clash !== undefined) {
+    throw new TypeError(clash);
   }
 }
 

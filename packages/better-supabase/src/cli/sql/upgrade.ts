@@ -13,6 +13,7 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
+  entityRenameChanges,
   moduleFileVersion,
   moduleTopics,
   renderModules,
@@ -60,9 +61,19 @@ export async function upgrade(
   const files = renderModules(config.blockNames, sqlLayout);
   const migrations = await writesMigrations(config);
 
-  const { installed, stale, diffs } = migrations
+  const { installed, stale, diffs, text } = migrations
     ? await installedFromMigration(config, sqlLayout, files, paint)
     : await installedFromFiles(config, files, paint);
+
+  const renamed = entityRenameChanges(
+    installed.map((entry) => entry.module),
+    text,
+    files.map((file) => file.contents).join("\n"),
+  );
+
+  if (renamed.length > 0) {
+    return { code: 1, errorCode: "config_invalid", error: renamed.join("\n") };
+  }
 
   const plan = upgradePlan(installed, sqlLayout);
 
@@ -166,6 +177,8 @@ interface Installed {
   /** Paths that differ from what this release writes. */
   readonly stale: string[];
   readonly diffs: string[];
+  /** The installed files or migration, for their `@bs-entities` lines. */
+  readonly text: string;
 }
 
 /** The installed versions from the module files in `sql.dir`. */
@@ -177,6 +190,7 @@ async function installedFromFiles(
   const installed: InstalledModule[] = [];
   const stale: string[] = [];
   const diffs: string[] = [];
+  const texts: string[] = [];
 
   for (const file of files) {
     if (file.kind === "data") {
@@ -196,6 +210,7 @@ async function installedFromFiles(
       continue;
     }
 
+    texts.push(current);
     installed.push({
       module: file.module,
       version: moduleFileVersion(current)?.version ?? 1,
@@ -208,7 +223,7 @@ async function installedFromFiles(
     }
   }
 
-  return { installed, stale, diffs };
+  return { installed, stale, diffs, text: texts.join("\n") };
 }
 
 /**
@@ -224,7 +239,7 @@ async function installedFromMigration(
   const latest = await latestMigration(config, MODULES_SUFFIX);
 
   if (latest === undefined) {
-    return { installed: [], stale: [], diffs: [] };
+    return { installed: [], stale: [], diffs: [], text: "" };
   }
 
   const versions = migrationModules(latest.text);
@@ -245,10 +260,11 @@ async function installedFromMigration(
   });
 
   return sameModuleMigration(latest.text, expected)
-    ? { installed, stale: [], diffs: [] }
+    ? { installed, stale: [], diffs: [], text: latest.text }
     : {
         installed,
         stale: [latest.path],
         diffs: [fileDiff(latest.path, latest.text, expected, paint)],
+        text: latest.text,
       };
 }

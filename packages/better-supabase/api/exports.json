@@ -7767,6 +7767,7 @@
       "customContracts",
       "dataExportPlan",
       "declaredTables",
+      "entityRenameChanges",
       "excludedColumns",
       "expiredFlagsQuery",
       "extensionSchema",

@@ -15,6 +15,7 @@ import type { ModuleScope } from "./scope.ts";
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveModule } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
@@ -312,6 +313,11 @@ export interface ModuleContext {
   readonly resolved: ResolvedNames;
   /** The renamer every default name goes through (`resolved.naming`). */
   readonly naming: EntityNames;
+  /**
+   * Every configured block's entity renames as one, for names that span blocks,
+   * such as the permission keys in the default roles.
+   */
+  blockNaming(): EntityNames;
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
    * `blocks.<name>.entities` and `blocks.<name>.functions` rename it.
@@ -659,7 +665,7 @@ export function createModuleContext(
   }
 
   const resolved = resolveNames(module, names, modules);
-  const naming = resolved.naming;
+  const { naming, entityNaming } = resolved;
   // blocks.access.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
   const renames = module === "access" ? {} : config.functions;
@@ -776,7 +782,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ?? name,
+      config.hooks.functions[name] ?? entityNaming.rename(name),
       config.hooks.schema,
     );
 
@@ -842,8 +848,38 @@ export function createModuleContext(
     }
   };
 
-  const outbox = (event: ModuleEmit): string => {
-    checkEvent(event);
+  // The written event: its type, subject collection and payload keys follow
+  // the module's entity renames.
+  const renamed = <E extends ModuleEmit>(event: E): E => {
+    if (!entityNaming.renamed) {
+      return event;
+    }
+
+    const spec = names.events?.[event.type];
+    const prefix = spec === undefined ? undefined : `'${spec.subject}/`;
+
+    const payload = (spec?.payload ?? []).reduce(
+      (expression, key) =>
+        expression.replaceAll(`'${key}'`, `'${entityNaming.rename(key)}'`),
+      event.payload,
+    );
+
+    const subject =
+      prefix !== undefined && event.subject?.startsWith(prefix) === true
+        ? `'${entityNaming.rename(spec?.subject ?? "")}/${event.subject.slice(prefix.length)}`
+        : event.subject;
+
+    return {
+      ...event,
+      type: entityNaming.rename(event.type),
+      payload,
+      ...(subject === undefined ? {} : { subject }),
+    };
+  };
+
+  const outbox = (checked: ModuleEmit): string => {
+    checkEvent(checked);
+    const event = renamed(checked);
 
     if (!config.events || !installed.has("outbox")) {
       return "";
@@ -868,7 +904,8 @@ export function createModuleContext(
     ].join(", ")});`;
   };
 
-  const auditEntry = (action: ModuleAction): string => {
+  const auditEntry = (checked: ModuleAction): string => {
+    const action = renamed(checked);
     const audit = action.audit;
 
     if (!audit || !config.audit || !installed.has("audit")) {
@@ -893,7 +930,10 @@ export function createModuleContext(
     const args: [string, string | undefined][] = [
       ["event_type", sqlString(action.type)],
       ["category", sqlString(legacy ?? audit.category)],
-      ["target_type", audit.targetType && sqlString(audit.targetType)],
+      [
+        "target_type",
+        audit.targetType && sqlString(entityNaming.rename(audit.targetType)),
+      ],
       ["record_id", audit.recordId],
       ["target_label", audit.targetLabel],
       ["summary", audit.summary],
@@ -974,6 +1014,17 @@ export function createModuleContext(
     scope,
     resolved,
     naming,
+    blockNaming: () =>
+      composeNames(
+        ...Object.entries(modules).flatMap(([name, block]) => {
+          const known =
+            block?.entities === undefined ? undefined : namesOf(name);
+
+          return known === undefined
+            ? []
+            : [resolveNames(name, known, modules).entityNaming];
+        }),
+      ),
     modules,
     manages: config.mode === "managed",
     names,
@@ -1020,9 +1071,10 @@ export function createModuleContext(
 
       return config.tables[table] !== null;
     },
-    permissionKey: (action, fallback) => config.permissions[action] ?? fallback,
+    permissionKey: (action, fallback) =>
+      config.permissions[action] ?? entityNaming.rename(fallback),
     permission: (action, fallback) =>
-      sqlString(config.permissions[action] ?? fallback),
+      sqlString(config.permissions[action] ?? entityNaming.rename(fallback)),
     trigger: (name) => sqlIdent(`bs_${naming.rename(name)}`),
     installed(name) {
       declares(name);
