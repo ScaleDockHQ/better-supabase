@@ -37,6 +37,7 @@ const PAGES: Readonly<Record<string, string>> = {
   mcp: "cli/mcp.mdx",
   doctor: "cli/doctor.mdx",
   sql: "blocks/sql.mdx",
+  stack: "cli/stack.mdx",
   skills: "for-ai-agents.mdx",
   codemod: "cli/codemod.mdx",
   completion: "cli/completion.mdx",

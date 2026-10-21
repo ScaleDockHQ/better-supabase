@@ -1,0 +1,52 @@
+---
+title: stack
+description: List the Supabase CLI's managed stacks and prune the ones you no longer use.
+---
+
+The Supabase CLI's stack engine (`[experimental] stack = true`) starts one
+local stack per checkout and branch. Stacks outlive the worktrees and branches
+they were started for, and every running Postgres holds one System V shared
+memory segment. macOS allows 32 segments by default (`kern.sysv.shmmni`), so a
+machine with many stacks runs out, and the next shadow database fails with
+`could not create shared memory segment: No space left on device`. These
+commands show which stacks hold segments and remove the ones you no longer
+need.
+
+## ls
+
+```bash
+pnpm better-supabase stack ls
+```
+
+`stack ls` lists every stack from `supabase stack list` with its branch, its
+project root and whether it is running. It marks the stack of this checkout,
+a stack whose worktree is gone and a stack whose branch is deleted, and
+counts the shared memory segments each stack's postmaster holds. The last
+line shows how many segments are in use out of the system limit. The JSON
+envelope has the stacks in `data.stacks` and the totals in
+`data.sharedMemory`; `unattributed` counts segments no managed stack holds.
+
+Side effects: Reads the local stacks.
+
+## prune
+
+```bash
+pnpm better-supabase stack prune --dry-run
+pnpm better-supabase stack prune --stop-idle
+```
+
+`stack prune` destroys each stack whose worktree no longer exists or whose
+branch was deleted, with `supabase stack destroy`, which also removes its
+data. It never touches the stack of this checkout and branch.
+
+| Flag          | Effect                                                                           |
+| ------------- | -------------------------------------------------------------------------------- |
+| `--stop-idle` | Also stops the running stacks of other branches and checkouts. Their data stays. |
+| `--dry-run`   | Prints the stacks it would destroy or stop, and changes nothing.                 |
+
+In agent mode, destroying a stack needs the user's consent first
+([Agent mode](/docs/cli/agent-mode)). Stopping a stack frees its segment, and
+`supabase start` in that checkout starts it again with its data. Run
+`better-supabase doctor` to see the segment use as a finding (BS700).
+
+Side effects: Stops or destroys local stacks.

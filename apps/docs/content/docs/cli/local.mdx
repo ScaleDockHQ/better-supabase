@@ -63,6 +63,12 @@ Docker daemon and rejects `supabase status -o json`. `env` then reads
 `SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
 secret.
 
+The native stack starts one stack per checkout and branch, and each running
+Postgres holds a System V shared memory segment. When segments run out,
+[`stack prune`](/docs/cli/stack) removes the stacks of deleted worktrees and
+branches, and [`db diff`](/docs/cli/db#diff) diffs the declarative schema
+without a shadow database.
+
 Side effects: Writes files.
 
 ## run

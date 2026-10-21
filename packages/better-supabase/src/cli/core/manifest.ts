@@ -30,6 +30,7 @@ export type CommandEffect = (
   | { readonly kind: "database"; readonly access: "read" | "write" }
   | { readonly kind: "network"; readonly target: NetworkTarget }
   | { readonly kind: "process" }
+  | { readonly kind: "stacks"; readonly access: "read" | "write" }
 ) & {
   /** The flag that turns the effect on, when the command doesn't always have it. */
   readonly when?: string;
@@ -341,6 +342,36 @@ export const COMMANDS: readonly CommandSpec[] = [
     group: "local",
     docs: "/docs/cli/local#keys",
     effects: [FILES],
+  },
+  {
+    name: "stack",
+    description:
+      "Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone",
+    group: "local",
+    docs: "/docs/cli/stack",
+    effects: [{ kind: "stacks", access: "write" }],
+    subcommands: [
+      {
+        name: "ls",
+        description:
+          "Lists every managed stack with its branch, worktree, running state and shared memory segments",
+        docs: "/docs/cli/stack#ls",
+        effects: [{ kind: "stacks", access: "read" }],
+      },
+      {
+        name: "prune",
+        description:
+          "Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks",
+        docs: "/docs/cli/stack#prune",
+        examples: [
+          {
+            command: "better-supabase stack prune --stop-idle --dry-run",
+            description: "Print what it would destroy and stop",
+          },
+        ],
+        effects: [{ kind: "stacks", access: "write" }],
+      },
+    ],
   },
   {
     name: "seed",

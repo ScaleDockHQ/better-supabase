@@ -8,6 +8,7 @@
     "introspect",
     "local",
     "db",
+    "stack",
     "spec",
     "scaffold",
     "doctor",

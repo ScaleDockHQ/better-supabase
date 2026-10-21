@@ -74,6 +74,19 @@ async function exec(
   }
 }
 
+/** Runs any command with piped output; 127 when it could not start. */
+export function runProcess(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: CliEnv,
+  options: ExecOptions = {},
+): Promise<ExecResult> {
+  return exec(command, args, cwd, env, options);
+}
+
+export type RunProcess = typeof runProcess;
+
 const SIGNAL_NUMBERS: Readonly<Record<string, number>> = {
   SIGHUP: 1,
   SIGINT: 2,
