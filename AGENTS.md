@@ -176,6 +176,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0057: Create runs in the cloud app at `app.bettersupabase.com`; marketing redirects `/create` there.
 - 0058: a design too large for a URL reaches `init` and `apply` as a JSON design file.
 - 0059: `db diff` diffs inside the running stack when the shadow database can't start; `stack prune` frees segments.
+- 0060: block entities rename per block (`blocks.<name>.entities`); keys are typed and entities register as subjects.
+- 0061: `gen` writes block schemas, name constants, nuqs parsers and factories; their libraries stay optional peers.
 
 ## Pre-release pins
 
